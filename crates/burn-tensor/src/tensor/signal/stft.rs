@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use burn_backend::Backend;
-
 use crate::Tensor;
 use crate::ops::PadMode;
 

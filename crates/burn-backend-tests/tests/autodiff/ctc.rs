@@ -3,12 +3,7 @@ use burn_tensor::{Device, TensorData, Tolerance, activation::log_softmax, module
 
 /// Deterministic logits: sin((t*7 + n*13 + c*3) * 0.1). Matches the
 /// fixture generator in `burn-nn/src/loss/ctc.rs`'s PyTorch comparison tests.
-fn generate_logits(
-    t_size: usize,
-    n_size: usize,
-    c_size: usize,
-    device: &Device<TestBackend>,
-) -> TestTensor<3> {
+fn generate_logits(t_size: usize, n_size: usize, c_size: usize, device: &Device) -> TestTensor<3> {
     let mut data = Vec::with_capacity(t_size * n_size * c_size);
     for t in 0..t_size {
         for n in 0..n_size {

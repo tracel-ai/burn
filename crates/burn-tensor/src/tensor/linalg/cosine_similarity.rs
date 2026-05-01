@@ -1,4 +1,4 @@
-use burn_backend::ElementConversion;
+use burn_std::FloatDType;
 
 use crate::tensor::Tensor;
 
@@ -24,7 +24,7 @@ pub fn cosine_similarity<const D: usize>(
     x1: Tensor<D>,
     x2: Tensor<D>,
     dim: i32,
-    eps: f64,
+    eps: Option<f64>,
 ) -> Tensor<D> {
     let eps = eps.unwrap_or_else(|| {
         x1.dtype()

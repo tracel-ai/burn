@@ -11,12 +11,11 @@ mod tch {
 
 #[cfg(feature = "flex")]
 mod flex {
-    use crate::{BoolVisionOps, FloatVisionOps, IntVisionOps, QVisionOps, VisionBackend};
+    use crate::{BoolVisionOps, FloatVisionOps, IntVisionOps, VisionBackend};
     use burn_flex::Flex;
 
     impl BoolVisionOps for Flex {}
     impl IntVisionOps for Flex {}
     impl FloatVisionOps for Flex {}
-    impl QVisionOps for Flex {}
     impl VisionBackend for Flex {}
 }

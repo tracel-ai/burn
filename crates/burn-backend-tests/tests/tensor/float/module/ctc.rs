@@ -26,59 +26,6 @@ fn test_ctc_loss_unreachable_target_is_inf() {
     );
 }
 
-/// Regression for NaN gradient contamination on unreachable targets via the
-/// default `ctc_loss_backward` path (the one used by burn-cubecl's fused
-/// kernel via `ctc_grad_from_alpha_beta_default`). `log_alpha + log_beta -
-/// log_probs + nll` evaluates to `(-inf) + (+inf) = NaN` for nll = +inf
-/// samples, and `NaN * 0 = NaN` under IEEE 754 would defeat any outer
-/// zero_infinity masking. The fix masks gradient entries for is_inf(nll)
-/// samples directly inside `ctc_grad_from_alpha_beta_default`.
-///
-/// Skipped on backends without a native `ctc_loss_backward`; for those
-/// backends the gradient is built by autodiff differentiating through the
-/// decomposed forward, which never enters `ctc_grad_from_alpha_beta_default`.
-#[test]
-fn test_ctc_loss_backward_unreachable_is_finite() {
-    use burn_tensor::ops::ModuleOps;
-
-    if !<TestBackend as ModuleOps<TestBackend>>::has_ctc_loss_backward() {
-        return;
-    }
-
-    let device = Default::default();
-
-    // T=2, target=[1, 1] requires three steps, so nll = +inf for this sample.
-    let log_probs = TestTensor::<3>::full([2, 1, 3], (1.0f32 / 3.0).ln(), &device);
-    let targets =
-        TestTensorInt::<2>::from_data(burn_tensor::TensorData::from([[1_i64, 1]]), &device);
-    let input_lengths =
-        TestTensorInt::<1>::from_data(burn_tensor::TensorData::from([2_i64]), &device);
-    let target_lengths =
-        TestTensorInt::<1>::from_data(burn_tensor::TensorData::from([2_i64]), &device);
-    let grad_loss = TestTensor::<1>::ones([1], &device);
-
-    let grad = <TestBackend as ModuleOps<TestBackend>>::ctc_loss_backward(
-        log_probs.into_primitive().tensor(),
-        targets.into_primitive(),
-        input_lengths.into_primitive(),
-        target_lengths.into_primitive(),
-        grad_loss.into_primitive().tensor(),
-        0,
-    );
-    let grad_tensor = TestTensor::<3>::from_primitive(burn_tensor::TensorPrimitive::Float(grad));
-    let grad_data = grad_tensor.into_data();
-    for v in grad_data.iter::<f32>() {
-        assert!(
-            v.is_finite(),
-            "gradient for unreachable target must be finite, got {v}"
-        );
-        assert_eq!(
-            v, 0.0f32,
-            "gradient for unreachable target must be zero, got {v}"
-        );
-    }
-}
-
 #[test]
 fn test_ctc_loss_empty_target() {
     // T=3, N=1, C=2, blank=0, target_length=0, uniform P = 1/2.

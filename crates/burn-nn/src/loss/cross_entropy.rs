@@ -462,7 +462,7 @@ mod tests {
     fn test_logits_flag_affects_output() {
         let device = Default::default();
 
-        let probs = Tensor::<TestBackend, 2>::from_data(
+        let probs = Tensor::<2>::from_data(
             TensorData::from([
                 [0.1, 0.2, 0.7, 0.0, 0.0],
                 [0.7, 0.1, 0.1, 0.1, 0.0],
@@ -472,8 +472,7 @@ mod tests {
             &device,
         );
 
-        let targets =
-            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([2, 0, 4, 1]), &device);
+        let targets = Tensor::<1, Int>::from_data(TensorData::from([2, 0, 4, 1]), &device);
 
         let loss_logits = CrossEntropyLossConfig::new()
             .init(&device)

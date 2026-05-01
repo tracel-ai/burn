@@ -29,10 +29,7 @@ pub fn ctc_loss(
     input_lengths: Tensor<1, Int>,
     target_lengths: Tensor<1, Int>,
     blank: usize,
-) -> Tensor<1>
-where
-    B: Backend,
-{
+) -> Tensor<1> {
     Tensor::new(TensorPrimitive::Float(Dispatch::ctc_loss(
         log_probs.primitive.tensor(),
         targets.primitive,
@@ -458,7 +455,7 @@ pub fn linear<const D: usize>(
         return output.squeeze_dim(0);
     }
 
-    Tensor::new(TensorPrimitive::Float(B::linear(
+    Tensor::new(TensorPrimitive::Float(Dispatch::linear(
         input.primitive.tensor(),
         weight.primitive.tensor(),
         bias.map(|b| b.primitive.tensor()),
@@ -602,7 +599,7 @@ pub fn layer_norm<const D: usize>(
     gamma: Tensor<1>,
     beta: Option<Tensor<1>>,
     epsilon: f64,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     Tensor::from_primitive(TensorPrimitive::Float(Dispatch::layer_norm(
         input.primitive.tensor(),
         gamma.primitive.tensor(),

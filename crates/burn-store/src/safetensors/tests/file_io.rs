@@ -247,15 +247,9 @@ fn test_forward_pass_preservation_after_save_load() {
 
 #[test]
 fn should_save_load_compose() {
-<<<<<<< HEAD
     let device = Device::default();
     let module_1 = ModuleComposed::new(&device);
     let mut module_2 = ModuleComposed::new(&device);
-=======
-    let device = Default::default();
-    let module_1 = ModuleComposed::<TestBackend>::new(&device);
-    let mut module_2 = ModuleComposed::<TestBackend>::new(&device);
->>>>>>> main
     assert_ne!(module_1.weight.to_data(), module_2.weight.to_data());
     assert_ne!(
         module_1.basic.weight_basic.to_data(),

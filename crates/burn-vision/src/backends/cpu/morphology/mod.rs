@@ -1,11 +1,8 @@
 use std::fmt::Debug;
 
 use burn_core::tensor::{
-    Bool, BoolStore, DType, Device, Element, Scalar, Shape, Tensor, TensorData,
-    backend::{Backend, BasicOps},
-    cast::ToElement,
-    ops::BoolTensor,
-    read_sync,
+    Bool, BoolStore, DType, Device, Element, ElementLimits, Scalar, Shape, Tensor, TensorData,
+    backend::Backend, cast::ToElement,
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
@@ -100,7 +97,7 @@ pub fn morph<B: Backend>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn morph_typed<B: Backend, T: VOrd + MinMax + Element>(
+fn morph_typed<B: Backend, T: VOrd + MinMax + Element + ElementLimits>(
     mut input: TensorData,
     shape: Shape,
     kernel: MorphKernel<B::BoolElem>,

@@ -10,11 +10,7 @@
 use crate::pytorch::PytorchReader;
 // Import internal types for testing only
 use crate::pytorch::reader::{ByteOrder, FileFormat};
-<<<<<<< HEAD
-use burn_core::tensor::{BoolStore, DType, shape};
-=======
-use burn_tensor::{BoolStore, DType, TensorData, Tolerance, shape};
->>>>>>> main
+use burn_core::tensor::{BoolStore, DType, TensorData, Tolerance, shape};
 use std::path::PathBuf;
 
 fn test_data_path(filename: &str) -> PathBuf {

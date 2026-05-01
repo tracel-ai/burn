@@ -708,4 +708,13 @@ impl ModuleOps<Self> for Dispatch {
             B::ctc_loss_backward(log_probs, targets, input_lengths, target_lengths, grad_loss, blank)
         )
     }
+
+    // TODO: linear ops
+    // fn linear(
+    //         x: FloatTensor<Self>,
+    //         weight: FloatTensor<Self>,
+    //         bias: Option<FloatTensor<Self>>,
+    //     ) -> FloatTensor<Self> {
+
+    // }
 }

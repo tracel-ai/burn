@@ -16,8 +16,8 @@ pub trait Ordered: Numeric + backend::Ordered<Dispatch> {}
 impl<K: Numeric + backend::Ordered<Dispatch>> Ordered for K {}
 
 /// Kinds that support transaction operations.
-pub trait Transaction: backend::TransactionOp<Dispatch> {}
-impl<K: backend::TransactionOp<Dispatch>> Transaction for K {}
+pub trait Transaction: Basic + backend::TransactionOp<Dispatch> {}
+impl<K: Basic + backend::TransactionOp<Dispatch>> Transaction for K {}
 
 /// Kinds that support autodiff operations.
 // #[cfg(feature = "autodiff")]

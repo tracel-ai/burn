@@ -3,6 +3,7 @@ use alloc::string::String;
 use alloc::{vec, vec::Vec};
 
 use burn_backend::quantization::QuantScheme;
+use burn_backend::tensor::{Device, QuantizedTensor};
 use burn_backend::{
     AutodiffBackend, Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive,
 };

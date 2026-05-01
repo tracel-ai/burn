@@ -45,8 +45,6 @@ burn-core = { workspace = true }
 num-traits = { workspace = true }
 
 [dev-dependencies]
-burn-flex = { workspace = true, features = ["default"] }
-burn-autodiff = { workspace = true, features = ["default"] }
 burn-core = { workspace = true, features = ["autodiff"] }
 rstest = { workspace = true }
 

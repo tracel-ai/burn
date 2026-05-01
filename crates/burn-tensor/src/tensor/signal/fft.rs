@@ -74,7 +74,7 @@ pub fn rfft<const D: usize>(
         }
     }
 
-    let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim, n);
+    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.tensor(), dim, n);
     (
         Tensor::new(TensorPrimitive::Float(spectrum_re)),
         Tensor::new(TensorPrimitive::Float(spectrum_im)),
@@ -142,7 +142,7 @@ pub fn irfft<const D: usize>(
         );
     }
 
-    let signal = B::irfft(
+    let signal = Dispatch::irfft(
         spectrum_re.primitive.tensor(),
         spectrum_im.primitive.tensor(),
         dim,

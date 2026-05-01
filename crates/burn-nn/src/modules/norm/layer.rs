@@ -73,8 +73,13 @@ impl LayerNorm {
     ///
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
-    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<B, D> {
-        layer_norm(input, self.gamma.val(), self.beta.val(), self.epsilon)
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+        layer_norm(
+            input,
+            self.gamma.val(),
+            self.beta.as_ref().map(|b| b.val()),
+            self.epsilon,
+        )
     }
 }
 

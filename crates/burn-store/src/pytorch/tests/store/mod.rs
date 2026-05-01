@@ -120,10 +120,6 @@ mod linear_model_tests {
     use burn_core::tensor::Device;
 
     use super::*;
-<<<<<<< HEAD
-=======
-    type TestBackend = burn_flex::Flex;
->>>>>>> main
 
     #[derive(Module, Debug)]
     pub struct SimpleLinearModel {
@@ -259,11 +255,6 @@ mod conv_model_tests {
 
     use super::*;
 
-<<<<<<< HEAD
-=======
-    type TestBackend = burn_flex::Flex;
-
->>>>>>> main
     #[derive(Module, Debug)]
     struct SimpleConvModel {
         conv1: Conv2d,
@@ -323,10 +314,6 @@ mod conv_model_tests {
 #[cfg(test)]
 mod complex_model_tests {
     use super::*;
-<<<<<<< HEAD
-=======
-    type TestBackend = burn_flex::Flex;
->>>>>>> main
 
     #[test]
     fn test_load_with_top_level_key() {
@@ -414,11 +401,6 @@ mod adapter_tests {
 
     use super::*;
 
-<<<<<<< HEAD
-=======
-    type TestBackend = burn_flex::Flex;
-
->>>>>>> main
     #[derive(Module, Debug)]
     pub struct SimpleLinearModel {
         fc1: Linear,
@@ -496,10 +478,6 @@ mod error_handling_tests {
     use burn_core::tensor::Device;
 
     use super::*;
-<<<<<<< HEAD
-=======
-    use burn_flex::Flex;
->>>>>>> main
 
     #[derive(Module, Debug)]
     pub struct SimpleLinearModel {
@@ -519,17 +497,10 @@ mod error_handling_tests {
     #[test]
     fn test_missing_file() {
         let device = Default::default();
-<<<<<<< HEAD
         let mut model = SimpleLinearModel::new(&device);
         let mut store = PytorchStore::from_file("nonexistent.pth");
 
         let result = store.apply_to(&mut model);
-=======
-        let mut model = SimpleLinearModel::<Flex>::new(&device);
-        let mut store = PytorchStore::from_file("nonexistent.pth");
-
-        let result = store.apply_to::<Flex, _>(&mut model);
->>>>>>> main
 
         assert!(result.is_err());
         match result {
@@ -551,19 +522,11 @@ mod error_handling_tests {
         }
 
         let device = Default::default();
-<<<<<<< HEAD
         let mut model = SimpleLinearModel::new(&device);
 
         let mut store = PytorchStore::from_file(path).with_top_level_key("nonexistent_key");
 
         let result = store.apply_to(&mut model);
-=======
-        let mut model = SimpleLinearModel::<Flex>::new(&device);
-
-        let mut store = PytorchStore::from_file(path).with_top_level_key("nonexistent_key");
-
-        let result = store.apply_to::<Flex, _>(&mut model);
->>>>>>> main
 
         assert!(result.is_err(), "Should fail with invalid top level key");
     }
@@ -581,11 +544,7 @@ mod error_handling_tests {
         }
 
         let device = Default::default();
-<<<<<<< HEAD
         let mut model = SimpleLinearModel::new(&device);
-=======
-        let mut model = SimpleLinearModel::<Flex>::new(&device);
->>>>>>> main
 
         // Apply very restrictive filter that matches nothing
         let mut store = PytorchStore::from_file(path)
@@ -593,11 +552,7 @@ mod error_handling_tests {
             .validate(true)
             .allow_partial(false);
 
-<<<<<<< HEAD
         let result = store.apply_to(&mut model);
-=======
-        let result = store.apply_to::<Flex, _>(&mut model);
->>>>>>> main
 
         // Should fail because no tensors match and allow_partial is false
         assert!(
@@ -613,10 +568,6 @@ mod enum_variant_tests {
 
     use super::*;
     use crate::ModuleSnapshot;
-<<<<<<< HEAD
-=======
-    use burn_flex::Flex;
->>>>>>> main
 
     /// Enum representing different convolution block types (similar to YOLOX architecture)
     #[derive(Module, Debug)]
@@ -648,11 +599,7 @@ mod enum_variant_tests {
     #[test]
     fn test_enum_variant_path_mismatch() {
         let device = Default::default();
-<<<<<<< HEAD
         let mut model = ModelWithEnum::new(&device);
-=======
-        let mut model = ModelWithEnum::<Flex>::new(&device);
->>>>>>> main
 
         // Load PyTorch model that was generated without enum variant names
         // PyTorch paths: "feature.weight", "feature.bias", "classifier.weight", "classifier.bias"
@@ -668,11 +615,7 @@ mod enum_variant_tests {
             .allow_partial(true) // Allow partial to see what's missing
             .validate(false); // Disable validation to get detailed missing info
 
-<<<<<<< HEAD
         let result = store.apply_to(&mut model);
-=======
-        let result = store.apply_to::<Flex, _>(&mut model);
->>>>>>> main
 
         // The load should succeed (allow_partial=true) but report missing tensors
         match result {
@@ -733,11 +676,7 @@ mod enum_variant_tests {
         let device = Default::default();
 
         // Create model with enum
-<<<<<<< HEAD
         let model = ModelWithEnum::new(&device);
-=======
-        let model = ModelWithEnum::<Flex>::new(&device);
->>>>>>> main
 
         // Collect snapshots to inspect container stacks
         let snapshots = model.collect(None, None, false);
@@ -764,11 +703,7 @@ mod enum_variant_tests {
     #[test]
     fn test_skip_enum_variants_feature() {
         let device = Default::default();
-<<<<<<< HEAD
         let mut model = ModelWithEnum::new(&device);
-=======
-        let mut model = ModelWithEnum::<Flex>::new(&device);
->>>>>>> main
 
         // Load PyTorch model that was generated without enum variant names
         // PyTorch paths: "feature.weight", "feature.bias", "classifier.weight", "classifier.bias"
@@ -782,11 +717,7 @@ mod enum_variant_tests {
             .allow_partial(true)
             .validate(false);
 
-<<<<<<< HEAD
         let result = store.apply_to(&mut model);
-=======
-        let result = store.apply_to::<Flex, _>(&mut model);
->>>>>>> main
 
         // The load should succeed and all tensors should be loaded
         match result {
@@ -1054,10 +985,6 @@ mod map_indices_contiguous_tests {
     use burn_core::tensor::Device;
 
     use super::*;
-<<<<<<< HEAD
-=======
-    type TestBackend = burn_flex::Flex;
->>>>>>> main
 
     /// Model with a Vec of Conv2d layers that expects contiguous indices
     #[derive(Module, Debug)]

@@ -1,9 +1,7 @@
 use crate::{NmsOptions, dispatch_int_dtype};
 use aligned_vec::{AVec, ConstAlign};
 use alloc::vec::Vec;
-use burn_core::tensor::{
-    Element, ElementConversion, Int, IntDType, Shape, Tensor, TensorData, ops::FloatTensor,
-};
+use burn_core::tensor::{Element, ElementConversion, IntDType, Shape, TensorData};
 use macerator::{Scalar, Simd, Vector, vload};
 
 /// Perform NMS on CPU using SIMD acceleration.

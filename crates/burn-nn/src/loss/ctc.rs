@@ -3,7 +3,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Bool, Device, Element, Int, Tensor, s};
+use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 
 /// Configuration for the [CTC Loss](CTCLoss) module.
@@ -210,7 +210,7 @@ impl CTCLoss {
     /// - `input_lengths[i] >= target_lengths[i]`
     /// - `input_lengths[i] <= max_input_length`
     #[allow(unused_variables)]
-    fn length_assertions<B: Backend>(
+    fn length_assertions(
         &self,
         input_lengths: Tensor<1, Int>,
         target_lengths: Tensor<1, Int>,
@@ -243,7 +243,7 @@ impl CTCLoss {
         }
     }
 
-    fn assertions<B: Backend>(
+    fn assertions(
         &self,
         batch_size: usize,
         num_classes: usize,
@@ -282,9 +282,6 @@ mod tests {
     use burn::tensor::{TensorData, Tolerance};
 
     use super::*;
-    use burn_flex::{Flex, FlexDevice};
-
-    type TestBackend = Flex;
 
     fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
         assert_eq!(
@@ -489,12 +486,7 @@ mod tests {
 mod pytorch_comparison_tests {
     use super::*;
     use burn::tensor::activation::log_softmax;
-    use burn_autodiff::Autodiff;
-    use burn_core::tensor::TensorData;
-    use burn_flex::{Flex, FlexDevice};
-
-    type InnerBackend = Flex;
-    type TestBackend = Autodiff<InnerBackend>;
+    use burn_core::tensor::{Device, TensorData, Tolerance};
 
     fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
         assert_eq!(
@@ -517,12 +509,7 @@ mod pytorch_comparison_tests {
     }
 
     /// Deterministic logits: sin((t*7 + n*13 + c*3) * 0.1).
-    fn generate_logits(
-        t_size: usize,
-        n_size: usize,
-        c_size: usize,
-        device: &FlexDevice,
-    ) -> Tensor<3> {
+    fn generate_logits(t_size: usize, n_size: usize, c_size: usize, device: &Device) -> Tensor<3> {
         let mut data = Vec::with_capacity(t_size * n_size * c_size);
         for t in 0..t_size {
             for n in 0..n_size {

@@ -1,13 +1,8 @@
-use burn_core::tensor::{
-    Bool, Float, Int, Tensor, TensorKind, TensorPrimitive,
-    backend::{Backend, BasicOps, extension::Dispatch},
-    kind::Basic,
-    ops::BoolTensor,
-};
+use burn_core::tensor::{Bool, Float, Int, Tensor, TensorPrimitive, backend::extension::Dispatch};
 
 use crate::{
     BoolVisionOps, ConnectedStats, ConnectedStatsOptions, Connectivity, FloatVisionOps,
-    IntVisionOps, MorphOptions, NmsOptions, VisionBackend,
+    IntVisionOps, MorphOptions, NmsOptions,
 };
 
 /// Connected components tensor extensions
@@ -116,7 +111,7 @@ impl Morphology for Tensor<3, Float> {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(
                 <Dispatch as FloatVisionOps>::float_erode(tensor, kernel.into_primitive(), opts),
             ),
-            TensorPrimitive::QFloat(tensor) => unimplemented!(),
+            TensorPrimitive::QFloat(_) => unimplemented!(),
         };
         Tensor::new(out)
     }
@@ -126,7 +121,7 @@ impl Morphology for Tensor<3, Float> {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(
                 <Dispatch as FloatVisionOps>::float_dilate(tensor, kernel.into_primitive(), opts),
             ),
-            TensorPrimitive::QFloat(tensor) => unimplemented!(),
+            TensorPrimitive::QFloat(_) => unimplemented!(),
         };
         Tensor::new(out)
     }

@@ -169,7 +169,7 @@ $$
 pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    Tensor::from_primitive(TensorPrimitive::Float(B::softmax(
+    Tensor::from_primitive(TensorPrimitive::Float(Dispatch::softmax(
         tensor.primitive.tensor(),
         dim,
     )))
@@ -195,7 +195,7 @@ $$
 pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmin", dim));
 
-    Tensor::from_primitive(TensorPrimitive::Float(B::softmin(
+    Tensor::from_primitive(TensorPrimitive::Float(Dispatch::softmin(
         tensor.primitive.tensor(),
         dim,
     )))
@@ -279,7 +279,7 @@ $$
 pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("log softmax", dim));
 
-    Tensor::from_primitive(TensorPrimitive::Float(B::log_softmax(
+    Tensor::from_primitive(TensorPrimitive::Float(Dispatch::log_softmax(
         tensor.primitive.tensor(),
         dim,
     )))

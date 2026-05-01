@@ -2,10 +2,9 @@ use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
 use burn_core::tensor::{
-    Bool, DType, Element, ElementConversion, ElementLimits, ElementOrdered, Int, IntDType, Shape,
-    Tensor, TensorData,
-    backend::{Backend, get_device_settings},
-    ops::{BoolTensor, Device, IntTensor},
+    Element, ElementConversion, ElementLimits, ElementOrdered, IntDType, Shape, TensorData,
+    backend::Backend,
+    ops::{BoolTensor, Device},
     read_sync,
 };
 use ndarray::Array2;

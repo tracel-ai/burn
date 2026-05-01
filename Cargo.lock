@@ -1037,9 +1037,7 @@ dependencies = [
 name = "burn-nn"
 version = "0.21.0-pre.4"
 dependencies = [
- "burn-autodiff",
  "burn-core",
- "burn-flex",
  "num-traits",
  "rstest",
 ]

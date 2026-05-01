@@ -162,16 +162,8 @@ impl Default for NmsOptions {
     }
 }
 
-/// Vision capable backend, implemented by each backend
-#[backend_extension(
-    NdArray: cfg(feature = "ndarray"),
-    Wgpu: cfg(feature = "wgpu"),
-    Cuda: cfg(feature = "cuda"),
-)]
-pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
-
-#[cfg(feature = "ndarray")]
-use burn_ndarray::NdArray;
+#[cfg(feature = "flex")]
+use burn_flex::Flex;
 
 #[cfg(feature = "wgpu")]
 use burn_wgpu::Wgpu;
@@ -179,10 +171,18 @@ use burn_wgpu::Wgpu;
 #[cfg(feature = "cuda")]
 use burn_cuda::Cuda;
 
+/// Vision capable backend, implemented by each backend
+#[backend_extension(
+    Flex: cfg(feature = "flex"),
+    Wgpu: cfg(feature = "wgpu"),
+    Cuda: cfg(feature = "cuda"),
+)]
+pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
+
 // TODO: support struct return types that encapsulate tensors with `#[backend_extension]`
 
 #[backend_extension(
-    NdArray: cfg(feature = "ndarray"),
+    Flex: cfg(feature = "flex"),
     Wgpu: cfg(feature = "wgpu"),
     Cuda: cfg(feature = "cuda"),
 )]
@@ -265,7 +265,7 @@ pub trait BoolVisionOps: Backend {
 }
 
 #[backend_extension(
-    NdArray: cfg(feature = "ndarray"),
+    Flex: cfg(feature = "flex"),
     Wgpu: cfg(feature = "wgpu"),
     Cuda: cfg(feature = "cuda"),
 )]
@@ -299,7 +299,7 @@ pub trait IntVisionOps: Backend {
 }
 
 #[backend_extension(
-    NdArray: cfg(feature = "ndarray"),
+    Flex: cfg(feature = "flex"),
     Wgpu: cfg(feature = "wgpu"),
     Cuda: cfg(feature = "cuda"),
 )]

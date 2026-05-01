@@ -1848,8 +1848,8 @@ where
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd<const M: usize, const DV: usize>(
         self,
-        indices: Tensor<B, M, Int>,
-        values: Tensor<B, DV, K>,
+        indices: Tensor<M, Int>,
+        values: Tensor<DV, K>,
         update: IndexingUpdateOp,
     ) -> Self {
         check!(TensorCheck::scatter_nd::<D, M, DV>(
@@ -1878,8 +1878,8 @@ where
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather_nd<const M: usize, const DV: usize>(
         self,
-        indices: Tensor<B, M, Int>,
-    ) -> Tensor<B, DV, K> {
+        indices: Tensor<M, Int>,
+    ) -> Tensor<DV, K> {
         check!(TensorCheck::gather_nd::<D, M, DV>(&indices.shape()));
         Tensor::new(K::gather_nd(self.primitive, indices.primitive))
     }

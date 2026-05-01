@@ -161,7 +161,6 @@ mod tests {
 
     use super::*;
     use crate::data::dataset::FakeDataset;
-    use burn_tensor::Device;
 
     #[derive(new, Clone)]
     struct TestBatcherDevice;

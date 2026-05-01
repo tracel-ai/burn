@@ -5,13 +5,7 @@ use crate::burnpack::store::BurnpackStore;
 
 use burn_core as burn;
 use burn_core::module::{Module, Param};
-<<<<<<< HEAD
 use burn_core::tensor::{AllocationProperty, Bytes, Device, Tensor};
-=======
-use burn_tensor::{AllocationProperty, Bytes, Tensor, backend::Backend};
-
-type TestBackend = burn_flex::Flex;
->>>>>>> main
 
 #[derive(Module, Debug)]
 struct SimpleModule {

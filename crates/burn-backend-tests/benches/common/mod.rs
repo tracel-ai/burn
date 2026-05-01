@@ -8,22 +8,20 @@ use std::cell::Cell;
 use std::panic::{self, AssertUnwindSafe, Location};
 use std::sync::Mutex;
 
-use burn_tensor::backend::Backend;
 use ctor::ctor;
 
 pub type FloatElem = f32;
 pub type IntElem = i32;
-pub type TestBackend = burn_dispatch::Dispatch;
 
 #[ctor]
 fn init_device_settings() {
-    let device = burn_dispatch::DispatchDevice::default();
-    burn_tensor::set_default_dtypes::<TestBackend>(
-        &device,
-        <FloatElem as burn_tensor::Element>::dtype(),
-        <IntElem as burn_tensor::Element>::dtype(),
-    )
-    .unwrap();
+    let device = burn_tensor::Device::default();
+    device
+        .set_default_dtypes(
+            <FloatElem as burn_tensor::Element>::dtype(),
+            <IntElem as burn_tensor::Element>::dtype(),
+        )
+        .unwrap();
 }
 
 /// Block until all outstanding ops on the default device complete.
@@ -33,7 +31,7 @@ fn init_device_settings() {
 /// On CPU backends (flex, ndarray) this is a no-op via the `Backend::sync` default.
 #[inline]
 pub fn sync() {
-    TestBackend::sync(&Default::default()).unwrap();
+    burn_tensor::Device::default().sync().unwrap();
 }
 
 // --- Panic-tolerant bench execution -----------------------------------------
