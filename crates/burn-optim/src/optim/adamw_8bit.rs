@@ -208,14 +208,6 @@ impl AdaptiveMomentumW8Bit {
         };
 
         // Compute delta.
-        // let m1_corrected = m1.clone().div_scalar(1f32 - self.beta_1.powi(time as i32));
-        // let m2_corrected = v_to_use.div_scalar(1f32 - self.beta_2.powi(time as i32));
-        // let update_delta = m1_corrected.div(
-        //     m2_corrected
-        //         .clamp_min(1e-16)
-        //         .sqrt()
-        //         .add_scalar(self.epsilon),
-        // );
         let correction1 = 1.0 - self.beta_1.powi(time as i32);
         let correction2 = (1.0 - self.beta_2.powi(time as i32)).sqrt();
         let step_size = correction2 / correction1; // absorb lr into caller

@@ -71,6 +71,7 @@ test-memory-checks = ["burn-fusion/memory-checks"]
 [dependencies]
 # Mine, remove before pr
 cubecl.workspace = true
+cubecl.features = [ "wgpu", "cuda", "rocm" ]
 burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2" }
 
 # ** Please make sure all dependencies support no_std when std is disabled **
