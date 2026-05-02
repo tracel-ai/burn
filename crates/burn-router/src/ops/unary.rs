@@ -44,7 +44,12 @@ macro_rules! reduce_float2int_dim_ops {
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let input = $handles.get_float_tensor::<B>(&$desc.input);
-        let output = $ops(input, $desc.axis, $desc.out.dtype.into());
+        let output = $ops(
+            input,
+            $desc.axis,
+            $desc.accumulator_len,
+            $desc.out.dtype.into(),
+        );
 
         $handles.register_int_tensor::<B>(&$desc.out.id, output);
     }};
@@ -57,7 +62,7 @@ macro_rules! reduce_int_dim_ops {
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let input = $handles.get_int_tensor::<B>(&$desc.input);
-        let output = $ops(input, $desc.axis);
+        let output = $ops(input, $desc.axis, $desc.accumulator_len);
 
         $handles.register_int_tensor::<B>(&$desc.out.id, output);
     }};

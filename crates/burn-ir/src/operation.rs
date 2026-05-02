@@ -553,6 +553,11 @@ pub enum NumericOperationIr {
     ArgMax(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
+    /// Float => [argtopk](burn_backend::ops::FloatTensorOps::float_argtopk).
+    /// Int => [argtopk](burn_backend::ops::IntTensorOps::int_argtopk).
+    ArgTopK(ReduceDimOpIr),
+    /// Operation corresponding to:
+    ///
     /// Float => [argmin](burn_backend::ops::FloatTensorOps::float_argmin).
     /// Int => [argmin](burn_backend::ops::IntTensorOps::int_argmin).
     ArgMin(ReduceDimOpIr),
@@ -862,6 +867,7 @@ pub struct ReduceDimOpIr {
     pub input: TensorIr,
     pub out: TensorIr,
     pub axis: usize,
+    pub accumulator_len: usize,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -2196,6 +2202,7 @@ impl NumericOperationIr {
             NumericOperationIr::Lower(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             NumericOperationIr::LowerEqual(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             NumericOperationIr::ArgMax(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::ArgTopK(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::ArgMin(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::Clamp(repr) => Box::new([&repr.tensor].into_iter()),
             NumericOperationIr::Abs(repr) => Box::new([&repr.input].into_iter()),
@@ -2245,6 +2252,7 @@ impl NumericOperationIr {
             NumericOperationIr::Lower(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::LowerEqual(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::ArgMax(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::ArgTopK(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::ArgMin(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Clamp(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Abs(repr) => Box::new([&repr.out].into_iter()),
@@ -2344,6 +2352,9 @@ impl NumericOperationIr {
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::ArgMax(repr) => {
+                repr.input.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::ArgTopK(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::ArgMin(repr) => {

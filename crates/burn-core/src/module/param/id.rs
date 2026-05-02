@@ -48,14 +48,27 @@ impl ParamId {
     /// Deserialize a param id.
     ///
     /// Preserves compatibility with previous formats (6 bytes, 16-byte uuid).
+    ///
+    /// # Panics
+    /// On invalid id format
     pub fn deserialize(encoded: &str) -> ParamId {
-        let u64_id = match BASE32_DNSSEC.decode(encoded.as_bytes()) {
+        Self::try_deserialize(encoded).expect("Invalid id.")
+    }
+
+    /// Deserialize a param id.
+    ///
+    /// Preserves compatibility with previous formats (6 bytes, 16-byte uuid).
+    ///
+    /// # Returns
+    /// An `Option<ParamId>`
+    pub fn try_deserialize(encoded: &str) -> Option<ParamId> {
+        let u64_id: Option<u64> = match BASE32_DNSSEC.decode(encoded.as_bytes()) {
             Ok(bytes) => {
                 let mut buffer = [0u8; 8];
                 buffer[..bytes.len()].copy_from_slice(&bytes);
-                u64::from_le_bytes(buffer)
+                Some(u64::from_le_bytes(buffer))
             }
-            Err(err) => match uuid::Uuid::try_parse(encoded) {
+            Err(_) => match uuid::Uuid::try_parse(encoded) {
                 // Backward compatibility with uuid parameter identifiers
                 Ok(id) => {
                     // Hash the 128-bit uuid to 64-bit
@@ -63,13 +76,12 @@ impl ParamId {
                     let mut hasher = DefaultHashBuilder::default().build_hasher();
                     // let mut hasher = DefaultHasher::new();
                     hasher.write(id.as_bytes());
-                    hasher.finish()
+                    Some(hasher.finish())
                 }
-                Err(_) => panic!("Invalid id. {err}"),
+                Err(_) => None,
             },
         };
-
-        ParamId::from(u64_id)
+        u64_id.map(Self::from)
     }
 }
 
@@ -82,6 +94,15 @@ impl core::fmt::Display for ParamId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn param_serde_try_deserialize() {
+        let val = ParamId::from(123456u64);
+        let deserialized = ParamId::try_deserialize(&val.serialize()).unwrap();
+        assert_eq!(val, deserialized);
+
+        assert_eq!(ParamId::try_deserialize("invalid_id"), None);
+    }
 
     #[test]
     fn param_serde_deserialize() {

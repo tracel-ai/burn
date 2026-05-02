@@ -927,6 +927,7 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::MeanDim(desc) => NumericOperationIr::MeanDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Mean(desc) => NumericOperationIr::Mean(ReduceOpIr {
@@ -942,6 +943,7 @@ impl RelativeOps for NumericOperationIr {
                     input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                     axis: desc.axis, // Axis should stay the same.
+                    accumulator_len: desc.accumulator_len,
                 })
             }
             NumericOperationIr::Prod(desc) => NumericOperationIr::Prod(ReduceOpIr {
@@ -951,6 +953,7 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::ProdDim(desc) => NumericOperationIr::ProdDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Greater(desc) => NumericOperationIr::Greater(BinaryOpIr {
@@ -1003,11 +1006,19 @@ impl RelativeOps for NumericOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
                 axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
+            }),
+            NumericOperationIr::ArgTopK(desc) => NumericOperationIr::ArgTopK(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
             }),
             NumericOperationIr::ArgMin(desc) => NumericOperationIr::ArgMin(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
                 axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
             }),
             NumericOperationIr::Max(desc) => NumericOperationIr::Max(ReduceOpIr {
                 input: desc.input.to_relative(converter),
@@ -1036,11 +1047,13 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::MaxDim(desc) => NumericOperationIr::MaxDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::MinDim(desc) => NumericOperationIr::MinDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::MaxAbs(desc) => NumericOperationIr::MaxAbs(ReduceOpIr {
@@ -1050,6 +1063,7 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::MaxAbsDim(desc) => NumericOperationIr::MaxAbsDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Clamp(desc) => NumericOperationIr::Clamp(ClampOpIr {

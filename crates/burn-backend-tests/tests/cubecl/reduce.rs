@@ -36,6 +36,103 @@ fn reduction_argtopk_simple() {
 }
 
 #[test]
+fn reduction_argtopk_1d() {
+    let device = Default::default();
+
+    let tensor = TestTensor::<1>::from_data([10.0, 50.0, 20.0, 40.0, 30.0], &device);
+    let k = 3;
+    let actual = tensor.argtopk(0, k);
+
+    let expected = TestTensor::<1>::from_data([1, 3, 4], &device);
+
+    assert_eq!(actual.shape(), Shape::new([k]));
+    actual.into_data().assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn reduction_argtopk_3d_dim0() {
+    let device = Default::default();
+
+    // Shape [2, 2, 2]
+    let tensor = TestTensor::<3>::from_data(
+        [[[10.0, 1.0], [5.0, 20.0]], [[1.0, 10.0], [20.0, 5.0]]],
+        &device,
+    );
+    let k = 1;
+    let actual = tensor.argtopk(0, k);
+
+    let expected = TestTensor::<3>::from_data([[[0, 1], [1, 0]]], &device);
+
+    assert_eq!(actual.shape(), Shape::new([1, 2, 2]));
+    actual.into_data().assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn reduction_argtopk_ties() {
+    let device = Default::default();
+
+    let tensor = TestTensor::<1>::from_data([5.0, 2.0, 5.0, 5.0], &device);
+    let k = 2;
+    let actual = tensor.argtopk(0, k);
+
+    let expected = TestTensor::<1>::from_data([0, 2], &device);
+
+    assert_eq!(actual.shape(), Shape::new([k]));
+    actual.into_data().assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn reduction_argtopk_3d_random_complex() {
+    let device = Default::default();
+
+    #[rustfmt::skip]
+    let tensor = TestTensor::<3>::from_data(
+        [
+            [
+                [0.5, 1.2, 0.8, 3.3],
+                [4.4, 2.1, 9.9, 0.1],
+                [7.7, 8.8, 6.6, 5.5],
+            ],
+            [
+                [1.1, 0.2, 4.4, 2.2],
+                [6.0, 7.0, 5.0, 8.0],
+                [3.0, 3.0, 1.0, 2.0],
+            ],
+        ],
+        &device,
+    );
+
+    let k = 2;
+    let dim = 2;
+    let actual = tensor.argtopk(dim, k);
+
+    #[rustfmt::skip]
+    let expected = TestTensor::<3>::from_data(
+        [
+            [
+                [3, 1],
+                [2, 0],
+                [1, 0],
+            ],
+            [
+                [2, 3],
+                [3, 1],
+                [0, 1],
+            ],
+        ],
+        &device,
+    );
+
+    let output_shape = Shape::new([2, 3, 2]);
+    assert_eq!(
+        actual.shape(),
+        output_shape,
+        "Output shape should be [2, 3, 2]"
+    );
+    actual.into_data().assert_eq(&expected.into_data(), false);
+}
+
+#[test]
 fn reduction_argmin_should_match_reference_backend() {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
