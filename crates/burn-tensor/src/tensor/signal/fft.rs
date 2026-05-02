@@ -154,9 +154,22 @@ pub fn irfft<B: Backend, const D: usize>(
 ///
 /// Internally calls [`rfft`] on the real and imaginary parts separately,
 /// extends each half-spectrum to the full `N`-bin spectrum via Hermitian
-/// symmetry, then combines: `FFT(x + iy) = FFT(x) + i·FFT(y)`.
+/// symmetry.
 ///
 /// Autodiff is not yet supported.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+
+Due to the linearity of the Fourier Transform, a complex-valued signal $x\[n\] = x_{re}\[n\] + i x_{im}\[n\]$ can be transformed by applying the FFT to its real and imaginary parts separately:
+
+$$ \text{FFT}(x\[n\]) = \text{FFT}(x_{re}\[n\]) + i \text{FFT}(x_{im}\[n\]) $$
+
+Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be computed efficiently using the real FFT ([`rfft`]). The full spectrum is then reconstructed by exploiting Hermitian symmetry.
+"#
+)]
+#[cfg_attr(not(doc), doc = r"X\[k\] = Σ x\[n\] * exp(-i*2πkn/N)")]
 ///
 /// # Arguments
 ///
