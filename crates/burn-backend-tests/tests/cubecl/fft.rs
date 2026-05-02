@@ -661,3 +661,70 @@ fn cfft_rejects_mismatched_shapes() {
     let im = TestTensor::<1>::from([1.0, 2.0]);
     let _ = cfft(re, im, 0, None);
 }
+
+#[test]
+fn cfft_dim0_2d_tensor() {
+    // Apply cfft along dim=0 on a 2D tensor (4 rows, 2 columns)
+    // Column 0: complex exponential exp(i·2π·n/4) → DFT = [0, 4, 0, 0]
+    // Column 1: pure real [1, 2, 3, 4] → DFT = [10, -2+2i, -2, -2-2i]
+    let re = TestTensor::<2>::from([
+        [1.0, 1.0],
+        [0.0, 2.0],
+        [-1.0, 3.0],
+        [0.0, 4.0],
+    ]);
+    let im = TestTensor::<2>::from([
+        [0.0, 0.0],
+        [1.0, 0.0],
+        [0.0, 0.0],
+        [-1.0, 0.0],
+    ]);
+
+    let (cfft_re, cfft_im) = cfft(re, im, 0, None);
+
+    assert_eq!(cfft_re.dims(), [4, 2]);
+    assert_eq!(cfft_im.dims(), [4, 2]);
+
+    let expected_re = TensorData::from([
+        [0.0, 10.0],
+        [4.0, -2.0],
+        [0.0, -2.0],
+        [0.0, -2.0],
+    ]);
+    let expected_im = TensorData::from([
+        [0.0, 0.0],
+        [0.0, 2.0],
+        [0.0, 0.0],
+        [0.0, -2.0],
+    ]);
+
+    cfft_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+    cfft_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn cfft_with_n_smaller_than_signal() {
+    // Signal length 8, truncated to n=4 → DFT of [1+0i, 2+0i, 3+0i, 4+0i]
+    // Trailing values are discarded, not included in the transform.
+    let re = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 99.0, 99.0, 99.0, 99.0]);
+    let im = TestTensor::<1>::from([0.0, 0.0, 0.0, 0.0, 99.0, 99.0, 99.0, 99.0]);
+
+    let (cfft_re, cfft_im) = cfft(re, im, 0, Some(4));
+
+    assert_eq!(cfft_re.dims(), [4]);
+
+    // DFT of [1,2,3,4] = [10, -2+2i, -2, -2-2i]
+    let expected_re = TensorData::from([10.0, -2.0, -2.0, -2.0]);
+    let expected_im = TensorData::from([0.0, 2.0, 0.0, -2.0]);
+
+    cfft_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+    cfft_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
