@@ -232,7 +232,7 @@ pub fn cfft<B: Backend, const D: usize>(
 
 /// Extend a half-spectrum from [`rfft`] (`N/2 + 1` bins) to the full `N`-bin
 /// spectrum using Hermitian symmetry: `X[k] = conj(X[N-k])` for `k > N/2`.
-fn hermitian_extend<B: Backend, const D: usize>(
+pub(super) fn hermitian_extend<B: Backend, const D: usize>(
     half_re: Tensor<B, D>,
     half_im: Tensor<B, D>,
     dim: usize,
