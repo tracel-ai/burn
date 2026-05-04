@@ -57,7 +57,7 @@ mod fusion {
     /// handles born during the test body — handles from other parallel tests that were
     /// already live are excluded.
     fn install_and_baseline(device: &Device<TestBackend>, stream: StreamId) -> FusionInspector {
-        let mut inspector = FusionInspector::install(stream);
+        let inspector = FusionInspector::install(stream);
         TestBackend::sync(device).unwrap();
         inspector.set_baseline();
         inspector
