@@ -570,8 +570,8 @@ fn cfft_zeros() {
 #[test]
 fn cfft_dim1_2d_tensor() {
     // Apply cfft along dim=1 on a 2D tensor
-    // Row 0: pure real [1, 0, -1, 0] → DFT = [0, 2, 0+0i, -2+0i] extended
-    // Row 1: complex exponential at bin 1
+    // Row 0: pure real [1, 2, 3, 4] → DFT = [10, -2+2i, -2, -2-2i]
+    // Row 1: complex exponential exp(i·2π·n/4) → DFT = [0, 4, 0, 0]
     let re = TestTensor::<2>::from([[1.0, 2.0, 3.0, 4.0], [1.0, 0.0, -1.0, 0.0]]);
     let im = TestTensor::<2>::from([[0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, -1.0]]);
 
