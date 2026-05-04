@@ -204,6 +204,7 @@ pub fn read_quantized<C: Scalar, N: Size>(
 ) -> Vector<C, N> {
     match arg {
         FuseArg::Input(pos, _precision, _layout) => {
+            set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
             let global = inputs.tensors.index(pos);
 
             let offset =
