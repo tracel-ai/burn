@@ -18,6 +18,7 @@ use burn_backend::TensorMetadata;
 #[cfg(feature = "distributed")]
 use burn_backend::distributed::DistributedParamId;
 use burn_backend::get_device_settings;
+use burn_backend::tensor::FloatMathOps;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 use core::f32;
 
@@ -31,36 +32,6 @@ impl<const D: usize, B> Tensor<B, D>
 where
     B: Backend,
 {
-    /// Applies element wise exponential operation.
-    ///
-    #[cfg_attr(doc, doc = "$y_i = e^{x_i}$")]
-    #[cfg_attr(not(doc), doc = "`y = e^x`")]
-    pub fn exp(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_exp(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise natural log operation *ln*.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = log(x_i)`")]
-    pub fn log(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_log(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies the natural logarithm of one plus the input tensor, element-wise.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i + 1\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = log(x_i + 1)`")]
-    pub fn log1p(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_log1p(
-            self.primitive.tensor(),
-        )))
-    }
-
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
     #[cfg_attr(
@@ -88,296 +59,6 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn recip(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_recip(
             self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise square operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = x_i * x_i$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = x_i * x_i`")]
-    pub fn square(self) -> Self {
-        self.powi_scalar(2)
-    }
-
-    /// Applies element wise root square operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i}$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i)`")]
-    pub fn sqrt(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_sqrt(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise cosine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \cos\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = cos(x_i)`")]
-    pub fn cos(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_cos(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise sine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \sin\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = sin(x_i)`")]
-    pub fn sin(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_sin(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise tangent operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \tan\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = tan(x_i)`")]
-    pub fn tan(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_tan(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise hyperbolic cosine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \cosh\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = cosh(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
-    /// }
-    /// ```
-    pub fn cosh(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_cosh(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise hyperbolic sine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \sinh\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = sinh(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
-    /// }
-    /// ```
-    pub fn sinh(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_sinh(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise hyperbolic tangent operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \tanh\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = tanh(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
-    /// }
-    /// ```
-    pub fn tanh(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_tanh(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise inverse sine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \asin\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = asin(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
-    /// }
-    /// ```
-    pub fn asin(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_asin(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise inverse hyperbolic sine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \asinh\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = asinh(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
-    /// }
-    /// ```
-    pub fn asinh(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_asinh(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise inverse cosine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \acos\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = acos(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
-    ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
-    /// }
-    /// ```
-    pub fn acos(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_acos(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise inverse hyperbolic cosine operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \acosh\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = acosh(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([1.0, 2.0, 3.0], &device);
-    ///     println!("{}", tensor.sinh()); // [0.0000, 1.3170, 1.7627]
-    /// }
-    /// ```
-    pub fn acosh(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_acosh(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise inverse tangent operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \atan\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = atan(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
-    ///     println!("{}", tensor.sinh()); // [ 0.0, -0.7854,  1.1071]
-    /// }
-    /// ```
-    pub fn atan(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_atan(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise inverse hyperbolic tangent operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \atan\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = atan(x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -0.5, 0.5], &device);
-    ///     println!("{}", tensor.sinh()); // [ 0.0, -0.5493,  0.5493]
-    /// }
-    /// ```
-    pub fn atanh(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_atanh(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
-    ///
-    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
-    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
-    /// }
-    /// ```
-    pub fn atan2(self, other: Self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_atan2(
-            self.primitive.tensor(),
-            other.primitive.tensor(),
         )))
     }
 
@@ -1215,5 +896,293 @@ where
             TensorPrimitive::QFloat(_) => unimplemented!(),
         };
         Self::new(primitive)
+    }
+}
+
+impl<B, const D: usize, K> Tensor<B, D, K>
+where
+    B: Backend,
+    K: FloatMathOps<B>,
+{
+    /// Applies element wise square operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = x_i * x_i$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = x_i * x_i`")]
+    pub fn square(self) -> Self {
+        Self::new(K::square(self.primitive))
+    }
+
+    /// Applies element wise exponential operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = e^{x_i}$"#)]
+    #[cfg_attr(not(doc), doc = "`y = e^x`")]
+    pub fn exp(self) -> Self {
+        Self::new(K::exp(self.primitive))
+    }
+
+    /// Applies element wise natural logarithm of one plus the input tensor.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i + 1\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = log1p(x_i)`")]
+    pub fn log1p(self) -> Self {
+        Self::new(K::log1p(self.primitive))
+    }
+
+    /// Applies element wise natural log operation *ln*.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = log(x_i)`")]
+    pub fn log(self) -> Self {
+        Self::new(K::log(self.primitive))
+    }
+
+    /// Applies element wise square root operation.
+    ///
+    pub fn sqrt(self) -> Self {
+        Tensor::new(K::sqrt(self.primitive))
+    }
+    /// Applies element wise cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \cos\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = cos(x_i)`")]
+    pub fn cos(self) -> Self {
+        Tensor::new(K::cos(self.primitive))
+    }
+
+    /// Applies element wise sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \sin\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = sin(x_i)`")]
+    pub fn sin(self) -> Self {
+        Tensor::new(K::sin(self.primitive))
+    }
+
+    /// Applies element wise tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \tan\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = tan(x_i)`")]
+    pub fn tan(self) -> Self {
+        Tensor::new(K::tan(self.primitive))
+    }
+
+    /// Applies element wise hyperbolic cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \cosh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = cosh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
+    /// }
+    /// ```
+    pub fn cosh(self) -> Self {
+        Tensor::new(K::cosh(self.primitive))
+    }
+
+    /// Applies element wise hyperbolic sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \sinh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = sinh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
+    /// }
+    /// ```
+    pub fn sinh(self) -> Self {
+        Tensor::new(K::sinh(self.primitive))
+    }
+
+    /// Applies element wise hyperbolic tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \tanh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = tanh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
+    /// }
+    /// ```
+    pub fn tanh(self) -> Self {
+        Tensor::new(K::tanh(self.primitive))
+    }
+
+    /// Applies element wise inverse cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \acos\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = acos(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
+    /// }
+    /// ```
+    pub fn acos(self) -> Self {
+        Tensor::new(K::acos(self.primitive))
+    }
+
+    /// Applies element wise inverse hyperbolic cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \acosh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = acosh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([1.0, 2.0, 3.0], &device);
+    ///     println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
+    /// }
+    /// ```
+    pub fn acosh(self) -> Self {
+        Tensor::new(K::acosh(self.primitive))
+    }
+
+    /// Applies element wise inverse sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \asin\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = asin(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
+    /// }
+    /// ```
+    pub fn asin(self) -> Self {
+        Tensor::new(K::asin(self.primitive))
+    }
+
+    /// Applies element wise inverse hyperbolic sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \asinh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = asinh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
+    /// }
+    /// ```
+    pub fn asinh(self) -> Self {
+        Tensor::new(K::asinh(self.primitive))
+    }
+
+    /// Applies element wise inverse tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \atan\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = atan(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
+    /// }
+    /// ```
+    pub fn atan(self) -> Self {
+        Tensor::new(K::atan(self.primitive))
+    }
+
+    /// Applies element wise inverse hyperbolic tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \atanh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = atanh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -0.5, 0.5], &device);
+    ///     println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
+    /// }
+    /// ```
+    pub fn atanh(self) -> Self {
+        Tensor::new(K::atanh(self.primitive))
+    }
+
+    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
+    ///
+    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
+    /// }
+    /// ```
+    pub fn atan2(self, other: Self) -> Self {
+        Tensor::new(K::atan2(self.primitive, other.primitive))
     }
 }
