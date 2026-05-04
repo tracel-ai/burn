@@ -15,14 +15,14 @@ default = ["burn/default", "burn/tui"]
 vulkan = ["burn/vulkan"]
 
 [dependencies]
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "webgpu",
     "train",
     "vision",
-], default-features = false }
+] }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
-burn = { path = "../../crates/burn", features = ["vulkan"] }
+burn = { workspace = true, features = ["default", "vulkan"] }
 
 # Serialization
 log = { workspace = true }

@@ -509,7 +509,7 @@ mod tests {
         use alloc::vec::Vec;
 
         type B = burn_flex::Flex;
-        let device = <B as Backend>::Device::default();
+        let device = Default::default();
 
         let param: Param<Tensor<B, 2>> = Param::uninitialized(
             ParamId::new(),

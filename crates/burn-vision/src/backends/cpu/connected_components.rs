@@ -2,7 +2,8 @@ use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
 use burn_tensor::{
-    Bool, DType, Element, ElementConversion, ElementOrdered, Int, Shape, Tensor, TensorData,
+    Bool, DType, Element, ElementConversion, ElementLimits, ElementOrdered, Int, Shape, Tensor,
+    TensorData,
     backend::Backend,
     ops::{BoolTensor, IntTensor},
 };
@@ -208,7 +209,7 @@ struct ConnectedStatsOp<I: Element> {
     pub bottom: Vec<I>,
 }
 
-impl<I: Element> StatsOp for ConnectedStatsOp<I> {
+impl<I: Element + ElementLimits> StatsOp for ConnectedStatsOp<I> {
     type Label = I;
 
     fn init(&mut self, num_labels: usize) {

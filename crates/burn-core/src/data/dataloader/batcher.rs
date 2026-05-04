@@ -1,4 +1,4 @@
-use burn_tensor::backend::Backend;
+use burn_tensor::{Device, backend::Backend};
 
 #[cfg(test)]
 use crate::TestBackend;
@@ -15,7 +15,7 @@ pub trait Batcher<B: Backend, I, O>: Send + Sync {
     /// # Returns
     ///
     /// The batched items.
-    fn batch(&self, items: Vec<I>, device: &B::Device) -> O;
+    fn batch(&self, items: Vec<I>, device: &Device<B>) -> O;
 }
 
 /// Test batcher
@@ -25,7 +25,7 @@ pub struct TestBatcher;
 
 #[cfg(test)]
 impl<I> Batcher<TestBackend, I, Vec<I>> for TestBatcher {
-    fn batch(&self, items: Vec<I>, _device: &<TestBackend as Backend>::Device) -> Vec<I> {
+    fn batch(&self, items: Vec<I>, _device: &Device<TestBackend>) -> Vec<I> {
         items
     }
 }

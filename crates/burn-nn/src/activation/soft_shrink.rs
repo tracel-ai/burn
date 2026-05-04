@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_soft_shrink_forward() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: SoftShrink = SoftShrinkConfig::new().init();
         let input =
             Tensor::<TestBackend, 2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_soft_shrink_with_lambda() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: SoftShrink = SoftShrinkConfig::new().with_lambda(0.25).init();
         let input =
             Tensor::<TestBackend, 2>::from_data([[0.125, -0.125, -0.5], [0.75, 0.1, 0.0]], &device);

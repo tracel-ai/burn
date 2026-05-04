@@ -925,6 +925,124 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn scatter_nd<const D: usize, const M: usize, const DV: usize>(
+        data_shape: &Shape,
+        indices_shape: &Shape,
+        values_shape: &Shape,
+    ) -> Self {
+        let ops = "ScatterNd";
+        let mut check = Self::Ok;
+
+        if M == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must have rank >= 1".to_string()),
+            );
+        }
+
+        if indices_shape.num_elements() == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must not be empty".to_string()),
+            );
+        }
+
+        let k = indices_shape[M - 1];
+
+        if k > D {
+            return check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of indices (K={k}) must be <= data rank (D={D})"
+                )),
+            );
+        }
+
+        let expected_dv = M - 1 + D - k;
+        if DV != expected_dv {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Values rank DV={DV} does not match expected M-1+D-K = {expected_dv}"
+                )),
+            );
+        }
+
+        // Batch dims: first M-1 dims of values must equal first M-1 dims of indices
+        for i in 0..(M - 1) {
+            if values_shape[i] != indices_shape[i] {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Batch dimension {i} mismatch: values={} vs indices={}",
+                        values_shape[i], indices_shape[i]
+                    )),
+                );
+            }
+        }
+
+        // Slice dims: last D-K dims of values must equal last D-K dims of data
+        for i in 0..(D - k) {
+            let val_idx = M - 1 + i;
+            let data_idx = k + i;
+            if val_idx < DV && data_idx < D && values_shape[val_idx] != data_shape[data_idx] {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Slice dimension mismatch at values[{val_idx}]={} vs data[{data_idx}]={}",
+                        values_shape[val_idx], data_shape[data_idx]
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
+    pub(crate) fn gather_nd<const D: usize, const M: usize, const DV: usize>(
+        indices_shape: &Shape,
+    ) -> Self {
+        let ops = "GatherNd";
+        let mut check = Self::Ok;
+
+        if M == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must have rank >= 1".to_string()),
+            );
+        }
+
+        if indices_shape.num_elements() == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must not be empty".to_string()),
+            );
+        }
+
+        let k = indices_shape[M - 1];
+
+        if k > D {
+            return check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of indices (K={k}) must be <= data rank (D={D})"
+                )),
+            );
+        }
+
+        let expected_dv = M - 1 + D - k;
+        if DV != expected_dv {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Output rank DV={DV} does not match expected M-1+D-K = {expected_dv}"
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn select<const D: usize>(dim: usize) -> Self {
         Self::check_select_basic::<D>(Self::Ok, "select", dim)
     }
@@ -955,7 +1073,7 @@ impl TensorCheck {
             check = check.register(
                 "Diag",
                 TensorError::new(
-                    "Diagonal operations require 
+                    "Diagonal operations require
                 tensors with at least 2 dimensions.",
                 )
                 .details(format!(
@@ -1377,8 +1495,17 @@ impl TensorCheck {
     }
 
     /// Check the input tensor for lu decomposition is valid.
-    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize]) -> Self {
+    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize], dtype: DType) -> Self {
         let mut check = TensorCheck::Ok;
+
+        if matches!(dtype, DType::QFloat(_)) {
+            check = check.register(
+                ops,
+                TensorError::new("The input tensor must have a real float dtype")
+                    .details("Got an input tensor with a quantized float dtype".to_string()),
+            );
+        }
+
         let n_dims = dims.len();
         if n_dims < 2 {
             check = check.register(

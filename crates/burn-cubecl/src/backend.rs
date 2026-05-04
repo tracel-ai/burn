@@ -1,5 +1,7 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
-use burn_backend::{Backend, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData};
+use burn_backend::{
+    Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
+};
 use burn_std::DType;
 use cubecl::{
     features::{MmaConfig, TypeUsage},
@@ -21,7 +23,7 @@ pub struct CubeBackend<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolE
     _bool_elem: PhantomData<BT>,
 }
 
-impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>
+impl<R, F, I, BT> BackendTypes for CubeBackend<R, F, I, BT>
 where
     R: CubeRuntime,
     R::Server: ComputeServer,
@@ -40,7 +42,17 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
+}
 
+impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>
+where
+    R: CubeRuntime,
+    R::Server: ComputeServer,
+    R::Device: DeviceOps,
+    F: FloatElement,
+    I: IntElement,
+    BT: BoolElement,
+{
     fn name(device: &Self::Device) -> String {
         let client = R::client(device);
         format!("cubecl<{}>", R::name(&client))

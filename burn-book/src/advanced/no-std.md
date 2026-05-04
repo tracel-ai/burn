@@ -69,10 +69,10 @@ async fn main(_spawner: Spawner) {
 ### Define Backend
 We are using Flex, so we just need to define the Flex backend as usual
 ```rs
-use burn::{backend::Flex, tensor::Tensor};
+use burn::{backend::Flex, tensor::{Device, Tensor}};
 
 type Backend = Flex;
-type BackendDevice = <Backend as burn::tensor::backend::Backend>::Device;
+type BackendDevice = Device<Backend>;
 ```
 
 Then inside the `main` function add

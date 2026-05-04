@@ -32,12 +32,12 @@ test-vulkan = []
 cubecl = []
 
 [dependencies]
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = true }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = true }
+burn-backend = { workspace = true, features = ["default"] }
+burn-std = { workspace = true, features = ["default"] }
 
 log = { workspace = true }
 
-burn-communication = { path = "../burn-communication", version = "=0.21.0-pre.3", features = [
+burn-communication = { workspace = true, features = [
     "data-service",
     "websocket",
 ] }
@@ -58,10 +58,10 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 serial_test = { workspace = true }
 # Tests
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3", default-features = true }
-burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3" }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.3" }
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3" }
+burn-tensor = { workspace = true, features = ["default"] }
+burn-flex = { workspace = true, features = ["default"] }
+burn-wgpu = { workspace = true, features = ["default"] }
+burn-cuda = { workspace = true, features = ["default"] }
 
 
 [package.metadata.docs.rs]

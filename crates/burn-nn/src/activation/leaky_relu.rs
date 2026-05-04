@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn test_leaky_relu_forward() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: LeakyRelu = LeakyReluConfig::new().init();
         let input =
             Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
@@ -104,7 +104,7 @@ mod tests {
             ],
         ]);
 
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: LeakyRelu = LeakyReluConfig::new().init();
         let input_data = Tensor::<TestBackend, 3>::from_data(TensorData::from(input), &device);
         let actual_output = model.forward(input_data);

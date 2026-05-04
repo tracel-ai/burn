@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn test_hard_sigmoid_forward() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: HardSigmoid = HardSigmoidConfig::new().init();
         let input =
             Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);

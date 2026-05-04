@@ -8,7 +8,11 @@ use burn_backend::{
     tensor::FloatTensor,
 };
 
-use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
+use crate::{
+    Autodiff,
+    checkpoint::strategy::CheckpointStrategy,
+    ops::{Backward, Ops, OpsKind, unary},
+};
 
 impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodiff<B, C> {
     fn start_communication_server(devices: &[B::Device], config: DistributedConfig) {
@@ -37,10 +41,45 @@ impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodi
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
     ) -> CollectiveTensor<Self> {
-        // TODO: backward()
-        let tensor = B::all_reduce(tensor.primitive, op, device_ids);
+        #[derive(Debug)]
+        struct AllReduce;
+
+        impl<B: DistributedBackend> Backward<B, 1> for AllReduce {
+            type State = (ReduceOperation, Vec<DeviceId>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut crate::grads::Gradients,
+                _checkpointer: &mut crate::checkpoint::base::Checkpointer,
+            ) {
+                // Backward uses the same reduce op: local gradients are synchronized via the backend, which handles
+                // scaling (e.g., ncclAvg for mean). This works for the reduce ops that are currently supported, but we
+                // might need to rework it if we add other ops such as ncclMax.
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    B::all_reduce(grad, ops.state.0, ops.state.1).resolve()
+                });
+            }
+        }
+
+        let collective = B::all_reduce(tensor.primitive, op, device_ids.clone());
         // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
-        CollectiveTensor::new(AutodiffTensor::new(unsafe { tensor.assume_resolved() }))
+        let resolved = unsafe { collective.assume_resolved() };
+
+        match AllReduce
+            .prepare::<C>([tensor.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(preps) => {
+                let output = preps.finish((op, device_ids), resolved);
+                CollectiveTensor::new(output)
+            }
+            OpsKind::UnTracked(preps) => {
+                let output = preps.finish(resolved);
+                CollectiveTensor::new(output)
+            }
+        }
     }
 
     fn sync_collective(device: &B::Device) {

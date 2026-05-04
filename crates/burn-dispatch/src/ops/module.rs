@@ -671,4 +671,41 @@ impl ModuleOps<Self> for Dispatch {
             }
         )
     }
+
+    fn has_ctc_loss_backward() -> bool {
+        // Dispatch routes per-tensor at runtime, but autodiff queries this flag
+        // statically. Returning `false` makes autodiff differentiate through
+        // the default decomposed forward, which is safe for every inner
+        // backend regardless of whether it has its own ctc_loss_backward.
+        false
+    }
+
+    fn ctc_loss(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(log_probs, float), (targets, int), (input_lengths, int), (target_lengths, int)],
+            => Float,
+            B::ctc_loss(log_probs, targets, input_lengths, target_lengths, blank)
+        )
+    }
+
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        grad_loss: FloatTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(log_probs, float), (targets, int), (input_lengths, int), (target_lengths, int), (grad_loss, float)],
+            => Float,
+            B::ctc_loss_backward(log_probs, targets, input_lengths, target_lengths, grad_loss, blank)
+        )
+    }
 }

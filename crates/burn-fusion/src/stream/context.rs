@@ -195,6 +195,32 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::Linear(desc) => ModuleOperationIr::Linear(LinearOpIr {
+                x: desc.x.to_relative(converter),
+                weight: desc.weight.to_relative(converter),
+                bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::LinearXBackward(desc) => {
+                ModuleOperationIr::LinearXBackward(LinearXBackwardOpIr {
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::LinearWeightBackward(desc) => {
+                ModuleOperationIr::LinearWeightBackward(LinearWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::LinearBiasBackward(desc) => {
+                ModuleOperationIr::LinearBiasBackward(LinearBiasBackwardOpIr {
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::Conv1d(desc) => ModuleOperationIr::Conv1d(Conv1dOpIr {
                 x: desc.x.to_relative(converter),
                 weight: desc.weight.to_relative(converter),
@@ -526,6 +552,25 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::CtcLoss(desc) => ModuleOperationIr::CtcLoss(CtcLossOpIr {
+                log_probs: desc.log_probs.to_relative(converter),
+                targets: desc.targets.to_relative(converter),
+                input_lengths: desc.input_lengths.to_relative(converter),
+                target_lengths: desc.target_lengths.to_relative(converter),
+                blank: desc.blank,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::CtcLossBackward(desc) => {
+                ModuleOperationIr::CtcLossBackward(CtcLossBackwardOpIr {
+                    log_probs: desc.log_probs.to_relative(converter),
+                    targets: desc.targets.to_relative(converter),
+                    input_lengths: desc.input_lengths.to_relative(converter),
+                    target_lengths: desc.target_lengths.to_relative(converter),
+                    grad_loss: desc.grad_loss.to_relative(converter),
+                    blank: desc.blank,
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }
@@ -882,6 +927,7 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::MeanDim(desc) => NumericOperationIr::MeanDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Mean(desc) => NumericOperationIr::Mean(ReduceOpIr {
@@ -897,6 +943,7 @@ impl RelativeOps for NumericOperationIr {
                     input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                     axis: desc.axis, // Axis should stay the same.
+                    accumulator_len: desc.accumulator_len,
                 })
             }
             NumericOperationIr::Prod(desc) => NumericOperationIr::Prod(ReduceOpIr {
@@ -906,6 +953,7 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::ProdDim(desc) => NumericOperationIr::ProdDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Greater(desc) => NumericOperationIr::Greater(BinaryOpIr {
@@ -958,11 +1006,25 @@ impl RelativeOps for NumericOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
                 axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
+            }),
+            NumericOperationIr::ArgTopK(desc) => NumericOperationIr::ArgTopK(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
+            }),
+            NumericOperationIr::TopK(desc) => NumericOperationIr::TopK(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
             }),
             NumericOperationIr::ArgMin(desc) => NumericOperationIr::ArgMin(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
                 axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
             }),
             NumericOperationIr::Max(desc) => NumericOperationIr::Max(ReduceOpIr {
                 input: desc.input.to_relative(converter),
@@ -991,11 +1053,13 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::MaxDim(desc) => NumericOperationIr::MaxDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::MinDim(desc) => NumericOperationIr::MinDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::MaxAbs(desc) => NumericOperationIr::MaxAbs(ReduceOpIr {
@@ -1005,6 +1069,7 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::MaxAbsDim(desc) => NumericOperationIr::MaxAbsDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Clamp(desc) => NumericOperationIr::Clamp(ClampOpIr {
@@ -1108,6 +1173,18 @@ impl RelativeOps for BaseOperationIr {
                 indices: desc.indices.to_relative(converter),
                 value: desc.value.to_relative(converter),
                 update: desc.update,
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::ScatterNd(desc) => BaseOperationIr::ScatterNd(ScatterNdOpIr {
+                data: desc.data.to_relative(converter),
+                indices: desc.indices.to_relative(converter),
+                values: desc.values.to_relative(converter),
+                reduction: desc.reduction,
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::GatherNd(desc) => BaseOperationIr::GatherNd(GatherNdOpIr {
+                data: desc.data.to_relative(converter),
+                indices: desc.indices.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::Select(desc) => BaseOperationIr::Select(SelectOpIr {

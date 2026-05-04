@@ -304,17 +304,53 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    ScatterNdOpIr {
+        data: TensorIr,
+        indices: TensorIr,
+        values: TensorIr,
+        reduction: IndexingUpdateOp
+    },
+    shape = data.shape.clone(),
+    dtype = output_dtype([&data.dtype, &values.dtype]).unwrap()
+);
+
+impl GatherNdOpIr {
+    /// Create a new GatherNd IR operation.
+    pub fn create(
+        data: TensorIr,
+        indices: TensorIr,
+        new_id: impl FnOnce() -> crate::TensorId,
+    ) -> Self {
+        let m = indices.shape.num_dims();
+        let k = indices.shape[m - 1];
+        let mut dims = indices.shape.as_slice()[..m - 1].to_vec();
+        dims.extend_from_slice(&data.shape.as_slice()[k..]);
+        let shape = Shape::from(dims);
+        let dtype = data.dtype;
+        let out = TensorIr::uninit(new_id(), shape, dtype);
+        GatherNdOpIr { data, indices, out }
+    }
+}
+
+impl_ir_create!(
     ReduceOpIr { input: TensorIr },
     shape = [1].into(),
     dtype = input.dtype
 );
 
+fn reduce_output_shape(mut output_shape: Shape, axis: usize, accumulator_len: usize) -> Shape {
+    assert!(output_shape.rank() > axis);
+    output_shape[axis] = accumulator_len;
+    output_shape
+}
+
 impl_ir_create!(
     ReduceDimOpIr {
         input: TensorIr,
-        axis: usize
+        axis: usize,
+        accumulator_len: usize,
     },
-    shape = input.shape.clone().reduce(axis).unwrap(),
+    shape = reduce_output_shape(input.shape.clone(), axis, accumulator_len),
     dtype = input.dtype,
     // Additional constructor for argument reduction
     create_arg(ind_dtype: DType)
@@ -622,6 +658,74 @@ impl_ir_create!(
         grid.shape[2]
     ]),
     dtype = tensor.dtype
+);
+
+impl_ir_create!(
+    LinearOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        bias: Option<TensorIr>
+    },
+    shape = {
+        // output: [..., d_output] where x is [..., d_input] and weight is [d_input, d_output]
+        let n = x.shape.num_dims();
+        let mut dims: Vec<usize> = (0..n).map(|i| x.shape[i]).collect();
+        dims[n - 1] = weight.shape[1];
+        Shape::from(dims)
+    },
+    dtype = output_dtype(
+            [
+                Some(&x.dtype),
+                Some(&weight.dtype),
+                bias.as_ref().map(|b| &b.dtype),
+            ]
+            .iter()
+            .filter_map(|&d| d),
+        )
+        .unwrap()
+);
+
+impl_ir_create!(
+    LinearXBackwardOpIr {
+        weight: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = {
+        // dx = output_grad @ weight^T
+        // output_grad: [..., d_output], weight: [d_input, d_output]
+        // result: [..., d_input]
+        let n = output_grad.shape.num_dims();
+        let mut dims: Vec<usize> = (0..n).map(|i| output_grad.shape[i]).collect();
+        dims[n - 1] = weight.shape[0];
+        Shape::from(dims)
+    },
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    LinearWeightBackwardOpIr {
+        x: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = {
+        // dW: [d_input, d_output]
+        let d_input = x.shape[x.shape.num_dims() - 1];
+        let d_output = output_grad.shape[output_grad.shape.num_dims() - 1];
+        Shape::from(alloc::vec![d_input, d_output])
+    },
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    LinearBiasBackwardOpIr {
+        output_grad: TensorIr,
+    },
+    shape = {
+        // db: [d_output]
+        let d_output = output_grad.shape[output_grad.shape.num_dims() - 1];
+        Shape::from(alloc::vec![d_output])
+    },
+    dtype = output_grad.dtype
 );
 
 impl_ir_create!(
@@ -961,6 +1065,31 @@ impl_ir_create!(
     },
     shape = Shape::new([query.shape[0], query.shape[1], query.shape[2], value.shape[3]]),
     dtype = query.dtype
+);
+
+impl_ir_create!(
+    CtcLossOpIr {
+        log_probs: TensorIr,
+        targets: TensorIr,
+        input_lengths: TensorIr,
+        target_lengths: TensorIr,
+        blank: usize,
+    },
+    shape = Shape::new([log_probs.shape[1]]),
+    dtype = log_probs.dtype
+);
+
+impl_ir_create!(
+    CtcLossBackwardOpIr {
+        log_probs: TensorIr,
+        targets: TensorIr,
+        input_lengths: TensorIr,
+        target_lengths: TensorIr,
+        grad_loss: TensorIr,
+        blank: usize,
+    },
+    shape = log_probs.shape.clone(),
+    dtype = log_probs.dtype
 );
 
 impl DequantizeOpIr {

@@ -34,9 +34,9 @@ distributed = [
 ]
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false, features = [
+burn-fusion = { workspace = true, optional = true, features = ["default"] }
+burn-cubecl = { workspace = true }
+burn-backend = { workspace = true, features = [
     "cubecl-cuda",
 ] }
 cubecl = { workspace = true, features = ["cuda"] }

@@ -18,11 +18,11 @@ metal = ["burn/metal", "burn/fusion"]
 
 [dependencies]
 # Disable autotune default for now (convolutions not optimized)
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "train",
     "vision",
     "network",
-], default-features = false }
+] }
 
 
 # File download

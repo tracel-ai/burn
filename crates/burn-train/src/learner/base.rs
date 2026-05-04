@@ -9,7 +9,6 @@ use crate::{
     TrainingModelOutput,
 };
 use burn_core::module::{AutodiffModule, Module};
-use burn_core::prelude::Backend;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::lr_scheduler::LrScheduler;
@@ -69,7 +68,7 @@ where
 
 impl<LC: LearningComponentsTypes> Learner<LC> {
     /// Fork the learner's model to the given device.
-    pub fn fork(&mut self, device: &<TrainingBackend<LC> as Backend>::Device) {
+    pub fn fork(&mut self, device: &Device<TrainingBackend<LC>>) {
         self.model = self.model().fork(device);
     }
 

@@ -19,7 +19,7 @@ flex = ["burn/flex"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = { path = "../../crates/burn", default-features = false }
+burn = { workspace = true }
 serde = { workspace = true }
 console_error_panic_hook = { workspace = true }
 

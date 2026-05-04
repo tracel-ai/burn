@@ -136,6 +136,19 @@ where
         kernel::scatter(dim, tensor, indices, value, false)
     }
 
+    fn int_scatter_nd(
+        data: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        values: IntTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        kernel::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn int_gather_nd(data: IntTensor<Self>, indices: IntTensor<Self>) -> IntTensor<Self> {
+        kernel::gather_nd(data, indices)
+    }
+
     fn int_select(
         tensor: IntTensor<Self>,
         dim: usize,
@@ -353,6 +366,17 @@ where
         .unwrap()
     }
 
+    fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        reduce::reduce_dim(
+            tensor,
+            None,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::TopK(k),
+        )
+        .unwrap()
+    }
+
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         reduce::reduce(
             tensor,
@@ -424,6 +448,18 @@ where
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMax,
+        )
+        .unwrap()
+    }
+
+    fn int_argtopk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        let dtype = tensor.dtype;
+        reduce::reduce_dim(
+            tensor,
+            Some(dtype),
+            dim,
+            Default::default(),
+            ReduceOperationConfig::ArgTopK(k),
         )
         .unwrap()
     }

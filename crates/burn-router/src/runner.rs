@@ -212,7 +212,23 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::float_scatter_add(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::ScatterNd(desc) => {
+                    let data = handles.get_float_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let values = handles.get_float_tensor::<B>(&desc.values);
+
+                    let output = B::float_scatter_nd(data, indices, values, desc.reduction);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::GatherNd(desc) => {
+                    let data = handles.get_float_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::float_gather_nd(data, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Select(desc) => {
@@ -231,6 +247,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::float_select_add(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -358,7 +375,23 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::int_scatter_add(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::ScatterNd(desc) => {
+                    let data = handles.get_int_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let values = handles.get_int_tensor::<B>(&desc.values);
+
+                    let output = B::int_scatter_nd(data, indices, values, desc.reduction);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::GatherNd(desc) => {
+                    let data = handles.get_int_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::int_gather_nd(data, indices);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Select(desc) => {
@@ -377,6 +410,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::int_select_add(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -500,8 +534,15 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::bool_scatter_or(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::ScatterNd(_) => {
+                    unreachable!("scatter_nd not supported for bool tensors")
+                }
+                BaseOperationIr::GatherNd(_) => {
+                    unreachable!("gather_nd not supported for bool tensors")
                 }
                 BaseOperationIr::Select(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
@@ -519,6 +560,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::bool_select_or(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
@@ -628,7 +670,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::MeanDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, B::float_mean_dim)
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_mean_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Mean(desc) => {
                     unary_float_ops!(handles, desc, B::float_mean)
@@ -637,13 +681,17 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_sum)
                 }
                 NumericOperationIr::SumDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, B::float_sum_dim)
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_sum_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_float_ops!(handles, desc, B::float_prod)
                 }
                 NumericOperationIr::ProdDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, B::float_prod_dim)
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_prod_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Greater(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_greater)
@@ -670,10 +718,17 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     scalar_float_cmp_ops!(handles, desc, B::float_lower_equal_elem)
                 }
                 NumericOperationIr::ArgMax(desc) => {
-                    reduce_float2int_dim_ops!(handles, desc, B::float_argmax)
+                    reduce_float2int_dim_ops!(handles, desc, |tensor, axis, _, dtype| {
+                        B::float_argmax(tensor, axis, dtype)
+                    })
+                }
+                NumericOperationIr::ArgTopK(desc) => {
+                    reduce_float2int_dim_ops!(handles, desc, B::float_argtopk)
                 }
                 NumericOperationIr::ArgMin(desc) => {
-                    reduce_float2int_dim_ops!(handles, desc, B::float_argmin)
+                    reduce_float2int_dim_ops!(handles, desc, |tensor, axis, _, dtype| {
+                        B::float_argmin(tensor, axis, dtype)
+                    })
                 }
                 NumericOperationIr::Max(desc) => {
                     unary_float_ops!(handles, desc, B::float_max)
@@ -704,16 +759,25 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_min)
                 }
                 NumericOperationIr::MaxDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, B::float_max_dim)
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_dim(
+                        tensor, axis
+                    ))
+                }
+                NumericOperationIr::TopK(desc) => {
+                    reduce_float_dim_ops!(handles, desc, B::float_topk)
                 }
                 NumericOperationIr::MinDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, B::float_min_dim)
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_min_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::MaxAbs(desc) => {
                     unary_float_ops!(handles, desc, B::float_max_abs)
                 }
                 NumericOperationIr::MaxAbsDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, B::float_max_abs_dim)
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_abs_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
@@ -797,7 +861,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::MeanDim(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_mean_dim)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_mean_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Mean(desc) => {
                     unary_int_ops!(handles, desc, B::int_mean)
@@ -806,13 +872,17 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_int_ops!(handles, desc, B::int_sum)
                 }
                 NumericOperationIr::SumDim(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_sum_dim)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_sum_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_int_ops!(handles, desc, B::int_prod)
                 }
                 NumericOperationIr::ProdDim(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_prod_dim)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_prod_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Greater(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_greater)
@@ -839,10 +909,17 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     scalar_int_cmp_ops!(handles, desc, B::int_lower_equal_elem)
                 }
                 NumericOperationIr::ArgMax(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_argmax)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_argmax(
+                        tensor, axis
+                    ))
+                }
+                NumericOperationIr::ArgTopK(desc) => {
+                    reduce_int_dim_ops!(handles, desc, B::int_argtopk)
                 }
                 NumericOperationIr::ArgMin(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_argmin)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_argmin(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Max(desc) => {
                     unary_int_ops!(handles, desc, B::int_max)
@@ -865,16 +942,25 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_int_ops!(handles, desc, B::int_min)
                 }
                 NumericOperationIr::MaxDim(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_max_dim)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_max_dim(
+                        tensor, axis
+                    ))
+                }
+                NumericOperationIr::TopK(desc) => {
+                    reduce_int_dim_ops!(handles, desc, B::int_topk)
                 }
                 NumericOperationIr::MinDim(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_min_dim)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_min_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::MaxAbs(desc) => {
                     unary_int_ops!(handles, desc, B::int_max_abs)
                 }
                 NumericOperationIr::MaxAbsDim(desc) => {
-                    reduce_int_dim_ops!(handles, desc, B::int_max_abs_dim)
+                    reduce_int_dim_ops!(handles, desc, |tensor, axis, _| B::int_max_abs_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
@@ -1112,6 +1198,37 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output_grad = handles.get_float_tensor::<B>(&desc.out_grad);
 
                     let output = B::embedding_backward(weights, output_grad, indices);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Linear(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let bias = desc
+                        .bias
+                        .as_ref()
+                        .map(|bias| handles.get_float_tensor::<B>(bias));
+
+                    let output = B::linear(x, weight, bias);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearXBackward(desc) => {
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_x_backward(weight, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_weight_backward(x, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearBiasBackward(desc) => {
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_bias_backward(output_grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 ModuleOperationIr::Conv1d(desc) => {
@@ -1548,6 +1665,40 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         mask,
                         attn_bias,
                         desc.options.clone().into(),
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::CtcLoss(desc) => {
+                    let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
+                    let targets = handles.get_int_tensor::<B>(&desc.targets);
+                    let input_lengths = handles.get_int_tensor::<B>(&desc.input_lengths);
+                    let target_lengths = handles.get_int_tensor::<B>(&desc.target_lengths);
+
+                    let output = B::ctc_loss(
+                        log_probs,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        desc.blank,
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::CtcLossBackward(desc) => {
+                    let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
+                    let targets = handles.get_int_tensor::<B>(&desc.targets);
+                    let input_lengths = handles.get_int_tensor::<B>(&desc.input_lengths);
+                    let target_lengths = handles.get_int_tensor::<B>(&desc.target_lengths);
+                    let grad_loss = handles.get_float_tensor::<B>(&desc.grad_loss);
+
+                    let output = B::ctc_loss_backward(
+                        log_probs,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        grad_loss,
+                        desc.blank,
                     );
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);

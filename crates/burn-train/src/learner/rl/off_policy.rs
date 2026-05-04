@@ -100,7 +100,7 @@ where
             None,
         );
 
-        let device: <RLC::Backend as burn_core::prelude::Backend>::Device = Default::default();
+        let device = Default::default();
         let mut transition_buffer = TransitionBuffer::<
             RLC::Backend,
             RLC::PolicyObs,

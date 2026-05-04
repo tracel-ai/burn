@@ -18,5 +18,5 @@ flex = ["burn/flex"]
 
 [dependencies]
 cfg-if = { workspace = true }
-burn = { path = "../../crates/burn", version = "=0.21.0-pre.3", features = ["server"] }
+burn = { workspace = true, features = ["default", "server"] }
 cubecl = { workspace = true }

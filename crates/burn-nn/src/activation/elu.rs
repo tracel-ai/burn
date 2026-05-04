@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn test_elu_forward() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: Elu = EluConfig::new().init();
         let input =
             Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);

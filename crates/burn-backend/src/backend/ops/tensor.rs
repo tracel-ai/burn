@@ -455,6 +455,41 @@ pub trait FloatTensorOps<B: Backend> {
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
+    /// Multi-dimensional scatter: update `data` at locations specified by `indices` with `values`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor to scatter into.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `data`.
+    /// * `values` - The values to scatter.
+    /// * `reduction` - How to combine with existing values.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with scattered values.
+    fn float_scatter_nd(
+        _data: FloatTensor<B>,
+        _indices: IntTensor<B>,
+        _values: FloatTensor<B>,
+        _reduction: crate::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<B> {
+        unimplemented!("float_scatter_nd is not implemented for this backend")
+    }
+
+    /// Multi-dimensional gather: collect slices from `data` at locations specified by `indices`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor to gather from.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `data`.
+    ///
+    /// # Returns
+    ///
+    /// The gathered tensor.
+    fn float_gather_nd(_data: FloatTensor<B>, _indices: IntTensor<B>) -> FloatTensor<B> {
+        unimplemented!("float_gather_nd is not implemented for this backend")
+    }
+
     /// Select tensor elements along the given dimension corresponding for the given indices.
     ///
     /// # Arguments
@@ -1333,6 +1368,40 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
     fn float_argmax(tensor: FloatTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B>;
+
+    /// Gets the indices of the k maximum elements of a tensor along an axis.
+    /// if two elements are equals, it will be ordered by lowest indices
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of maximum elements
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
+    fn float_argtopk(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<B>;
+
+    /// Gets the values of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of maximum elements
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the values of the maximum elements of `tensor` along `dim`.
+    fn float_topk(tensor: FloatTensor<B>, dim: usize, k: usize) -> FloatTensor<B>;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///

@@ -18,11 +18,11 @@ wgpu = ["burn/wgpu"]
 remote = ["burn/remote"]
 
 [dependencies]
-burn = {path = "../../crates/burn", features=["train"]}
+burn = {workspace = true, features=["default", "train"] }
 
 # Serialization
 log = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"]}
+serde = {workspace = true, features = ["std", "derive"] }
 
 # Displaying results
 textplots = "0.8.7"

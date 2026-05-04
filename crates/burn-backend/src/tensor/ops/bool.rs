@@ -4,8 +4,17 @@ use burn_std::{DType, Shape, Slice};
 use crate::{
     AutodiffBackend, Backend, ExecutionError, Scalar, TensorData,
     ops::TransactionPrimitive,
-    tensor::{BasicAutodiffOps, BasicOps, Bool, Device, IndexingUpdateOp, IntTensor, TensorKind},
+    tensor::{
+        BasicAutodiffOps, BasicOps, Bool, Device, IndexingUpdateOp, IntTensor, TensorKind,
+        TransactionOp,
+    },
 };
+
+impl<B: Backend> TransactionOp<B> for Bool {
+    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
+        tr.register_bool(tensor);
+    }
+}
 
 impl<B: Backend> BasicOps<B> for Bool {
     type Elem = B::BoolElem;
@@ -39,10 +48,6 @@ impl<B: Backend> BasicOps<B> for Bool {
         } else {
             B::bool_zeros(shape, device, dtype.into())
         }
-    }
-
-    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
-        tr.register_bool(tensor);
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -82,6 +87,7 @@ impl<B: Backend> BasicOps<B> for Bool {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::bool_select_or(tensor, dim, indices, values),
+            _ => unimplemented!(),
         }
     }
 
@@ -118,7 +124,21 @@ impl<B: Backend> BasicOps<B> for Bool {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::bool_scatter_or(dim, tensor, indices, values),
+            _ => unimplemented!(),
         }
+    }
+
+    fn scatter_nd(
+        _data: Self::Primitive,
+        _indices: IntTensor<B>,
+        _values: Self::Primitive,
+        _reduction: IndexingUpdateOp,
+    ) -> Self::Primitive {
+        panic!("scatter_nd is not supported for bool tensors")
+    }
+
+    fn gather_nd(_data: Self::Primitive, _indices: IntTensor<B>) -> Self::Primitive {
+        panic!("gather_nd is not supported for bool tensors")
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {

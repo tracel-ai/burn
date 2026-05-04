@@ -27,7 +27,7 @@ distributed = ["burn-backend/distributed"]
 serde = { workspace = true }
 hashbrown = { workspace = true } # no_std compatible
 
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
+burn-backend = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

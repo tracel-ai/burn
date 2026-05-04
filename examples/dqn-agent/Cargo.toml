@@ -19,7 +19,7 @@ rocm = ["burn/rocm", "burn/default"]
 
 [dependencies]
 # Disable autotune default for now.
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "train",
     "metrics",
     "std",
@@ -27,7 +27,7 @@ burn = { path = "../../crates/burn", features = [
     # "fusion",
     "flex",
     # "autotune",
-], default-features = false }
+] }
 # Just for this example.
 gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }
 rand.workspace = true

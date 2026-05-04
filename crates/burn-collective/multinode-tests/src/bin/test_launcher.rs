@@ -335,7 +335,7 @@ fn generate_random_input(
         .collect();
 
     // Sum up the inputs
-    let device = <Flex as Backend>::Device::default();
+    let device = Default::default();
     let mut expected_tensor = Tensor::<Flex, TENSOR_RANK>::zeros(shape, &device);
     for item in input.iter().take(input_count) {
         let input_tensor = Tensor::<Flex, TENSOR_RANK>::from_data(item.clone(), &device);

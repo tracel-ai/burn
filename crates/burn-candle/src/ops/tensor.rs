@@ -197,6 +197,19 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        super::base::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        super::base::gather_nd(data, indices)
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,
@@ -569,6 +582,19 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
                 .to_dtype(out_dtype.into_dtype())
                 .unwrap(),
         )
+    }
+
+    fn float_argtopk(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<Self> {
+        panic!("argtopk not implemented for candle backend")
+    }
+
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        panic!("topk not implemented for candle backend")
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {

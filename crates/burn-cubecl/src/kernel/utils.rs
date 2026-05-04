@@ -19,6 +19,18 @@ pub fn shape_divmod<R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<R, Fa
     arg
 }
 
+pub fn shape_divmod_range<R: CubeRuntime>(
+    tensor: &CubeTensor<R>,
+    range: core::ops::Range<usize>,
+) -> SequenceArg<R, FastDivmod<usize>> {
+    let mut arg = SequenceArg::new();
+    let shape = &tensor.meta.shape;
+    for i in range {
+        arg.push(shape[i]);
+    }
+    arg
+}
+
 pub fn linear_layout<R: CubeRuntime>(
     tensor: &CubeTensor<R>,
     vector_size: VectorSize,

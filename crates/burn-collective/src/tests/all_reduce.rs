@@ -65,7 +65,7 @@ mod tests {
             })
             .collect();
 
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
 
         let mut expected_tensor = Tensor::<TestBackend, 1>::zeros(shape, &device);
         for item in input.iter().take(thread_count) {

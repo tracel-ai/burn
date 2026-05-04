@@ -10,7 +10,7 @@
 use crate::pytorch::PytorchReader;
 // Import internal types for testing only
 use crate::pytorch::reader::{ByteOrder, FileFormat};
-use burn_tensor::{BoolStore, DType, shape};
+use burn_tensor::{BoolStore, DType, TensorData, Tolerance, shape};
 use std::path::PathBuf;
 
 fn test_data_path(filename: &str) -> PathBuf {
@@ -577,6 +577,7 @@ fn test_legacy_format() {
 
     // Check weight tensor
     let weight = reader.get("weight").expect("weight not found");
+    // Note: values for `weight` in simple_legacy.pt are randomly generated
     assert_eq!(weight.shape, shape![2, 3]);
     assert_eq!(weight.dtype, DType::F32);
 
@@ -587,9 +588,8 @@ fn test_legacy_format() {
 
     // Verify bias values are all ones
     let bias_data = bias.to_data().unwrap();
-    let bias_values = bias_data.as_slice::<f32>().unwrap();
-    // Note: values in simple_legacy.pt are randomly generated, not necessarily 1.0
-    assert_eq!(bias_values.len(), 2);
+    let expected_bias_data = TensorData::new(vec![1.0_f32, 1.0], vec![2]);
+    bias_data.assert_approx_eq::<f32>(&expected_bias_data, Tolerance::default());
 
     // Check running_mean tensor
     let running_mean = reader.get("running_mean").expect("running_mean not found");
@@ -598,8 +598,43 @@ fn test_legacy_format() {
 
     // Verify running_mean values are accessible
     let mean_data = running_mean.to_data().unwrap();
-    let mean_values = mean_data.as_slice::<f32>().unwrap();
-    assert_eq!(mean_values.len(), 2);
+    let expected_mean_data = TensorData::new(vec![0.0_f32, 0.0], vec![2]);
+    mean_data.assert_approx_eq::<f32>(&expected_mean_data, Tolerance::default());
+}
+
+#[test]
+fn test_legacy_uncloned_views() {
+    let path = test_data_path("legacy_uncloned_views.pt");
+    let reader = PytorchReader::new(&path).expect("Failed to load legacy format");
+    let keys = reader.keys();
+
+    // Should have the tensors from the state dict
+    assert!(
+        keys.contains(&"tensor1".to_string()),
+        "Missing 'tensor1' key"
+    );
+    assert!(
+        keys.contains(&"tensor2".to_string()),
+        "Missing 'tensor2' key"
+    );
+
+    // Check tensor1
+    let tensor1 = reader.get("tensor1").expect("tensor1 not found");
+    assert_eq!(tensor1.shape, shape![10]);
+    assert_eq!(tensor1.dtype, DType::F32);
+    let tensor1_data = tensor1.to_data().unwrap();
+    let expected_tensor1_data =
+        TensorData::new(vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19], vec![10]);
+    tensor1_data.assert_approx_eq::<f32>(&expected_tensor1_data, Tolerance::default());
+
+    // Check tensor2
+    let tensor2 = reader.get("tensor2").expect("tensor2 not found");
+    assert_eq!(tensor2.shape, shape![10]);
+    assert_eq!(tensor2.dtype, DType::F32);
+    let tensor2_data = tensor2.to_data().unwrap();
+    let expected_tensor2_data =
+        TensorData::new(vec![50, 51, 52, 53, 54, 55, 56, 57, 58, 59], vec![10]);
+    tensor2_data.assert_approx_eq::<f32>(&expected_tensor2_data, Tolerance::default());
 }
 
 #[test]
@@ -607,18 +642,36 @@ fn test_legacy_with_offsets() {
     // Test with legacy format file that has storage offsets
     let path = test_data_path("legacy_with_offsets.pt");
     let reader = PytorchReader::new(&path).expect("Should read legacy file with offsets");
+    assert_eq!(reader.keys().len(), 3, "Should have 3 tensors");
 
-    let keys = reader.keys();
-    assert_eq!(keys.len(), 3, "Should have 3 tensors");
+    let tensor1 = reader
+        .get("tensor1")
+        .expect("Legacy file should contain tensor1");
+    assert_eq!(tensor1.shape, shape![10]);
+    let data1 = tensor1.to_data().unwrap();
+    let expected_data1 = TensorData::new(
+        vec![
+            1.00_f32, 1.01, 1.02, 1.03, 1.04, 1.05, 1.06, 1.07, 1.08, 1.09,
+        ],
+        vec![10],
+    );
+    data1.assert_approx_eq::<f32>(&expected_data1, Tolerance::default());
 
-    // Check that tensors exist
-    for key in &keys {
-        assert!(reader.get(key).is_some(), "Should have tensor: {}", key);
-        let tensor = reader.get(key).unwrap();
-        let data = tensor.to_data().unwrap();
-        let values = data.as_slice::<f32>().unwrap();
-        assert!(!values.is_empty(), "Tensor {} should have data", key);
-    }
+    let tensor2 = reader
+        .get("tensor2")
+        .expect("Legacy file should contain tensor2");
+    assert_eq!(tensor2.shape, shape![5]);
+    let data2 = tensor2.to_data().unwrap();
+    let expected_data2 = TensorData::new(vec![2.0_f32, 2.1, 2.2, 2.3, 2.4], vec![5]);
+    data2.assert_approx_eq::<f32>(&expected_data2, Tolerance::default());
+
+    let tensor3 = reader
+        .get("tensor3")
+        .expect("Legacy file should contain tensor3");
+    assert_eq!(tensor3.shape, shape![5]);
+    let data3 = tensor3.to_data().unwrap();
+    let expected_data3 = TensorData::new(vec![3.0_f32, 3.1, 3.2, 3.3, 3.4], vec![5]);
+    data3.assert_approx_eq::<f32>(&expected_data3, Tolerance::default());
 }
 
 #[test]

@@ -9,7 +9,11 @@
 mod common;
 use common::{BencherExt, TestBackend};
 
-use burn_tensor::{Tensor, TensorData, backend::Backend, quantization::QTensorPrimitive};
+use burn_tensor::{
+    Tensor, TensorData,
+    backend::{Backend, BackendTypes},
+    quantization::QTensorPrimitive,
+};
 use divan::{AllocProfiler, Bencher};
 
 #[global_allocator]
@@ -45,14 +49,14 @@ fn make_matrix<B: Backend>(rows: usize, cols: usize) -> Tensor<B, 2> {
 fn make_qtensor<B: Backend>(size: usize) -> Option<Tensor<B, 1>> {
     common::try_setup(|| {
         make_tensor::<B>(size)
-            .quantize_dynamic(&<B as Backend>::QuantizedTensorPrimitive::default_scheme())
+            .quantize_dynamic(&<B as BackendTypes>::QuantizedTensorPrimitive::default_scheme())
     })
 }
 
 fn make_qmatrix<B: Backend>(rows: usize, cols: usize) -> Option<Tensor<B, 2>> {
     common::try_setup(|| {
         make_matrix::<B>(rows, cols)
-            .quantize_dynamic(&<B as Backend>::QuantizedTensorPrimitive::default_scheme())
+            .quantize_dynamic(&<B as BackendTypes>::QuantizedTensorPrimitive::default_scheme())
     })
 }
 
@@ -70,19 +74,19 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn small(bencher: Bencher) {
-                    let scheme = <B as Backend>::QuantizedTensorPrimitive::default_scheme();
+                    let scheme = <B as BackendTypes>::QuantizedTensorPrimitive::default_scheme();
                     bencher.bench_synced(|| make_tensor::<B>(SMALL).quantize_dynamic(&scheme));
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
-                    let scheme = <B as Backend>::QuantizedTensorPrimitive::default_scheme();
+                    let scheme = <B as BackendTypes>::QuantizedTensorPrimitive::default_scheme();
                     bencher.bench_synced(|| make_tensor::<B>(MEDIUM).quantize_dynamic(&scheme));
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let scheme = <B as Backend>::QuantizedTensorPrimitive::default_scheme();
+                    let scheme = <B as BackendTypes>::QuantizedTensorPrimitive::default_scheme();
                     bencher.bench_synced(|| make_tensor::<B>(LARGE).quantize_dynamic(&scheme));
                 }
             }

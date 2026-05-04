@@ -45,9 +45,9 @@ critical-section = [
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
-burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3", default-features = false }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
+burn-backend = { workspace = true }
+burn-ir = { workspace = true }
+burn-std = { workspace = true }
 
 bytemuck = { workspace = true }
 half = { workspace = true }

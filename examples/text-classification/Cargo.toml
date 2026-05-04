@@ -26,7 +26,7 @@ ddp = ["burn/distributed"]
 
 [dependencies]
 # Burn
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "train",
     "tui",
     "sqlite-bundled",
@@ -35,7 +35,7 @@ burn = { path = "../../crates/burn", features = [
     "autotune",
     "fusion",
     "std",
-], default-features = false }
+] }
 log = { workspace = true }
 
 # Tokenizer

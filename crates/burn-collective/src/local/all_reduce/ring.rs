@@ -1,7 +1,7 @@
 use super::tree::all_reduce_sum_tree;
 use crate::local::tensor_map::CollectiveTensorMap;
 use crate::{PeerId, local::tensor_map};
-use burn_backend::{Backend, Shape, Slice, TensorMetadata};
+use burn_backend::{Backend, Shape, Slice, TensorMetadata, tensor::FloatTensor};
 use std::{collections::HashMap, ops::Range};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
@@ -135,10 +135,10 @@ fn ring_cycles<B: Backend>(
 /// Slice a list of tensors the same way, evenly across a given dimension.
 /// The given `shape` should be the same for every tensor.
 fn slice_tensors<B: Backend>(
-    mut tensors: HashMap<PeerId, B::FloatTensorPrimitive>,
+    mut tensors: HashMap<PeerId, FloatTensor<B>>,
     shape: Shape,
     slice_dim: usize,
-) -> Vec<(PeerId, Vec<<B as Backend>::FloatTensorPrimitive>)> {
+) -> Vec<(PeerId, Vec<FloatTensor<B>>)> {
     // Get slice index ranges
     let ranges = get_ring_reduce_slice_ranges(shape[slice_dim], tensors.len());
 

@@ -30,7 +30,7 @@ tracing = [
 
 # ** Please make sure all dependencies support no_std **
 
-burn = { path = "../burn", version = "=0.21.0-pre.3", default-features = false }
-burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3", default-features = false }
+burn = { workspace = true }
+burn-flex = { workspace = true }
 
-burn-store = { path = "../burn-store", version = "=0.21.0-pre.3", default-features = false, features = ["safetensors", "burnpack"]}
+burn-store = { workspace = true, features = ["safetensors", "burnpack"] }

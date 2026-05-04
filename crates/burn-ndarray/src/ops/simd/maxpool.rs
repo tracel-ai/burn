@@ -61,6 +61,7 @@ fn cast<T, E>(tensor: SharedArray<T>) -> SharedArray<E> {
 }
 
 mod nhwc {
+    use burn_backend::ElementOrdered;
     use itertools::Itertools;
     use macerator::{Simd, vload_unaligned, vstore_unaligned};
     use ndarray::{ArrayView3, ArrayViewMut3, Ix4};
@@ -74,7 +75,7 @@ mod nhwc {
     // The most common config (x86-v3) has 16 registers, so use half of them for accumulators.
     const BLOCK_REGISTERS: usize = 8;
 
-    pub(crate) fn max_pool2d_nhwc<E: Element + VOrd + MinMax>(
+    pub(crate) fn max_pool2d_nhwc<E: ElementOrdered + VOrd + MinMax>(
         x: SharedArray<E>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
@@ -162,7 +163,7 @@ mod nhwc {
     )]
     #[inline(always)]
     #[macerator::with_simd]
-    fn loop_blocked<'a, S: Simd, E: Element + VOrd + MinMax>(
+    fn loop_blocked<'a, S: Simd, E: ElementOrdered + VOrd + MinMax>(
         x: ArrayView3<'a, E>,
         mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
@@ -276,7 +277,7 @@ mod nhwc {
     #[allow(clippy::too_many_arguments, unused_mut)]
     #[inline(always)]
     #[macerator::with_simd]
-    unsafe fn loop_unblocked<'a, S: Simd, E: Element + VOrd + MinMax>(
+    unsafe fn loop_unblocked<'a, S: Simd, E: ElementOrdered + VOrd + MinMax>(
         x: ArrayView3<'a, E>,
         mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
@@ -349,7 +350,7 @@ mod nhwc {
         }
     }
 
-    fn loop_scalar<E: Element + MinMax>(
+    fn loop_scalar<E: ElementOrdered + MinMax>(
         x: ArrayView3<'_, E>,
         mut out: ArrayViewMut3<'_, E>,
         kernel_size: [usize; 2],

@@ -1,4 +1,5 @@
 use super::Reduction;
+use alloc::vec;
 use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::{Bool, Int, Tensor, backend::Backend, s};
@@ -93,7 +94,7 @@ impl RNNTLoss {
             alpha = alpha.mask_where(valid, new);
         }
 
-        self.gather_loss(alpha, &lpb, logit_lengths, target_lengths, b, max_up1)
+        self.gather_loss(alpha, &lpb, logit_lengths, target_lengths, b)
     }
 
     /// Computes RNNT loss with the given reduction. Returns shape `[1]`.
@@ -232,19 +233,21 @@ impl RNNTLoss {
         logit_lengths: Tensor<B, 1, Int>,
         target_lengths: Tensor<B, 1, Int>,
         b: usize,
-        max_up1: usize,
     ) -> Tensor<B, 1> {
-        let t_idx = logit_lengths.sub_scalar(1);
+        let device = alpha.device();
+        // Anchor the index dtype on `u_idx` so all three coordinate tensors share a
+        // common int dtype before stacking - `cat` panics on dtype mismatch and the
+        // caller's lengths may not use the device's default IntElem.
         let u_idx = target_lengths;
+        let int_dtype = u_idx.dtype();
+        let t_idx = logit_lengths.sub_scalar(1).cast(int_dtype);
+        let b_idx = Tensor::<B, 1, Int>::arange(0..b as i64, (&device, int_dtype));
 
-        let alpha_tu = alpha
-            .gather(1, u_idx.clone().reshape([b, 1]))
-            .squeeze_dim::<1>(1);
-
-        // Gather blank prob at (T_b, U_b)
-        let t_exp = t_idx.reshape([b, 1, 1]).expand([b, 1, max_up1]);
-        let lpb_t = lpb.clone().gather(1, t_exp).squeeze_dim::<2>(1);
-        let lpb_tu = lpb_t.gather(1, u_idx.reshape([b, 1])).squeeze_dim::<1>(1);
+        let alpha_tu: Tensor<B, 1> =
+            alpha.gather_nd(Tensor::stack::<2>(vec![b_idx.clone(), u_idx.clone()], 1));
+        let lpb_tu: Tensor<B, 1> = lpb
+            .clone()
+            .gather_nd(Tensor::stack::<2>(vec![b_idx, t_idx, u_idx], 1));
 
         alpha_tu.add(lpb_tu).neg()
     }

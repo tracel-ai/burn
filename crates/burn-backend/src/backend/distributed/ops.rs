@@ -19,7 +19,7 @@ unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 
 // TODO : The following functions should be moved in the `burn-autodiff` crate. The difficulty is in not discriminating between
 // the dispatch backend and its inner dispatched backend when calling the communication server API. This implementation makes
-// it easy by implementing `DisributedBackend` for `DispatchBackend`.
+// it easy by implementing `DistributedBackend` for `DispatchBackend`.
 // The functions in question :
 // * `start_communication_server`
 // * `close_communication_server`

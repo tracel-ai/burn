@@ -212,7 +212,7 @@ macro_rules! bench_backend {
             use super::*;
 
             type TestBackend = $backend;
-            type TestDevice = <TestBackend as Backend>::Device;
+            type TestDevice = Device<TestBackend>;
 
             #[divan::bench]
             fn burnpack_store(bencher: Bencher) {

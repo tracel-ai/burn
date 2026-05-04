@@ -1798,6 +1798,9 @@ where
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    ///
+    /// # Panics
+    /// If the `update` is not `IndexingUpdateOp::Add`. Other operations are currently not implemented.
     pub fn scatter(
         self,
         dim: usize,
@@ -1819,6 +1822,65 @@ where
             values.primitive,
             update,
         ))
+    }
+
+    /// Multi-dimensional scatter: update `self` at locations given by `indices` using the specified `update` operation.
+    ///
+    /// The size of `indices`'s last axis (call it `K`) indexes the leading `K` dims of `self`;
+    /// the batch shape `indices.shape[0..M-1]` is preserved. `values` has shape
+    /// `indices.shape[0..M-1] ++ self.shape[K..D]`. Constraints: `K <= D` and `M >= 1`.
+    ///
+    /// # Arguments
+    /// * `indices` - The indices of the elements to scatter.
+    /// * `values` - The values to scatter into the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
+    ///
+    /// # Note
+    ///
+    /// When `indices` contains duplicate entries, the result is non-deterministic on GPU
+    /// backends (matching ONNX ScatterND semantics). CPU backends are deterministic regardless
+    /// of reduction. For deterministic accumulation with duplicates, run on a CPU backend.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    pub fn scatter_nd<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+        values: Tensor<B, DV, K>,
+        update: IndexingUpdateOp,
+    ) -> Self {
+        check!(TensorCheck::scatter_nd::<D, M, DV>(
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+        Self::new(K::scatter_nd(
+            self.primitive,
+            indices.primitive,
+            values.primitive,
+            update,
+        ))
+    }
+
+    /// Multi-dimensional gather: collect slices from `self` at multi-index locations
+    /// specified by `indices`.
+    ///
+    /// The size of `indices`'s last axis (call it `K`) indexes the leading `K` dims of `self`;
+    /// the batch shape `indices.shape[0..M-1]` is preserved. The output has shape
+    /// `indices.shape[0..M-1] ++ self.shape[K..D]`. Constraints: `K <= D` and `M >= 1`.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    pub fn gather_nd<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+    ) -> Tensor<B, DV, K> {
+        check!(TensorCheck::gather_nd::<D, M, DV>(&indices.shape()));
+        Tensor::new(K::gather_nd(self.primitive, indices.primitive))
     }
 
     /// Converts the data of the current tensor.

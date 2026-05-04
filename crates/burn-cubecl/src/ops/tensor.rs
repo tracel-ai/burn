@@ -195,6 +195,19 @@ where
         kernel::scatter(dim, tensor, indices, value, false)
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        kernel::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        kernel::gather_nd(data, indices)
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,
@@ -591,6 +604,33 @@ where
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMax,
+        )
+        .unwrap()
+    }
+
+    fn float_argtopk(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<Self> {
+        reduce::reduce_dim(
+            tensor,
+            Some(out_dtype.into()),
+            dim,
+            Default::default(),
+            ReduceOperationConfig::ArgTopK(k),
+        )
+        .unwrap()
+    }
+
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
+        reduce::reduce_dim(
+            tensor,
+            None,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::TopK(k),
         )
         .unwrap()
     }

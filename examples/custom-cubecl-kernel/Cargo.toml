@@ -10,13 +10,13 @@ version.workspace = true
 workspace = true
 
 [dependencies]
-burn = { path = "../../crates/burn", default-features = false, features = [
+burn = { workspace = true, features = [
     "autodiff",
     "wgpu",
     "autotune",
     "template",
 ] }
-burn-cubecl = { path = "../../crates/burn-cubecl" }
+burn-cubecl = { workspace = true, features = ["default"] }
 cubecl = { workspace = true, features = ["wgpu"] }
 
 # Serialization

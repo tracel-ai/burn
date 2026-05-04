@@ -7,10 +7,15 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
-        Ordered, TensorKind,
+        Ordered, TensorKind, TransactionOp,
     },
 };
 
+impl<B: Backend> TransactionOp<B> for Int {
+    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
+        tr.register_int(tensor);
+    }
+}
 impl<B: Backend> BasicOps<B> for Int {
     type Elem = B::IntElem;
 
@@ -27,10 +32,6 @@ impl<B: Backend> BasicOps<B> for Int {
 
     fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: DType) -> Self::Primitive {
         B::int_full(shape, fill_value, device, dtype.into())
-    }
-
-    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
-        tr.register_int(tensor);
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -70,6 +71,7 @@ impl<B: Backend> BasicOps<B> for Int {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::int_select_add(tensor, dim, indices, values),
+            _ => unimplemented!(),
         }
     }
 
@@ -106,7 +108,21 @@ impl<B: Backend> BasicOps<B> for Int {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::int_scatter_add(dim, tensor, indices, values),
+            _ => unimplemented!(),
         }
+    }
+
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: IndexingUpdateOp,
+    ) -> Self::Primitive {
+        B::int_scatter_nd(data, indices, values, reduction)
+    }
+
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
+        B::int_gather_nd(data, indices)
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -358,6 +374,14 @@ impl<B: Backend> Ordered<B> for Int {
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         B::int_argmax(tensor, dim)
+    }
+
+    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B> {
+        B::int_argtopk(tensor, dim, k)
+    }
+
+    fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B> {
+        B::int_topk(tensor, dim, k)
     }
 
     fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {

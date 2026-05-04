@@ -232,8 +232,8 @@ where
     /// }
     /// ```
     pub fn topk(self, k: usize, dim: usize) -> Self {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
-        self.sort_descending(dim).select(dim, k_indices)
+        assert!(self.shape()[dim] > k);
+        Tensor::new(K::topk(self.primitive, dim, k))
     }
 
     /// Returns the `k` largest elements of the given input tensor along a given dimension.
@@ -599,6 +599,26 @@ where
     /// ```
     pub fn argmax(self, dim: usize) -> Tensor<B, D, Int> {
         Tensor::new(K::argmax(self.primitive, dim))
+    }
+
+    /// Applies the argtopk function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
+    ///     let tensor = tensor.argtopk(1, 2);
+    ///     println!("{:?}", tensor.shape());
+    /// }
+    /// ```
+    pub fn argtopk(self, k: usize, dim: usize) -> Tensor<B, D, Int> {
+        assert!(self.shape()[dim] > k);
+        Tensor::new(K::argtopk(self.primitive, dim, k))
     }
 
     /// Find the maximum value.

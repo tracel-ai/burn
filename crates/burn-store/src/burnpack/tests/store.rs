@@ -1077,7 +1077,7 @@ fn test_store_quantized_module_round_trip() {
         .init::<TestBackend>(&device);
 
     // Define quantization scheme (Q8S with tensor-level quantization)
-    let scheme = <<TestBackend as burn_tensor::backend::Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+    let scheme = <<TestBackend as burn_tensor::backend::BackendTypes>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::Tensor)
         .with_param(QuantParam::F32);
@@ -1330,7 +1330,7 @@ fn test_store_quantized_module_block_level() {
         .init::<TestBackend>(&device);
 
     // Define quantization scheme with block-level quantization
-    let scheme = <<TestBackend as burn_tensor::backend::Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+    let scheme = <<TestBackend as burn_tensor::backend::BackendTypes>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([32])) // Block size of 32
         .with_param(QuantParam::F32);

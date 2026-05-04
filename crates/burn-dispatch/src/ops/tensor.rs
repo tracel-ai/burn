@@ -150,6 +150,22 @@ impl FloatTensorOps<Self> for Dispatch {
         )
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(data, float), (indices, int), (values, float)], => Float,
+            B::float_scatter_nd(data, indices, values, reduction)
+        )
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        binary_float!((data, float), (indices, int), |data, indices| B::float_gather_nd(data, indices) => Float)
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,
@@ -415,6 +431,19 @@ impl FloatTensorOps<Self> for Dispatch {
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_argmax(tensor, dim, out_dtype) => Int)
+    }
+
+    fn float_argtopk(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_argtopk(tensor, dim, k, out_dtype) => Int)
+    }
+
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_topk(tensor, dim, k) => Float)
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {

@@ -330,8 +330,8 @@ mod tests {
         module::Module,
         record::{BinBytesRecorder, FullPrecisionSettings},
     };
-    use burn_tensor::Tensor;
     use burn_tensor::backend::Backend;
+    use burn_tensor::{Device, Tensor};
 
     #[inline(always)]
     fn file_path(file: &str) -> PathBuf {
@@ -424,7 +424,7 @@ mod tests {
         ignore: Ignored<PaddingConfig2d>,
     }
 
-    pub fn create_model(device: &<TestBackend as Backend>::Device) -> Model<TestBackend> {
+    pub fn create_model(device: &Device<TestBackend>) -> Model<TestBackend> {
         let linear1 = SimpleLinear::new(32, 32, device);
 
         Model {

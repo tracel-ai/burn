@@ -207,6 +207,19 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::scatter(dim, tensor, indices, value)
     }
 
+    fn float_scatter_nd(
+        data: TchTensor,
+        indices: TchTensor,
+        values: TchTensor,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> TchTensor {
+        TchOps::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn float_gather_nd(data: TchTensor, indices: TchTensor) -> TchTensor {
+        TchOps::gather_nd(data, indices)
+    }
+
     fn float_select(tensor: TchTensor, dim: usize, indices: TchTensor) -> TchTensor {
         TchOps::index_select_dim(tensor, dim, indices)
     }
@@ -329,6 +342,19 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
 
     fn float_argmax(tensor: TchTensor, dim: usize, _indices_dtype: IntDType) -> TchTensor {
         TchOps::argmax(tensor, dim)
+    }
+
+    fn float_argtopk(
+        _tensor: TchTensor,
+        _dim: usize,
+        _k: usize,
+        _indices_dtype: IntDType,
+    ) -> TchTensor {
+        unimplemented!("argtopk not implemented for Torch")
+    }
+
+    fn float_topk(_tensor: TchTensor, _dim: usize, _k: usize) -> TchTensor {
+        unimplemented!("topk not implemented for Torch")
     }
 
     fn float_argmin(tensor: TchTensor, dim: usize, _out_dtype: IntDType) -> TchTensor {

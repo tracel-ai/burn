@@ -7,7 +7,7 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Ordered,
-        TensorKind,
+        TensorKind, TransactionOp,
     },
 };
 
@@ -29,7 +29,11 @@ macro_rules! q_bin_ops {
         }
     };
 }
-
+impl<B: Backend> TransactionOp<B> for Float {
+    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
+        tr.register_float(tensor);
+    }
+}
 impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
@@ -46,10 +50,6 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: DType) -> Self::Primitive {
         TensorPrimitive::Float(B::float_full(shape, fill_value, device, dtype.into()))
-    }
-
-    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
-        tr.register_float(tensor);
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -126,6 +126,7 @@ impl<B: Backend> BasicOps<B> for Float {
                 indices,
                 values.tensor(),
             )),
+            _ => unimplemented!(),
         }
     }
 
@@ -170,7 +171,26 @@ impl<B: Backend> BasicOps<B> for Float {
                 indices,
                 values.tensor(),
             )),
+            _ => unimplemented!(),
         }
+    }
+
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: IndexingUpdateOp,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_scatter_nd(
+            data.tensor(),
+            indices,
+            values.tensor(),
+            reduction,
+        ))
+    }
+
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_gather_nd(data.tensor(), indices))
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
@@ -600,6 +620,19 @@ impl<B: Backend> Ordered<B> for Float {
         }
     }
 
+    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B> {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                B::float_argtopk(tensor, dim, k, out_dtype)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                B::q_argtopk(tensor, dim, k, out_dtype)
+            }
+        }
+    }
+
     fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => {
@@ -624,6 +657,13 @@ impl<B: Backend> Ordered<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_dim(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_dim(tensor, dim)),
+        }
+    }
+
+    fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_topk(tensor, dim, k)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_topk(tensor, dim, k)),
         }
     }
 
@@ -720,6 +760,404 @@ impl<B: Backend> Ordered<B> for Float {
                 TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
             }
         }
+    }
+}
+
+/// Trait that lists some floating-point mathematical operations are common to all float-like dtypes.
+///
+/// # Warnings
+///
+/// This is an internal trait, use the public API provided by the
+#[cfg_attr(doc, doc = crate::doc_tensor!())]
+#[cfg_attr(not(doc), doc = "`Tensor`")]
+/// struct.
+pub trait FloatMathOps<B: Backend>: Numeric<B> {
+    /// Applies element wise square operation
+    ///
+    #[cfg_attr(doc, doc = "$y_i = x^{2}$")]
+    #[cfg_attr(not(doc), doc = "`y = x^2`")]
+    fn square(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Applies element wise exponential operation.
+    ///
+    #[cfg_attr(doc, doc = "$y_i = e^{x_i}$")]
+    #[cfg_attr(not(doc), doc = "`y = e^x`")]
+    fn exp(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Applies the natural logarithm of one plus the input tensor, element-wise.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i + 1\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = log(x_i + 1)`")]
+    fn log1p(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Applies element wise natural log operation *ln*.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = log(x_i)`")]
+    fn log(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Applies element wise root square operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i}$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i)`")]
+    fn sqrt(tensor: Self::Primitive) -> Self::Primitive;
+    /// Returns a new tensor with cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with cosine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the cosine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("cos"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::cos`")]
+    /// function, which is more high-level and designed for public use.
+    fn cos(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with sine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the sine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sin"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sin`")]
+    /// function, which is more high-level and designed for public use.
+    fn sin(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with tangent values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the tangent of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("tan"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::tan`")]
+    /// function, which is more high-level and designed for public use.
+    fn tan(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic cosine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the hyperbolic cosine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("cosh"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::cosh`")]
+    /// function, which is more high-level and designed for public use.
+    fn cosh(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic sine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the hyperbolic sine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("sinh"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::sinh`")]
+    /// function, which is more high-level and designed for public use.
+    fn sinh(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the hyperbolic tangent of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("tanh"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::tanh`")]
+    /// function, which is more high-level and designed for public use.
+    fn tanh(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with inverse cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse cosine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the inverse cosine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("acos"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::acos`")]
+    /// function, which is more high-level and designed for public use.
+    fn acos(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with inverse hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse hyperbolic cosine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the inverse hyperbolic cosine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("acosh"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::acosh`")]
+    /// function, which is more high-level and designed for public use.
+    fn acosh(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with inverse sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse sine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the inverse sine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("asin"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::asin`")]
+    /// function, which is more high-level and designed for public use.
+    fn asin(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with inverse hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse hyperbolic sine values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the inverse hyperbolic sine of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("asinh"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::asinh`")]
+    /// function, which is more high-level and designed for public use.
+    fn asinh(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with inverse tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse tangent values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the inverse tangent of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("atan"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::atan`")]
+    /// function, which is more high-level and designed for public use.
+    fn atan(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a new tensor with inverse hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse hyperbolic tangent values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the inverse hyperbolic tangent of a tensor, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("atanh"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::atanh`")]
+    /// function, which is more high-level and designed for public use.
+    fn atanh(tensor: Self::Primitive) -> Self::Primitive;
+
+    /// Returns a tensor with the four-quadrant inverse tangent values of `y` and `x`.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The tensor with y coordinates.
+    /// * `rhs` - The tensor with x coordinates.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the four-quadrant inverse tangent values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For the four-quadrant inverse tangent of two tensors, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("atan2"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::atan2`")]
+    /// function, which is more high-level and designed for public use.
+    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+}
+
+impl<B: Backend> FloatMathOps<B> for Float {
+    fn square(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_powi_scalar(tensor.tensor(), 2.into()))
+    }
+    fn sqrt(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_sqrt(tensor.tensor()))
+    }
+    fn cos(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_cos(tensor.tensor()))
+    }
+
+    fn sin(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_sin(tensor.tensor()))
+    }
+
+    fn tan(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_tan(tensor.tensor()))
+    }
+
+    fn cosh(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_cosh(tensor.tensor()))
+    }
+
+    fn sinh(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_sinh(tensor.tensor()))
+    }
+
+    fn tanh(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_tanh(tensor.tensor()))
+    }
+
+    fn acos(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_acos(tensor.tensor()))
+    }
+
+    fn acosh(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_acosh(tensor.tensor()))
+    }
+
+    fn asin(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_asin(tensor.tensor()))
+    }
+
+    fn asinh(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_asinh(tensor.tensor()))
+    }
+
+    fn atan(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_atan(tensor.tensor()))
+    }
+
+    fn atanh(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_atanh(tensor.tensor()))
+    }
+
+    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_atan2(lhs.tensor(), rhs.tensor()))
+    }
+
+    fn exp(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_exp(tensor.tensor()))
+    }
+
+    fn log(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_log(tensor.tensor()))
+    }
+
+    fn log1p(tensor: Self::Primitive) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_log1p(tensor.tensor()))
     }
 }
 

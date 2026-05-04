@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_shrink_forward() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: Shrink = ShrinkConfig::new().init();
         let input =
             Tensor::<TestBackend, 2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_shrink_with_lambda_and_bias() {
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
         let model: Shrink = ShrinkConfig::new()
             .with_lambda(0.25)
             .with_bias(0.125)

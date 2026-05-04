@@ -1,13 +1,12 @@
-use burn_tensor::backend::DeviceOps;
-use burn_tensor::backend::{Device, DeviceId};
-use burn_tensor::{Float, TensorPrimitive, Tolerance};
+use burn_tensor::backend::{DeviceId, DeviceOps};
 use burn_tensor::{
-    TensorData,
+    Device, TensorData,
     backend::{
         AutodiffBackend, Backend,
         distributed::{DistributedBackend, ReduceOperation},
     },
 };
+use burn_tensor::{Float, TensorPrimitive, Tolerance};
 use rand::RngExt;
 use serial_test::serial;
 
@@ -19,7 +18,7 @@ fn test_all_reduce() {
     // Cuda
     let type_id = 10u16;
     let device_count = <TestBackend as Backend>::device_count(type_id);
-    let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
+    let devices = create_devices::<Device<TestBackend>>(type_id, device_count);
 
     let shape = [20, 20];
     run_all_reduce::<TestBackend>(devices, 100, shape);
@@ -31,14 +30,14 @@ fn test_all_reduce_multithread() {
     // Cuda
     let type_id = 10u16;
     let device_count = <TestBackend as Backend>::device_count(type_id);
-    let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
+    let devices = create_devices::<Device<TestBackend>>(type_id, device_count);
 
     let shape = [20, 20];
     run_multithread::<TestBackend>(devices, 100, shape);
 }
 
 fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
-    devices: Vec<B::Device>,
+    devices: Vec<Device<B>>,
     num_iterations: usize,
     shape: [usize; 2],
 ) {
@@ -84,7 +83,7 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
 }
 
 fn run_multithread<B: AutodiffBackend + DistributedBackend>(
-    devices: Vec<B::Device>,
+    devices: Vec<Device<B>>,
     num_iterations: usize,
     shape: [usize; 2],
 ) {
@@ -149,8 +148,8 @@ fn run_multithread<B: AutodiffBackend + DistributedBackend>(
     }
 }
 
-fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
+fn create_devices<D: DeviceOps>(type_id: u16, count: usize) -> Vec<D> {
     (0..count)
-        .map(|i| D::from_id(DeviceId::new(type_id, i as u32)))
+        .map(|i| D::from_id(DeviceId::new(type_id, i as u16)))
         .collect()
 }

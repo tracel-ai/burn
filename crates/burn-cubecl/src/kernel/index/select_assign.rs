@@ -15,9 +15,14 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     indices: &LinearView<I>,
     value: &Tensor<F>,
     value_shape: Sequence<FastDivmod<usize>>,
+    working_units: usize,
     #[comptime] axis: usize,
     #[define(F, I)] _dtypes: [StorageType; 2],
 ) {
+    if ABSOLUTE_POS >= working_units {
+        terminate!();
+    }
+
     let rank = value_shape.len().comptime();
 
     let mut offset = ABSOLUTE_POS;
@@ -86,6 +91,7 @@ pub(crate) fn select_assign<R: CubeRuntime>(
         indices.into_linear_view(),
         value.into_tensor_arg(),
         shape,
+        working_units,
         axis,
         [tensor_dtype.into(), indices_dtype.into()],
     );

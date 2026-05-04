@@ -11,12 +11,12 @@ version.workspace = true
 workspace = true
 
 [dependencies]
-burn = {path = "../../crates/burn", features=["autodiff", "wgpu", "train", "dataset", "vision"], default-features=false}
+burn = {workspace = true, features=["autodiff", "wgpu", "train", "dataset", "vision"] }
 guide = {path = "../guide", default-features=false}
 
 # Serialization
 log = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"]}
+serde = {workspace = true, features = ["std", "derive"] }
 
 # Wgpu internal dependencies
 derive-new = { workspace = true }

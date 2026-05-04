@@ -24,7 +24,7 @@ pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, Int
 pub type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, Bool>;
 
 #[allow(unused)]
-pub type IntType = <TestBackend as burn_tensor::backend::Backend>::IntElem;
+pub type IntType = <TestBackend as burn_tensor::backend::BackendTypes>::IntElem;
 
 #[allow(missing_docs)]
 #[macro_export]

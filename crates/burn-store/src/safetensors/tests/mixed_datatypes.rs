@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn test_extreme_values() {
         type TestBackend = burn_flex::Flex;
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
 
         #[derive(Module, Debug)]
         struct ExtremeValueModel<B: Backend> {
