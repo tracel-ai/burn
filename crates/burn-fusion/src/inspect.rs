@@ -44,7 +44,7 @@
 
 use burn_ir::{OperationIr, TensorId};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::stream::StreamId;
 use crate::stream::execution::trace::format_table;
