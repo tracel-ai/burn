@@ -1,5 +1,3 @@
-use crate::engine::codegen::{DynElem, DynSize};
-
 use super::{io::*, ir::*};
 use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
@@ -245,29 +243,6 @@ fn fuse(
         let op = config.ops[index].clone();
         let define!(E) = op.cmp_storage_ty();
         let size!(N) = config.width;
-        // EXPANDED:
-        // scope.register_type::<E>(op.cmp_storage_ty());
-        // scope.register_size::<N>(config.width);
-
-        // For any other FuseOp:
-        // `read::<E, N>` -> set_polyfill_typed::<Vector<E, N>, DynElem, DynSize>();
-        // set_polyfill_typed<C, Dyn, DynSize>:
-        // let scope = scope;
-        // {
-        //     let elem_type = C::as_type(scope);
-        //     set_polyfill::expand::<Dyn, DynSize>(scope, elem_type);
-        // }
-        // so DynElem and DynSize are registered to the scope
-
-        // For Dequantize:
-        // `dequantize::<E, N>` -> `read_quantized::<QStoreType, QStoreSize>` -> set_polyfill_typed::<Vector<QStoreType, QStoreSize>, DynElem, DynSize>()
-
-        // set_polyfill::<NumericExpand<DYN_ELEM_ID>>(op.cmp_type());
-        // type E = crate::engine::codegen::DynElem;
-        // type N = crate::engine::codegen::DynSize;
-        // set_polyfill::<E, N>(comptime!(
-        //     Type::new(op.cmp_storage_ty()).with_vector_size(config.width)
-        // ));
 
         match op {
             FuseOp::Add(op) => add::<E, N>(inputs, outputs, locals, pos, op, config),
@@ -322,27 +297,17 @@ fn fuse(
                 params,
                 output,
                 scheme,
-            } => {
-                // scheme.scheme.num_quants()
-                // let size!(NQ) = match scheme.scheme.store {
-                //     QuantStore::Native | QuantStore::PackedNative(_) => config.width,
-                //     QuantStore::PackedU32(_) => scheme.scheme.num_quants(),
-                // };
-
-                set_polyfill_typed::<Vector<E, N>, DynElem, DynSize>();
-                // set_polyfill::<
-                dequantize::<E, N>(
-                    inputs,
-                    outputs,
-                    locals,
-                    pos,
-                    values,
-                    params,
-                    output,
-                    scheme.scheme,
-                    config,
-                )
-            }
+            } => dequantize::<E, N>(
+                inputs,
+                outputs,
+                locals,
+                pos,
+                values,
+                params,
+                output,
+                scheme.scheme,
+                config,
+            ),
             FuseOp::Rem(op) => rem::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::Clamp {
                 input,
@@ -820,25 +785,10 @@ fn dequantize<C: Float, N: Size>(
         cubecl::quant::scheme::QuantParam::UE4M3 =>
             StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
     }];
-    let num_quants = scheme.num_quants();
-    let vector_size = N::value().comptime();
-    // Calculate how many packed elements we actually need to read to produce 'vector_size' floats.
-    let q_vector_size = vector_size / num_quants;
+    let q_vector_size = N::value().comptime() / scheme.num_quants();
 
-    // vector_size=16; num_quants=8;
-
-    // scope.register_type::<T>(ty);
-    // scope.register_size::<S>(size);
     let define!(QStoreType) = quant_ty;
-    let size!(QNumPacked) = q_vector_size;
-    let size!(QNumQuants) = num_quants;
-
-    let size = N::value();
-
-    comptime! {
-        assert_eq!(num_quants*q_vector_size, size);
-    };
-
+    let size!(QStoreSize) = q_vector_size;
     let define!(QParamType) = param_ty;
 
     let tensor_pos = comptime!(match input {
@@ -849,34 +799,38 @@ fn dequantize<C: Float, N: Size>(
         FuseArg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
-
-    // input: Vec<QStoreType, QNumPacked>
     let input =
-        read_quantized::<QStoreType, QNumPacked>(inputs, locals, write_pos, input, config, scheme);
+        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
 
-    let scales = input_as_scales_view::<QParamType>(inputs, pos, tensor_pos, scheme.level, config);
-    // result: Array[QNumPacked; Vector<C, QNumQuants>]
-    let result = dequantize_symmetric_packed_value_at::<
-        C,
-        QNumQuants,
-        QParamType,
-        QStoreType,
-        QNumPacked,
-    >(write_pos * num_quants, input, &scales, scheme);
+    let num_quants = scheme.num_quants();
 
-    // Vector<C, N>
-    let mut vector = Vector::empty();
+    let scales =
+        input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
+    let result = dequantize_symmetric_packed_value_at::<C, N, QParamType, QStoreType, QStoreSize>(
+        write_pos * num_quants,
+        input,
+        &scales,
+        scheme,
+    );
 
-    // #[unroll]
-    for i in 0..q_vector_size {
-        let value = result[i];
+    let vector = if comptime!(q_vector_size == 1) {
+        result[0]
+    } else {
+        let mut vector = Vector::empty();
 
-        // #[unroll]
-        for j in 0..num_quants {
-            let index = i * num_quants + j;
-            vector[index] = value[j];
+        #[unroll]
+        for i in 0..q_vector_size {
+            let value = result[i];
+
+            #[unroll]
+            for j in 0..num_quants {
+                let index = i * num_quants + j;
+                vector[index] = value[j];
+            }
         }
-    }
+
+        vector
+    };
 
     write::<C, N>(inputs, outputs, locals, write_pos, vector, output, config);
 }
