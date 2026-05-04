@@ -790,6 +790,7 @@ fn dequantize<C: Float, N: Size>(
     let define!(QStoreType) = quant_ty;
     let size!(QStoreSize) = q_vector_size;
     let define!(QParamType) = param_ty;
+    let size!(NumQuant) = scheme.num_quants();
 
     let tensor_pos = comptime!(match input {
         FuseArg::Input(pos, _, _) => pos,
@@ -799,38 +800,33 @@ fn dequantize<C: Float, N: Size>(
         FuseArg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
-    let input =
-        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
 
     let num_quants = scheme.num_quants();
 
+    let input =
+        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
+
     let scales =
         input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
-    let result = dequantize_symmetric_packed_value_at::<C, N, QParamType, QStoreType, QStoreSize>(
-        write_pos * num_quants,
-        input,
-        &scales,
-        scheme,
-    );
 
-    let vector = if comptime!(q_vector_size == 1) {
-        result[0]
-    } else {
-        let mut vector = Vector::empty();
+    let result = dequantize_symmetric_packed_value_at::<
+        C,
+        NumQuant,
+        QParamType,
+        QStoreType,
+        QStoreSize,
+    >(write_pos * num_quants, input, &scales, scheme);
 
-        #[unroll]
-        for i in 0..q_vector_size {
-            let value = result[i];
+    let mut vector = Vector::empty();
 
-            #[unroll]
-            for j in 0..num_quants {
-                let index = i * num_quants + j;
-                vector[index] = value[j];
-            }
+    for i in 0..q_vector_size {
+        let value = result[i];
+
+        for j in 0..num_quants {
+            let index = i * num_quants + j;
+            vector[index] = value[j];
         }
-
-        vector
-    };
+    }
 
     write::<C, N>(inputs, outputs, locals, write_pos, vector, output, config);
 }
