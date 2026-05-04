@@ -56,7 +56,7 @@ float-cmp = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
 gemm = { version = "0.19", default-features = false }
-gix-tempfile = { version = "22.0.0", features = ["signals"] }
+gix-tempfile = { version = "23.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.16"
 hound = "3.5.1"
@@ -116,7 +116,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.23"
-zip = "8.5.1"
+zip = "8.6.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -168,7 +168,7 @@ smallvec = { version = "1", features = ["const_generics", "const_new"] }
 uuid = { version = "1.23.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
-libc = "0.2.182"
+libc = "0.2.186"
 nvml-wrapper = "0.12.0"
 sysinfo = "0.38.0"
 systemstat = "0.2.6"
