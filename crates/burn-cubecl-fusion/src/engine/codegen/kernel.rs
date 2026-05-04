@@ -833,6 +833,12 @@ fn dequantize<C: Float, N: Size>(
     let size!(QNumPacked) = q_vector_size;
     let size!(QNumQuants) = num_quants;
 
+    let size = N::value();
+
+    comptime! {
+        assert_eq!(num_quants*q_vector_size, size);
+    };
+
     let define!(QParamType) = param_ty;
 
     let tensor_pos = comptime!(match input {
@@ -861,11 +867,11 @@ fn dequantize<C: Float, N: Size>(
     // Vector<C, N>
     let mut vector = Vector::empty();
 
-    #[unroll]
+    // #[unroll]
     for i in 0..q_vector_size {
         let value = result[i];
 
-        #[unroll]
+        // #[unroll]
         for j in 0..num_quants {
             let index = i * num_quants + j;
             vector[index] = value[j];

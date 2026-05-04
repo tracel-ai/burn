@@ -237,13 +237,19 @@ fn vectorization_input<R: Runtime>(
 
     // Reflect changes from https://github.com/tracel-ai/cubecl/pull/1312
     // Calculate the smallest non-zero stride among other dimensions
-    let next_stride = handle
+    let mut next_stride = handle
         .strides
         .iter()
         .enumerate()
         .filter_map(|(i, &s)| (i != axis && s != 0).then_some(s))
         .min()
         .unwrap_or(0);
+
+    // Since when we calculate the vectorization of an input value, we will divide the
+    // vectorization by the num_quants, we need to adapt the stride check accordingly.
+    if let burn_std::DType::QFloat(quant_scheme) = handle.dtype {
+        next_stride *= quant_scheme.num_quants();
+    };
 
     let inner = |s: VectorSize| {
         // Updated condition: axis shape AND next_stride must be divisible by s
@@ -423,13 +429,19 @@ fn vectorization_swapped<R: Runtime>(
     }
 
     // Reflect changes from https://github.com/tracel-ai/cubecl/pull/1312
-    let next_stride = handle
+    let mut next_stride = handle
         .strides
         .iter()
         .enumerate()
         .filter_map(|(i, &s)| (i != axis_index && s != 0).then_some(s))
         .min()
         .unwrap_or(0);
+
+    // Since when we calculate the vectorization of an input value, we will divide the
+    // vectorization by the num_quants, we need to adapt the stride check accordingly.
+    if let burn_std::DType::QFloat(quant_scheme) = handle.dtype {
+        next_stride *= quant_scheme.num_quants();
+    };
 
     let inner = |s: VectorSize| {
         // The last dimension should be a multiple of the vector size or broadcated.
