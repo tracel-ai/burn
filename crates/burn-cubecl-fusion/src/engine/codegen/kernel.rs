@@ -819,9 +819,11 @@ fn dequantize<C: Float, N: Size>(
 
     let mut vector = Vector::empty();
 
+    #[unroll]
     for i in 0..q_vector_size {
         let value = result[i];
 
+        #[unroll]
         for j in 0..num_quants {
             let index = i * num_quants + j;
             vector[index] = value[j];
