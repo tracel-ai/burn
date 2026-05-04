@@ -10,7 +10,7 @@
 
 use super::*;
 use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
-use burn_tensor::{DType, StreamId, backend::Backend};
+use burn_tensor::{DType, backend::Backend};
 use serial_test::serial;
 
 /// `a + b` followed by `exp` should collapse into a single element-wise fused kernel.
