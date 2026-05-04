@@ -133,7 +133,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 #[cfg(feature = "memory-checks")]
                 self.memory_checks.check(&self.streams, handles);
                 #[cfg(feature = "test-util")]
-                crate::inspect::emit_handle_snapshot(handles.handle_ids().copied());
+                crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
                 return;
             }
         };
@@ -152,7 +152,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         #[cfg(feature = "memory-checks")]
         self.memory_checks.check(&self.streams, handles);
         #[cfg(feature = "test-util")]
-        crate::inspect::emit_handle_snapshot(handles.handle_ids().copied());
+        crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
     }
 
     /// Decide what to do with a drop operation on the given stream.
@@ -226,7 +226,7 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         let len_before = stream.queue.global.len();
         stream.processor.process(
-            Segment::new(&mut stream.queue, handles),
+            Segment::new(&mut stream.queue, handles, id),
             &mut self.optimizations,
             ExecutionMode::Lazy,
         );
@@ -264,7 +264,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         #[cfg(feature = "memory-checks")]
         self.memory_checks.check(&self.streams, handles);
         #[cfg(feature = "test-util")]
-        crate::inspect::emit_handle_snapshot(handles.handle_ids().copied());
+        crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
     }
 
     /// Drain a stream
@@ -273,7 +273,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             if let Some(stream) = self.streams.get_mut(&id) {
                 let num_executed = stream.queue.global.len();
                 stream.processor.process(
-                    Segment::new(&mut stream.queue, handles),
+                    Segment::new(&mut stream.queue, handles, id),
                     &mut self.optimizations,
                     ExecutionMode::Sync,
                 );
@@ -287,7 +287,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         });
         #[cfg(feature = "test-util")]
-        crate::inspect::emit_handle_snapshot(handles.handle_ids().copied());
+        crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
     }
 
     /// When one of the provided streams is different from the current stream, we drain them.
@@ -479,6 +479,7 @@ pub(crate) struct Stream<R: FusionRuntime> {
 struct Segment<'a, R: FusionRuntime> {
     queue: &'a mut OperationQueue<R>,
     handles: &'a mut HandleContainer<R::FusionHandle>,
+    id: StreamId,
 }
 
 impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
@@ -487,7 +488,7 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
     }
 
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<R::Optimization>) {
-        self.queue.execute(id, self.handles, store)
+        self.queue.execute(id, self.handles, store, self.id)
     }
 }
 

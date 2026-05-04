@@ -13,14 +13,12 @@ use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
 use burn_tensor::{DType, StreamId, backend::Backend};
 use serial_test::serial;
 
-/// Stream id used to play the role of a peer stream without spawning a real thread.
-const TEST_STREAM: StreamId = StreamId { value: 566 };
-
 /// `a + b` followed by `exp` should collapse into a single element-wise fused kernel.
 #[test]
 #[serial]
 fn elementwise_add_then_exp_fuses_into_single_kernel() {
-    TEST_STREAM.executes(|| {
+    let stream = test_stream();
+    stream.executes(|| {
         let device = Default::default();
 
         // Materialize the inputs first so that the `Ones` init ops aren't rolled into the
@@ -29,7 +27,7 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
         let b = TestTensor::<2>::ones([4, 4], &device);
         TestBackend::sync(&device).unwrap();
 
-        let inspector = FusionInspector::install();
+        let inspector = FusionInspector::install(stream);
         let out = (a + b).exp();
         let _ = out.into_data();
         TestBackend::sync(&device).unwrap();
@@ -60,9 +58,10 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
 #[test]
 #[serial]
 fn sync_between_ops_splits_into_separate_kernels() {
-    TEST_STREAM.executes(|| {
+    let stream = test_stream();
+    stream.executes(|| {
         let device = Default::default();
-        let inspector = FusionInspector::install();
+        let inspector = FusionInspector::install(stream);
 
         let a = TestTensor::<2>::ones([4, 4], &device);
         let b = TestTensor::<2>::ones([4, 4], &device);
@@ -114,7 +113,8 @@ fn sync_between_ops_splits_into_separate_kernels() {
 #[test]
 #[serial]
 fn chained_elementwise_ops_fuse_together() {
-    TEST_STREAM.executes(|| {
+    let stream = test_stream();
+    stream.executes(|| {
         let device = Default::default();
 
         let a = TestTensor::<2>::ones([8, 8], &device);
@@ -122,7 +122,7 @@ fn chained_elementwise_ops_fuse_together() {
         let c = TestTensor::<2>::ones([8, 8], &device);
         TestBackend::sync(&device).unwrap();
 
-        let inspector = FusionInspector::install();
+        let inspector = FusionInspector::install(stream);
         // add → mul → exp, all element-wise on the same shape.
         let out = ((a + b) * c).exp();
         let _ = out.into_data();
@@ -160,7 +160,8 @@ fn chained_elementwise_ops_fuse_together() {
 #[test]
 #[serial]
 fn elementwise_and_creation_into_single_kernel() {
-    TEST_STREAM.executes(|| {
+    let stream = test_stream();
+    stream.executes(|| {
     const REPETITIONS: usize = 4;
     let device = Default::default();
 
@@ -168,7 +169,7 @@ fn elementwise_and_creation_into_single_kernel() {
     let original = TestTensor::<2>::ones([8, 8], &device);
     TestBackend::sync(&device).unwrap();
 
-    let inspector = FusionInspector::install();
+    let inspector = FusionInspector::install(stream);
 
     let mut tmp = original.clone();
     for i in 0..REPETITIONS {

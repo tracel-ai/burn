@@ -11,7 +11,7 @@ use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use core::fmt::Write;
 
 use crate::NumOperations;
-use crate::stream::store::ExecutionStrategy;
+use crate::stream::{StreamId, store::ExecutionStrategy};
 
 /// One contiguous run of operations — the output of a single [`ExecutionStrategy`]
 /// leaf. A `Composed` strategy flattens into a sequence of these.
@@ -45,6 +45,7 @@ pub enum BlockKind {
 /// below `Full` (except when the inspector is installed, which eagerly captures the
 /// structured blocks for test assertions).
 pub(crate) fn log_execution_table<O: NumOperations>(
+    _id: StreamId,
     strategy: &ExecutionStrategy<O>,
     global: &[OperationIr],
 ) {
@@ -54,7 +55,7 @@ pub(crate) fn log_execution_table<O: NumOperations>(
     let blocks_for_inspector: Option<Vec<FusionBlock>> = if crate::inspect::is_installed() {
         let mut blocks = Vec::new();
         collect_blocks(strategy, global, &mut blocks);
-        crate::inspect::emit(&blocks);
+        crate::inspect::emit(_id, &blocks);
         Some(blocks)
     } else {
         None

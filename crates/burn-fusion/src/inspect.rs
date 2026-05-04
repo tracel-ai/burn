@@ -32,9 +32,10 @@
 //! documentation, but the mutex is what actually prevents interference.
 
 use burn_ir::{OperationIr, TensorId};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
+use crate::stream::StreamId;
 use crate::stream::execution::trace::format_table;
 pub use crate::stream::execution::trace::{BlockKind, FusionBlock};
 
@@ -140,9 +141,8 @@ pub struct FusionInspector {
     /// handle here is assumed to belong to unrelated work (other running tests,
     /// pre-existing state) and excluded from the leak set.
     baseline_handles: Arc<Mutex<Option<HashSet<TensorId>>>>,
-    // Held for the lifetime of the inspector. Dropped *after* the buffers, releasing
-    // the process-wide install lock so the next inspector can proceed.
-    _install_guard: MutexGuard<'static, ()>,
+    /// Track which stream this inspector belongs to.
+    stream_id: StreamId,
 }
 
 struct Sink {
@@ -150,46 +150,43 @@ struct Sink {
     live_handles: Arc<Mutex<Option<HashSet<TensorId>>>>,
 }
 
-fn global() -> &'static Mutex<Option<Sink>> {
-    static GLOBAL: OnceLock<Mutex<Option<Sink>>> = OnceLock::new();
-    GLOBAL.get_or_init(|| Mutex::new(None))
-}
-
-/// Serializes `FusionInspector::install` across threads: only one inspector can be
-/// active at a time.
-fn install_mutex() -> &'static Mutex<()> {
-    static INSTALL: OnceLock<Mutex<()>> = OnceLock::new();
-    INSTALL.get_or_init(|| Mutex::new(()))
+/// Maps each observed [`StreamId`] to its active [`Sink`].
+fn registry() -> &'static Mutex<HashMap<StreamId, Sink>> {
+    static REGISTRY: OnceLock<Mutex<HashMap<StreamId, Sink>>> = OnceLock::new();
+    REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 impl FusionInspector {
-    /// Install an inspector. Returns a guard that clears the global sink when dropped.
+    /// Install an inspector for `stream_id`.
     ///
-    /// Blocks if another [`FusionInspector`] is currently installed (whether in this
-    /// thread or another) — the guard is released when that prior inspector is
-    /// dropped. Poisoned locks (e.g. from a previous test panic) are recovered
-    /// silently.
-    pub fn install() -> Self {
-        let install_guard = install_mutex()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-
+    /// # Panics
+    /// Panics if an inspector for the same stream is already active. Two inspectors
+    /// for *different* streams may coexist freely.
+    pub fn install(stream_id: StreamId) -> Self {
         let buffer = Arc::new(Mutex::new(Vec::new()));
         let live_handles = Arc::new(Mutex::new(None));
         let baseline_handles = Arc::new(Mutex::new(None));
+
         {
-            let mut slot = global().lock().unwrap_or_else(|p| p.into_inner());
-            *slot = Some(Sink {
-                buffer: buffer.clone(),
-                live_handles: live_handles.clone(),
-            });
+            let mut reg = registry().lock().unwrap_or_else(|p| p.into_inner());
+            assert!(
+                !reg.contains_key(&stream_id),
+                "FusionInspector: a sink for stream {stream_id:?} is already installed. Drop the previous inspector before installing a new one.",
+            );
+            reg.insert(
+                stream_id,
+                Sink {
+                    buffer: buffer.clone(),
+                    live_handles: live_handles.clone(),
+                },
+            );
         }
 
         Self {
+            stream_id,
             buffer,
             live_handles,
             baseline_handles,
-            _install_guard: install_guard,
         }
     }
 
@@ -278,25 +275,25 @@ impl FusionInspector {
 
 impl Drop for FusionInspector {
     fn drop(&mut self) {
-        if let Ok(mut slot) = global().lock() {
-            *slot = None;
+        if let Ok(mut reg) = registry().lock() {
+            reg.remove(&self.stream_id);
         }
-        // `_install_guard` is released after this, allowing the next install() to proceed.
     }
 }
 
 /// Whether an inspector is currently installed. Called from the fusion server thread.
 pub(crate) fn is_installed() -> bool {
-    global().lock().map(|g| g.is_some()).unwrap_or(false)
+    registry().lock().map(|r| !r.is_empty()).unwrap_or(false)
 }
 
 /// Push a report into the installed sink, if any. Called from the fusion server thread.
-pub(crate) fn emit(blocks: &[FusionBlock]) {
-    let slot = match global().lock() {
-        Ok(s) => s,
+/// Push a report into the sink registered for `stream_id`, if any.
+pub(crate) fn emit(stream_id: StreamId, blocks: &[FusionBlock]) {
+    let reg = match registry().lock() {
+        Ok(r) => r,
         Err(_) => return,
     };
-    let Some(sink) = slot.as_ref() else {
+    let Some(sink) = reg.get(&stream_id) else {
         return;
     };
     let report = FusionReport {
@@ -307,15 +304,13 @@ pub(crate) fn emit(blocks: &[FusionBlock]) {
     }
 }
 
-/// Record the [`TensorId`]s currently in the
-/// [`HandleContainer`](burn_ir::HandleContainer). Called from the fusion server
-/// thread at quiescent points (post-register, post-drain).
-pub(crate) fn emit_handle_snapshot(ids: impl IntoIterator<Item = TensorId>) {
-    let slot = match global().lock() {
-        Ok(s) => s,
+/// Record the live [`TensorId`]s for `stream_id` at a quiescent point.
+pub(crate) fn emit_handle_snapshot(stream_id: StreamId, ids: impl IntoIterator<Item = TensorId>) {
+    let reg = match registry().lock() {
+        Ok(r) => r,
         Err(_) => return,
     };
-    let Some(sink) = slot.as_ref() else {
+    let Some(sink) = reg.get(&stream_id) else {
         return;
     };
     let set: HashSet<TensorId> = ids.into_iter().collect();
