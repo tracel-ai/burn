@@ -204,6 +204,7 @@ pub fn read_quantized<C: Scalar, N: Size>(
 ) -> Vector<C, N> {
     match arg {
         FuseArg::Input(pos, _precision, _layout) => {
+            set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
             let global = inputs.tensors.index(pos);
 
             let offset =
@@ -282,14 +283,14 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: us
 
 /// Returns the input tensor as a quantized scale view.
 #[cube]
-pub fn input_as_scales_view<C: Scalar, N: Size>(
+pub fn input_as_scales_view<C: Scalar>(
     inputs: &GlobalArgs,
     #[comptime] pos: usize,
     #[comptime] tensor_pos: usize,
     #[comptime] level: QuantLevel,
     #[comptime] config: &FuseBlockConfig,
 ) -> View<C, usize> {
-    set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
+    set_polyfill_typed::<C, DynElem, DynSize>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);
     let tensor_len = tensor.tensor.len();
