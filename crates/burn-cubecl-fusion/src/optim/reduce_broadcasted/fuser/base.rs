@@ -250,6 +250,7 @@ mod tests {
                 input: tensor1,
                 out: tensor2_out,
                 axis: 1,
+                accumulator_len: 1,
             }),
         ));
 
@@ -301,6 +302,7 @@ mod tests {
                 input: tensor6,
                 out: tensor7_out,
                 axis: 1,
+                accumulator_len: 1,
             }),
         ));
         assert_eq!(5, fuser.len());
@@ -341,6 +343,7 @@ mod tests {
                 input: tensor3,
                 out: tensor4_out,
                 axis: 1,
+                accumulator_len: 1,
             }),
         ));
 
