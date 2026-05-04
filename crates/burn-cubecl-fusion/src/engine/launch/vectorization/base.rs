@@ -253,7 +253,7 @@ fn vectorization_input<R: Runtime>(
 
     let inner = |s: VectorSize| {
         // The last dimension should be a multiple of the vector size or broadcated.
-        if shape_axis.is_multiple_of(s) && next_stride.is_multiple_of(s) {
+        if shape_axis.is_multiple_of(s) && next_stride % s == 0 {
             return Some(Vect::Aligned(s));
         }
         None
@@ -446,10 +446,14 @@ fn vectorization_swapped<R: Runtime>(
     let inner = |s: VectorSize| {
         // The last dimension should be a multiple of the vector size or broadcated.
         if multi_reads {
-            if swapped_axis.is_multiple_of(s) && next_stride.is_multiple_of(s) && s <= max {
+            if swapped_axis.is_multiple_of(s) && next_stride % s == 0 && s <= max {
                 return Some(Vect::Aligned(s));
             }
-        } else if swapped_axis.is_multiple_of(s) && shape_axis.is_multiple_of(s) && s <= max {
+        } else if swapped_axis.is_multiple_of(s)
+            && shape_axis.is_multiple_of(s)
+            && next_stride % s == 0
+            && s <= max
+        {
             return Some(Vect::Aligned(s));
         }
         None
