@@ -168,7 +168,7 @@ smallvec = { version = "1", features = ["const_generics", "const_new"] }
 uuid = { version = "1.23.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
-libc = "0.2.182"
+libc = "0.2.186"
 nvml-wrapper = "0.12.0"
 sysinfo = "0.38.0"
 systemstat = "0.2.6"
