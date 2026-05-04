@@ -1,11 +1,10 @@
 //! Test-only introspection into fusion runtime behavior.
 //!
-//! When a [`FusionInspector`] is installed, every execution plan that runs through the
-//! fusion server is captured as a [`FusionReport`] describing which [`OperationIr`]s
-//! ended up fused into a single kernel and which ran unfused, and the size of the
-//! backing [`HandleContainer`](burn_ir::HandleContainer) is snapshotted at quiescent
-//! points. This lets tests assert on the *shape* of fusion and on memory cleanup —
-//! not just on numeric output.
+//! When a [`FusionInspector`] is installed for a given [`StreamId`], every execution
+//! plan that runs on that stream is captured as a [`FusionReport`] describing which
+//! [`OperationIr`]s ended up fused into a single kernel and which ran unfused.
+//! Handle snapshots from the backing [`HandleContainer`](burn_ir::HandleContainer)
+//! are also recorded at quiescent points, enabling leak detection.
 //!
 //! [`FusionBlock`] and [`BlockKind`] are the same types the logger renders into its
 //! Full-level execution table — see [`crate::stream::execution::trace`].
@@ -14,22 +13,34 @@
 //!
 //! ```ignore
 //! # use burn_fusion::inspect::FusionInspector;
-//! let inspector = FusionInspector::install();
+//! # use burn_tensor::StreamId;
+//! let stream = StreamId::current();
+//! let inspector = FusionInspector::install(stream);
 //! // ... run tensor ops with a fusion-wrapped backend, then sync ...
 //! let reports = inspector.drain();
 //! let block = reports[0].assert_single_fused_block();
 //! assert_eq!(block.fuser_name(), Some("ElementWise"));
-//! assert_eq!(inspector.last_handle_count(), Some(0));
 //! ```
 //!
 //! # Threading
 //!
-//! The fusion server runs on a background thread per device. Snapshots are captured
-//! on that thread and deposited into a process-global sink, so only one inspector can
-//! be active at a time. [`FusionInspector::install`] enforces this by blocking on a
-//! process-wide mutex — concurrent calls from different tests wait rather than
-//! racing. Marking inspector-based tests `#[serial]` is still recommended as
-//! documentation, but the mutex is what actually prevents interference.
+//! The fusion server runs on a background thread per device. Reports are captured on
+//! that thread and deposited into a process-global registry keyed by [`StreamId`].
+//! Multiple inspectors for *different* streams may coexist freely. Each only sees
+//! reports from its own stream, so concurrent tests on different streams are naturally
+//! isolated without any serialization.
+//!
+//! Installing two inspectors for the *same* stream will panic. Use `test_stream()`
+//! (which returns a fresh unique [`StreamId`] per call) to avoid accidental sharing.
+//!
+//! ## Handle leak detection
+//!
+//! [`HandleContainer`](burn_ir::HandleContainer) is shared per-device across the
+//! whole process, so handle snapshots are not stream-scoped. Every live handle on
+//! the device appears in the snapshot regardless of which stream created it.
+//! Tests that assert on handle counts via [`FusionInspector::new_handles_since_baseline`]
+//! must therefore be serialized against each other with `#[serial]`
+//! to prevent handles from concurrent tests from appearing as false leaks.
 
 use burn_ir::{OperationIr, TensorId};
 use std::collections::{HashMap, HashSet};
@@ -125,9 +136,6 @@ pub type OpMatcher = Box<dyn Fn(&OperationIr) -> bool + Send + Sync>;
 
 /// A guard installed via [`FusionInspector::install`]. Holds the shared buffers and
 /// clears the global sink on drop.
-///
-/// Only one inspector can be active at a time; [`FusionInspector::install`] blocks on
-/// a process-wide mutex to enforce this.
 #[must_use = "the inspector is uninstalled as soon as this guard is dropped"]
 pub struct FusionInspector {
     buffer: Arc<Mutex<Vec<FusionReport>>>,
@@ -232,11 +240,10 @@ impl FusionInspector {
     /// Capture the most recent live-handle snapshot as a baseline. Handles present
     /// here are excluded from [`Self::new_handles_since_baseline`].
     ///
-    /// Call this *after* `Backend::sync` on every stream the test will touch, so
-    /// the fusion server has had a chance to emit a snapshot reflecting the
-    /// pre-test quiescent state. The inspector's install-mutex keeps concurrent
-    /// inspector-based tests from adding or removing handles during the baseline
-    /// window.
+    /// Call this *after* `Backend::sync` so the fusion server has had a chance to
+    /// emit a snapshot reflecting the pre-test quiescent state. Tests that use this
+    /// method should be marked `#[serial]` to prevent handles from concurrent tests
+    /// from polluting the baseline window.
     pub fn set_baseline(&self) {
         let current = self
             .live_handles
@@ -286,8 +293,8 @@ pub(crate) fn is_installed() -> bool {
     registry().lock().map(|r| !r.is_empty()).unwrap_or(false)
 }
 
-/// Push a report into the installed sink, if any. Called from the fusion server thread.
 /// Push a report into the sink registered for `stream_id`, if any.
+/// Called from the fusion server thread.
 pub(crate) fn emit(stream_id: StreamId, blocks: &[FusionBlock]) {
     let reg = match registry().lock() {
         Ok(r) => r,
