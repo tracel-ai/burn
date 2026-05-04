@@ -17,7 +17,7 @@
 
 use super::*;
 use burn_fusion::inspect::FusionInspector;
-use burn_tensor::{StreamId, backend::Backend};
+use burn_tensor::{Device, StreamId, backend::Backend};
 use serial_test::serial;
 
 /// Stream id used to play the role of a peer stream without spawning a real thread.
@@ -25,7 +25,7 @@ const PEER_STREAM: StreamId = StreamId { value: 0xdead_beef };
 
 /// Drain both the main stream and [`PEER_STREAM`] so the post-sync handle snapshot
 /// reflects the full quiescent state.
-fn sync_all(device: &<TestBackend as Backend>::Device) {
+fn sync_all(device: &Device<TestBackend>) {
     TestBackend::sync(device).unwrap();
     PEER_STREAM.executes(|| TestBackend::sync(device).unwrap());
     // A second main-stream sync ensures any drops triggered during peer drain are
@@ -37,7 +37,7 @@ fn sync_all(device: &<TestBackend as Backend>::Device) {
 /// After this returns, [`FusionInspector::new_handles_since_baseline`] only reports
 /// handles born during the test body — handles from other parallel tests that were
 /// already live are excluded.
-fn install_and_baseline(device: &<TestBackend as Backend>::Device) -> FusionInspector {
+fn install_and_baseline(device: &Device<TestBackend>) -> FusionInspector {
     let inspector = FusionInspector::install();
     sync_all(device);
     inspector.set_baseline();
