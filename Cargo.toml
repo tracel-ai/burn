@@ -116,7 +116,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.23"
-zip = "8.5.1"
+zip = "8.6.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
