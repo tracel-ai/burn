@@ -103,7 +103,7 @@ fn should_quantize_dequantize_per_block_unsqueezed_q8s_packed() {
 }
 
 #[test]
-#[should_panic = "Reshape of ND block-quantized tensor is not yet supported"]
+#[should_panic] // "Reshape of ND block-quantized tensor is not yet supported" error is shadowed by the CallError
 fn quantize_2d_block_reshape_should_panic() {
     should_quantize_dequantize_per_block_arange_reshaped(
         QuantLevel::Block(BlockSize::new([2, 4])),

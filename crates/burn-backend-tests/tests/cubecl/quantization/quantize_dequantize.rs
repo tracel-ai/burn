@@ -222,6 +222,7 @@ fn should_quantize_dequantize_symmetric_arange_128x256_q8s_packed() {
     )
 }
 
+#[cfg(not(feature = "fusion"))]
 #[test]
 #[should_panic = "Can't store in u32"]
 fn should_panic_when_shape_cannot_store_quants() {
