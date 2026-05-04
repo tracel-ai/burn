@@ -246,8 +246,8 @@ pub(super) fn hermitian_extend<B: Backend, const D: usize>(
         return (half_re, half_im);
     }
 
-    // Mirror bins: reverse of bins 1..N/2, with conjugated imaginary part
-    // This produces X[N/2+1], X[N/2+2], ..., X[N-1]
+    // Mirror bins: reverse of bins 1..N/2-1 (skipping the Nyquist bin),
+    // with conjugated imaginary part. This produces X[N/2+1], X[N/2+2], ..., X[N-1]
     let mirror_len = full_len - half_len; // N/2 - 1
     let mirror_re = half_re
         .clone()
