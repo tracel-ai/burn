@@ -91,6 +91,11 @@ fn two_branch_conv_bn_add(dev: Device<TestBackend>, dtype: DType) -> TensorData 
     (a + b).into_data()
 }
 
+/// Two parallel conv+BN branches added together — the Fusion<f16> result must
+/// match reference.
+///
+/// This test was failing only on Vulkan+Fusion+f16
+/// Reference: https://github.com/tracel-ai/burn/pull/4675
 #[test]
 fn fusion_f16_two_branch_conv_bn_add_matches_reference() {
     let fused_f16 = two_branch_conv_bn_add(Default::default(), DType::F16);

@@ -97,6 +97,7 @@ fn two_conv_bn_branches(dev: Device<TestBackend>, dtype: DType) -> TensorData {
 }
 
 /// This test was failing only on Vulkan+Fusion+f16
+/// Reference: https://github.com/tracel-ai/burn/pull/4675
 #[test]
 fn fusion_f16_two_branch_conv_manual_bn() {
     let fused_f16 = two_conv_bn_branches(Default::default(), DType::F16);
