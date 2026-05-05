@@ -4,18 +4,18 @@
 //! inspect the captured [`FusionReport`]s to check that the expected operations ended
 //! up in the same (or separate) fused kernels.
 //!
-//! `FusionInspector::install` blocks on a process-wide mutex, so two tests running
-//! in parallel will serialize rather than interfere. `#[serial]` is kept as
-//! documentation.
+//! `FusionInspector::install` captures operations on a specific stream, so two tests running
+//! in parallel will not interfere when inspecting different streams. Use `test_stream()`
+//! (which returns a fresh unique [`StreamId`] per call) to isolate each test. Installing
+//! two inspectors for the *same* stream will panic.
 
 use super::*;
 use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
-use burn_tensor::{DType, backend::Backend};
+use burn_tensor::backend::Backend;
 use serial_test::serial;
 
 /// `a + b` followed by `exp` should collapse into a single element-wise fused kernel.
 #[test]
-#[serial]
 fn elementwise_add_then_exp_fuses_into_single_kernel() {
     let stream = test_stream();
     stream.executes(|| {
@@ -54,7 +54,6 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
 /// Forcing a sync between two sub-expressions should materialize the intermediate and
 /// prevent fusion across the boundary.
 #[test]
-#[serial]
 fn sync_between_ops_splits_into_separate_kernels() {
     let stream = test_stream();
     stream.executes(|| {
@@ -110,7 +109,6 @@ fn sync_between_ops_splits_into_separate_kernels() {
 
 /// Multiple chained element-wise ops should still fuse into a single kernel.
 #[test]
-#[serial]
 fn chained_elementwise_ops_fuse_together() {
     let stream = test_stream();
     stream.executes(|| {
@@ -157,7 +155,6 @@ fn chained_elementwise_ops_fuse_together() {
 /// If this test fails, the panic message includes the fusion table so the split
 /// points are visible directly in the test output.
 #[test]
-#[serial]
 fn elementwise_and_creation_into_single_kernel() {
     let stream = test_stream();
     stream.executes(|| {
