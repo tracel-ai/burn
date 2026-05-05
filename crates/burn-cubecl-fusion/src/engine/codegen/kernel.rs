@@ -510,25 +510,26 @@ fn gather<C: Numeric, N: Size>(
         // Shared index for whole vector
         let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
 
-        let offset = read_input::<u32, Const<1>>(
-            inputs,
-            locals,
-            pos_indices,
-            index_offset,
-            LayoutInfo::IsRef,
-            config,
-            None,
-        );
-
-        index += offset[0] as usize * stride_input_dim;
-
         #[unroll]
         for i in 0..vector_size {
+            let offset = read_input::<u32, Const<1>>(
+                inputs,
+                locals,
+                pos_indices,
+                index_offset + i,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            let current_index =
+                index + (offset[0] as usize * stride_input_dim) + (i * stride_input_vector);
+
             let input = read_input::<C, Const<1>>(
                 inputs,
                 locals,
                 pos_input,
-                index + i * stride_input_vector,
+                current_index,
                 LayoutInfo::IsRef,
                 config,
                 None,

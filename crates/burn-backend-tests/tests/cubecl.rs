@@ -1,7 +1,6 @@
 //! CubeCL kernel tests.
 
 #![recursion_limit = "256"]
-// TODO: some tests are failing WITH fusion. Should validate the existing failures.
 #[cfg(feature = "cube")]
 #[path = "."]
 mod cube {
