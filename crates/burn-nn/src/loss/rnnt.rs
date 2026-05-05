@@ -151,17 +151,12 @@ impl RNNTLoss {
         max_up1: usize,
         device: &B::Device,
     ) -> Tensor<B, 2> {
-        let mut alpha = Tensor::<B, 2>::full([b, max_up1], f32::NEG_INFINITY, device);
-        alpha = alpha.slice_assign(s![.., 0..1], Tensor::zeros([b, 1], device));
-
         // Label probs at t=0
         let lpl_0 = lpl.clone().slice(s![.., 0..1, ..]).squeeze_dim::<2>(1);
-        for u in 1..max_up1 {
-            let prev = alpha.clone().slice(s![.., (u - 1)..u]);
-            let lp = lpl_0.clone().slice(s![.., (u - 1)..u]);
-            alpha = alpha.slice_assign(s![.., u..(u + 1)], prev.add(lp));
-        }
-        alpha
+        let zero_col = Tensor::<B, 2>::zeros([b, 1], device);
+        let prefix = Tensor::cat(vec![zero_col, lpl_0.slice(s![.., 0..max_up1 - 1])], 1);
+        
+        prefix.cumsum(1)
     }
 
     /// Boolean mask `[B, U+1]` that is true where `u <= target_lengths[b]`.
