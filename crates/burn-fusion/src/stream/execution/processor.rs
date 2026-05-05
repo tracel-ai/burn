@@ -1,4 +1,5 @@
 use burn_ir::OperationIr;
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 
 use super::{ExecutionMode, ExplorationAction, Explorer};
 use crate::search::BlockOptimization;
@@ -65,6 +66,17 @@ impl<O: NumOperations> Processor<O> {
                     };
                 }
                 Action::Execute(id) => {
+                    let mode_dbg = match mode {
+                        ExecutionMode::Lazy => "lazy",
+                        ExecutionMode::Sync => "sync",
+                    };
+                    let num_ops = segment.operations().len();
+                    log_fusion(FusionLogLevel::Full, move || {
+                        format!(
+                            "[plan] cache hit: execute plan #{id} ({mode_dbg}, segment has {num_ops} ops)"
+                        )
+                    });
+
                     if let ExecutionMode::Sync = mode {
                         store.add_trigger(id, ExecutionTrigger::OnSync);
                     }
@@ -137,6 +149,19 @@ impl<O: NumOperations> Processor<O> {
     ) -> ExecutionPlanId {
         let num_optimized = optimization.ordering.len();
         let relative = &operations[0..num_optimized];
+
+        {
+            let total_ops = operations.len();
+            let mode_dbg = match mode {
+                ExecutionMode::Lazy => "lazy",
+                ExecutionMode::Sync => "sync",
+            };
+            log_fusion(FusionLogLevel::Full, move || {
+                format!(
+                    "[plan] exploration completed: {mode_dbg}, {num_optimized}/{total_ops} ops optimized"
+                )
+            });
+        }
 
         match mode {
             ExecutionMode::Lazy => {

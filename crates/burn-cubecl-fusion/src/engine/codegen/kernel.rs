@@ -480,6 +480,9 @@ fn gather<C: Numeric, N: Size>(
         config,
     );
 
+    // TODO: new IR to differentiate between Gather and GatherBroadcasted at comptime?
+    let stride_indices_vector = global_stride(inputs, config.rank - 1, pos_indices);
+
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
         #[unroll]
@@ -488,7 +491,7 @@ fn gather<C: Numeric, N: Size>(
                 inputs,
                 locals,
                 pos_indices,
-                index_offset + i,
+                index_offset + i * stride_indices_vector,
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -503,32 +506,31 @@ fn gather<C: Numeric, N: Size>(
                 config,
                 None,
             );
-
             result[i] = input[0];
         }
     } else {
-        // Shared index for whole vector
         let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
-
-        let offset = read_input::<u32, Const<1>>(
-            inputs,
-            locals,
-            pos_indices,
-            index_offset,
-            LayoutInfo::IsRef,
-            config,
-            None,
-        );
-
-        index += offset[0] as usize * stride_input_dim;
 
         #[unroll]
         for i in 0..vector_size {
+            let offset = read_input::<u32, Const<1>>(
+                inputs,
+                locals,
+                pos_indices,
+                index_offset + i * stride_indices_vector,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+
+            let current_index =
+                index + (offset[0] as usize * stride_input_dim) + (i * stride_input_vector);
+
             let input = read_input::<C, Const<1>>(
                 inputs,
                 locals,
                 pos_input,
-                index + i * stride_input_vector,
+                current_index,
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -789,8 +791,8 @@ fn dequantize<C: Float, N: Size>(
 
     let define!(QStoreType) = quant_ty;
     let size!(QStoreSize) = q_vector_size;
-
     let define!(QParamType) = param_ty;
+    let size!(NumQuant) = scheme.num_quants();
 
     let tensor_pos = comptime!(match input {
         FuseArg::Input(pos, _, _) => pos,
@@ -800,38 +802,35 @@ fn dequantize<C: Float, N: Size>(
         FuseArg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
-    let input =
-        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
 
     let num_quants = scheme.num_quants();
 
+    let input =
+        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
+
     let scales =
         input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
-    let result = dequantize_symmetric_packed_value_at::<C, N, QParamType, QStoreType, QStoreSize>(
-        write_pos * num_quants,
-        input,
-        &scales,
-        scheme,
-    );
 
-    let vector = if comptime!(q_vector_size == 1) {
-        result[0]
-    } else {
-        let mut vector = Vector::empty();
+    let result = dequantize_symmetric_packed_value_at::<
+        C,
+        NumQuant,
+        QParamType,
+        QStoreType,
+        QStoreSize,
+    >(write_pos * num_quants, input, &scales, scheme);
+
+    let mut vector = Vector::empty();
+
+    #[unroll]
+    for i in 0..q_vector_size {
+        let value = result[i];
 
         #[unroll]
-        for i in 0..q_vector_size {
-            let value = result[i];
-
-            #[unroll]
-            for j in 0..num_quants {
-                let index = i * num_quants + j;
-                vector[index] = value[j];
-            }
+        for j in 0..num_quants {
+            let index = i * num_quants + j;
+            vector[index] = value[j];
         }
-
-        vector
-    };
+    }
 
     write::<C, N>(inputs, outputs, locals, write_pos, vector, output, config);
 }

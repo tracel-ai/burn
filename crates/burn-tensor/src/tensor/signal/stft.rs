@@ -3,7 +3,7 @@ use alloc::vec;
 use crate::Tensor;
 use crate::ops::PadMode;
 
-use super::{irfft, rfft};
+use super::{hermitian_extend, irfft, rfft};
 
 /// Configuration shared by [`stft`] and [`istft`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -149,7 +149,7 @@ pub fn stft(signal: Tensor<2>, window: Option<Tensor<1>>, options: StftOptions) 
     let (re, im, n_freqs) = if onesided {
         (re, im, n_fft / 2 + 1)
     } else {
-        let (re_full, im_full) = reconstruct_full_spectrum(re, im, n_fft);
+        let (re_full, im_full) = hermitian_extend(re, im, 1, n_fft);
         (re_full, im_full, n_fft)
     };
 
@@ -158,29 +158,6 @@ pub fn stft(signal: Tensor<2>, window: Option<Tensor<1>>, options: StftOptions) 
     let im: Tensor<3> = im.reshape([batch, n_frames, n_freqs]);
 
     Tensor::stack::<4>(vec![re, im], 3)
-}
-
-/// Reconstruct the full N-point spectrum from the onesided rfft output using Hermitian symmetry.
-fn reconstruct_full_spectrum(re: Tensor<2>, im: Tensor<2>, n_fft: usize) -> (Tensor<2>, Tensor<2>) {
-    if n_fft <= 1 {
-        return (re, im);
-    }
-
-    let n_freqs_onesided = n_fft / 2 + 1;
-    let n_neg = n_fft - n_freqs_onesided;
-    if n_neg == 0 {
-        return (re, im);
-    }
-
-    // Negative frequencies: take bins 1..=n_neg from the onesided spectrum,
-    // conjugate (negate imag), and reverse to reconstruct the full N-point spectrum.
-    let re_neg = re.clone().narrow(1, 1, n_neg).flip([1]);
-    let im_neg = im.clone().narrow(1, 1, n_neg).flip([1]).neg();
-
-    (
-        Tensor::cat(vec![re, re_neg], 1),
-        Tensor::cat(vec![im, im_neg], 1),
-    )
 }
 
 /// Center-pad window from `win_len` to `n_fft` with zeros.

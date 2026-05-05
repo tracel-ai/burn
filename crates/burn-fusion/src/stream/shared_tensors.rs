@@ -132,6 +132,11 @@ impl SharedTensors {
         self.register_manual_drop(to_drop)
     }
 
+    /// Whether the given tensor is currently tracked as shared across multiple streams.
+    pub fn is_shared(&self, tensor: &TensorId) -> bool {
+        self.shared_tensors.contains_key(tensor)
+    }
+
     pub fn streams_of(&mut self, tensor: &TensorId) -> Vec<StreamId> {
         let mut streams = Vec::new();
 

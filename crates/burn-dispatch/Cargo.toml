@@ -94,12 +94,6 @@ fusion = [
     "burn-rocm?/fusion",
     "burn-cpu?/fusion",
 ]
-memory-checks = [
-    "burn-wgpu?/memory-checks",
-    "burn-cuda?/memory-checks",
-    "burn-rocm?/memory-checks",
-    "burn-cpu?/memory-checks",
-]
 
 [dependencies]
 burn-backend = { workspace = true }

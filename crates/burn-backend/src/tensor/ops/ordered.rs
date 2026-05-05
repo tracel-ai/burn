@@ -354,8 +354,9 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the index of the
-    /// maximum element of the input tensor at the corresponding index along the specified axis.
+    /// A tensor where the dimension `dim` has size 1 and all other dimensions
+    /// are the same as the input tensor. Each element is the index of the maximum
+    /// value.
     ///
     /// # Remarks
     ///
@@ -369,6 +370,58 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// function, which is more high-level and designed for public use.
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B>;
 
+    /// Gets the indices of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the indices of the maximum elements.
+    /// * `tensor` - The tensor to get the indices of the maximum elements from.
+    /// * `k` - k maximum elements to get
+    ///
+    /// # Returns
+    ///
+    /// A tensor where the dimension `dim` has size `k` and all other dimensions
+    /// are the same as the input tensor. Each element is the index of one of the
+    /// `k` largest values along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the indices of the k maximum elements of a tensor along an axis, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("argtopk"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::argtopk`")]
+    /// function, which is more high-level and designed for public use.
+    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B>;
+
+    /// Gets the values of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the values of the maximum elements.
+    /// * `tensor` - The tensor to get the values of the maximum elements from.
+    /// * `k` - k maximum elements to get
+    ///
+    /// # Returns
+    ///
+    /// A tensor where the dimension `dim` has size `k` and all other dimensions
+    /// are the same as the input tensor. Each element is the value of one of the
+    /// `k` largest values along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the values of the k maximum elements of a tensor along an axis, users should prefer the
+    #[cfg_attr(doc, doc = crate::doc_tensor!("topk"))]
+    #[cfg_attr(not(doc), doc = "`Tensor::topk`")]
+    /// function, which is more high-level and designed for public use.
+    fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive;
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments
@@ -378,8 +431,9 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the index of the
-    /// minimum element of the input tensor at the corresponding index along the specified axis.
+    /// A tensor where the dimension `dim` has size 1 and all other dimensions
+    /// are the same as the input tensor. Each element is the index of the minimum
+    /// value.
     ///
     /// # Remarks
     ///

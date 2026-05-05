@@ -40,7 +40,8 @@ cpu = ["burn-tensor/cpu", "cube"]
 
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
-fusion = ["burn-tensor/fusion"]
+memory-checks = ["burn-fusion?/memory-checks"]
+fusion = ["burn-tensor/fusion", "burn-fusion/test-util"]
 distributed = ["std", "burn-tensor/distributed"]
 
 # CubeCL backends
@@ -73,6 +74,9 @@ burn-cubecl = { workspace = true, optional = true, features = [
     "default",
     "fusion",
 ] }
+
+# Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
+burn-fusion = { workspace = true, optional = true }
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }

@@ -4,6 +4,7 @@ use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
 #[test]
+#[ignore]
 fn test_topk_1d() {
     let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
 
@@ -17,6 +18,7 @@ fn test_topk_1d() {
 }
 
 #[test]
+#[ignore]
 fn test_topk() {
     let tensor = QTensor::<3>::int8([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
 

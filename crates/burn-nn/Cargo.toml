@@ -34,9 +34,6 @@ test-vulkan = ["burn-core/vulkan"]
 test-wgpu = ["burn-core/wgpu"]
 test-metal = ["burn-core/metal"]
 
-# Memory checks are disabled by default
-test-memory-checks = ["burn-core/test-memory-checks"]
-
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

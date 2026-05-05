@@ -9,7 +9,10 @@ use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
 };
-use burn_std::{DType, Shape};
+use burn_std::{
+    DType, Shape,
+    config::{fusion::FusionLogLevel, log_fusion},
+};
 use cubecl::ir::ElemType;
 
 /// The base operation fuser that can be used to fuse [all supported fuse operations](FuseOp).
@@ -38,6 +41,25 @@ pub(crate) struct TraceOperationFuser {
 }
 
 impl TraceOperationFuser {
+    /// Emits a `Full`-level fusion log explaining why the fuser transitioned to `Closed`.
+    /// `prev_num_ops` is the number of ops already fused before the rejected op.
+    fn log_closed(&self, op: &OperationIr, prev_num_ops: usize, reason: &'static str) {
+        let max = self.max_bindings;
+        log_fusion(FusionLogLevel::Full, || {
+            // Debug-format the op and estimate bindings lazily: both are expensive
+            // enough to skip when logging is off.
+            let op_dbg = format!("{op:?}");
+            let op_short = op_dbg
+                .split_once('(')
+                .map(|(head, _)| head)
+                .unwrap_or(&op_dbg);
+            let est = self.fuser.fuser.estimate_bindings();
+            format!(
+                "[fuser] closed on {op_short} ({reason}); had {prev_num_ops} ops, est_bindings={est}/{max}"
+            )
+        });
+    }
+
     /// Checks if the [operation](OperationIr) can be fused with the current fuser.
     pub(crate) fn can_fuse(&self, op: &OperationIr) -> bool {
         let len_previous = self.len();
@@ -56,10 +78,15 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
             return;
         }
 
+        // Capture state before the fuse attempt so we can log a useful reason
+        // if the fuser closes on this op.
+        let prev_num_ops = self.num_ops;
+
         match op {
             OperationIr::Drop(tensor) => {
                 if self.num_ops == 0 {
                     self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "drop on empty fuser");
                     return;
                 }
 
@@ -68,41 +95,48 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
             OperationIr::BaseFloat(ops) => {
                 if !self.fuse_base(ops) {
                     self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "base fuse rejected");
                     return;
                 }
             }
             OperationIr::BaseInt(ops) => {
                 if !self.fuse_base(ops) {
                     self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "base fuse rejected");
                     return;
                 }
             }
             OperationIr::Float(_dtype, ops) => {
                 if !self.fuse_float(ops) {
                     self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "float fuse rejected");
                     return;
                 }
             }
             OperationIr::NumericFloat(_dtype, ops) => {
                 if !self.fuse_numeric(ops) {
                     self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "numeric fuse rejected");
                     return;
                 }
             }
             OperationIr::NumericInt(_dtype, ops) => {
                 if !self.fuse_numeric(ops) {
                     self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "numeric fuse rejected");
                     return;
                 }
             }
             OperationIr::BaseBool(ops) => {
                 if !self.fuse_base(ops) {
                     self.status = FuserStatus::Closed;
+                    self.log_closed(op, prev_num_ops, "base fuse rejected");
                     return;
                 }
             }
             _ => {
                 self.status = FuserStatus::Closed;
+                self.log_closed(op, prev_num_ops, "unsupported op variant");
                 return;
             }
         };

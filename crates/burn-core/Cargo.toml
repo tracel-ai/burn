@@ -76,9 +76,6 @@ autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 fusion = ["burn-tensor/fusion"]
 
-# Memory checks are disabled by default
-test-memory-checks = ["burn-tensor/memory-checks"]
-
 # Backend extensions
 extension = ["burn-tensor/extension"]
 

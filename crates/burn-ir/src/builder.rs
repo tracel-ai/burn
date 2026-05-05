@@ -338,12 +338,19 @@ impl_ir_create!(
     dtype = input.dtype
 );
 
+fn reduce_output_shape(mut output_shape: Shape, axis: usize, accumulator_len: usize) -> Shape {
+    assert!(output_shape.rank() > axis);
+    output_shape[axis] = accumulator_len;
+    output_shape
+}
+
 impl_ir_create!(
     ReduceDimOpIr {
         input: TensorIr,
-        axis: usize
+        axis: usize,
+        accumulator_len: usize,
     },
-    shape = input.shape.clone().reduce(axis).unwrap(),
+    shape = reduce_output_shape(input.shape.clone(), axis, accumulator_len),
     dtype = input.dtype,
     // Additional constructor for argument reduction
     create_arg(ind_dtype: DType)

@@ -100,7 +100,7 @@ enum LrSchedulerItem {
     Noam(NoamLrScheduler),
 }
 
-#[derive(Record)]
+#[derive(Record, Clone)]
 /// Record item for the [composed learning rate scheduler](ComposedLrScheduler).
 pub enum LrSchedulerRecord {
     /// The linear variant.
@@ -113,7 +113,7 @@ pub enum LrSchedulerRecord {
     Noam(<NoamLrScheduler as LrScheduler>::Record),
 }
 
-#[derive(Record)]
+#[derive(Record, Clone)]
 /// Records for the [composed learning rate scheduler](ComposedLrScheduler).
 pub struct ComposedLrSchedulerRecord {
     schedulers: Vec<LrSchedulerRecord>,

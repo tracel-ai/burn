@@ -915,6 +915,19 @@ impl FloatTensorOps<Flex> for Flex {
         }
     }
 
+    fn float_argtopk(
+        _tensor: FloatTensor<Flex>,
+        _dim: usize,
+        _k: usize,
+        _out_dtype: burn_std::IntDType,
+    ) -> IntTensor<Flex> {
+        unimplemented!("float_argtopk not implemented for flex")
+    }
+
+    fn float_topk(_tensor: FloatTensor<Flex>, _dim: usize, _k: usize) -> IntTensor<Flex> {
+        unimplemented!("float_topk not implemented for flex")
+    }
+
     fn float_argmin(
         tensor: FloatTensor<Flex>,
         dim: usize,

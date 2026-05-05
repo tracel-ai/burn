@@ -366,6 +366,17 @@ where
         .unwrap()
     }
 
+    fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        reduce::reduce_dim(
+            tensor,
+            None,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::TopK(k),
+        )
+        .unwrap()
+    }
+
     fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         reduce::reduce(
             tensor,
@@ -437,6 +448,18 @@ where
             dim,
             Default::default(),
             ReduceOperationConfig::ArgMax,
+        )
+        .unwrap()
+    }
+
+    fn int_argtopk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        let dtype = tensor.dtype;
+        reduce::reduce_dim(
+            tensor,
+            Some(dtype),
+            dim,
+            Default::default(),
+            ReduceOperationConfig::ArgTopK(k),
         )
         .unwrap()
     }

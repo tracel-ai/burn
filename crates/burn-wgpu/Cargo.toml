@@ -29,7 +29,6 @@ tracing = [
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
-memory-checks = ["burn-cubecl/memory-checks"]
 
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 template = ["burn-cubecl/template", "cubecl/template"]

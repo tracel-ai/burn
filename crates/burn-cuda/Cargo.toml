@@ -28,7 +28,6 @@ tracing = [
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
-memory-checks = ["burn-cubecl/memory-checks"]
 distributed = ["std", "burn-cubecl/distributed", "burn-fusion?/distributed"]
 
 [dependencies]

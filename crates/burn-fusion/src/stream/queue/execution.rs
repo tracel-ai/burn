@@ -4,7 +4,7 @@ use crate::{
     FusionRuntime, UnfusedOp,
     search::BlockOptimization,
     stream::{
-        Context, ContextGuard, OperationConverter, OrderedExecution, RelativeOps,
+        Context, ContextGuard, OperationConverter, OrderedExecution, RelativeOps, StreamId,
         execution::log_execution_table,
         store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
     },
@@ -19,17 +19,19 @@ impl<R: FusionRuntime> OperationQueue<R> {
         id: ExecutionPlanId,
         handles: &mut HandleContainer<R::FusionHandle>,
         store: &mut ExecutionPlanStore<R::Optimization>,
+        stream_id: StreamId,
     ) {
         let plan = store.get_mut_unchecked(id);
-        self.execute_block_optimization(&mut plan.optimization, handles);
+        self.execute_block_optimization(&mut plan.optimization, handles, stream_id);
     }
 
     fn execute_block_optimization(
         &mut self,
         step: &mut BlockOptimization<R::Optimization>,
         handles: &mut HandleContainer<R::FusionHandle>,
+        stream_id: StreamId,
     ) {
-        log_execution_table(&step.strategy, &self.global);
+        log_execution_table(stream_id, &step.strategy, &self.global);
 
         let mut operations = Vec::new();
         core::mem::swap(&mut operations, &mut self.operations);
