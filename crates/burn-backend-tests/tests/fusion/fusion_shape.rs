@@ -25,6 +25,7 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
         // fused block we're trying to observe.
         let a = TestTensor::<2>::ones([4, 4], &device);
         let b = TestTensor::<2>::ones([4, 4], &device);
+        let dtype = a.dtype();
         TestBackend::sync(&device).unwrap();
 
         let inspector = FusionInspector::install(stream);
@@ -43,10 +44,7 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
         let block = target.assert_single_fused_block();
         assert_eq!(block.fuser_name(), Some("ElementWise"));
         assert!(
-            block.ops_match(&[
-                matchers::is_add_float(DType::F32),
-                matchers::is_exp(DType::F32),
-            ]),
+            block.ops_match(&[matchers::is_add_float(dtype), matchers::is_exp(dtype),]),
             "block ops did not match add + exp: {:#?}",
             block.operations,
         );
