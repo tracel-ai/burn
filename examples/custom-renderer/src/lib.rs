@@ -67,12 +67,11 @@ pub fn run(device: impl Into<Device>) {
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    let device = device.into();
+    let device = device.into().autodiff();
     device.seed(config.seed);
-    let autodiff_device = device.clone().autodiff();
 
     // Create the model and optimizer.
-    let model = config.model.init(&autodiff_device);
+    let model = config.model.init(&device);
     let optim = config.optimizer.init();
 
     // Create the batcher.

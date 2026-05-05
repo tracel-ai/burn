@@ -22,7 +22,7 @@ use enumset::EnumSetType;
 
 /// A high-level device handle for tensor operations.
 ///
-/// [`Device`] provides a unified interface to interact with the underlying compute backend
+/// [`Device`] provides a unified interface to interact with the underlying compute backend.
 ///
 /// Autodiff support is a property of the device rather than a separate type parameter.
 /// Wrap a device with [`.autodiff()`](Device::autodiff) to enable automatic  differentiation
@@ -293,7 +293,7 @@ impl Device {
     /// let ints = Tensor::<2, Int>::zeros([2, 3], &device);
     /// ```
     pub fn set_default_dtypes(
-        &self,
+        &self, // TODO: &mut self?
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
     ) -> Result<(), DeviceError> {
