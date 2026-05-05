@@ -480,6 +480,8 @@ fn gather<C: Numeric, N: Size>(
         config,
     );
 
+    let stride_indices_vector = global_stride(inputs, config.rank - 1, pos_indices);
+
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
         #[unroll]
@@ -488,7 +490,7 @@ fn gather<C: Numeric, N: Size>(
                 inputs,
                 locals,
                 pos_indices,
-                index_offset + i,
+                index_offset + i * stride_indices_vector,
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -503,11 +505,9 @@ fn gather<C: Numeric, N: Size>(
                 config,
                 None,
             );
-
             result[i] = input[0];
         }
     } else {
-        // Shared index for whole vector
         let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
 
         #[unroll]
@@ -516,7 +516,7 @@ fn gather<C: Numeric, N: Size>(
                 inputs,
                 locals,
                 pos_indices,
-                index_offset + i,
+                index_offset + i * stride_indices_vector,
                 LayoutInfo::IsRef,
                 config,
                 None,
