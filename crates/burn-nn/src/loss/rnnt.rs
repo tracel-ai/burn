@@ -123,15 +123,12 @@ impl RNNTLoss {
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {
         let [b, max_t, max_up1, v] = log_probs.dims();
         let max_u = max_up1 - 1;
-        let device = log_probs.device();
         let vocab_dim = 3;
 
-        // Blank probabilities: gather blank index across vocab dim
-        let blank_idx =
-            Tensor::<B, 4, Int>::full([b, max_t, max_up1, 1], self.blank as i64, &device);
+        // Blank probabilities: slice log_probs in vocab dim using the blank index
         let lpb = log_probs
             .clone()
-            .gather(vocab_dim, blank_idx)
+            .slice_dim(vocab_dim, self.blank)
             .squeeze_dim::<3>(vocab_dim);
 
         // Label probabilities: gather target labels across vocab dim (only first U positions)
