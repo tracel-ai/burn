@@ -66,6 +66,7 @@ fn sync_between_ops_splits_into_separate_kernels() {
         let a = TestTensor::<2>::ones([4, 4], &device);
         let b = TestTensor::<2>::ones([4, 4], &device);
         let intermediate = a + b;
+        let dtype = intermediate.dtype();
 
         // Force materialization of the intermediate.
         TestBackend::sync(&device).unwrap();
@@ -78,8 +79,8 @@ fn sync_between_ops_splits_into_separate_kernels() {
 
         // Across all reports, we should have at least one fused add and one fused exp, and
         // they should never appear together in the same block.
-        let add = matchers::is_add_float(DType::F32);
-        let exp = matchers::is_exp(DType::F32);
+        let add = matchers::is_add_float(dtype);
+        let exp = matchers::is_exp(dtype);
         for report in &reports {
             for block in &report.blocks {
                 let has_add = block.operations.iter().any(|op| add(op));
