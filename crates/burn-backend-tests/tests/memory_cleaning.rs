@@ -1,15 +1,22 @@
 //! Tests that the fusion backend releases every tensor handle once the corresponding
-//! [`FusionTensor`](burn_fusion::FusionTensor) wrappers are dropped — both for tensors
+//! [`FusionTensor`](burn_fusion::FusionTensor) wrappers are dropped; both for tensors
 //! that live on a single stream and for tensors that are shared across streams.
 //!
+//! # Assertion Strategy
 //! The assertion target is [`FusionInspector::new_handles_since_baseline`], which
 //! returns every [`TensorId`](burn_ir::TensorId) that appeared in the
-//! [`HandleContainer`](burn_ir::HandleContainer) *after* the baseline was set. The
-//! [`HandleContainer`](burn_ir::HandleContainer) is shared per-device across the whole
-//! process, so other tests running in parallel can add unrelated handles. Baselining
-//! lets us diff against that noise and assert only on handles born during our test.
-//! The inspector's install-mutex serializes inspector-based tests so their IDs do not
-//! leak into the baseline window.
+//! [`HandleContainer`](burn_ir::HandleContainer) *after* the baseline was set.
+//!
+//! Because the [`HandleContainer`](burn_ir::HandleContainer) is a global, per-device
+//! registry, these tests call [`FusionInspector::enable_leak_detection`] to acquire
+//! an exclusive lock on the device's handle state. This prevents concurrent tests
+//! from allocating tensors that would otherwise appear as "leaks" in the baseline diff.
+//!
+//! # Threading and Concurrency
+//! While execution reports are stream-isolated, memory handles are not. Therefore:
+//! 1. These tests are isolated in this test binary to avoid false "leaks".
+//! 2. Every test is marked `#[serial]` to ensure they take turns capturing the
+//!    device-wide handle state.
 //!
 //! Cross-stream cases are simulated with [`StreamId::executes`], which swaps the
 //! per-thread stream id for the duration of a closure. This is fast and deterministic;
