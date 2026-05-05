@@ -480,6 +480,7 @@ fn gather<C: Numeric, N: Size>(
         config,
     );
 
+    // TODO: new IR to differentiate between Gather and GatherBroadcasted at comptime?
     let stride_indices_vector = global_stride(inputs, config.rank - 1, pos_indices);
 
     if comptime![dim == config.rank - 1] {
