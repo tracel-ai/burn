@@ -1824,7 +1824,7 @@ where
         ))
     }
 
-    /// Multi-dimensional scatter: update `self` at locations given by `indices` using the specified `update` operation.
+    /// Multi-dimensional scatter: update the tensor at locations given by `indices` using the specified `update` operation.
     ///
     /// The size of `indices`'s last axis (call it `K`) indexes the leading `K` dims of `self`;
     /// the batch shape `indices.shape[0..M-1]` is preserved. `values` has shape
@@ -1837,9 +1837,14 @@ where
     ///
     /// # Note
     ///
-    /// When `indices` contains duplicate entries, the result is non-deterministic on GPU
-    /// backends (matching ONNX ScatterND semantics). CPU backends are deterministic regardless
-    /// of reduction. For deterministic accumulation with duplicates, run on a CPU backend.
+    /// When `indices` contains duplicate entries, behavior varies by operation:
+    /// - For `Add`, accumulation is supported, though results may be non-deterministic on GPU
+    ///   backends.
+    /// - For other operations (`Assign`, `Mul`, `Min`, `Max`), duplicate indices result in
+    ///   undefined behavior for both the forward result and the backward gradients.
+    ///
+    /// For deterministic results and correct gradient calculation across all operations,
+    /// `indices` should contain unique entries.
     ///
     /// # Warning
     ///
