@@ -2,11 +2,9 @@ use cubecl::prelude::*;
 
 use crate::kernel::signed;
 use crate::kernel::unsigned;
-
-const PACKING_AMOUNT: u32 = 2;
-const PACK_SHIFT: u32 = 256;
-
-const PLANE_SIZE: u32 = 32; // Huge source of bugs DO NOT CHANGE.
+use crate::launch::PACK_SHIFT;
+use crate::launch::PACKING_AMOUNT;
+use crate::launch::PLANE_SIZE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]

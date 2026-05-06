@@ -1,16 +1,30 @@
 //! An 8-bit optimizer of AdamW.
 
 use burn_core as burn;
+use burn_core::tensor::DType;
 
 use burn::config::Config;
+use burn::tensor::TensorPrimitive;
 use burn::tensor::{
     Tensor,
     backend::{AutodiffBackend, Backend},
     ops::Device,
 };
 use burn::{module::AutodiffModule, record::Record};
+use burn_autodiff::Autodiff;
+use burn_core::prelude::Shape;
+use burn_cubecl::tensor::CubeTensor;
+use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use cubecl::CubeElement;
+use cubecl::Runtime;
+use cubecl::bytes::Bytes;
+use cubecl::client::ComputeClient;
+use cubecl::cuda::CudaRuntime;
+use cubecl::server::Handle;
+use cubecl::zspace::metadata::Metadata;
 
 use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
+use crate::launch::{AdamWStepInputs, AdamWStepParams, launch_adamw_8bit_step};
 use crate::quantization::{
     QuantizeBlockwise, dequantize_blockwise, quantize_blockwise, signed_dynamic, unsigned_dynamic,
 };
@@ -76,40 +90,205 @@ pub struct AdamWState8BitFused<B: Backend, const D: usize> {
     max_moment_2: Option<QuantizeBlockwise<B, D>>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for AdamW8BitFused {
-    type State<const D: usize> = AdamWState8BitFused<B, D>;
+// impl SimpleOptimizer<MyBackend> for AdamW8BitFused {
+//     type State<const D: usize> = AdamWState8BitFused<MyBackend, D>;
 
-    /// A single optimization step for any tensor that represents the parameters of a model.
+//     fn step<const D: usize>(
+//         &self,
+//         lr: LearningRate,
+//         tensor: Tensor<MyBackend, D>,
+//         grad: Tensor<MyBackend, D>,
+//         state: Option<Self::State<D>>,
+//     ) -> (Tensor<MyBackend, D>, Option<Self::State<D>>) {
+//     }
+
+//     fn to_device<const D: usize>(
+//         mut state: Self::State<D>,
+//         device: &Device<MyBackend>,
+//     ) -> Self::State<D> {
+//         state.moment_1 = state.moment_1.to_device(device);
+//         state.moment_2 = state.moment_2.to_device(device);
+//         state.max_moment_2 = state.max_moment_2.map(|m| m.to_device(device));
+//         state
+//     }
+// }
+
+impl<R, F, I, BT> SimpleOptimizer<CubeBackend<R, F, I, BT>> for AdamW8BitFused
+where
+    R: CubeRuntime,
+    F: FloatElement,
+    I: IntElement,
+    BT: BoolElement,
+{
+    type State<const D: usize> = AdamWState8BitFused<CubeBackend<R, F, I, BT>, D>;
+
     fn step<const D: usize>(
         &self,
         lr: LearningRate,
-        tensor: Tensor<B, D>,
-        grad: Tensor<B, D>,
+        tensor: Tensor<CubeBackend<R, F, I, BT>, D>,
+        grad: Tensor<CubeBackend<R, F, I, BT>, D>,
         state: Option<Self::State<D>>,
-    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
-        let (raw_delta, new_state, m1) = self.momentum.transform(grad, state);
+    ) -> (Tensor<CubeBackend<R, F, I, BT>, D>, Option<Self::State<D>>) {
+        let device = tensor.device();
+        let shape = tensor.shape();
+        let numel = shape.num_elements();
+        let dims: [_; D] = shape.dims(); // ← capture dims while shape is still alive
 
-        let decay_rate = lr * (self.weight_decay as f64);
-        let decayed_tensor = if decay_rate == 0.0 {
-            tensor.clone()
-        } else if self.cautious_weight_decay {
-            let tensor_pos = tensor.clone().greater_equal_elem(0.0);
+        // 1. Compute time and bias corrections on the host
+        let time = state.as_ref().map(|s| s.time + 1).unwrap_or(1);
+        let is_first_step = state.is_none();
 
-            let grad_pos = m1.greater_equal_elem(0.0);
-            let differ = tensor_pos.not_equal(grad_pos);
+        let theta_prim = tensor.clone().into_primitive();
+        let theta_cube = match theta_prim {
+            TensorPrimitive::Float(t) => t,
+            TensorPrimitive::QFloat(_) => panic!("quantized inputs not supported"),
+        };
+        let theta_handle = theta_cube.handle.clone();
+        let client = theta_cube.client.clone(); // ← only one client, from the tensor
 
-            let decay = tensor.clone().mul_scalar(decay_rate).mask_fill(differ, 0.0);
-            tensor.clone() - decay
-        } else {
-            tensor.clone().mul_scalar(1.0 - decay_rate)
+        // Now you have access to its handle and client.
+        let theta_handle = theta_cube.handle.clone();
+        let client = theta_cube.client.clone();
+
+        // Same for grad.
+        let grad_prim = grad.into_primitive();
+        let grad_cube = match grad_prim {
+            TensorPrimitive::Float(t) => t,
+            TensorPrimitive::QFloat(_) => panic!("quantized inputs not supported"),
+        };
+        let grad_handle = grad_cube.handle.clone();
+        let (m1_codes, m1_scales, m2_codes, m2_scales, max_v_codes, max_v_scales) = match state {
+            Some(s) => {
+                // moment_1: QuantizeBlockwise<B, D> { quantized: Tensor<B, 1, Int>, scales: Tensor<B, 1>, ... }
+                let m1_codes_prim = s.moment_1.quantized.into_primitive();
+                let m1_codes_handle = m1_codes_prim.handle.clone();
+
+                let m1_scales_prim = s.moment_1.scales.into_primitive();
+                let m1_scales_cube = match m1_scales_prim {
+                    TensorPrimitive::Float(t) => t,
+                    TensorPrimitive::QFloat(_) => panic!("unexpected"),
+                };
+                let m1_scales_handle = m1_scales_cube.handle.clone();
+
+                let m2_codes_handle = s.moment_2.quantized.into_primitive().handle.clone();
+                let m2_scales_handle = match s.moment_2.scales.into_primitive() {
+                    TensorPrimitive::Float(t) => t.handle.clone(),
+                    TensorPrimitive::QFloat(_) => panic!("unexpected"),
+                };
+
+                let (max_v_codes_handle, max_v_scales_handle) = match s.max_moment_2 {
+                    Some(m) => {
+                        let codes_handle = m.quantized.into_primitive().handle.clone();
+                        let scales_handle = match m.scales.into_primitive() {
+                            TensorPrimitive::Float(t) => t.handle.clone(),
+                            TensorPrimitive::QFloat(_) => panic!("unexpected"),
+                        };
+                        (Some(codes_handle), Some(scales_handle))
+                    }
+                    None => (None, None),
+                };
+
+                (
+                    Some(m1_codes_handle),
+                    Some(m1_scales_handle),
+                    Some(m2_codes_handle),
+                    Some(m2_scales_handle),
+                    max_v_codes_handle,
+                    max_v_scales_handle,
+                )
+            }
+            None => (None, None, None, None, None, None),
         };
 
-        let tensor_updated = decayed_tensor - raw_delta.mul_scalar(lr);
+        // 3. Build inputs for the launcher
+        let inputs = AdamWStepInputs {
+            theta: theta_handle,
+            grad: grad_handle,
+            moment_1_codes: m1_codes,
+            moment_1_scales: m1_scales,
+            moment_2_codes: m2_codes,
+            moment_2_scales: m2_scales,
+            max_moment_2_codes: max_v_codes,
+            max_moment_2_scales: max_v_scales,
+            numel: tensor.shape().num_elements(),
+            _phantom: core::marker::PhantomData,
+        };
 
-        (tensor_updated, Some(new_state))
+        let params = AdamWStepParams {
+            beta_1: self.momentum.beta_1,
+            beta_2: self.momentum.beta_2,
+            epsilon: self.momentum.epsilon,
+            lr: lr as f32,
+            weight_decay: self.weight_decay,
+            time: time as u32,
+            block_size: self.momentum.block_size as u32,
+            amsgrad: self.momentum.amsgrad,
+            cautious_weight_decay: self.cautious_weight_decay,
+        };
+
+        // 4. Call the launcher (returns raw handles)
+        let output = launch_adamw_8bit_step(&client, inputs, params);
+
+        // 5. Wrap output handles back into Burn tensors
+        let theta_new_cube = CubeTensor {
+            client: client.clone(),
+            handle: output.theta_new,
+            device: device.clone(),
+            dtype: DType::F32,
+            qparams: None,
+            meta: Box::new(Metadata::new(
+                shape.clone(),
+                contiguous_strides::<D>(&shape.dims()),
+            )),
+        };
+
+        let theta_new: Tensor<CubeBackend<R, F, I, BT>, D> =
+            Tensor::from_primitive(TensorPrimitive::Float(theta_new_cube));
+
+        // Build the new QuantizeBlockwise structs the same way.
+        let moment_1 = build_quantize_blockwise::<R, F, I, BT, D>(
+            &client,
+            &device,
+            output.moment_1_codes,
+            output.moment_1_scales,
+            shape.dims(),
+            self.momentum.block_size,
+        );
+        let moment_2 = build_quantize_blockwise::<R, F, I, BT, D>(
+            &client,
+            &device,
+            output.moment_2_codes,
+            output.moment_2_scales,
+            shape.dims(),
+            self.momentum.block_size,
+        );
+        let max_moment_2 = if self.momentum.amsgrad {
+            Some(build_quantize_blockwise::<R, F, I, BT, D>(
+                &client,
+                &device,
+                output.max_moment_2_codes.unwrap(),
+                output.max_moment_2_scales.unwrap(),
+                shape.dims(),
+                self.momentum.block_size,
+            ))
+        } else {
+            None
+        };
+
+        let new_state = AdamWState8BitFused {
+            time,
+            moment_1,
+            moment_2,
+            max_moment_2,
+        };
+
+        (theta_new, Some(new_state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
+    fn to_device<const D: usize>(
+        mut state: Self::State<D>,
+        device: &<CubeBackend<R, F, I, BT> as Backend>::Device,
+    ) -> Self::State<D> {
         state.moment_1 = state.moment_1.to_device(device);
         state.moment_2 = state.moment_2.to_device(device);
         state.max_moment_2 = state.max_moment_2.map(|m| m.to_device(device));
@@ -118,14 +297,16 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW8BitFused {
 }
 
 impl AdamWConfig8BitFused {
-    /// Initialize [`AdamW8Bit`] optimizer.
-    ///
-    /// # Returns
-    ///
-    /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
+    pub fn init<R, F, I, BT, M>(
         &self,
-    ) -> OptimizerAdaptor<AdamW8BitFused, M, B> {
+    ) -> OptimizerAdaptor<AdamW8BitFused, M, Autodiff<CubeBackend<R, F, I, BT>>>
+    where
+        R: CubeRuntime,
+        F: FloatElement,
+        I: IntElement,
+        BT: BoolElement,
+        M: AutodiffModule<Autodiff<CubeBackend<R, F, I, BT>>>,
+    {
         let optim = AdamW8BitFused {
             momentum: AdaptiveMomentumW8Bit {
                 beta_1: self.beta_1,
@@ -155,60 +336,74 @@ struct AdaptiveMomentumW8Bit {
     block_size: usize,
 }
 
-impl AdaptiveMomentumW8Bit {
-    pub fn transform<B, const D: usize>(
-        &self,
-        grad: Tensor<B, D>,
-        state: Option<AdamWState8BitFused<B, D>>,
-    ) -> (Tensor<B, D>, AdamWState8BitFused<B, D>, Tensor<B, D>)
-    where
-        B: CubeBackend,
-    {
-        // ---- Compute scalar bias corrections on the host ----
-        let time = state.as_ref().map(|s| s.time + 1).unwrap_or(1);
-        let factor_1 = 1.0 - self.beta_1;
-        let factor_2 = 1.0 - self.beta_2;
-        let correction1 = 1.0 - self.beta_1.powi(time as i32);
-        let correction2 = (1.0 - self.beta_2.powi(time as i32)).sqrt();
+/// Compute contiguous row-major strides for a shape.
+// fn contiguous_strides<const D: usize>(shape: &Shape) -> Vec<usize> {
+//     let dims: [_; D] = shape.dims();
+//     let n = dims.len();
+//     let mut strides = vec![1; n];
+//     for i in (0..n - 1).rev() {
+//         strides[i] = strides[i + 1] * dims[i + 1];
+//     }
+//     strides
+// }
 
-        let is_first_step = state.is_none();
-        let device = grad.device();
-        let shape = grad.shape();
+fn contiguous_strides<const D: usize>(dims: &[usize; D]) -> Vec<usize> {
+    let n = D;
+    let mut strides = vec![1; n];
+    for i in (0..n.saturating_sub(1)).rev() {
+        strides[i] = strides[i + 1] * dims[i + 1];
+    }
+    strides
+}
 
-        // ---- Get input state tensors (or zero placeholders on the first step) ----
-        let (m1_in, m2_in, max_v_in) = match state {
-            Some(s) => (Some(s.moment_1), Some(s.moment_2), s.max_moment_2),
-            None => (None, None, None),
-        };
+/// Build a QuantizeBlockwise<B, D> from raw codes and scales handles.
+fn build_quantize_blockwise<R, F, I, BT, const D: usize>(
+    client: &ComputeClient<R>,
+    device: &R::Device,
+    codes_handle: Handle,
+    scales_handle: Handle,
+    shape: [usize; D],
+    block_size: usize,
+) -> QuantizeBlockwise<CubeBackend<R, F, I, BT>, D>
+where
+    R: CubeRuntime,
+    F: FloatElement,
+    I: IntElement,
+    BT: BoolElement,
+{
+    let total_elements: usize = shape.iter().product();
+    let packed_count = total_elements / 2; // PACKING_AMOUNT = 2
+    let num_blocks = total_elements / block_size;
 
-        // ---- Launch the fused kernel via the launch wrapper ----
-        let outputs = kernel::launch_adamw_8bit_transform::<B, D>(
-            &grad,
-            m1_in.as_ref(),
-            m2_in.as_ref(),
-            max_v_in.as_ref(),
-            kernel::TransformParams {
-                beta_1: self.beta_1,
-                beta_2: self.beta_2,
-                factor_1,
-                factor_2,
-                correction1,
-                correction2,
-                epsilon: self.epsilon,
-                block_size: self.block_size as u32,
-                amsgrad: self.amsgrad,
-                is_first_step,
-            },
-        );
+    // Codes tensor: 1D, length = packed_count, dtype = the int element type.
+    let codes_cube = CubeTensor {
+        client: client.clone(),
+        handle: codes_handle,
+        device: device.clone(),
+        dtype: I::dtype(), // ← whatever produces the right DType for the int type
+        qparams: None,
+        meta: Box::new(Metadata::new(
+            shape.clone(),
+            contiguous_strides::<D>(&shape),
+        )),
+    };
 
-        // ---- Repack outputs into the typed state ----
-        let new_state = AdamWState8BitFused {
-            time,
-            moment_1: outputs.moment_1_new,
-            moment_2: outputs.moment_2_new,
-            max_moment_2: outputs.max_moment_2_new,
-        };
+    // Scales tensor: 1D, length = num_blocks, dtype = f32.
+    let scales_cube = CubeTensor {
+        client: client.clone(),
+        handle: scales_handle,
+        device: device.clone(),
+        dtype: DType::F32,
+        qparams: None,
+        meta: Box::new(Metadata::new(
+            shape.clone(),
+            contiguous_strides::<D>(&shape),
+        )),
+    };
 
-        (outputs.update_delta, new_state, outputs.m1_dequantized)
+    QuantizeBlockwise {
+        quantized: Tensor::from_primitive(codes_cube),
+        scales: Tensor::from_primitive(TensorPrimitive::Float(scales_cube)),
+        shape,
     }
 }

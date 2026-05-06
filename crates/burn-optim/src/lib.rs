@@ -22,6 +22,7 @@ pub mod grad_clipping;
 pub mod lr_scheduler;
 
 mod kernel;
+mod launch;
 mod quantization;
 
 /// Type alias for the learning rate.
