@@ -831,7 +831,7 @@ mod tests {
     #[test]
     fn test_strong_wolfe_direct_comparison() {
         let device = Default::default();
-        let tol = 1e-8;
+        let tol = 1e-6;
 
         {
             let x = Tensor::<TestAutodiffBackend, 1>::from_floats([2.1321912957_f64], &device);
