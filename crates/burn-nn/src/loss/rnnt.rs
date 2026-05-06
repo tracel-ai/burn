@@ -154,8 +154,8 @@ impl RNNTLoss {
         // Label probs at t=0
         let lpl_0 = lpl.clone().slice(s![.., 0..1, ..]).squeeze_dim::<2>(1);
         let zero_col = Tensor::<B, 2>::zeros([b, 1], device);
-        let prefix = Tensor::cat(vec![zero_col, lpl_0.slice(s![.., 0..max_up1 - 1])], 1);
-        
+        let prefix = Tensor::cat(vec![zero_col, lpl_0.slice(s![.., 0..(max_up1 - 1)])], 1);
+
         prefix.cumsum(1)
     }
 
