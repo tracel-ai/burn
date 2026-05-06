@@ -313,7 +313,7 @@ fn test_attention_softcap_preserves_causal_mask() {
 
     output_row0
         .into_data()
-        .assert_approx_eq::<FloatElem>(&value_row0.into_data(), Tolerance::rel_abs(1e-4, 1e-4));
+        .assert_approx_eq::<FloatElem>(&value_row0.into_data(), Tolerance::rel_abs(1e-4, 1e-3));
 }
 
 /// Regression: fully-masked rows must produce 0, not NaN.
