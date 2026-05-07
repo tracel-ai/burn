@@ -1,3 +1,4 @@
+use burn_std::ComplexDType;
 /*
 The base implementation for complex tensors, contains everything that would be in burn-tensor.
 May get split into separate files at some point, but for now it's easier to keep all the base
@@ -176,8 +177,8 @@ impl Layout for InterleavedLayout {}
 // The evolution of Laziness
 pub trait DefaultComplexOps<B: ComplexTensorBackend> {
     type OutTensorData;
-    fn ones(shape: Shape, device: &Device<B>) -> ComplexTensor<B>;
-    fn zeros(shape: Shape, device: &Device<B>) -> ComplexTensor<B>;
+    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
+    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
     fn full(shape: Shape, fill_value: B::ComplexScalar, device: &Device<B>) -> ComplexTensor<B>;
     fn complex_into_data(
         tensor: ComplexTensor<B>,
@@ -190,11 +191,11 @@ where
 {
     type OutTensorData = TensorData;
 
-    fn ones(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
+    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
         B::complex_from_interleaved_data(TensorData::ones::<B::ComplexScalar, _>(shape), device)
     }
 
-    fn zeros(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
+    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
         B::complex_from_interleaved_data(TensorData::zeros::<B::ComplexScalar, _>(shape), device)
     }
 
@@ -318,8 +319,8 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the given shape and zeros.
-    fn complex_zeros(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
-        B::Layout::zeros(shape, device)
+    fn complex_zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+        B::Layout::zeros(shape, device, dtype)
     }
 
     /// Creates a new complex tensor with ones.
@@ -332,8 +333,8 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the given shape and ones.
-    fn complex_ones(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
-        B::Layout::ones(shape, device)
+    fn complex_ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+        B::Layout::ones(shape, device, dtype)
     }
 
     /// Creates a new complex tensor with the given shape and a single value.

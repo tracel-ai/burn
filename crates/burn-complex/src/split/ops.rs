@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
-use burn_std::{DType, Shape, Slice, SliceArg};
+use burn_std::{DType, Shape, SliceArg};
 use burn_tensor::{
-    Device, IndexingUpdateOp, TensorCreationOptions, TensorData, TensorMetadata,
+    Device, Float, IndexingUpdateOp, TensorCreationOptions, TensorData, TensorMetadata,
     backend::{Backend, BackendTypes, ExecutionError},
     get_device_settings, try_read_sync,
 };
@@ -10,54 +10,19 @@ use crate::{
     base::{ComplexTensorBackend, ComplexTensorOps},
     split::{SplitBackend, SplitComplexTensor},
 };
-//BasicOps
+
 impl<B, F> SplitComplexTensor<B, F>
 where
     B: Backend,
     B: BackendTypes<FloatTensorPrimitive = F>,
     F: TensorMetadata + 'static,
 {
-
-    pub fn select(
-        self,
-        dim: usize,
-        indices: B::IntTensorPrimitive,
-    ) -> Self {
-        // Uses your existing `select` name.
-        SplitBackend::<B>::complex_select(self, dim, indices)
-    }
-
-    pub fn select_assign(
-        self,
-        dim: usize,
-        indices: B::IntTensorPrimitive,
-        values: Self,
-        update: IndexingUpdateOp,
-    ) -> Self {
-        match update {
-            IndexingUpdateOp::Add => SplitBackend::<B>::complex_select_add(self, dim, indices, values),
-            _ => unimplemented!(),
-        }
-    }
-    pub fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self {
-        // should I check then pass the dtype?
-        SplitBackend::<B>::complex_zeros(shape, device)
-    }
-
-    pub fn reshape(self, shape: Shape) -> Self {
-        SplitBackend::<B>::complex_reshape(self, shape)
-    }
-
-    pub fn transpose(self) -> Self {
-        SplitBackend::<B>::complex_transpose(self)
-    }
-
-    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
-        SplitBackend::<B>::complex_swap_dims(self, dim1, dim2)
-    }
-
-    pub fn device(&self) -> B::Device {
-        SplitBackend::<B>::complex_device(self)
+    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+        let opt = options.into();
+        let shape = shape.into();
+        let dtype = opt.resolve_dtype::<Float>();
+        //check!(TensorCheck::creation_ops::<D>("Empty", &shape));
+        SplitBackend::<B>::complex_zeros(shape, &opt.device, dtype.into())
     }
 
     pub fn slice<S>(self, slices: S) -> Self
@@ -78,18 +43,72 @@ where
 
         // Return empty tensor if any dimension is 0 (empty slice)
         if output_dims.contains(&0) {
-            return Self::zeros(output_dims, &self.device(), self.dtype());
+            return Self::empty(output_dims, &self.device());
         }
         SplitBackend::<B>::complex_slice(self, &slices)
     }
 
-    
+    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+        let options = options.into();
+        let shape = shape.into();
+        let device = &options.device;
+        let dtype = crate::utils::real_to_complex_dtype(options.resolve_dtype::<Float>());
+        match dtype {
+            DType::Complex32 | DType::Complex64 => {
+                SplitBackend::<B>::complex_zeros(shape, device, dtype.into())
+            }
+            _ => panic!("Unsupported complex dtype"),
+        }
+    }
+}
+//BasicOps
+impl<B, F> SplitComplexTensor<B, F>
+where
+    B: Backend,
+    B: BackendTypes<FloatTensorPrimitive = F>,
+    F: TensorMetadata + 'static,
+{
+    pub fn select(self, dim: usize, indices: B::IntTensorPrimitive) -> Self {
+        // Uses your existing `select` name.
+        SplitBackend::<B>::complex_select(self, dim, indices)
+    }
+
+    pub fn select_assign(
+        self,
+        dim: usize,
+        indices: B::IntTensorPrimitive,
+        values: Self,
+        update: IndexingUpdateOp,
+    ) -> Self {
+        match update {
+            IndexingUpdateOp::Add => {
+                SplitBackend::<B>::complex_select_add(self, dim, indices, values)
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn reshape(self, shape: Shape) -> Self {
+        SplitBackend::<B>::complex_reshape(self, shape)
+    }
+
+    pub fn transpose(self) -> Self {
+        SplitBackend::<B>::complex_transpose(self)
+    }
+
+    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
+        SplitBackend::<B>::complex_swap_dims(self, dim1, dim2)
+    }
+
+    pub fn device(&self) -> B::Device {
+        SplitBackend::<B>::complex_device(self)
+    }
 
     pub fn to_device(self, device: &B::Device) -> Self {
         SplitBackend::<B>::complex_to_device(self, device)
     }
 
-     pub async fn into_data_async(self) -> Result<TensorData, ExecutionError> {
+    pub async fn into_data_async(self) -> Result<TensorData, ExecutionError> {
         SplitBackend::<B>::complex_into_interleaved_data(self).await
     }
 
@@ -148,7 +167,10 @@ where
         SplitBackend::<B>::complex_all_dim(self, dim, out_dtype)
     }
 
-    pub fn permute(self, axes: &[usize]) -> Self {
+    pub fn permute<Dim>(self, axes: [Dim; D]) -> Self
+    where
+        Dim: AsIndex,
+    {
         SplitBackend::<B>::complex_permute(self, axes)
     }
 
@@ -164,7 +186,7 @@ where
         SplitBackend::<B>::complex_unfold(self, dim, size, step)
     }
 
-    pub fn slice_assign<S>(self, slices: S, values: Self) -> Self  
+    pub fn slice_assign<S>(self, slices: S, values: Self) -> Self
     where
         S: SliceArg,
     {
@@ -183,12 +205,19 @@ where
         }
 
         let values_shape = SplitBackend::<B>::complex_shape(&values);
-        for (i, slice) in slices.iter().enumerate().take(slices.len().min(shape.num_dims())) {
+        for (i, slice) in slices
+            .iter()
+            .enumerate()
+            .take(slices.len().min(shape.num_dims()))
+        {
             let range = slice.to_range(shape[i]);
             assert!(
                 range.end <= shape[i],
                 "slice_assign: range ({}..{}) exceeds tensor size {} at dim {}",
-                range.start, range.end, shape[i], i,
+                range.start,
+                range.end,
+                shape[i],
+                i,
             );
             let expected = range.end - range.start;
             assert_eq!(
@@ -201,22 +230,11 @@ where
         SplitBackend::<B>::complex_slice_assign(self, &slices, values)
     }
 
-
-    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
-        let options = options.into();
-        let shape = shape.into();
-        let device = options.device;
-        let dtype = options.resolve_dtype::<SplitBackend<B>>();
-        todo!()
-        match dtype {
-            DType::Complex32 | DType::Complex64 => SplitBackend::<B>::complex_zeros(shape, device),
-            _ => panic!("Unsupported complex dtype"),
-        }
-    }
-
     pub fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self {
         match dtype {
-            DType::Complex32 | DType::Complex64 => SplitBackend::<B>::complex_ones(shape, device),
+            DType::Complex32 | DType::Complex64 => {
+                SplitBackend::<B>::complex_ones(shape, device, dtype.into())
+            }
             _ => panic!("Unsupported complex dtype"),
         }
     }
@@ -412,7 +430,6 @@ where
         )
     }
 
-
     /// Converts the data of the current tensor.
     ///
     /// # Note
@@ -488,3 +505,18 @@ where
         SplitBackend::<B>::complex_from_polar(magnitude, phase)
     }
 }
+
+// /// Module where we defined macros that can be used only in the project.
+// pub(crate) mod macros {
+//     /// We use a macro for all checks, since the panic message file and line number will match the
+//     /// function that does the check instead of a generic error.rs crate private unrelated file
+//     /// and line number.
+//     macro_rules! check {
+//         ($check:expr) => {
+//             if let TensorCheck::Failed(check) = $check {
+//                 core::panic!("{}", check.format());
+//             }
+//         };
+//     }
+//     pub(crate) use check;
+// }

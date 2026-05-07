@@ -4,11 +4,11 @@ use crate::{
         CBT, ComplexTensor, ComplexTensorBackend, ComplexTensorOps, DefaultComplexOps, Layout,
         SplitLayout, SplitTensorData,
     },
-    utils::{real_to_complex_dtype, split_from_interleaved_data},
+    utils::{self, real_to_complex_dtype, split_from_interleaved_data},
 };
 
 use alloc::vec::Vec;
-use burn_std::{FloatDType, Shape};
+use burn_std::{ComplexDType, FloatDType, Shape};
 use burn_tensor::{
     Complex, ComplexElement, Device, ElementComparison, Scalar, TensorData, TensorMetadata,
     backend::{Backend, BackendTypes, ExecutionError},
@@ -47,6 +47,15 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata> SplitComplexTensor
             real,
             imag,
         }
+    }
+
+    pub fn inner_dtype(&self) -> burn_std::DType {
+        self.real.dtype()
+    }
+
+    //need a way to resolve the dtype without a reference
+    pub(crate) fn __inner_dtype() -> burn_std::DType {
+        todo!()
     }
 
     pub fn from_real_data(data: TensorData, device: &B::Device) -> Self {
@@ -109,11 +118,7 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata + 'static> TensorMe
     }
 
     fn dtype(&self) -> burn_std::DType {
-        match self.real.dtype() {
-            burn_std::DType::F32 => burn_std::DType::Complex32,
-            burn_std::DType::F64 => burn_std::DType::Complex64,
-            dtype => panic!("Unsupported dtype for complex tensor: {dtype:?}"),
-        }
+        utils::real_to_complex_dtype(self.inner_dtype())
     }
 }
 
@@ -951,7 +956,7 @@ where
     F: TensorMetadata + 'static,
 {
     type OutTensorData = SplitTensorData;
-    fn zeros(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
+    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
         let real = B::InnerBackend::float_from_data(
             TensorData::zeros::<<B::InnerBackend as BackendTypes>::FloatElem, _>(&shape),
             device,
@@ -964,7 +969,7 @@ where
         SplitComplexTensor::new(real, imag)
     }
 
-    fn ones(shape: Shape, device: &Device<B>) -> ComplexTensor<B> {
+    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
         let real = B::InnerBackend::float_from_data(
             TensorData::ones::<<B::InnerBackend as BackendTypes>::FloatElem, _>(&shape),
             device,

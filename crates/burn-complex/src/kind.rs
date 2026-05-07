@@ -2,8 +2,8 @@ use crate::base::{CBT, ComplexTensor, ComplexTensorBackend};
 use alloc::vec::Vec;
 use burn_std::{DType, FloatDType, Shape, Slice};
 use burn_tensor::{
-    BasicOps, Device, Distribution, IndexingUpdateOp, Int, Numeric, Scalar, Tensor, TensorData,
-    TensorKind,
+    BasicOps, Device, Distribution, FloatMathOps, IndexingUpdateOp, Int, Numeric, Scalar, Tensor,
+    TensorData, TensorKind, TensorMetadata,
     backend::{Backend, BackendTypes, ExecutionError},
     get_device_settings,
 };
@@ -18,7 +18,7 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
 
     fn empty(shape: Shape, device: &C::Device, dtype: DType) -> Self::Primitive {
         // should I check then pass the dtype?
-        C::complex_zeros(shape, device)
+        C::complex_zeros(shape, device, dtype.into())
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -139,14 +139,14 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
 
     fn zeros(shape: Shape, device: &<C as BackendTypes>::Device, dtype: DType) -> Self::Primitive {
         match dtype {
-            DType::Complex32 | DType::Complex64 => C::complex_zeros(shape, device),
+            DType::Complex32 | DType::Complex64 => C::complex_zeros(shape, device, dtype.into()),
             _ => panic!("Unsupported complex dtype"),
         }
     }
 
     fn ones(shape: Shape, device: &<C as BackendTypes>::Device, dtype: DType) -> Self::Primitive {
         match dtype {
-            DType::Complex32 | DType::Complex64 => C::complex_ones(shape, device),
+            DType::Complex32 | DType::Complex64 => C::complex_ones(shape, device, dtype.into()),
             _ => panic!("Unsupported complex dtype"),
         }
     }
@@ -246,11 +246,6 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
         T: Into<TensorData>;
     fn from_interleaved_data(data: TensorData, device: &C::Device) -> Self;
     fn from_polar(magnitude: C::FloatTensorPrimitive, phase: C::FloatTensorPrimitive) -> Self;
-    fn exp(self) -> C::ComplexTensorPrimitive;
-    fn sin(self) -> C::ComplexTensorPrimitive;
-    fn cos(self) -> C::ComplexTensorPrimitive;
-    fn sqrt(self) -> C::ComplexTensorPrimitive;
-    fn log(self) -> C::ComplexTensorPrimitive;
 }
 
 impl<C: ComplexTensorBackend + Backend, const D: usize> ComplexOnlyOps<C>
@@ -290,25 +285,6 @@ impl<C: ComplexTensorBackend + Backend, const D: usize> ComplexOnlyOps<C>
     }
     fn from_polar(magnitude: C::FloatTensorPrimitive, phase: C::FloatTensorPrimitive) -> Self {
         Self::new(C::complex_from_polar(magnitude, phase))
-    }
-    fn exp(self) -> C::ComplexTensorPrimitive {
-        C::complex_exp(self.into_primitive())
-    }
-
-    fn sin(self) -> <C>::ComplexTensorPrimitive {
-        C::complex_sin(self.into_primitive())
-    }
-
-    fn cos(self) -> <C>::ComplexTensorPrimitive {
-        C::complex_cos(self.into_primitive())
-    }
-
-    fn sqrt(self) -> <C>::ComplexTensorPrimitive {
-        C::complex_sqrt(self.into_primitive())
-    }
-
-    fn log(self) -> C::ComplexTensorPrimitive {
-        C::complex_log(self.into_primitive())
     }
 }
 
@@ -439,6 +415,112 @@ where
         let scalar_complex: C::ComplexScalar = rhs.elem();
         let scalar_tensor = C::complex_full(shape, scalar_complex, &device);
         C::complex_add(lhs, scalar_tensor)
+    }
+}
+
+impl<C: ComplexTensorBackend> FloatMathOps<C> for ComplexKind
+where
+    C: CBT + core::fmt::Debug + Clone,
+    ComplexTensor<C>: Clone,
+{
+    fn exp(tensor: Self::Primitive) -> C::ComplexTensorPrimitive {
+        C::complex_exp(tensor)
+    }
+
+    fn sin(tensor: Self::Primitive) -> C::ComplexTensorPrimitive {
+        C::complex_sin(tensor)
+    }
+
+    fn cos(tensor: Self::Primitive) -> C::ComplexTensorPrimitive {
+        C::complex_cos(tensor)
+    }
+
+    fn sqrt(tensor: Self::Primitive) -> C::ComplexTensorPrimitive {
+        C::complex_sqrt(tensor)
+    }
+
+    fn log(tensor: Self::Primitive) -> C::ComplexTensorPrimitive {
+        C::complex_log(tensor)
+    }
+
+    fn square(tensor: Self::Primitive) -> Self::Primitive {
+        C::complex_powi_scalar(tensor, 2.into())
+    }
+
+    fn log1p(tensor: Self::Primitive) -> Self::Primitive {
+        let dtype = tensor.dtype();
+        // log1p(z) = log(1 + z)
+        let device = C::complex_device(&tensor);
+        let shape = C::complex_shape(&tensor);
+        let ones = C::complex_ones(shape, &device, dtype.into());
+        C::complex_log(C::complex_add(tensor, ones))
+    }
+
+    fn tan(tensor: Self::Primitive) -> Self::Primitive {
+        C::complex_tan(tensor)
+    }
+
+    fn cosh(tensor: Self::Primitive) -> Self::Primitive {
+        // cosh(z) = (exp(z) + exp(-z)) / 2
+        let device = C::complex_device(&tensor);
+        let shape = C::complex_shape(&tensor);
+        let two: C::ComplexScalar = Scalar::from(2.0_f32).elem();
+        let two_tensor = C::complex_full(shape, two, &device);
+        let exp_z = C::complex_exp(tensor.clone());
+        let exp_neg_z = C::complex_exp(C::complex_neg(tensor));
+        C::complex_div(C::complex_add(exp_z, exp_neg_z), two_tensor)
+    }
+
+    fn sinh(tensor: Self::Primitive) -> Self::Primitive {
+        // sinh(z) = (exp(z) - exp(-z)) / 2
+        let device = C::complex_device(&tensor);
+        let shape = C::complex_shape(&tensor);
+        let two: C::ComplexScalar = Scalar::from(2.0_f32).elem();
+        let two_tensor = C::complex_full(shape, two, &device);
+        let exp_z = C::complex_exp(tensor.clone());
+        let exp_neg_z = C::complex_exp(C::complex_neg(tensor));
+        C::complex_div(C::complex_sub(exp_z, exp_neg_z), two_tensor)
+    }
+
+    fn tanh(tensor: Self::Primitive) -> Self::Primitive {
+        let dtype = tensor.dtype().into();
+        // tanh(z) = (exp(2z) - 1) / (exp(2z) + 1)
+        let device = C::complex_device(&tensor);
+        let shape = C::complex_shape(&tensor);
+        let ones = C::complex_ones(shape, &device, dtype);
+        let two_z = C::complex_add(tensor.clone(), tensor);
+        let e2z = C::complex_exp(two_z);
+        let numerator = C::complex_sub(e2z.clone(), ones.clone());
+        let denominator = C::complex_add(e2z, ones);
+        C::complex_div(numerator, denominator)
+    }
+
+    fn acos(tensor: Self::Primitive) -> Self::Primitive {
+        todo!()
+    }
+
+    fn acosh(tensor: Self::Primitive) -> Self::Primitive {
+        todo!()
+    }
+
+    fn asin(tensor: Self::Primitive) -> Self::Primitive {
+        todo!()
+    }
+
+    fn asinh(tensor: Self::Primitive) -> Self::Primitive {
+        todo!()
+    }
+
+    fn atan(tensor: Self::Primitive) -> Self::Primitive {
+        todo!()
+    }
+
+    fn atanh(tensor: Self::Primitive) -> Self::Primitive {
+        todo!()
+    }
+
+    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        todo!()
     }
 }
 
