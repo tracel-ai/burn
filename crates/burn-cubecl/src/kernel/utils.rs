@@ -1,12 +1,8 @@
 use burn_backend::Shape;
 use cubecl::prelude::SequenceArg;
 use cubecl::{
-    ir::{UIntKind, VectorSize},
     prelude::*,
-    std::{
-        FastDivmod, FastDivmodInt,
-        tensor::layout::linear::{LinearLayoutLaunch, LinearViewLayoutLaunch},
-    },
+    std::{FastDivmod, FastDivmodInt},
 };
 
 use crate::{CubeRuntime, tensor::CubeTensor};
@@ -29,19 +25,6 @@ pub fn shape_divmod_range<R: CubeRuntime>(
         arg.push(shape[i]);
     }
     arg
-}
-
-pub fn linear_layout<R: CubeRuntime>(
-    tensor: &CubeTensor<R>,
-    vector_size: VectorSize,
-) -> LinearLayoutLaunch<R> {
-    LinearLayoutLaunch::from_shape_strides(
-        tensor.meta.shape().clone(),
-        tensor.meta.strides().clone(),
-        // Don't care about type size, only vector size
-        Type::new(UIntKind::U32.into()).with_vector_size(vector_size),
-        LinearViewLayoutLaunch::new(),
-    )
 }
 
 pub fn split_dim<R: CubeRuntime>(
