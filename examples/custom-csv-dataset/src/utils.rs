@@ -8,7 +8,7 @@ use std::{
 /// Panics if the download cannot be completed or the content of the file cannot be written to disk.
 pub fn download_csv_if_missing() -> PathBuf {
     // Point file to current example directory
-    let example_dir = Path::new(file!()).parent().unwrap().parent().unwrap();
+    let example_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let file_name = example_dir.join("diabetes.csv");
 
     if file_name.exists() {

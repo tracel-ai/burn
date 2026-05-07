@@ -929,7 +929,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The values of the maximum elements along the dimension.
-    fn int_topk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B>;
+    fn int_topk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B> {
+        let device = Self::int_device(&tensor);
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = Self::int_arange(0..k as i64, &device, dtype);
+        Self::int_select(Self::int_sort(tensor, dim, true), dim, k_indices)
+    }
 
     /// Gets the indices of the minimum elements along a dimension.
     ///

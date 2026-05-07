@@ -79,7 +79,7 @@ burn-tch = { workspace = true, optional = true, features = ["default"] }
 burn-wgpu = { workspace = true, optional = true, features = ["default"] }
 
 [dev-dependencies]
-# burn-import = { path = "../burn-import", version = "=0.21.0-pre.5" } # disabled (circular dep in publish, only for bench)
+# burn-import = { path = "../burn-import", version = "0.21.0" } # disabled (circular dep in publish, only for bench)
 burn-flex = { workspace = true, features = ["default"] }
 burn-nn = { workspace = true }
 divan = "0.1"

@@ -211,6 +211,52 @@ fn test_conv_transpose1d_complex() {
     test.assert_grads(grads);
 }
 
+/// Regression test for #4845.
+///
+/// `ConvTranspose1d` with `padding_out != 0` and `stride == 1` used to panic in
+/// the backward pass because `conv_transpose1d_x_backward` did not account for
+/// the trailing `padding_out` cells, producing a gradient longer than `x`.
+#[test]
+fn test_conv_transpose1d_padding_out_stride1_backward_shape() {
+    let device = AutodiffDevice::new();
+    let batch_size = 2;
+    let channels_in = 2;
+    let channels_out = 2;
+    let kernel_size = 3;
+    let size_in = 4;
+    let padding_out = 1;
+
+    let shape_x = Shape::new([batch_size, channels_in, size_in]);
+    let shape_weight = Shape::new([channels_in, channels_out, kernel_size]);
+    let weight = TestTensor::from_data(
+        TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
+            .reshape::<3, _>(shape_weight.clone())
+            .into_data(),
+        &device,
+    )
+    .require_grad();
+    let x = TestTensor::from_data(
+        TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
+            .reshape::<3, _>(shape_x.clone())
+            .into_data(),
+        &device,
+    )
+    .require_grad();
+
+    let output = conv_transpose1d(
+        x.clone(),
+        weight.clone(),
+        None,
+        ConvTransposeOptions::new([1], [0], [padding_out], [1], 1),
+    );
+    let grads = output.backward();
+
+    let x_grad = x.grad(&grads).unwrap();
+    let weight_grad = weight.grad(&grads).unwrap();
+    assert_eq!(x_grad.shape(), shape_x);
+    assert_eq!(weight_grad.shape(), shape_weight);
+}
+
 struct ConvTranspose1dTestCase {
     batch_size: usize,
     channels: [usize; 2],

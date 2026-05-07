@@ -348,8 +348,8 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         panic!("argtopk not implemented for torch")
     }
 
-    fn int_topk(_tensor: TchTensor, _dim: usize, _k: usize) -> TchTensor {
-        panic!("topk not implemented for torch")
+    fn int_topk(tensor: TchTensor, dim: usize, k: usize) -> TchTensor {
+        TchOps::topk(tensor, dim, k)
     }
 
     fn int_argmin(tensor: TchTensor, dim: usize) -> TchTensor {
