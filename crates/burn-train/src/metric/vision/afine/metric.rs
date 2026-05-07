@@ -135,10 +135,17 @@ impl<B: Backend> Afine<B> {
             (distorted, reference)
         };
 
-        // CLIP gives us the class-token vector (discarded by A-FINE) plus
-        // the 12 per-block patch-feature maps that the heads consume.
-        let (_, feat_dis) = self.clip_visual.forward_with_features(dis_norm.clone());
-        let (_, feat_ref) = self.clip_visual.forward_with_features(ref_norm.clone());
+        // CLIP gives us the 12 per-block patch-feature maps the heads
+        // consume; the class-token vector is unused by A-FINE so we ask
+        // the encoder to skip it.
+        let feat_dis = self
+            .clip_visual
+            .forward_with_features(dis_norm.clone(), false)
+            .features;
+        let feat_ref = self
+            .clip_visual
+            .forward_with_features(ref_norm.clone(), false)
+            .features;
 
         let natural_dis = self.qhead.forward(dis_norm.clone(), &feat_dis);
         let natural_ref = self.qhead.forward(ref_norm.clone(), &feat_ref);

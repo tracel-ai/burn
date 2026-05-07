@@ -14,6 +14,6 @@ mod metric;
 mod quick_gelu;
 mod weights;
 
-pub use clip_vit::{ClipVisualEncoder, ClipVisualEncoderConfig};
+pub use clip_vit::{ClipOutput, ClipVisualEncoder, ClipVisualEncoderConfig};
 pub use heads::{AfineDHead, AfineDHeadConfig, AfineQHead, AfineQHeadConfig};
 pub use metric::{Afine, AfineConfig};

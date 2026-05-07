@@ -104,6 +104,22 @@ impl ClipVisualEncoderConfig {
     }
 }
 
+/// Output of [`ClipVisualEncoder::forward_with_features`].
+///
+/// `features` are the per-block patch tokens A-FINE consumes. `cls` is
+/// the post-`ln_post` class-token embedding, present only when the
+/// caller requests it; the metric path skips the slice + LayerNorm to
+/// avoid wasted work.
+#[derive(Debug)]
+pub struct ClipOutput<B: Backend> {
+    /// Per-block patch tokens, length `num_layers`, each
+    /// `[batch, num_patches, embed_dim]`.
+    pub features: Vec<Tensor<B, 3>>,
+    /// Post-`ln_post` class-token embedding, `[batch, embed_dim]`. `Some`
+    /// when `forward_with_features` is called with `return_cls = true`.
+    pub cls: Option<Tensor<B, 2>>,
+}
+
 /// CLIP ViT-B/32 image encoder.
 ///
 /// Consumes a normalized RGB image and returns either the class-token
@@ -139,19 +155,22 @@ impl<B: Backend> ClipVisualEncoder<B> {
     /// - input: `[batch, in_channels, height, width]`
     /// - output: `[batch, embed_dim]`
     pub fn forward(&self, image: Tensor<B, 4>) -> Tensor<B, 2> {
-        let (cls, _) = self.forward_with_features(image);
-        cls
+        self.forward_with_features(image, true)
+            .cls
+            .expect("cls requested")
     }
 
-    /// Encode an image and also return the patch-token features after each
+    /// Encode an image and return the patch-token features after each
     /// transformer block. The class token is stripped from each level.
+    /// The post-`ln_post` cls embedding is computed only when
+    /// `return_cls` is true; A-FINE itself does not use it.
     ///
     /// # Shapes
     /// - input: `[batch, in_channels, height, width]`
-    /// - cls output: `[batch, embed_dim]`
     /// - features: `Vec` of length `num_layers`, each
     ///   `[batch, num_patches, embed_dim]`
-    pub fn forward_with_features(&self, image: Tensor<B, 4>) -> (Tensor<B, 2>, Vec<Tensor<B, 3>>) {
+    /// - cls (when present): `[batch, embed_dim]`
+    pub fn forward_with_features(&self, image: Tensor<B, 4>, return_cls: bool) -> ClipOutput<B> {
         let [batch, _, height, width] = image.dims();
         assert_eq!(
             height % self.patch_size,
@@ -215,11 +234,14 @@ impl<B: Backend> ClipVisualEncoder<B> {
             features.push(patch_features);
         }
 
-        // ln_post is applied only to the class-token output.
-        let cls = x.slice([0..batch, 0..1, 0..embed]).reshape([batch, embed]);
-        let cls = self.ln_post.forward(cls);
+        // ln_post is applied only to the class-token output. Skip both
+        // the slice and the LayerNorm when the caller doesn't need it.
+        let cls = return_cls.then(|| {
+            let cls = x.slice([0..batch, 0..1, 0..embed]).reshape([batch, embed]);
+            self.ln_post.forward(cls)
+        });
 
-        (cls, features)
+        ClipOutput { features, cls }
     }
 }
 
@@ -332,7 +354,8 @@ mod tests {
 
         let image =
             Tensor::<TestBackend, 4>::random([2, 3, 64, 64], Distribution::Default, &device);
-        let (cls, features) = encoder.forward_with_features(image);
+        let ClipOutput { features, cls } = encoder.forward_with_features(image, true);
+        let cls = cls.expect("cls requested");
 
         assert_eq!(cls.dims(), [2, 768]);
         assert_eq!(features.len(), 3);
