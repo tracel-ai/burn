@@ -541,6 +541,18 @@ impl TchOps {
         )
     }
 
+    pub fn topk(tensor: TchTensor, dim: usize, k: usize) -> TchTensor {
+        let (value, _indices) = tensor.tensor.topk(k as i64, dim as i64, true, true);
+        TchTensor::from_existing(value, tensor.storage)
+    }
+
+    pub fn argtopk(tensor: TchTensor, dim: usize, k: usize) -> TchTensor {
+        let (_value, indices) = tensor.tensor.topk(k as i64, dim as i64, true, true);
+        let indices = TchTensor::from_existing(indices, tensor.storage);
+
+        indices
+    }
+
     pub fn cumsum(tensor: TchTensor, dim: usize) -> TchTensor {
         TchTensor::from_existing(
             tensor.tensor.cumsum(dim as i64, tensor.tensor.kind()),
