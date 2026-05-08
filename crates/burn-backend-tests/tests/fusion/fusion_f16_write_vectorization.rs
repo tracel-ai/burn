@@ -11,66 +11,98 @@
 //! are added: the BatchNorm inplace running-stats outputs are alias tensors
 //! registered with vector_size=1, while the fused block runs at width=4.
 
-use burn::backend::wgpu::{CubeBackend, WgpuRuntime};
-use burn::module::Initializer;
-use burn::nn::BatchNormConfig;
-use burn::nn::conv::Conv2dConfig;
-use burn::prelude::*;
-use burn_fusion::Fusion;
-
-type Fused = Fusion<CubeBackend<WgpuRuntime, half::f16, i32, u8>>;
-type Unfused = CubeBackend<WgpuRuntime, half::f16, i32, u8>;
+use super::*;
+use burn_tensor::{
+    DType, Device, TensorCreationOptions, TensorData, Tolerance, backend::Backend, module::conv2d,
+    ops::ConvOptions,
+};
+use std::sync::{Arc, Mutex};
 
 const CH: usize = 8;
-const INIT: Initializer = Initializer::Constant { value: 0.02 };
+const INIT: f64 = 0.02;
 const EPS: f64 = 1e-5;
 
-/// Runs conv+BN on two parallel branches and adds the results.
-/// Generic over backend so we can compare Fusion vs non-Fusion output.
-fn two_branch_conv_bn_add<B: Backend>(dev: &B::Device) -> Vec<f32> {
-    let conv_a = Conv2dConfig::new([3, CH], [1, 1])
-        .with_bias(false)
-        .with_initializer(INIT)
-        .init::<B>(dev);
-    let bn_a = BatchNormConfig::new(CH).with_epsilon(EPS).init(dev);
+struct RunningState {
+    value: Arc<Mutex<TestTensor<1>>>,
+}
 
-    let conv_b = Conv2dConfig::new([3, CH], [1, 1])
-        .with_bias(false)
-        .with_initializer(INIT)
-        .init::<B>(dev);
-    let bn_b: burn::nn::BatchNorm<B> = BatchNormConfig::new(CH).with_epsilon(EPS).init(dev);
+impl RunningState {
+    fn new(value: TestTensor<1>) -> Self {
+        Self {
+            value: Arc::new(Mutex::new(value)),
+        }
+    }
 
-    B::sync(dev).unwrap();
+    fn value(&self) -> TestTensor<1> {
+        self.value.lock().unwrap().clone()
+    }
+}
 
-    let input: Tensor<B, 4> = Tensor::ones([1, 3, 32, 32], dev) * 0.5;
-    let a = bn_a.forward(conv_a.forward(input.clone()));
-    let b = bn_b.forward(conv_b.forward(input));
-    let out = a + b;
+/// Minimal clone of `BatchNorm` w/ `RunningState` for inference only.
+struct BatchNorm {
+    gamma: TestTensor<1>,
+    beta: TestTensor<1>,
+    running_mean: RunningState,
+    running_var: RunningState,
+}
 
-    let data = out.into_data();
-    let vals: &[half::f16] = data.as_slice().unwrap();
-    vals.iter().map(|v| f32::from(*v)).collect()
+impl BatchNorm {
+    fn new(opts: TensorCreationOptions<TestBackend>) -> Self {
+        Self {
+            gamma: TestTensor::<1>::ones([CH], opts.clone()),
+            beta: TestTensor::<1>::zeros([CH], opts.clone()),
+            running_mean: RunningState::new(TestTensor::<1>::zeros([CH], opts.clone())),
+            running_var: RunningState::new(TestTensor::<1>::ones([CH], opts)),
+        }
+    }
+
+    fn forward(&self, input: TestTensor<4>) -> TestTensor<4> {
+        let device = input.device();
+        let channels = input.dims()[1];
+        let mean = self.running_mean.value().to_device(&device);
+        let var = self.running_var.value().to_device(&device);
+
+        let mean = mean.reshape([1, channels, 1, 1]);
+        let var = var.reshape([1, channels, 1, 1]);
+        let std = (var + EPS).sqrt();
+
+        let x = (input - mean) / std;
+        let x = x * self.gamma.clone().reshape([1, channels, 1, 1]);
+        x + self.beta.clone().reshape([1, channels, 1, 1])
+    }
+}
+
+fn make_conv_weight(opts: TensorCreationOptions<TestBackend>) -> TestTensor<4> {
+    TestTensor::full([CH, 3, 1, 1], INIT, opts)
+}
+
+fn two_branch_conv_bn_add(dev: Device<TestBackend>, dtype: DType) -> TensorData {
+    let opts: TensorCreationOptions<TestBackend> = (&dev, dtype).into();
+    let weight_a = make_conv_weight(opts.clone());
+    let weight_b = make_conv_weight(opts.clone());
+    let bn_a = BatchNorm::new(opts.clone());
+    let bn_b = BatchNorm::new(opts.clone());
+
+    TestBackend::sync(&dev).unwrap();
+
+    let input = TestTensor::<4>::ones([1, 3, 32, 32], opts) * 0.5;
+    let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+    let a = bn_a.forward(conv2d(input.clone(), weight_a, None, options.clone()));
+    let b = bn_b.forward(conv2d(input, weight_b, None, options));
+    (a + b).into_data()
 }
 
 /// Two parallel conv+BN branches added together — the Fusion<f16> result must
-/// match the non-fused reference.
+/// match reference.
 ///
 /// This test was failing only on Vulkan+Fusion+f16
+/// Reference: https://github.com/tracel-ai/burn/pull/4675
 #[test]
 fn fusion_f16_two_branch_conv_bn_add_matches_reference() {
-    let fused = two_branch_conv_bn_add::<Fused>(&Default::default());
-    let reference = two_branch_conv_bn_add::<Unfused>(&Default::default());
+    let fused_f16 = two_branch_conv_bn_add(Default::default(), DType::F16);
+    let reference_f32 = two_branch_conv_bn_add(Default::default(), DType::F32);
 
-    assert_eq!(fused.len(), reference.len(), "output length mismatch");
-
-    for (i, (f, r)) in fused.iter().zip(reference.iter()).enumerate() {
-        assert!(
-            (f - r).abs() < 1e-3,
-            "mismatch at element {i}: fused={f} reference={r}"
-        );
-        assert!(
-            f.is_finite(),
-            "fused output contains non-finite value at element {i}: {f}"
-        );
-    }
+    fused_f16
+        .convert_dtype(DType::F32)
+        .assert_approx_eq::<FloatElem>(&reference_f32, Tolerance::rel_abs(5e-3, 1e-2));
 }

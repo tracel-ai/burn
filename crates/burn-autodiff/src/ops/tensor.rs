@@ -1062,18 +1062,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     ) -> FloatTensor<Self> {
         use burn_backend::tensor::IndexingUpdateOp;
 
-        if matches!(
-            reduction,
-            IndexingUpdateOp::Mul | IndexingUpdateOp::Min | IndexingUpdateOp::Max
-        ) && (!data.node.requirement.is_none() || !values.node.requirement.is_none())
-        {
-            panic!(
-                "scatter_nd with {:?} reduction does not support autograd. \
-                 Detach the input tensors or use Assign/Add reduction instead.",
-                reduction,
-            );
-        }
-
         match reduction {
             IndexingUpdateOp::Add => {
                 #[derive(Debug)]
@@ -1185,36 +1173,177 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     )),
                 }
             }
-            // The early check above ensures no input requires grad for Mul/Min/Max,
-            // so we can safely forward to the inner backend without registering a
-            // backward op.
-            IndexingUpdateOp::Mul | IndexingUpdateOp::Min | IndexingUpdateOp::Max => {
+            IndexingUpdateOp::Mul => {
+                // Forward: out[idx[i]] = data[idx[i]] * values[i] (unique indices assumed).
+                // Backward:
+                //   grad_data   = grad * scatter_nd(ones_like(data), idx, values, Assign)
+                //   grad_values = gather_nd(grad, idx) * gather_nd(data, idx)
                 #[derive(Debug)]
-                struct ScatterNdNoBackward;
+                struct ScatterNdMul;
 
-                impl<B: Backend> Backward<B, 2> for ScatterNdNoBackward {
-                    type State = ();
+                impl<B: Backend> Backward<B, 2> for ScatterNdMul {
+                    type State = (Option<FloatTensor<B>>, Option<FloatTensor<B>>, IntTensor<B>);
 
                     fn backward(
                         self,
-                        _ops: Ops<Self::State, 2>,
-                        _grads: &mut Gradients,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
                         _checkpointer: &mut Checkpointer,
                     ) {
-                        unreachable!(
-                            "scatter_nd Mul/Min/Max backward must not run; \
-                             the forward path rejects grad-tracked inputs."
-                        )
+                        let (data_state, values_state, indices) = ops.state;
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                let device = B::float_device(&grad);
+                                let dtype = grad.dtype();
+                                let shape = grad.shape();
+                                let ones = B::float_ones(shape, &device, dtype.into());
+                                let mult = B::float_scatter_nd(
+                                    ones,
+                                    indices_4lhs.unwrap(),
+                                    values_state.unwrap(),
+                                    IndexingUpdateOp::Assign,
+                                );
+                                B::float_mul(grad, mult)
+                            },
+                            |grad| {
+                                let indices = indices_4rhs.unwrap();
+                                let g_idx = B::float_gather_nd(grad, indices.clone());
+                                let d_idx = B::float_gather_nd(data_state.unwrap(), indices);
+                                B::float_mul(g_idx, d_idx)
+                            },
+                        );
                     }
                 }
 
-                match ScatterNdNoBackward
+                let data_tracked = data.is_tracked();
+                let values_tracked = values.is_tracked();
+
+                match ScatterNdMul
                     .prepare::<C>([data.node, values.node])
                     .compute_bound()
                     .stateful()
                 {
-                    OpsKind::Tracked(_) => unreachable!(
-                        "scatter_nd Mul/Min/Max forward path rejects grad-tracked inputs."
+                    OpsKind::Tracked(prep) => {
+                        let data_state = values_tracked.then(|| data.primitive.clone());
+                        let values_state = data_tracked.then(|| values.primitive.clone());
+                        prep.finish(
+                            (data_state, values_state, indices.clone()),
+                            B::float_scatter_nd(
+                                data.primitive,
+                                indices,
+                                values.primitive,
+                                IndexingUpdateOp::Mul,
+                            ),
+                        )
+                    }
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
+                        data.primitive,
+                        indices,
+                        values.primitive,
+                        IndexingUpdateOp::Mul,
+                    )),
+                }
+            }
+            IndexingUpdateOp::Min | IndexingUpdateOp::Max => {
+                // Unique indices are required for this backward formula; duplicate indices have
+                // undefined behavior for scatter_nd Min/Max gradients.
+                // Forward (Max): out[idx] = max(data[idx], values); non-scattered: out = data.
+                // Backward, with ties contributing to both sides (matches cummin/cummax convention):
+                //   data_at_idx  = gather_nd(data, idx)
+                //   data_won     = data_at_idx >= values   (Max)  /  <= values (Min)
+                //   values_won   = values >= data_at_idx   (Max)  /  <= data_at_idx (Min)
+                //   data_mask    = scatter_nd(ones_like(data), idx, data_won, Assign)
+                //   grad_data    = grad * data_mask
+                //   grad_values  = gather_nd(grad, idx) * values_won
+                #[derive(Debug)]
+                struct ScatterNdMinMax;
+
+                impl<B: Backend> Backward<B, 2> for ScatterNdMinMax {
+                    type State = (FloatTensor<B>, FloatTensor<B>, IntTensor<B>, bool);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (data, values, indices, is_max) = ops.state;
+                        let device = B::float_device(&data);
+                        let data_dtype = data.dtype();
+                        let data_shape = data.shape();
+                        let settings = get_device_settings::<B>(&device);
+                        let bool_dtype = settings.bool_dtype;
+
+                        // data_at_idx — needed for both winner masks
+                        let data_at_idx = B::float_gather_nd(data, indices.clone());
+
+                        let (data_won_bool, values_won_bool) = if is_max {
+                            (
+                                B::float_greater_equal(
+                                    data_at_idx.clone(),
+                                    values.clone(),
+                                    bool_dtype,
+                                ),
+                                B::float_greater_equal(values, data_at_idx, bool_dtype),
+                            )
+                        } else {
+                            (
+                                B::float_lower_equal(
+                                    data_at_idx.clone(),
+                                    values.clone(),
+                                    bool_dtype,
+                                ),
+                                B::float_lower_equal(values, data_at_idx, bool_dtype),
+                            )
+                        };
+
+                        let data_won_float = B::bool_into_float(data_won_bool, data_dtype.into());
+                        let values_won_float =
+                            B::bool_into_float(values_won_bool, data_dtype.into());
+
+                        // Build the full-shape data mask: 1 at non-scattered positions,
+                        // data_won_float at scattered positions.
+                        let ones = B::float_ones(data_shape, &device, data_dtype.into());
+                        let data_mask = B::float_scatter_nd(
+                            ones,
+                            indices.clone(),
+                            data_won_float,
+                            IndexingUpdateOp::Assign,
+                        );
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| B::float_mul(grad, data_mask),
+                            |grad| {
+                                let g_idx = B::float_gather_nd(grad, indices);
+                                B::float_mul(g_idx, values_won_float)
+                            },
+                        );
+                    }
+                }
+
+                let is_max = matches!(reduction, IndexingUpdateOp::Max);
+
+                match ScatterNdMinMax
+                    .prepare::<C>([data.node, values.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            data.primitive.clone(),
+                            values.primitive.clone(),
+                            indices.clone(),
+                            is_max,
+                        ),
+                        B::float_scatter_nd(data.primitive, indices, values.primitive, reduction),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
                         data.primitive,

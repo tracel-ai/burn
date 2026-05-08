@@ -123,14 +123,12 @@ impl RNNTLoss {
     ) -> (Tensor<3>, Tensor<3>) {
         let [b, max_t, max_up1, v] = log_probs.dims();
         let max_u = max_up1 - 1;
-        let device = log_probs.device();
         let vocab_dim = 3;
 
-        // Blank probabilities: gather blank index across vocab dim
-        let blank_idx = Tensor::<4, Int>::full([b, max_t, max_up1, 1], self.blank as i64, &device);
+        // Blank probabilities: slice log_probs in vocab dim using the blank index
         let lpb = log_probs
             .clone()
-            .gather(vocab_dim, blank_idx)
+            .slice_dim(vocab_dim, self.blank)
             .squeeze_dim::<3>(vocab_dim);
 
         // Label probabilities: gather target labels across vocab dim (only first U positions)
@@ -146,18 +144,19 @@ impl RNNTLoss {
     }
 
     /// Sets up log_alpha at t=0: `alpha(0,0) = 0`, then cumsum of label probs along u.
-    fn init_alpha(&self, lpl: &Tensor<3>, b: usize, max_up1: usize, device: &Device) -> Tensor<2> {
-        let mut alpha = Tensor::<2>::full([b, max_up1], f32::NEG_INFINITY, device);
-        alpha = alpha.slice_assign(s![.., 0..1], Tensor::zeros([b, 1], device));
-
+    fn init_alpha<B: Backend>(
+        &self,
+        lpl: &Tensor<3>,
+        b: usize,
+        max_up1: usize,
+        device: &Device,
+    ) -> Tensor<2> {
         // Label probs at t=0
         let lpl_0 = lpl.clone().slice(s![.., 0..1, ..]).squeeze_dim::<2>(1);
-        for u in 1..max_up1 {
-            let prev = alpha.clone().slice(s![.., (u - 1)..u]);
-            let lp = lpl_0.clone().slice(s![.., (u - 1)..u]);
-            alpha = alpha.slice_assign(s![.., u..(u + 1)], prev.add(lp));
-        }
-        alpha
+        let zero_col = Tensor::<2>::zeros([b, 1], device);
+        let prefix = Tensor::cat(vec![zero_col, lpl_0.slice(s![.., 0..(max_up1 - 1)])], 1);
+
+        prefix.cumsum(1)
     }
 
     /// Boolean mask `[B, U+1]` that is true where `u <= target_lengths[b]`.

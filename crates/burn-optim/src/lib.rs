@@ -11,7 +11,7 @@ extern crate derive_new;
 extern crate alloc;
 
 /// Optimizer module.
-pub mod optim;
+mod optim;
 pub use optim::*;
 
 /// Gradient clipping module.

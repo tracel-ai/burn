@@ -1,7 +1,7 @@
 //! CubeCL kernel tests.
-
+#![cfg(feature = "cube")]
 #![recursion_limit = "256"]
-#[cfg(feature = "cube")]
+
 #[path = "."]
 mod cube {
     type FloatElem = f32;

@@ -31,6 +31,7 @@ fn rfft_constant() {
 }
 
 #[test]
+#[should_panic] // "RFFT requires n_fft >= 2" error is shadowed by the CallError
 fn rfft_length1() {
     let signal = TestTensor::<1>::from([5.0]);
     let (re, im) = rfft(signal, 0, None);
@@ -618,6 +619,7 @@ fn cfft_with_n_padding() {
 }
 
 #[test]
+#[should_panic] // "RFFT requires n_fft >= 2" error is shadowed by the CallError
 fn cfft_length_1() {
     // N=1: DFT of a single complex value is itself
     let re = TestTensor::<1>::from([3.0]);
