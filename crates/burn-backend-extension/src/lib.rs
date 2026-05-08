@@ -144,6 +144,7 @@ enum TensorKind {
     Bool,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum ArgKind {
     Tensor(TensorKind),
     // Passthrough - unhandled by the macro
@@ -313,18 +314,18 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
     for item in &mut original_trait.items {
         if let TraitItem::Fn(f) = item {
             for arg in &mut f.sig.inputs {
-                if let FnArg::Typed(pt) = arg {
-                    if let Some(kind) = TensorKind::from_type(&pt.ty) {
-                        let ty = kind.to_primitive_ty();
-                        pt.ty = Box::new(syn::parse2(ty).unwrap());
-                    }
+                if let FnArg::Typed(pt) = arg
+                    && let Some(kind) = TensorKind::from_type(&pt.ty)
+                {
+                    let ty = kind.to_primitive_ty();
+                    pt.ty = Box::new(syn::parse2(ty).unwrap());
                 }
             }
-            if let ReturnType::Type(_, ty) = &mut f.sig.output {
-                if let Some(kind) = TensorKind::from_type(ty) {
-                    let new_ty = kind.to_primitive_ty();
-                    *ty = Box::new(syn::parse2(new_ty).unwrap());
-                }
+            if let ReturnType::Type(_, ty) = &mut f.sig.output
+                && let Some(kind) = TensorKind::from_type(ty)
+            {
+                let new_ty = kind.to_primitive_ty();
+                **ty = syn::parse2(new_ty).unwrap();
             }
         }
     }
@@ -398,8 +399,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         ArgKind::Tensor(_) => Some(&a.name),
         _ => None,
     });
-    let ckp_logic = if first_tensor.is_some() {
-        let name = first_tensor.unwrap();
+    let ckp_logic = if let Some(name) = first_tensor {
         quote! {
             let checkpointing = #name.checkpointing.clone();
         }
