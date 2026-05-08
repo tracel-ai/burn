@@ -235,16 +235,100 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
     }
 }
 
+/// Operations that are specific to complex tensors and have no analogue for real tensors.
 pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
+    /// Computes the complex conjugate of each element, negating the imaginary part.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor where each element `a + bi` is replaced by `a - bi`.
     fn conj(self) -> C::ComplexTensorPrimitive;
+
+    /// Computes the phase angle (argument) of each complex element, in radians.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A real-valued tensor containing the angle `atan2(im, re)` for each element,
+    /// in the range `(-π, π]`.
     fn phase(self) -> C::FloatTensorPrimitive;
+
+    /// Extracts the real part of each complex element.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A real-valued tensor containing the real component of each element.
     fn real(self) -> C::FloatTensorPrimitive;
+
+    /// Extracts the imaginary part of each complex element.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A real-valued tensor containing the imaginary component of each element.
     fn imag(self) -> C::FloatTensorPrimitive;
+
+    /// Computes the magnitude (absolute value) of each complex element.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A real-valued tensor containing `sqrt(re² + im²)` for each element.
     fn magnitude(self) -> C::FloatTensorPrimitive;
+
+    /// Creates a complex tensor by combining separate real and imaginary part tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `real` - The real parts, as anything that can be converted into `TensorData`.
+    /// * `imag` - The imaginary parts, as anything that can be converted into `TensorData`.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor whose shape matches the input data.
     fn from_parts<T>(real: T, imag: T) -> Self
     where
         T: Into<TensorData>;
+
+    /// Creates a complex tensor from interleaved `[re₀, im₀, re₁, im₁, …]` data.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Flat tensor data with real and imaginary values interleaved.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor whose element count is half the length of the flat data.
     fn from_interleaved_data(data: TensorData, device: &C::Device) -> Self;
+
+    /// Creates a complex tensor from polar form, converting `(r, θ)` pairs to `r·cos θ + i·r·sin θ`.
+    ///
+    /// # Arguments
+    ///
+    /// * `magnitude` - A real-valued tensor of radii `r`.
+    /// * `phase` - A real-valued tensor of angles `θ` in radians.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor with the same shape as the inputs.
     fn from_polar(magnitude: C::FloatTensorPrimitive, phase: C::FloatTensorPrimitive) -> Self;
 }
 

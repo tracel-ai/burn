@@ -1,14 +1,11 @@
 mod common;
 
-
-
-use burn_complex::split::SplitComplexTensor;
 use burn_complex::kind::ComplexKind;
+use burn_complex::split::SplitComplexTensor;
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
 use burn_tensor::{Complex, TensorData};
 use common::*;
-
 
 use burn_complex::kind::ComplexOnlyOps;
 

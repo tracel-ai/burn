@@ -1,14 +1,13 @@
 //#[burn_tensor_testgen::testgen(complex)]
 mod common;
 
-use burn_complex::utils::interleaved_data_to_raw_float_data;
-use burn_complex::split::SplitComplexTensor;
 use burn_complex::kind::ComplexKind;
+use burn_complex::split::SplitComplexTensor;
+use burn_complex::utils::interleaved_data_to_raw_float_data;
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
 use burn_tensor::{Complex, TensorData};
 use common::*;
-
 
 use burn_complex::kind::ComplexOnlyOps;
 macro_rules! gen_tests {
@@ -18,7 +17,7 @@ macro_rules! gen_tests {
                 mod [<$variant:snake>] {
                     type TestTensor<const D: usize> = $ty;
                     use super::*;
-                    
+
                     #[test]
                     fn test_complex_conj() {
                         let tensor = TestTensor::<2>::from_data(

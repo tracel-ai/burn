@@ -1,10 +1,9 @@
 mod common;
 
 use burn_complex::kind::ComplexKind;
+use burn_complex::split::SplitComplexTensor;
 use burn_tensor::{Bool, Complex, IndexingUpdateOp, Int, Tensor, TensorData};
 use common::*;
-use burn_complex::split::SplitComplexTensor;
-
 
 macro_rules! gen_tests {
     ($variant:ident, $($ty:ty),*) => {
