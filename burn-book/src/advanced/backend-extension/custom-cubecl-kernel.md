@@ -6,7 +6,7 @@ learning field, where we create a kernel to fuse multiple operations together. N
 this automatically, but a manual implementation might be more efficient in some cases. We will fuse
 a matmul kernel followed by an addition and the ReLU activation function, which is commonly found in
 various models. All the code can be found under the
-[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/custom-cubecl-kernel).
+[examples directory](https://github.com/tracel-ai/burn/tree/release/0.21/examples/custom-cubecl-kernel).
 
 > Note: CubeCL is in active development, so this section may be outdated.
 

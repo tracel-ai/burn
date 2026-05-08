@@ -145,7 +145,7 @@ specifically `MnistBatcher<B::InnerBackend>`; not using `model.valid()` will res
 error.
 
 You can find the code above available as an
-[example](https://github.com/tracel-ai/burn/tree/main/examples/custom-training-loop) for you to
+[example](https://github.com/tracel-ai/burn/tree/release/0.21/examples/custom-training-loop) for you to
 test.
 
 ## Multiple optimizers

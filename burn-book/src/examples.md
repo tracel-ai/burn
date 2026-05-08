@@ -4,7 +4,7 @@ In the [next chapter](./basic-workflow) you'll have the opportunity to implement
 `guide` example yourself in a step by step manner.
 
 Many additional Burn examples are available in the
-[examples](https://github.com/tracel-ai/burn/tree/main/examples) directory. Burn examples are
+[examples](https://github.com/tracel-ai/burn/tree/release/0.21/examples) directory. Burn examples are
 organized as library crates with one or more examples that are executable binaries. An example can
 then be executed using the following cargo command line in the root of the Burn repository:
 
@@ -73,21 +73,21 @@ The following additional examples are currently available if you want to check t
 
 | Example                                                                                                   | Description                                                                                                                                                                                  |
 | :-------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Custom CSV Dataset](https://github.com/tracel-ai/burn/tree/main/examples/custom-csv-dataset)             | Implements a dataset to parse CSV data for a regression task.                                                                                                                                |
-| [Regression](https://github.com/tracel-ai/burn/tree/main/examples/simple-regression)                      | Trains a simple MLP on the California Housing dataset to predict the median house value for a district.                                                                                      |
-| [Custom Image Dataset](https://github.com/tracel-ai/burn/tree/main/examples/custom-image-dataset)         | Trains a simple CNN on custom image dataset following a simple folder structure.                                                                                                             |
-| [Custom Renderer](https://github.com/tracel-ai/burn/tree/main/examples/custom-renderer)                   | Implements a custom renderer to display the [`Learner`](./building-blocks/learner.md) progress.                                                                                              |
+| [Custom CSV Dataset](https://github.com/tracel-ai/burn/tree/release/0.21/examples/custom-csv-dataset)             | Implements a dataset to parse CSV data for a regression task.                                                                                                                                |
+| [Regression](https://github.com/tracel-ai/burn/tree/release/0.21/examples/simple-regression)                      | Trains a simple MLP on the California Housing dataset to predict the median house value for a district.                                                                                      |
+| [Custom Image Dataset](https://github.com/tracel-ai/burn/tree/release/0.21/examples/custom-image-dataset)         | Trains a simple CNN on custom image dataset following a simple folder structure.                                                                                                             |
+| [Custom Renderer](https://github.com/tracel-ai/burn/tree/release/0.21/examples/custom-renderer)                   | Implements a custom renderer to display the [`Learner`](./building-blocks/learner.md) progress.                                                                                              |
 | [Image Classification Web](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web) | Image classification web browser demo using Burn, WGPU and WebAssembly.                                                                                                                      |
-| [MNIST Inference on Web](https://github.com/tracel-ai/burn/tree/main/examples/mnist-inference-web)        | An interactive MNIST inference demo in the browser. The demo is available [online](https://burn.dev/demo/).                                                                                  |
-| [MNIST Training](https://github.com/tracel-ai/burn/tree/main/examples/mnist)                              | Demonstrates how to train a custom [`Module`](./building-blocks/module.md) (MLP) with the [`Learner`](./building-blocks/learner.md) configured to log metrics and keep training checkpoints. |
+| [MNIST Inference on Web](https://github.com/tracel-ai/burn/tree/release/0.21/examples/mnist-inference-web)        | An interactive MNIST inference demo in the browser. The demo is available [online](https://burn.dev/demo/).                                                                                  |
+| [MNIST Training](https://github.com/tracel-ai/burn/tree/release/0.21/examples/mnist)                              | Demonstrates how to train a custom [`Module`](./building-blocks/module.md) (MLP) with the [`Learner`](./building-blocks/learner.md) configured to log metrics and keep training checkpoints. |
 | [ONNX Import Inference](https://github.com/tracel-ai/burn-onnx/tree/main/examples/onnx-inference)         | Imports an ONNX model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                                 |
-| [PyTorch Import Inference](https://github.com/tracel-ai/burn/tree/main/examples/import-model-weights)          | Imports a PyTorch model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                               |
-| [Text Classification](https://github.com/tracel-ai/burn/tree/main/examples/text-classification)           | Trains a text classification transformer model on the AG News or DbPedia datasets. The trained model can then be used to classify a text sample.                                             |
-| [Text Generation](https://github.com/tracel-ai/burn/tree/main/examples/text-generation)                   | Trains a text generation transformer model on the DbPedia dataset.                                                                                                                           |
-| [Wasserstein GAN MNIST](https://github.com/tracel-ai/burn/tree/main/examples/wgan)                        | Trains a WGAN model to generate new handwritten digits based on MNIST.                                                                                                                       |
+| [PyTorch Import Inference](https://github.com/tracel-ai/burn/tree/release/0.21/examples/import-model-weights)          | Imports a PyTorch model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                               |
+| [Text Classification](https://github.com/tracel-ai/burn/tree/release/0.21/examples/text-classification)           | Trains a text classification transformer model on the AG News or DbPedia datasets. The trained model can then be used to classify a text sample.                                             |
+| [Text Generation](https://github.com/tracel-ai/burn/tree/release/0.21/examples/text-generation)                   | Trains a text generation transformer model on the DbPedia dataset.                                                                                                                           |
+| [Wasserstein GAN MNIST](https://github.com/tracel-ai/burn/tree/release/0.21/examples/wgan)                        | Trains a WGAN model to generate new handwritten digits based on MNIST.                                                                                                                       |
 
 For more information on each example, see their respective `README.md` file. Be sure to check out
-the [examples](https://github.com/tracel-ai/burn/tree/main/examples) directory for an up-to-date
+the [examples](https://github.com/tracel-ai/burn/tree/release/0.21/examples) directory for an up-to-date
 list.
 
 <div class="warning">

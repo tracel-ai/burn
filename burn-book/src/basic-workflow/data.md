@@ -12,7 +12,7 @@ used as input to our previously defined model.
 
 Let us start by defining our dataset functionalities in a file `src/data.rs`. We shall omit some of
 the imports for brevity, but the full code for following this guide can be found at
-`examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/main/examples/guide).
+`examples/guide/` [directory](https://github.com/tracel-ai/burn/tree/release/0.21/examples/guide).
 
 ```rust , ignore
 use burn::{
