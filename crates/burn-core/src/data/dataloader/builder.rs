@@ -160,7 +160,7 @@ mod tests {
     use burn_tensor::Device;
 
     use super::*;
-    use crate::data::dataset::FakeDataset;
+    use crate::{TestDevice, data::dataset::FakeDataset};
 
     #[derive(new, Clone)]
     struct TestBatcherDevice;
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_dataloader_no_workers() {
-        let default_device = Device::default();
+        let default_device = TestDevice::default().into();
         let dataloader = DataLoaderBuilder::new(TestBatcherDevice::new())
             .batch_size(1)
             .build(FakeDataset::<String>::new(9));
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_dataloader_default_device() {
-        let default_device = Device::default();
+        let default_device = TestDevice::default().into();
         let dataloader = DataLoaderBuilder::new(TestBatcherDevice::new())
             .batch_size(1)
             .num_workers(1)

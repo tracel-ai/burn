@@ -403,21 +403,15 @@ pub trait AutodiffModule: Module + Send + core::fmt::Debug {
     fn from_inner(module: Self) -> Self;
 }
 
-// /// Helper trait to associate a module with its autodiff version.
-// pub trait HasAutodiffModule {
-//     /// The module with auto-differentiation.
-//     type TrainModule: AutodiffModule;
-// }
-
 #[cfg(all(test, feature = "autodiff"))]
 mod tests {
     use super::*;
 
-    use crate::test_utils::SimpleLinear;
+    use crate::{TestDevice, test_utils::SimpleLinear};
 
     #[test]
     fn test_module_val_train_stateful() {
-        let device = Device::default().autodiff();
+        let device = Device::new(TestDevice::default()).autodiff();
         let module = SimpleLinear::new(4, 4, &device);
 
         assert!(module.weight.is_require_grad());

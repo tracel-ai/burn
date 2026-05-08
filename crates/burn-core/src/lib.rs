@@ -31,6 +31,11 @@ pub use tensor::Tensor;
 
 extern crate alloc;
 
+// TODO: configurable device priority
+#[cfg(test)]
+#[allow(missing_docs)]
+pub type TestDevice = burn_tensor::FlexDevice;
+
 #[cfg(test)]
 mod test_utils {
     use crate as burn;

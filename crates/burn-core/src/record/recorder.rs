@@ -267,6 +267,8 @@ pub type DebugRecordSettings = PrettyJsonFileRecorder<FullPrecisionSettings>;
 mod tests {
     static FILE_PATH: &str = "/tmp/burn_test_record";
 
+    use crate::TestDevice;
+
     use super::*;
     use burn_tensor::{Device, ElementConversion};
 
@@ -298,7 +300,7 @@ mod tests {
         }
 
         let item = Item::<FullPrecisionSettings>::new(16.elem());
-        let device = Device::default();
+        let device = TestDevice::default().into();
 
         // Serialize in f32.
         let recorder = DefaultFileRecorder::<FullPrecisionSettings>::new();

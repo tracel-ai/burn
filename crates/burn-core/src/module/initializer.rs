@@ -288,6 +288,8 @@ fn qr_decomposition(a: Tensor<2>, device: &Device) -> (Tensor<2>, Tensor<2>) {
 
 #[cfg(test)]
 mod tests {
+    use crate::TestDevice;
+
     use super::*;
 
     use burn_tensor::{ElementConversion, TensorData};
@@ -320,7 +322,7 @@ mod tests {
 
     #[test]
     fn initializer_uniform_init() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let (min, max) = (0.0, 1.0);
@@ -335,7 +337,7 @@ mod tests {
     #[test]
     fn initializer_normal_init() {
         // seed random generator
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let (mean, std) = (0.0, 1.0);
@@ -392,7 +394,7 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2_f64;
@@ -410,7 +412,7 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_normal_init() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2.;
@@ -429,7 +431,7 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init_bias() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2_f64;
@@ -448,7 +450,7 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init_fan_out() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2_f64;
@@ -467,7 +469,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_kaiming_uniform_no_fan() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2_f64;
@@ -483,7 +485,7 @@ mod tests {
 
     #[test]
     fn initializer_xavier_uniform_init() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2.;
@@ -503,7 +505,7 @@ mod tests {
 
     #[test]
     fn initializer_xavier_normal_init() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2.;
@@ -525,7 +527,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_xavier_uniform_no_fan() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 2.;
@@ -537,7 +539,7 @@ mod tests {
 
     #[test]
     fn test_qr_decomposition() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
@@ -558,7 +560,7 @@ mod tests {
 
     #[test]
     fn initializer_orthogonal_correct() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 1.;
@@ -580,7 +582,7 @@ mod tests {
 
     #[test]
     fn initializer_orthogonal_init() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 1.;
@@ -611,7 +613,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_orthogonal_init_1d() {
-        let device = Device::default();
+        let device = Device::new(TestDevice::default());
         device.seed(0);
 
         let gain = 1.;

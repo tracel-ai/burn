@@ -370,10 +370,13 @@ mod tests {
     #[cfg(feature = "autodiff")]
     #[test]
     fn tensor_load_record_setting() {
-        use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
+        use crate::{
+            TestDevice,
+            record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
+        };
         use burn_tensor::{Device, Tensor};
 
-        let device = &Device::default().autodiff();
+        let device = &Device::new(TestDevice::default()).autodiff();
         let tensor = Tensor::<2>::ones([3, 3], device);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();

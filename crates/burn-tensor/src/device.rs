@@ -13,13 +13,6 @@ use alloc::vec::Vec;
 use enumset::EnumSet;
 use enumset::EnumSetType;
 
-// TODO:
-// - docs + book
-// - Device::default() priority for DispatchDevice should be detailed
-// - tensor.to_device() between autodiff / non-autodiff devices?
-// - DeviceType in prelude?
-// - backend extensions
-
 /// A high-level device handle for tensor operations.
 ///
 /// [`Device`] provides a unified interface to interact with the underlying compute backend.
