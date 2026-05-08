@@ -1401,7 +1401,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the values of the maximum elements of `tensor` along `dim`.
-    fn float_topk(tensor: FloatTensor<B>, dim: usize, k: usize) -> FloatTensor<B>;
+    fn float_topk(tensor: FloatTensor<B>, dim: usize, k: usize) -> FloatTensor<B> {
+        let device = Self::float_device(&tensor);
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = B::int_arange(0..k as i64, &device, dtype);
+        Self::float_select(Self::float_sort(tensor, dim, true), dim, k_indices)
+    }
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///

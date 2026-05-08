@@ -1,6 +1,7 @@
 use burn_ir::OperationIr;
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 
-use super::ExecutionMode;
+use super::{ExecutionMode, op_kind};
 use crate::{
     NumOperations, OperationFuser,
     search::{BlockOptimization, StreamOptimizer},
@@ -49,6 +50,16 @@ impl<O: NumOperations> Explorer<O> {
         operations: &[OperationIr],
         mode: ExecutionMode,
     ) -> ExplorationAction<O> {
+        let total_ops = operations.len();
+        let deferred = self.num_deferred;
+        let mode_dbg = match mode {
+            ExecutionMode::Lazy => "lazy",
+            ExecutionMode::Sync => "sync",
+        };
+        log_fusion(FusionLogLevel::Full, move || {
+            format!("[explorer] explore ({mode_dbg}): {deferred} deferred of {total_ops} queued")
+        });
+
         self.update(operations);
 
         // Can only continue exploration when not sync.
@@ -73,8 +84,16 @@ impl<O: NumOperations> Explorer<O> {
 
     /// Register any operations that we had deferred
     fn update(&mut self, operations: &[OperationIr]) {
+        let start_explored = self.num_explored;
         for i in (0..self.num_deferred).rev() {
             if !self.is_still_optimizing {
+                let remaining = i + 1;
+                let seen = self.num_explored - start_explored;
+                log_fusion(FusionLogLevel::Full, move || {
+                    format!(
+                        "[explorer] stopped optimizing after {seen} new op(s); {remaining} deferred op(s) left unprocessed"
+                    )
+                });
                 break;
             }
             let index = operations.len() - 1 - i;
@@ -83,7 +102,17 @@ impl<O: NumOperations> Explorer<O> {
             self.optimizer.register(relative);
             self.num_explored += 1;
 
+            let before = self.is_still_optimizing;
             self.is_still_optimizing = self.optimizer.still_optimizing();
+            if before && !self.is_still_optimizing {
+                let explored = self.num_explored;
+                log_fusion(FusionLogLevel::Full, || {
+                    format!(
+                        "[explorer] still_optimizing → false after op {} (explored {explored} ops)",
+                        op_kind(relative)
+                    )
+                });
+            }
         }
 
         self.num_deferred = 0;

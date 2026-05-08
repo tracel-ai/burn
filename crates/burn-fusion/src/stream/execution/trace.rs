@@ -1,49 +1,81 @@
-//! Full-level fusion logging: builds a table of every operation that was executed as
-//! part of a block optimization, tagging each row as fused, operation, or part of a
-//! composed strategy.
+//! Full-level fusion logging and the shared data model used by both the logger and
+//! the test-only [`FusionInspector`](crate::inspect::FusionInspector).
+//!
+//! A single execution of a [`ExecutionStrategy`] is flattened into a sequence of
+//! [`FusionBlock`]s — one per strategy leaf — each tagged with a [`BlockKind`]. The
+//! logger renders these as a human-readable table; the inspector stores them in
+//! `FusionReport`s so tests can assert on what fused together.
 
 use burn_ir::{OperationIr, TensorIr};
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use core::fmt::Write;
 
 use crate::NumOperations;
-use crate::stream::store::ExecutionStrategy;
+use crate::stream::{StreamId, store::ExecutionStrategy};
+
+/// One contiguous run of operations — the output of a single [`ExecutionStrategy`]
+/// leaf. A `Composed` strategy flattens into a sequence of these.
+#[derive(Debug, Clone)]
+pub struct FusionBlock {
+    /// Whether this block ran fused or unfused.
+    pub kind: BlockKind,
+    /// The operations contained in the block, in execution order.
+    pub operations: Vec<OperationIr>,
+}
+
+/// Whether a [`FusionBlock`] was fused into a single kernel or ran op-by-op.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BlockKind {
+    /// The operations were fused into a single kernel produced by the named fuser.
+    Fused {
+        /// The name of the fuser / optimization (e.g. `"ElementWise"`).
+        name: &'static str,
+        /// The score the fuser reported for this kernel.
+        score: u64,
+    },
+    /// The operations ran individually; no fusion happened for this block.
+    Unfused,
+}
 
 /// Emit an execution table for the given `strategy` at [`FusionLogLevel::Full`].
 ///
 /// `global` is the `OperationQueue::global` slice at the time of execution — it holds the
 /// real tensor IDs and shapes that the indices inside the strategy's `ordering` fields
 /// point into. The table is built lazily: no allocation happens when the log level is
-/// below `Full`.
+/// below `Full` (except when the inspector is installed, which eagerly captures the
+/// structured blocks for test assertions).
 pub(crate) fn log_execution_table<O: NumOperations>(
+    _id: StreamId,
     strategy: &ExecutionStrategy<O>,
     global: &[OperationIr],
 ) {
+    // When the inspector is active, build the blocks eagerly so we can emit a
+    // structured report even when fusion logging is disabled. Otherwise stay lazy.
+    #[cfg(feature = "test-util")]
+    let blocks_for_inspector: Option<Vec<FusionBlock>> = if crate::inspect::is_installed() {
+        let mut blocks = Vec::new();
+        collect_blocks(strategy, global, &mut blocks);
+        crate::inspect::emit(_id, &blocks);
+        Some(blocks)
+    } else {
+        None
+    };
+
     log_fusion(FusionLogLevel::Full, || {
-        let mut sections = Vec::new();
-        collect_sections(strategy, global, &mut sections);
-        format_table(&sections)
+        #[cfg(feature = "test-util")]
+        if let Some(blocks) = &blocks_for_inspector {
+            return format_table(blocks);
+        }
+        let mut blocks = Vec::new();
+        collect_blocks(strategy, global, &mut blocks);
+        format_table(&blocks)
     });
 }
 
-/// One contiguous run of operations — the output of a single `ExecutionStrategy` leaf.
-/// A `Composed` strategy yields a sequence of these.
-struct Section {
-    kind: SectionKind,
-    ops: Vec<OperationIr>,
-}
-
-enum SectionKind {
-    /// Fused optimization: name + score are shared by every op in this section.
-    Fused { name: &'static str, score: u64 },
-    /// Plain operations that couldn't be fused (and may have been reordered).
-    Operation,
-}
-
-fn collect_sections<O: NumOperations>(
+pub(crate) fn collect_blocks<O: NumOperations>(
     strategy: &ExecutionStrategy<O>,
     global: &[OperationIr],
-    sections: &mut Vec<Section>,
+    blocks: &mut Vec<FusionBlock>,
 ) {
     match strategy {
         ExecutionStrategy::Optimization {
@@ -51,56 +83,56 @@ fn collect_sections<O: NumOperations>(
             ordering,
             score,
         } => {
-            sections.push(Section {
-                kind: SectionKind::Fused {
+            blocks.push(FusionBlock {
+                kind: BlockKind::Fused {
                     name: opt.name(),
                     score: *score,
                 },
-                ops: ordering.iter().map(|&i| global[i].clone()).collect(),
+                operations: ordering.iter().map(|&i| global[i].clone()).collect(),
             });
         }
         ExecutionStrategy::Operations { ordering } => {
-            sections.push(Section {
-                kind: SectionKind::Operation,
-                ops: ordering.iter().map(|&i| global[i].clone()).collect(),
+            blocks.push(FusionBlock {
+                kind: BlockKind::Unfused,
+                operations: ordering.iter().map(|&i| global[i].clone()).collect(),
             });
         }
         ExecutionStrategy::Composed(items) => {
             for item in items {
-                collect_sections(item, global, sections);
+                collect_blocks(item, global, blocks);
             }
         }
     }
 }
 
-fn format_table(sections: &[Section]) -> String {
-    let total: usize = sections.iter().map(|s| s.ops.len()).sum();
+pub(crate) fn format_table(blocks: &[FusionBlock]) -> String {
+    let total: usize = blocks.iter().map(|b| b.operations.len()).sum();
     if total == 0 {
         return String::from("fusion block: <empty>");
     }
 
-    // One row per op across all sections. The `section` column carries the section
-    // header on the first row of each section and is left blank for the rest, so each
-    // fused block is visually grouped but the name/score appear exactly once.
+    // One row per op across all blocks. The `block` column carries the block header
+    // on the first row of each block and is left blank for the rest, so each fused
+    // block is visually grouped but the name/score appear exactly once.
     struct Row {
         idx: String,
-        section: String,
+        block: String,
         op: String,
         inputs: String,
         outputs: String,
     }
 
-    let headers = ["idx", "section", "op", "inputs", "outputs"];
+    let headers = ["idx", "block", "op", "inputs", "outputs"];
     let mut widths = headers.map(str::len);
 
     let mut rows: Vec<Row> = Vec::with_capacity(total);
     let mut global_idx: usize = 0;
-    for section in sections {
-        let header = section_header(&section.kind, section.ops.len());
-        for (i, op) in section.ops.iter().enumerate() {
+    for block in blocks {
+        let header = block_header(&block.kind, block.operations.len());
+        for (i, op) in block.operations.iter().enumerate() {
             let row = Row {
                 idx: global_idx.to_string(),
-                section: if i == 0 {
+                block: if i == 0 {
                     header.clone()
                 } else {
                     String::new()
@@ -110,7 +142,7 @@ fn format_table(sections: &[Section]) -> String {
                 outputs: format_tensors(op.outputs()),
             };
             widths[0] = widths[0].max(row.idx.len());
-            widths[1] = widths[1].max(row.section.len());
+            widths[1] = widths[1].max(row.block.len());
             widths[2] = widths[2].max(row.op.len());
             widths[3] = widths[3].max(row.inputs.len());
             widths[4] = widths[4].max(row.outputs.len());
@@ -126,10 +158,10 @@ fn format_table(sections: &[Section]) -> String {
     writeln!(out, "{}", "═".repeat(table_width)).unwrap();
     writeln!(
         out,
-        "fusion block ({total} op{}, {} section{})",
+        "fusion trace ({total} op{}, {} block{})",
         if total == 1 { "" } else { "s" },
-        sections.len(),
-        if sections.len() == 1 { "" } else { "s" },
+        blocks.len(),
+        if blocks.len() == 1 { "" } else { "s" },
     )
     .unwrap();
 
@@ -158,7 +190,7 @@ fn format_table(sections: &[Section]) -> String {
     for row in &rows {
         write_row(
             &mut out,
-            [&row.idx, &row.section, &row.op, &row.inputs, &row.outputs],
+            [&row.idx, &row.block, &row.op, &row.inputs, &row.outputs],
         );
     }
 
@@ -169,13 +201,13 @@ fn format_table(sections: &[Section]) -> String {
     out
 }
 
-fn section_header(kind: &SectionKind, size: usize) -> String {
+fn block_header(kind: &BlockKind, size: usize) -> String {
     let ops_suffix = if size == 1 { "op" } else { "ops" };
     match kind {
-        SectionKind::Fused { name, score } => {
+        BlockKind::Fused { name, score } => {
             format!("▸ fused {name} (score={score}, {size} {ops_suffix})")
         }
-        SectionKind::Operation => format!("▸ un-fused ({size} {ops_suffix})"),
+        BlockKind::Unfused => format!("▸ un-fused ({size} {ops_suffix})"),
     }
 }
 
@@ -188,7 +220,7 @@ fn debug_head(s: &str) -> &str {
 /// Produce a "Outer::Inner" kind string for every variant that has an inner enum,
 /// so the table shows the concrete operation (e.g. `BaseFloat::Reshape`) rather than
 /// just the category.
-fn op_kind(op: &OperationIr) -> String {
+pub(crate) fn op_kind(op: &OperationIr) -> String {
     fn inner(s: String) -> String {
         debug_head(&s).to_string()
     }
@@ -305,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn format_table_puts_name_and_score_in_section_header() {
+    fn format_table_puts_name_and_score_in_block_header() {
         let op = OperationIr::Float(
             DType::F32,
             burn_ir::FloatOperationIr::Exp(UnaryOpIr {
@@ -313,21 +345,21 @@ mod tests {
                 out: tensor(2, &[4]),
             }),
         );
-        let sections = vec![
-            Section {
-                kind: SectionKind::Fused {
+        let blocks = vec![
+            FusionBlock {
+                kind: BlockKind::Fused {
                     name: "FusedKernel",
                     score: 42,
                 },
-                ops: vec![op.clone(), op.clone()],
+                operations: vec![op.clone(), op.clone()],
             },
-            Section {
-                kind: SectionKind::Operation,
-                ops: vec![op],
+            FusionBlock {
+                kind: BlockKind::Unfused,
+                operations: vec![op],
             },
         ];
 
-        let table = format_table(&sections);
+        let table = format_table(&blocks);
 
         // Top separator precedes the title line.
         let first_line = table.lines().next().unwrap();
@@ -335,15 +367,15 @@ mod tests {
             first_line.chars().all(|c| c == '═'),
             "expected top line of ═, got {first_line:?}"
         );
-        assert!(table.contains("\nfusion block (3 ops, 2 sections)\n"));
+        assert!(table.contains("\nfusion trace (3 ops, 2 blocks)\n"));
         // Fused header names the optimization and its score exactly once.
         assert!(table.contains("▸ fused FusedKernel (score=42, 2 ops)"));
-        // Out-of-order header is tagged and sized.
+        // Un-fused header is tagged and sized.
         assert!(table.contains("▸ un-fused (1 op)"));
         // No per-row repetition of "FusedKernel" or "42": they appear exactly once.
         assert_eq!(table.matches("FusedKernel").count(), 1);
         assert_eq!(table.matches("score=42").count(), 1);
-        // Indices are global (0, 1, 2 across sections).
+        // Indices are global (0, 1, 2 across blocks).
         assert!(table.contains("\n0  "));
         assert!(table.contains("\n1  "));
         assert!(table.contains("\n2  "));

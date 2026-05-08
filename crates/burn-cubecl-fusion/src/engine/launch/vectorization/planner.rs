@@ -129,7 +129,6 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .io_optimized_vector_sizes(ref_elem.0.size())
                 .collect::<Vec<_>>(),
         };
-
         let vectorization_axis = runner.axis(plan);
 
         runner.vectorization(
@@ -411,8 +410,19 @@ fn vector_sizes_quants<R: Runtime>(
             let mut vector_sizes = client
                 .io_optimized_vector_sizes(size_of::<u32>())
                 .collect::<Vec<_>>();
+
             for val in vector_sizes.iter_mut() {
                 *val *= scheme.num_quants();
+            }
+
+            let min = *vector_sizes.last().unwrap();
+
+            // We need to put back values that are not multiple of num_quants, but may be good
+            // vectorization factor for other handles in a fused trace.
+            for val in client.io_optimized_vector_sizes(size_of::<u32>()) {
+                if val < min {
+                    vector_sizes.push(val);
+                }
             }
 
             match &quants_vector_sizes {

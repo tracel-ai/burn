@@ -31,6 +31,10 @@ tracing = [
     "burn-ir/tracing",
 ]
 
+# Exposes the fusion spy API for tests that need to assert on fusion decisions.
+# Not intended for production use.
+test-util = ["std"]
+
 [dependencies]
 burn-backend = { workspace = true, features = ["default"] }
 burn-std = { workspace = true, features = ["default"] }

@@ -36,6 +36,17 @@ pub struct PositionWiseFeedForwardConfig {
 /// `FFN(x) = max(0, xW1 + b1)W2 + b2`
 ///
 /// Should be created using [PositionWiseFeedForwardConfig]
+///
+/// # Notes
+///
+/// The `activation` field is currently marked `#[module(skip)]` for backward
+/// compatibility with records saved before this field was introduced (when
+/// the activation was always `Gelu` and had no state). This means activation
+/// state is **not persisted** when saving or loading records.
+///
+/// For stateless activations (GELU, ReLU, etc.) this has no effect.
+/// **If you are using `SwiGLU`, its learnable parameters will not be saved or
+/// loaded correctly.**
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct PositionWiseFeedForward<B: Backend> {
@@ -46,6 +57,7 @@ pub struct PositionWiseFeedForward<B: Backend> {
     /// Dropout layer.
     pub dropout: Dropout,
     /// Activation function.
+    #[module(skip)] // for backward compatibility with previous `gelu` field name
     pub activation: Activation<B>,
 }
 
