@@ -190,7 +190,6 @@ burn-autodiff = { path = "crates/burn-autodiff", version = "=0.21.0-pre.4", defa
 burn-backend = { path = "crates/burn-backend", version = "=0.21.0-pre.4", default-features = false }
 burn-backend-extension = { path = "crates/burn-backend-extension", version = "=0.21.0-pre.4", default-features = false }
 burn-candle = { path = "crates/burn-candle", version = "=0.21.0-pre.4", default-features = false }
-burn-collective = { path = "crates/burn-collective", version = "=0.21.0-pre.4", default-features = false }
 burn-communication = { path = "crates/burn-communication", version = "=0.21.0-pre.4", default-features = false }
 burn-core = { path = "crates/burn-core", version = "=0.21.0-pre.4", default-features = false }
 burn-cpu = { path = "crates/burn-cpu", version = "=0.21.0-pre.4", default-features = false }

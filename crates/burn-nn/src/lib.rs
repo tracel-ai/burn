@@ -26,8 +26,3 @@ pub use padding::*;
 pub use burn_core::module::Initializer;
 
 extern crate alloc;
-
-#[cfg(all(test, feature = "test-memory-checks"))]
-mod tests {
-    burn_fusion::memory_checks!();
-}

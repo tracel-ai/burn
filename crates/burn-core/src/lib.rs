@@ -31,11 +31,6 @@ pub use tensor::Tensor;
 
 extern crate alloc;
 
-#[cfg(all(test, feature = "test-memory-checks"))]
-mod tests {
-    burn_fusion::memory_checks!();
-}
-
 #[cfg(test)]
 mod test_utils {
     use crate as burn;

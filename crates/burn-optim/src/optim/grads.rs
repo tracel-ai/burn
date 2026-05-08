@@ -112,19 +112,13 @@ impl GradientsParams {
         ids.sort();
 
         for id in ids {
-            let Some(grad) = self.container.remove(&id) else {
-                todo!()
-            };
+            let grad = self
+                .container
+                .remove(&id)
+                .map(Tensor::from_primitive)
+                .unwrap();
 
-            let grad = match grad {
-                burn::tensor::TensorPrimitive::Float(grad) => {
-                    let grad = all_reduce(peer_id, grad, op)?;
-                    burn::tensor::TensorPrimitive::Float(grad)
-                }
-                burn::tensor::TensorPrimitive::QFloat(_grad) => {
-                    unimplemented!("quantized all-reduce unimplemented")
-                }
-            };
+            let grad = all_reduce(peer_id, grad, op)?;
 
             self.container.register(id, grad);
         }

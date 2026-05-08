@@ -26,8 +26,3 @@ pub mod lr_scheduler;
 /// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
 /// can be used for constant learning rate.
 pub type LearningRate = f64; // We could potentially change the type.
-
-#[cfg(all(test, feature = "test-memory-checks"))]
-mod tests {
-    burn_fusion::memory_checks!();
-}
