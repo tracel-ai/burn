@@ -2,8 +2,9 @@ fn main() {
     println!("cargo::rustc-check-cfg=cfg(wgpu_metal)");
     println!("cargo::rustc-check-cfg=cfg(wgpu_vulkan)");
     println!("cargo::rustc-check-cfg=cfg(wgpu_webgpu)");
+    println!("cargo::rustc-check-cfg=cfg(default_backend)");
 
-    // If you try to build with `--no-default-features`, fallback to wgpu
+    // If you try to build with `--no-default-features`, we enable a cpu backend by default (Flex)
     let cuda = cfg!(feature = "cuda");
     let flex = cfg!(feature = "flex");
     let rocm = cfg!(feature = "rocm");
@@ -48,7 +49,10 @@ fn main() {
     if vulkan {
         println!("cargo:rustc-cfg=wgpu_vulkan");
     }
-    if webgpu || wgpu_only || no_backend_enabled {
+    if webgpu || wgpu_only {
         println!("cargo:rustc-cfg=wgpu_webgpu");
+    }
+    if no_backend_enabled {
+        println!("cargo:rustc-cfg=default_backend");
     }
 }

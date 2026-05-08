@@ -222,7 +222,7 @@ pub enum DispatchTensorKind {
     Wgpu(BackendTensor<Wgpu>),
 
     /// The [Flex backend](Flex) tensor.
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     Flex(BackendTensor<Flex>),
 
     /// The [NdArray backend](NdArray) tensor.
@@ -253,7 +253,7 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Vulkan(tensor) => tensor.dtype(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(tensor) => tensor.dtype(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.dtype(),
@@ -278,7 +278,7 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Vulkan(tensor) => tensor.shape(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(tensor) => tensor.shape(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.shape(),
@@ -305,7 +305,7 @@ impl QTensorPrimitive for DispatchTensorKind {
             Self::Vulkan(tensor) => tensor.scheme(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.scheme(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.scheme(),

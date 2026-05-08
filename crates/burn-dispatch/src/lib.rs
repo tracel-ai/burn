@@ -35,21 +35,8 @@
 //! - `vulkan`
 //! - `webgpu`
 //!
-//! If multiple WGPU features are enabled, the build script will emit a warning and **disable all WGPU
-//! backends** to prevent unintended behavior.
-
-#[cfg(not(any(
-    feature = "cpu",
-    feature = "cuda",
-    wgpu_metal,
-    feature = "rocm",
-    wgpu_vulkan,
-    wgpu_webgpu,
-    feature = "flex",
-    feature = "ndarray",
-    feature = "tch",
-)))]
-compile_error!("At least one backend feature must be enabled.");
+//! If multiple WGPU features are enabled, the build script will emit a warning and enable `webgpu` only
+//! to prevent unintended behavior.
 
 #[macro_use]
 mod macros;
@@ -83,7 +70,7 @@ pub(crate) mod backends {
     #[cfg(wgpu_webgpu)]
     pub use burn_wgpu::Wgpu;
 
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::Flex;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray::NdArray;
@@ -106,7 +93,7 @@ pub mod devices {
     #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
     pub use burn_wgpu::WgpuDevice;
 
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::FlexDevice;
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray::NdArrayDevice;

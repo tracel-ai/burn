@@ -24,7 +24,7 @@ default = [
     "burn-autodiff?/default",
     "burn-cpu?/default",
     "burn-cuda?/default",
-    "burn-flex?/default",
+    "burn-flex/default",
     "burn-ndarray?/default",
     "burn-rocm?/default",
     "burn-tch?/default",
@@ -36,7 +36,7 @@ std = [
     "burn-autodiff?/std",
     "burn-cpu?/std",
     "burn-cuda?/std",
-    "burn-flex?/std",
+    "burn-flex/std",
     "burn-ndarray?/std",
     "burn-rocm?/std",
     "burn-tch?/std",
@@ -46,7 +46,7 @@ tracing = [
     "burn-autodiff?/tracing",
     "burn-cpu?/tracing",
     "burn-cuda?/tracing",
-    "burn-flex?/tracing",
+    "burn-flex/tracing",
     "burn-ndarray?/tracing",
     "burn-rocm?/tracing",
     "burn-tch?/tracing",
@@ -63,7 +63,7 @@ distributed = [
 
 # Backends
 cuda = ["burn-cuda"]
-flex = ["burn-flex"]
+flex = [] # default
 rocm = ["burn-rocm"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
@@ -102,7 +102,7 @@ burn-backend = { workspace = true }
 burn-autodiff = { workspace = true, optional = true }
 burn-cpu = { workspace = true, optional = true }
 burn-cuda = { workspace = true, optional = true }
-burn-flex = { workspace = true, optional = true }
+burn-flex = { workspace = true }
 burn-ndarray = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
 burn-rocm = { workspace = true, optional = true }
