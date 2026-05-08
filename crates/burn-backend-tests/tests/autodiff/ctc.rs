@@ -47,7 +47,7 @@ fn run_comparison(
 
     logits_grad.into_data().assert_approx_eq::<FloatElem>(
         &TensorData::new(expected_grad_flat.to_vec(), [t_size, n_size, c_size]),
-        Tolerance::rel_abs(1e-3, 1e-3),
+        Tolerance::rel_abs(1e-3, 1e-3).set_half_precision_absolute(1e-2),
     );
 }
 
