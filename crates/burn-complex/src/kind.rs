@@ -231,7 +231,7 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
         data: Self::Primitive,
         indices: burn_tensor::ops::IntTensor<C>,
     ) -> Self::Primitive {
-        todo!()
+        C::complex_gather_nd(data, indices)
     }
 }
 

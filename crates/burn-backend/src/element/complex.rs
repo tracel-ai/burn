@@ -594,7 +594,7 @@ where
     /// The branch satisfies `-π/2 ≤ Re(asin(z)) ≤ π/2`.
     #[inline]
     pub fn asin(self) -> Self {
-        // formula: arcsin(z) = -i ln(sqrt(1-z^2) + iz)
+        // formula: arcsin(z) = -i ln(sqrt(1-z^2) + i*z)
         let i = Self::i();
         -i * ((Self::one() - self * self).sqrt() + i * self).ln()
     }

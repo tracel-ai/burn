@@ -704,6 +704,21 @@ impl ComplexTensorOps<Flex> for Flex {
     fn complex_atanh(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
         crate::c2c_unary_op!(tensor, |a| a.atanh())
     }
+
+    fn complex_gather_nd(
+        data: ComplexTensor<Flex>,
+        indices: IntTensor<Flex>,
+    ) -> ComplexTensor<Flex> {
+        match data.dtype() {
+            DType::Complex32 => {
+                crate::ops::gather_scatter::gather_nd::<Complex<f32>>(data, indices)
+            }
+            DType::Complex64 => {
+                crate::ops::gather_scatter::gather_nd::<Complex<f64>>(data, indices)
+            }
+            _ => panic!("complex_gather_nd: unsupported dtype {:?}", data.dtype()),
+        }
+    }
 }
 
 /// Check if any element is non-zero (complex tensors).

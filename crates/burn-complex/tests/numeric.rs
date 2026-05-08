@@ -7,10 +7,8 @@ use burn_tensor::Tolerance;
 use burn_tensor::{Complex, TensorData};
 use common::*;
 
-use burn_complex::kind::ComplexOnlyOps;
-
 use burn_tensor::{Distribution, Int};
-use common::*;
+
 pub type TestTensor<const D: usize> = Tensor<TestBackend, D, ComplexKind>;
 
 macro_rules! gen_ops_tests {
