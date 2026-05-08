@@ -8,7 +8,6 @@ pub struct Net {
 
 #[cfg(test)]
 mod tests {
-    
 
     use burn::nn::conv::Conv2dConfig;
     use burn_store::{ModuleSnapshot, PytorchStore};

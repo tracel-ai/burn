@@ -4,12 +4,12 @@ mod hardware_accelerated;
 /// to really use it in a general case. Needs more work to use as a normal tensor method.
 mod prefix_sum;
 
+use burn_core::tensor::Shape;
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
     ops::numeric::{full_client, zeros_client},
     tensor::CubeTensor,
 };
-use burn_core::tensor::Shape;
 pub use hardware_accelerated::*;
 
 use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive};

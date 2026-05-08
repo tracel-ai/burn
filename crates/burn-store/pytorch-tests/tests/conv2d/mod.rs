@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::conv::{Conv2d, Conv2dConfig},
-    tensor::{Tensor, Device},
+    tensor::{Device, Tensor},
 };
 
 #[derive(Module, Debug)]
@@ -22,7 +22,7 @@ impl Net {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let x = self.conv1.forward(x);
 
         self.conv2.forward(x)
@@ -31,7 +31,6 @@ impl Net {
 
 #[cfg(test)]
 mod tests {
-    
 
     use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
@@ -41,7 +40,7 @@ mod tests {
     fn conv2d(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::< 4>::from_data(
+        let input = Tensor::<4>::from_data(
             [[
                 [
                     [
@@ -87,7 +86,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::< 4>::from_data(
+        let expected = Tensor::<4>::from_data(
             [[
                 [
                     [-0.02502128, 0.00250649, 0.04841233],

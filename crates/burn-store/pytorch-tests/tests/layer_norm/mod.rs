@@ -25,7 +25,7 @@ impl Net {
 #[cfg(test)]
 mod tests {
 
-    use burn::tensor::{Tolerance};
+    use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
     type FT = f32;
 

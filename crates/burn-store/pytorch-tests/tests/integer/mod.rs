@@ -1,15 +1,11 @@
 use burn::{
     module::{Module, Param, ParamId},
-<<<<<<< HEAD
-    tensor::{Int, Tensor, TensorData, Device},
-=======
-    tensor::{DType, Int, Tensor, TensorData, backend::Backend},
->>>>>>> main
+    tensor::{Device, Int, Tensor, TensorData},
 };
 
 #[derive(Module, Debug)]
 pub struct Net {
-    buffer: Param<Tensor< 1, Int>>,
+    buffer: Param<Tensor<1, Int>>,
 }
 
 impl Net {
@@ -18,25 +14,21 @@ impl Net {
         Self {
             buffer: Param::initialized(
                 ParamId::new(),
-                Tensor::< 1, Int>::from_data(TensorData::from([0, 0, 0]), device),
+                Tensor::<1, Int>::from_data(TensorData::from([0, 0, 0]), device),
             ),
         }
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, _x: Tensor< 2>) -> Tensor< 1, Int> {
+    pub fn forward(&self, _x: Tensor<2>) -> Tensor<1, Int> {
         self.buffer.val()
     }
 }
 
 #[cfg(test)]
 mod tests {
-<<<<<<< HEAD
-    
+
     use burn::tensor::TensorData;
-=======
-    use crate::backend::TestBackend;
->>>>>>> main
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
@@ -44,20 +36,15 @@ mod tests {
     fn integer(model: Net) {
         let device = Default::default();
 
-        let input = Tensor::< 2>::ones([3, 3], &device);
+        let input = Tensor::<2>::ones([3, 3], &device);
 
         let output = model.forward(input);
         let data = output.to_data();
 
-<<<<<<< HEAD
-        let expected =
-            Tensor::< 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
-=======
         // The .pt file stores int64 (PyTorch's default int dtype); we pin
         // that here to catch a regression where the loader silently casts
         // to the backend's native IntElem (i32 for Flex).
         assert_eq!(data.dtype, DType::I64);
->>>>>>> main
 
         let values = data.iter::<i64>().collect::<Vec<_>>();
         assert_eq!(values, vec![1i64, 2, 3]);

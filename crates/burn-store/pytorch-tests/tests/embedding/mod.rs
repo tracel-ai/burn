@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig},
-    tensor::{Int, Tensor, Device},
+    tensor::{Device, Int, Tensor},
 };
 
 #[derive(Module, Debug)]
@@ -17,14 +17,14 @@ impl Net {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor< 2, Int>) -> Tensor< 3> {
+    pub fn forward(&self, x: Tensor<2, Int>) -> Tensor<3> {
         self.embed.forward(x)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    
+
     use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
@@ -33,11 +33,11 @@ mod tests {
     fn embedding(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::< 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
+        let input = Tensor::<2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::< 3>::from_data(
+        let expected = Tensor::<3>::from_data(
             [
                 [
                     [-1.609_484_9, -0.10016718, -0.609_188_9],

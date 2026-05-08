@@ -40,14 +40,14 @@ mod tests {
     fn conv_transpose1d(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::< 3>::from_data(
+        let input = Tensor::<3>::from_data(
             [[[0.93708336, 0.65559506], [0.31379688, 0.19801933]]],
             &device,
         );
 
         let output = model.forward(input);
 
-        let expected = Tensor::< 3>::from_data(
+        let expected = Tensor::<3>::from_data(
             [[
                 [0.02935525, 0.01119324, -0.01356167, -0.00682688],
                 [0.01644749, -0.01429807, 0.00083987, 0.00279229],
