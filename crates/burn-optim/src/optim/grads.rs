@@ -4,8 +4,6 @@ use burn::{
     Tensor,
     tensor::{Device, Gradients, container::TensorContainer},
 };
-#[cfg(feature = "collective")]
-use burn_collective::{CollectiveError, PeerId, ReduceOperation, all_reduce};
 
 use burn::module::{AutodiffModule, ParamId};
 
@@ -93,37 +91,6 @@ impl GradientsParams {
         let mut visitor = GradientsParamsChangeDevice::<M>::new(device, &mut self);
         module.visit(&mut visitor);
         self
-    }
-
-    /// Syncs the gradient params with the other peers in the collective.
-    #[cfg(feature = "collective")]
-    pub fn all_reduce(
-        mut self,
-        peer_id: PeerId,
-        op: ReduceOperation,
-    ) -> Result<Self, CollectiveError> {
-        let mut ids = self
-            .container
-            .ids()
-            .into_iter()
-            .copied()
-            .collect::<Vec<ParamId>>();
-        // This is crucial, since the all-reduce operations need to happen in the same order for the same parameters on all nodes!
-        ids.sort();
-
-        for id in ids {
-            let grad = self
-                .container
-                .remove(&id)
-                .map(Tensor::from_primitive)
-                .unwrap();
-
-            let grad = all_reduce(peer_id, grad, op)?;
-
-            self.container.register(id, grad);
-        }
-
-        Ok(self)
     }
 }
 

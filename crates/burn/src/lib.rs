@@ -136,10 +136,6 @@ pub mod backend;
 #[cfg(feature = "server")]
 pub use burn_remote::server;
 
-/// Module for collective operations
-#[cfg(feature = "collective")]
-pub mod collective;
-
 /// Module for model storage and serialization
 #[cfg(feature = "store")]
 pub mod store {

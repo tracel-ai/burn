@@ -22,10 +22,10 @@ doc = [
     "burn-core/doc",
 ]
 std = ["burn-core/std", "num-traits/std", "serde/std", "log"]
-tracing = ["burn-collective?/tracing", "burn-core/tracing"]
+tracing = ["burn-core/tracing"]
 
 distributed = ["std", "burn-core/distributed"]
-collective = ["burn-collective"]
+# collective = ["burn-collective"]
 
 # Test backends
 test-cuda = ["burn-core/cuda"]
@@ -40,7 +40,6 @@ test-metal = ["burn-core/metal"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 burn-core = { workspace = true, features = ["autodiff"]}
-burn-collective = { workspace = true, optional = true }
 
 num-traits = { workspace = true }
 derive-new = { workspace = true }

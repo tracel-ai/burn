@@ -26,7 +26,6 @@ default = [
     "std",
     "burn-core/default",
     "burn-train?/default",
-    "burn-collective?/default",
     "burn-nn/default",
     "burn-optim/default",
     "burn-autodiff?/default",
@@ -36,7 +35,6 @@ doc = [
     "train",
     "burn-core/doc",
     "burn-train/doc",
-    "burn-collective/doc",
     "burn-store?/std",
     "burn-nn/doc",
     "burn-optim/doc",
@@ -107,7 +105,6 @@ x86-v4 = ["burn-flex?/x86-v4"]
 apple-amx = ["burn-flex?/apple-amx"]
 
 template = ["burn-wgpu?/template"]
-collective = ["burn-collective", "burn-optim/collective"]
 distributed = [
     "std",
     "burn-core/distributed",
@@ -142,7 +139,6 @@ extension = ["burn-core/extension"]
 
 burn-core = { workspace = true }
 burn-train = { workspace = true, optional = true }
-burn-collective = { workspace = true, optional = true }
 burn-store = { workspace = true, optional = true }
 burn-nn = { workspace = true }
 burn-optim = { workspace = true }
