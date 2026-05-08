@@ -152,7 +152,6 @@ impl<B: Backend, const D: usize> BackendTypes for SplitBackend<B, D> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
-    //type FloatTensorPrimitive = SplitComplexTensor<B::FloatTensorPrimitive>;
 }
 
 impl<B: Backend, const D: usize> ComplexTensorBackend for SplitBackend<B, D>

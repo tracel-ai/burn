@@ -41,8 +41,6 @@ where
     type FloatTensorPrimitive = CubeTensor<R>;
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
-    // type ComplexTensorPrimitive = CubeTensor<R>;
-    // type ComplexElem = burn_tensor::Complex32;
     type QuantizedTensorPrimitive = CubeTensor<R>;
 
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
