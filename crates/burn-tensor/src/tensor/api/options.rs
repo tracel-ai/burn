@@ -7,13 +7,13 @@ use crate::Device;
 /// Options for tensor creation.
 ///
 /// This struct allows specifying the `device` and overriding the data type when creating a tensor.
-/// When the `dtype` is not specified, the [device's default policy](crate::set_default_dtypes) is used.
+/// When the `dtype` is not specified, the [device's default settings](crate::DeviceSettings) is used.
 #[derive(Debug, Clone)]
 pub struct TensorCreationOptions {
     /// Device where the tensor will be created.
     pub device: Device,
     /// Optional data type.
-    /// If `None`, the dtype will be inferred on creation from the [device policy](crate::set_default_dtypes).
+    /// If `None`, the dtype will be inferred on creation from the [device settings](crate::DeviceSettings).
     pub dtype: Option<DType>,
 }
 
@@ -27,7 +27,7 @@ impl Default for TensorCreationOptions {
 impl TensorCreationOptions {
     /// Create new options with a specific device.
     ///
-    /// Data type will follow the [device policy](crate::set_default_dtypes) on tensor creation.
+    /// Data type will follow the [device settings](crate::DeviceSettings) on tensor creation.
     pub fn new(device: Device) -> Self {
         Self {
             device,
@@ -56,7 +56,7 @@ impl TensorCreationOptions {
         self.dtype.unwrap_or(dtype)
     }
 
-    /// Returns the tensor data type, or the default from the [device settings](crate::set_default_dtypes).
+    /// Returns the tensor data type, or the default from the [device settings](crate::DeviceSettings).
     pub(crate) fn resolve_dtype<K: BasicOps<Dispatch>>(&self) -> DType {
         let dtype = K::Elem::dtype();
         let kind_name = K::name();

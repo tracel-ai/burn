@@ -294,7 +294,7 @@ impl Device {
         burn_backend::set_default_dtypes::<Dispatch>(&self.dispatch, float_dtype, int_dtype)
     }
 
-    /// Retrieves all available [`Adapter`]s that match the given [`Backends`].
+    /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
     pub fn enumerate(filter: impl Into<EnumSet<DeviceType>>) -> Vec<Device> {
         #[allow(unused)]
         let mut devices = Vec::new();

@@ -222,11 +222,11 @@ pub enum DispatchTensorKind {
     Wgpu(BackendTensor<Wgpu>),
 
     /// The [Flex backend](Flex) tensor.
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     Flex(BackendTensor<Flex>),
 
     /// The [NdArray backend](NdArray) tensor.
-    #[cfg(feature = "ndarray")]
+    #[cfg(any(feature = "ndarray", default_backend))]
     NdArray(BackendTensor<NdArray>),
 
     /// The [LibTorch backend](LibTorch) tensor.
@@ -253,9 +253,9 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Vulkan(tensor) => tensor.dtype(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(tensor) => tensor.dtype(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.dtype(),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             Self::NdArray(tensor) => tensor.dtype(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.dtype(),
@@ -278,9 +278,9 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Vulkan(tensor) => tensor.shape(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(tensor) => tensor.shape(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.shape(),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             Self::NdArray(tensor) => tensor.shape(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.shape(),
@@ -305,9 +305,9 @@ impl QTensorPrimitive for DispatchTensorKind {
             Self::Vulkan(tensor) => tensor.scheme(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(tensor) => tensor.scheme(),
-            #[cfg(any(feature = "flex", default_backend))]
+            #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.scheme(),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             Self::NdArray(tensor) => tensor.scheme(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.scheme(),

@@ -116,7 +116,7 @@ impl Backend for Dispatch {
             DispatchDeviceId::Wgpu => Wgpu::<f32>::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             DispatchDeviceId::NdArray => NdArray::<f32>::device_count(backend_type_id),
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
@@ -149,7 +149,7 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Wgpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(feature = "ndarray")]
+                #[cfg(any(feature = "ndarray", default_backend))]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
@@ -203,7 +203,7 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
+                #[cfg(any(feature = "ndarray", default_backend))]
                 DispatchTensorKind::NdArray(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
@@ -267,7 +267,7 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(feature = "ndarray")]
+                #[cfg(any(feature = "ndarray", default_backend))]
                 DispatchTensorKind::NdArray(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
@@ -330,7 +330,7 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(feature = "ndarray")]
+                #[cfg(any(feature = "ndarray", default_backend))]
                 (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
@@ -381,7 +381,7 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
-                #[cfg(feature = "ndarray")]
+                #[cfg(any(feature = "ndarray", default_backend))]
                 DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
@@ -462,7 +462,7 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::Autodiff(Box::new(
                 DispatchTensorKind::NdArray(crate::BackendTensor::Autodiff(
                     Autodiff::<NdArray<f32>>::from_inner(tensor.float()),
@@ -575,7 +575,7 @@ impl DispatchTensorKind {
             DispatchTensorKind::Wgpu(tensor) => DispatchDevice::Wgpu(tensor.device()),
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
             #[cfg(feature = "tch")]
             DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
@@ -637,7 +637,7 @@ impl Dispatch {
             DispatchDevice::Flex(_) => {
                 <QuantizedTensor<Flex> as QTensorPrimitive>::default_scheme()
             }
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             DispatchDevice::NdArray(_) => {
                 <QuantizedTensor<NdArray> as QTensorPrimitive>::default_scheme()
             }
@@ -678,7 +678,7 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => (0..LibTorch::<f32>::device_count(0))
