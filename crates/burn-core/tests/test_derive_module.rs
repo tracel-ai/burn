@@ -151,8 +151,10 @@ mod compiletime_clone_impl_check {
     }
 }
 
+pub type TestDevice = burn_tensor::FlexDevice;
+
 mod state {
-    use burn_core::{TestDevice, module::EmptyRecord};
+    use burn_core::module::EmptyRecord;
 
     use super::*;
 
@@ -431,7 +433,7 @@ mod lazy_clone {
         use burn::module::ParamId;
         use burn::tensor::Shape;
 
-        let device = TestDevice::default().into();
+        let device: Device = TestDevice::default().into();
 
         // Create two uninitialized params from the same init function.
         let param: Param<Tensor<2>> = Param::uninitialized(
