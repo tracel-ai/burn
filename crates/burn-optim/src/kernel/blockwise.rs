@@ -74,22 +74,32 @@ pub fn quantize_blockwise(
     // ---- Pass 2: each thread encodes its elements and packs pairs ----
     // Strategy A: each thread handles consecutive pairs, so packing is
     // local — no inter-thread communication needed.
-    let pairs_per_thread = comptime!(elements_per_thread / 2);
+    let packed_per_thread = comptime!(elements_per_thread / PACKING_AMOUNT);
+
     #[unroll]
-    for iter in 0..pairs_per_thread {
-        // Each thread `unit` owns elements at positions
-        // (unit*2 + iter * PLANE_SIZE * 2) and (... + 1) within the block.
-        let element = unit * 2 + iter * PLANE_SIZE * 2;
-        // let element = unit * 2 + iter * PLANE_DIM * 2;
+    for iter in 0..packed_per_thread {
+        // Each thread `unit` owns 4 consecutive elements at:
+        //   (unit*4 + iter * PLANE_SIZE * 4), +1, +2, +3
+        let element = unit * 4 + iter * PLANE_SIZE * 4;
         let i = block_start + element;
 
         let v0 = input[i as usize];
         let v1 = input[i as usize + 1];
+        let v2 = input[i as usize + 2];
+        let v3 = input[i as usize + 3];
+
         let code0 = encode_dispatch(v0 / safe_scale, scheme);
         let code1 = encode_dispatch(v1 / safe_scale, scheme);
+        let code2 = encode_dispatch(v2 / safe_scale, scheme);
+        let code3 = encode_dispatch(v3 / safe_scale, scheme);
 
         let pack_idx = i / PACKING_AMOUNT;
-        packed_out[pack_idx as usize] = code0 * PACK_SHIFT + code1;
+        // Pack 4 codes into a u32, most significant byte first.
+        // Matches the dequantize layout where pack_pos 0 reads the top byte.
+        packed_out[pack_idx as usize] = code0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
+            + code1 * PACK_SHIFT * PACK_SHIFT
+            + code2 * PACK_SHIFT
+            + code3;
     }
 }
 
@@ -106,9 +116,13 @@ pub fn dequantize_blockwise(
     let packed_val = packed[pack_idx as usize];
 
     let code = if pack_pos == 0 {
-        packed_val / PACK_SHIFT
+        packed_val / (PACK_SHIFT * PACK_SHIFT * PACK_SHIFT)
+    } else if pack_pos == 1 {
+        (packed_val / (PACK_SHIFT * PACK_SHIFT)) % PACK_SHIFT
+    } else if pack_pos == 2 {
+        (packed_val / PACK_SHIFT) % PACK_SHIFT
     } else {
-        packed_val - (packed_val / PACK_SHIFT) * PACK_SHIFT
+        packed_val % PACK_SHIFT
     };
 
     let normalized = decode_dispatch(code, scheme);
@@ -126,8 +140,8 @@ mod tests {
     use cubecl::hip::HipRuntime; // reports 32 plane size
     use cubecl::wgpu::WgpuRuntime;
 
-    type TestRuntime = WgpuRuntime;
-    // type TestRuntime = CudaRuntime;
+    // type TestRuntime = WgpuRuntime;
+    type TestRuntime = CudaRuntime;
     // type TestRuntime = HipRuntime;
 
     /// Block size for tests. Must equal PLANE_SIZE (64) until larger blocks

@@ -24,7 +24,7 @@ use cubecl::server::Handle;
 use cubecl::zspace::metadata::Metadata;
 
 use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
-use crate::launch::{AdamWStepInputs, AdamWStepParams, launch_adamw_8bit_step};
+use crate::launch::{AdamWStepInputs, AdamWStepParams, PACKING_AMOUNT, launch_adamw_8bit_step};
 use crate::quantization::{
     QuantizeBlockwise, dequantize_blockwise, quantize_blockwise, signed_dynamic, unsigned_dynamic,
 };
@@ -134,6 +134,15 @@ where
         let numel = shape.num_elements();
         let dims: [_; D] = shape.dims(); // ← capture dims while shape is still alive
 
+        if let Some(ref s) = state {
+            let m1_dims = s.moment_1.quantized.dims();
+            let m1_scales_dims = s.moment_1.scales.dims();
+            // println!(
+            //     "step entry: m1_codes dims = {:?}, m1_scales dims = {:?}",
+            //     m1_dims, m1_scales_dims
+            // );
+        }
+
         // 1. Compute time and bias corrections on the host
         let time = state.as_ref().map(|s| s.time + 1).unwrap_or(1);
         let is_first_step = state.is_none();
@@ -227,7 +236,13 @@ where
         };
 
         // 4. Call the launcher (returns raw handles)
+        // println!("Processing tensor: numel={}", shape.num_elements());
+
         let output = launch_adamw_8bit_step(&client, inputs, params);
+        // let theta_data = client.read_one_unchecked(output.theta_new.clone());
+        // let theta_floats = f32::from_bytes(&theta_data);
+        // let any_nan = theta_floats.iter().any(|x| x.is_nan());
+        // println!("  After kernel: any NaN in output? {}", any_nan);
 
         // 5. Wrap output handles back into Burn tensors
         let theta_new_cube = CubeTensor {
@@ -356,7 +371,6 @@ fn contiguous_strides<const D: usize>(dims: &[usize; D]) -> Vec<usize> {
     strides
 }
 
-/// Build a QuantizeBlockwise<B, D> from raw codes and scales handles.
 fn build_quantize_blockwise<R, F, I, BT, const D: usize>(
     client: &ComputeClient<R>,
     device: &R::Device,
@@ -372,23 +386,23 @@ where
     BT: BoolElement,
 {
     let total_elements: usize = shape.iter().product();
-    let packed_count = total_elements / 2; // PACKING_AMOUNT = 2
+    let packed_count = total_elements / PACKING_AMOUNT as usize;
     let num_blocks = total_elements / block_size;
 
-    // Codes tensor: 1D, length = packed_count, dtype = the int element type.
+    // Codes tensor: 1D buffer of `packed_count` u32s.
     let codes_cube = CubeTensor {
         client: client.clone(),
         handle: codes_handle,
         device: device.clone(),
-        dtype: I::dtype(), // ← whatever produces the right DType for the int type
+        dtype: I::dtype(),
         qparams: None,
         meta: Box::new(Metadata::new(
-            shape.clone(),
-            contiguous_strides::<D>(&shape),
+            Shape::new([packed_count]),
+            vec![1], // 1D contiguous
         )),
     };
 
-    // Scales tensor: 1D, length = num_blocks, dtype = f32.
+    // Scales tensor: 1D buffer of `num_blocks` f32s.
     let scales_cube = CubeTensor {
         client: client.clone(),
         handle: scales_handle,
@@ -396,14 +410,14 @@ where
         dtype: DType::F32,
         qparams: None,
         meta: Box::new(Metadata::new(
-            shape.clone(),
-            contiguous_strides::<D>(&shape),
+            Shape::new([num_blocks]),
+            vec![1], // 1D contiguous
         )),
     };
 
     QuantizeBlockwise {
         quantized: Tensor::from_primitive(codes_cube),
         scales: Tensor::from_primitive(TensorPrimitive::Float(scales_cube)),
-        shape,
+        shape, // The original parameter shape — stored alongside, not on the buffers
     }
 }

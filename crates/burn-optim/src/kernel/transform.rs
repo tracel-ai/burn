@@ -5,22 +5,20 @@ use cubecl::prelude::*;
 use crate::kernel::blockwise::{self, Scheme};
 use crate::kernel::signed;
 use crate::kernel::unsigned;
-use crate::launch::{PACK_SHIFT, PACKING_AMOUNT};
+use crate::launch::{PACK_SHIFT, PACKING_AMOUNT, PLANE_SIZE};
 
 #[cube]
 pub fn transform(
     block: u32,
     grad: &Array<f32>,
 
-    // Incoming state (codes + per-block scales).
     moment_1_codes: &Array<u32>,
     moment_1_scales: &Array<f32>,
     moment_2_codes: &Array<u32>,
     moment_2_scales: &Array<f32>,
-    max_moment_2_codes: &Array<u32>,  // unused if !amsgrad
-    max_moment_2_scales: &Array<f32>, // unused if !amsgrad
+    max_moment_2_codes: &Array<u32>,
+    max_moment_2_scales: &Array<f32>,
 
-    // Outgoing state.
     moment_1_codes_new: &mut Array<u32>,
     moment_1_scales_new: &mut Array<f32>,
     moment_2_codes_new: &mut Array<u32>,
@@ -28,198 +26,381 @@ pub fn transform(
     max_moment_2_codes_new: &mut Array<u32>,
     max_moment_2_scales_new: &mut Array<f32>,
 
-    // Outputs consumed by step().
     update_delta: &mut Array<f32>,
     m1_dequantized: &mut Array<f32>,
 
-    // Runtime scalars.
     beta_1: f32,
     beta_2: f32,
-    factor_1: f32,         // 1 - beta_1
-    factor_2: f32,         // 1 - beta_2
-    correction1: f32,      // 1 - beta_1^t
-    correction2_sqrt: f32, // sqrt(1 - beta_2^t)
+    factor_1: f32,
+    factor_2: f32,
+    correction1: f32,
+    correction2_sqrt: f32,
     epsilon: f32,
 
     #[comptime] block_size: u32,
     #[comptime] amsgrad: bool,
     #[comptime] is_first_step: bool,
 ) {
-    comptime! {
-        println!("transform: block_size={} amsgrad={} is_first_step={}",
-                 block_size, amsgrad, is_first_step);
-    }
-
     let unit = UNIT_POS_X;
-    let i = block * block_size + unit;
+    let block_start = block * block_size;
+    let elements_per_thread = comptime!(block_size / PLANE_SIZE);
 
-    // ---- Step 1: dequantize old moments (or use 0 on first step) ----
-    let m1_old = if comptime!(is_first_step) {
-        0.0f32.into()
-    } else {
-        blockwise::dequantize_blockwise(
-            moment_1_codes,
-            moment_1_scales,
-            i,
-            block_size,
-            Scheme::Signed as u32,
-        )
-    };
-    let m2_old = if comptime!(is_first_step) {
-        0.0f32.into()
-    } else {
-        blockwise::dequantize_blockwise(
-            moment_2_codes,
-            moment_2_scales,
-            i,
-            block_size,
-            Scheme::Unsigned as u32,
-        )
-    };
+    // ============ Pass 1: per-element work, accumulate local absmax ============
 
-    // ---- Step 2: load grad and update moments ----
-    let g = grad[i as usize];
-    let m1_new = m1_old * beta_1 + g * factor_1;
-    let m2_new = m2_old * beta_2 + g * g * factor_2;
+    let mut m1_local_absmax = 0.0_f32;
+    let mut m2_local_absmax = 0.0_f32;
+    let mut v_local_absmax = 0.0_f32;
 
-    // No branches, all comptime.
-    let v_to_use = if comptime!(amsgrad) {
-        let max_v_old = if comptime!(is_first_step) {
-            m2_new
+    let step_size = correction2_sqrt / correction1;
+
+    // #[unroll]
+    for iter in 0..elements_per_thread {
+        let element = unit + iter * PLANE_SIZE;
+        let i = block_start + element;
+
+        let m1_old = if comptime!(is_first_step) {
+            0.0_f32.into()
         } else {
             blockwise::dequantize_blockwise(
-                max_moment_2_codes,
-                max_moment_2_scales,
+                moment_1_codes,
+                moment_1_scales,
+                i,
+                block_size,
+                Scheme::Signed as u32,
+            )
+        };
+        let m2_old = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_2_codes,
+                moment_2_scales,
                 i,
                 block_size,
                 Scheme::Unsigned as u32,
             )
         };
-        max(max_v_old, m2_new)
-    } else {
-        m2_new
-    };
 
-    // ---- Step 4: compute delta ----
-    let step_size = correction2_sqrt / correction1;
-    let delta = m1_new / ((v_to_use).sqrt() + epsilon * correction2_sqrt) * step_size;
+        let g = grad[i as usize];
+        let m1_new = m1_old * beta_1 + g * factor_1;
+        let m2_new = m2_old * beta_2 + g * g * factor_2;
 
-    // Outputs that don't need the new absmax.
-    update_delta[i as usize] = delta;
-    m1_dequantized[i as usize] = m1_new;
-
-    // ---- Step 5: per-block absmax for the new moments ----
-    let m1_absmax = plane_max(m1_new.abs());
-    let m2_absmax = plane_max(m2_new.abs());
-    let m1_safe_scale = if m1_absmax > 0.0f32 {
-        m1_absmax
-    } else {
-        1.0f32.into()
-    };
-    let m2_safe_scale = if m2_absmax > 0.0f32 {
-        m2_absmax
-    } else {
-        1.0f32.into()
-    };
-
-    // ---- Step 6: requantize and write codes (paired packing) ----
-    // Only even-indexed units write packed entries — they pair with their
-    // odd neighbor. The neighbor's m_new value isn't in this thread's
-    // registers, so we re-derive it the same way: dequant old → update.
-    if unit % PACKING_AMOUNT == 0 {
-        // Recompute the neighbor's m1_new / m2_new.
-        let neighbor_i = i + 1;
-
-        let neighbor_m1_old = if comptime!(is_first_step) {
-            0.0f32.into()
+        let v_to_use = if comptime!(amsgrad) {
+            let max_v_old = if comptime!(is_first_step) {
+                m2_new
+            } else {
+                blockwise::dequantize_blockwise(
+                    max_moment_2_codes,
+                    max_moment_2_scales,
+                    i,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                )
+            };
+            max(max_v_old, m2_new)
         } else {
-            blockwise::dequantize_blockwise(
-                moment_1_codes,
-                moment_1_scales,
-                neighbor_i,
-                block_size,
-                Scheme::Signed as u32,
-            )
+            m2_new
         };
-        let neighbor_m2_old = if comptime!(is_first_step) {
-            0.0f32.into()
-        } else {
-            blockwise::dequantize_blockwise(
-                moment_2_codes,
-                moment_2_scales,
-                neighbor_i,
-                block_size,
-                Scheme::Unsigned as u32,
-            )
-        };
-        let neighbor_g = grad[neighbor_i as usize];
-        let neighbor_m1_new = neighbor_m1_old * beta_1 + neighbor_g * factor_1;
-        let neighbor_m2_new = neighbor_m2_old * beta_2 + neighbor_g * neighbor_g * factor_2;
 
-        let m1_code = signed::encode(m1_new / m1_safe_scale);
-        let m1_code_nb = signed::encode(neighbor_m1_new / m1_safe_scale);
-        let m2_code = unsigned::encode(m2_new / m2_safe_scale);
-        let m2_code_nb = unsigned::encode(neighbor_m2_new / m2_safe_scale);
+        let delta = m1_new / (v_to_use.sqrt() + epsilon * correction2_sqrt) * step_size;
 
-        let pack_idx = i / PACKING_AMOUNT;
-        moment_1_codes_new[pack_idx as usize] = m1_code * PACK_SHIFT + m1_code_nb;
-        moment_2_codes_new[pack_idx as usize] = m2_code * PACK_SHIFT + m2_code_nb;
+        update_delta[i as usize] = delta;
+        m1_dequantized[i as usize] = m1_new;
+
+        m1_local_absmax = max(m1_local_absmax, m1_new.abs());
+        m2_local_absmax = max(m2_local_absmax, m2_new.abs());
+        if comptime!(amsgrad) {
+            v_local_absmax = max(v_local_absmax, v_to_use.abs());
+        }
     }
+
+    // ============ Reduction across the cube ============
+
+    let m1_block_absmax = plane_max(m1_local_absmax);
+    let m2_block_absmax = plane_max(m2_local_absmax);
+    let m1_safe_scale = if m1_block_absmax > 0.0_f32 {
+        m1_block_absmax
+    } else {
+        1.0_f32.into()
+    };
+    let m2_safe_scale = if m2_block_absmax > 0.0_f32 {
+        m2_block_absmax
+    } else {
+        1.0_f32.into()
+    };
 
     if unit == 0 {
         moment_1_scales_new[block as usize] = m1_safe_scale;
         moment_2_scales_new[block as usize] = m2_safe_scale;
     }
 
-    // ---- Step 7: AMSGrad max_v requantization (comptime branch) ----
-    if comptime!(amsgrad) {
-        let max_v_absmax = plane_max(v_to_use.abs());
-        let max_v_safe_scale = if max_v_absmax > 0.0f32 {
-            max_v_absmax
+    // ============ Pass 2: 4-pack encoding (stride PLANE_SIZE * 4) ============
+
+    let quads_per_thread = comptime!(block_size / (PLANE_SIZE * PACKING_AMOUNT));
+
+    // #[unroll]
+    for iter in 0..quads_per_thread {
+        let element = unit * PACKING_AMOUNT + iter * PLANE_SIZE * PACKING_AMOUNT;
+        let i = block_start + element;
+
+        // Recompute m1_new and m2_new for all 4 elements of the quad.
+        let m1_olds_0 = if comptime!(is_first_step) {
+            0.0_f32.into()
         } else {
-            1.0f32.into()
+            blockwise::dequantize_blockwise(
+                moment_1_codes,
+                moment_1_scales,
+                i,
+                block_size,
+                Scheme::Signed as u32,
+            )
+        };
+        let m1_olds_1 = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_1_codes,
+                moment_1_scales,
+                i + 1,
+                block_size,
+                Scheme::Signed as u32,
+            )
+        };
+        let m1_olds_2 = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_1_codes,
+                moment_1_scales,
+                i + 2,
+                block_size,
+                Scheme::Signed as u32,
+            )
+        };
+        let m1_olds_3 = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_1_codes,
+                moment_1_scales,
+                i + 3,
+                block_size,
+                Scheme::Signed as u32,
+            )
+        };
+        let m2_olds_0 = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_2_codes,
+                moment_2_scales,
+                i,
+                block_size,
+                Scheme::Unsigned as u32,
+            )
+        };
+        let m2_olds_1 = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_2_codes,
+                moment_2_scales,
+                i + 1,
+                block_size,
+                Scheme::Unsigned as u32,
+            )
+        };
+        let m2_olds_2 = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_2_codes,
+                moment_2_scales,
+                i + 2,
+                block_size,
+                Scheme::Unsigned as u32,
+            )
+        };
+        let m2_olds_3 = if comptime!(is_first_step) {
+            0.0_f32.into()
+        } else {
+            blockwise::dequantize_blockwise(
+                moment_2_codes,
+                moment_2_scales,
+                i + 3,
+                block_size,
+                Scheme::Unsigned as u32,
+            )
         };
 
-        if unit % PACKING_AMOUNT == 0 {
-            // Recompute neighbor's v_to_use the same way as above.
-            let neighbor_i = i + 1;
+        let g_0 = grad[i as usize];
+        let g_1 = grad[i as usize + 1];
+        let g_2 = grad[i as usize + 2];
+        let g_3 = grad[i as usize + 3];
 
-            let neighbor_m2_old = if comptime!(is_first_step) {
-                0.0f32.into()
+        let m1_new_0 = m1_olds_0 * beta_1 + g_0 * factor_1;
+        let m1_new_1 = m1_olds_1 * beta_1 + g_1 * factor_1;
+        let m1_new_2 = m1_olds_2 * beta_1 + g_2 * factor_1;
+        let m1_new_3 = m1_olds_3 * beta_1 + g_3 * factor_1;
+        let m2_new_0 = m2_olds_0 * beta_2 + g_0 * g_0 * factor_2;
+        let m2_new_1 = m2_olds_1 * beta_2 + g_1 * g_1 * factor_2;
+        let m2_new_2 = m2_olds_2 * beta_2 + g_2 * g_2 * factor_2;
+        let m2_new_3 = m2_olds_3 * beta_2 + g_3 * g_3 * factor_2;
+
+        let m1_c0 = signed::encode(m1_new_0 / m1_safe_scale);
+        let m1_c1 = signed::encode(m1_new_1 / m1_safe_scale);
+        let m1_c2 = signed::encode(m1_new_2 / m1_safe_scale);
+        let m1_c3 = signed::encode(m1_new_3 / m1_safe_scale);
+        let m2_c0 = unsigned::encode(m2_new_0 / m2_safe_scale);
+        let m2_c1 = unsigned::encode(m2_new_1 / m2_safe_scale);
+        let m2_c2 = unsigned::encode(m2_new_2 / m2_safe_scale);
+        let m2_c3 = unsigned::encode(m2_new_3 / m2_safe_scale);
+
+        let pack_idx = i / PACKING_AMOUNT;
+        moment_1_codes_new[pack_idx as usize] = m1_c0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
+            + m1_c1 * PACK_SHIFT * PACK_SHIFT
+            + m1_c2 * PACK_SHIFT
+            + m1_c3;
+        moment_2_codes_new[pack_idx as usize] = m2_c0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
+            + m2_c1 * PACK_SHIFT * PACK_SHIFT
+            + m2_c2 * PACK_SHIFT
+            + m2_c3;
+    }
+
+    // ============ AMSGrad max_v requantization ============
+
+    if comptime!(amsgrad) {
+        let v_block_absmax = plane_max(v_local_absmax);
+        let v_safe_scale = if v_block_absmax > 0.0_f32 {
+            v_block_absmax
+        } else {
+            1.0_f32.into()
+        };
+
+        if unit == 0 {
+            max_moment_2_scales_new[block as usize] = v_safe_scale;
+        }
+
+        // #[unroll]
+        for iter in 0..quads_per_thread {
+            let element = unit * PACKING_AMOUNT + iter * PLANE_SIZE * PACKING_AMOUNT;
+            let i = block_start + element;
+
+            // Recompute v_to_use for all 4 elements.
+            let m2_olds_0 = if comptime!(is_first_step) {
+                0.0_f32.into()
             } else {
                 blockwise::dequantize_blockwise(
                     moment_2_codes,
                     moment_2_scales,
-                    neighbor_i,
+                    i,
                     block_size,
                     Scheme::Unsigned as u32,
                 )
             };
-            let neighbor_g = grad[neighbor_i as usize];
-            let neighbor_m2_new = neighbor_m2_old * beta_2 + neighbor_g * neighbor_g * factor_2;
-
-            let neighbor_v_to_use = if comptime!(is_first_step) {
-                neighbor_m2_new
+            let m2_olds_1 = if comptime!(is_first_step) {
+                0.0_f32.into()
             } else {
-                let neighbor_max_v_old = blockwise::dequantize_blockwise(
+                blockwise::dequantize_blockwise(
+                    moment_2_codes,
+                    moment_2_scales,
+                    i + 1,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                )
+            };
+            let m2_olds_2 = if comptime!(is_first_step) {
+                0.0_f32.into()
+            } else {
+                blockwise::dequantize_blockwise(
+                    moment_2_codes,
+                    moment_2_scales,
+                    i + 2,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                )
+            };
+            let m2_olds_3 = if comptime!(is_first_step) {
+                0.0_f32.into()
+            } else {
+                blockwise::dequantize_blockwise(
+                    moment_2_codes,
+                    moment_2_scales,
+                    i + 3,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                )
+            };
+
+            let g_0 = grad[i as usize];
+            let g_1 = grad[i as usize + 1];
+            let g_2 = grad[i as usize + 2];
+            let g_3 = grad[i as usize + 3];
+
+            let m2_new_0 = m2_olds_0 * beta_2 + g_0 * g_0 * factor_2;
+            let m2_new_1 = m2_olds_1 * beta_2 + g_1 * g_1 * factor_2;
+            let m2_new_2 = m2_olds_2 * beta_2 + g_2 * g_2 * factor_2;
+            let m2_new_3 = m2_olds_3 * beta_2 + g_3 * g_3 * factor_2;
+
+            let v_0 = if comptime!(is_first_step) {
+                m2_new_0
+            } else {
+                let v_old = blockwise::dequantize_blockwise(
                     max_moment_2_codes,
                     max_moment_2_scales,
-                    neighbor_i,
+                    i,
                     block_size,
                     Scheme::Unsigned as u32,
                 );
-                max(neighbor_max_v_old, neighbor_m2_new)
+                max(v_old, m2_new_0)
+            };
+            let v_1 = if comptime!(is_first_step) {
+                m2_new_1
+            } else {
+                let v_old = blockwise::dequantize_blockwise(
+                    max_moment_2_codes,
+                    max_moment_2_scales,
+                    i + 1,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                );
+                max(v_old, m2_new_1)
+            };
+            let v_2 = if comptime!(is_first_step) {
+                m2_new_2
+            } else {
+                let v_old = blockwise::dequantize_blockwise(
+                    max_moment_2_codes,
+                    max_moment_2_scales,
+                    i + 2,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                );
+                max(v_old, m2_new_2)
+            };
+            let v_3 = if comptime!(is_first_step) {
+                m2_new_3
+            } else {
+                let v_old = blockwise::dequantize_blockwise(
+                    max_moment_2_codes,
+                    max_moment_2_scales,
+                    i + 3,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                );
+                max(v_old, m2_new_3)
             };
 
-            let max_v_code = unsigned::encode(v_to_use / max_v_safe_scale);
-            let max_v_code_nb = unsigned::encode(neighbor_v_to_use / max_v_safe_scale);
+            let c0 = unsigned::encode(v_0 / v_safe_scale);
+            let c1 = unsigned::encode(v_1 / v_safe_scale);
+            let c2 = unsigned::encode(v_2 / v_safe_scale);
+            let c3 = unsigned::encode(v_3 / v_safe_scale);
 
             let pack_idx = i / PACKING_AMOUNT;
-            max_moment_2_codes_new[pack_idx as usize] = max_v_code * PACK_SHIFT + max_v_code_nb;
-        }
-
-        if unit == 0 {
-            max_moment_2_scales_new[block as usize] = max_v_safe_scale;
+            max_moment_2_codes_new[pack_idx as usize] = c0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
+                + c1 * PACK_SHIFT * PACK_SHIFT
+                + c2 * PACK_SHIFT
+                + c3;
         }
     }
 }
@@ -234,10 +415,10 @@ mod tests {
     use cubecl::prelude::*;
 
     type TestRuntime = CudaRuntime;
-    const BLOCK_SIZE: u32 = 32;
+    const BLOCK_SIZE: u32 = 256;
+    const N: usize = BLOCK_SIZE as usize;
 
     /// Test-only kernel that runs `transform` and exposes its outputs.
-    /// One cube per block, plane-size units per cube.
     #[cube(launch_unchecked)]
     fn transform_test_kernel(
         grad: &Array<f32>,
@@ -328,13 +509,18 @@ mod tests {
         beta_2: f32,
         time: u32,
         epsilon: f32,
-        block_size: u32,
         amsgrad: bool,
         is_first_step: bool,
     ) -> TransformResult {
         let client = TestRuntime::client(&Default::default());
         let n = grad.len();
-        assert_eq!(n % BLOCK_SIZE as usize, 0);
+        assert_eq!(
+            n % BLOCK_SIZE as usize,
+            0,
+            "grad length ({}) must be a multiple of BLOCK_SIZE ({})",
+            n,
+            BLOCK_SIZE,
+        );
         let num_blocks = n as u32 / BLOCK_SIZE;
         let packed_count = n / PACKING_AMOUNT as usize;
 
@@ -452,7 +638,6 @@ mod tests {
             );
         }
 
-        // Read back
         let read_f32 = |h| f32::from_bytes(&client.read_one_unchecked(h)).to_vec();
         let read_u32 = |h| u32::from_bytes(&client.read_one_unchecked(h)).to_vec();
 
@@ -469,30 +654,23 @@ mod tests {
     }
 
     // =====================================================================
-    //  Tests
+    //  Tests — all use N (a single block of size BLOCK_SIZE)
     // =====================================================================
 
-    /// Sanity check: first step with constant gradient produces expected
-    /// moments and delta. With grad = 0.01, m1_old = m2_old = 0,
-    /// β₁ = 0.9, β₂ = 0.999, ε = 1e-8:
-    ///   m1_new = (1 - 0.9) * 0.01 = 0.001
-    ///   m2_new = (1 - 0.999) * 0.0001 = 1e-7
-    ///   correction1 = 1 - 0.9 = 0.1
-    ///   correction2_sqrt = sqrt(1 - 0.999) ≈ 0.0316
-    ///   step_size = 0.0316 / 0.1 = 0.316
-    ///   delta = 0.001 / (sqrt(1e-7) + 1e-8 * 0.0316) * 0.316
-    ///         ≈ 0.001 / 0.000316 * 0.316
-    ///         ≈ 1.0
+    /// First step with constant gradient: delta should be ~1.0 everywhere.
+    /// With grad = 0.01, β₁ = 0.9, β₂ = 0.999, ε = 1e-8:
+    ///   m1_new = 0.001
+    ///   m2_new = 1e-7
+    ///   step_size = sqrt(1 - 0.999) / (1 - 0.9) ≈ 0.316
+    ///   delta = m1_new / sqrt(m2_new) * step_size ≈ 1.0
     #[test]
     fn first_step_constant_gradient() {
-        let n = 64;
-        let grad = vec![0.01_f32; n];
+        let grad = vec![0.01_f32; N];
 
         let result = run_transform(
-            &grad, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, BLOCK_SIZE, false, true,
+            &grad, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, false, true,
         );
 
-        // Expected delta ≈ 1.0 for every element
         for (i, &d) in result.delta.iter().enumerate() {
             assert!(d.is_finite(), "delta[{}] is not finite: {}", i, d);
             assert!(
@@ -503,7 +681,6 @@ mod tests {
             );
         }
 
-        // m1_dequantized should equal m1_new = 0.001 for every element
         for (i, &m1) in result.m1_dequantized.iter().enumerate() {
             assert!(
                 (m1 - 0.001).abs() < 1e-5,
@@ -514,22 +691,16 @@ mod tests {
         }
     }
 
-    /// First step with zero gradient produces zero moments and zero delta.
+    /// First step with zero gradient: deltas and moments should all be 0.
     #[test]
     fn first_step_zero_gradient() {
-        let n = 64;
-        let grad = vec![0.0_f32; n];
+        let grad = vec![0.0_f32; N];
 
         let result = run_transform(
-            &grad, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, BLOCK_SIZE, false, true,
+            &grad, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, false, true,
         );
 
         for &d in &result.delta {
-            assert!(
-                d.is_finite() || d == 0.0,
-                "delta should be 0 or finite, got {}",
-                d
-            );
             assert_eq!(d, 0.0, "expected delta = 0 for zero gradient, got {}", d);
         }
 
@@ -538,17 +709,15 @@ mod tests {
         }
     }
 
-    /// First step with mixed-sign gradient. Each element's delta should
-    /// have the same sign as its gradient.
+    /// First step with mixed-sign gradient: each delta should match grad's sign.
     #[test]
     fn first_step_sign_preservation() {
-        let n = 64;
-        let grad: Vec<f32> = (0..n)
+        let grad: Vec<f32> = (0..N)
             .map(|i| if i % 2 == 0 { 0.1 } else { -0.1 })
             .collect();
 
         let result = run_transform(
-            &grad, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, BLOCK_SIZE, false, true,
+            &grad, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, false, true,
         );
 
         for (i, (&g, &d)) in grad.iter().zip(result.delta.iter()).enumerate() {
@@ -567,22 +736,17 @@ mod tests {
     /// Verifies the requantize-then-dequantize roundtrip works.
     #[test]
     fn two_step_state_propagation() {
-        let n = 64;
-        let grad0 = vec![0.05_f32; n];
-        let grad1 = vec![0.05_f32; n];
+        let grad0 = vec![0.05_f32; N];
+        let grad1 = vec![0.05_f32; N];
 
-        // Step 0: first step
         let r0 = run_transform(
-            &grad0, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, BLOCK_SIZE, false,
-            true,
+            &grad0, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, false, true,
         );
 
-        // Sanity check step 0 finished cleanly
         for &d in &r0.delta {
             assert!(d.is_finite(), "step 0 delta has non-finite: {}", d);
         }
 
-        // Step 1: feed step 0's state back in
         let r1 = run_transform(
             &grad1,
             Some(&r0.m1_codes),
@@ -595,7 +759,6 @@ mod tests {
             0.999,
             2,
             1e-8,
-            BLOCK_SIZE,
             false,
             false,
         );
@@ -604,12 +767,7 @@ mod tests {
             assert!(d.is_finite(), "step 1 delta has non-finite: {}", d);
         }
 
-        // After two steps with identical gradients, deltas should be
-        // close to but not identical to step 0.
-        // (Specifically, the bias correction changes: c1 goes from 0.1 to 0.19,
-        // c2_sqrt goes from 0.0316 to 0.0447, step_size goes from 0.316 to 0.235.)
         for (i, &d) in r1.delta.iter().enumerate() {
-            // We expect delta to be smaller in step 1 than step 0 (bias correction effect).
             assert!(d > 0.0, "step 1 delta[{}] = {}, expected positive", i, d);
         }
     }
@@ -618,13 +776,11 @@ mod tests {
     /// finite output (using stored moments from previous step).
     #[test]
     fn second_step_zero_gradient_after_nonzero() {
-        let n = 64;
-        let grad0 = vec![0.05_f32; n];
-        let grad1 = vec![0.0_f32; n];
+        let grad0 = vec![0.05_f32; N];
+        let grad1 = vec![0.0_f32; N];
 
         let r0 = run_transform(
-            &grad0, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, BLOCK_SIZE, false,
-            true,
+            &grad0, None, None, None, None, None, None, 0.9, 0.999, 1, 1e-8, false, true,
         );
 
         let r1 = run_transform(
@@ -639,7 +795,6 @@ mod tests {
             0.999,
             2,
             1e-8,
-            BLOCK_SIZE,
             false,
             false,
         );

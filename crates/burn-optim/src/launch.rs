@@ -2,10 +2,10 @@ use cubecl::prelude::*;
 
 use crate::kernel::adamw_8bit_step_kernel;
 
-pub const PACKING_AMOUNT: u32 = 2;
+pub const PACKING_AMOUNT: u32 = 4;
 /// Don't mess with this value. I know it doesn't work on AMD.
 pub const PLANE_SIZE: u32 = 32;
-pub const PACK_SHIFT: u32 = 256;
+pub const PACK_SHIFT: u32 = 2_u32.pow(8);
 
 /// Result of one fused step: the updated parameter and the new state buffers.
 pub struct AdamWStepOutput<R: Runtime> {

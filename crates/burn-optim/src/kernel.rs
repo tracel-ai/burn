@@ -8,6 +8,8 @@ use burn_core as burn;
 
 use cubecl::prelude::*;
 
+use crate::launch::PLANE_SIZE;
+
 #[cube(launch_unchecked)]
 pub fn adamw_8bit_step_kernel(
     // ---- Inputs (read) ----
@@ -87,14 +89,31 @@ pub fn adamw_8bit_step_kernel(
     );
 
     // --- Phase 2: Weight decay + parameter update ---
-    weight_decay::weight_decay(
-        i,
-        theta,
-        update_delta,
-        m1_dequantized,
-        theta_new,
-        lr,
-        decay_rate,
-        cautious_weight_decay,
-    );
+    // weight_decay::weight_decay(
+    //     i,
+    //     theta,
+    //     update_delta,
+    //     m1_dequantized,
+    //     theta_new,
+    //     lr,
+    //     decay_rate,
+    //     cautious_weight_decay,
+    // );
+    let elements_per_thread = comptime!(block_size / PLANE_SIZE);
+
+    #[unroll]
+    for iter in 0..elements_per_thread {
+        let element = unit + iter * PLANE_SIZE;
+        let i = block * block_size + element;
+        weight_decay::weight_decay(
+            i,
+            theta,
+            update_delta,
+            m1_dequantized,
+            theta_new,
+            lr,
+            decay_rate,
+            cautious_weight_decay,
+        );
+    }
 }
