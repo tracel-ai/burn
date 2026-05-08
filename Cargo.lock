@@ -2634,6 +2634,7 @@ version = "0.21.0"
 dependencies = [
  "burn",
  "burn-cubecl",
+ "burn-fusion",
  "cubecl",
  "log",
  "serde",
@@ -2680,6 +2681,7 @@ name = "custom-wgpu-kernel"
 version = "0.21.0"
 dependencies = [
  "burn",
+ "burn-fusion",
  "bytemuck",
  "cubecl",
  "derive-new",

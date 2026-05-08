@@ -4,17 +4,6 @@ fn main() {
     println!("cargo::rustc-check-cfg=cfg(wgpu_webgpu)");
 
     // If you try to build with `--no-default-features`, fallback to wgpu
-    // cuda = ["burn-cuda"]
-    // flex = ["burn-flex"]
-    // rocm = ["burn-rocm"]
-    // ndarray = ["burn-ndarray"]
-    // tch = ["burn-tch"]
-    // vulkan = ["wgpu", "burn-wgpu/vulkan"]
-    // webgpu = ["wgpu", "burn-wgpu/webgpu"]
-    // metal = ["wgpu", "burn-wgpu/metal"]
-    // wgpu = ["burn-wgpu"]
-    // cpu = ["burn-cpu"]
-    // autodiff = ["burn-autodiff"]
     let cuda = cfg!(feature = "cuda");
     let flex = cfg!(feature = "flex");
     let rocm = cfg!(feature = "rocm");
@@ -44,16 +33,11 @@ fn main() {
     // WGPU features are mutually exclusive, but we don't want to workspace to throw a compile error.
     // In workspace builds with multiple features, we emit a warning and fallback to WebGpu/Wgpu.
     if enabled.len() > 1 {
-        webgpu = false;
-        let fallback = if metal {
-            vulkan = false;
-            "metal"
-        } else {
-            metal = false;
-            "vulkan"
-        };
+        webgpu = true;
+        vulkan = false;
+        metal = false;
         println!(
-            "cargo:warning=Only one WGPU backend can be enabled at once. Detected: [{}]. Falling back to {fallback}. For production, enable only one of: metal, vulkan, or webgpu.",
+            "cargo:warning=Only one wgpu backend can be enabled at once. Detected: [{}]. Falling back to `wgpu`. For production, enable only one of: metal, vulkan, or webgpu.",
             enabled.join(", ")
         );
     }
