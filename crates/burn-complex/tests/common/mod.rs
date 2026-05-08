@@ -10,5 +10,5 @@ use burn_tensor::{Float, Shape, Tensor, backend::Backend};
 
 pub type TestBackend = burn_flex::Flex;
 //pub type TestTensor<const D: usize> = Tensor<TestBackend, D, ComplexKind>;
-pub type TestTensor<const D: usize> = SplitComplexTensor<TestBackend>;
+pub type TestTensor<const D: usize> = SplitComplexTensor<TestBackend, D>;
 pub type FloatTensor<const D: usize> = Tensor<TestBackend, D, Float>;

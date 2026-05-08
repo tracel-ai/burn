@@ -8,7 +8,7 @@ use burn_tensor::{
     Bytes, ComplexElement, DType, Device, Distribution, FloatDType, IndexingUpdateOp, Scalar,
     Shape, TensorData, TensorMetadata,
     backend::{Backend, BackendTypes, ExecutionError},
-    ops::{FloatTensor, IntTensorOps},
+    ops::{FloatTensor, IntTensor, IntTensorOps},
 };
 use serde::{Deserialize, Serialize};
 
@@ -191,11 +191,11 @@ where
 {
     type OutTensorData = TensorData;
 
-    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+    fn ones(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
         B::complex_from_interleaved_data(TensorData::ones::<B::ComplexScalar, _>(shape), device)
     }
 
-    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+    fn zeros(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
         B::complex_from_interleaved_data(TensorData::zeros::<B::ComplexScalar, _>(shape), device)
     }
 
@@ -1104,6 +1104,20 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         tensor: ComplexTensor<B>,
         indices: B::IntTensorPrimitive,
     ) -> ComplexTensor<B>;
+
+    /// Multi-dimensional gather: collect slices from `data` at locations specified by `indices`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor to gather from.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `data`.
+    ///
+    /// # Returns
+    ///
+    /// The gathered tensor.
+    fn complex_gather_nd(_data: ComplexTensor<B>, _indices: IntTensor<B>) -> ComplexTensor<B> {
+        unimplemented!("complex_gather_nd is not implemented for this backend")
+    }
 
     /// Scatter elements into a complex tensor using sum reduction.
     ///
