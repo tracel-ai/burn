@@ -67,6 +67,7 @@ impl core::fmt::Debug for Device {
 }
 
 // Manually implement both `eq` and `ne` to add documentation on equality.
+#[allow(clippy::partialeq_ne_impl)]
 impl PartialEq for Device {
     /// Compares devices based on hardware identity.
     ///
@@ -305,6 +306,7 @@ impl Device {
         #[allow(unused)]
         let mut devices = Vec::new();
 
+        #[allow(clippy::never_loop)] // at least one backend is expected to be enabled.
         for device_type in filter.into() {
             #[allow(unused)]
             let type_id = match device_type {
@@ -340,6 +342,11 @@ impl Device {
 }
 
 // TODO: this is essentially per-backend filter, we could have higher level filters e.g. Cpu (CpuDevice, Ndarray, Flex, LibTorchDevice::Cpu)
+
+/// Represents the devices that can be used.
+///
+/// `DeviceType` is used to filter the available device types for [`Device::enumerate`].
+#[allow(missing_docs)]
 #[derive(Debug, EnumSetType)]
 pub enum DeviceType {
     #[cfg(feature = "cpu")]

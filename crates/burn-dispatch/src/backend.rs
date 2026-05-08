@@ -1,6 +1,9 @@
 use alloc::format;
 use alloc::string::String;
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
+
+#[cfg(any(feature = "cpu", feature = "ndarray", feature = "flex"))]
+use alloc::vec;
 
 use burn_backend::quantization::QuantScheme;
 use burn_backend::tensor::{Device, QuantizedTensor};

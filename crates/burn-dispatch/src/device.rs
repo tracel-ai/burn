@@ -196,6 +196,10 @@ impl Default for DispatchDevice {
 }
 
 impl PartialEq for DispatchDevice {
+    /// Compares devices based on hardware identity.
+    ///
+    /// Returns `true` if both devices represent the same compute resource.
+    /// Note that this comparison ignores autodiff and checkpointing settings.
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             // If both are Autodiff, compare the inner devices

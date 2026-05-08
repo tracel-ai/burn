@@ -11,7 +11,7 @@ pub fn launch(device: impl Into<Device>) {
     modern_lstm::training::train("/tmp/modern-lstm", config, device);
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 mod flex {
     use burn::backend::flex::FlexDevice;
 

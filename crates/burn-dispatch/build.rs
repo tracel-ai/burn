@@ -3,10 +3,33 @@ fn main() {
     println!("cargo::rustc-check-cfg=cfg(wgpu_vulkan)");
     println!("cargo::rustc-check-cfg=cfg(wgpu_webgpu)");
 
-    // Detect which single wgpu backend is enabled
+    // If you try to build with `--no-default-features`, fallback to wgpu
+    // cuda = ["burn-cuda"]
+    // flex = ["burn-flex"]
+    // rocm = ["burn-rocm"]
+    // ndarray = ["burn-ndarray"]
+    // tch = ["burn-tch"]
+    // vulkan = ["wgpu", "burn-wgpu/vulkan"]
+    // webgpu = ["wgpu", "burn-wgpu/webgpu"]
+    // metal = ["wgpu", "burn-wgpu/metal"]
+    // wgpu = ["burn-wgpu"]
+    // cpu = ["burn-cpu"]
+    // autodiff = ["burn-autodiff"]
+    let cuda = cfg!(feature = "cuda");
+    let flex = cfg!(feature = "flex");
+    let rocm = cfg!(feature = "rocm");
+    let ndarray = cfg!(feature = "ndarray");
+    let tch = cfg!(feature = "tch");
+    let cpu = cfg!(feature = "cpu");
+
     let mut metal = cfg!(feature = "metal");
     let mut vulkan = cfg!(feature = "vulkan");
     let mut webgpu = cfg!(feature = "webgpu");
+
+    let no_backend_enabled =
+        !(cuda || flex || rocm || ndarray || tch || cpu || metal || vulkan || webgpu);
+
+    // Detect which single wgpu backend is enabled
     let wgpu_only = cfg!(all(
         feature = "wgpu",
         not(feature = "metal"),
@@ -41,7 +64,7 @@ fn main() {
     if vulkan {
         println!("cargo:rustc-cfg=wgpu_vulkan");
     }
-    if webgpu || wgpu_only {
+    if webgpu || wgpu_only || no_backend_enabled {
         println!("cargo:rustc-cfg=wgpu_webgpu");
     }
 }

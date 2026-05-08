@@ -318,7 +318,7 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
                     && let Some(kind) = TensorKind::from_type(&pt.ty)
                 {
                     let ty = kind.to_primitive_ty();
-                    pt.ty = Box::new(syn::parse2(ty).unwrap());
+                    *pt.ty = syn::parse2(ty).unwrap();
                 }
             }
             if let ReturnType::Type(_, ty) = &mut f.sig.output

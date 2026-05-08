@@ -1,7 +1,7 @@
 use crate::metric::processor::ItemLazy;
 use crate::metric::{Adaptor, LossInput};
 use burn_core::tensor::{Device, Tensor, Transaction};
-use burn_ndarray::NdArrayDevice;
+use burn_flex::FlexDevice;
 
 /// Regression output adapted for the loss metric.
 #[derive(new)]
@@ -32,7 +32,7 @@ impl ItemLazy for RegressionOutput {
             .try_into()
             .expect("Correct amount of tensor data");
 
-        let device: Device = NdArrayDevice::default().into();
+        let device: Device = FlexDevice.into();
 
         RegressionOutput {
             output: Tensor::from_data(output, &device),

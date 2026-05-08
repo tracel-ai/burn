@@ -144,13 +144,7 @@ impl RNNTLoss {
     }
 
     /// Sets up log_alpha at t=0: `alpha(0,0) = 0`, then cumsum of label probs along u.
-    fn init_alpha<B: Backend>(
-        &self,
-        lpl: &Tensor<3>,
-        b: usize,
-        max_up1: usize,
-        device: &Device,
-    ) -> Tensor<2> {
+    fn init_alpha(&self, lpl: &Tensor<3>, b: usize, max_up1: usize, device: &Device) -> Tensor<2> {
         // Label probs at t=0
         let lpl_0 = lpl.clone().slice(s![.., 0..1, ..]).squeeze_dim::<2>(1);
         let zero_col = Tensor::<2>::zeros([b, 1], device);

@@ -1,7 +1,7 @@
 use crate::metric::{AccuracyInput, PerplexityInput, TopKAccuracyInput};
 use crate::metric::{Adaptor, CerInput, LossInput, WerInput, processor::ItemLazy};
 use burn_core::tensor::{Device, Int, Tensor, Transaction};
-use burn_ndarray::NdArrayDevice;
+use burn_flex::FlexDevice;
 
 /// Sequence prediction output adapted for multiple metrics.
 ///
@@ -51,7 +51,7 @@ impl SequenceOutput {
 
 impl ItemLazy for SequenceOutput {
     fn sync(self) -> Self {
-        let device: Device = NdArrayDevice::default().into();
+        let device: Device = FlexDevice.into();
 
         match self.predictions {
             Some(preds) => {

@@ -60,7 +60,7 @@ pub struct ClassificationBatch {
 impl ClassificationBatcher {
     pub fn new(device: &Device) -> Self {
         Self {
-            normalizer: Normalizer::new(&device),
+            normalizer: Normalizer::new(device),
         }
     }
 }

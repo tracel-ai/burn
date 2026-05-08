@@ -87,14 +87,14 @@ impl Metric for WordErrorRate {
                 Some(pad) => {
                     let output_seq_no_pad = output_seq
                         .iter()
-                        .take_while(|&&x| x != pad as i32)
-                        .map(|&x| x as i32)
+                        .take_while(|&&x| x != pad)
+                        .copied()
                         .collect::<Vec<_>>();
 
                     let target_seq_no_pad = target_seq
                         .iter()
-                        .take_while(|&&x| x != pad as i32)
-                        .map(|&x| x as i32)
+                        .take_while(|&&x| x != pad)
+                        .copied()
                         .collect::<Vec<_>>();
 
                     (
@@ -102,7 +102,7 @@ impl Metric for WordErrorRate {
                         target_seq_no_pad.len(),
                     )
                 }
-                None => (edit_distance(&target_seq, &output_seq), target_seq.len()),
+                None => (edit_distance(target_seq, output_seq), target_seq.len()),
             };
 
             total_edit_distance += ed as f64;
