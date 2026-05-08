@@ -57,22 +57,22 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata, const D: usize>
     }
 
     pub fn from_real_data(data: TensorData, device: &B::Device) -> Self {
-        let real = data.clone();
-
+        let shape = data.shape.clone();
+        let dtype = data.dtype;
         Self {
             _phantom: core::marker::PhantomData,
-            real: B::float_from_data(real, device),
-            imag: B::float_zeros(data.shape, device, data.dtype.into()),
+            real: B::float_from_data(data, device),
+            imag: B::float_zeros(shape, device, dtype.into()),
         }
     }
 
     pub fn from_imag_data(data: TensorData, device: &B::Device) -> Self {
-        let imag = data.clone();
-
+        let shape = data.shape.clone();
+        let dtype = data.dtype;
         Self {
             _phantom: core::marker::PhantomData,
-            real: B::float_zeros(data.shape, device, data.dtype.into()),
-            imag: B::float_from_data(imag, device),
+            real: B::float_zeros(shape, device, dtype.into()),
+            imag: B::float_from_data(data, device),
         }
     }
 
@@ -377,20 +377,16 @@ where
             ),
             B::float_div(
                 B::float_sub(
-                    B::float_mul(lhs.imag.clone(), rhs.real.clone()),
-                    B::float_mul(lhs.real.clone(), rhs.imag.clone()),
+                    B::float_mul(lhs.imag, rhs.real),
+                    B::float_mul(lhs.real, rhs.imag),
                 ),
-                norm_sqr.clone(),
+                norm_sqr,
             ),
         )
     }
     fn abs(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
         //todo! https://github.com/tracel-ai/burn/issues/4836
-        // |z| = sqrt(real^2 + imag^2)
-        let real_sq = B::float_mul(tensor.real.clone(), tensor.real.clone());
-        let imag_sq = B::float_mul(tensor.imag.clone(), tensor.imag.clone());
-        let norm_sq = B::float_add(real_sq, imag_sq);
-        B::float_sqrt(norm_sq)
+        B::float_sqrt(SplitBackend::<B, D>::complex_squared_norm(tensor))
     }
 
     fn complex_from_parts(real: TensorData, imag: TensorData) -> ComplexTensor<SplitBackend<B, D>> {
@@ -431,8 +427,8 @@ where
     }
 
     fn complex_squared_norm(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
-        let real_sq = B::float_mul(tensor.real.clone(), tensor.real.clone());
-        let imag_sq = B::float_mul(tensor.imag.clone(), tensor.imag.clone());
+        let real_sq = B::float_mul(tensor.real.clone(), tensor.real);
+        let imag_sq = B::float_mul(tensor.imag.clone(), tensor.imag);
         B::float_add(real_sq, imag_sq)
     }
 
@@ -572,9 +568,22 @@ where
 
     fn complex_tan(tensor: ComplexTensor<SplitBackend<B, D>>) -> ComplexTensor<SplitBackend<B, D>> {
         // tan(z) = sin(z) / cos(z)
-        let sin = SplitBackend::<B, D>::complex_sin(tensor.clone());
-        let cos = SplitBackend::<B, D>::complex_cos(tensor);
-        SplitBackend::<B, D>::complex_div(sin, cos)
+        // sin(a+bi) = sin(a)*cosh(b) + i*cos(a)*sinh(b)
+        // cos(a+bi) = cos(a)*cosh(b) - i*sin(a)*sinh(b)
+        // Compute sin(a), cos(a), sinh(b), cosh(b) once and share between numerator/denominator.
+        let sin_a = B::float_sin(tensor.real.clone());
+        let cos_a = B::float_cos(tensor.real);
+        let sinh_b = B::float_sinh(tensor.imag.clone());
+        let cosh_b = B::float_cosh(tensor.imag);
+        let sin_z = SplitComplexTensor::new(
+            B::float_mul(sin_a.clone(), cosh_b.clone()),
+            B::float_mul(cos_a.clone(), sinh_b.clone()),
+        );
+        let cos_z = SplitComplexTensor::new(
+            B::float_mul(cos_a, cosh_b),
+            B::float_neg(B::float_mul(sin_a, sinh_b)),
+        );
+        SplitBackend::<B, D>::complex_div(sin_z, cos_z)
     }
 
     fn complex_acos(
