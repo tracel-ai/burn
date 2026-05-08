@@ -53,8 +53,17 @@ pub fn adamw_8bit_step_kernel(
     #[comptime] amsgrad: bool,
     #[comptime] is_first_step: bool,
     #[comptime] cautious_weight_decay: bool,
+
+    num_blocks: u32,
+    cube_count_x: u32,
+    cube_count_y: u32,
 ) {
-    let block = CUBE_POS_X;
+    // let block = CUBE_POS_X;
+    // let unit = UNIT_POS_X;
+    // let i = block * block_size + unit;
+
+    let block = CUBE_POS_X + CUBE_POS_Y * cube_count_x + CUBE_POS_Z * cube_count_x * cube_count_y;
+
     let unit = UNIT_POS_X;
     let i = block * block_size + unit;
 

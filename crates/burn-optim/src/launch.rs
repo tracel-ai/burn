@@ -70,6 +70,16 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
     let packed_count = n / PACKING_AMOUNT as usize;
     let num_blocks_usize = num_blocks as usize;
 
+    const MAX_DIM: u32 = 65535;
+    let (cx, cy, cz) = if num_blocks <= MAX_DIM {
+        (num_blocks, 1, 1)
+    } else {
+        let x = MAX_DIM;
+        let y = num_blocks.div_ceil(MAX_DIM).min(MAX_DIM);
+        let z = num_blocks.div_ceil(MAX_DIM * MAX_DIM);
+        (x, y, z)
+    };
+
     // ---- Host-side scalar precomputation ----
     let factor_1 = 1.0 - params.beta_1;
     let factor_2 = 1.0 - params.beta_2;
@@ -149,7 +159,7 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
     unsafe {
         adamw_8bit_step_kernel::launch_unchecked::<R>(
             client,
-            CubeCount::Static(num_blocks, 1, 1),
+            CubeCount::Static(cx, cy, cz),
             CubeDim::new(client, PLANE_SIZE as usize),
             ArrayArg::from_raw_parts(inputs.theta, n),
             ArrayArg::from_raw_parts(inputs.grad, n),
@@ -181,6 +191,9 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
             params.amsgrad,
             is_first_step,
             params.cautious_weight_decay,
+            num_blocks,
+            cx,
+            cy,
         );
     }
 
