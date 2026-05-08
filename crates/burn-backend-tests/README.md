@@ -158,11 +158,11 @@ this costs nothing there.
 When adding a new bench, use `bench_synced` rather than divan's raw `bench`:
 
 ```rust
-use common::{BencherExt, TestBackend};
+use common::BencherExt;
 
 #[divan::bench]
 fn my_op(bencher: Bencher) {
-    let x = make_tensor::<TestBackend>(SIZE);
+    let x = make_tensor(SIZE);
     bencher.bench_synced(|| some_op(x.clone()));
 }
 ```

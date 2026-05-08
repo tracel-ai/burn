@@ -1,6 +1,6 @@
-//! Shared TestBackend setup for benches.
+//! Shared setup for benches.
 //!
-//! Mirrors `tests/common/backend.rs`: `TestBackend = burn_dispatch::Dispatch`, with a `#[ctor]`
+//! Mirrors `tests/common/backend.rs`: `Device::default()`, with a `#[ctor]`
 //! that pins the default float/int dtypes to `f32`/`i32` so backends that advertise a different
 //! default (e.g. bf16) don't silently convert bench inputs.
 

@@ -25,7 +25,7 @@ fn make_conv_weight(
     in_ch: usize,
     out_ch: usize,
     seed: f32,
-    opts: TensorCreationOptions<TestBackend>,
+    opts: TensorCreationOptions,
 ) -> TestTensor<4> {
     // kernel_size=[1, 1]; stride=[1, 1]; dilation=[1, 1]; groups=1;
     let n = out_ch * in_ch;
@@ -50,8 +50,8 @@ fn manual_bn(
     (x - m) / std * g + b
 }
 
-fn two_conv_bn_branches(dev: Device<TestBackend>, dtype: DType) -> TensorData {
-    let opts: TensorCreationOptions<TestBackend> = (&dev, dtype).into();
+fn two_conv_bn_branches(dev: Device, dtype: DType) -> TensorData {
+    let opts: TensorCreationOptions = (&dev, dtype).into();
     let weight_a = make_conv_weight(64, 256, 1.0, opts.clone());
     let weight_b = make_conv_weight(64, 256, 2.0, opts.clone());
 
@@ -79,7 +79,7 @@ fn two_conv_bn_branches(dev: Device<TestBackend>, dtype: DType) -> TensorData {
     };
     let (mean_a, var_a, gamma_a, beta_a) = make_params(1.0);
     let (mean_b, var_b, gamma_b, beta_b) = make_params(2.0);
-    TestBackend::sync(&dev).unwrap();
+    dev.sync().unwrap();
 
     let numel = 64 * 16 * 16;
     let data: Vec<f32> = (0..numel).map(|i| (i as f32 * 7.13).sin() * 0.5).collect();

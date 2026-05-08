@@ -4,13 +4,10 @@ mod quantize_dequantize;
 mod reshape;
 
 fn supports_native() -> bool {
-    let name = <TestBackend as burn_tensor::backend::Backend>::name(&Default::default());
+    let name = format!("{:?}", burn_tensor::Device::default());
     // TODO: Proper checks for i8 support.
-    name.contains("cuda")
-        || name.contains("rocm")
-        || name.contains("hip")
-        || name.contains("vulkan")
-        || name.contains("spirv")
-        || name.contains("metal")
-        || name.contains("msl")
+    name.contains("Cuda")
+        || name.contains("Rocm")
+        || name.contains("Vulkan")
+        || name.contains("Metal")
 }

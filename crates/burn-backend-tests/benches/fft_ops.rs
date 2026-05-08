@@ -1,4 +1,4 @@
-//! Benchmarks for rfft / irfft on TestBackend.
+//! Benchmarks for rfft / irfft.
 //!
 //! Run with:
 //! ```bash
