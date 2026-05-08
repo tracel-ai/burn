@@ -7,7 +7,7 @@ use burn::tensor::Tensor;
 
 use super::GradientsParams;
 
-/// Accumulate gradients into a single [Gradients](AutodiffBackend::Gradients) object.
+/// Accumulate gradients into a single [GradientsParams] object.
 pub struct GradientsAccumulator<M> {
     grads: GradientsParams,
     phantom: PhantomData<M>,
