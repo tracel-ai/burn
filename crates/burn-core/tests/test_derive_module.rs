@@ -151,7 +151,7 @@ mod compiletime_clone_impl_check {
     }
 }
 
-pub type TestDevice = burn_tensor::FlexDevice;
+pub type TestDevice = burn_tensor::NdArrayDevice;
 
 mod state {
     use burn_core::module::EmptyRecord;

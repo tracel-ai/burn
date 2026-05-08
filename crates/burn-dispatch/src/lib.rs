@@ -70,9 +70,9 @@ pub(crate) mod backends {
     #[cfg(wgpu_webgpu)]
     pub use burn_wgpu::Wgpu;
 
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
-    #[cfg(feature = "ndarray")]
+    #[cfg(any(feature = "ndarray", default_backend))]
     pub use burn_ndarray::NdArray;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorch;
@@ -93,9 +93,9 @@ pub mod devices {
     #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
     pub use burn_wgpu::WgpuDevice;
 
-    #[cfg(any(feature = "flex", default_backend))]
+    #[cfg(feature = "flex")]
     pub use burn_flex::FlexDevice;
-    #[cfg(feature = "ndarray")]
+    #[cfg(any(feature = "ndarray", default_backend))]
     pub use burn_ndarray::NdArrayDevice;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorchDevice;

@@ -34,7 +34,7 @@ extern crate alloc;
 // TODO: configurable device priority
 #[cfg(test)]
 #[allow(missing_docs)]
-pub type TestDevice = burn_tensor::FlexDevice;
+pub type TestDevice = burn_tensor::NdArrayDevice;
 
 #[cfg(test)]
 mod test_utils {
