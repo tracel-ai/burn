@@ -591,6 +591,7 @@ macro_rules! unary_float_arms {
         |$inner:ident| $body:expr;
         $([$Backend:ident, $cfg:meta]),*
     ) => {{
+        #[cfg(feature = "autodiff")]
         let checkpointing = &$tensor.checkpointing;
 
         match { if_mode!($mode, &$tensor.kind, $tensor.kind) } {
