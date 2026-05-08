@@ -680,6 +680,30 @@ impl ComplexTensorOps<Flex> for Flex {
             _ => panic!("complex_scatter_nd: unsupported dtype {:?}", tensor.dtype()),
         }
     }
+
+    fn complex_acos(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.acos())
+    }
+
+    fn complex_acosh(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.acosh())
+    }
+
+    fn complex_asin(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.asin())
+    }
+
+    fn complex_asinh(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.asinh())
+    }
+
+    fn complex_atan(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.atan())
+    }
+
+    fn complex_atanh(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.atanh())
+    }
 }
 
 /// Check if any element is non-zero (complex tensors).

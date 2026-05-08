@@ -489,6 +489,32 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         is_close_finite_val.bool_or(inf_same_sign)
     }
 
+    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
+    ///
+    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
+    /// }
+    /// ```
+    pub fn atan2(self, other: Self) -> Self {
+        Tensor::new(TensorPrimitive::Float(B::float_atan2(
+            self.primitive.tensor(),
+            other.primitive.tensor(),
+        )))
+    }
+
     /// Checks if all elements are close to another tensor.
     ///
     /// The tolerance is defined by the following equation:
@@ -1161,28 +1187,5 @@ where
     /// ```
     pub fn atanh(self) -> Self {
         Tensor::new(K::atanh(self.primitive))
-    }
-
-    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
-    ///
-    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///
-    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
-    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
-    /// }
-    /// ```
-    pub fn atan2(self, other: Self) -> Self {
-        Tensor::new(K::atan2(self.primitive, other.primitive))
     }
 }

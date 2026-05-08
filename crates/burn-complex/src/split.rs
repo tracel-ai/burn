@@ -583,6 +583,149 @@ where
         SplitBackend::<B, D>::complex_div(sin, cos)
     }
 
+    fn complex_acos(
+        tensor: ComplexTensor<SplitBackend<B, D>>,
+    ) -> ComplexTensor<SplitBackend<B, D>> {
+        // acos(z) = -i * ln(z + i * sqrt(1 - z²))
+        let device = B::float_device(&tensor.real);
+        let shape = tensor.real.shape().clone();
+        let fdtype = tensor.real.dtype().into();
+        let ones = SplitComplexTensor::new(
+            B::float_ones(shape.clone(), &device, fdtype),
+            B::float_zeros(shape, &device, fdtype),
+        );
+        // 1 - z²
+        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
+        let one_minus_z_sq = SplitBackend::<B, D>::complex_sub(ones, z_sq);
+        // i * sqrt(1 - z²): multiply by i via (-imag, real)
+        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(one_minus_z_sq);
+        let i_sqrt = SplitComplexTensor::new(B::float_neg(sqrt_term.imag), sqrt_term.real);
+        // z + i*sqrt(1 - z²)
+        let inner = SplitBackend::<B, D>::complex_add(tensor, i_sqrt);
+        // -i * ln(inner): multiply by -i via (imag, -real)
+        let log_inner = SplitBackend::<B, D>::complex_log(inner);
+        SplitComplexTensor::new(log_inner.imag, B::float_neg(log_inner.real))
+    }
+
+    fn complex_acosh(
+        tensor: ComplexTensor<SplitBackend<B, D>>,
+    ) -> ComplexTensor<SplitBackend<B, D>> {
+        // acosh(z) = ln(z + sqrt(z² - 1))
+        let device = B::float_device(&tensor.real);
+        let shape = tensor.real.shape().clone();
+        let fdtype = tensor.real.dtype().into();
+        let ones = SplitComplexTensor::new(
+            B::float_ones(shape.clone(), &device, fdtype),
+            B::float_zeros(shape, &device, fdtype),
+        );
+        // z² - 1
+        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
+        let z_sq_minus_one = SplitBackend::<B, D>::complex_sub(z_sq, ones);
+        // z + sqrt(z² - 1)
+        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(z_sq_minus_one);
+        let inner = SplitBackend::<B, D>::complex_add(tensor, sqrt_term);
+        SplitBackend::<B, D>::complex_log(inner)
+    }
+
+    fn complex_asin(
+        tensor: ComplexTensor<SplitBackend<B, D>>,
+    ) -> ComplexTensor<SplitBackend<B, D>> {
+        // asin(z) = -i * ln(i*z + sqrt(1 - z²))
+        let device = B::float_device(&tensor.real);
+        let shape = tensor.real.shape().clone();
+        let fdtype = tensor.real.dtype().into();
+        let ones = SplitComplexTensor::new(
+            B::float_ones(shape.clone(), &device, fdtype),
+            B::float_zeros(shape, &device, fdtype),
+        );
+        // z² and i*z before consuming tensor
+        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
+        // i*z = (-imag, real)
+        let iz = SplitComplexTensor::new(B::float_neg(tensor.imag), tensor.real);
+        // 1 - z²
+        let one_minus_z_sq = SplitBackend::<B, D>::complex_sub(ones, z_sq);
+        // i*z + sqrt(1 - z²)
+        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(one_minus_z_sq);
+        let inner = SplitBackend::<B, D>::complex_add(iz, sqrt_term);
+        // -i * ln(inner): (imag, -real)
+        let log_inner = SplitBackend::<B, D>::complex_log(inner);
+        SplitComplexTensor::new(log_inner.imag, B::float_neg(log_inner.real))
+    }
+
+    fn complex_asinh(
+        tensor: ComplexTensor<SplitBackend<B, D>>,
+    ) -> ComplexTensor<SplitBackend<B, D>> {
+        // asinh(z) = ln(z + sqrt(z² + 1))
+        let device = B::float_device(&tensor.real);
+        let shape = tensor.real.shape().clone();
+        let fdtype = tensor.real.dtype().into();
+        let ones = SplitComplexTensor::new(
+            B::float_ones(shape.clone(), &device, fdtype),
+            B::float_zeros(shape, &device, fdtype),
+        );
+        // z² + 1
+        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
+        let z_sq_plus_one = SplitBackend::<B, D>::complex_add(z_sq, ones);
+        // z + sqrt(z² + 1)
+        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(z_sq_plus_one);
+        let inner = SplitBackend::<B, D>::complex_add(tensor, sqrt_term);
+        SplitBackend::<B, D>::complex_log(inner)
+    }
+
+    fn complex_atan(
+        tensor: ComplexTensor<SplitBackend<B, D>>,
+    ) -> ComplexTensor<SplitBackend<B, D>> {
+        // atan(z) = (-i/2) * ln((1 + iz) / (1 - iz))
+        let device = B::float_device(&tensor.real);
+        let shape = tensor.real.shape().clone();
+        let fdtype = tensor.real.dtype().into();
+        let ones = SplitComplexTensor::new(
+            B::float_ones(shape.clone(), &device, fdtype),
+            B::float_zeros(shape, &device, fdtype),
+        );
+        // iz = (-imag, real)
+        let iz = SplitComplexTensor::new(B::float_neg(tensor.imag), tensor.real);
+        // 1 + iz and 1 - iz
+        let one_plus_iz = SplitBackend::<B, D>::complex_add(ones.clone(), iz.clone());
+        let one_minus_iz = SplitBackend::<B, D>::complex_sub(ones, iz);
+        // ln((1 + iz) / (1 - iz))
+        let log_ratio = SplitBackend::<B, D>::complex_log(SplitBackend::<B, D>::complex_div(
+            one_plus_iz,
+            one_minus_iz,
+        ));
+        // (-i/2) * log_ratio: -i*(a+bi) = (b, -a), then /2
+        SplitComplexTensor::new(
+            B::float_div_scalar(log_ratio.imag, burn_tensor::Scalar::Float(2.0)),
+            B::float_neg(B::float_div_scalar(
+                log_ratio.real,
+                burn_tensor::Scalar::Float(2.0),
+            )),
+        )
+    }
+
+    fn complex_atanh(
+        tensor: ComplexTensor<SplitBackend<B, D>>,
+    ) -> ComplexTensor<SplitBackend<B, D>> {
+        // atanh(z) = (1/2) * ln((1 + z) / (1 - z))
+        let device = B::float_device(&tensor.real);
+        let shape = tensor.real.shape().clone();
+        let fdtype = tensor.real.dtype().into();
+        let ones = SplitComplexTensor::new(
+            B::float_ones(shape.clone(), &device, fdtype),
+            B::float_zeros(shape, &device, fdtype),
+        );
+        let one_plus_z = SplitBackend::<B, D>::complex_add(ones.clone(), tensor.clone());
+        let one_minus_z = SplitBackend::<B, D>::complex_sub(ones, tensor);
+        let log_ratio = SplitBackend::<B, D>::complex_log(SplitBackend::<B, D>::complex_div(
+            one_plus_z,
+            one_minus_z,
+        ));
+        SplitComplexTensor::new(
+            B::float_div_scalar(log_ratio.real, burn_tensor::Scalar::Float(2.0)),
+            B::float_div_scalar(log_ratio.imag, burn_tensor::Scalar::Float(2.0)),
+        )
+    }
+
     fn complex_slice(
         tensor: ComplexTensor<SplitBackend<B, D>>,
         slices: &[burn_tensor::Slice],

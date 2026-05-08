@@ -496,31 +496,27 @@ where
     }
 
     fn acos(tensor: Self::Primitive) -> Self::Primitive {
-        todo!()
+        C::complex_acos(tensor)
     }
 
     fn acosh(tensor: Self::Primitive) -> Self::Primitive {
-        todo!()
+        C::complex_acosh(tensor)
     }
 
     fn asin(tensor: Self::Primitive) -> Self::Primitive {
-        todo!()
+        C::complex_asin(tensor)
     }
 
     fn asinh(tensor: Self::Primitive) -> Self::Primitive {
-        todo!()
+        C::complex_asinh(tensor)
     }
 
     fn atan(tensor: Self::Primitive) -> Self::Primitive {
-        todo!()
+        C::complex_atan(tensor)
     }
 
     fn atanh(tensor: Self::Primitive) -> Self::Primitive {
-        todo!()
-    }
-
-    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        todo!()
+        C::complex_atanh(tensor)
     }
 }
 

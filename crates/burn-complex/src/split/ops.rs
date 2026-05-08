@@ -681,6 +681,34 @@ where
         SplitBackend::<B, D>::complex_cos(self)
     }
 
+    pub fn tan(self) -> Self {
+        SplitBackend::<B, D>::complex_tan(self)
+    }
+
+    pub fn acos(self) -> Self {
+        SplitBackend::<B, D>::complex_acos(self)
+    }
+
+    pub fn acosh(self) -> Self {
+        SplitBackend::<B, D>::complex_acosh(self)
+    }
+
+    pub fn asin(self) -> Self {
+        SplitBackend::<B, D>::complex_asin(self)
+    }
+
+    pub fn asinh(self) -> Self {
+        SplitBackend::<B, D>::complex_asinh(self)
+    }
+
+    pub fn atan(self) -> Self {
+        SplitBackend::<B, D>::complex_atan(self)
+    }
+
+    pub fn atanh(self) -> Self {
+        SplitBackend::<B, D>::complex_atanh(self)
+    }
+
     pub fn log(self) -> Self {
         SplitBackend::<B, D>::complex_log(self)
     }

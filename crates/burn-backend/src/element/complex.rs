@@ -555,6 +555,7 @@ where
             Self::from_polar(r.sqrt(), theta / two)
         }
     }
+
     /// Computes the principal value of the sine of `self`.
     pub fn sin(self) -> Self {
         // formula: sin(a + bi) = sin(a) cosh(b) + i cos(a) sinh(b)
@@ -576,10 +577,126 @@ where
             -self.real.sin() * self.imag.sinh(),
         )
     }
+
     /// Get the magnitude (absolute value) of the complex number
     #[inline]
     pub fn abs(self) -> E {
         (self.real * self.real + self.imag * self.imag).sqrt()
+    }
+
+    /// Computes the principal value of the inverse sine of `self`.
+    ///
+    /// This function has two branch cuts:
+    ///
+    /// * `(-∞, -1)`, continuous from above.
+    /// * `(1, ∞)`, continuous from below.
+    ///
+    /// The branch satisfies `-π/2 ≤ Re(asin(z)) ≤ π/2`.
+    #[inline]
+    pub fn asin(self) -> Self {
+        // formula: arcsin(z) = -i ln(sqrt(1-z^2) + iz)
+        let i = Self::i();
+        -i * ((Self::one() - self * self).sqrt() + i * self).ln()
+    }
+
+    /// Computes the principal value of the inverse cosine of `self`.
+    ///
+    /// This function has two branch cuts:
+    ///
+    /// * `(-∞, -1)`, continuous from above.
+    /// * `(1, ∞)`, continuous from below.
+    ///
+    /// The branch satisfies `0 ≤ Re(acos(z)) ≤ π`.
+    #[inline]
+    pub fn acos(self) -> Self {
+        // formula: arccos(z) = -i ln(i sqrt(1-z^2) + z)
+        let i = Self::i();
+        -i * (i * (Self::one() - self * self).sqrt() + self).ln()
+    }
+
+    /// Computes the hyperbolic sine of `self`.
+    #[inline]
+    pub fn sinh(self) -> Self {
+        // formula: sinh(a + bi) = sinh(a)cos(b) + i*cosh(a)sin(b)
+        Self::new(
+            self.real.sinh() * self.imag.cos(),
+            self.real.cosh() * self.imag.sin(),
+        )
+    }
+
+    /// Computes the hyperbolic cosine of `self`.
+    #[inline]
+    pub fn cosh(self) -> Self {
+        // formula: cosh(a + bi) = cosh(a)cos(b) + i*sinh(a)sin(b)
+        Self::new(
+            self.real.cosh() * self.imag.cos(),
+            self.real.sinh() * self.imag.sin(),
+        )
+    }
+
+    /// Computes the hyperbolic tangent of `self`.
+    #[inline]
+    pub fn tanh(self) -> Self {
+        // formula: tanh(a + bi) = (sinh(2a) + i*sin(2b))/(cosh(2a) + cos(2b))
+        let (two_real, two_imag) = (self.real + self.real, self.imag + self.imag);
+        Self::new(two_real.sinh(), two_imag.sin()).unscale(two_real.cosh() + two_imag.cos())
+    }
+
+    /// Divides `self` by the scalar `t`.
+    #[inline]
+    pub fn unscale(&self, t: E) -> Self {
+        Self::new(self.real / t, self.imag / t)
+    }
+
+    /// Computes the principal value of inverse hyperbolic sine of `self`.
+    ///
+    /// This function has two branch cuts:
+    ///
+    /// * `(-∞i, -i)`, continuous from the left.
+    /// * `(i, ∞i)`, continuous from the right.
+    ///
+    /// The branch satisfies `-π/2 ≤ Im(asinh(z)) ≤ π/2`.
+    #[inline]
+    pub fn asinh(self) -> Self {
+        // formula: arcsinh(z) = ln(z + sqrt(1+z^2))
+        let one = Self::one();
+        (self + (one + self * self).sqrt()).ln()
+    }
+
+    /// Computes the principal value of inverse hyperbolic cosine of `self`.
+    ///
+    /// This function has one branch cut:
+    ///
+    /// * `(-∞, 1)`, continuous from above.
+    ///
+    /// The branch satisfies `-π ≤ Im(acosh(z)) ≤ π` and `0 ≤ Re(acosh(z)) < ∞`.
+    #[inline]
+    pub fn acosh(self) -> Self {
+        // formula: arccosh(z) = 2 ln(sqrt((z+1)/2) + sqrt((z-1)/2))
+        let one = Self::one();
+        let two = one + one;
+        two * (((self + one) / two).sqrt() + ((self - one) / two).sqrt()).ln()
+    }
+
+    /// Computes the principal value of inverse hyperbolic tangent of `self`.
+    ///
+    /// This function has two branch cuts:
+    ///
+    /// * `(-∞, -1]`, continuous from above.
+    /// * `[1, ∞)`, continuous from below.
+    ///
+    /// The branch satisfies `-π/2 ≤ Im(atanh(z)) ≤ π/2`.
+    #[inline]
+    pub fn atanh(self) -> Self {
+        // formula: arctanh(z) = (ln(1+z) - ln(1-z))/2
+        let one = Self::one();
+        let two = one + one;
+        if self == one {
+            return Self::new(E::infinity(), E::zero());
+        } else if self == -one {
+            return Self::new(-E::infinity(), E::zero());
+        }
+        ((one + self).ln() - (one - self).ln()) / two
     }
 }
 

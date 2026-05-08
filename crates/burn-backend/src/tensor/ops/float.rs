@@ -1071,29 +1071,6 @@ pub trait FloatMathOps<B: BackendTypes>: Numeric<B> {
     #[cfg_attr(not(doc), doc = "`Tensor::atanh`")]
     /// function, which is more high-level and designed for public use.
     fn atanh(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a tensor with the four-quadrant inverse tangent values of `y` and `x`.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The tensor with y coordinates.
-    /// * `rhs` - The tensor with x coordinates.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the four-quadrant inverse tangent values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the four-quadrant inverse tangent of two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("atan2"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::atan2`")]
-    /// function, which is more high-level and designed for public use.
-    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 }
 
 impl<B: Backend> FloatMathOps<B> for Float {
@@ -1149,10 +1126,6 @@ impl<B: Backend> FloatMathOps<B> for Float {
 
     fn atanh(tensor: Self::Primitive) -> Self::Primitive {
         TensorPrimitive::Float(B::float_atanh(tensor.tensor()))
-    }
-
-    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_atan2(lhs.tensor(), rhs.tensor()))
     }
 
     fn exp(tensor: Self::Primitive) -> Self::Primitive {

@@ -661,6 +661,18 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The tangent of the tensor.
     fn complex_tan(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    fn complex_acos(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    fn complex_acosh(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    fn complex_asin(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    fn complex_asinh(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    fn complex_atan(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    fn complex_atanh(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
     /// Complex select function.
     ///
     /// # Arguments

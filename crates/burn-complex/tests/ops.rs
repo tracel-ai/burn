@@ -400,3 +400,159 @@ fn test_complex_matmul_identity() {
 
     result.assert_approx_eq(&expected, Tolerance::<f32>::strict());
 }
+
+#[test]
+fn test_complex_acos() {
+    // acos(1 + 0i) = 0, acos(0 + 0i) = π/2
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            Complex::<f32> {
+                real: 1.0,
+                imag: 0.0,
+            },
+            Complex::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            },
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.acos();
+
+    let data: Vec<f32> = interleaved_data_to_raw_float_data(result.into_data())
+        .into_vec()
+        .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(acos(1)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(acos(1)) = {}", data[1]);
+    assert!(
+        (data[2] - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+        "re(acos(0)) = {}",
+        data[2]
+    );
+    assert!(data[3].abs() < 1e-5, "im(acos(0)) = {}", data[3]);
+}
+
+#[test]
+fn test_complex_acosh() {
+    // acosh(1 + 0i) = 0
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([Complex::<f32> {
+            real: 1.0,
+            imag: 0.0,
+        }]),
+        &Default::default(),
+    );
+
+    let result = tensor.acosh();
+
+    let data: Vec<f32> = interleaved_data_to_raw_float_data(result.into_data())
+        .into_vec()
+        .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(acosh(1)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(acosh(1)) = {}", data[1]);
+}
+
+#[test]
+fn test_complex_asin() {
+    // asin(0 + 0i) = 0, asin(1 + 0i) = π/2
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            Complex::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            },
+            Complex::<f32> {
+                real: 1.0,
+                imag: 0.0,
+            },
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.asin();
+
+    let data: Vec<f32> = interleaved_data_to_raw_float_data(result.into_data())
+        .into_vec()
+        .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(asin(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(asin(0)) = {}", data[1]);
+    assert!(
+        (data[2] - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+        "re(asin(1)) = {}",
+        data[2]
+    );
+    assert!(data[3].abs() < 1e-5, "im(asin(1)) = {}", data[3]);
+}
+
+#[test]
+fn test_complex_asinh() {
+    // asinh(0 + 0i) = 0
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([Complex::<f32> {
+            real: 0.0,
+            imag: 0.0,
+        }]),
+        &Default::default(),
+    );
+
+    let result = tensor.asinh();
+
+    let data: Vec<f32> = interleaved_data_to_raw_float_data(result.into_data())
+        .into_vec()
+        .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(asinh(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(asinh(0)) = {}", data[1]);
+}
+
+#[test]
+fn test_complex_atan() {
+    // atan(0 + 0i) = 0, atan(1 + 0i) = π/4
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            Complex::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            },
+            Complex::<f32> {
+                real: 1.0,
+                imag: 0.0,
+            },
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.atan();
+
+    let data: Vec<f32> = interleaved_data_to_raw_float_data(result.into_data())
+        .into_vec()
+        .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(atan(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(atan(0)) = {}", data[1]);
+    assert!(
+        (data[2] - std::f32::consts::FRAC_PI_4).abs() < 1e-5,
+        "re(atan(1)) = {}",
+        data[2]
+    );
+    assert!(data[3].abs() < 1e-5, "im(atan(1)) = {}", data[3]);
+}
+
+#[test]
+fn test_complex_atanh() {
+    // atanh(0 + 0i) = 0
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([Complex::<f32> {
+            real: 0.0,
+            imag: 0.0,
+        }]),
+        &Default::default(),
+    );
+
+    let result = tensor.atanh();
+
+    let data: Vec<f32> = interleaved_data_to_raw_float_data(result.into_data())
+        .into_vec()
+        .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(atanh(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(atanh(0)) = {}", data[1]);
+}
