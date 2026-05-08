@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Distribution, Shape, backend::Backend};
+use burn_tensor::{Device, Distribution, Shape};
 use burn_tensor::{ElementConversion, Tolerance};
 
 use serial_test::serial;
@@ -9,7 +9,7 @@ use cubek::random::{assert_at_least_one_value_per_bin, assert_wald_wolfowitz_run
 #[test]
 #[serial]
 fn values_all_within_interval_default() {
-    let device = Default::default();
+    let device = Device::default();
     device.seed(0);
     let shape = [24, 24];
 
@@ -22,7 +22,7 @@ fn values_all_within_interval_default() {
 #[test]
 #[serial]
 fn values_all_within_interval_uniform() {
-    let device = Default::default();
+    let device = Device::default();
     device.seed(0);
     let shape = [24, 24];
 
@@ -35,7 +35,7 @@ fn values_all_within_interval_uniform() {
 #[test]
 #[serial]
 fn at_least_one_value_per_bin_uniform() {
-    let device = Default::default();
+    let device = Device::default();
     device.seed(0);
     let shape = [64, 64];
 
@@ -49,7 +49,7 @@ fn at_least_one_value_per_bin_uniform() {
 #[test]
 #[serial]
 fn runs_test() {
-    let device = Default::default();
+    let device = Device::default();
     device.seed(0);
     let shape = Shape::new([512, 512]);
     let tensor = TestTensor::<2>::random(shape, Distribution::Default, &device).into_data();
@@ -62,7 +62,7 @@ fn runs_test() {
 #[test]
 #[serial]
 fn int_values_all_within_interval_uniform() {
-    let device = Default::default();
+    let device = Device::default();
     device.seed(0);
     let shape = Shape::new([20, 20]);
     let tensor = TestTensorInt::<2>::random(shape, Distribution::Default, &device);
@@ -75,7 +75,7 @@ fn int_values_all_within_interval_uniform() {
 #[test]
 #[serial]
 fn at_least_one_value_per_bin_int_uniform() {
-    let device = Default::default();
+    let device = Device::default();
     device.seed(0);
     let shape = Shape::new([64, 64]);
 
@@ -90,7 +90,7 @@ fn at_least_one_value_per_bin_int_uniform() {
 
 #[test]
 fn should_not_fail_on_non_float_autotune() {
-    let device = Default::default();
+    let device = Device::default();
     let tensor_1 = TestTensor::<2>::from_data([[1., 2., 3.], [3., 4., 5.]], &device);
 
     // Autotune of all (reduce) on lower_equal_elem's output calls uniform distribution
@@ -100,7 +100,7 @@ fn should_not_fail_on_non_float_autotune() {
 #[test]
 #[serial]
 fn test_seed_reproducibility() {
-    let device = Default::default();
+    let device = Device::default();
     device.seed(42);
     let t1 = TestTensor::<1>::random([5], Distribution::Default, &device);
     device.seed(42);

@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Device, Distribution, Shape, backend::Backend};
+use burn_tensor::{Device, Distribution, Shape};
 use cubek::random::{assert_mean_approx_equal, assert_normal_respects_68_95_99_rule};
 use serial_test::serial;
 

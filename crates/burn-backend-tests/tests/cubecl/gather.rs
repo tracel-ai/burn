@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, Shape, backend::Backend};
+use burn_tensor::{Device, Distribution, Shape};
 
 #[test]
 fn gather_should_work_with_multiple_workgroups_dim0() {
@@ -13,7 +13,7 @@ fn gather_should_work_with_multiple_workgroups_dim1() {
 }
 
 fn test_same_as_ref<const D: usize>(shape: [usize; D], dim: usize) {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
     device.seed(0);

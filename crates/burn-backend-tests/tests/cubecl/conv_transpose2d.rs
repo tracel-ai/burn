@@ -1,10 +1,10 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, backend::Backend, module};
+use burn_tensor::{Device, Distribution, module};
 
 #[test]
 fn conv_transpose2d_should_match_reference_backend() {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
     device.seed(0);

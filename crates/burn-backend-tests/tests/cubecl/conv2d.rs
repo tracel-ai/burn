@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::ops::ConvOptions;
-use burn_tensor::{Distribution, TensorPrimitive, module};
+use burn_tensor::{Distribution, module};
 
 #[test]
 fn conv2d_should_match_reference_backend() {

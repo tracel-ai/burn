@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, TensorPrimitive, backend::Backend, module};
+use burn_tensor::{Device, Distribution, module};
 
 #[test]
 fn avg_pool2d_should_match_reference_backend() {
@@ -38,7 +38,7 @@ fn avg_pool2d_should_match_reference_backend() {
 
 #[test]
 fn avg_pool2d_backward_should_match_reference_backend() {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
     device.seed(0);

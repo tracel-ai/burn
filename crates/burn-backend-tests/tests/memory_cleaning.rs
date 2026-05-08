@@ -39,7 +39,7 @@ mod fusion {
 
     use super::*;
     use burn_fusion::inspect::FusionInspector;
-    use burn_tensor::{Device, StreamId, backend::Backend};
+    use burn_tensor::{Device, StreamId};
     use serial_test::serial;
     use std::sync::atomic::{AtomicU64, Ordering};
 

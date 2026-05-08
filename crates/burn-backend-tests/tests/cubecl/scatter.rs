@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::{Distribution, backend::Backend};
-use burn_tensor::{IndexingUpdateOp, Tolerance};
+use burn_tensor::Distribution;
+use burn_tensor::{Device, IndexingUpdateOp, Tolerance};
 
 #[test]
 fn scatter_should_work_with_multiple_workgroups_2d_dim0() {
@@ -37,7 +37,7 @@ fn same_as_reference_diff_shape<const D: usize>(
     shape1: [usize; D],
     shape2: [usize; D],
 ) {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
     device.seed(0);

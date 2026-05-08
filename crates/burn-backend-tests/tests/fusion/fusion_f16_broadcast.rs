@@ -9,8 +9,7 @@
 
 use super::*;
 use burn_tensor::{
-    DType, Device, TensorCreationOptions, TensorData, Tolerance, backend::Backend, module::conv2d,
-    ops::ConvOptions,
+    DType, Device, TensorCreationOptions, TensorData, Tolerance, module::conv2d, ops::ConvOptions,
 };
 
 const EPS: f64 = 1e-5;

@@ -5,9 +5,6 @@ use burn_tensor::{
     quantization::{QuantLevel, QuantScheme, QuantStore, QuantValue},
 };
 
-#[cfg(feature = "std")]
-use burn_backend_tests::might_panic;
-
 fn should_quantize_dequantize_symmetric_arange<S: Into<Shape>>(
     value: QuantValue,
     store: QuantStore,

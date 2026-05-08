@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, TensorPrimitive, module, ops::ModuleOps};
+use burn_tensor::{Distribution, module};
 
 #[test]
 pub fn max_pool2d_with_indices_backward_should_match_reference_backend() {
