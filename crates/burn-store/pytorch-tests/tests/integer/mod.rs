@@ -28,7 +28,7 @@ impl Net {
 #[cfg(test)]
 mod tests {
 
-    use burn::tensor::TensorData;
+    use burn::tensor::DType;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
