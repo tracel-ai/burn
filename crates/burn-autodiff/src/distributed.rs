@@ -29,7 +29,9 @@ impl<B: DistributedBackend> DistributedRegistration for DistributedGradientRegis
             *n_required -= 1;
 
             if *n_required == 0 {
-                let tensor_ref = container.get_mut_ref::<B>(&id.value).unwrap();
+                let tensor_ref = container.get_mut_ref::<B>(&id.value).expect(
+                    "distributed: tensor freshly registered for this node id should be retrievable",
+                );
                 let tensor_ref = TensorRef(tensor_ref.get_mut_ref());
                 B::submit_gradient_sync(tensor_ref, sharded_params.clone());
             }

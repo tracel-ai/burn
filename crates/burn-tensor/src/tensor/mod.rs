@@ -27,7 +27,7 @@ pub mod backend {
 
 /// The container module.
 pub mod container {
-    pub use burn_backend::tensor::TensorContainer;
+    pub use burn_backend::tensor::{TensorContainer, TensorContainerError};
 }
 
 /// The grid module.

@@ -1,6 +1,6 @@
 use burn_backend::{
     Backend, TensorMetadata, TensorPrimitive,
-    tensor::{FloatTensor, TensorContainer},
+    tensor::{FloatTensor, TensorContainer, TensorContainerError},
 };
 
 #[cfg(feature = "distributed")]
@@ -70,32 +70,47 @@ impl Gradients {
     /// backward pass, otherwise, it may be consume multiple times.
     pub fn consume<B: Backend>(&mut self, node: &NodeRef) -> FloatTensor<B> {
         match node.requirement {
-            Requirement::Grad => self
-                .container
-                .get::<B>(&node.id.value)
-                .map(|tensor| tensor.tensor())
-                .expect("Can't consume the gradients before they are registered at least once."),
-            Requirement::GradInBackward => self
-                .container
-                .remove::<B>(&node.id.value)
-                .map(|tensor| tensor.tensor())
-                .expect("Can't consume the gradients before they are registered at least once."),
+            Requirement::Grad => match self.container.get::<B>(&node.id.value) {
+                Ok(tensor) => tensor.tensor(),
+                Err(TensorContainerError::NotFound { .. }) => {
+                    panic!("Can't consume the gradients before they are registered at least once.")
+                }
+                Err(e @ TensorContainerError::TypeMismatch { .. }) => panic!("{e}"),
+            },
+            Requirement::GradInBackward => match self.container.remove::<B>(&node.id.value) {
+                Ok(tensor) => tensor.tensor(),
+                Err(TensorContainerError::NotFound { .. }) => {
+                    panic!("Can't consume the gradients before they are registered at least once.")
+                }
+                Err(e @ TensorContainerError::TypeMismatch { .. }) => panic!("{e}"),
+            },
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
         }
     }
 
     /// Removes a grad tensor from the container.
+    ///
+    /// Returns `None` if no gradient is registered for the given tensor. Panics with a
+    /// descriptive message if a gradient is registered for a different backend than `B`
+    /// (most commonly: passing `B: AutodiffBackend` instead of `B::InnerBackend`).
     pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
-        self.container
-            .remove::<B>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+        match self.container.remove::<B>(&tensor.node.id.value) {
+            Ok(primitive) => Some(primitive.tensor()),
+            Err(TensorContainerError::NotFound { .. }) => None,
+            Err(e @ TensorContainerError::TypeMismatch { .. }) => panic!("{e}"),
+        }
     }
 
     /// Gets a grad tensor from the container.
+    ///
+    /// Returns `None` if no gradient is registered for the given tensor. Panics with a
+    /// descriptive message if a gradient is registered for a different backend than `B`.
     pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
-        self.container
-            .get::<B>(&tensor.node.id.value)
-            .map(|tensor| tensor.tensor())
+        match self.container.get::<B>(&tensor.node.id.value) {
+            Ok(primitive) => Some(primitive.tensor()),
+            Err(TensorContainerError::NotFound { .. }) => None,
+            Err(e @ TensorContainerError::TypeMismatch { .. }) => panic!("{e}"),
+        }
     }
 
     /// Register a grad tensor in the container.
@@ -104,10 +119,10 @@ impl Gradients {
     ///
     /// If the registered tensor is distributed, launches a syncing operation on the gradients.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
-        let out = if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
-            B::float_add(value, tensor_old.tensor())
-        } else {
-            value
+        let out = match self.container.remove::<B>(&node_id.value) {
+            Ok(tensor_old) => B::float_add(value, tensor_old.tensor()),
+            Err(TensorContainerError::NotFound { .. }) => value,
+            Err(e @ TensorContainerError::TypeMismatch { .. }) => panic!("{e}"),
         };
 
         self.container
