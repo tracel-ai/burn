@@ -132,94 +132,88 @@ where
         let device = tensor.device();
         let shape = tensor.shape();
         let numel = shape.num_elements();
-        let dims: [_; D] = shape.dims(); // ← capture dims while shape is still alive
 
-        if let Some(ref s) = state {
-            let m1_dims = s.moment_1.quantized.dims();
-            let m1_scales_dims = s.moment_1.scales.dims();
-            // println!(
-            //     "step entry: m1_codes dims = {:?}, m1_scales dims = {:?}",
-            //     m1_dims, m1_scales_dims
-            // );
-        }
+        assert_eq!(
+            numel % self.momentum.block_size,
+            0,
+            "param numel must be divisible by block_size"
+        );
+        let num_blocks = numel / self.momentum.block_size;
+        let packed_count = numel / PACKING_AMOUNT as usize;
 
-        // 1. Compute time and bias corrections on the host
         let time = state.as_ref().map(|s| s.time + 1).unwrap_or(1);
-        let is_first_step = state.is_none();
 
-        let theta_prim = tensor.clone().into_primitive();
+        // Extract param + grad handles
+        let theta_prim = tensor.into_primitive();
         let theta_cube = match theta_prim {
             TensorPrimitive::Float(t) => t,
             TensorPrimitive::QFloat(_) => panic!("quantized inputs not supported"),
         };
-        let theta_handle = theta_cube.handle.clone();
-        let client = theta_cube.client.clone(); // ← only one client, from the tensor
-
-        // Now you have access to its handle and client.
-        let theta_handle = theta_cube.handle.clone();
         let client = theta_cube.client.clone();
+        let theta_handle = theta_cube.handle.clone();
 
-        // Same for grad.
         let grad_prim = grad.into_primitive();
         let grad_cube = match grad_prim {
             TensorPrimitive::Float(t) => t,
             TensorPrimitive::QFloat(_) => panic!("quantized inputs not supported"),
         };
-        let grad_handle = grad_cube.handle.clone();
-        let (m1_codes, m1_scales, m2_codes, m2_scales, max_v_codes, max_v_scales) = match state {
-            Some(s) => {
-                // moment_1: QuantizeBlockwise<B, D> { quantized: Tensor<B, 1, Int>, scales: Tensor<B, 1>, ... }
-                let m1_codes_prim = s.moment_1.quantized.into_primitive();
-                let m1_codes_handle = m1_codes_prim.handle.clone();
+        let grad_handle = grad_cube.handle;
 
-                let m1_scales_prim = s.moment_1.scales.into_primitive();
-                let m1_scales_cube = match m1_scales_prim {
-                    TensorPrimitive::Float(t) => t,
-                    TensorPrimitive::QFloat(_) => panic!("unexpected"),
-                };
-                let m1_scales_handle = m1_scales_cube.handle.clone();
+        // First step: allocate state buffers once. Subsequent: reuse existing.
+        let (m1_codes_h, m1_scales_h, m2_codes_h, m2_scales_h, max_v_codes_h, max_v_scales_h) =
+            match state {
+                Some(s) => {
+                    let m1c = s.moment_1.quantized.into_primitive().handle.clone();
+                    let m1s = match s.moment_1.scales.into_primitive() {
+                        TensorPrimitive::Float(t) => t.handle.clone(),
+                        _ => unreachable!(),
+                    };
+                    let m2c = s.moment_2.quantized.into_primitive().handle.clone();
+                    let m2s = match s.moment_2.scales.into_primitive() {
+                        TensorPrimitive::Float(t) => t.handle.clone(),
+                        _ => unreachable!(),
+                    };
+                    let (mvc, mvs) = match s.max_moment_2 {
+                        Some(m) => {
+                            let c = m.quantized.into_primitive().handle.clone();
+                            let s = match m.scales.into_primitive() {
+                                TensorPrimitive::Float(t) => t.handle.clone(),
+                                _ => unreachable!(),
+                            };
+                            (Some(c), Some(s))
+                        }
+                        None => (None, None),
+                    };
+                    (m1c, m1s, m2c, m2s, mvc, mvs)
+                }
+                None => {
+                    // Allocate state ONCE — kernel initializes contents from zero.
+                    let m1c = client.empty(packed_count * core::mem::size_of::<u32>());
+                    let m1s = client.empty(num_blocks * core::mem::size_of::<f32>());
+                    let m2c = client.empty(packed_count * core::mem::size_of::<u32>());
+                    let m2s = client.empty(num_blocks * core::mem::size_of::<f32>());
+                    let (mvc, mvs) = if self.momentum.amsgrad {
+                        (
+                            Some(client.empty(packed_count * core::mem::size_of::<u32>())),
+                            Some(client.empty(num_blocks * core::mem::size_of::<f32>())),
+                        )
+                    } else {
+                        (None, None)
+                    };
+                    (m1c, m1s, m2c, m2s, mvc, mvs)
+                }
+            };
 
-                let m2_codes_handle = s.moment_2.quantized.into_primitive().handle.clone();
-                let m2_scales_handle = match s.moment_2.scales.into_primitive() {
-                    TensorPrimitive::Float(t) => t.handle.clone(),
-                    TensorPrimitive::QFloat(_) => panic!("unexpected"),
-                };
-
-                let (max_v_codes_handle, max_v_scales_handle) = match s.max_moment_2 {
-                    Some(m) => {
-                        let codes_handle = m.quantized.into_primitive().handle.clone();
-                        let scales_handle = match m.scales.into_primitive() {
-                            TensorPrimitive::Float(t) => t.handle.clone(),
-                            TensorPrimitive::QFloat(_) => panic!("unexpected"),
-                        };
-                        (Some(codes_handle), Some(scales_handle))
-                    }
-                    None => (None, None),
-                };
-
-                (
-                    Some(m1_codes_handle),
-                    Some(m1_scales_handle),
-                    Some(m2_codes_handle),
-                    Some(m2_scales_handle),
-                    max_v_codes_handle,
-                    max_v_scales_handle,
-                )
-            }
-            None => (None, None, None, None, None, None),
-        };
-
-        // 3. Build inputs for the launcher
         let inputs = AdamWStepInputs {
-            theta: theta_handle,
+            theta: theta_handle.clone(),
             grad: grad_handle,
-            moment_1_codes: m1_codes,
-            moment_1_scales: m1_scales,
-            moment_2_codes: m2_codes,
-            moment_2_scales: m2_scales,
-            max_moment_2_codes: max_v_codes,
-            max_moment_2_scales: max_v_scales,
-            numel: tensor.shape().num_elements(),
+            moment_1_codes: Some(m1_codes_h.clone()),
+            moment_1_scales: Some(m1_scales_h.clone()),
+            moment_2_codes: Some(m2_codes_h.clone()),
+            moment_2_scales: Some(m2_scales_h.clone()),
+            max_moment_2_codes: max_v_codes_h.clone(),
+            max_moment_2_scales: max_v_scales_h.clone(),
+            numel,
             _phantom: core::marker::PhantomData,
         };
 
@@ -235,19 +229,12 @@ where
             cautious_weight_decay: self.cautious_weight_decay,
         };
 
-        // 4. Call the launcher (returns raw handles)
-        // println!("Processing tensor: numel={}", shape.num_elements());
+        let _ = launch_adamw_8bit_step(&client, inputs, params);
 
-        let output = launch_adamw_8bit_step(&client, inputs, params);
-        // let theta_data = client.read_one_unchecked(output.theta_new.clone());
-        // let theta_floats = f32::from_bytes(&theta_data);
-        // let any_nan = theta_floats.iter().any(|x| x.is_nan());
-        // println!("  After kernel: any NaN in output? {}", any_nan);
-
-        // 5. Wrap output handles back into Burn tensors
+        // Rewrap the SAME handles back into Burn tensors.
         let theta_new_cube = CubeTensor {
             client: client.clone(),
-            handle: output.theta_new,
+            handle: theta_handle,
             device: device.clone(),
             dtype: DType::F32,
             qparams: None,
@@ -256,24 +243,22 @@ where
                 contiguous_strides::<D>(&shape.dims()),
             )),
         };
-
         let theta_new: Tensor<CubeBackend<R, F, I, BT>, D> =
             Tensor::from_primitive(TensorPrimitive::Float(theta_new_cube));
 
-        // Build the new QuantizeBlockwise structs the same way.
         let moment_1 = build_quantize_blockwise::<R, F, I, BT, D>(
             &client,
             &device,
-            output.moment_1_codes,
-            output.moment_1_scales,
+            m1_codes_h,
+            m1_scales_h,
             shape.dims(),
             self.momentum.block_size,
         );
         let moment_2 = build_quantize_blockwise::<R, F, I, BT, D>(
             &client,
             &device,
-            output.moment_2_codes,
-            output.moment_2_scales,
+            m2_codes_h,
+            m2_scales_h,
             shape.dims(),
             self.momentum.block_size,
         );
@@ -281,8 +266,8 @@ where
             Some(build_quantize_blockwise::<R, F, I, BT, D>(
                 &client,
                 &device,
-                output.max_moment_2_codes.unwrap(),
-                output.max_moment_2_scales.unwrap(),
+                max_v_codes_h.unwrap(),
+                max_v_scales_h.unwrap(),
                 shape.dims(),
                 self.momentum.block_size,
             ))
@@ -296,7 +281,6 @@ where
             moment_2,
             max_moment_2,
         };
-
         (theta_new, Some(new_state))
     }
 

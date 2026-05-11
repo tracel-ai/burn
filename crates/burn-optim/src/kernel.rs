@@ -12,32 +12,16 @@ use crate::launch::PLANE_SIZE;
 
 #[cube(launch_unchecked)]
 pub fn adamw_8bit_step_kernel(
-    // ---- Inputs (read) ----
-    theta: &Array<f32>,
+    // All in-place now
+    theta: &mut Array<f32>,
     grad: &Array<f32>,
-
-    moment_1_codes: &Array<u32>,
-    moment_1_scales: &Array<f32>,
-    moment_2_codes: &Array<u32>,
-    moment_2_scales: &Array<f32>,
-    max_moment_2_codes: &Array<u32>,
-    max_moment_2_scales: &Array<f32>,
-
-    // ---- Outputs (write) ----
-    theta_new: &mut Array<f32>,
-
-    moment_1_codes_new: &mut Array<u32>,
-    moment_1_scales_new: &mut Array<f32>,
-    moment_2_codes_new: &mut Array<u32>,
-    moment_2_scales_new: &mut Array<f32>,
-    max_moment_2_codes_new: &mut Array<u32>,
-    max_moment_2_scales_new: &mut Array<f32>,
-
-    // ---- Scratch (per-step intermediates) ----
-    update_delta: &mut Array<f32>,
-    m1_dequantized: &mut Array<f32>,
-
-    // ---- Runtime scalars ----
+    moment_1_codes: &mut Array<u32>,
+    moment_1_scales: &mut Array<f32>,
+    moment_2_codes: &mut Array<u32>,
+    moment_2_scales: &mut Array<f32>,
+    max_moment_2_codes: &mut Array<u32>,
+    max_moment_2_scales: &mut Array<f32>,
+    // Runtime scalars
     beta_1: f32,
     beta_2: f32,
     factor_1: f32,
@@ -47,8 +31,6 @@ pub fn adamw_8bit_step_kernel(
     epsilon: f32,
     lr: f32,
     decay_rate: f32,
-
-    // ---- Compile-time specialization ----
     #[comptime] block_size: u32,
     #[comptime] amsgrad: bool,
     #[comptime] is_first_step: bool,
@@ -56,9 +38,16 @@ pub fn adamw_8bit_step_kernel(
 ) {
     let block = CUBE_POS_X;
     let unit = UNIT_POS_X;
-    let i = block * block_size + unit;
+    let elements_per_thread = comptime!(block_size / PLANE_SIZE);
 
-    // --- Phase 1: Moment update + delta computation + requantization ---
+    // Per-lane registers — these replace update_delta and m1_dequantized globals.
+    // cubecl supports Array<f32, N> as a register-resident local array when N
+    // is comptime. If your cubecl version doesn't, use a sequence of scalars
+    // unrolled, or shared memory of size block_size.
+    let mut local_delta = Array::<f32>::new(elements_per_thread as usize);
+    let mut local_m1 = Array::<f32>::new(elements_per_thread as usize);
+
+    // Phase 1: transform writes into locals instead of globals.
     transform::transform(
         block,
         grad,
@@ -68,14 +57,8 @@ pub fn adamw_8bit_step_kernel(
         moment_2_scales,
         max_moment_2_codes,
         max_moment_2_scales,
-        moment_1_codes_new,
-        moment_1_scales_new,
-        moment_2_codes_new,
-        moment_2_scales_new,
-        max_moment_2_codes_new,
-        max_moment_2_scales_new,
-        update_delta,
-        m1_dequantized,
+        &mut local_delta,
+        &mut local_m1,
         beta_1,
         beta_2,
         factor_1,
@@ -88,29 +71,17 @@ pub fn adamw_8bit_step_kernel(
         is_first_step,
     );
 
-    // --- Phase 2: Weight decay + parameter update ---
-    // weight_decay::weight_decay(
-    //     i,
-    //     theta,
-    //     update_delta,
-    //     m1_dequantized,
-    //     theta_new,
-    //     lr,
-    //     decay_rate,
-    //     cautious_weight_decay,
-    // );
-    let elements_per_thread = comptime!(block_size / PLANE_SIZE);
-
+    // Phase 2: weight decay + in-place theta update, reading deltas from registers.
     #[unroll]
     for iter in 0..elements_per_thread {
         let element = unit + iter * PLANE_SIZE;
         let i = block * block_size + element;
         weight_decay::weight_decay(
             i,
+            iter,
             theta,
-            update_delta,
-            m1_dequantized,
-            theta_new,
+            &local_delta,
+            &local_m1,
             lr,
             decay_rate,
             cautious_weight_decay,

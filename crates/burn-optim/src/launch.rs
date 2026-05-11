@@ -7,17 +7,17 @@ pub const PACKING_AMOUNT: u32 = 4;
 pub const PLANE_SIZE: u32 = 32;
 pub const PACK_SHIFT: u32 = 2_u32.pow(8);
 
-/// Result of one fused step: the updated parameter and the new state buffers.
-pub struct AdamWStepOutput<R: Runtime> {
-    pub theta_new: cubecl::server::Handle,
-    pub moment_1_codes: cubecl::server::Handle,
-    pub moment_1_scales: cubecl::server::Handle,
-    pub moment_2_codes: cubecl::server::Handle,
-    pub moment_2_scales: cubecl::server::Handle,
-    pub max_moment_2_codes: Option<cubecl::server::Handle>,
-    pub max_moment_2_scales: Option<cubecl::server::Handle>,
-    pub _phantom: core::marker::PhantomData<R>,
-}
+// /// Result of one fused step: the updated parameter and the new state buffers.
+// pub struct AdamWStepOutput<R: Runtime> {
+//     pub theta_new: cubecl::server::Handle,
+//     pub moment_1_codes: cubecl::server::Handle,
+//     pub moment_1_scales: cubecl::server::Handle,
+//     pub moment_2_codes: cubecl::server::Handle,
+//     pub moment_2_scales: cubecl::server::Handle,
+//     pub max_moment_2_codes: Option<cubecl::server::Handle>,
+//     pub max_moment_2_scales: Option<cubecl::server::Handle>,
+//     pub _phantom: core::marker::PhantomData<R>,
+// }
 
 /// Hyperparameters for one step.
 pub struct AdamWStepParams {
@@ -48,15 +48,13 @@ pub struct AdamWStepInputs<R: Runtime> {
     pub _phantom: core::marker::PhantomData<R>,
 }
 
-/// Launch one fused AdamW step.
-///
-/// Returns handles to the new parameter and new state buffers. The caller
-/// is responsible for wrapping these back into Burn tensors / state structs.
+pub struct AdamWStepOutput;
+
 pub fn launch_adamw_8bit_step<R: Runtime>(
     client: &ComputeClient<R>,
     inputs: AdamWStepInputs<R>,
     params: AdamWStepParams,
-) -> AdamWStepOutput<R> {
+) -> AdamWStepOutput {
     let n = inputs.numel;
     assert_eq!(
         n % params.block_size as usize,
@@ -70,104 +68,54 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
     let packed_count = n / PACKING_AMOUNT as usize;
     let num_blocks_usize = num_blocks as usize;
 
-    // ---- Host-side scalar precomputation ----
     let factor_1 = 1.0 - params.beta_1;
     let factor_2 = 1.0 - params.beta_2;
     let time = params.time as i32;
     let correction1 = 1.0 - params.beta_1.powi(time);
     let correction2_sqrt = (1.0 - params.beta_2.powi(time)).sqrt();
     let decay_rate = params.lr * params.weight_decay;
-    let is_first_step = inputs.moment_1_codes.is_none();
 
-    // ---- Allocate output buffers ----
-    let theta_new_handle = client.empty(n * core::mem::size_of::<f32>());
-    let m1_codes_new = client.empty(packed_count * core::mem::size_of::<u32>());
-    let m1_scales_new = client.empty(num_blocks_usize * core::mem::size_of::<f32>());
-    let m2_codes_new = client.empty(packed_count * core::mem::size_of::<u32>());
-    let m2_scales_new = client.empty(num_blocks_usize * core::mem::size_of::<f32>());
+    // Caller guarantees state buffers exist (they're allocated once on the
+    // optimizer's first step and reused forever). is_first_step tells the
+    // kernel to ignore their contents and initialize from zero.
+    let is_first_step = params.time == 1;
 
-    // For !amsgrad, allocate dummy 1-element buffers; the comptime branch
-    // ensures the kernel never reads or writes them meaningfully.
-    let max_v_codes_new = if params.amsgrad {
-        client.empty(packed_count * core::mem::size_of::<u32>())
+    let m1_codes = inputs.moment_1_codes.expect("state must be preallocated");
+    let m1_scales = inputs.moment_1_scales.expect("state must be preallocated");
+    let m2_codes = inputs.moment_2_codes.expect("state must be preallocated");
+    let m2_scales = inputs.moment_2_scales.expect("state must be preallocated");
+
+    let (max_v_codes, max_v_scales, max_v_codes_size, max_v_scales_size) = if params.amsgrad {
+        (
+            inputs.max_moment_2_codes.expect("amsgrad state required"),
+            inputs.max_moment_2_scales.expect("amsgrad state required"),
+            packed_count,
+            num_blocks_usize,
+        )
     } else {
-        client.empty(core::mem::size_of::<u32>())
+        // Tiny dummy buffers — kernel never touches them under comptime branch.
+        (
+            client.empty(core::mem::size_of::<u32>()),
+            client.empty(core::mem::size_of::<f32>()),
+            1,
+            1,
+        )
     };
-    let max_v_scales_new = if params.amsgrad {
-        client.empty(num_blocks_usize * core::mem::size_of::<f32>())
-    } else {
-        client.empty(core::mem::size_of::<f32>())
-    };
 
-    // ---- Per-step scratch buffers ----
-    // delta and m1_dequantized are intermediate values used between the
-    // transform and weight_decay phases. They're sized to the parameter.
-    let delta_handle = client.empty(n * core::mem::size_of::<f32>());
-    let m1_dequant_handle = client.empty(n * core::mem::size_of::<f32>());
-
-    // ---- Resolve input handles ----
-    // On the first step, moments are None — pass dummy handles (the kernel
-    // skips the dequantize path under is_first_step=true).
-    let dummy_codes = client.empty(core::mem::size_of::<u32>());
-    let dummy_scales = client.empty(core::mem::size_of::<f32>());
-
-    let m1_codes_in = inputs.moment_1_codes.unwrap_or_else(|| dummy_codes.clone());
-    let m1_scales_in = inputs
-        .moment_1_scales
-        .unwrap_or_else(|| dummy_scales.clone());
-    let m2_codes_in = inputs.moment_2_codes.unwrap_or_else(|| dummy_codes.clone());
-    let m2_scales_in = inputs
-        .moment_2_scales
-        .unwrap_or_else(|| dummy_scales.clone());
-    let max_v_codes_in = inputs
-        .max_moment_2_codes
-        .unwrap_or_else(|| dummy_codes.clone());
-    let max_v_scales_in = inputs
-        .max_moment_2_scales
-        .unwrap_or_else(|| dummy_scales.clone());
-
-    // Sizes for ArrayArg::from_raw_parts. For dummy handles used in
-    // unreachable branches, just use 1 — the kernel won't touch them.
-    let m1_codes_in_size = if is_first_step { 1 } else { packed_count };
-    let m1_scales_in_size = if is_first_step { 1 } else { num_blocks_usize };
-    let m2_codes_in_size = if is_first_step { 1 } else { packed_count };
-    let m2_scales_in_size = if is_first_step { 1 } else { num_blocks_usize };
-    let max_v_codes_in_size = if params.amsgrad && !is_first_step {
-        packed_count
-    } else {
-        1
-    };
-    let max_v_scales_in_size = if params.amsgrad && !is_first_step {
-        num_blocks_usize
-    } else {
-        1
-    };
-    let max_v_codes_out_size = if params.amsgrad { packed_count } else { 1 };
-    let max_v_scales_out_size = if params.amsgrad { num_blocks_usize } else { 1 };
-
-    // ---- Launch ----
     unsafe {
         adamw_8bit_step_kernel::launch_unchecked::<R>(
             client,
             CubeCount::Static(num_blocks, 1, 1),
             CubeDim::new(client, PLANE_SIZE as usize),
+            // All in-place: same buffer as input and "output"
             ArrayArg::from_raw_parts(inputs.theta, n),
             ArrayArg::from_raw_parts(inputs.grad, n),
-            ArrayArg::from_raw_parts(m1_codes_in, m1_codes_in_size),
-            ArrayArg::from_raw_parts(m1_scales_in, m1_scales_in_size),
-            ArrayArg::from_raw_parts(m2_codes_in, m2_codes_in_size),
-            ArrayArg::from_raw_parts(m2_scales_in, m2_scales_in_size),
-            ArrayArg::from_raw_parts(max_v_codes_in, max_v_codes_in_size),
-            ArrayArg::from_raw_parts(max_v_scales_in, max_v_scales_in_size),
-            ArrayArg::from_raw_parts(theta_new_handle.clone(), n),
-            ArrayArg::from_raw_parts(m1_codes_new.clone(), packed_count),
-            ArrayArg::from_raw_parts(m1_scales_new.clone(), num_blocks_usize),
-            ArrayArg::from_raw_parts(m2_codes_new.clone(), packed_count),
-            ArrayArg::from_raw_parts(m2_scales_new.clone(), num_blocks_usize),
-            ArrayArg::from_raw_parts(max_v_codes_new.clone(), max_v_codes_out_size),
-            ArrayArg::from_raw_parts(max_v_scales_new.clone(), max_v_scales_out_size),
-            ArrayArg::from_raw_parts(delta_handle, n),
-            ArrayArg::from_raw_parts(m1_dequant_handle, n),
+            ArrayArg::from_raw_parts(m1_codes, packed_count),
+            ArrayArg::from_raw_parts(m1_scales, num_blocks_usize),
+            ArrayArg::from_raw_parts(m2_codes, packed_count),
+            ArrayArg::from_raw_parts(m2_scales, num_blocks_usize),
+            ArrayArg::from_raw_parts(max_v_codes, max_v_codes_size),
+            ArrayArg::from_raw_parts(max_v_scales, max_v_scales_size),
             params.beta_1,
             params.beta_2,
             factor_1,
@@ -184,22 +132,5 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
         );
     }
 
-    AdamWStepOutput {
-        theta_new: theta_new_handle,
-        moment_1_codes: m1_codes_new,
-        moment_1_scales: m1_scales_new,
-        moment_2_codes: m2_codes_new,
-        moment_2_scales: m2_scales_new,
-        max_moment_2_codes: if params.amsgrad {
-            Some(max_v_codes_new)
-        } else {
-            None
-        },
-        max_moment_2_scales: if params.amsgrad {
-            Some(max_v_scales_new)
-        } else {
-            None
-        },
-        _phantom: core::marker::PhantomData,
-    }
+    AdamWStepOutput
 }
