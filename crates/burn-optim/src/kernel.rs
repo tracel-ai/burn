@@ -67,6 +67,10 @@ pub fn adamw_8bit_step_kernel(
     let unit = UNIT_POS_X;
     let i = block * block_size + unit;
 
+    if block >= num_blocks {
+        terminate!();
+    }
+
     // --- Phase 1: Moment update + delta computation + requantization ---
     transform::transform(
         block,
