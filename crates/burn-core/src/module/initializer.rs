@@ -363,7 +363,7 @@ mod tests {
     fn initializer_constant_init() {
         let value = 5.0;
         let constants: Tensor<4> = Initializer::Constant { value }
-            .init([2, 2, 2, 2], &Default::default())
+            .init([2, 2, 2, 2], &TestDevice::default().into())
             .into_value();
         constants.sum().to_data().assert_approx_eq::<FT>(
             &TensorData::from([value as f32 * 16.0]),
@@ -374,7 +374,7 @@ mod tests {
     #[test]
     fn initializer_zeros_init() {
         let zeros: Tensor<4> = Initializer::Zeros
-            .init([2, 2, 2, 2], &Default::default())
+            .init([2, 2, 2, 2], &TestDevice::default().into())
             .into_value();
         zeros
             .sum()
@@ -385,7 +385,7 @@ mod tests {
     #[test]
     fn initializer_ones_init() {
         let ones: Tensor<4> = Initializer::Ones
-            .init([2, 2, 2, 2], &Default::default())
+            .init([2, 2, 2, 2], &TestDevice::default().into())
             .into_value();
         ones.sum()
             .to_data()
@@ -405,7 +405,7 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .init_with([fan_out, fan_in], Some(fan_in), None, &device)
         .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
@@ -424,7 +424,7 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .init_with([fan_out, fan_in], Some(fan_in), None, &device)
         .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
@@ -443,7 +443,7 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init_with(shape, Some(fan_in), None, &Default::default())
+        .init_with(shape, Some(fan_in), None, &device)
         .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
@@ -461,7 +461,7 @@ mod tests {
             gain,
             fan_out_only: true,
         }
-        .init_with([fan_out, fan_in], None, Some(fan_out), &Default::default())
+        .init_with([fan_out, fan_in], None, Some(fan_out), &device)
         .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
@@ -479,7 +479,7 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init([fan_out, fan_in], &Default::default())
+        .init([fan_out, fan_in], &device)
         .into_value();
     }
 
@@ -492,12 +492,7 @@ mod tests {
         let (fan_in, fan_out) = (5, 6);
         let bound = (gain * (6. / (fan_in + fan_out) as f64).sqrt()).elem::<FT>();
         let tensor: Tensor<2> = Initializer::XavierUniform { gain }
-            .init_with(
-                [fan_out, fan_in],
-                Some(fan_in),
-                Some(fan_out),
-                &Default::default(),
-            )
+            .init_with([fan_out, fan_in], Some(fan_in), Some(fan_out), &device)
             .into_value();
 
         tensor.into_data().assert_within_range(-bound..bound);
@@ -514,12 +509,7 @@ mod tests {
 
         let expected_var = (gain * (2. / (fan_in as f64 + fan_out as f64)).sqrt()).powf(2.);
         let tensor: Tensor<2> = Initializer::XavierNormal { gain }
-            .init_with(
-                [fan_out, fan_in],
-                Some(fan_in),
-                Some(fan_out),
-                &Default::default(),
-            )
+            .init_with([fan_out, fan_in], Some(fan_in), Some(fan_out), &device)
             .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
@@ -533,7 +523,7 @@ mod tests {
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
         let _: Tensor<2> = Initializer::XavierUniform { gain }
-            .init([fan_out, fan_in], &Default::default())
+            .init([fan_out, fan_in], &device)
             .into_value();
     }
 
@@ -545,9 +535,9 @@ mod tests {
         // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
         let a = Tensor::<2>::from_floats(
             [[12., -51., 4.], [6., 167., -68.], [-4., 24., -41.]],
-            &Default::default(),
+            &device,
         );
-        let qr = qr_decomposition(a.clone(), &Default::default());
+        let qr = qr_decomposition(a.clone(), &device);
 
         // Q @ R should reconstruct input `a`
         let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
@@ -568,9 +558,9 @@ mod tests {
         // test 2D tensor
         let size = 10;
         let q: Tensor<2> = Initializer::Orthogonal { gain }
-            .init([size, size], &Default::default())
+            .init([size, size], &device)
             .into_value();
-        let eye = Tensor::<2>::eye(size, &Default::default());
+        let eye = Tensor::<2>::eye(size, &device);
 
         // Q.T @ Q should be close to identity matrix
         q.clone()
@@ -590,7 +580,7 @@ mod tests {
         // test 2D tensor
         let shape = [25, 30];
         let t: Tensor<2> = Initializer::Orthogonal { gain }
-            .init(shape, &Default::default())
+            .init(shape, &device)
             .into_value();
         let dims = t.dims();
         assert_eq!(
@@ -601,7 +591,7 @@ mod tests {
         // test 3D tensor
         let shape = [24, 6, 85];
         let t: Tensor<3> = Initializer::Orthogonal { gain }
-            .init(shape, &Default::default())
+            .init(shape, &device)
             .into_value();
         let dims = t.dims();
         assert_eq!(
@@ -621,7 +611,7 @@ mod tests {
         // test 1D tensor
         let shape = [3];
         let _: Tensor<1> = Initializer::Orthogonal { gain }
-            .init(shape, &Default::default())
+            .init(shape, &device)
             .into_value();
     }
 }
