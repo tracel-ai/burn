@@ -44,7 +44,6 @@ where $N$ is the size of the signal along the specified dimension.
 /// # Example
 ///
 /// ```rust
-
 /// use burn_tensor::Tensor;
 ///
 /// fn example() {
@@ -116,7 +115,6 @@ where $N$ is the size of the reconstructed signal.
 /// # Example
 ///
 /// ```rust
-
 /// use burn_tensor::Tensor;
 ///
 /// fn example() {

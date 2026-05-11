@@ -34,7 +34,6 @@ use serde::{Serialize, Serializer};
 /// ## Example
 ///
 /// ```rust
-
 /// use burn_tensor::Tensor;
 /// use burn_tensor::Int;
 ///
@@ -680,7 +679,6 @@ where
     ///
     /// ```rust
     ///
-
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example() {
@@ -722,7 +720,6 @@ where
     ///
     /// ```rust
     ///
-
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example() {
@@ -773,7 +770,6 @@ where
     ///
     /// ```rust
     ///
-
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example() {
@@ -826,7 +822,6 @@ where
     ///
     /// ```rust
     ///
-
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example() {
@@ -1985,7 +1980,6 @@ where
     ///
     /// ```rust
     ///
-
     /// use burn_tensor::Tensor;
     ///
     /// fn example() {
