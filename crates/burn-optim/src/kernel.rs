@@ -46,6 +46,10 @@ pub fn adamw_8bit_step_kernel(
 
     let block = CUBE_POS_X + CUBE_POS_Y * cube_count_x + CUBE_POS_Z * cube_count_x * cube_count_y;
 
+    if block >= num_blocks {
+        terminate!();
+    }
+
     let unit = UNIT_POS_X;
     let elements_per_thread = comptime!(block_size / PLANE_SIZE);
 
