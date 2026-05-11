@@ -75,6 +75,7 @@ cubek = { workspace = true, features = [
     "matmul",
     "convolution",
     "interpolate",
+    "pool",
     "reduce",
     "random",
     "quantization",
