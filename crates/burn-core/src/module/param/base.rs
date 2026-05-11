@@ -47,7 +47,7 @@ fn new_init_fn<P: Parameter, F: Fn(&Device, bool) -> P + Send + Sync + 'static>(
 }
 
 #[cfg(not(target_has_atomic = "ptr"))]
-fn new_init_fn<P: Parameter, F: Fn(&P::Device, bool) -> P + Send + Sync + 'static>(
+fn new_init_fn<P: Parameter, F: Fn(&Device, bool) -> P + Send + Sync + 'static>(
     func: F,
 ) -> InitFn<P> {
     Arc::new(Box::new(func))

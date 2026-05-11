@@ -527,7 +527,7 @@ mod require_grad {
 
     #[test]
     fn should_have_grad_by_default() {
-        let device = TestDevice::default().into().autodiff();
+        let device = Device::new(TestDevice::default()).autodiff();
         let module = ModuleBasic::new(&device);
         let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
 
@@ -536,7 +536,7 @@ mod require_grad {
 
     #[test]
     fn should_have_no_grad_after_no_grad() {
-        let device = TestDevice::default().into().autodiff();
+        let device = Device::new(TestDevice::default()).autodiff();
         let module = ModuleBasic::new(&device).no_grad();
         let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
 
@@ -545,7 +545,7 @@ mod require_grad {
 
     #[test]
     fn should_have_grad_when_from_record() {
-        let device = TestDevice::default().into().autodiff();
+        let device = Device::new(TestDevice::default()).autodiff();
         let module = ModuleBasic::new(&device);
         let record = ModuleBasicRecord {
             weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
