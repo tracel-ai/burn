@@ -374,7 +374,10 @@ enum PyTorchConversionDirection {
 fn is_normalization_layer(container_type: &str) -> bool {
     matches!(
         container_type,
-        module_names::BATCH_NORM | module_names::LAYER_NORM | module_names::GROUP_NORM
+        module_names::BATCH_NORM
+            | module_names::LAYER_NORM
+            | module_names::GROUP_NORM
+            | module_names::RMS_NORM
     )
 }
 
