@@ -37,4 +37,4 @@ opentelemetry = { workspace = true, features = ["trace"] }
 opentelemetry_sdk = { workspace = true }
 opentelemetry-aws = { workspace = true }
 opentelemetry-otlp = { workspace = true, features = ["tracing", "grpc-tonic"] }
-opentelemetry-stdout = "0.31.0"
+opentelemetry-stdout = "0.32.0"
