@@ -150,18 +150,20 @@ pub mod nn {
 pub use burn_std::config::config as runtime_config;
 
 /// Optimizers module.
+#[cfg(feature = "optim")]
 pub mod optim {
     pub use burn_optim::*;
 }
 
 // For backward compat, `burn::lr_scheduler::*`
 /// Learning rate scheduler module.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "optim", feature = "std"))]
 pub mod lr_scheduler {
     pub use burn_optim::lr_scheduler::*;
 }
 // For backward compat, `burn::grad_clipping::*`
 /// Gradient clipping module.
+#[cfg(feature = "optim")]
 pub mod grad_clipping {
     pub use burn_optim::grad_clipping::*;
 }

@@ -16,9 +16,6 @@ burn-core = { workspace = true, features = [
     "dataset",
     "std",
 ] }
-burn-optim = { workspace = true, features = [
-    "std",
-] }
 
 derive-new.workspace = true
 log = { workspace = true }

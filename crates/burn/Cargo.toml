@@ -24,10 +24,11 @@ workspace = true
 [features]
 default = [
     "std",
+    "optim",
     "burn-core/default",
     "burn-train?/default",
     "burn-nn/default",
-    "burn-optim/default",
+    "burn-optim?/default",
     "burn-autodiff?/default",
 ]
 doc = [
@@ -37,14 +38,14 @@ doc = [
     "burn-train/doc",
     "burn-store?/std",
     "burn-nn/doc",
-    "burn-optim/doc",
+    "burn-optim?/doc",
     "burn-autodiff?/std",
 ]
 std = [
     "burn-core/std",
     "burn-store?/std",
     "burn-nn/std",
-    "burn-optim/std",
+    "burn-optim?/std",
     "burn-autodiff?/std",
 ]
 tracing = [
@@ -52,7 +53,7 @@ tracing = [
     "burn-core/tracing",
     "burn-vision?/tracing",
     "burn-nn/tracing",
-    "burn-optim/tracing",
+    "burn-optim?/tracing",
 ]
 
 
@@ -85,6 +86,9 @@ cubecl = ["dep:cubecl"]
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision", "burn-vision"]
 rl = ["dep:burn-rl", "burn-train?/rl"]
+
+# Optimizer
+optim = ["burn-optim", "autodiff"]
 
 # Backend
 ir = ["burn-ir"]
@@ -141,7 +145,7 @@ burn-core = { workspace = true }
 burn-train = { workspace = true, optional = true }
 burn-store = { workspace = true, optional = true }
 burn-nn = { workspace = true }
-burn-optim = { workspace = true }
+burn-optim = { workspace = true, optional = true }
 burn-rl = { workspace = true, optional = true }
 burn-vision = { workspace = true, optional = true }
 burn-std = { workspace = true }

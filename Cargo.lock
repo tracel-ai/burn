@@ -1082,7 +1082,6 @@ name = "burn-rl"
 version = "0.22.0-pre.1"
 dependencies = [
  "burn-core",
- "burn-optim",
  "derive-new",
  "log",
  "rand 0.10.1",
