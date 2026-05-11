@@ -92,7 +92,7 @@ rand.workspace = true
 
 [dev-dependencies]
 # Used to initialize device settings (test dtypes)
-ctor = "0.10.1"
+ctor = "1.0.4"
 divan = "0.1"
 
 [[bench]]
