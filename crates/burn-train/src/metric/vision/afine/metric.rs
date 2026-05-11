@@ -5,8 +5,8 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 use super::calibrators::{
     AfineAdapter, AfineAdapterConfig, FrCalibratorWithLimit, FrCalibratorWithLimitConfig,
@@ -40,7 +40,7 @@ impl AfineConfig {
     /// All six learnable submodules are initialized fresh; useful for
     /// shape/property tests but produces meaningless quality scores
     /// until [`Self::init_pretrained`] is called.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Afine<B> {
+    pub fn init(&self, device: &Device) -> Afine {
         assert_eq!(
             self.image_size % 32,
             0,
@@ -68,7 +68,7 @@ impl AfineConfig {
     /// mirror on first call, caches it under
     /// `~/.cache/burn-dataset/afine/`, and loads all six shards into the
     /// matching submodules.
-    pub fn init_pretrained<B: Backend>(&self, device: &B::Device) -> Afine<B> {
+    pub fn init_pretrained(&self, device: &Device) -> Afine {
         let afine = self.init(device);
         super::weights::load_pretrained_weights(afine)
     }
@@ -84,19 +84,19 @@ impl AfineConfig {
 /// inputs differently.
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Afine<B: Backend> {
-    pub(crate) clip_visual: ClipVisualEncoder<B>,
-    pub(crate) qhead: AfineQHead<B>,
-    pub(crate) dhead: AfineDHead<B>,
-    pub(crate) nr_calibrator: NrCalibrator<B>,
-    pub(crate) fr_calibrator: FrCalibratorWithLimit<B>,
-    pub(crate) adapter: AfineAdapter<B>,
+pub struct Afine {
+    pub(crate) clip_visual: ClipVisualEncoder,
+    pub(crate) qhead: AfineQHead,
+    pub(crate) dhead: AfineDHead,
+    pub(crate) nr_calibrator: NrCalibrator,
+    pub(crate) fr_calibrator: FrCalibratorWithLimit,
+    pub(crate) adapter: AfineAdapter,
 
     pub(crate) image_size: usize,
     pub(crate) normalize_input: bool,
 }
 
-impl<B: Backend> Afine<B> {
+impl Afine {
     /// Compute the A-FINE quality score.
     ///
     /// # Shapes
@@ -104,7 +104,7 @@ impl<B: Backend> Afine<B> {
     ///   both multiples of 32. Values in `[0, 1]` (RGB) when
     ///   `normalize_input` is true; already-normalized when false.
     /// - returns: `[batch]` per-sample score in `(0, 100)`.
-    pub fn forward(&self, distorted: Tensor<B, 4>, reference: Tensor<B, 4>) -> Tensor<B, 1> {
+    pub fn forward(&self, distorted: Tensor<4>, reference: Tensor<4>) -> Tensor<1> {
         let [_, _, height, width] = distorted.dims();
         assert_eq!(
             height % 32,
@@ -119,11 +119,11 @@ impl<B: Backend> Afine<B> {
 
         let device = distorted.device();
         let (dis_norm, ref_norm) = if self.normalize_input {
-            let mean = Tensor::<B, 4>::from_floats(
+            let mean = Tensor::<4>::from_floats(
                 [[[[CLIP_MEAN[0]]], [[CLIP_MEAN[1]]], [[CLIP_MEAN[2]]]]],
                 &device,
             );
-            let std = Tensor::<B, 4>::from_floats(
+            let std = Tensor::<4>::from_floats(
                 [[[[CLIP_STD[0]]], [[CLIP_STD[1]]], [[CLIP_STD[2]]]]],
                 &device,
             );
@@ -163,7 +163,7 @@ impl<B: Backend> Afine<B> {
     }
 }
 
-impl<B: Backend> ModuleDisplay for Afine<B> {
+impl ModuleDisplay for Afine {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -183,27 +183,21 @@ impl<B: Backend> ModuleDisplay for Afine<B> {
 mod tests {
     use super::*;
     use burn::tensor::Distribution;
-    use burn_flex::Flex;
 
-    type TestBackend = Flex;
-
-    fn small_metric() -> Afine<TestBackend> {
+    fn small_metric() -> Afine {
         // A small image_size keeps tests fast — 12-layer CLIP at the
         // default 256x256 takes a noticeable fraction of a second per
         // forward.
         let device = Default::default();
-        AfineConfig::new()
-            .with_image_size(64)
-            .init::<TestBackend>(&device)
+        AfineConfig::new().with_image_size(64).init(&device)
     }
 
     #[test]
     fn afine_forward_shape() {
         let device = Default::default();
         let metric = small_metric();
-        let dis = Tensor::<TestBackend, 4>::random([2, 3, 64, 64], Distribution::Default, &device);
-        let reference =
-            Tensor::<TestBackend, 4>::random([2, 3, 64, 64], Distribution::Default, &device);
+        let dis = Tensor::<4>::random([2, 3, 64, 64], Distribution::Default, &device);
+        let reference = Tensor::<4>::random([2, 3, 64, 64], Distribution::Default, &device);
         let score = metric.forward(dis, reference);
         assert_eq!(score.dims(), [2]);
     }
@@ -212,9 +206,8 @@ mod tests {
     fn afine_batch_processing() {
         let device = Default::default();
         let metric = small_metric();
-        let dis = Tensor::<TestBackend, 4>::random([4, 3, 64, 64], Distribution::Default, &device);
-        let reference =
-            Tensor::<TestBackend, 4>::random([4, 3, 64, 64], Distribution::Default, &device);
+        let dis = Tensor::<4>::random([4, 3, 64, 64], Distribution::Default, &device);
+        let reference = Tensor::<4>::random([4, 3, 64, 64], Distribution::Default, &device);
         let score = metric.forward(dis, reference);
         let values = score.into_data().to_vec::<f32>().unwrap();
         assert_eq!(values.len(), 4);
@@ -229,8 +222,8 @@ mod tests {
         // SSIM ratios finite when feature variance is zero.
         let device = Default::default();
         let metric = small_metric();
-        let zeros = Tensor::<TestBackend, 4>::zeros([1, 3, 64, 64], &device);
-        let ones = Tensor::<TestBackend, 4>::ones([1, 3, 64, 64], &device);
+        let zeros = Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        let ones = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let score = metric.forward(zeros, ones);
         let value = score.into_data().to_vec::<f32>().unwrap()[0];
         assert!(value.is_finite(), "got non-finite value {value}");
@@ -243,8 +236,8 @@ mod tests {
         // sign in the exponent.
         let device = Default::default();
         let metric = small_metric();
-        let a = Tensor::<TestBackend, 4>::random([1, 3, 64, 64], Distribution::Default, &device);
-        let b = Tensor::<TestBackend, 4>::random([1, 3, 64, 64], Distribution::Default, &device);
+        let a = Tensor::<4>::random([1, 3, 64, 64], Distribution::Default, &device);
+        let b = Tensor::<4>::random([1, 3, 64, 64], Distribution::Default, &device);
         let forward = metric
             .forward(a.clone(), b.clone())
             .into_data()
@@ -262,7 +255,7 @@ mod tests {
         let result = std::panic::catch_unwind(|| {
             AfineConfig::new()
                 .with_image_size(33)
-                .init::<TestBackend>(&Default::default());
+                .init(&Default::default());
         });
         assert!(result.is_err(), "expected init to panic on bad image_size");
     }
@@ -296,14 +289,14 @@ mod tests {
         let device = Default::default();
         let metric = AfineConfig::new()
             .with_image_size(224)
-            .init_pretrained::<TestBackend>(&device);
+            .init_pretrained(&device);
 
         let total: i64 = 1 * 3 * 224 * 224;
-        let dis = Tensor::<TestBackend, 1, burn::tensor::Int>::arange(0..total, &device)
+        let dis = Tensor::<1, burn::tensor::Int>::arange(0..total, &device)
             .float()
             .div_scalar((total - 1) as f64)
             .reshape([1, 3, 224, 224]);
-        let reference = Tensor::<TestBackend, 1, burn::tensor::Int>::arange(0..total, &device)
+        let reference = Tensor::<1, burn::tensor::Int>::arange(0..total, &device)
             .float()
             .div_scalar(total as f64)
             .reshape([1, 3, 224, 224]);
@@ -338,19 +331,17 @@ mod tests {
         // pass, but the pretrained output should land in a very
         // different region of the score range.
         let device = Default::default();
-        let dis =
-            Tensor::<TestBackend, 4>::random([1, 3, 256, 256], Distribution::Default, &device);
-        let reference =
-            Tensor::<TestBackend, 4>::random([1, 3, 256, 256], Distribution::Default, &device);
+        let dis = Tensor::<4>::random([1, 3, 256, 256], Distribution::Default, &device);
+        let reference = Tensor::<4>::random([1, 3, 256, 256], Distribution::Default, &device);
 
-        let random_metric = AfineConfig::new().init::<TestBackend>(&device);
+        let random_metric = AfineConfig::new().init(&device);
         let random_score = random_metric
             .forward(dis.clone(), reference.clone())
             .into_data()
             .to_vec::<f32>()
             .unwrap()[0];
 
-        let pretrained_metric = AfineConfig::new().init_pretrained::<TestBackend>(&device);
+        let pretrained_metric = AfineConfig::new().init_pretrained(&device);
         let pretrained_score = pretrained_metric
             .forward(dis, reference)
             .into_data()

@@ -24,9 +24,9 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Module, Param};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::{sigmoid, softplus};
-use burn::tensor::backend::Backend;
 
 const NR_YITA1: f64 = 2.0;
 const NR_YITA2: f64 = -2.0;
@@ -56,13 +56,13 @@ const EPS: f64 = 1e-10;
 
 /// Apply `(yita1 - yita2) * sigmoid((x - yita3) / (|yita4| + eps)) + yita2`
 /// element-wise, broadcasting the 1-D scalar parameters over the input.
-fn logistic_calibrate<B: Backend>(
-    x: Tensor<B, 2>,
-    yita3: Tensor<B, 1>,
-    yita4_abs: Tensor<B, 1>,
+fn logistic_calibrate(
+    x: Tensor<2>,
+    yita3: Tensor<1>,
+    yita4_abs: Tensor<1>,
     yita1: f64,
     yita2: f64,
-) -> Tensor<B, 2> {
+) -> Tensor<2> {
     let yita3 = yita3.reshape([1, 1]);
     let denom = yita4_abs.reshape([1, 1]).add_scalar(EPS);
     let inner = (x - yita3) / denom;
@@ -74,7 +74,7 @@ fn logistic_calibrate<B: Backend>(
 pub(crate) struct NrCalibratorConfig {}
 
 impl NrCalibratorConfig {
-    pub(crate) fn init<B: Backend>(&self, device: &B::Device) -> NrCalibrator<B> {
+    pub(crate) fn init(&self, device: &Device) -> NrCalibrator {
         NrCalibrator {
             yita3: Param::from_tensor(Tensor::from_floats([NR_YITA3_INIT], device)),
             yita4: Param::from_tensor(Tensor::from_floats([NR_YITA4_INIT], device)),
@@ -84,13 +84,13 @@ impl NrCalibratorConfig {
 
 /// Naturalness logistic calibrator. Maps `[B, 1]` into `(-2, 2)`.
 #[derive(Module, Debug)]
-pub(crate) struct NrCalibrator<B: Backend> {
-    pub(crate) yita3: Param<Tensor<B, 1>>,
-    pub(crate) yita4: Param<Tensor<B, 1>>,
+pub(crate) struct NrCalibrator {
+    pub(crate) yita3: Param<Tensor<1>>,
+    pub(crate) yita4: Param<Tensor<1>>,
 }
 
-impl<B: Backend> NrCalibrator<B> {
-    pub(crate) fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+impl NrCalibrator {
+    pub(crate) fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         logistic_calibrate(
             x,
             self.yita3.val(),
@@ -106,7 +106,7 @@ impl<B: Backend> NrCalibrator<B> {
 pub(crate) struct FrCalibratorWithLimitConfig {}
 
 impl FrCalibratorWithLimitConfig {
-    pub(crate) fn init<B: Backend>(&self, device: &B::Device) -> FrCalibratorWithLimit<B> {
+    pub(crate) fn init(&self, device: &Device) -> FrCalibratorWithLimit {
         FrCalibratorWithLimit {
             yita3: Param::from_tensor(Tensor::from_floats([FR_YITA3_INIT], device)),
             yita4: Param::from_tensor(Tensor::from_floats([FR_YITA4_INIT], device)),
@@ -118,13 +118,13 @@ impl FrCalibratorWithLimitConfig {
 /// `yita4`. PyIQA clamps the values used in the formula on every call;
 /// the stored parameter is unchanged.
 #[derive(Module, Debug)]
-pub(crate) struct FrCalibratorWithLimit<B: Backend> {
-    pub(crate) yita3: Param<Tensor<B, 1>>,
-    pub(crate) yita4: Param<Tensor<B, 1>>,
+pub(crate) struct FrCalibratorWithLimit {
+    pub(crate) yita3: Param<Tensor<1>>,
+    pub(crate) yita4: Param<Tensor<1>>,
 }
 
-impl<B: Backend> FrCalibratorWithLimit<B> {
-    pub(crate) fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+impl FrCalibratorWithLimit {
+    pub(crate) fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         // Match PyIQA semantics exactly: clamp first, then abs. The
         // clamp range is positive so the abs is a no-op for in-range
         // values, but for an out-of-range checkpoint or a parameter
@@ -140,7 +140,7 @@ impl<B: Backend> FrCalibratorWithLimit<B> {
 pub(crate) struct AfineAdapterConfig {}
 
 impl AfineAdapterConfig {
-    pub(crate) fn init<B: Backend>(&self, device: &B::Device) -> AfineAdapter<B> {
+    pub(crate) fn init(&self, device: &Device) -> AfineAdapter {
         AfineAdapter {
             k: Param::from_tensor(Tensor::from_floats([ADAPTER_K_INIT], device)),
         }
@@ -153,17 +153,17 @@ impl AfineAdapterConfig {
 /// `D = exp(softplus(k) * (N_ref - N_dis)) * N_dis + F`. The `softplus`
 /// wrapper enforces `k > 0` without constraining the stored parameter.
 #[derive(Module, Debug)]
-pub(crate) struct AfineAdapter<B: Backend> {
-    pub(crate) k: Param<Tensor<B, 1>>,
+pub(crate) struct AfineAdapter {
+    pub(crate) k: Param<Tensor<1>>,
 }
 
-impl<B: Backend> AfineAdapter<B> {
+impl AfineAdapter {
     pub(crate) fn forward(
         &self,
-        x_nr: Tensor<B, 2>,
-        ref_nr: Tensor<B, 2>,
-        xref_fr: Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
+        x_nr: Tensor<2>,
+        ref_nr: Tensor<2>,
+        xref_fr: Tensor<2>,
+    ) -> Tensor<2> {
         let k_pos = softplus(self.k.val(), 1.0).reshape([1, 1]);
         let weight = (k_pos * (ref_nr - x_nr.clone())).exp();
         weight * x_nr + xref_fr
@@ -172,7 +172,7 @@ impl<B: Backend> AfineAdapter<B> {
 
 /// Map a raw adapter score into `(0, 100)` via a fixed 4-parameter
 /// logistic. Constants are the paper-reported defaults.
-pub(crate) fn scale_finalscore<B: Backend>(score: Tensor<B, 2>) -> Tensor<B, 2> {
+pub(crate) fn scale_finalscore(score: Tensor<2>) -> Tensor<2> {
     let denom = SCALE_YITA4.abs() + EPS;
     let inner = score.sub_scalar(SCALE_YITA3).div_scalar(denom);
     sigmoid(inner)
@@ -183,16 +183,13 @@ pub(crate) fn scale_finalscore<B: Backend>(score: Tensor<B, 2>) -> Tensor<B, 2> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_flex::Flex;
-
-    type TestBackend = Flex;
 
     #[test]
     fn nr_calibrator_maps_to_bounded_range() {
         let device = Default::default();
-        let calibrator = NrCalibratorConfig::new().init::<TestBackend>(&device);
+        let calibrator = NrCalibratorConfig::new().init(&device);
 
-        let extremes = Tensor::<TestBackend, 2>::from_floats([[-1000.0], [0.0], [1000.0]], &device);
+        let extremes = Tensor::<2>::from_floats([[-1000.0], [0.0], [1000.0]], &device);
         let out = calibrator.forward(extremes);
         let values = out.into_data().to_vec::<f32>().unwrap();
 
@@ -207,9 +204,9 @@ mod tests {
     #[test]
     fn fr_calibrator_clamp_does_not_panic() {
         let device = Default::default();
-        let calibrator = FrCalibratorWithLimitConfig::new().init::<TestBackend>(&device);
+        let calibrator = FrCalibratorWithLimitConfig::new().init(&device);
 
-        let input = Tensor::<TestBackend, 2>::from_floats([[0.5], [1.5], [-0.5]], &device);
+        let input = Tensor::<2>::from_floats([[0.5], [1.5], [-0.5]], &device);
         let out = calibrator.forward(input);
 
         assert_eq!(out.dims(), [3, 1]);
@@ -218,11 +215,11 @@ mod tests {
     #[test]
     fn adapter_forward_propagates_shape() {
         let device = Default::default();
-        let adapter = AfineAdapterConfig::new().init::<TestBackend>(&device);
+        let adapter = AfineAdapterConfig::new().init(&device);
 
-        let nr_dis = Tensor::<TestBackend, 2>::from_floats([[0.5], [-0.3]], &device);
-        let nr_ref = Tensor::<TestBackend, 2>::from_floats([[0.7], [-0.1]], &device);
-        let fr = Tensor::<TestBackend, 2>::from_floats([[0.2], [0.4]], &device);
+        let nr_dis = Tensor::<2>::from_floats([[0.5], [-0.3]], &device);
+        let nr_ref = Tensor::<2>::from_floats([[0.7], [-0.1]], &device);
+        let fr = Tensor::<2>::from_floats([[0.2], [0.4]], &device);
 
         let out = adapter.forward(nr_dis, nr_ref, fr);
         assert_eq!(out.dims(), [2, 1]);
@@ -232,8 +229,7 @@ mod tests {
     fn scale_finalscore_maps_to_0_100_range() {
         let device = Default::default();
 
-        let scores =
-            Tensor::<TestBackend, 2>::from_floats([[-1000.0], [-1.971], [1000.0]], &device);
+        let scores = Tensor::<2>::from_floats([[-1000.0], [-1.971], [1000.0]], &device);
         let out = scale_finalscore(scores);
         let values = out.into_data().to_vec::<f32>().unwrap();
 

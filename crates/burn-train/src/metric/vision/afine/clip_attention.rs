@@ -19,9 +19,9 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::softmax;
-use burn::tensor::backend::Backend;
 use burn_nn::{Linear, LinearConfig};
 
 /// Configuration for [`ClipQkvAttention`].
@@ -35,7 +35,7 @@ pub(crate) struct ClipQkvAttentionConfig {
 
 impl ClipQkvAttentionConfig {
     /// Initialize a [`ClipQkvAttention`] block.
-    pub(crate) fn init<B: Backend>(&self, device: &B::Device) -> ClipQkvAttention<B> {
+    pub(crate) fn init(&self, device: &Device) -> ClipQkvAttention {
         assert_eq!(
             self.d_model % self.n_heads,
             0,
@@ -61,11 +61,11 @@ impl ClipQkvAttentionConfig {
 /// Self-attention with a fused QKV projection, matching CLIP's checkpoint
 /// layout one-to-one.
 #[derive(Module, Debug)]
-pub(crate) struct ClipQkvAttention<B: Backend> {
+pub(crate) struct ClipQkvAttention {
     /// Fused projection `d_model -> 3 * d_model` for Q, K, V.
-    pub(crate) qkv_proj: Linear<B>,
+    pub(crate) qkv_proj: Linear,
     /// Output projection `d_model -> d_model`.
-    pub(crate) out_proj: Linear<B>,
+    pub(crate) out_proj: Linear,
     /// Embedding dimension.
     pub(crate) d_model: usize,
     /// Number of attention heads.
@@ -74,9 +74,9 @@ pub(crate) struct ClipQkvAttention<B: Backend> {
     pub(crate) head_dim: usize,
 }
 
-impl<B: Backend> ClipQkvAttention<B> {
+impl ClipQkvAttention {
     /// Apply self-attention. Input and output shape: `[batch, seq, d_model]`.
-    pub(crate) fn forward(&self, x: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub(crate) fn forward(&self, x: Tensor<3>) -> Tensor<3> {
         let [batch, seq, _] = x.dims();
 
         let qkv = self.qkv_proj.forward(x);
@@ -85,7 +85,7 @@ impl<B: Backend> ClipQkvAttention<B> {
         let key = chunks.remove(1);
         let query = chunks.remove(0);
 
-        let to_heads = |t: Tensor<B, 3>| {
+        let to_heads = |t: Tensor<3>| {
             t.reshape([batch, seq, self.n_heads, self.head_dim])
                 .swap_dims(1, 2)
         };
@@ -109,16 +109,13 @@ impl<B: Backend> ClipQkvAttention<B> {
 mod tests {
     use super::*;
     use burn::tensor::Distribution;
-    use burn_flex::Flex;
-
-    type TestBackend = Flex;
 
     #[test]
     fn clip_qkv_attention_preserves_shape() {
         let device = Default::default();
-        let attn = ClipQkvAttentionConfig::new(768, 12).init::<TestBackend>(&device);
+        let attn = ClipQkvAttentionConfig::new(768, 12).init(&device);
 
-        let input = Tensor::<TestBackend, 3>::random([1, 50, 768], Distribution::Default, &device);
+        let input = Tensor::<3>::random([1, 50, 768], Distribution::Default, &device);
         let output = attn.forward(input);
 
         assert_eq!(output.dims(), [1, 50, 768]);
@@ -127,9 +124,9 @@ mod tests {
     #[test]
     fn clip_qkv_attention_handles_batch() {
         let device = Default::default();
-        let attn = ClipQkvAttentionConfig::new(64, 4).init::<TestBackend>(&device);
+        let attn = ClipQkvAttentionConfig::new(64, 4).init(&device);
 
-        let input = Tensor::<TestBackend, 3>::random([3, 16, 64], Distribution::Default, &device);
+        let input = Tensor::<3>::random([3, 16, 64], Distribution::Default, &device);
         let output = attn.forward(input);
 
         assert_eq!(output.dims(), [3, 16, 64]);

@@ -346,8 +346,7 @@ impl Dists {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core::tensor::{TensorData, Tolerance, ops::FloatElem};
-    use burn_flex::Flex;
+    use burn_core::tensor::{TensorData, Tolerance};
 
     type FT = f32;
 

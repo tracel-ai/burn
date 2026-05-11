@@ -17,9 +17,9 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Module, Param};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::{relu, softplus};
-use burn::tensor::backend::Backend;
 use burn_nn::{Gelu, Linear, LinearConfig};
 
 /// CLIP RGB normalization mean (per-channel). Used as a de-normalization
@@ -51,7 +51,7 @@ const D_CHNS_SUM: usize = 9219;
 /// the signal.
 const EPS: f64 = 1e-10;
 
-fn build_clip_mean_std<B: Backend>(device: &B::Device) -> (Tensor<B, 4>, Tensor<B, 4>) {
+fn build_clip_mean_std(device: &Device) -> (Tensor<4>, Tensor<4>) {
     let mean = Tensor::from_floats(
         [[[[CLIP_MEAN[0]]], [[CLIP_MEAN[1]]], [[CLIP_MEAN[2]]]]],
         device,
@@ -65,7 +65,7 @@ fn build_clip_mean_std<B: Backend>(device: &B::Device) -> (Tensor<B, 4>, Tensor<
 
 /// Mean and biased variance over the token axis, returned as a 2-D
 /// tensor `[B, 2 * channels]` (mean followed by var, both flattened).
-fn level_mean_var<B: Backend>(feat: Tensor<B, 3>) -> (Tensor<B, 3>, Tensor<B, 3>, Tensor<B, 2>) {
+fn level_mean_var(feat: Tensor<3>) -> (Tensor<3>, Tensor<3>, Tensor<2>) {
     let mean = feat.clone().mean_dim(1);
     let centered = feat - mean.clone();
     let var = centered.powi_scalar(2).mean_dim(1);
@@ -85,7 +85,7 @@ pub struct AfineQHeadConfig {}
 
 impl AfineQHeadConfig {
     /// Initialize the naturalness head with random weights.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> AfineQHead<B> {
+    pub fn init(&self, device: &Device) -> AfineQHead {
         let (mean, std) = build_clip_mean_std(device);
         AfineQHead {
             mean,
@@ -112,16 +112,16 @@ impl AfineQHeadConfig {
 /// Activation is the erf-based [`burn_nn::Gelu`], not the QuickGELU used
 /// elsewhere in this crate. PyIQA's reference is explicit on this.
 #[derive(Module, Debug)]
-pub struct AfineQHead<B: Backend> {
-    pub(crate) mean: Tensor<B, 4>,
-    pub(crate) std: Tensor<B, 4>,
-    pub(crate) proj_feat: Linear<B>,
-    pub(crate) proj_head_fc1: Linear<B>,
-    pub(crate) proj_head_fc2: Linear<B>,
+pub struct AfineQHead {
+    pub(crate) mean: Tensor<4>,
+    pub(crate) std: Tensor<4>,
+    pub(crate) proj_feat: Linear,
+    pub(crate) proj_head_fc1: Linear,
+    pub(crate) proj_head_fc2: Linear,
     pub(crate) activation: Gelu,
 }
 
-impl<B: Backend> AfineQHead<B> {
+impl AfineQHead {
     /// Compute the naturalness score for one image plus its CLIP
     /// features.
     ///
@@ -129,7 +129,7 @@ impl<B: Backend> AfineQHead<B> {
     /// - `image`: `[B, 3, H, W]`, **already CLIP-normalized**.
     /// - `clip_features`: 12 levels of `[B, num_patches, 768]`.
     /// - returns: `[B, 1]`.
-    pub fn forward(&self, image: Tensor<B, 4>, clip_features: &[Tensor<B, 3>]) -> Tensor<B, 2> {
+    pub fn forward(&self, image: Tensor<4>, clip_features: &[Tensor<3>]) -> Tensor<2> {
         assert_eq!(
             clip_features.len(),
             12,
@@ -146,7 +146,7 @@ impl<B: Backend> AfineQHead<B> {
             .reshape([batch, channels, height * width])
             .swap_dims(1, 2);
 
-        let mut level_descriptors: Vec<Tensor<B, 2>> = Vec::with_capacity(NUM_LEVELS);
+        let mut level_descriptors: Vec<Tensor<2>> = Vec::with_capacity(NUM_LEVELS);
 
         // Level 0: raw image, no projection.
         let (_, _, raw_descriptor) = level_mean_var(img_feat);
@@ -173,7 +173,7 @@ pub struct AfineDHeadConfig {}
 
 impl AfineDHeadConfig {
     /// Initialize the fidelity head with random weights.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> AfineDHead<B> {
+    pub fn init(&self, device: &Device) -> AfineDHead {
         let (mean, std) = build_clip_mean_std(device);
         // PyIQA initializes alpha/beta with `.normal_(0.1, 0.01)`. That
         // distribution doesn't really matter under random init — values
@@ -203,16 +203,16 @@ impl AfineDHeadConfig {
 /// across 13 levels, weighted by globally-normalized softplus(alpha) and
 /// softplus(beta).
 #[derive(Module, Debug)]
-pub struct AfineDHead<B: Backend> {
-    pub(crate) mean: Tensor<B, 4>,
-    pub(crate) std: Tensor<B, 4>,
+pub struct AfineDHead {
+    pub(crate) mean: Tensor<4>,
+    pub(crate) std: Tensor<4>,
     /// Luminance weights, shape `[1, 1, sum(chns)] = [1, 1, 9219]`.
-    pub(crate) alpha: Param<Tensor<B, 3>>,
+    pub(crate) alpha: Param<Tensor<3>>,
     /// Contrast weights, same shape as `alpha`.
-    pub(crate) beta: Param<Tensor<B, 3>>,
+    pub(crate) beta: Param<Tensor<3>>,
 }
 
-impl<B: Backend> AfineDHead<B> {
+impl AfineDHead {
     /// Compute the fidelity score between distorted and reference
     /// images.
     ///
@@ -222,11 +222,11 @@ impl<B: Backend> AfineDHead<B> {
     /// - returns: `[B, 1]`.
     pub fn forward(
         &self,
-        distorted: Tensor<B, 4>,
-        reference: Tensor<B, 4>,
-        feat_dis: &[Tensor<B, 3>],
-        feat_ref: &[Tensor<B, 3>],
-    ) -> Tensor<B, 2> {
+        distorted: Tensor<4>,
+        reference: Tensor<4>,
+        feat_dis: &[Tensor<3>],
+        feat_ref: &[Tensor<3>],
+    ) -> Tensor<2> {
         assert_eq!(feat_dis.len(), 12);
         assert_eq!(feat_ref.len(), 12);
         let [batch, channels, height, width] = distorted.dims();
@@ -241,8 +241,8 @@ impl<B: Backend> AfineDHead<B> {
 
         // 13-entry feature lists: raw RGB at level 0, ReLU'd CLIP
         // features at levels 1..=12.
-        let mut feat_x: Vec<Tensor<B, 3>> = Vec::with_capacity(NUM_LEVELS);
-        let mut feat_y: Vec<Tensor<B, 3>> = Vec::with_capacity(NUM_LEVELS);
+        let mut feat_x: Vec<Tensor<3>> = Vec::with_capacity(NUM_LEVELS);
+        let mut feat_y: Vec<Tensor<3>> = Vec::with_capacity(NUM_LEVELS);
         feat_x.push(raw_x);
         feat_y.push(raw_y);
         for h in feat_dis {
@@ -264,8 +264,8 @@ impl<B: Backend> AfineDHead<B> {
         let alpha_norm = alpha_sp / w_sum.clone();
         let beta_norm = beta_sp / w_sum;
 
-        let mut dist1: Option<Tensor<B, 3>> = None;
-        let mut dist2: Option<Tensor<B, 3>> = None;
+        let mut dist1: Option<Tensor<3>> = None;
+        let mut dist2: Option<Tensor<3>> = None;
         let mut offset: usize = 0;
 
         for k in 0..NUM_LEVELS {
@@ -320,19 +320,15 @@ impl<B: Backend> AfineDHead<B> {
 mod tests {
     use super::*;
     use burn::tensor::Distribution;
-    use burn_flex::Flex;
-
-    type TestBackend = Flex;
 
     #[test]
     fn afine_q_head_forward_shape() {
         let device = Default::default();
-        let head = AfineQHeadConfig::new().init::<TestBackend>(&device);
+        let head = AfineQHeadConfig::new().init(&device);
 
-        let image =
-            Tensor::<TestBackend, 4>::random([2, 3, 64, 64], Distribution::Default, &device);
+        let image = Tensor::<4>::random([2, 3, 64, 64], Distribution::Default, &device);
         let features: Vec<_> = (0..12)
-            .map(|_| Tensor::<TestBackend, 3>::random([2, 4, 768], Distribution::Default, &device))
+            .map(|_| Tensor::<3>::random([2, 4, 768], Distribution::Default, &device))
             .collect();
 
         let out = head.forward(image, &features);
@@ -342,16 +338,15 @@ mod tests {
     #[test]
     fn afine_d_head_forward_shape() {
         let device = Default::default();
-        let head = AfineDHeadConfig::new().init::<TestBackend>(&device);
+        let head = AfineDHeadConfig::new().init(&device);
 
-        let dis = Tensor::<TestBackend, 4>::random([2, 3, 64, 64], Distribution::Default, &device);
-        let reference =
-            Tensor::<TestBackend, 4>::random([2, 3, 64, 64], Distribution::Default, &device);
+        let dis = Tensor::<4>::random([2, 3, 64, 64], Distribution::Default, &device);
+        let reference = Tensor::<4>::random([2, 3, 64, 64], Distribution::Default, &device);
         let feat_dis: Vec<_> = (0..12)
-            .map(|_| Tensor::<TestBackend, 3>::random([2, 4, 768], Distribution::Default, &device))
+            .map(|_| Tensor::<3>::random([2, 4, 768], Distribution::Default, &device))
             .collect();
         let feat_ref: Vec<_> = (0..12)
-            .map(|_| Tensor::<TestBackend, 3>::random([2, 4, 768], Distribution::Default, &device))
+            .map(|_| Tensor::<3>::random([2, 4, 768], Distribution::Default, &device))
             .collect();
 
         let out = head.forward(dis, reference, &feat_dis, &feat_ref);
@@ -365,12 +360,11 @@ mod tests {
         // Random init alpha/beta sum to 1 so this is a property-test
         // sanity check on the global normalization.
         let device = Default::default();
-        let head = AfineDHeadConfig::new().init::<TestBackend>(&device);
+        let head = AfineDHeadConfig::new().init(&device);
 
-        let image =
-            Tensor::<TestBackend, 4>::random([1, 3, 32, 32], Distribution::Default, &device);
+        let image = Tensor::<4>::random([1, 3, 32, 32], Distribution::Default, &device);
         let features: Vec<_> = (0..12)
-            .map(|_| Tensor::<TestBackend, 3>::random([1, 1, 768], Distribution::Default, &device))
+            .map(|_| Tensor::<3>::random([1, 1, 768], Distribution::Default, &device))
             .collect();
 
         let out = head.forward(image.clone(), image, &features.clone(), &features);

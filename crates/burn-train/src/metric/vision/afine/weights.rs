@@ -25,8 +25,8 @@
 use burn_core as burn;
 
 use burn::module::Param;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_std::network::downloader::download_file_as_bytes;
 use burn_store::pytorch::PytorchReader;
 use burn_store::{ModuleSnapshot, PytorchStore};
@@ -65,7 +65,7 @@ fn download_if_needed(url: &str, cache_path: &PathBuf, message: &str) {
 }
 
 /// Download `afine.pth` (if not cached) and load all six shards into
-/// the matching submodules of an `Afine<B>` previously produced by
+/// the matching submodules of an `Afine` previously produced by
 /// `AfineConfig::init`.
 ///
 /// Errors during loading are logged via `log::warn!` and the function
@@ -73,7 +73,7 @@ fn download_if_needed(url: &str, cache_path: &PathBuf, message: &str) {
 /// per-shard regex remapping mean unmapped or unknown checkpoint keys
 /// are silently dropped, matching the behaviour of LPIPS, DISTS, and
 /// FID's pretrained loaders.
-pub(crate) fn load_pretrained_weights<B: Backend>(mut afine: Afine<B>) -> Afine<B> {
+pub(crate) fn load_pretrained_weights(mut afine: Afine) -> Afine {
     let cache_dir = get_cache_dir();
     let cache_path = cache_dir.join(CACHE_FILENAME);
     download_if_needed(AFINE_URL, &cache_path, "Downloading A-FINE weights...");
@@ -83,7 +83,7 @@ pub(crate) fn load_pretrained_weights<B: Backend>(mut afine: Afine<B>) -> Afine<
     afine.dhead = load_simple_shard(afine.dhead, &cache_path, "fidelity", "fidelity head");
 
     // The calibrator and adapter shards store yita3, yita4, and k as
-    // 0-D scalar tensors (`shape=()`). Burn's `Param<Tensor<B, 1>>` of
+    // 0-D scalar tensors (`shape=()`). Burn's `Param<Tensor< 1>>` of
     // length 1 expects shape `(1,)`, and PytorchStore drops keys whose
     // shape doesn't match the destination — silently leaving the
     // params at random init. Load these manually via PytorchReader so
@@ -119,14 +119,11 @@ fn read_scalar_value<P: AsRef<Path>>(
     values.first().copied()
 }
 
-fn scalar_param<B: Backend>(value: f32, device: &B::Device) -> Param<Tensor<B, 1>> {
+fn scalar_param(value: f32, device: &Device) -> Param<Tensor<1>> {
     Param::from_tensor(Tensor::from_floats([value], device))
 }
 
-fn load_nr_calibrator_scalars<B: Backend>(
-    cache_path: &PathBuf,
-    device: &B::Device,
-) -> NrCalibrator<B> {
+fn load_nr_calibrator_scalars(cache_path: &PathBuf, device: &Device) -> NrCalibrator {
     // PyIQA defaults if reading fails — preserves random-init fallback.
     const NR_YITA3_FALLBACK: f32 = 4.9592;
     const NR_YITA4_FALLBACK: f32 = 21.5968;
@@ -140,10 +137,7 @@ fn load_nr_calibrator_scalars<B: Backend>(
     }
 }
 
-fn load_fr_calibrator_scalars<B: Backend>(
-    cache_path: &PathBuf,
-    device: &B::Device,
-) -> FrCalibratorWithLimit<B> {
+fn load_fr_calibrator_scalars(cache_path: &PathBuf, device: &Device) -> FrCalibratorWithLimit {
     const FR_YITA3_FALLBACK: f32 = 0.5;
     const FR_YITA4_FALLBACK: f32 = 0.15;
     let yita3 =
@@ -156,7 +150,7 @@ fn load_fr_calibrator_scalars<B: Backend>(
     }
 }
 
-fn load_adapter_scalar<B: Backend>(cache_path: &PathBuf, device: &B::Device) -> AfineAdapter<B> {
+fn load_adapter_scalar(cache_path: &PathBuf, device: &Device) -> AfineAdapter {
     const K_FALLBACK: f32 = 5.0;
     let k = read_scalar_value(cache_path, "adapter", "k").unwrap_or(K_FALLBACK);
     AfineAdapter {
@@ -179,10 +173,10 @@ fn load_adapter_scalar<B: Backend>(cache_path: &PathBuf, device: &B::Device) -> 
 /// stage. `visual.proj` (the unused joint-embedding projection) has
 /// no corresponding burn field and is silently dropped via
 /// `allow_partial(true)`.
-fn load_clip_shard<B: Backend>(
-    mut clip: super::clip_vit::ClipVisualEncoder<B>,
+fn load_clip_shard(
+    mut clip: super::clip_vit::ClipVisualEncoder,
     cache_path: &PathBuf,
-) -> super::clip_vit::ClipVisualEncoder<B> {
+) -> super::clip_vit::ClipVisualEncoder {
     let mut store = PytorchStore::from_file(cache_path)
         .with_top_level_key("finetuned_clip")
         .allow_partial(true)
@@ -225,10 +219,10 @@ fn load_clip_shard<B: Backend>(
 /// so the FC layers come out as `proj_head.0.*` and `proj_head.2.*`.
 /// We named them explicitly to avoid the GELU-index gap, hence the
 /// remap.
-fn load_qhead_shard<B: Backend>(
-    mut qhead: super::heads::AfineQHead<B>,
+fn load_qhead_shard(
+    mut qhead: super::heads::AfineQHead,
     cache_path: &PathBuf,
-) -> super::heads::AfineQHead<B> {
+) -> super::heads::AfineQHead {
     let mut store = PytorchStore::from_file(cache_path)
         .with_top_level_key("natural")
         .allow_partial(true)
@@ -243,15 +237,14 @@ fn load_qhead_shard<B: Backend>(
 
 /// Load any shard whose keys map directly to burn-side field names.
 /// Used for the fidelity head, both calibrators, and the adapter.
-fn load_simple_shard<B, M>(
+fn load_simple_shard<M>(
     mut module: M,
     cache_path: &PathBuf,
     top_level_key: &'static str,
     description: &str,
 ) -> M
 where
-    B: Backend,
-    M: ModuleSnapshot<B>,
+    M: ModuleSnapshot,
 {
     let mut store = PytorchStore::from_file(cache_path)
         .with_top_level_key(top_level_key)
