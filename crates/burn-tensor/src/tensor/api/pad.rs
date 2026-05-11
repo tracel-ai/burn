@@ -134,13 +134,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     /// use burn_tensor::ops::PadMode;
     ///
-    /// fn example<B: Backend<FloatElem: From<f32>>>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///
     ///    // Constant padding with value 0.0 (backward-compatible tuple)
     ///    let padded = tensor.clone().pad((1, 1, 1, 1), PadMode::Constant(0.0));

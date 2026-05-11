@@ -44,12 +44,12 @@ where $N$ is the size of the signal along the specified dimension.
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
+
 /// use burn_tensor::Tensor;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let signal = Tensor::<B, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+/// fn example() {
+///     let device = Default::default();
+///     let signal = Tensor::< 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 ///     let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
 /// }
 /// ```
@@ -116,13 +116,13 @@ where $N$ is the size of the reconstructed signal.
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
+
 /// use burn_tensor::Tensor;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let real = Tensor::<B, 1>::from_floats([10.0, -2.0, 2.0], &device);
-///     let imag = Tensor::<B, 1>::from_floats([0.0, 2.0, 0.0], &device);
+/// fn example() {
+///     let device = Default::default();
+///     let real = Tensor::< 1>::from_floats([10.0, -2.0, 2.0], &device);
+///     let imag = Tensor::< 1>::from_floats([0.0, 2.0, 0.0], &device);
 ///     let signal = burn_tensor::signal::irfft(real, imag, 0, None);
 /// }
 /// ```
@@ -191,13 +191,12 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
 /// use burn_tensor::Tensor;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let re = Tensor::<B, 1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
-///     let im = Tensor::<B, 1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
+/// fn example() {
+///     let device = Default::default();
+///     let re = Tensor::< 1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
+///     let im = Tensor::< 1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
 ///     let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
 /// }
 /// ```

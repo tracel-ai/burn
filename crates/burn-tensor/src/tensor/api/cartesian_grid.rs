@@ -17,10 +17,10 @@ use alloc::vec::Vec;
 ///
 /// ```rust
 ///    use burn_tensor::Int;
-///    use burn_tensor::{backend::Backend, Shape, Tensor};
-///    fn example<B: Backend>() {
+///    use burn_tensor::{Shape, Tensor};
+///    fn example() {
 ///        let device = Default::default();
-///        let result: Tensor<B, 3, _> = Tensor::<B, 2, Int>::cartesian_grid([2, 3], &device);
+///        let result: Tensor<3, _> = Tensor::< 2, Int>::cartesian_grid([2, 3], &device);
 ///        println!("{}", result);
 ///    }
 /// ```

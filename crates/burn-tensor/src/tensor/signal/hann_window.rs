@@ -25,12 +25,12 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
+/// use burn_tensor::Device;
 /// use burn_tensor::signal::hann_window;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let window = hann_window::<B>(8, true, &device);
+/// fn example() {
+///     let device = Default::default();
+///     let window = hann_window(8, true, &device);
 ///     println!("{window}");
 /// }
 /// ```

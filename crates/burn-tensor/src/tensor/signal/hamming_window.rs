@@ -25,12 +25,12 @@ where $\alpha = 25/46$, $\beta = 1 - \alpha$, and $N$ = `size` when `periodic` i
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
+/// use burn_tensor::Device;
 /// use burn_tensor::signal::hamming_window;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let window = hamming_window::<B>(8, true, &device);
+/// fn example() {
+///     let device = Default::default();
+///     let window = hamming_window(8, true, &device);
 ///     println!("{window}");
 /// }
 /// ```

@@ -79,7 +79,6 @@ impl From<&Device> for TensorCreationOptions {
     ///
     /// Example:
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::TensorCreationOptions;
     /// use burn_tensor::Device;
     ///

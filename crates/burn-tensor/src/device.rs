@@ -33,7 +33,7 @@ use enumset::EnumSetType;
 /// let device: Device = CudaDevice::default().into();
 ///
 /// // Default device for whichever backend is enabled
-/// let device = Device::default();
+/// let device = Default::default();
 /// ```
 ///
 /// # Autodiff
@@ -206,7 +206,7 @@ impl Device {
     /// # Example
     ///
     /// ```rust,ignore
-    /// let device = Device::default();
+    /// let device = Default::default();
     /// device.seed(42);
     /// let t = Tensor::<1>::random([8], Distribution::Default, &device);
     /// ```
@@ -219,7 +219,7 @@ impl Device {
     /// # Example
     ///
     /// ```rust,ignore
-    /// let device = Device::default();
+    /// let device = Default::default();
     /// assert!(!device.is_autodiff());
     ///
     /// let ad_device = device.autodiff();
@@ -277,7 +277,7 @@ impl Device {
     /// # Example
     ///
     /// ```rust,ignore
-    /// let device = Device::default();
+    /// let device = Default::default();
     ///
     /// device.set_default_dtypes(DType::F16, DType::I32)?;
     ///

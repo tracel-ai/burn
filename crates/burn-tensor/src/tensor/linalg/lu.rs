@@ -50,7 +50,7 @@ use burn_std::{DType, FloatDType};
 /// use burn::backend::Flex;
 /// use burn::tensor::linalg;
 ///
-/// fn example<B: Backend>() {
+/// fn example() {
 ///     let device = Default::default();
 ///     let tensor = Tensor::< 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
 ///

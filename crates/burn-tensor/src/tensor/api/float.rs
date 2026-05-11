@@ -111,13 +111,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
-    ///     let _ = Tensor::<B, 1>::from_floats([1.0, 2.0], &device);
-    ///     let _ = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let _ = Tensor::< 1>::from_floats([1.0, 2.0], &device);
+    ///     let _ = Tensor::< 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
     /// }
     /// ```
     pub fn from_floats<A: Into<TensorData>>(floats: A, device: &Device) -> Self {
@@ -130,12 +129,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
-    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.0], &device);
+    ///     let float_tensor = Tensor::< 1>::from_floats([1.0, 2.0], &device);
     ///     let int_tensor = float_tensor.int();
     /// }
     /// ```
@@ -203,9 +201,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example 1
     ///
     /// ```ignore
-    /// // Assuming backend B
-    /// let device = Device::default();
-    /// let tensor = Tensor::<B, 2>::from_data(
+    /// let device = Default::default();
+    /// let tensor = Tensor::< 2>::from_data(
     ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
     ///     &device,
     /// );
@@ -265,9 +262,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```ignore
-    /// // Assuming backend B
-    /// let device = Device::default();
-    /// let tensor = Tensor::<B, 2>::from_data(
+    /// let device = Default::default();
+    /// let tensor = Tensor::< 2>::from_data(
     ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
     ///     &device,
     /// );
@@ -293,12 +289,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, FloatDType, IntDType};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
-    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.5], &device);
+    ///     let float_tensor = Tensor::< 1>::from_floats([1.0, 2.5], &device);
     ///
     ///     // Within-kind cast (float to float)
     ///     let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
@@ -451,13 +446,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor1.is_close(tensor2, None, None);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [true, true, true]]
@@ -515,13 +509,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let result = tensor1.all_close(tensor2, None, None);
     ///    println!("{}", result);
     ///    // true
@@ -543,12 +536,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_nan();
     ///    println!("{tensor}");
     ///    // [[false, true, false], [false, false, false]]
@@ -568,16 +560,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///   let device = Device::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
     ///   println!("{tensor}");
     ///   // [true]
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
     ///   println!("{tensor}");
     ///   // [false]
@@ -601,12 +592,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
     ///    // [[false, true, false], [false, false, false]]
@@ -627,12 +617,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
     ///    // [[true, false, true], [false, true, true]]
@@ -716,13 +705,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.powf(tensor2);
     ///    println!("{tensor}");
     ///    // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
@@ -764,12 +752,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.powf_scalar(2.0);
     ///    println!("{tensor}");
     ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
@@ -821,12 +808,11 @@ impl<const D: usize> Tensor<D> {
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
-    ///     let probs = Tensor::<B, 2>::from_floats(
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let probs = Tensor::< 2>::from_floats(
     ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
     ///         &device,
     ///     );
@@ -978,13 +964,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// }
     /// ```
@@ -1000,13 +985,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// }
     /// ```
@@ -1022,13 +1006,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// }
     /// ```
@@ -1044,13 +1027,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
     /// }
     /// ```
@@ -1066,13 +1048,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([1.0, 2.0, 3.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([1.0, 2.0, 3.0], &device);
     ///     println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
     /// }
     /// ```
@@ -1088,13 +1069,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
     /// }
     /// ```
@@ -1110,13 +1090,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
     /// }
     /// ```
@@ -1132,13 +1111,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
     /// }
     /// ```
@@ -1154,13 +1132,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -0.5, 0.5], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, -0.5, 0.5], &device);
     ///     println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
     /// }
     /// ```
@@ -1176,14 +1153,13 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     let lhs = Tensor::< 1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::< 1>::from_data([1.0, -1.0, -1.0], &device);
     ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
     /// }
     /// ```

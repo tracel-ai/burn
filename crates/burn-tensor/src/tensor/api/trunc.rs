@@ -23,12 +23,11 @@ impl<const D: usize> Tensor<D, Float> {
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
-    ///     let tensor = Tensor::<B, 1>::from_data([2.3, -1.7, 0.5, -0.5, 3.9], &device);
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::< 1>::from_data([2.3, -1.7, 0.5, -0.5, 3.9], &device);
     ///     let truncated = tensor.trunc();
     ///
     ///     // Result: [2.0, -1.0, 0.0, -0.0, 3.0]
