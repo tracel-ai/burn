@@ -9,16 +9,25 @@ use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
 
-// TODO: re-export burn_autodiff struct?
-#[cfg(feature = "autodiff")]
 /// Gradients container used during the backward pass.
-pub type Gradients = <Dispatch as AutodiffBackend>::Gradients;
+#[cfg(feature = "autodiff")]
+pub struct Gradients {
+    // Encapsulate the inner type to avoid leaking internals into the top-level API.
+    pub(crate) inner: <Dispatch as AutodiffBackend>::Gradients,
+}
+
+#[cfg(feature = "autodiff")]
+impl Gradients {
+    fn new(inner: <Dispatch as AutodiffBackend>::Gradients) -> Self {
+        Self { inner }
+    }
+}
 
 #[cfg(feature = "autodiff")]
 impl<const D: usize> Tensor<D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> Gradients {
-        Dispatch::backward(self.primitive.clone().tensor())
+        Gradients::new(Dispatch::backward(self.primitive.clone().tensor()))
     }
 
     /// Get the gradients of a tensor if it exist.
@@ -28,11 +37,11 @@ impl<const D: usize> Tensor<D> {
     /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D>> {
         match &self.primitive {
-            TensorPrimitive::Float(tensor) => Dispatch::grad(tensor, grads)
+            TensorPrimitive::Float(tensor) => Dispatch::grad(tensor, &grads.inner)
                 .map(TensorPrimitive::Float)
                 .map(Tensor::new),
             TensorPrimitive::QFloat(_tensor) => {
-                Dispatch::grad(&self.primitive.clone().tensor(), grads)
+                Dispatch::grad(&self.primitive.clone().tensor(), &grads.inner)
                     .map(TensorPrimitive::Float)
                     .map(Tensor::new)
             }
@@ -42,11 +51,11 @@ impl<const D: usize> Tensor<D> {
     /// Remove the grad tensor from the [grads](AutodiffBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut Gradients) -> Option<Tensor<D>> {
         match &self.primitive {
-            TensorPrimitive::Float(tensor) => Dispatch::grad_remove(tensor, grads)
+            TensorPrimitive::Float(tensor) => Dispatch::grad_remove(tensor, &mut grads.inner)
                 .map(TensorPrimitive::Float)
                 .map(Tensor::new),
             TensorPrimitive::QFloat(_tensor) => {
-                Dispatch::grad_remove(&self.primitive.clone().tensor(), grads)
+                Dispatch::grad_remove(&self.primitive.clone().tensor(), &mut grads.inner)
                     .map(TensorPrimitive::Float)
                     .map(Tensor::new)
             }
@@ -58,11 +67,11 @@ impl<const D: usize> Tensor<D> {
     pub fn grad_replace(&self, grads: &mut Gradients, grad: Tensor<D>) {
         match &self.primitive {
             TensorPrimitive::Float(tensor) => {
-                Dispatch::grad_replace(tensor, grads, grad.primitive.tensor())
+                Dispatch::grad_replace(tensor, &mut grads.inner, grad.primitive.tensor())
             }
             TensorPrimitive::QFloat(_tensor) => Dispatch::grad_replace(
                 &self.primitive.clone().tensor(),
-                grads,
+                &mut grads.inner,
                 grad.primitive.tensor(),
             ),
         }
