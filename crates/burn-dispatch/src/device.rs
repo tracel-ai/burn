@@ -163,6 +163,78 @@ impl Default for DispatchDevice {
     #[allow(unreachable_code)]
     fn default() -> Self {
         // TODO: which priority?
+        // Single override e.g. `BURN_DEVICE=vulkan` forces Vulkan or panics if not available.
+        // Priority list e.g. `BURN_DEVICE_PRIORITY=cuda,vulkan,cpu` sets the order.
+        // Both could be tied into `burn.toml` config
+        // For now we just use `BURN_DEVICE` on CI to force a single device
+
+        #[cfg(feature = "std")]
+        {
+            if let Ok(device_str) = std::env::var("BURN_DEVICE") {
+                match device_str.to_lowercase().as_str() {
+                    "cuda" => {
+                        #[cfg(feature = "cuda")]
+                        return Self::Cuda(CudaDevice::default());
+                        panic!(
+                            "BURN_DEVICE=cuda requested, but the 'cuda' feature is not enabled."
+                        );
+                    }
+                    "metal" => {
+                        #[cfg(wgpu_metal)]
+                        return Self::Metal(burn_wgpu::WgpuDevice::default());
+                        panic!(
+                            "BURN_DEVICE=metal requested, but the 'wgpu-metal' feature is not enabled."
+                        );
+                    }
+                    "rocm" => {
+                        #[cfg(feature = "rocm")]
+                        return Self::Rocm(RocmDevice::default());
+                        panic!(
+                            "BURN_DEVICE=rocm requested, but the 'rocm' feature is not enabled."
+                        );
+                    }
+                    "vulkan" => {
+                        #[cfg(wgpu_vulkan)]
+                        return Self::Vulkan(burn_wgpu::WgpuDevice::default());
+                        panic!(
+                            "BURN_DEVICE=vulkan requested, but the 'wgpu-vulkan' feature is not enabled."
+                        );
+                    }
+                    "webgpu" | "wgpu" => {
+                        #[cfg(wgpu_webgpu)]
+                        return Self::Wgpu(burn_wgpu::WgpuDevice::default());
+                        panic!(
+                            "BURN_DEVICE=wgpu requested, but the 'wgpu-webgpu' feature is not enabled."
+                        );
+                    }
+                    "cpu" => {
+                        #[cfg(feature = "cpu")]
+                        return Self::Cpu(CpuDevice);
+                        panic!("BURN_DEVICE=cpu requested, but the 'cpu' feature is not enabled.");
+                    }
+                    "tch" => {
+                        #[cfg(feature = "tch")]
+                        return Self::LibTorch(LibTorchDevice::default());
+                        panic!("BURN_DEVICE=tch requested, but the 'tch' feature is not enabled.");
+                    }
+                    "flex" => {
+                        #[cfg(feature = "flex")]
+                        return Self::Flex(FlexDevice);
+                        panic!(
+                            "BURN_DEVICE=flex requested, but the 'flex' feature is not enabled."
+                        );
+                    }
+                    "ndarray" => {
+                        #[cfg(any(feature = "ndarray", default_backend))]
+                        return Self::NdArray(NdArrayDevice::default());
+                        panic!(
+                            "BURN_DEVICE=ndarray requested, but the 'ndarray' feature is not enabled."
+                        );
+                    }
+                    _ => panic!("Unknown BURN_DEVICE override: '{}'.", device_str),
+                }
+            }
+        }
 
         #[cfg(feature = "cuda")]
         return Self::Cuda(CudaDevice::default());

@@ -46,12 +46,22 @@ enum TestBackend {
     #[strum(to_string = "ndarray")]
     Ndarray,
 }
+
+fn set_burn_device(device: &str) {
+    // SAFETY: This is called in a single-threaded context within the xtask before spawning child processes.
+    unsafe {
+        std::env::set_var("BURN_DEVICE", device);
+    }
+}
+
 fn handle_backend_tests(
     mut args: TestCmdArgs,
     backend: TestBackend,
     env: Environment,
     context: Context,
 ) -> anyhow::Result<()> {
+    set_burn_device(&backend.to_string()); // default device
+
     args.target = Target::AllPackages;
     args.only.push("burn-backend-tests".to_string());
     args.no_default_features = true;
@@ -174,6 +184,7 @@ pub(crate) fn handle_command(
                         args.exclude.extend(vec!["burn-remote".to_string()]);
                     };
 
+                    set_burn_device("flex"); // default device for base tests
                     base_commands::test::handle_command(
                         args.clone().try_into().unwrap(),
                         env.clone(),
@@ -230,9 +241,11 @@ pub(crate) fn handle_command(
                         context,
                     )?;
 
+                    // TODO: test-vulkan (and test-*) no longer exists
+                    // We need a way to provide the default backend for CI.
+                    // Maybe an env var?
                     args.target = Target::AllPackages;
-                    let mut args_vulkan: TestCmdArgs = args.clone().try_into().unwrap();
-                    args_vulkan.features = Some(vec!["test-vulkan".into()]);
+                    let args_vulkan = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-core", &args_vulkan)?;
                     handle_wgpu_test("burn-optim", &args_vulkan)?;
                     handle_wgpu_test("burn-nn", &args_vulkan)?;
@@ -247,12 +260,11 @@ pub(crate) fn handle_command(
                     )?;
                     // "burn-router" uses "burn-wgpu" for the tests.
                     args.target = Target::AllPackages;
-                    let mut args_wgpu = args.clone().try_into().unwrap();
+                    let args_wgpu = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_wgpu)?;
                     handle_wgpu_test("burn-router", &args_wgpu)?;
                     handle_wgpu_test("burn-cubecl-fusion", &args_wgpu)?;
 
-                    args_wgpu.features = Some(vec!["test-wgpu".into()]);
                     handle_wgpu_test("burn-core", &args_wgpu)?;
                     handle_wgpu_test("burn-optim", &args_wgpu)?;
                     handle_wgpu_test("burn-nn", &args_wgpu)?;

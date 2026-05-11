@@ -27,15 +27,6 @@ tracing = ["burn-core/tracing"]
 distributed = ["std", "burn-core/distributed"]
 # collective = ["burn-collective"]
 
-# Test backends
-test-cuda = ["burn-core/cuda"]
-test-rocm = ["burn-core/rocm"]
-test-ndarray = ["burn-core/ndarray"]
-test-tch = ["burn-core/tch"]
-test-vulkan = ["burn-core/vulkan"]
-test-wgpu = ["burn-core/wgpu"]
-test-metal = ["burn-core/metal"]
-
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
