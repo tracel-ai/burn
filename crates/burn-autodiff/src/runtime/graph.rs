@@ -7,8 +7,13 @@ use crate::{
     runtime::server::NodeCleaner,
     tensor::{AutodiffTensor, NodeRefCount},
 };
-use alloc::sync::Arc;
 use alloc::vec::Vec;
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
 
 #[cfg(not(feature = "distributed"))]
 use burn_backend::Backend;

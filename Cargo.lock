@@ -703,6 +703,7 @@ dependencies = [
  "num-traits",
  "parking_lot",
  "portable-atomic",
+ "portable-atomic-util",
  "spin",
  "tracing",
 ]

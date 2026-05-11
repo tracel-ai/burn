@@ -3,7 +3,14 @@ use crate::{
     graph::{ComputingProperty, NodeId},
     tensor::AutodiffTensor,
 };
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
+
 use burn_backend::Backend;
 use core::any::Any;
 
