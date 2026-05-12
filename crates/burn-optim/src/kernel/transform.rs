@@ -3,16 +3,13 @@
 use cubecl::prelude::*;
 
 use crate::kernel::blockwise::{self, Scheme};
-use crate::kernel::signed;
-use crate::kernel::unsigned;
-use crate::launch::{PACK_SHIFT, PACKING_AMOUNT, PLANE_SIZE};
+use crate::launch::PACKING_AMOUNT;
 
 #[cube]
 pub fn transform(
     block: u32,
     grad: &Array<f32>,
 
-    // All in-place — same buffer for old/new
     moment_1_codes: &mut Array<u32>,
     moment_1_scales: &mut Array<f32>,
     moment_2_codes: &mut Array<u32>,
@@ -20,7 +17,6 @@ pub fn transform(
     max_moment_2_codes: &mut Array<u32>,
     max_moment_2_scales: &mut Array<f32>,
 
-    // Outputs to the outer kernel (registers, not globals)
     local_delta: &mut Array<f32>,
     local_m1: &mut Array<f32>,
 
@@ -35,10 +31,11 @@ pub fn transform(
     #[comptime] block_size: u32,
     #[comptime] amsgrad: bool,
     #[comptime] is_first_step: bool,
+    #[comptime] plane_size: u32,
 ) {
     let unit = UNIT_POS_X;
     let block_start = block * block_size;
-    let elements_per_thread = comptime!(block_size / PLANE_SIZE);
+    let elements_per_thread = comptime!(block_size / plane_size);
 
     // Per-lane register storage for new moment values.
     // Sized to elements_per_thread; each lane owns its elements across iters.
@@ -52,35 +49,32 @@ pub fn transform(
 
     let step_size = correction2_sqrt / correction1;
 
-    // ===== Pass 1: compute m1_new, m2_new, v_to_use, delta into REGISTERS =====
     // No global scratch writes. All reads of old state happen here.
     #[unroll]
     for iter in 0..elements_per_thread {
-        let element = unit + iter * PLANE_SIZE;
+        let element = unit + iter * plane_size;
         let i = block_start + element;
 
         let iter = iter as usize;
 
-        let m1_old = if comptime!(is_first_step) {
-            0.0_f32.into()
+        let (m1_old, m2_old) = if comptime!(is_first_step) {
+            (0.0_f32.into(), 0.0_f32.into())
         } else {
-            blockwise::dequantize_blockwise(
-                moment_1_codes,
-                moment_1_scales,
-                i,
-                block_size,
-                Scheme::Signed as u32,
-            )
-        };
-        let m2_old = if comptime!(is_first_step) {
-            0.0_f32.into()
-        } else {
-            blockwise::dequantize_blockwise(
-                moment_2_codes,
-                moment_2_scales,
-                i,
-                block_size,
-                Scheme::Unsigned as u32,
+            (
+                blockwise::dequantize_blockwise(
+                    moment_1_codes,
+                    moment_1_scales,
+                    i,
+                    block_size,
+                    Scheme::Signed as u32,
+                ),
+                blockwise::dequantize_blockwise(
+                    moment_2_codes,
+                    moment_2_scales,
+                    i,
+                    block_size,
+                    Scheme::Unsigned as u32,
+                ),
             )
         };
 
@@ -125,7 +119,6 @@ pub fn transform(
         }
     }
 
-    // ===== Reduction =====
     let m1_block_absmax = plane_max(m1_local_absmax);
     let m2_block_absmax = plane_max(m2_local_absmax);
     let m1_safe_scale = if m1_block_absmax > 0.0_f32 {
@@ -145,70 +138,43 @@ pub fn transform(
         moment_2_scales[block as usize] = m2_safe_scale;
     }
 
-    // ===== Pass 2: pack & write codes in-place =====
-    // Layout note: Pass 1 strides by PLANE_SIZE per lane.
-    //   lane `unit` owns elements at offsets {unit, unit+P, unit+2P, ...}
-    // Pass 2 quads stride by PLANE_SIZE*4 per lane.
-    //   lane `unit` owns quads starting at offsets {4u, 4u+4P, 4u+8P, ...}
-    // These are DIFFERENT layouts. A lane's Pass-2 quad does NOT cover the
-    // same elements it computed in Pass 1.
-    //
-    // To pack a quad, we need m1_new/m2_new for 4 consecutive elements,
-    // but Pass 1 distributed them across lanes by stride PLANE_SIZE.
-    // Solution: stage Pass 1 results in shared memory, then read them back
-    // by element index in Pass 2.
-
-    // Stage m1_new/m2_new (and v_to_use if amsgrad) in shared memory.
-    // Indexed by local element offset within the block: 0..block_size.
-    let mut smem_m1 = SharedMemory::<f32>::new(block_size as usize);
-    let mut smem_m2 = SharedMemory::<f32>::new(block_size as usize);
-
+    let mut shared_m1 = SharedMemory::<f32>::new(block_size as usize);
+    let mut shared_m2 = SharedMemory::<f32>::new(block_size as usize);
     #[unroll]
     for iter in 0..elements_per_thread {
-        let element = unit + iter * PLANE_SIZE;
-        smem_m1[element as usize] = local_m1_new[iter as usize];
-        smem_m2[element as usize] = local_m2_new[iter as usize];
+        let element = unit + iter * plane_size;
+        shared_m1[element as usize] = local_m1_new[iter as usize];
+        shared_m2[element as usize] = local_m2_new[iter as usize];
     }
 
     sync_cube();
 
-    let quads_per_thread = comptime!(block_size / (PLANE_SIZE * PACKING_AMOUNT));
-
+    let quads_per_thread = comptime!(block_size / (plane_size * PACKING_AMOUNT));
     #[unroll]
     for iter in 0..quads_per_thread {
-        let element = unit * PACKING_AMOUNT + iter * PLANE_SIZE * PACKING_AMOUNT;
+        let element = unit * PACKING_AMOUNT + iter * plane_size * PACKING_AMOUNT;
         let i = block_start + element;
 
-        let m1_new_0 = smem_m1[element as usize];
-        let m1_new_1 = smem_m1[element as usize + 1];
-        let m1_new_2 = smem_m1[element as usize + 2];
-        let m1_new_3 = smem_m1[element as usize + 3];
-        let m2_new_0 = smem_m2[element as usize];
-        let m2_new_1 = smem_m2[element as usize + 1];
-        let m2_new_2 = smem_m2[element as usize + 2];
-        let m2_new_3 = smem_m2[element as usize + 3];
-
-        let m1_c0 = signed::encode(m1_new_0 / m1_safe_scale);
-        let m1_c1 = signed::encode(m1_new_1 / m1_safe_scale);
-        let m1_c2 = signed::encode(m1_new_2 / m1_safe_scale);
-        let m1_c3 = signed::encode(m1_new_3 / m1_safe_scale);
-        let m2_c0 = unsigned::encode(m2_new_0 / m2_safe_scale);
-        let m2_c1 = unsigned::encode(m2_new_1 / m2_safe_scale);
-        let m2_c2 = unsigned::encode(m2_new_2 / m2_safe_scale);
-        let m2_c3 = unsigned::encode(m2_new_3 / m2_safe_scale);
-
-        let pack_idx = i / PACKING_AMOUNT;
-        moment_1_codes[pack_idx as usize] = m1_c0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
-            + m1_c1 * PACK_SHIFT * PACK_SHIFT
-            + m1_c2 * PACK_SHIFT
-            + m1_c3;
-        moment_2_codes[pack_idx as usize] = m2_c0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
-            + m2_c1 * PACK_SHIFT * PACK_SHIFT
-            + m2_c2 * PACK_SHIFT
-            + m2_c3;
+        blockwise::quantize_blockwise(
+            &shared_m1,
+            moment_1_codes,
+            moment_1_scales,
+            i,
+            element,
+            block_size,
+            Scheme::Signed as u32,
+        );
+        blockwise::quantize_blockwise(
+            &shared_m2,
+            moment_2_codes,
+            moment_2_scales,
+            i,
+            element,
+            block_size,
+            Scheme::Unsigned as u32,
+        );
     }
 
-    // ===== AMSGrad max_v requantization =====
     if comptime!(amsgrad) {
         let v_block_absmax = plane_max(v_local_absmax);
         let v_safe_scale = if v_block_absmax > 0.0_f32 {
@@ -221,73 +187,63 @@ pub fn transform(
             max_moment_2_scales[block as usize] = v_safe_scale;
         }
 
-        // Stage v_to_use in shared memory (reuse smem_m1 — its values aren't
-        // needed anymore after Pass 2 above).
         sync_cube();
         #[unroll]
         for iter in 0..elements_per_thread {
-            let element = unit + iter * PLANE_SIZE;
-            smem_m1[element as usize] = local_v_to_use[iter as usize];
+            let element = unit + iter * plane_size;
+            shared_m1[element as usize] = local_v_to_use[iter as usize];
         }
         sync_cube();
 
         #[unroll]
         for iter in 0..quads_per_thread {
-            let element = unit * PACKING_AMOUNT + iter * PLANE_SIZE * PACKING_AMOUNT;
+            let element = unit * PACKING_AMOUNT + iter * plane_size * PACKING_AMOUNT;
             let i = block_start + element;
 
-            let v_0 = smem_m1[element as usize];
-            let v_1 = smem_m1[element as usize + 1];
-            let v_2 = smem_m1[element as usize + 2];
-            let v_3 = smem_m1[element as usize + 3];
-
-            let c0 = unsigned::encode(v_0 / v_safe_scale);
-            let c1 = unsigned::encode(v_1 / v_safe_scale);
-            let c2 = unsigned::encode(v_2 / v_safe_scale);
-            let c3 = unsigned::encode(v_3 / v_safe_scale);
-
-            let pack_idx = i / PACKING_AMOUNT;
-            max_moment_2_codes[pack_idx as usize] = c0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
-                + c1 * PACK_SHIFT * PACK_SHIFT
-                + c2 * PACK_SHIFT
-                + c3;
+            blockwise::quantize_blockwise(
+                &shared_m1,
+                max_moment_2_codes,
+                max_moment_2_scales,
+                i,
+                element,
+                block_size,
+                Scheme::Unsigned as u32,
+            );
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::launch::PLANE_SIZE;
-
     use super::*;
     use cubecl::bytes::Bytes;
     use cubecl::cuda::CudaRuntime;
+    use cubecl::hip::HipRuntime;
     use cubecl::prelude::*;
+    use cubecl::wgpu::WgpuRuntime;
 
-    type TestRuntime = CudaRuntime;
+    // type TestRuntime = CudaRuntime;
+    type TestRuntime = WgpuRuntime;
+    // type TestRuntime = HipRuntime;
     const BLOCK_SIZE: u32 = 256;
     const N: usize = BLOCK_SIZE as usize;
 
-    /// Test-only kernel that runs `transform` and exposes its outputs.
+    /// Test-only kernel that runs `transform` and spills its per-lane
+    /// register outputs (local_delta, local_m1) to global memory so the
+    /// host can read them.
     #[cube(launch_unchecked)]
     fn transform_test_kernel(
         grad: &Array<f32>,
-        moment_1_codes: &Array<u32>,
-        moment_1_scales: &Array<f32>,
-        moment_2_codes: &Array<u32>,
-        moment_2_scales: &Array<f32>,
-        max_moment_2_codes: &Array<u32>,
-        max_moment_2_scales: &Array<f32>,
+        moment_1_codes: &mut Array<u32>,
+        moment_1_scales: &mut Array<f32>,
+        moment_2_codes: &mut Array<u32>,
+        moment_2_scales: &mut Array<f32>,
+        max_moment_2_codes: &mut Array<u32>,
+        max_moment_2_scales: &mut Array<f32>,
 
-        moment_1_codes_new: &mut Array<u32>,
-        moment_1_scales_new: &mut Array<f32>,
-        moment_2_codes_new: &mut Array<u32>,
-        moment_2_scales_new: &mut Array<f32>,
-        max_moment_2_codes_new: &mut Array<u32>,
-        max_moment_2_scales_new: &mut Array<f32>,
-
-        update_delta: &mut Array<f32>,
-        m1_dequantized: &mut Array<f32>,
+        // Test-only spill buffers for the in-register outputs
+        delta_spill: &mut Array<f32>,
+        m1_spill: &mut Array<f32>,
 
         beta_1: f32,
         beta_2: f32,
@@ -300,8 +256,15 @@ mod tests {
         #[comptime] block_size: u32,
         #[comptime] amsgrad: bool,
         #[comptime] is_first_step: bool,
+        #[comptime] plane_size: u32,
     ) {
         let block = CUBE_POS_X;
+        let unit = UNIT_POS_X;
+        let elements_per_thread = comptime!(block_size / plane_size);
+
+        let mut local_delta = Array::<f32>::new(elements_per_thread as usize);
+        let mut local_m1 = Array::<f32>::new(elements_per_thread as usize);
+
         transform(
             block,
             grad,
@@ -311,14 +274,8 @@ mod tests {
             moment_2_scales,
             max_moment_2_codes,
             max_moment_2_scales,
-            moment_1_codes_new,
-            moment_1_scales_new,
-            moment_2_codes_new,
-            moment_2_scales_new,
-            max_moment_2_codes_new,
-            max_moment_2_scales_new,
-            update_delta,
-            m1_dequantized,
+            &mut local_delta,
+            &mut local_m1,
             beta_1,
             beta_2,
             factor_1,
@@ -326,13 +283,25 @@ mod tests {
             correction1,
             correction2_sqrt,
             epsilon,
-            BLOCK_SIZE,
+            block_size,
             amsgrad,
             is_first_step,
+            plane_size,
         );
+
+        // Spill registers to global memory for host inspection.
+        // Pass-1 distribution: lane `unit` owns elements at offsets
+        // {unit, unit + plane_size, unit + 2*plane_size, ...}
+        let block_start = block * block_size;
+        #[unroll]
+        for iter in 0..elements_per_thread {
+            let element = unit + iter * plane_size;
+            let i = block_start + element;
+            delta_spill[i as usize] = local_delta[iter as usize];
+            m1_spill[i as usize] = local_m1[iter as usize];
+        }
     }
 
-    /// Outputs from a transform call.
     struct TransformResult {
         delta: Vec<f32>,
         m1_dequantized: Vec<f32>,
@@ -344,9 +313,6 @@ mod tests {
         max_v_scales: Vec<f32>,
     }
 
-    /// Run `transform` once, returning all outputs. Inputs that aren't
-    /// applicable (e.g. moment_1 codes when first_step) can be passed as
-    /// any data — the kernel won't read them.
     fn run_transform(
         grad: &[f32],
         m1_codes_in: Option<&[u32]>,
@@ -374,13 +340,11 @@ mod tests {
         let num_blocks = n as u32 / BLOCK_SIZE;
         let packed_count = n / PACKING_AMOUNT as usize;
 
-        // Host-side scalar precomputation
         let factor_1 = 1.0 - beta_1;
         let factor_2 = 1.0 - beta_2;
         let correction1 = 1.0 - beta_1.powi(time as i32);
         let correction2_sqrt = (1.0 - beta_2.powi(time as i32)).sqrt();
 
-        // Upload all inputs
         let upload_f32 =
             |data: &[f32]| client.create(Bytes::from_bytes_vec(f32::as_bytes(data).to_vec()));
         let upload_u32 =
@@ -388,91 +352,66 @@ mod tests {
 
         let grad_h = upload_f32(grad);
 
-        // Use 1-element dummies for unused inputs (matches launcher convention)
-        let dummy_u32 = client.empty(core::mem::size_of::<u32>());
-        let dummy_f32 = client.empty(core::mem::size_of::<f32>());
-
-        let m1_codes_h = m1_codes_in
-            .map(upload_u32)
-            .unwrap_or_else(|| dummy_u32.clone());
-        let m1_scales_h = m1_scales_in
-            .map(upload_f32)
-            .unwrap_or_else(|| dummy_f32.clone());
-        let m2_codes_h = m2_codes_in
-            .map(upload_u32)
-            .unwrap_or_else(|| dummy_u32.clone());
-        let m2_scales_h = m2_scales_in
-            .map(upload_f32)
-            .unwrap_or_else(|| dummy_f32.clone());
-        let max_v_codes_h = max_v_codes_in
-            .map(upload_u32)
-            .unwrap_or_else(|| dummy_u32.clone());
-        let max_v_scales_h = max_v_scales_in
-            .map(upload_f32)
-            .unwrap_or_else(|| dummy_f32.clone());
-
-        let m1_codes_in_size = if is_first_step { 1 } else { packed_count };
-        let m1_scales_in_size = if is_first_step {
-            1
-        } else {
-            num_blocks as usize
+        // In-place state: always allocate full-size buffers. On first step,
+        // the kernel ignores their contents. On subsequent steps, upload prior state.
+        let m1_codes_h = match m1_codes_in {
+            Some(d) => upload_u32(d),
+            None => client.empty(packed_count * core::mem::size_of::<u32>()),
         };
-        let m2_codes_in_size = if is_first_step { 1 } else { packed_count };
-        let m2_scales_in_size = if is_first_step {
-            1
-        } else {
-            num_blocks as usize
+        let m1_scales_h = match m1_scales_in {
+            Some(d) => upload_f32(d),
+            None => client.empty(num_blocks as usize * core::mem::size_of::<f32>()),
         };
-        let max_v_codes_in_size = if amsgrad && !is_first_step {
-            packed_count
-        } else {
-            1
+        let m2_codes_h = match m2_codes_in {
+            Some(d) => upload_u32(d),
+            None => client.empty(packed_count * core::mem::size_of::<u32>()),
         };
-        let max_v_scales_in_size = if amsgrad && !is_first_step {
-            num_blocks as usize
-        } else {
-            1
+        let m2_scales_h = match m2_scales_in {
+            Some(d) => upload_f32(d),
+            None => client.empty(num_blocks as usize * core::mem::size_of::<f32>()),
         };
 
-        // Allocate outputs
-        let m1_codes_new_h = client.empty(packed_count * core::mem::size_of::<u32>());
-        let m1_scales_new_h = client.empty(num_blocks as usize * core::mem::size_of::<f32>());
-        let m2_codes_new_h = client.empty(packed_count * core::mem::size_of::<u32>());
-        let m2_scales_new_h = client.empty(num_blocks as usize * core::mem::size_of::<f32>());
-        let max_v_codes_new_h = if amsgrad {
-            client.empty(packed_count * core::mem::size_of::<u32>())
+        let max_v_codes_h = if amsgrad {
+            match max_v_codes_in {
+                Some(d) => upload_u32(d),
+                None => client.empty(packed_count * core::mem::size_of::<u32>()),
+            }
         } else {
             client.empty(core::mem::size_of::<u32>())
         };
-        let max_v_scales_new_h = if amsgrad {
-            client.empty(num_blocks as usize * core::mem::size_of::<f32>())
+        let max_v_scales_h = if amsgrad {
+            match max_v_scales_in {
+                Some(d) => upload_f32(d),
+                None => client.empty(num_blocks as usize * core::mem::size_of::<f32>()),
+            }
         } else {
             client.empty(core::mem::size_of::<f32>())
         };
-        let max_v_codes_out_size = if amsgrad { packed_count } else { 1 };
-        let max_v_scales_out_size = if amsgrad { num_blocks as usize } else { 1 };
+
+        let m1_codes_size = packed_count;
+        let m1_scales_size = num_blocks as usize;
+        let m2_codes_size = packed_count;
+        let m2_scales_size = num_blocks as usize;
+        let max_v_codes_size = if amsgrad { packed_count } else { 1 };
+        let max_v_scales_size = if amsgrad { num_blocks as usize } else { 1 };
 
         let delta_h = client.empty(n * core::mem::size_of::<f32>());
         let m1_dequant_h = client.empty(n * core::mem::size_of::<f32>());
+
+        let plane_size = client.properties().hardware.plane_size_max;
 
         unsafe {
             transform_test_kernel::launch_unchecked::<TestRuntime>(
                 &client,
                 CubeCount::Static(num_blocks, 1, 1),
-                CubeDim::new(&client, PLANE_SIZE as usize),
+                CubeDim::new(&client, plane_size as usize),
                 ArrayArg::from_raw_parts(grad_h, n),
-                ArrayArg::from_raw_parts(m1_codes_h, m1_codes_in_size),
-                ArrayArg::from_raw_parts(m1_scales_h, m1_scales_in_size),
-                ArrayArg::from_raw_parts(m2_codes_h, m2_codes_in_size),
-                ArrayArg::from_raw_parts(m2_scales_h, m2_scales_in_size),
-                ArrayArg::from_raw_parts(max_v_codes_h, max_v_codes_in_size),
-                ArrayArg::from_raw_parts(max_v_scales_h, max_v_scales_in_size),
-                ArrayArg::from_raw_parts(m1_codes_new_h.clone(), packed_count),
-                ArrayArg::from_raw_parts(m1_scales_new_h.clone(), num_blocks as usize),
-                ArrayArg::from_raw_parts(m2_codes_new_h.clone(), packed_count),
-                ArrayArg::from_raw_parts(m2_scales_new_h.clone(), num_blocks as usize),
-                ArrayArg::from_raw_parts(max_v_codes_new_h.clone(), max_v_codes_out_size),
-                ArrayArg::from_raw_parts(max_v_scales_new_h.clone(), max_v_scales_out_size),
+                ArrayArg::from_raw_parts(m1_codes_h.clone(), m1_codes_size),
+                ArrayArg::from_raw_parts(m1_scales_h.clone(), m1_scales_size),
+                ArrayArg::from_raw_parts(m2_codes_h.clone(), m2_codes_size),
+                ArrayArg::from_raw_parts(m2_scales_h.clone(), m2_scales_size),
+                ArrayArg::from_raw_parts(max_v_codes_h.clone(), max_v_codes_size),
+                ArrayArg::from_raw_parts(max_v_scales_h.clone(), max_v_scales_size),
                 ArrayArg::from_raw_parts(delta_h.clone(), n),
                 ArrayArg::from_raw_parts(m1_dequant_h.clone(), n),
                 beta_1,
@@ -485,6 +424,7 @@ mod tests {
                 BLOCK_SIZE,
                 amsgrad,
                 is_first_step,
+                plane_size,
             );
         }
 
@@ -494,25 +434,20 @@ mod tests {
         TransformResult {
             delta: read_f32(delta_h),
             m1_dequantized: read_f32(m1_dequant_h),
-            m1_codes: read_u32(m1_codes_new_h),
-            m1_scales: read_f32(m1_scales_new_h),
-            m2_codes: read_u32(m2_codes_new_h),
-            m2_scales: read_f32(m2_scales_new_h),
-            max_v_codes: read_u32(max_v_codes_new_h),
-            max_v_scales: read_f32(max_v_scales_new_h),
+            // State buffers updated in place — read back from same handles
+            m1_codes: read_u32(m1_codes_h),
+            m1_scales: read_f32(m1_scales_h),
+            m2_codes: read_u32(m2_codes_h),
+            m2_scales: read_f32(m2_scales_h),
+            max_v_codes: read_u32(max_v_codes_h),
+            max_v_scales: read_f32(max_v_scales_h),
         }
     }
 
     // =====================================================================
-    //  Tests — all use N (a single block of size BLOCK_SIZE)
+    //  Tests
     // =====================================================================
 
-    /// First step with constant gradient: delta should be ~1.0 everywhere.
-    /// With grad = 0.01, β₁ = 0.9, β₂ = 0.999, ε = 1e-8:
-    ///   m1_new = 0.001
-    ///   m2_new = 1e-7
-    ///   step_size = sqrt(1 - 0.999) / (1 - 0.9) ≈ 0.316
-    ///   delta = m1_new / sqrt(m2_new) * step_size ≈ 1.0
     #[test]
     fn first_step_constant_gradient() {
         let grad = vec![0.01_f32; N];
@@ -541,7 +476,6 @@ mod tests {
         }
     }
 
-    /// First step with zero gradient: deltas and moments should all be 0.
     #[test]
     fn first_step_zero_gradient() {
         let grad = vec![0.0_f32; N];
@@ -559,7 +493,6 @@ mod tests {
         }
     }
 
-    /// First step with mixed-sign gradient: each delta should match grad's sign.
     #[test]
     fn first_step_sign_preservation() {
         let grad: Vec<f32> = (0..N)
@@ -582,8 +515,6 @@ mod tests {
         }
     }
 
-    /// Two-step parity: step 0 produces state, step 1 reads it back.
-    /// Verifies the requantize-then-dequantize roundtrip works.
     #[test]
     fn two_step_state_propagation() {
         let grad0 = vec![0.05_f32; N];
@@ -622,8 +553,6 @@ mod tests {
         }
     }
 
-    /// Edge case: zero gradient on a non-first step should still produce
-    /// finite output (using stored moments from previous step).
     #[test]
     fn second_step_zero_gradient_after_nonzero() {
         let grad0 = vec![0.05_f32; N];

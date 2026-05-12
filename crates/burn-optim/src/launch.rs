@@ -1,23 +1,13 @@
-use cubecl::prelude::*;
+use cubecl::{prelude::*, server::Handle};
 
 use crate::kernel::adamw_8bit_step_kernel;
 
+/// Max for backends like Vulkan.
+const MAX_DIM: u32 = 65535;
+/// Our size we pack by. You'd have to manually refactor packing if this is changed.
 pub const PACKING_AMOUNT: u32 = 4;
-/// Don't mess with this value. I know it doesn't work on AMD.
-pub const PLANE_SIZE: u32 = 32;
+/// The amount of bits to transfer over by.
 pub const PACK_SHIFT: u32 = 2_u32.pow(8);
-
-// /// Result of one fused step: the updated parameter and the new state buffers.
-// pub struct AdamWStepOutput<R: Runtime> {
-//     pub theta_new: cubecl::server::Handle,
-//     pub moment_1_codes: cubecl::server::Handle,
-//     pub moment_1_scales: cubecl::server::Handle,
-//     pub moment_2_codes: cubecl::server::Handle,
-//     pub moment_2_scales: cubecl::server::Handle,
-//     pub max_moment_2_codes: Option<cubecl::server::Handle>,
-//     pub max_moment_2_scales: Option<cubecl::server::Handle>,
-//     pub _phantom: core::marker::PhantomData<R>,
-// }
 
 /// Hyperparameters for one step.
 pub struct AdamWStepParams {
@@ -36,14 +26,14 @@ pub struct AdamWStepParams {
 /// scales arrays are sized as numel / block_size, and the codes arrays
 /// as numel / PACKING_AMOUNT.
 pub struct AdamWStepInputs<R: Runtime> {
-    pub theta: cubecl::server::Handle,
-    pub grad: cubecl::server::Handle,
-    pub moment_1_codes: Option<cubecl::server::Handle>,
-    pub moment_1_scales: Option<cubecl::server::Handle>,
-    pub moment_2_codes: Option<cubecl::server::Handle>,
-    pub moment_2_scales: Option<cubecl::server::Handle>,
-    pub max_moment_2_codes: Option<cubecl::server::Handle>,
-    pub max_moment_2_scales: Option<cubecl::server::Handle>,
+    pub theta: Handle,
+    pub grad: Handle,
+    pub moment_1_codes: Option<Handle>,
+    pub moment_1_scales: Option<Handle>,
+    pub moment_2_codes: Option<Handle>,
+    pub moment_2_scales: Option<Handle>,
+    pub max_moment_2_codes: Option<Handle>,
+    pub max_moment_2_scales: Option<Handle>,
     pub numel: usize,
     pub _phantom: core::marker::PhantomData<R>,
 }
@@ -68,7 +58,6 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
     let packed_count = n / PACKING_AMOUNT as usize;
     let num_blocks_usize = num_blocks as usize;
 
-    const MAX_DIM: u32 = 65535;
     let (cx, cy, cz) = if num_blocks <= MAX_DIM {
         (num_blocks, 1, 1)
     } else {
@@ -78,7 +67,6 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
         (x, y, z)
     };
 
-    // ---- Host-side scalar precomputation ----
     let factor_1 = 1.0 - params.beta_1;
     let factor_2 = 1.0 - params.beta_2;
     let time = params.time as i32;
@@ -113,11 +101,13 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
         )
     };
 
+    let plane_size = client.properties().hardware.plane_size_max; // Portability.
+
     unsafe {
         adamw_8bit_step_kernel::launch_unchecked::<R>(
             client,
             CubeCount::Static(cx, cy, cz),
-            CubeDim::new(client, PLANE_SIZE as usize),
+            CubeDim::new(client, plane_size as usize),
             // All in-place: same buffer as input and "output"
             ArrayArg::from_raw_parts(inputs.theta, n),
             ArrayArg::from_raw_parts(inputs.grad, n),
@@ -140,6 +130,7 @@ pub fn launch_adamw_8bit_step<R: Runtime>(
             params.amsgrad,
             is_first_step,
             params.cautious_weight_decay,
+            plane_size,
             num_blocks,
             cx,
             cy,

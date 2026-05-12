@@ -1,12 +1,5 @@
 use cubecl::prelude::*;
 
-/// Encode one normalized non-negative scalar in `[0, 1]` to its unsigned
-/// dynamic 8-bit code.
-///
-/// Inputs outside `[0, 1]` are clamped at the bucket boundaries (values
-/// `>= 0.1` always land in the top bucket regardless of magnitude).
-/// Negative inputs are treated as their absolute value — the caller is
-/// responsible for ensuring the input is non-negative.
 #[cube]
 pub fn encode(normalized: f32) -> u32 {
     // No abs() — matches tensor-ops behavior. Negative inputs satisfy
@@ -57,10 +50,6 @@ pub fn encode(normalized: f32) -> u32 {
     }
 }
 
-/// Decode one unsigned dynamic 8-bit code to its non-negative normalized f32.
-///
-/// Inverse of [`encode_unsigned_one`]. Round-trip is exact for code 0 and
-/// stable to within the per-bucket quantization step otherwise.
 #[cube]
 pub fn decode(code: u32) -> f32 {
     let is_zero = code == 0u32;

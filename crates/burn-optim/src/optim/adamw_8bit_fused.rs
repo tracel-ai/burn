@@ -1,33 +1,21 @@
 //! An 8-bit optimizer of AdamW.
 
 use burn_core as burn;
-use burn_core::tensor::DType;
 
 use burn::config::Config;
-use burn::tensor::TensorPrimitive;
-use burn::tensor::{
-    Tensor,
-    backend::{AutodiffBackend, Backend},
-    ops::Device,
-};
+use burn::prelude::*;
+use burn::tensor::{DType, Tensor, TensorPrimitive, backend::Backend};
 use burn::{module::AutodiffModule, record::Record};
 use burn_autodiff::Autodiff;
-use burn_core::prelude::Shape;
 use burn_cubecl::tensor::CubeTensor;
 use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
-use cubecl::CubeElement;
-use cubecl::Runtime;
-use cubecl::bytes::Bytes;
 use cubecl::client::ComputeClient;
-use cubecl::cuda::CudaRuntime;
 use cubecl::server::Handle;
 use cubecl::zspace::metadata::Metadata;
 
 use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
 use crate::launch::{AdamWStepInputs, AdamWStepParams, PACKING_AMOUNT, launch_adamw_8bit_step};
-use crate::quantization::{
-    QuantizeBlockwise, dequantize_blockwise, quantize_blockwise, signed_dynamic, unsigned_dynamic,
-};
+use crate::quantization::QuantizeBlockwise;
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]
@@ -89,29 +77,6 @@ pub struct AdamWState8BitFused<B: Backend, const D: usize> {
     moment_2: QuantizeBlockwise<B, D>,
     max_moment_2: Option<QuantizeBlockwise<B, D>>,
 }
-
-// impl SimpleOptimizer<MyBackend> for AdamW8BitFused {
-//     type State<const D: usize> = AdamWState8BitFused<MyBackend, D>;
-
-//     fn step<const D: usize>(
-//         &self,
-//         lr: LearningRate,
-//         tensor: Tensor<MyBackend, D>,
-//         grad: Tensor<MyBackend, D>,
-//         state: Option<Self::State<D>>,
-//     ) -> (Tensor<MyBackend, D>, Option<Self::State<D>>) {
-//     }
-
-//     fn to_device<const D: usize>(
-//         mut state: Self::State<D>,
-//         device: &Device<MyBackend>,
-//     ) -> Self::State<D> {
-//         state.moment_1 = state.moment_1.to_device(device);
-//         state.moment_2 = state.moment_2.to_device(device);
-//         state.max_moment_2 = state.max_moment_2.map(|m| m.to_device(device));
-//         state
-//     }
-// }
 
 impl<R, F, I, BT> SimpleOptimizer<CubeBackend<R, F, I, BT>> for AdamW8BitFused
 where
@@ -296,6 +261,7 @@ where
 }
 
 impl AdamWConfig8BitFused {
+    /// Creates an instance of AdamW 8bit kernel varant.
     pub fn init<R, F, I, BT, M>(
         &self,
     ) -> OptimizerAdaptor<AdamW8BitFused, M, Autodiff<CubeBackend<R, F, I, BT>>>

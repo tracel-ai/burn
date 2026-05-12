@@ -4,7 +4,6 @@ use crate::kernel::signed;
 use crate::kernel::unsigned;
 use crate::launch::PACK_SHIFT;
 use crate::launch::PACKING_AMOUNT;
-use crate::launch::PLANE_SIZE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -37,70 +36,32 @@ fn decode_dispatch(code: u32, #[comptime] scheme: u32) -> f32 {
 
 #[cube]
 pub fn quantize_blockwise(
-    block: u32,
-    input: &Array<f32>,
-    packed_out: &mut Array<u32>,
-    scales_out: &mut Array<f32>,
+    shared: &SharedMemory<f32>,
+    codes: &mut Array<u32>,
+    scales: &Array<f32>,
+    i: u32,
+    shared_offset: u32,
     #[comptime] block_size: u32,
     #[comptime] scheme: u32,
 ) {
-    let unit = UNIT_POS_X;
-    let block_start = block * block_size;
-    let elements_per_thread = comptime!(block_size / PLANE_SIZE);
-    // let elements_per_thread = comptime!(block_size / PLANE_DIM);
+    let block = i / block_size;
+    let scale = scales[block as usize];
 
-    // ---- Pass 1: each thread finds its local max across its elements ----
-    let mut local_max = 0.0f32;
-    #[unroll]
-    for iter in 0..elements_per_thread {
-        let element = unit + iter * PLANE_SIZE;
-        // let element = unit + iter * PLANE_DIM;
-        let i = block_start + element;
-        local_max = max(local_max, input[i as usize].abs());
-    }
+    let v0 = shared[shared_offset as usize];
+    let v1 = shared[shared_offset as usize + 1];
+    let v2 = shared[shared_offset as usize + 2];
+    let v3 = shared[shared_offset as usize + 3];
 
-    // ---- Cross-thread reduction (single plane) ----
-    let block_absmax = plane_max(local_max);
-    let safe_scale = if block_absmax > 0.0f32 {
-        block_absmax
-    } else {
-        1.0f32.into()
-    };
+    let c0 = encode_dispatch(v0 / scale, scheme);
+    let c1 = encode_dispatch(v1 / scale, scheme);
+    let c2 = encode_dispatch(v2 / scale, scheme);
+    let c3 = encode_dispatch(v3 / scale, scheme);
 
-    if unit == 0 {
-        scales_out[block as usize] = safe_scale;
-    }
-
-    // ---- Pass 2: each thread encodes its elements and packs pairs ----
-    // Strategy A: each thread handles consecutive pairs, so packing is
-    // local — no inter-thread communication needed.
-    let packed_per_thread = comptime!(elements_per_thread / PACKING_AMOUNT);
-
-    #[unroll]
-    for iter in 0..packed_per_thread {
-        // Each thread `unit` owns 4 consecutive elements at:
-        //   (unit*4 + iter * PLANE_SIZE * 4), +1, +2, +3
-        let element = unit * 4 + iter * PLANE_SIZE * 4;
-        let i = block_start + element;
-
-        let v0 = input[i as usize];
-        let v1 = input[i as usize + 1];
-        let v2 = input[i as usize + 2];
-        let v3 = input[i as usize + 3];
-
-        let code0 = encode_dispatch(v0 / safe_scale, scheme);
-        let code1 = encode_dispatch(v1 / safe_scale, scheme);
-        let code2 = encode_dispatch(v2 / safe_scale, scheme);
-        let code3 = encode_dispatch(v3 / safe_scale, scheme);
-
-        let pack_idx = i / PACKING_AMOUNT;
-        // Pack 4 codes into a u32, most significant byte first.
-        // Matches the dequantize layout where pack_pos 0 reads the top byte.
-        packed_out[pack_idx as usize] = code0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
-            + code1 * PACK_SHIFT * PACK_SHIFT
-            + code2 * PACK_SHIFT
-            + code3;
-    }
+    let pack_idx = i / PACKING_AMOUNT;
+    codes[pack_idx as usize] = c0 * PACK_SHIFT * PACK_SHIFT * PACK_SHIFT
+        + c1 * PACK_SHIFT * PACK_SHIFT
+        + c2 * PACK_SHIFT
+        + c3;
 }
 
 #[cube]
@@ -133,196 +94,218 @@ pub fn dequantize_blockwise(
 }
 
 #[cfg(test)]
-mod tests {
+mod blockwise_tests {
     use super::*;
     use cubecl::bytes::Bytes;
     use cubecl::cuda::CudaRuntime;
-    use cubecl::hip::HipRuntime; // reports 32 plane size
+    use cubecl::hip::HipRuntime;
+    use cubecl::prelude::*;
     use cubecl::wgpu::WgpuRuntime;
 
-    // type TestRuntime = WgpuRuntime;
-    type TestRuntime = CudaRuntime;
+    // type TestRuntime = CudaRuntime;
+    type TestRuntime = WgpuRuntime;
     // type TestRuntime = HipRuntime;
 
-    /// Block size for tests. Must equal PLANE_SIZE (64) until larger blocks
-    /// are supported via hierarchical reduction.
     const BLOCK_SIZE: u32 = 256;
+    const N: usize = BLOCK_SIZE as usize;
 
+    /// Quantize `input` into `codes`/`scales`, then dequantize back into `output`.
+    /// Single block. Mirrors the staging-then-quantize pattern in `transform`.
     #[cube(launch_unchecked)]
-    fn quantize_kernel(
+    fn roundtrip_kernel(
         input: &Array<f32>,
-        packed_out: &mut Array<u32>,
-        scales_out: &mut Array<f32>,
+        codes: &mut Array<u32>,
+        scales: &mut Array<f32>,
+        output: &mut Array<f32>,
         #[comptime] block_size: u32,
+        #[comptime] plane_size: u32,
         #[comptime] scheme: u32,
     ) {
         let block = CUBE_POS_X;
-        quantize_blockwise(block, input, packed_out, scales_out, block_size, scheme);
-    }
+        let unit = UNIT_POS_X;
+        let block_start = block * block_size;
+        let elements_per_thread = comptime!(block_size / plane_size);
+        let quads_per_thread = comptime!(block_size / (plane_size * PACKING_AMOUNT));
 
-    #[cube(launch_unchecked)]
-    fn dequantize_kernel(
-        packed: &Array<u32>,
-        scales: &Array<f32>,
-        output: &mut Array<f32>,
-        #[comptime] block_size: u32,
-        #[comptime] scheme: u32,
-    ) {
-        let i = ABSOLUTE_POS as u32;
-        if (i as usize) < output.len() {
-            output[i as usize] = dequantize_blockwise(packed, scales, i, block_size, scheme);
+        // Stage input into shared memory and compute per-block absmax for the scale.
+        let mut shared = SharedMemory::<f32>::new(block_size as usize);
+        let mut local_absmax = 0.0_f32;
+
+        #[unroll]
+        for iter in 0..elements_per_thread {
+            let element = unit + iter * plane_size;
+            let i = block_start + element;
+            let v = input[i as usize];
+            shared[element as usize] = v;
+            local_absmax = max(local_absmax, v.abs());
+        }
+
+        let block_absmax = plane_max(local_absmax);
+        let safe_scale = if block_absmax > 0.0_f32 {
+            block_absmax
+        } else {
+            1.0_f32.into()
+        };
+
+        if unit == 0 {
+            scales[block as usize] = safe_scale;
+        }
+        sync_cube();
+
+        // Quantize: one quad per lane per iter.
+        #[unroll]
+        for iter in 0..quads_per_thread {
+            let element = unit * PACKING_AMOUNT + iter * plane_size * PACKING_AMOUNT;
+            let i = block_start + element;
+            quantize_blockwise(&shared, codes, scales, i, element, block_size, scheme);
+        }
+
+        // Dequantize back, using the Pass-1-style stride.
+        #[unroll]
+        for iter in 0..elements_per_thread {
+            let element = unit + iter * plane_size;
+            let i = block_start + element;
+            output[i as usize] = dequantize_blockwise(codes, scales, i, block_size, scheme);
         }
     }
 
-    fn roundtrip_via_kernel<R: Runtime>(
-        client: &ComputeClient<R>,
-        input: &[f32],
-        block_size: u32,
-        scheme: Scheme,
-    ) -> Vec<f32> {
+    struct RoundtripResult {
+        output: Vec<f32>,
+        codes: Vec<u32>,
+        scales: Vec<f32>,
+    }
+
+    fn run_roundtrip(input: &[f32], scheme: Scheme) -> RoundtripResult {
+        let client = TestRuntime::client(&Default::default());
         let n = input.len();
         assert_eq!(
-            n % block_size as usize,
+            n % BLOCK_SIZE as usize,
             0,
-            "input length {} must divide evenly by block_size {}",
+            "input length ({}) must be a multiple of BLOCK_SIZE ({})",
             n,
-            block_size,
+            BLOCK_SIZE,
         );
-        let num_blocks = n as u32 / block_size;
+        let num_blocks = n as u32 / BLOCK_SIZE;
         let packed_count = n / PACKING_AMOUNT as usize;
 
-        let input_bytes = f32::as_bytes(input).to_vec();
-        let input_handle = client.create(Bytes::from_bytes_vec(input_bytes));
-        let packed_handle = client.empty(packed_count * core::mem::size_of::<u32>());
-        let scales_handle = client.empty(num_blocks as usize * core::mem::size_of::<f32>());
-        let output_handle = client.empty(n * core::mem::size_of::<f32>());
+        let input_h = client.create(Bytes::from_bytes_vec(f32::as_bytes(input).to_vec()));
+        let codes_h = client.empty(packed_count * core::mem::size_of::<u32>());
+        let scales_h = client.empty(num_blocks as usize * core::mem::size_of::<f32>());
+        let output_h = client.empty(n * core::mem::size_of::<f32>());
 
-        // Quantize: one cube per block, block_size units per cube.
+        let plane_size = client.properties().hardware.plane_size_max;
+
         unsafe {
-            quantize_kernel::launch_unchecked::<R>(
-                client,
+            roundtrip_kernel::launch_unchecked::<TestRuntime>(
+                &client,
                 CubeCount::Static(num_blocks, 1, 1),
-                CubeDim::new(client, PLANE_SIZE as usize), // ← always 64
-                // CubeDim::new(client, 64), // ← always 64
-                ArrayArg::from_raw_parts(input_handle, n),
-                ArrayArg::from_raw_parts(packed_handle.clone(), packed_count),
-                ArrayArg::from_raw_parts(scales_handle.clone(), num_blocks as usize),
-                block_size,
+                CubeDim::new(&client, plane_size as usize),
+                ArrayArg::from_raw_parts(input_h, n),
+                ArrayArg::from_raw_parts(codes_h.clone(), packed_count),
+                ArrayArg::from_raw_parts(scales_h.clone(), num_blocks as usize),
+                ArrayArg::from_raw_parts(output_h.clone(), n),
+                BLOCK_SIZE,
+                plane_size,
                 scheme as u32,
             );
         }
 
-        // Dequantize: one thread per output element.
-        let dequant_dim = CubeDim::new(client, n);
-        let units_per_cube = dequant_dim.x * dequant_dim.y * dequant_dim.z;
-        let dequant_cubes = (n as u32).div_ceil(units_per_cube);
+        let read_f32 = |h| f32::from_bytes(&client.read_one_unchecked(h)).to_vec();
+        let read_u32 = |h| u32::from_bytes(&client.read_one_unchecked(h)).to_vec();
 
-        unsafe {
-            dequantize_kernel::launch_unchecked::<R>(
-                client,
-                CubeCount::Static(dequant_cubes, 1, 1),
-                dequant_dim,
-                ArrayArg::from_raw_parts(packed_handle, packed_count),
-                ArrayArg::from_raw_parts(scales_handle, num_blocks as usize),
-                ArrayArg::from_raw_parts(output_handle.clone(), n),
-                block_size,
-                scheme as u32,
+        RoundtripResult {
+            output: read_f32(output_h),
+            codes: read_u32(codes_h.clone()),
+            scales: read_f32(scales_h),
+        }
+    }
+
+    /// Roundtrip tolerance: codes are quantized to a discrete grid, so error
+    /// scales with the block's scale. 1/15 ~ 6.7% is generous for 4-bit grids;
+    /// tighten if your grid is denser.
+    fn assert_close(input: &[f32], output: &[f32], scale: f32) {
+        let tol = scale / 15.0 + 1e-6;
+        for (i, (&a, &b)) in input.iter().zip(output.iter()).enumerate() {
+            let err = (a - b).abs();
+            assert!(
+                err <= tol,
+                "lane {i}: input={a} output={b} err={err} tol={tol}",
             );
         }
-
-        let bytes: Bytes = client.read_one_unchecked(output_handle);
-        f32::from_bytes(&bytes).to_vec()
     }
 
     #[test]
-    fn test_blockwise_roundtrip_uniform() {
-        let client = TestRuntime::client(&Default::default());
-        let input: Vec<f32> = vec![0.5; 512];
-        let recovered =
-            roundtrip_via_kernel::<TestRuntime>(&client, &input, BLOCK_SIZE, Scheme::Signed);
-
-        let max_err = input
-            .iter()
-            .zip(recovered.iter())
-            .map(|(a, b)| ((a - b) / a).abs())
-            .fold(0.0f32, f32::max);
-
-        println!(
-            "Uniform 0.5 roundtrip max relative error: {:.4}%",
-            max_err * 100.0
-        );
-        assert!(max_err < 0.02, "max relative error too high: {}", max_err);
-    }
-
-    #[test]
-    fn test_blockwise_roundtrip_mixed() {
-        let client = TestRuntime::client(&Default::default());
-        let input: Vec<f32> = (0..512)
-            .map(|i| (i as f32 / 511.0 * 2.0 - 1.0) * 0.9)
+    fn roundtrip_signed_symmetric() {
+        // Values in [-1, 1] at unit scale.
+        let input: Vec<f32> = (0..N)
+            .map(|i| {
+                let t = (i as f32 / (N - 1) as f32) * 2.0 - 1.0;
+                t * 0.95
+            })
             .collect();
-
-        let recovered =
-            roundtrip_via_kernel::<TestRuntime>(&client, &input, BLOCK_SIZE, Scheme::Signed);
-
-        input
-            .iter()
-            .zip(recovered.iter())
-            .enumerate()
-            .filter(|(_, (a, _))| a.abs() > 0.01)
-            .for_each(|(i, (a, b))| {
-                let rel_err = ((a - b) / a).abs() * 100.0;
-                if rel_err > 5.0 {
-                    println!("  [{i}] {a:.7} -> {b:.7}  (err: {rel_err:.2}%)");
-                }
-            });
-
-        let max_err = input
-            .iter()
-            .zip(recovered.iter())
-            .filter(|(a, _)| a.abs() > 0.01)
-            .map(|(a, b)| ((a - b) / a).abs())
-            .fold(0.0f32, f32::max);
-
-        println!(
-            "Mixed roundtrip max relative error: {:.4}%",
-            max_err * 100.0
-        );
-        assert!(max_err < 0.10, "max relative error too high: {}", max_err);
+        let result = run_roundtrip(&input, Scheme::Signed);
+        let scale = result.scales[0];
+        assert!(scale > 0.0, "scale should be positive, got {}", scale);
+        assert_close(&input, &result.output, scale);
     }
 
     #[test]
-    fn test_blockwise_roundtrip_unsigned() {
-        let client = TestRuntime::client(&Default::default());
-        let input: Vec<f32> = (0..512).map(|i| (i as f32 / 511.0) * 0.9 + 0.005).collect();
+    fn roundtrip_unsigned_nonnegative() {
+        let input: Vec<f32> = (0..N).map(|i| (i as f32 / N as f32) * 0.9).collect();
+        let result = run_roundtrip(&input, Scheme::Unsigned);
+        let scale = result.scales[0];
+        assert!(scale > 0.0);
+        assert_close(&input, &result.output, scale);
+    }
 
-        let recovered =
-            roundtrip_via_kernel::<TestRuntime>(&client, &input, BLOCK_SIZE, Scheme::Unsigned);
+    #[test]
+    fn roundtrip_signed_alternating_sign() {
+        // Stresses pack-position correctness: adjacent values have opposite signs,
+        // so a swapped pack_pos would scramble the recovered ordering.
+        let input: Vec<f32> = (0..N)
+            .map(|i| if i % 2 == 0 { 0.7 } else { -0.7 })
+            .collect();
+        let result = run_roundtrip(&input, Scheme::Signed);
 
-        let max_err = input
-            .iter()
-            .zip(recovered.iter())
-            .map(|(a, b)| ((a - b) / a).abs())
-            .fold(0.0f32, f32::max);
+        for (i, &v) in result.output.iter().enumerate() {
+            let expected_sign = if i % 2 == 0 { 1.0 } else { -1.0 };
+            assert!(
+                v.signum() == expected_sign || v == 0.0,
+                "lane {i}: expected sign {expected_sign}, got {v}",
+            );
+        }
+    }
 
-        // Small values are aggressively quantized, so their error rate can be very high.
-        // It's a known flaw of this method.
-        let worst =
-            input
-                .iter()
-                .zip(recovered.iter())
-                .enumerate()
-                .max_by(|(_, (a, b)), (_, (c, d))| {
-                    let err_ab = ((**a - **b) / **a).abs();
-                    let err_cd = ((**c - **d) / **c).abs();
-                    err_ab.partial_cmp(&err_cd).unwrap()
-                });
-
-        println!("Worst error at index {:?}", worst);
-
-        println!(
-            "Unsigned roundtrip max relative error: {:.4}%",
-            max_err * 100.0
+    #[test]
+    fn roundtrip_signed_scaled() {
+        // Large dynamic range — block absmax should drive the scale.
+        let input: Vec<f32> = (0..N)
+            .map(|i| {
+                let t = (i as f32 / (N - 1) as f32) * 2.0 - 1.0;
+                t * 100.0
+            })
+            .collect();
+        let result = run_roundtrip(&input, Scheme::Signed);
+        let scale = result.scales[0];
+        assert!(
+            (scale - 100.0).abs() < 1e-3,
+            "scale should be ~100, got {}",
+            scale,
         );
-        assert!(max_err < 0.05, "max relative error too high: {}", max_err);
+        assert_close(&input, &result.output, scale);
+    }
+
+    #[test]
+    fn roundtrip_zero_input() {
+        // Absmax is 0; safe_scale falls through to 1.0. Decoded values should be 0.
+        let input = vec![0.0_f32; N];
+        let result = run_roundtrip(&input, Scheme::Signed);
+        assert_eq!(
+            result.scales[0], 1.0,
+            "safe_scale should fall through to 1.0"
+        );
+        for (i, &v) in result.output.iter().enumerate() {
+            assert_eq!(v, 0.0, "lane {i}: expected 0, got {v}");
+        }
     }
 }

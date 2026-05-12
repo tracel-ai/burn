@@ -4,15 +4,10 @@ mod transform;
 mod unsigned;
 mod weight_decay;
 
-use burn_core as burn;
-
 use cubecl::prelude::*;
-
-use crate::launch::PLANE_SIZE;
 
 #[cube(launch_unchecked)]
 pub fn adamw_8bit_step_kernel(
-    // All in-place now
     theta: &mut Array<f32>,
     grad: &Array<f32>,
     moment_1_codes: &mut Array<u32>,
@@ -21,7 +16,6 @@ pub fn adamw_8bit_step_kernel(
     moment_2_scales: &mut Array<f32>,
     max_moment_2_codes: &mut Array<u32>,
     max_moment_2_scales: &mut Array<f32>,
-    // Runtime scalars
     beta_1: f32,
     beta_2: f32,
     factor_1: f32,
@@ -35,23 +29,19 @@ pub fn adamw_8bit_step_kernel(
     #[comptime] amsgrad: bool,
     #[comptime] is_first_step: bool,
     #[comptime] cautious_weight_decay: bool,
+    #[comptime] plane_size: u32,
 
     num_blocks: u32,
     cube_count_x: u32,
     cube_count_y: u32,
 ) {
-    // let block = CUBE_POS_X;
-    // let unit = UNIT_POS_X;
-    // let i = block * block_size + unit;
-
     let block = CUBE_POS_X + CUBE_POS_Y * cube_count_x + CUBE_POS_Z * cube_count_x * cube_count_y;
-
     if block >= num_blocks {
         terminate!();
     }
 
     let unit = UNIT_POS_X;
-    let elements_per_thread = comptime!(block_size / PLANE_SIZE);
+    let elements_per_thread = comptime!(block_size / plane_size);
 
     // Per-lane registers — these replace update_delta and m1_dequantized globals.
     // cubecl supports Array<f32, N> as a register-resident local array when N
@@ -60,7 +50,6 @@ pub fn adamw_8bit_step_kernel(
     let mut local_delta = Array::<f32>::new(elements_per_thread as usize);
     let mut local_m1 = Array::<f32>::new(elements_per_thread as usize);
 
-    // Phase 1: transform writes into locals instead of globals.
     transform::transform(
         block,
         grad,
@@ -82,12 +71,12 @@ pub fn adamw_8bit_step_kernel(
         block_size,
         amsgrad,
         is_first_step,
+        plane_size,
     );
 
-    // Phase 2: weight decay + in-place theta update, reading deltas from registers.
     #[unroll]
     for iter in 0..elements_per_thread {
-        let element = unit + iter * PLANE_SIZE;
+        let element = unit + iter * plane_size;
         let i = block * block_size + element;
         weight_decay::weight_decay(
             i,

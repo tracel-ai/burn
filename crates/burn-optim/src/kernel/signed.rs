@@ -1,13 +1,5 @@
 use cubecl::prelude::*;
 
-/// Encode one normalized scalar in `[-1, 1]` to its signed dynamic 8-bit code.
-///
-/// Output layout (low to high bits):
-///   - bits 0..N: fraction (N depends on depth bucket)
-///   - bit  N:    indicator (the lowest set bit identifies the depth)
-///   - bit  7:    sign (set when input is negative)
-///
-/// Inverse of `decode_signed_one` up to quantization error.
 #[cube]
 pub fn encode(normalized: f32) -> u32 {
     let abs_val = normalized.abs();
@@ -25,8 +17,7 @@ pub fn encode(normalized: f32) -> u32 {
             u32::new(0)
         };
 
-        // Determine depth bucket. Mirrors the lower_bits >= {64, 32, 16, ...} ladder
-        // in decode_signed_one.
+        // Determine depth bucket. Mirrors the lower_bits >= {64, 32, 16, ...} ladder.
         let (max_frac_f, upper, lower, indicator_val) = if abs_val >= 0.1f32 {
             (63.0f32, 1.0f32, 0.1f32, u32::new(64))
         } else if abs_val >= 0.01f32 {
@@ -56,8 +47,7 @@ pub fn encode(normalized: f32) -> u32 {
         let t_raw = (abs_val - lower) / safe_range;
         let t = clamp(t_raw, 0.0f32, 1.0f32);
 
-        // Quantize to integer fraction. round() then clamp belt-and-suspenders
-        // matches the tensor-ops version exactly.
+        // Quantize to integer fraction. round() then clamp belt-and-suspenders.
         let fraction_f = clamp((t * max_frac_f).round(), 0.0f32, 63.0f32);
         let fraction_raw = u32::cast_from(fraction_f);
 
@@ -74,10 +64,6 @@ pub fn encode(normalized: f32) -> u32 {
     }
 }
 
-/// Decode one signed dynamic 8-bit code to its normalized f32 value.
-///
-/// Inverse of [`encode_signed_one`]. Round-trip is exact for code 0 and
-/// stable to within the per-bucket quantization step otherwise.
 #[cube]
 pub fn decode(code: u32) -> f32 {
     // Lower 7 bits hold indicator + fraction. Top bit is the sign.
