@@ -93,7 +93,9 @@
 //!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
 //!   - `vulkan`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
 //!   - `cuda`: Makes available the CUDA backend
+//!   - `metal`: Makes available the Metal backend
 //!   - `rocm`: Makes available the ROCm backend
+//!   - `cpu`: Makes available the CubeCL CPU backend
 //!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
 //!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
