@@ -283,15 +283,16 @@ pub(crate) fn handle_command(
                     )?;
 
                     // burn-core
+                    set_burn_device("tch"); // test-tch
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
                         handle_test_args(
-                            &["--features", "test-tch,record-item-custom-serde"],
+                            &["--features", "tch,record-item-custom-serde"],
                             args.release,
                         ),
                         None,
                         None,
-                        "std with features: test-tch,record-item-custom-serde",
+                        "std with features: tch,record-item-custom-serde",
                     )?;
 
                     // burn-nn (pretrained and local tests)
@@ -300,12 +301,13 @@ pub(crate) fn handle_command(
                     //     nn_features.push_str(",test-local");
                     // }
                     // burn-vision
+                    set_burn_device("flex");
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        handle_test_args(&["--features", "test-cpu", "loss"], args.release),
+                        handle_test_args(&["--features", "flex", "loss"], args.release),
                         None,
                         None,
-                        "std cpu",
+                        "std cpu (flex)",
                     )?;
 
                     // burn-train vision (LPIPS, DISTS metrics)
