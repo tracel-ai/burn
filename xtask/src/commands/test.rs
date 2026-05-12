@@ -341,7 +341,7 @@ pub(crate) fn handle_command(
                     )?;
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        handle_test_args(&[], args.release),
+                        handle_test_args(&["--features", "metal"], args.release),
                         None,
                         None,
                         "std metal",
