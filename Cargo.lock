@@ -1273,7 +1273,7 @@ dependencies = [
  "ratatui",
  "rstest",
  "serde",
- "sysinfo",
+ "sysinfo 0.39.1",
  "systemstat",
  "thiserror 2.0.18",
  "tracing-appender",
@@ -2292,7 +2292,7 @@ dependencies = [
  "log",
  "paste",
  "serde",
- "sysinfo",
+ "sysinfo 0.38.4",
  "tracel-llvm",
  "tracel-llvm-bundler",
 ]
@@ -5973,6 +5973,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-open-directory"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb82bed227edf5201dfedf072bba4015a33d3d4a98519837295a90f0a23f676d"
+dependencies = [
+ "objc2",
+ "objc2-core-foundation",
+ "objc2-foundation",
+]
+
+[[package]]
 name = "objc2-quartz-core"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8756,6 +8767,21 @@ dependencies = [
  "ntapi",
  "objc2-core-foundation",
  "objc2-io-kit",
+ "windows",
+]
+
+[[package]]
+name = "sysinfo"
+version = "0.39.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4deba334e1190ba7cb498327affa11e5ece10d26a30ab2f27fcf09504b8d8b6"
+dependencies = [
+ "libc",
+ "memchr",
+ "ntapi",
+ "objc2-core-foundation",
+ "objc2-io-kit",
+ "objc2-open-directory",
  "windows",
 ]
 

@@ -170,7 +170,7 @@ uuid = { version = "1.23.0", default-features = false }
 byteorder = { version = "1.5.0", default-features = false }
 libc = "0.2.186"
 nvml-wrapper = "0.12.0"
-sysinfo = "0.38.0"
+sysinfo = "0.39.1"
 systemstat = "0.2.6"
 tch = "0.22.0"
 torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
