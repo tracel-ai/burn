@@ -28,7 +28,7 @@ use serde::{Serialize, Serializer};
 /// A tensor with a given shape and data type, backed by a runtime-selected device.
 ///
 /// Tensors are not statically tied to a backend. The backend is determined based on which device
-/// the tensor was created on. Backend compatibility between tensors in an operation is checked at runtime.
+/// the tensor was created on.
 ///
 /// # Indexing
 /// Indexing a tensor can be done using [`slice`](Tensor::slice) for all tensor types
