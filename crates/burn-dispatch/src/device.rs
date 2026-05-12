@@ -183,7 +183,7 @@ impl Default for DispatchDevice {
                         #[cfg(wgpu_metal)]
                         return Self::Metal(burn_wgpu::WgpuDevice::default());
                         panic!(
-                            "BURN_DEVICE=metal requested, but the 'wgpu-metal' feature is not enabled."
+                            "BURN_DEVICE=metal requested, but the 'metal' feature is not enabled."
                         );
                     }
                     "rocm" => {
@@ -197,14 +197,14 @@ impl Default for DispatchDevice {
                         #[cfg(wgpu_vulkan)]
                         return Self::Vulkan(burn_wgpu::WgpuDevice::default());
                         panic!(
-                            "BURN_DEVICE=vulkan requested, but the 'wgpu-vulkan' feature is not enabled."
+                            "BURN_DEVICE=vulkan requested, but the 'vulkan' feature is not enabled."
                         );
                     }
                     "webgpu" | "wgpu" => {
                         #[cfg(wgpu_webgpu)]
                         return Self::Wgpu(burn_wgpu::WgpuDevice::default());
                         panic!(
-                            "BURN_DEVICE=wgpu requested, but the 'wgpu-webgpu' feature is not enabled."
+                            "BURN_DEVICE=wgpu requested, but the 'webgpu' or 'wgpu' feature is not enabled."
                         );
                     }
                     "cpu" => {

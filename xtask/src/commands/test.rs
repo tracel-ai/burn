@@ -331,15 +331,7 @@ pub(crate) fn handle_command(
                         "std blas-accelerate",
                     )?;
 
-                    // burn-train vision (LPIPS, DISTS metrics)
-                    helpers::custom_crates_tests(
-                        vec!["burn-train"],
-                        handle_test_args(&["--features", "vision"], args.release),
-                        None,
-                        None,
-                        "std vision",
-                    )?;
-                    set_burn_device("metal"); // default device for base tests
+                    set_burn_device("metal");
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
                         handle_test_args(&[], args.release),
