@@ -334,7 +334,7 @@ pub(crate) fn handle_command(
                     set_burn_device("metal");
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        handle_test_args(&[], args.release),
+                        handle_test_args(&["--features", "metal"], args.release),
                         None,
                         None,
                         "std metal",
