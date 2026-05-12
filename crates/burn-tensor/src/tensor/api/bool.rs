@@ -36,12 +36,12 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
+    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
     ///     println!("{tensor}");
     /// }
     /// ```
-    pub fn from_bool(data: TensorData, device: &Device) -> Self {
-        Self::from_data(data, device)
+    pub fn from_bool<D: Into<TensorData>>(data: D, device: &Device) -> Self {
+        Self::from_data(data.into(), device)
     }
 
     /// Convert the bool tensor into an int tensor.
