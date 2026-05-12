@@ -5,7 +5,7 @@ use super::{FloatElem, IntElem};
 
 #[ctor]
 fn init_device_settings() {
-    let device = burn_tensor::Device::default();
+    let mut device = burn_tensor::Device::default();
     device
         .set_default_dtypes(
             <FloatElem as burn_tensor::Element>::dtype(),
