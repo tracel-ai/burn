@@ -14,7 +14,7 @@ pub(crate) use metrics::*;
 #[cfg(feature = "rl")]
 pub(crate) use rl_metrics::*;
 #[cfg(feature = "rl")]
-pub(crate) use rl_processor::*;
+pub use rl_processor::*;
 
 #[cfg(test)]
 pub(crate) use minimal::*;
