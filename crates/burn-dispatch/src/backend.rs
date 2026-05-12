@@ -68,7 +68,7 @@ impl BackendTypes for Dispatch {
 
     type BoolTensorPrimitive = DispatchTensor;
 
-    type BoolElem = u8;
+    type BoolElem = bool;
 
     type QuantizedTensorPrimitive = DispatchTensor;
 }
@@ -122,6 +122,35 @@ impl Backend for Dispatch {
             DispatchDeviceId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
         }
+    }
+
+    fn memory_persistent_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
+        device: &Self::Device,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        dispatch_device!(device, |device| B::memory_persistent_allocations(
+            device, input, func
+        ))
+    }
+
+    fn memory_cleanup(device: &Self::Device) {
+        dispatch_device!(device, |device| B::memory_cleanup(device))
+    }
+
+    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
+    where
+        Iter: Iterator<Item = &'a mut burn_backend::TensorData>,
+    {
+        dispatch_device!(device, |device| B::staging(data, device))
+    }
+
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 }
 
