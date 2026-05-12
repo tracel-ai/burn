@@ -10,7 +10,7 @@ type ElemType = f32;
 type ElemType = burn::tensor::f16;
 
 pub fn launch(device: impl Into<Device>) {
-    let device = device.into();
+    let mut device = device.into();
     device
         .set_default_dtypes(ElemType::dtype(), DType::I32)
         .unwrap();

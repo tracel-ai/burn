@@ -16,7 +16,7 @@ fn main() {
         burn::optim::AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(1.0e-6))),
     );
 
-    let device: Device = if cfg!(target_os = "macos") {
+    let mut device: Device = if cfg!(target_os = "macos") {
         burn::backend::libtorch::LibTorchDevice::Mps.into()
     } else {
         burn::backend::libtorch::LibTorchDevice::Cuda(0).into()

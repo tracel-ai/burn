@@ -287,7 +287,7 @@ impl Device {
     /// let ints = Tensor::<2, Int>::zeros([2, 3], &device);
     /// ```
     pub fn set_default_dtypes(
-        &self, // TODO: &mut self?
+        &mut self,
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
     ) -> Result<(), DeviceError> {
