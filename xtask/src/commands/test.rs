@@ -241,9 +241,6 @@ pub(crate) fn handle_command(
                         context,
                     )?;
 
-                    // TODO: test-vulkan (and test-*) no longer exists
-                    // We need a way to provide the default backend for CI.
-                    // Maybe an env var?
                     args.target = Target::AllPackages;
                     let args_vulkan = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-core", &args_vulkan)?;
@@ -340,16 +337,17 @@ pub(crate) fn handle_command(
                         None,
                         "std vision",
                     )?;
+                    set_burn_device("metal"); // default device for base tests
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        handle_test_args(&["--features", "test-metal"], args.release),
+                        handle_test_args(&[], args.release),
                         None,
                         None,
                         "std metal",
                     )?;
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        handle_test_args(&["--features", "test-metal"], args.release),
+                        handle_test_args(&[], args.release),
                         None,
                         None,
                         "std metal",
