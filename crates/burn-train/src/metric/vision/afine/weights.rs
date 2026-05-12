@@ -83,7 +83,7 @@ pub(crate) fn load_pretrained_weights(mut afine: Afine) -> Afine {
     afine.dhead = load_simple_shard(afine.dhead, &cache_path, "fidelity", "fidelity head");
 
     // The calibrator and adapter shards store yita3, yita4, and k as
-    // 0-D scalar tensors (`shape=()`). Burn's `Param<Tensor< 1>>` of
+    // 0-D scalar tensors (`shape=()`). Burn's `Param<Tensor<1>>` of
     // length 1 expects shape `(1,)`, and PytorchStore drops keys whose
     // shape doesn't match the destination — silently leaving the
     // params at random init. Load these manually via PytorchReader so

@@ -154,7 +154,7 @@ impl Conv2d {
     ///
     /// // Assuming backend type alias `B`
     /// let device = Default::default();
-    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init::(&device);
+    /// let conv = Conv2dConfig::new([3, 8], [3, 3]).init(&device);
     ///
     /// let x = Tensor::<B, 4>::zeros([1, 3, 28, 28], &device);
     /// let y = conv.forward(x);

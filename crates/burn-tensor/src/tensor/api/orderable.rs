@@ -275,8 +275,8 @@ where
     ///
     /// fn example(){
     ///     let device = Default::default();
-    ///     let indices: Tensor< 1> = Tensor::from_floats([0.0, 1.0, 2.0, 3.0], &device);
-    ///     let one_hot: Tensor< 2> = indices.one_hot(4);
+    ///     let indices: Tensor<1> = Tensor::from_floats([0.0, 1.0, 2.0, 3.0], &device);
+    ///     let one_hot: Tensor<2> = indices.one_hot(4);
     ///     println!("{}", one_hot.to_data());
     ///     // [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
     /// }
@@ -304,9 +304,9 @@ where
     /// use burn_tensor::{Tensor, Float};
     /// fn example() {
     ///     let device = Default::default();
-    ///     let indices: Tensor< 2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
+    ///     let indices: Tensor<2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
     ///     // One-hot encoding
-    ///     let tensor:Tensor< 3, Float> = indices.one_hot_fill(3, 5.0.into(), 0.0.into(), -1);
+    ///     let tensor:Tensor<3, Float> = indices.one_hot_fill(3, 5.0.into(), 0.0.into(), -1);
     ///     println!("{tensor}");
     ///     // [[[5.0, 0.0, 0.0],
     ///     // [0.0, 0.0, 5.0]],

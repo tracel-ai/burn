@@ -280,7 +280,7 @@ mod tests {
 
         #[derive(Module, Debug)]
         struct MultiIntModel {
-            // Note: Burn's Tensor< D, Int> uses the backend's default int type
+            // Note: Burn's Tensor<D, Int> uses the backend's default int type
             // We can't directly specify i8, i16, etc. in the type system
             // But we can test with different values that would fit in different ranges
             small_ints: Param<Tensor<1, Int>>, // Values that fit in i8

@@ -224,7 +224,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// ```ignore
     /// // D is the number of dimensions of the tensor
-    /// let flattened_tensor: Tensor< 1> = tensor.flatten(0, D - 1);
+    /// let flattened_tensor: Tensor<1> = tensor.flatten(0, D - 1);
     ///
     /// // Calculate median for dim 0 since the tensor has become 1 dimensional
     /// let median = flattened_tensor.median(0);

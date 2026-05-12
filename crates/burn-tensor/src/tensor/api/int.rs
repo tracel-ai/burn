@@ -57,8 +57,8 @@ impl<const D: usize> Tensor<D, Int> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let _x: Tensor< 1, Int> = Tensor::from_ints([1, 2], &device);
-    ///     let _y: Tensor< 2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
+    ///     let _x: Tensor<1, Int> = Tensor::from_ints([1, 2], &device);
+    ///     let _y: Tensor<2, Int> = Tensor::from_ints([[1, 2], [3, 4]], &device);
     /// }
     /// ```
     pub fn from_ints<A: Into<TensorData>>(ints: A, device: &Device) -> Self {
@@ -106,7 +106,7 @@ impl<const D: usize> Tensor<D, Int> {
     ///    use burn_tensor::{Shape, Tensor};
     ///    fn example() {
     ///        let device = Default::default();
-    ///        let result: Tensor< 3, _> = Tensor::< 2, Int>::cartesian_grid([2, 3], &device);
+    ///        let result: Tensor<3, _> = Tensor::< 2, Int>::cartesian_grid([2, 3], &device);
     ///        println!("{}", result);
     ///    }
     /// ```

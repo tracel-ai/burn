@@ -25,7 +25,10 @@ use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
 use serde::{Serialize, Serializer};
 
-/// A tensor with a given backend, shape and data type.
+/// A tensor with a given shape and data type, backed by a runtime-selected device.
+///
+/// Tensors are not statically tied to a backend. The backend is determined based on which device
+/// the tensor was created on. Backend compatibility between tensors in an operation is checked at runtime.
 ///
 /// # Indexing
 /// Indexing a tensor can be done using [`slice`](Tensor::slice) for all tensor types
@@ -673,7 +676,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor< D2, K>` instance with the specified range of dimensions flattened.
+    /// A new `Tensor<D2, K>` instance with the specified range of dimensions flattened.
     ///
     /// # Example
     ///
@@ -688,7 +691,7 @@ where
     ///
     ///     // Flatten the tensor from dimensions 1 to 2 (inclusive).
     ///     // The resulting tensor will have dimensions [2, 12]
-    ///     let flattened: Tensor< 2> = tensor.flatten(1, 2);
+    ///     let flattened: Tensor<2> = tensor.flatten(1, 2);
     ///     println!("{flattened}");
     /// }
     /// ```
@@ -714,7 +717,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor< D2, K>` instance with the specified dimension removed.
+    /// A new `Tensor<D2, K>` instance with the specified dimension removed.
     ///
     /// # Example
     ///
@@ -764,7 +767,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor< D2, K>` instance with the specified dimension removed.
+    /// A new `Tensor<D2, K>` instance with the specified dimension removed.
     ///
     /// # Example
     ///
@@ -816,7 +819,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor< D2, K>` instance with the specified dimensions removed.
+    /// A new `Tensor<D2, K>` instance with the specified dimensions removed.
     ///
     /// # Example
     ///
@@ -831,7 +834,7 @@ where
     ///
     ///     // Squeeze the dimensions 1 and 3.
     ///     // The resulting tensor will have dimensions [2, 4].
-    ///     let squeezed: Tensor< 2> = tensor.squeeze_dims(&[1, 3]);
+    ///     let squeezed: Tensor<2> = tensor.squeeze_dims(&[1, 3]);
     ///     println!("{squeezed}");
     /// }
     /// ```
@@ -899,7 +902,7 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor< D2, K>` instance with the specified dimensions added.
+    /// A new `Tensor<D2, K>` instance with the specified dimensions added.
     ///
     /// # Example
     ///
@@ -942,7 +945,7 @@ where
     ///     let tensor = Tensor::< 2>::ones(Shape::new([3, 3]), &device);
     ///     // Unsqueeze the dimension 1.
     ///     // The resulting tensor will have dimensions [3, 1, 3].
-    ///     let unsqueezed: Tensor< 3> = tensor.unsqueeze_dim(1);
+    ///     let unsqueezed: Tensor<3> = tensor.unsqueeze_dim(1);
     ///     println!("{unsqueezed}");
     /// }
     /// ```
@@ -980,7 +983,7 @@ where
     ///     let tensor = Tensor::< 3>::ones(Shape::new([3, 4, 5]), &device);
     ///     // Unsqueeze the leading dimension (0) once and the trailing dimension (-1) twice.
     ///     // The resulting tensor will have dimensions [1, 3, 4, 5, 1, 1].
-    ///     let unsqueezed: Tensor< 6> = tensor.unsqueeze_dims(&[0, -1, -1]);
+    ///     let unsqueezed: Tensor<6> = tensor.unsqueeze_dims(&[0, -1, -1]);
     ///     println!("{unsqueezed}");
     /// }
     /// ```
@@ -2461,7 +2464,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor< 1, Bool>` containing a single element, True if any element in the input tensor
+    /// A boolean tensor `Tensor<1, Bool>` containing a single element, True if any element in the input tensor
     /// evaluates to True, False otherwise.
     ///
     /// # Example
@@ -2498,7 +2501,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor< D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
     ///
@@ -2529,7 +2532,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor< 1, Bool>` with a single element, True if all elements in the input tensor
+    /// A boolean tensor `Tensor<1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     ///
     /// # Example
@@ -2560,7 +2563,7 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor< D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     ///
