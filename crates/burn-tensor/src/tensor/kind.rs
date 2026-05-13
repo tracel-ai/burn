@@ -1,7 +1,7 @@
-use burn_backend::tensor as backend;
 use burn_dispatch::Dispatch;
 
-pub use burn_backend::tensor::{Bool, Float, Int, TensorKind};
+use crate::bridge as backend;
+pub use crate::bridge::{Bool, Float, Int, TensorKind};
 
 /// The base trait for any tensor kind.
 pub trait Basic: backend::BasicOps<Dispatch> {}

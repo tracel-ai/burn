@@ -22,3 +22,8 @@ pub use burn_backend::{AllocationProperty, Bytes, StreamId, bf16, f16, read_sync
 
 mod device;
 pub use device::*;
+
+pub(crate) use burn_backend::{
+    AutodiffBackend, Backend, BackendTypes, ExecutionError, element,
+    tensor::{FloatTensor, IntTensor},
+};

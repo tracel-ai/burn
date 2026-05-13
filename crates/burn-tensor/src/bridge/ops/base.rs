@@ -2,10 +2,8 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    Backend, BackendTypes, ExecutionError, Scalar, TensorData, TensorMetadata,
-    element::Element,
-    ops::TransactionPrimitive,
-    tensor::{IndexingUpdateOp, IntTensor, TensorKind},
+    Backend, BackendTypes, ExecutionError, IntTensor, Scalar, TensorData, TensorMetadata,
+    bridge::TensorKind, element::Element, ops::TransactionPrimitive, tensor::IndexingUpdateOp,
 };
 
 /// Trait for the one basic op that still requires Backend

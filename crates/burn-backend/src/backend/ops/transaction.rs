@@ -114,7 +114,7 @@ impl<B: Backend> TransactionPrimitive<B> {
             .collect::<Vec<_>>())
     }
 
-    pub(crate) fn register_float(&mut self, tensor: TensorPrimitive<B>) {
+    pub fn register_float(&mut self, tensor: TensorPrimitive<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 self.orders.push(Order::Float(self.read_floats.len()));
@@ -127,12 +127,12 @@ impl<B: Backend> TransactionPrimitive<B> {
         }
     }
 
-    pub(crate) fn register_int(&mut self, tensor: IntTensor<B>) {
+    pub fn register_int(&mut self, tensor: IntTensor<B>) {
         self.orders.push(Order::Int(self.read_ints.len()));
         self.read_ints.push(tensor);
     }
 
-    pub(crate) fn register_bool(&mut self, tensor: BoolTensor<B>) {
+    pub fn register_bool(&mut self, tensor: BoolTensor<B>) {
         self.orders.push(Order::Bool(self.read_bools.len()));
         self.read_bools.push(tensor);
     }

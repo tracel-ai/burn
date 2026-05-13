@@ -3,11 +3,9 @@ use burn_std::{DType, Shape, Slice};
 
 use crate::{
     AutodiffBackend, Backend, ExecutionError, Scalar, TensorData,
+    bridge::{BasicOps, Device, IntTensor, TransactionOp},
     ops::TransactionPrimitive,
-    tensor::{
-        BasicAutodiffOps, BasicOps, Bool, Device, IndexingUpdateOp, IntTensor, TensorKind,
-        TransactionOp,
-    },
+    tensor::{BasicAutodiffOps, Bool, IndexingUpdateOp, TensorKind},
 };
 
 impl<B: Backend> TransactionOp<B> for Bool {

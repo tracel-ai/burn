@@ -24,6 +24,7 @@ tracing = ["cubecl?/tracing", "cubecl-common/tracing"]
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 [dependencies]
+hashbrown = { workspace = true }
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }

@@ -1123,6 +1123,7 @@ dependencies = [
  "cubecl-zspace",
  "dashmap",
  "half",
+ "hashbrown 0.16.1",
  "indicatif 0.18.4",
  "num-traits",
  "reqwest",

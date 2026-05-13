@@ -11,5 +11,3 @@ pub use base::*;
 pub use float::FloatMathOps;
 pub use numeric::*;
 pub use ordered::*;
-
-

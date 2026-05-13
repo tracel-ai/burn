@@ -1,10 +1,8 @@
 use burn_backend::{
     Backend, ExecutionError, TensorData,
     ops::QTensorOps,
-    tensor::{
-        Device, FloatTensor, IntTensor, QuantizedTensor,
-        quantization::QuantizationParametersPrimitive,
-    },
+    quantization::QuantizationParametersPrimitive,
+    tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_std::{FloatDType, IntDType, QuantScheme, Shape};
 
