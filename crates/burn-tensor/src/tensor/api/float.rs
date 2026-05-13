@@ -21,7 +21,7 @@ use burn_backend::distributed::DistributedParamId;
 use burn_backend::ops::ActivationOps;
 use burn_backend::ops::FloatTensorOps;
 use burn_backend::ops::QTensorOps;
-use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
+use burn_backend::quantization::QuantizationParametersPrimitive;
 use burn_dispatch::Dispatch;
 use core::f32;
 

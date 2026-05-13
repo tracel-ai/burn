@@ -24,6 +24,8 @@ mod device;
 pub use device::*;
 
 pub(crate) use burn_backend::{
-    AutodiffBackend, Backend, BackendTypes, ExecutionError, element,
-    tensor::{FloatTensor, IntTensor},
+    AutodiffBackend, Backend, BackendTypes, Distribution, ExecutionError, Scalar, TensorData,
+    TensorMetadata, TensorPrimitive, element, get_device_settings,
+    ops::TransactionPrimitive,
+    tensor::{BoolTensor, FloatTensor, IndexingUpdateOp, IntTensor},
 };

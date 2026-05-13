@@ -1,6 +1,4 @@
-use burn_backend::tensor::{Float, Int};
-
-use crate::{Tensor, TensorCreationOptions, check, check::TensorCheck};
+use crate::{Float, Int, Tensor, TensorCreationOptions, check, check::TensorCheck};
 
 /// Creates a 1D Hamming window.
 ///

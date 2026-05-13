@@ -29,7 +29,7 @@ pub mod backend {
     pub use burn_backend::backend::*;
 
     #[cfg(feature = "extension")]
-    pub use burn_backend::tensor::{BasicOps, Numeric, Ordered};
+    pub use crate::bridge::{BasicOps, Numeric, Ordered};
 
     #[cfg(feature = "extension")]
     /// The backend extension module.
@@ -41,7 +41,7 @@ pub mod backend {
 
 /// The container module.
 pub mod container {
-    pub use burn_backend::tensor::TensorContainer;
+    pub use burn_std::tensor::container::TensorContainer;
 }
 
 /// The grid module.

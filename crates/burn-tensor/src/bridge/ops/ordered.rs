@@ -1,7 +1,4 @@
-use crate::{
-    Backend, Scalar,
-    tensor::{IntTensor, Numeric},
-};
+use crate::{Backend, IntTensor, Scalar, bridge::Numeric};
 
 /// Trait that list all operations that can be applied on all numerical tensors
 /// whose elements have a well-defined ordering.

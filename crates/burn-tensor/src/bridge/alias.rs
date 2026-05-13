@@ -1,4 +1,4 @@
-use crate::backend::BackendTypes;
+use crate::BackendTypes;
 
 // We provide some type aliases to improve the readability of using associated types without
 // having to use the disambiguation syntax.

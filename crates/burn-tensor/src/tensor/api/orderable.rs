@@ -1,16 +1,17 @@
-use burn_backend::{
-    ElementConversion, Scalar,
-    tensor::{Bool, IndexingUpdateOp, Int, Ordered},
-};
-use burn_dispatch::Dispatch;
+use burn_backend::{ElementConversion, Scalar, tensor::IndexingUpdateOp};
 use burn_std::AsIndex;
 
 use crate::check;
-use crate::{Tensor, check::TensorCheck};
+use crate::{
+    Tensor,
+    bridge::{Bool, Int},
+    check::TensorCheck,
+    kind::Ordered,
+};
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: Ordered<Dispatch>,
+    K: Ordered,
 {
     /// Sort the elements by value in ascending order along a given dimension.
     ///

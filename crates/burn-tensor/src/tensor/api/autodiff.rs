@@ -1,4 +1,4 @@
-pub use burn_backend::tensor::BasicAutodiffOps;
+pub use crate::bridge::BasicAutodiffOps;
 
 use crate::{Tensor, kind::Autodiff};
 

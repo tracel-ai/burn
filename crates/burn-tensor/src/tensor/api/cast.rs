@@ -1,9 +1,12 @@
 use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
-use burn_backend::tensor::{Bool, BoolTensor, Float, Int, IntTensor, TensorKind};
+use burn_backend::tensor::{BoolTensor, IntTensor};
 use burn_backend::{DType, FloatDType, IntDType, TensorMetadata, TensorPrimitive};
 use burn_dispatch::Dispatch;
 
-use crate::kind::Basic;
+use crate::{
+    bridge::{Bool, Float, Int, TensorKind},
+    kind::Basic,
+};
 
 /// Trait for types that represent a valid cast target from a tensor of kind `K`.
 ///

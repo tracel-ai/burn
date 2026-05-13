@@ -1,4 +1,7 @@
-use crate::{AutodiffBackend, bridge::BasicOps, tensor::TensorKind};
+use crate::{
+    AutodiffBackend,
+    bridge::{BasicOps, TensorKind},
+};
 
 /// Trait that list all operations that can be applied on all tensors on an autodiff backend.
 ///

@@ -1,5 +1,5 @@
 use crate::{Tensor, TensorPrimitive};
-use burn_backend::tensor::quantization;
+use burn_backend::quantization;
 
 // We re-export those types.
 pub use burn_backend::quantization::*;

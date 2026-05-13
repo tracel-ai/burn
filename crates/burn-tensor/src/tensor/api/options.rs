@@ -1,8 +1,8 @@
-use burn_backend::{Element, tensor::BasicOps};
+use burn_backend::Element;
 use burn_dispatch::Dispatch;
 use burn_std::DType;
 
-use crate::Device;
+use crate::{Device, bridge::BasicOps};
 
 /// Options for tensor creation.
 ///
