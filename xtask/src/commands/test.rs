@@ -176,6 +176,8 @@ pub(crate) fn handle_command(
                         "dqn-agent".to_string(),
                         // Requires wgpu runtime
                         "burn-cubecl-fusion".to_string(),
+                        // Backend tests are explicitly handled
+                        "burn-backend-tests".to_string(),
                     ]);
 
                     // Burn remote tests don't work on windows for now
