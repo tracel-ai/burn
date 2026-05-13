@@ -1,4 +1,4 @@
-pub use burn_backend::{DeviceError, DeviceId, DeviceSettings};
+pub use burn_std::{DeviceError, DeviceSettings, device::DeviceId};
 pub use burn_dispatch::devices::*;
 
 use burn_backend::Backend;

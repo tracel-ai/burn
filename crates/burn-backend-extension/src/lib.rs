@@ -219,9 +219,9 @@ impl TensorKind {
 
     fn to_primitive_ty(self) -> TokenStream2 {
         match self {
-            Self::Float => quote! { burn::tensor::ops::FloatTensor<Self> },
-            Self::Int => quote! { burn::tensor::ops::IntTensor<Self> },
-            Self::Bool => quote! { burn::tensor::ops::BoolTensor<Self> },
+            Self::Float => quote! { burn::tensor::backend::FloatTensor<Self> },
+            Self::Int => quote! { burn::tensor::backend::IntTensor<Self> },
+            Self::Bool => quote! { burn::tensor::backend::BoolTensor<Self> },
         }
     }
 

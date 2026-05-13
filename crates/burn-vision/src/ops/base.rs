@@ -7,8 +7,7 @@ use bon::Builder;
 use burn_core as burn; // for backend_extension
 use burn_core::tensor::{
     Int, IntDType, Scalar, Tensor,
-    backend::{Backend, extension::backend_extension},
-    ops::IntTensor,
+    backend::{Backend, IntTensor, extension::backend_extension},
     read_sync,
 };
 

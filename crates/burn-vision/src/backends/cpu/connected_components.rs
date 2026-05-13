@@ -3,8 +3,7 @@ use std::{cmp::Ordering, marker::PhantomData};
 use alloc::vec::Vec;
 use burn_core::tensor::{
     Element, ElementConversion, ElementLimits, ElementOrdered, IntDType, Shape, TensorData,
-    backend::Backend,
-    ops::{BoolTensor, Device},
+    backend::{Backend, BoolTensor, Device},
     read_sync,
 };
 use ndarray::Array2;

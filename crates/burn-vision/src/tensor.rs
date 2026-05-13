@@ -1,4 +1,7 @@
-use burn_core::tensor::{Bool, Float, Int, Tensor, TensorPrimitive, backend::extension::Dispatch};
+use burn_core::tensor::{
+    Bool, Float, Int, Tensor,
+    backend::{TensorPrimitive, extension::Dispatch},
+};
 
 use crate::{
     BoolVisionOps, ConnectedStats, ConnectedStatsOptions, Connectivity, FloatVisionOps,

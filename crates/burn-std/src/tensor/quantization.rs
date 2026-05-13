@@ -33,6 +33,12 @@ pub enum QuantAcc {
     BF16,
 }
 
+/// Calibration method used to compute the quantization range mapping.
+pub enum Calibration {
+    /// Computes quantization range mapping based on the min and max values.
+    MinMax,
+}
+
 /// Specify if the output of an operation is quantized using the scheme of the input
 /// or returned unquantized.
 #[derive(

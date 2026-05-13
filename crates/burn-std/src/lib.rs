@@ -7,6 +7,9 @@
 //! This library contains core types and utilities shared across Burn, including shapes, indexing,
 //! and data types.
 
+#[macro_use]
+extern crate derive_new;
+
 extern crate alloc;
 
 /// Id module contains types for unique identifiers.
@@ -15,6 +18,25 @@ pub mod id;
 /// Tensor utilities.
 pub mod tensor;
 pub use tensor::*;
+
+/// Tensor data representation and helpers.
+pub mod data;
+pub use data::*;
+
+/// Random value distributions.
+pub mod distribution;
+pub use distribution::*;
+
+/// Traits for tensor element types and conversions.
+pub mod element;
+pub use element::*;
+
+mod device_settings;
+pub use device_settings::*;
+
+/// Configuration types for tensor operations (conv, pool, interpolate, pad, etc).
+pub mod ops;
+pub use ops::*;
 
 /// Burn runtime configurations.
 pub mod config;

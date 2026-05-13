@@ -1,7 +1,6 @@
 use super::Tensor;
 use crate::{
-    TensorData, backend::ExecutionError, kind::Transaction as TransactionKind,
-    ops::TransactionPrimitive,
+    ExecutionError, TensorData, TransactionPrimitive, kind::Transaction as TransactionKind,
 };
 use alloc::vec::Vec;
 use burn_dispatch::Dispatch;

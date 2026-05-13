@@ -6,7 +6,10 @@ use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElemen
 
 use burn_core::tensor::{
     Element, IntDType,
-    ops::{BoolTensor, BoolTensorOps, IntTensor, IntTensorOps},
+    backend::{
+        BoolTensor, IntTensor,
+        ops::{BoolTensorOps, IntTensorOps},
+    },
 };
 
 use super::connected_components::hardware_accelerated;

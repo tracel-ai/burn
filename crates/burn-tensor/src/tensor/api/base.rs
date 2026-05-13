@@ -1,5 +1,5 @@
 #![allow(clippy::single_range_in_vec_init)]
-use crate::backend::ExecutionError;
+use crate::ExecutionError;
 use crate::check::unwrap_shape_reshape;
 
 use burn_backend::Scalar;

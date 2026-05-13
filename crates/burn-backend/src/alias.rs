@@ -1,7 +1,10 @@
+/// Backend type aliases.
 pub mod tensor {
     use crate::backend::BackendTypes;
     // We provide some type aliases to improve the readability of using associated types without
     // having to use the disambiguation syntax.
+
+    pub use burn_std::ops::IndexingUpdateOp;
 
     /// Device type used by the backend.
     pub type Device<B> = <B as BackendTypes>::Device;
@@ -21,19 +24,4 @@ pub mod tensor {
     pub type BoolTensor<B> = <B as BackendTypes>::BoolTensorPrimitive;
     /// Quantized tensor primitive type used by the backend.
     pub type QuantizedTensor<B> = <B as BackendTypes>::QuantizedTensorPrimitive;
-
-    /// Computation to be used to update the existing values in indexed assignment operations (scatter/select).
-    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-    pub enum IndexingUpdateOp {
-        /// Overwrite existing values.
-        Assign,
-        /// Performs an addition.
-        Add,
-        /// Multiply existing values.
-        Mul,
-        /// Take element-wise minimum.
-        Min,
-        /// Take element-wise maximum.
-        Max,
-    }
 }

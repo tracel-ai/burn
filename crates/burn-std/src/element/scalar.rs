@@ -1,4 +1,4 @@
-use burn_std::{BoolStore, DType, bf16, f16};
+use crate::{BoolStore, DType, bf16, f16};
 use num_traits::ToPrimitive;
 
 #[cfg(not(feature = "std"))]

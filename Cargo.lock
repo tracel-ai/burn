@@ -745,6 +745,7 @@ name = "burn-backend-tests"
 version = "0.22.0-pre.1"
 dependencies = [
  "burn-autodiff",
+ "burn-backend",
  "burn-cubecl",
  "burn-fusion",
  "burn-ndarray",
@@ -1122,15 +1123,24 @@ dependencies = [
  "cubecl-common",
  "cubecl-zspace",
  "dashmap",
+ "derive-new",
+ "enumset",
  "half",
  "hashbrown 0.16.1",
  "indicatif 0.18.4",
  "num-traits",
+ "paste",
+ "portable-atomic-util",
+ "rand 0.10.1",
+ "rand_distr 0.6.0",
  "reqwest",
  "serde",
+ "serde_json",
+ "serial_test",
  "smallvec",
  "spin",
  "tempfile",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
