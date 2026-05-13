@@ -2,7 +2,7 @@ use burn_backend::{
     DType, Distribution, ElementConversion, ExecutionError, IntDType, Scalar, Shape, Slice,
     TensorData, TensorMetadata,
     ops::{FloatTensorOps, IntTensorOps},
-    tensor::{Bool, BoolTensor, Device, FloatTensor, IntElem, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor},
 };
 use burn_std::{BoolDType, FloatDType};
 
