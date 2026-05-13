@@ -6,10 +6,7 @@ use crate::{BackendTypes, Distribution, Scalar, bridge::BasicOps, element::Eleme
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by the
-#[cfg_attr(doc, doc = crate::doc_tensor!())]
-#[cfg_attr(not(doc), doc = "`Tensor`")]
-/// struct.
+/// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
 pub trait Numeric<B: BackendTypes>: BasicOps<B>
 where
     Self::Elem: Element,
@@ -31,9 +28,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For adding tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("add"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::add`")]
+    /// For adding tensors, users should prefer the [`Tensor::add`](crate::Tensor::add)
     /// function, which is more high-level and designed for public use.
     fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
@@ -54,9 +49,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For adding a scalar to a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("add_scalar"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::add_scalar`")]
+    /// For adding a scalar to a tensor, users should prefer the [`Tensor::add_scalar`](crate::Tensor::add_scalar)
     /// function, which is more high-level and designed for public use.
     fn add_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
@@ -77,9 +70,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For subtracting tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("sub"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::sub`")]
+    /// For subtracting tensors, users should prefer the [`Tensor::sub`](crate::Tensor::sub)
     /// function, which is more high-level and designed for public use.
     fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
@@ -100,9 +91,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For subtracting a scalar from a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("sub_scalar"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::sub_scalar`")]
+    /// For subtracting a scalar from a tensor, users should prefer the [`Tensor::sub_scalar`](crate::Tensor::sub_scalar)
     /// function, which is more high-level and designed for public use.
     fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
@@ -123,9 +112,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For dividing tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("div"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::div`")]
+    /// For dividing tensors, users should prefer the [`Tensor::div`](crate::Tensor::div)
     /// function, which is more high-level and designed for public use.
     fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
@@ -146,9 +133,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For dividing a tensor by a scalar, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("div_scalar"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::div_scalar`")]
+    /// For dividing a tensor by a scalar, users should prefer the [`Tensor::div_scalar`](crate::Tensor::div_scalar)
     /// function, which is more high-level and designed for public use.
     fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
@@ -170,9 +155,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modulo operation, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("remainder"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::remainder`")]
+    /// For performing the modulo operation, users should prefer the [`Tensor::remainder`](crate::Tensor::remainder)
     /// function, which is more high-level and designed for public use.
     fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
@@ -194,9 +177,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modulo operation, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("remainder_scalar"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::remainder_scalar`")]
+    /// For performing the modulo operation, users should prefer the [`Tensor::remainder_scalar`](crate::Tensor::remainder_scalar)
     /// function, which is more high-level and designed for public use.
     fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
@@ -217,9 +198,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For multiplying tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("mul"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::mul`")]
+    /// For multiplying tensors, users should prefer the [`Tensor::mul`](crate::Tensor::mul)
     /// function, which is more high-level and designed for public use.
     fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
@@ -240,9 +219,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For multiplying a tensor by a scalar, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("mul_scalar"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::mul_scalar`")]
+    /// For multiplying a tensor by a scalar, users should prefer the [`Tensor::mul_scalar`](crate::Tensor::mul_scalar)
     /// function, which is more high-level and designed for public use.
     fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
@@ -262,9 +239,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For negating a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("neg"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::neg`")]
+    /// For negating a tensor, users should prefer the [`Tensor::neg`](crate::Tensor::neg)
     /// function, which is more high-level and designed for public use.
     fn neg(tensor: Self::Primitive) -> Self::Primitive;
 
@@ -284,9 +259,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For getting the signs of the elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("sign"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::sign`")]
+    /// For getting the signs of the elements of a tensor, users should prefer the [`Tensor::sign`](crate::Tensor::sign)
     /// function, which is more high-level and designed for public use.
     fn sign(tensor: Self::Primitive) -> Self::Primitive;
 
@@ -306,9 +279,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For summing all the elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("sum"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::sum`")]
+    /// For summing all the elements of a tensor, users should prefer the [`Tensor::sum`](crate::Tensor::sum)
     /// function, which is more high-level and designed for public use.
     fn sum(tensor: Self::Primitive) -> Self::Primitive;
 
@@ -329,9 +300,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For summing all the elements of a tensor along a dimension, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("sum_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::sum_dim`")]
+    /// For summing all the elements of a tensor along a dimension, users should prefer the [`Tensor::sum_dim`](crate::Tensor::sum_dim)
     /// function, which is more high-level and designed for public use.
     fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
@@ -352,9 +321,7 @@ where
     /// or use this function directly.
     ///
     /// For computing the product of all the elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("prod"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::prod`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::prod`](crate::Tensor::prod) function, which is more high-level and designed for public use.
     fn prod(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Computes the product of all the elements of the tensor along a dimension.
@@ -375,9 +342,7 @@ where
     /// or use this function directly.
     ///
     /// For computing the product of all the elements of a tensor along a dimension, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("prod_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::prod_dim`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::prod_dim`](crate::Tensor::prod_dim) function, which is more high-level and designed for public use.
     fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the mean of all the elements of the tensor.
@@ -396,9 +361,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For computing the mean of all the elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("mean"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::mean`")]
+    /// For computing the mean of all the elements of a tensor, users should prefer the [`Tensor::mean`](crate::Tensor::mean)
     /// function, which is more high-level and designed for public use.
     fn mean(tensor: Self::Primitive) -> Self::Primitive;
 
@@ -420,9 +383,7 @@ where
     /// or use this function directly.
     ///
     /// For computing the mean of all the elements of a tensor along a dimension, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("mean_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::mean_dim`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::mean_dim`](crate::Tensor::mean_dim) function, which is more high-level and designed for public use.
     fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the cumulative sum of elements along a dimension.
@@ -444,9 +405,7 @@ where
     /// or use this function directly.
     ///
     /// For computing the cumulative sum of elements along a dimension, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("cumsum"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::cumsum`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::cumsum`](crate::Tensor::cumsum) function, which is more high-level and designed for public use.
     fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the cumulative product of elements along a dimension.
@@ -468,9 +427,7 @@ where
     /// or use this function directly.
     ///
     /// For computing the cumulative product of elements along a dimension, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("cumprod"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::cumprod`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::cumprod`](crate::Tensor::cumprod) function, which is more high-level and designed for public use.
     fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Calculate absolute value on all elements of a tensor
@@ -489,9 +446,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For calculating abs of the elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("abs"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::abs`")]
+    /// For calculating abs of the elements of a tensor, users should prefer the [`Tensor::abs`](crate::Tensor::abs)
     /// function, which is more high-level and designed for public use.
     fn abs(tensor: Self::Primitive) -> Self::Primitive;
 
@@ -528,9 +483,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("random"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::random`")]
+    /// Users should prefer the [`Tensor::random`](crate::Tensor::random)
     /// function, which is more high-level and designed for public use.
     fn random(
         shape: Shape,

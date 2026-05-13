@@ -7,10 +7,7 @@ use crate::{
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by the
-#[cfg_attr(doc, doc = crate::doc_tensor!())]
-#[cfg_attr(not(doc), doc = "`Tensor`")]
-/// struct.
+/// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
 pub trait BasicAutodiffOps<B: AutodiffBackend>: BasicOps<B> + BasicOps<B::InnerBackend> {
     /// Inner primitive tensor.
     type InnerKind: BasicOps<B::InnerBackend>;
@@ -23,9 +20,7 @@ pub trait BasicAutodiffOps<B: AutodiffBackend>: BasicOps<B> + BasicOps<B::InnerB
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("inner"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::inner`")]
+    /// Users should prefer the [`Tensor::inner`](crate::Tensor::inner)
     /// function, which is more high-level and designed for public use.
     fn inner(
         tensor: <Self as TensorKind<B>>::Primitive,
@@ -39,9 +34,7 @@ pub trait BasicAutodiffOps<B: AutodiffBackend>: BasicOps<B> + BasicOps<B::InnerB
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("from_inner"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::from_inner`")]
+    /// Users should prefer the [`Tensor::from_inner`](crate::Tensor::from_inner)
     /// function, which is more high-level and designed for public use.
     fn from_inner(
         inner: <Self::InnerKind as TensorKind<B::InnerBackend>>::Primitive,

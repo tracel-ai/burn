@@ -10,9 +10,7 @@ use crate::{
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by the
-#[cfg_attr(doc, doc = crate::doc_tensor!())]
-#[cfg_attr(not(doc), doc = "`Tensor`")]
+/// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
 pub trait TransactionOp<B: Backend>: TensorKind<B> {
     /// Read the data from the tensor using a transaction.
     ///
@@ -27,10 +25,7 @@ pub trait TransactionOp<B: Backend>: TensorKind<B> {
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by the
-#[cfg_attr(doc, doc = crate::doc_tensor!())]
-#[cfg_attr(not(doc), doc = "`Tensor`")]
-/// struct.
+/// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
 pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// The type of the tensor elements.
     type Elem: Element;
@@ -53,9 +48,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For creating empty tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("empty"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::empty`")]
+    /// For creating empty tensors, users should prefer the [`Tensor::empty`](crate::Tensor::empty)
     /// function, which is more high-level and designed for public use.
     fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
@@ -77,9 +70,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For creating a tensor filled with zeros, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("zeros"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::zeros`")]
+    /// For creating a tensor filled with zeros, users should prefer the [`Tensor::zeros`](crate::Tensor::zeros)
     /// function, which is more high-level and designed for public use.
     fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
@@ -101,9 +92,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For creating a tensor filled with ones, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("ones"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::ones`")]
+    /// For creating a tensor filled with ones, users should prefer the [`Tensor::ones`](crate::Tensor::ones)
     /// function, which is more high-level and designed for public use.
     fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
 
@@ -126,9 +115,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For creating full tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("full"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::full`")]
+    /// For creating full tensors, users should prefer the [`Tensor::full`](crate::Tensor::full)
     /// function, which is more high-level and designed for public use.
     fn full(shape: Shape, fill_value: Scalar, device: &B::Device, dtype: DType) -> Self::Primitive;
 
@@ -149,9 +136,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For reshaping a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("reshape"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::reshape`")]
+    /// For reshaping a tensor, users should prefer the [`Tensor::reshape`](crate::Tensor::reshape)
     /// function, which is more high-level and designed for public use.
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive;
 
@@ -220,9 +205,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For selecting elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("slice"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::slice`")]
+    /// For selecting elements of a tensor, users should prefer the [`Tensor::slice`](crate::Tensor::slice)
     /// function, which is more high-level and designed for public use.
     fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive;
 
@@ -244,9 +227,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For assigning values to elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("slice_assign"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::slice_assign`")]
+    /// For assigning values to elements of a tensor, users should prefer the [`Tensor::slice_assign`](crate::Tensor::slice_assign)
     /// function, which is more high-level and designed for public use.
     fn slice_assign(
         tensor: Self::Primitive,
@@ -272,9 +253,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For selecting elements from a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("select"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::select`")]
+    /// For selecting elements from a tensor along an axis, users should prefer the [`Tensor::select`](crate::Tensor::select)
     /// function, which is more high-level and designed for public use.
     fn select(tensor: Self::Primitive, dim: usize, indices: IntTensor<B>) -> Self::Primitive;
 
@@ -302,9 +281,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For assigning elements to a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("select_assign"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::select_assign`")]
+    /// For assigning elements to a tensor along an axis, users should prefer the [`Tensor::select_assign`](crate::Tensor::select_assign)
     /// function, which is more high-level and designed for public use.
     fn select_assign(
         tensor: Self::Primitive,
@@ -334,9 +311,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For selecting elements from a tensor based on a boolean mask, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("mask_where"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::mask_where`")]
+    /// For selecting elements from a tensor based on a boolean mask, users should prefer the [`Tensor::mask_where`](crate::Tensor::mask_where)
     /// function, which is more high-level and designed for public use.
     fn mask_where(
         tensor: Self::Primitive,
@@ -365,9 +340,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For filling elements of a tensor based on a boolean mask, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("mask_fill"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::mask_fill`")]
+    /// For filling elements of a tensor based on a boolean mask, users should prefer the [`Tensor::mask_fill`](crate::Tensor::mask_fill)
     /// function, which is more high-level and designed for public use.
     fn mask_fill(
         tensor: Self::Primitive,
@@ -394,9 +367,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For gathering elements from a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("gather"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::gather`")]
+    /// For gathering elements from a tensor along an axis, users should prefer the [`Tensor::gather`](crate::Tensor::gather)
     /// function, which is more high-level and designed for public use.
     fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive;
 
@@ -423,9 +394,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For scattering elements into a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("scatter"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::scatter`")]
+    /// For scattering elements into a tensor along an axis, users should prefer the [`Tensor::scatter`](crate::Tensor::scatter)
     /// function, which is more high-level and designed for public use.
     fn scatter(
         dim: usize,
@@ -462,9 +431,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For getting the device of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("device"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::device`")]
+    /// For getting the device of a tensor, users should prefer the [`Tensor::device`](crate::Tensor::device)
     /// function, which is more high-level and designed for public use.
     fn device(tensor: &Self::Primitive) -> B::Device;
 
@@ -485,9 +452,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For moving a tensor to a device, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("to_device"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::to_device`")]
+    /// For moving a tensor to a device, users should prefer the [`Tensor::to_device`](crate::Tensor::to_device)
     /// function, which is more high-level and designed for public use.
     #[allow(clippy::wrong_self_convention)]
     fn to_device(tensor: Self::Primitive, device: &B::Device) -> Self::Primitive;
@@ -508,9 +473,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For extracting the data of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("into_data"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::into_data`")]
+    /// For extracting the data of a tensor, users should prefer the [`Tensor::into_data`](crate::Tensor::into_data)
     /// function, which is more high-level and designed for public use.
     #[allow(clippy::wrong_self_convention)]
     fn into_data_async(
@@ -531,9 +494,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For creating a tensor from data, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("from_data"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::from_data`")]
+    /// For creating a tensor from data, users should prefer the [`Tensor::from_data`](crate::Tensor::from_data)
     /// function, which is more high-level and designed for public use.
     fn from_data(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive;
 
@@ -555,9 +516,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For repeating a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("repeat_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::repeat_dim`")]
+    /// For repeating a tensor, users should prefer the [`Tensor::repeat_dim`](crate::Tensor::repeat_dim)
     /// function, which is more high-level and designed for public use.
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive;
 
@@ -578,9 +537,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For concatenating tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("cat"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::cat`")]
+    /// For concatenating tensors, users should prefer the [`Tensor::cat`](crate::Tensor::cat)
     /// function, which is more high-level and designed for public use.
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive;
 
@@ -601,9 +558,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For equating tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("equal"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::equal`")]
+    /// For equating tensors, users should prefer the [`Tensor::equal`](crate::Tensor::equal)
     /// function, which is more high-level and designed for public use.
     fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
@@ -625,9 +580,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise equality between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("equal_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::equal_elem`")]
+    /// For element-wise equality between two tensors, users should prefer the [`Tensor::equal_elem`](crate::Tensor::equal_elem)
     /// function, which is more high-level and designed for public use.
     fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
@@ -648,9 +601,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For non-equality comparison of tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("not_equal"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::not_equal`")]
+    /// For non-equality comparison of tensors, users should prefer the [`Tensor::not_equal`](crate::Tensor::not_equal)
     /// function, which is more high-level and designed for public use.
     fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
@@ -672,9 +623,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For element-wise non-equality between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("not_equal_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::not_equal_elem`")]
+    /// For element-wise non-equality between two tensors, users should prefer the [`Tensor::not_equal_elem`](crate::Tensor::not_equal_elem)
     /// function, which is more high-level and designed for public use.
     fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
@@ -702,9 +651,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly. Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("any"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::any`")]
+    /// or use this function directly. Users should prefer the [`Tensor::any`](crate::Tensor::any)
     /// function, which is more high-level and designed for public use.
     fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive;
 
@@ -724,9 +671,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly. Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("any_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::any_dim`")]
+    /// or use this function directly. Users should prefer the [`Tensor::any_dim`](crate::Tensor::any_dim)
     /// function, which is more high-level and designed for public use.
     fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive;
 
@@ -744,9 +689,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly. Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("all"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::all`")]
+    /// or use this function directly. Users should prefer the [`Tensor::all`](crate::Tensor::all)
     /// function, which is more high-level and designed for public use.
     fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive;
 
@@ -765,9 +708,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly. Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("all_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::all_dim`")]
+    /// or use this function directly. Users should prefer the [`Tensor::all_dim`](crate::Tensor::all_dim)
     /// function, which is more high-level and designed for public use.
     fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive;
 
