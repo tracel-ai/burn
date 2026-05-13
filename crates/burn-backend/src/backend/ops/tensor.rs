@@ -3,10 +3,11 @@ use super::grid_sample::float_grid_sample_2d_ref;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
-use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
+use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, Distribution, TensorData, get_device_settings};
-use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
+use crate::{ExecutionError, Scalar, TensorMetadata};
 use alloc::vec::Vec;
+use burn_std::reader::try_read_sync;
 use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
 
 /// Operations on float tensors.
@@ -169,7 +170,15 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given dimension repeated.
     fn float_repeat_dim(tensor: FloatTensor<B>, dim: usize, times: usize) -> FloatTensor<B> {
-        repeat_with_slice_assign::<B, Float>(TensorPrimitive::Float(tensor), dim, times).tensor()
+        let device = B::float_device(&tensor);
+        repeat_with_slice_assign::<B, _, _, _>(
+            tensor,
+            dim,
+            times,
+            device,
+            |shape, device, dtype| B::float_empty(shape, device, dtype.into()),
+            B::float_slice_assign,
+        )
     }
 
     /// Adds two tensors together.
@@ -1349,11 +1358,16 @@ pub trait FloatTensorOps<B: Backend> {
     /// high-level tensor API and will not be passed to this method. Backend implementations do
     /// not need to handle empty tensors.
     fn float_cat(tensors: Vec<FloatTensor<B>>, dim: usize) -> FloatTensor<B> {
-        cat_with_slice_assign::<B, Float>(
-            tensors.into_iter().map(TensorPrimitive::Float).collect(),
+        let first_tensor = tensors.first().expect("Tensors should not be empty");
+        let device = B::float_device(first_tensor);
+
+        cat_with_slice_assign::<B, _, _, _>(
+            tensors,
             dim,
+            device,
+            |shape, device, dtype| B::float_empty(shape, device, dtype.into()),
+            B::float_slice_assign,
         )
-        .tensor()
     }
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
@@ -1680,7 +1694,20 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
     fn float_sort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> FloatTensor<B> {
-        sort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending).tensor()
+        let device = B::float_device(&tensor);
+        sort::<B, _, _, _>(
+            tensor,
+            dim,
+            descending,
+            device,
+            |tensor| {
+                let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+                try_read_sync(B::float_into_data(tensor))
+                    .expect(msg)
+                    .expect(msg)
+            },
+            |data, device, _dtype| B::float_from_data(data, device),
+        )
     }
 
     /// Sort the elements of the input `tensor` by value in along a given dimension.
@@ -1702,15 +1729,24 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
         dim: usize,
         descending: bool,
-        indices_dtype: IntDType,
+        _indices_dtype: IntDType,
     ) -> (FloatTensor<B>, IntTensor<B>) {
-        let (values, indices) = sort_with_indices::<B, Float>(
-            TensorPrimitive::Float(tensor),
+        let dtype = tensor.dtype();
+        let device = B::float_device(&tensor);
+        sort_with_indices::<B, _, _, _>(
+            tensor,
             dim,
             descending,
-            indices_dtype,
-        );
-        (values.tensor(), indices)
+            dtype.into(),
+            device,
+            |tensor| {
+                let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+                try_read_sync(B::float_into_data(tensor))
+                    .expect(msg)
+                    .expect(msg)
+            },
+            |data, device, _dtype| B::float_from_data(data, device),
+        )
     }
 
     /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
@@ -1731,9 +1767,16 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
         dim: usize,
         descending: bool,
-        out_dtype: IntDType,
+        _out_dtype: IntDType,
     ) -> IntTensor<B> {
-        argsort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending, out_dtype)
+        let dtype = tensor.dtype();
+        let device = B::float_device(&tensor);
+        argsort::<B, _, _>(tensor, dim, descending, dtype.into(), device, |tensor| {
+            let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+            try_read_sync(B::float_into_data(tensor))
+                .expect(msg)
+                .expect(msg)
+        })
     }
 
     /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,

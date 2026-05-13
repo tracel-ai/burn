@@ -21,9 +21,6 @@ pub use element::*;
 pub mod backend;
 pub use backend::*;
 
-/// Backend tensor primitives and operations.
-pub mod tensor;
-
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
 pub use burn_std::{
@@ -49,14 +46,11 @@ pub mod indexing {
 }
 pub use indexing::*;
 
+mod alias;
+pub use alias::*;
+
 /// Quantization data representation.
-pub mod quantization {
-    pub use crate::tensor::quantization::*;
-    pub use burn_std::quantization::{
-        BlockSize, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantStore,
-        QuantValue, QuantizedBytes,
-    };
-}
+pub mod quantization;
 
 #[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {
