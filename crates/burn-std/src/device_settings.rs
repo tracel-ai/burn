@@ -10,7 +10,7 @@ use crate::{BoolDType, DType, FloatDType, IntDType};
 ///
 /// These settings are managed in a global registry that enforces strict initialization semantics:
 ///
-/// 1. Manual Initialization: You can set these once at the start of your program using [`set_default_dtypes`].
+/// 1. Manual Initialization: You can set these once at the start of your program using `set_default_dtypes`.
 /// 2. Default Initialization: If an operation (like creating a tensor) occurs before manual initialization,
 ///    the settings are permanently locked to their default values.
 /// 3. Immutability: Once initialized, settings cannot be changed. This ensures consistent behavior across
