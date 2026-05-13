@@ -754,8 +754,8 @@ pub enum DataError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
     use crate::shape;
+    use alloc::vec;
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},

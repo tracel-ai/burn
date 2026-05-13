@@ -28,6 +28,7 @@ ddp = ["burn/distributed"]
 # Burn
 burn = { workspace = true, features = [
     "train",
+    "optim",
     "tui",
     "sqlite-bundled",
     "metrics",

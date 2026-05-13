@@ -162,7 +162,7 @@ fn main() {
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
     tch_cpu::run();
-    #[cfg(feature = "wgpu")]
+    #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
     wgpu::run();
     #[cfg(feature = "cuda")]
     cuda::run();
@@ -170,10 +170,6 @@ fn main() {
     rocm::run();
     #[cfg(feature = "remote")]
     remote::run();
-    #[cfg(feature = "vulkan")]
-    vulkan::run();
-    #[cfg(feature = "metal")]
-    metal::run();
     #[cfg(feature = "flex")]
     flex::run();
 }

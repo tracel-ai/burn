@@ -2,8 +2,8 @@ use crate::{Tensor, TensorPrimitive};
 use burn_backend::quantization;
 
 // User-facing quantization data types come from burn-std.
-pub use burn_std::quantization::*;
 use burn_dispatch::Dispatch;
+pub use burn_std::quantization::*;
 
 /// The tensor quantization parameters.
 pub type QuantizationParameters = QParams<Tensor<1>>;

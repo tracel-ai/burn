@@ -1,6 +1,6 @@
 pub use burn_std::device::*;
-pub use burn_std::{DeviceError, DeviceSettings};
 use burn_std::{BoolDType, BoolStore, DType, FloatDType, IntDType};
+pub use burn_std::{DeviceError, DeviceSettings};
 
 use burn_std::stub::RwLock;
 

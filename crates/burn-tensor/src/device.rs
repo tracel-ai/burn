@@ -1,5 +1,5 @@
-pub use burn_std::{DeviceError, DeviceSettings, device::DeviceId};
 pub use burn_dispatch::devices::*;
+pub use burn_std::{DeviceError, DeviceSettings, device::DeviceId};
 
 use burn_backend::Backend;
 #[allow(unused)]

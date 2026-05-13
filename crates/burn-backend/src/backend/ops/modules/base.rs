@@ -861,4 +861,3 @@ pub trait ModuleOps<B: Backend> {
         n: Option<usize>,
     ) -> FloatTensor<B>;
 }
-
