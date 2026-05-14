@@ -13,7 +13,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 
-/// The mapping of types used by Backend and traits like Numeric, BasicOps
+/// The mapping of types used by Backend and traits.
 pub trait BackendTypes {
     /// Device type.
     type Device: DeviceOps;
