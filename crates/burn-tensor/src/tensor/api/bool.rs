@@ -40,7 +40,7 @@ impl<const D: usize> Tensor<D, Bool> {
     ///     println!("{tensor}");
     /// }
     /// ```
-    pub fn from_bool<D: Into<TensorData>>(data: D, device: &Device) -> Self {
+    pub fn from_bool<A: Into<TensorData>>(data: A, device: &Device) -> Self {
         Self::from_data(data.into(), device)
     }
 
@@ -443,11 +443,8 @@ impl<const D: usize> Tensor<D, Bool> {
 }
 
 // !tensor (bool only)
-impl<B, const D: usize> core::ops::Not for Tensor<B, D, Bool>
-where
-    B: Backend,
-{
-    type Output = Tensor<B, D, Bool>;
+impl<const D: usize> core::ops::Not for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
 
     fn not(self) -> Self::Output {
         self.bool_not()
@@ -455,37 +452,28 @@ where
 }
 
 // tensor & tensor (bool only)
-impl<B, const D: usize> core::ops::BitAnd for Tensor<B, D, Bool>
-where
-    B: Backend,
-{
-    type Output = Tensor<B, D, Bool>;
+impl<const D: usize> core::ops::BitAnd for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
 
-    fn bitand(self, tensor: Tensor<B, D, Bool>) -> Self::Output {
+    fn bitand(self, tensor: Tensor<D, Bool>) -> Self::Output {
         self.bool_and(tensor)
     }
 }
 
 // tensor | tensor (bool only)
-impl<B, const D: usize> core::ops::BitOr for Tensor<B, D, Bool>
-where
-    B: Backend,
-{
-    type Output = Tensor<B, D, Bool>;
+impl<const D: usize> core::ops::BitOr for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
 
-    fn bitor(self, tensor: Tensor<B, D, Bool>) -> Self::Output {
+    fn bitor(self, tensor: Tensor<D, Bool>) -> Self::Output {
         self.bool_or(tensor)
     }
 }
 
 // tensor ^ tensor (bool only)
-impl<B, const D: usize> core::ops::BitXor for Tensor<B, D, Bool>
-where
-    B: Backend,
-{
-    type Output = Tensor<B, D, Bool>;
+impl<const D: usize> core::ops::BitXor for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
 
-    fn bitxor(self, tensor: Tensor<B, D, Bool>) -> Self::Output {
+    fn bitxor(self, tensor: Tensor<D, Bool>) -> Self::Output {
         self.bool_xor(tensor)
     }
 }
