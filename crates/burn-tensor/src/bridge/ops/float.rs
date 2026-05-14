@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
     AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
     ops::{FloatTensorOps, QTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
@@ -10,49 +9,56 @@ use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 use crate::{
     Device, Float,
     bridge::{BasicAutodiffOps, BasicOps, FloatMathOps, Numeric, Ordered, TransactionOp},
-    ops::{BoolTensor, IntTensor},
+    ops::PrimitiveKind,
 };
 
 macro_rules! q_bin_ops {
     ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {
         match ($lhs, $rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(Dispatch::$op(lhs, rhs))
+            (PrimitiveKind::Float(lhs), PrimitiveKind::Float(rhs)) => {
+                PrimitiveKind::Float(Dispatch::$op(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                Dispatch::$q_op(lhs, rhs)
+            (PrimitiveKind::QFloat(lhs), PrimitiveKind::QFloat(rhs)) => {
+                match Dispatch::$q_op(lhs, rhs) {
+                    TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                    TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+                }
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+            (PrimitiveKind::QFloat(lhs), PrimitiveKind::Float(rhs)) => {
                 let dtype = rhs.dtype();
-                TensorPrimitive::Float(Dispatch::$op(Dispatch::dequantize(lhs, dtype.into()), rhs))
+                PrimitiveKind::Float(Dispatch::$op(Dispatch::dequantize(lhs, dtype.into()), rhs))
             }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+            (PrimitiveKind::Float(lhs), PrimitiveKind::QFloat(rhs)) => {
                 let dtype = lhs.dtype();
-                TensorPrimitive::Float(Dispatch::$op(lhs, Dispatch::dequantize(rhs, dtype.into())))
+                PrimitiveKind::Float(Dispatch::$op(lhs, Dispatch::dequantize(rhs, dtype.into())))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     };
 }
 impl TransactionOp for Float {
-    fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: Self::Primitive) {
-        tr.register_float(tensor);
+    fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: PrimitiveKind) {
+        match tensor {
+            PrimitiveKind::Float(tensor) => tr.register_float(TensorPrimitive::Float(tensor)),
+            _ => panic!("Should be Float primitive kind"),
+        }
     }
 }
 
 impl BasicOps for Float {
-    fn empty(shape: Shape, device: &Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_empty(shape, &device.dispatch, dtype.into()))
+    fn empty(shape: Shape, device: &Device, dtype: DType) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_empty(shape, &device.dispatch, dtype.into()))
     }
 
-    fn zeros(shape: Shape, device: &Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_zeros(shape, &device.dispatch, dtype.into()))
+    fn zeros(shape: Shape, device: &Device, dtype: DType) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_zeros(shape, &device.dispatch, dtype.into()))
     }
-    fn ones(shape: Shape, device: &Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_ones(shape, &device.dispatch, dtype.into()))
+    fn ones(shape: Shape, device: &Device, dtype: DType) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_ones(shape, &device.dispatch, dtype.into()))
     }
 
-    fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_full(
+    fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_full(
             shape,
             fill_value,
             &device.dispatch,
@@ -60,186 +66,195 @@ impl BasicOps for Float {
         ))
     }
 
-    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
+    fn reshape(tensor: PrimitiveKind, shape: Shape) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_reshape(tensor, shape))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_reshape(tensor, shape))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_reshape(tensor, shape))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_reshape(tensor, shape))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
+    fn transpose(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_transpose(tensor))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_transpose(tensor))
-            }
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_transpose(tensor)),
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_transpose(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
+    fn swap_dims(tensor: PrimitiveKind, dim1: usize, dim2: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_swap_dims(tensor, dim1, dim2))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_swap_dims(tensor, dim1, dim2))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_swap_dims(tensor, dim1, dim2))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_swap_dims(tensor, dim1, dim2))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive {
+    fn slice(tensor: PrimitiveKind, slices: &[Slice]) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_slice(tensor, slices))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_slice(tensor, slices))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_slice(tensor, slices))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_slice(tensor, slices))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn slice_assign(
-        tensor: Self::Primitive,
+        tensor: PrimitiveKind,
         slices: &[Slice],
-        value: Self::Primitive,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_slice_assign(
-            tensor.tensor(),
+        value: PrimitiveKind,
+    ) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_slice_assign(
+            tensor.into_float(),
             slices,
-            value.tensor(),
+            value.into_float(),
         ))
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: IntTensor) -> Self::Primitive {
+    fn select(tensor: PrimitiveKind, dim: usize, indices: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_select(tensor, dim, indices))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_select(tensor, dim, indices.into()))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_select(tensor, dim, indices))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_select(tensor, dim, indices.into()))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn select_assign(
-        tensor: Self::Primitive,
+        tensor: PrimitiveKind,
         dim: usize,
-        indices: IntTensor,
-        values: Self::Primitive,
+        indices: PrimitiveKind,
+        values: PrimitiveKind,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> PrimitiveKind {
         // Select assign is ambiguous for QFloat
         match update {
-            IndexingUpdateOp::Add => TensorPrimitive::Float(Dispatch::float_select_add(
-                tensor.tensor(),
+            IndexingUpdateOp::Add => PrimitiveKind::Float(Dispatch::float_select_add(
+                tensor.into_float(),
                 dim,
-                indices,
-                values.tensor(),
+                indices.into(),
+                values.into_float(),
             )),
             other => unimplemented!("Unsupported update op {other:?}"),
         }
     }
 
     fn mask_where(
-        tensor: Self::Primitive,
-        mask: BoolTensor,
-        source: Self::Primitive,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_mask_where(
-            tensor.tensor(),
-            mask,
-            source.tensor(),
+        tensor: PrimitiveKind,
+        mask: PrimitiveKind,
+        source: PrimitiveKind,
+    ) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_mask_where(
+            tensor.into_float(),
+            mask.into(),
+            source.into_float(),
         ))
     }
 
-    fn mask_fill(tensor: Self::Primitive, mask: BoolTensor, value: Scalar) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_mask_fill(tensor.tensor(), mask, value))
+    fn mask_fill(tensor: PrimitiveKind, mask: PrimitiveKind, value: Scalar) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_mask_fill(
+            tensor.into_float(),
+            mask.into(),
+            value,
+        ))
     }
 
-    fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor) -> Self::Primitive {
+    fn gather(dim: usize, tensor: PrimitiveKind, indices: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_gather(dim, tensor, indices))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_gather(dim, tensor, indices.into()))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_gather(dim, tensor, indices))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_gather(dim, tensor, indices.into()))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn scatter(
         dim: usize,
-        tensor: Self::Primitive,
-        indices: IntTensor,
-        values: Self::Primitive,
+        tensor: PrimitiveKind,
+        indices: PrimitiveKind,
+        values: PrimitiveKind,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> PrimitiveKind {
         match update {
-            IndexingUpdateOp::Add => TensorPrimitive::Float(Dispatch::float_scatter_add(
+            IndexingUpdateOp::Add => PrimitiveKind::Float(Dispatch::float_scatter_add(
                 dim,
-                tensor.tensor(),
-                indices,
-                values.tensor(),
+                tensor.into_float(),
+                indices.into(),
+                values.into_float(),
             )),
             other => unimplemented!("Unsupported update op {other:?}"),
         }
     }
 
     fn scatter_nd(
-        data: Self::Primitive,
-        indices: IntTensor,
-        values: Self::Primitive,
+        data: PrimitiveKind,
+        indices: PrimitiveKind,
+        values: PrimitiveKind,
         reduction: IndexingUpdateOp,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_scatter_nd(
-            data.tensor(),
-            indices,
-            values.tensor(),
+    ) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_scatter_nd(
+            data.into_float(),
+            indices.into(),
+            values.into_float(),
             reduction,
         ))
     }
 
-    fn gather_nd(data: Self::Primitive, indices: IntTensor) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_gather_nd(data.tensor(), indices))
+    fn gather_nd(data: PrimitiveKind, indices: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_gather_nd(data.into_float(), indices.into()))
     }
 
-    fn device(tensor: &Self::Primitive) -> Device {
+    fn device(tensor: &PrimitiveKind) -> Device {
         match tensor {
-            TensorPrimitive::Float(tensor) => Dispatch::float_device(tensor).into(),
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_device(tensor).into(),
+            PrimitiveKind::Float(tensor) => Dispatch::float_device(tensor).into(),
+            PrimitiveKind::QFloat(tensor) => Dispatch::q_device(tensor).into(),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn to_device(tensor: Self::Primitive, device: &Device) -> Self::Primitive {
+    fn to_device(tensor: PrimitiveKind, device: &Device) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_to_device(tensor, &device.dispatch))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_to_device(tensor, &device.dispatch))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_to_device(tensor, &device.dispatch))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_to_device(tensor, &device.dispatch))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, ExecutionError> {
+    async fn into_data_async(tensor: PrimitiveKind) -> Result<TensorData, ExecutionError> {
         match tensor {
-            TensorPrimitive::Float(tensor) => Dispatch::float_into_data(tensor).await,
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_into_data(tensor).await,
+            PrimitiveKind::Float(tensor) => Dispatch::float_into_data(tensor).await,
+            PrimitiveKind::QFloat(tensor) => Dispatch::q_into_data(tensor).await,
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn from_data(data: TensorData, device: &Device, dtype: DType) -> Self::Primitive {
+    fn from_data(data: TensorData, device: &Device, dtype: DType) -> PrimitiveKind {
         if matches!(data.dtype, DType::QFloat(_)) {
             // When the source is QFloat, there is no conversion path possible.
-            TensorPrimitive::QFloat(Dispatch::q_from_data(data, &device.dispatch))
+            PrimitiveKind::QFloat(Dispatch::q_from_data(data, &device.dispatch))
         } else if dtype.is_float() {
-            TensorPrimitive::Float(Dispatch::float_from_data(
+            PrimitiveKind::Float(Dispatch::float_from_data(
                 data.convert_dtype(dtype),
                 &device.dispatch,
             ))
@@ -248,272 +263,312 @@ impl BasicOps for Float {
         }
     }
 
-    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
+    fn repeat_dim(tensor: PrimitiveKind, dim: usize, times: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_repeat_dim(tensor, dim, times))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_repeat_dim(tensor, dim, times))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_repeat_dim(tensor, dim, times))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_repeat_dim(tensor, dim, times))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
+    fn cat(vectors: Vec<PrimitiveKind>, dim: usize) -> PrimitiveKind {
         match vectors.first().unwrap() {
-            TensorPrimitive::Float(_) => TensorPrimitive::Float(Dispatch::float_cat(
-                vectors.into_iter().map(|tensor| tensor.tensor()).collect(),
+            PrimitiveKind::Float(_) => PrimitiveKind::Float(Dispatch::float_cat(
+                PrimitiveKind::into_dispatch_vec(vectors),
                 dim,
             )),
-            TensorPrimitive::QFloat(_) => TensorPrimitive::QFloat(Dispatch::q_cat(
-                vectors
-                    .into_iter()
-                    .map(|tensor| {
-                        if let TensorPrimitive::QFloat(t) = tensor {
-                            t
-                        } else {
-                            panic!("Concatenation only works with vector of QFloat")
-                        }
-                    })
-                    .collect(),
+            PrimitiveKind::QFloat(_) => PrimitiveKind::QFloat(Dispatch::q_cat(
+                PrimitiveKind::into_dispatch_vec(vectors),
                 dim,
             )),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        let lhs = lhs.tensor();
-        // TODO: DispatchDevice.settings()
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_equal(lhs, rhs.tensor(), out_dtype)
+    fn equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_equal(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_not_equal(lhs, rhs.tensor(), out_dtype)
+    fn not_equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_not_equal(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_equal_elem(lhs, rhs, out_dtype)
+    fn equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_not_equal_elem(lhs, rhs, out_dtype)
+    fn not_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_not_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn any(tensor: Self::Primitive) -> BoolTensor {
-        let tensor = tensor.tensor();
-        let out_dtype =
-            get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).bool_dtype;
-        Dispatch::float_any(tensor, out_dtype)
+    fn any(tensor: PrimitiveKind) -> PrimitiveKind {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_any(tensor, out_dtype))
     }
 
-    fn any_dim(tensor: Self::Primitive, dim: usize) -> BoolTensor {
-        let tensor = tensor.tensor();
-        let out_dtype =
-            get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).bool_dtype;
-        Dispatch::float_any_dim(tensor, dim, out_dtype)
+    fn any_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_any_dim(tensor, dim, out_dtype))
     }
 
-    fn all(tensor: Self::Primitive) -> BoolTensor {
-        let tensor = tensor.tensor();
-        let out_dtype =
-            get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).bool_dtype;
-        Dispatch::float_all(tensor, out_dtype)
+    fn all(tensor: PrimitiveKind) -> PrimitiveKind {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_all(tensor, out_dtype))
     }
 
-    fn all_dim(tensor: Self::Primitive, dim: usize) -> BoolTensor {
-        let tensor = tensor.tensor();
-        let out_dtype =
-            get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).bool_dtype;
-        Dispatch::float_all_dim(tensor, dim, out_dtype)
+    fn all_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_all_dim(tensor, dim, out_dtype))
     }
 
-    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
+    fn permute(tensor: PrimitiveKind, axes: &[usize]) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_permute(tensor, axes))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_permute(tensor, axes))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_permute(tensor, axes))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_permute(tensor, axes))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_expand(tensor.tensor(), shape))
+    fn expand(tensor: PrimitiveKind, shape: Shape) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_expand(tensor.into_float(), shape))
     }
 
-    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
+    fn flip(tensor: PrimitiveKind, axes: &[usize]) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_flip(tensor, axes))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_flip(tensor, axes))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_flip(tensor, axes))
-            }
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_flip(tensor, axes)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_unfold(tensor.tensor(), dim, size, step))
+    fn unfold(tensor: PrimitiveKind, dim: usize, size: usize, step: usize) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_unfold(tensor.into_float(), dim, size, step))
     }
 }
 
 impl Numeric for Float {
-    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn add(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
         q_bin_ops!(lhs, rhs, float_add, q_add)
     }
 
-    fn add_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+    fn add_scalar(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(Dispatch::float_add_scalar(lhs, rhs))
-            }
-            TensorPrimitive::QFloat(lhs) => Dispatch::q_add_scalar(lhs, rhs),
+            PrimitiveKind::Float(lhs) => PrimitiveKind::Float(Dispatch::float_add_scalar(lhs, rhs)),
+            PrimitiveKind::QFloat(lhs) => match Dispatch::q_add_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn sub(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
         q_bin_ops!(lhs, rhs, float_sub, q_sub)
     }
 
-    fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+    fn sub_scalar(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(Dispatch::float_sub_scalar(lhs, rhs))
-            }
-            TensorPrimitive::QFloat(lhs) => Dispatch::q_sub_scalar(lhs, rhs),
+            PrimitiveKind::Float(lhs) => PrimitiveKind::Float(Dispatch::float_sub_scalar(lhs, rhs)),
+            PrimitiveKind::QFloat(lhs) => match Dispatch::q_sub_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn div(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
         q_bin_ops!(lhs, rhs, float_div, q_div)
     }
 
-    fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+    fn div_scalar(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(Dispatch::float_div_scalar(lhs, rhs))
-            }
-            TensorPrimitive::QFloat(lhs) => Dispatch::q_div_scalar(lhs, rhs),
+            PrimitiveKind::Float(lhs) => PrimitiveKind::Float(Dispatch::float_div_scalar(lhs, rhs)),
+            PrimitiveKind::QFloat(lhs) => match Dispatch::q_div_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
-    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_remainder(lhs.tensor(), rhs.tensor()))
+    fn remainder(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_remainder(
+            lhs.into_float(),
+            rhs.into_float(),
+        ))
     }
 
-    fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_remainder_scalar(lhs.tensor(), rhs))
+    fn remainder_scalar(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_remainder_scalar(lhs.into_float(), rhs))
     }
 
-    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn mul(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
         q_bin_ops!(lhs, rhs, float_mul, q_mul)
     }
 
-    fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+    fn mul_scalar(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(Dispatch::float_mul_scalar(lhs, rhs))
+            PrimitiveKind::Float(lhs) => PrimitiveKind::Float(Dispatch::float_mul_scalar(lhs, rhs)),
+            PrimitiveKind::QFloat(lhs) => match Dispatch::q_mul_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+    fn neg(tensor: PrimitiveKind) -> PrimitiveKind {
+        match tensor {
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_neg(tensor)),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_neg(tensor) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn sum(tensor: PrimitiveKind) -> PrimitiveKind {
+        match tensor {
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_sum(tensor)),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_sum(tensor) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn sum_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
+        match tensor {
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_sum_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(lhs) => Dispatch::q_mul_scalar(lhs, rhs),
-        }
-    }
-    fn neg(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::float_neg(tensor)),
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_neg(tensor),
-        }
-    }
-
-    fn sum(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::float_sum(tensor)),
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_sum(tensor),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_sum_dim(tensor, dim) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn prod(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_sum_dim(tensor, dim))
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_prod(tensor)),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_prod(tensor) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn prod_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
+        match tensor {
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_prod_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_sum_dim(tensor, dim),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_prod_dim(tensor, dim) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn prod(tensor: Self::Primitive) -> Self::Primitive {
+    fn mean(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::float_prod(tensor)),
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_prod(tensor),
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_mean(tensor)),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_mean(tensor) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn mean_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_prod_dim(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_mean_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_prod_dim(tensor, dim),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_mean_dim(tensor, dim) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn mean(tensor: Self::Primitive) -> Self::Primitive {
+    fn cumsum(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::float_mean(tensor)),
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_mean(tensor),
-        }
-    }
-
-    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_mean_dim(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_cumsum(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_mean_dim(tensor, dim),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_cumsum(tensor, dim) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn cumprod(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_cumsum(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_cumprod(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_cumsum(tensor, dim),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_cumprod(tensor, dim) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn abs(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_cumprod(tensor, dim))
-            }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_cumprod(tensor, dim),
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_abs(tensor)),
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_abs(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn abs(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::float_abs(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(Dispatch::q_abs(tensor)),
-        }
-    }
-
-    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn powi(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
         q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
 
-    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+    fn powi_scalar(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(Dispatch::float_powi_scalar(lhs, rhs))
+            PrimitiveKind::Float(lhs) => {
+                PrimitiveKind::Float(Dispatch::float_powi_scalar(lhs, rhs))
             }
-            TensorPrimitive::QFloat(lhs) => Dispatch::q_powi_scalar(lhs, rhs),
+            PrimitiveKind::QFloat(lhs) => match Dispatch::q_powi_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
@@ -522,8 +577,8 @@ impl Numeric for Float {
         distribution: Distribution,
         device: &Device,
         dtype: DType,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_random(
+    ) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_random(
             shape,
             distribution,
             &device.dispatch,
@@ -531,8 +586,8 @@ impl Numeric for Float {
         ))
     }
 
-    fn sign(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_sign(tensor.tensor()))
+    fn sign(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_sign(tensor.into_float()))
     }
 
     /// Applies the matrix multiplication operation.
@@ -542,393 +597,441 @@ impl Numeric for Float {
     /// # Panics
     ///
     /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn matmul(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
         match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(Dispatch::float_matmul(lhs, rhs))
+            (PrimitiveKind::Float(lhs), PrimitiveKind::Float(rhs)) => {
+                PrimitiveKind::Float(Dispatch::float_matmul(lhs, rhs))
             }
-            (lhs, rhs) => Dispatch::q_matmul(lhs, rhs),
+            (PrimitiveKind::Float(lhs), PrimitiveKind::QFloat(rhs)) => {
+                match Dispatch::q_matmul(TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs))
+                {
+                    TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                    TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+                }
+            }
+            (PrimitiveKind::QFloat(lhs), PrimitiveKind::Float(rhs)) => {
+                match Dispatch::q_matmul(TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs))
+                {
+                    TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                    TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+                }
+            }
+            (PrimitiveKind::QFloat(lhs), PrimitiveKind::QFloat(rhs)) => {
+                match Dispatch::q_matmul(TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs))
+                {
+                    TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                    TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+                }
+            }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 }
 impl Ordered for Float {
-    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
+    fn sort(tensor: PrimitiveKind, dim: usize, descending: bool) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_sort(tensor, dim, descending))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_sort(tensor, dim, descending))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_sort(tensor, dim, descending))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_sort(tensor, dim, descending))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn sort_with_indices(
-        tensor: Self::Primitive,
+        tensor: PrimitiveKind,
         dim: usize,
         descending: bool,
-    ) -> (Self::Primitive, IntTensor) {
+    ) -> (PrimitiveKind, PrimitiveKind) {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).int_dtype;
+            PrimitiveKind::Float(tensor) => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
                 let (values, indices) =
                     Dispatch::float_sort_with_indices(tensor, dim, descending, out_dtype);
-                (TensorPrimitive::Float(values), indices)
+                (PrimitiveKind::Float(values), PrimitiveKind::Int(indices))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::q_device(&tensor)).int_dtype;
+            PrimitiveKind::QFloat(tensor) => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
                 let (values, indices) =
                     Dispatch::q_sort_with_indices(tensor, dim, descending, out_dtype);
-                (TensorPrimitive::QFloat(values), indices)
+                (PrimitiveKind::QFloat(values), PrimitiveKind::Int(indices))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor {
+    fn argsort(tensor: PrimitiveKind, dim: usize, descending: bool) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).int_dtype;
-                Dispatch::float_argsort(tensor, dim, descending, out_dtype)
+            PrimitiveKind::Float(tensor) => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::float_argsort(tensor, dim, descending, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::q_device(&tensor)).int_dtype;
-                Dispatch::q_argsort(tensor, dim, descending, out_dtype)
+            PrimitiveKind::QFloat(tensor) => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::q_argsort(tensor, dim, descending, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn cummin(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_cummin(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_cummin(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_cummin(tensor, dim),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_cummin(tensor, dim) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn cummax(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_cummax(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_cummax(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_cummax(tensor, dim),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_cummax(tensor, dim) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_greater(lhs, rhs.tensor(), out_dtype)
+    fn greater(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_greater(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_greater_elem(lhs, rhs, out_dtype)
+    fn greater_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_greater_elem(lhs, rhs, out_dtype))
     }
 
-    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_greater_equal(lhs, rhs.tensor(), out_dtype)
+    fn greater_equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_greater_equal(
+            lhs,
+            rhs.into_float(),
+            out_dtype,
+        ))
     }
 
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_greater_equal_elem(lhs, rhs, out_dtype)
+    fn greater_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_greater_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_lower(lhs, rhs.tensor(), out_dtype)
+    fn lower(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_lower(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_lower_elem(lhs, rhs, out_dtype)
+    fn lower_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_lower_elem(lhs, rhs, out_dtype))
     }
 
-    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_lower_equal(lhs, rhs.tensor(), out_dtype)
+    fn lower_equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_lower_equal(
+            lhs,
+            rhs.into_float(),
+            out_dtype,
+        ))
     }
 
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<Dispatch>(&Dispatch::float_device(&lhs)).bool_dtype;
-        Dispatch::float_lower_equal_elem(lhs, rhs, out_dtype)
+    fn lower_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        PrimitiveKind::Bool(Dispatch::float_lower_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor {
+    fn argmax(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).int_dtype;
-                Dispatch::float_argmax(tensor, dim, out_dtype)
+            PrimitiveKind::Float(tensor) => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::float_argmax(tensor, dim, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::q_device(&tensor)).int_dtype;
-                Dispatch::q_argmax(tensor, dim, out_dtype)
+            PrimitiveKind::QFloat(tensor) => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::q_argmax(tensor, dim, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor {
+    fn argtopk(tensor: PrimitiveKind, dim: usize, k: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).int_dtype;
-                Dispatch::float_argtopk(tensor, dim, k, out_dtype)
+            PrimitiveKind::Float(tensor) => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::float_argtopk(tensor, dim, k, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::q_device(&tensor)).int_dtype;
-                Dispatch::q_argtopk(tensor, dim, k, out_dtype)
+            PrimitiveKind::QFloat(tensor) => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::q_argtopk(tensor, dim, k, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor {
+    fn argmin(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).int_dtype;
-                Dispatch::float_argmin(tensor, dim, out_dtype)
+            PrimitiveKind::Float(tensor) => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::float_argmin(tensor, dim, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::q_device(&tensor)).int_dtype;
-                Dispatch::q_argmin(tensor, dim, out_dtype)
+            PrimitiveKind::QFloat(tensor) => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                PrimitiveKind::Int(Dispatch::q_argmin(tensor, dim, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max(tensor: Self::Primitive) -> Self::Primitive {
+    fn max(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::float_max(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(Dispatch::q_max(tensor)),
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_max(tensor)),
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_max(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn max_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_max_dim(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_max_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_max_dim(tensor, dim))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_max_dim(tensor, dim))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive {
+    fn topk(tensor: PrimitiveKind, dim: usize, k: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_topk(tensor, dim, k))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_topk(tensor, dim, k))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_topk(tensor, dim, k))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_topk(tensor, dim, k))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, IntTensor) {
+    fn max_dim_with_indices(tensor: PrimitiveKind, dim: usize) -> (PrimitiveKind, PrimitiveKind) {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).int_dtype;
+            PrimitiveKind::Float(tensor) => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
                 let (values, indices) =
                     Dispatch::float_max_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::Float(values), indices)
+                (PrimitiveKind::Float(values), PrimitiveKind::Int(indices))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::q_device(&tensor)).int_dtype;
+            PrimitiveKind::QFloat(tensor) => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
                 let (values, indices) = Dispatch::q_max_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::QFloat(values), indices)
+                (PrimitiveKind::QFloat(values), PrimitiveKind::Int(indices))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn min(tensor: Self::Primitive) -> Self::Primitive {
+    fn min(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::float_min(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(Dispatch::q_min(tensor)),
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_min(tensor)),
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_min(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn min_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_min_dim(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_min_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_min_dim(tensor, dim))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_min_dim(tensor, dim))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn min_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, IntTensor) {
+    fn min_dim_with_indices(tensor: PrimitiveKind, dim: usize) -> (PrimitiveKind, PrimitiveKind) {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::float_device(&tensor)).int_dtype;
+            PrimitiveKind::Float(tensor) => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
                 let (values, indices) =
                     Dispatch::float_min_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::Float(values), indices)
+                (PrimitiveKind::Float(values), PrimitiveKind::Int(indices))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype =
-                    get_device_settings::<Dispatch>(&Dispatch::q_device(&tensor)).int_dtype;
+            PrimitiveKind::QFloat(tensor) => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
                 let (values, indices) = Dispatch::q_min_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::QFloat(values), indices)
+                (PrimitiveKind::QFloat(values), PrimitiveKind::Int(indices))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn clamp(tensor: Self::Primitive, min: Scalar, max: Scalar) -> Self::Primitive {
+    fn clamp(tensor: PrimitiveKind, min: Scalar, max: Scalar) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_clamp(tensor, min, max))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_clamp(tensor, min, max))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_clamp(tensor, min, max),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_clamp(tensor, min, max) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn clamp_min(tensor: Self::Primitive, min: Scalar) -> Self::Primitive {
+    fn clamp_min(tensor: PrimitiveKind, min: Scalar) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_clamp_min(tensor, min))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_clamp_min(tensor, min))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_clamp_min(tensor, min),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_clamp_min(tensor, min) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive {
+    fn clamp_max(tensor: PrimitiveKind, max: Scalar) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_clamp_max(tensor, max))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_clamp_max(tensor, max))
             }
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_clamp_max(tensor, max),
+            PrimitiveKind::QFloat(tensor) => match Dispatch::q_clamp_max(tensor, max) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_abs(tensor: Self::Primitive) -> Self::Primitive {
+    fn max_abs(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_max_abs(tensor))
-            }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(Dispatch::q_max_abs(tensor)),
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::float_max_abs(tensor)),
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_max_abs(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+    fn max_abs_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_max_abs_dim(tensor, dim))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_max_abs_dim(tensor, dim))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_max_abs_dim(tensor, dim))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_max_abs_dim(tensor, dim))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 }
 
 impl FloatMathOps for Float {
-    fn square(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_powi_scalar(tensor.tensor(), 2.into()))
+    fn square(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_powi_scalar(tensor.into_float(), 2.into()))
     }
-    fn sqrt(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_sqrt(tensor.tensor()))
+    fn sqrt(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_sqrt(tensor.into_float()))
     }
-    fn cos(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_cos(tensor.tensor()))
-    }
-
-    fn sin(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_sin(tensor.tensor()))
+    fn cos(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_cos(tensor.into_float()))
     }
 
-    fn tan(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_tan(tensor.tensor()))
+    fn sin(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_sin(tensor.into_float()))
     }
 
-    fn cosh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_cosh(tensor.tensor()))
+    fn tan(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_tan(tensor.into_float()))
     }
 
-    fn sinh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_sinh(tensor.tensor()))
+    fn cosh(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_cosh(tensor.into_float()))
     }
 
-    fn tanh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_tanh(tensor.tensor()))
+    fn sinh(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_sinh(tensor.into_float()))
     }
 
-    fn acos(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_acos(tensor.tensor()))
+    fn tanh(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_tanh(tensor.into_float()))
     }
 
-    fn acosh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_acosh(tensor.tensor()))
+    fn acos(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_acos(tensor.into_float()))
     }
 
-    fn asin(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_asin(tensor.tensor()))
+    fn acosh(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_acosh(tensor.into_float()))
     }
 
-    fn asinh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_asinh(tensor.tensor()))
+    fn asin(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_asin(tensor.into_float()))
     }
 
-    fn atan(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_atan(tensor.tensor()))
+    fn asinh(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_asinh(tensor.into_float()))
     }
 
-    fn atanh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_atanh(tensor.tensor()))
+    fn atan(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_atan(tensor.into_float()))
     }
 
-    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_atan2(lhs.tensor(), rhs.tensor()))
+    fn atanh(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_atanh(tensor.into_float()))
     }
 
-    fn exp(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_exp(tensor.tensor()))
+    fn atan2(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_atan2(lhs.into_float(), rhs.into_float()))
     }
 
-    fn log(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_log(tensor.tensor()))
+    fn exp(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_exp(tensor.into_float()))
     }
 
-    fn log1p(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(Dispatch::float_log1p(tensor.tensor()))
+    fn log(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_log(tensor.into_float()))
+    }
+
+    fn log1p(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Float(Dispatch::float_log1p(tensor.into_float()))
     }
 }
 
 impl BasicAutodiffOps for Float {
-    fn inner(tensor: Self::Primitive) -> Self::Primitive {
+    fn inner(tensor: PrimitiveKind) -> PrimitiveKind {
         match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::inner(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(Dispatch::q_inner(tensor)),
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::inner(tensor)),
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_inner(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn from_inner(inner: Self::Primitive) -> Self::Primitive {
+    fn from_inner(inner: PrimitiveKind) -> PrimitiveKind {
         match inner {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(Dispatch::from_inner(tensor)),
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_from_inner(tensor))
-            }
+            PrimitiveKind::Float(tensor) => PrimitiveKind::Float(Dispatch::from_inner(tensor)),
+            PrimitiveKind::QFloat(tensor) => PrimitiveKind::QFloat(Dispatch::q_from_inner(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 }

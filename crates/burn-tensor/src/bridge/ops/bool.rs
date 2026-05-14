@@ -9,209 +9,233 @@ use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 use crate::{
     Bool, Device,
     bridge::{BasicAutodiffOps, BasicOps, TransactionOp},
-    ops::{BoolTensor, IntTensor},
+    ops::PrimitiveKind,
 };
 
 impl TransactionOp for Bool {
-    fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: Self::Primitive) {
-        tr.register_bool(tensor);
+    fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: PrimitiveKind) {
+        tr.register_bool(tensor.into());
     }
 }
 
 impl BasicOps for Bool {
-    fn empty(shape: Shape, device: &Device, dtype: DType) -> Self::Primitive {
+    fn empty(shape: Shape, device: &Device, dtype: DType) -> PrimitiveKind {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        Dispatch::bool_empty(shape, &device.dispatch, dtype.into())
+        PrimitiveKind::Bool(Dispatch::bool_empty(shape, &device.dispatch, dtype.into()))
     }
 
-    fn zeros(shape: Shape, device: &Device, dtype: DType) -> Self::Primitive {
+    fn zeros(shape: Shape, device: &Device, dtype: DType) -> PrimitiveKind {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        Dispatch::bool_zeros(shape, &device.dispatch, dtype.into())
+        PrimitiveKind::Bool(Dispatch::bool_zeros(shape, &device.dispatch, dtype.into()))
     }
-    fn ones(shape: Shape, device: &Device, dtype: DType) -> Self::Primitive {
+    fn ones(shape: Shape, device: &Device, dtype: DType) -> PrimitiveKind {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        Dispatch::bool_ones(shape, &device.dispatch, dtype.into())
+        PrimitiveKind::Bool(Dispatch::bool_ones(shape, &device.dispatch, dtype.into()))
     }
 
-    fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> Self::Primitive {
+    fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> PrimitiveKind {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
         if fill_value.elem() {
-            Dispatch::bool_ones(shape, &device.dispatch, dtype.into())
+            PrimitiveKind::Bool(Dispatch::bool_ones(shape, &device.dispatch, dtype.into()))
         } else {
-            Dispatch::bool_zeros(shape, &device.dispatch, dtype.into())
+            PrimitiveKind::Bool(Dispatch::bool_zeros(shape, &device.dispatch, dtype.into()))
         }
     }
 
-    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        Dispatch::bool_reshape(tensor, shape)
+    fn reshape(tensor: PrimitiveKind, shape: Shape) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_reshape(tensor.into(), shape))
     }
 
-    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
-        Dispatch::bool_transpose(tensor)
+    fn transpose(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_transpose(tensor.into()))
     }
 
-    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
-        Dispatch::bool_swap_dims(tensor, dim1, dim2)
+    fn swap_dims(tensor: PrimitiveKind, dim1: usize, dim2: usize) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_swap_dims(tensor.into(), dim1, dim2))
     }
 
-    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive {
-        Dispatch::bool_slice(tensor, slices)
+    fn slice(tensor: PrimitiveKind, slices: &[Slice]) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_slice(tensor.into(), slices))
     }
 
     fn slice_assign(
-        tensor: Self::Primitive,
+        tensor: PrimitiveKind,
         slices: &[Slice],
-        value: Self::Primitive,
-    ) -> Self::Primitive {
-        Dispatch::bool_slice_assign(tensor, slices, value)
+        value: PrimitiveKind,
+    ) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_slice_assign(
+            tensor.into(),
+            slices,
+            value.into(),
+        ))
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: IntTensor) -> Self::Primitive {
-        Dispatch::bool_select(tensor, dim, indices)
+    fn select(tensor: PrimitiveKind, dim: usize, indices: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_select(tensor.into(), dim, indices.into()))
     }
 
     fn select_assign(
-        tensor: Self::Primitive,
+        tensor: PrimitiveKind,
         dim: usize,
-        indices: IntTensor,
-        values: Self::Primitive,
+        indices: PrimitiveKind,
+        values: PrimitiveKind,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> PrimitiveKind {
         match update {
-            IndexingUpdateOp::Add => Dispatch::bool_select_or(tensor, dim, indices, values),
+            IndexingUpdateOp::Add => PrimitiveKind::Bool(Dispatch::bool_select_or(
+                tensor.into(),
+                dim,
+                indices.into(),
+                values.into(),
+            )),
             _ => unimplemented!(),
         }
     }
 
     fn mask_where(
-        tensor: Self::Primitive,
-        mask: BoolTensor,
-        source: Self::Primitive,
-    ) -> Self::Primitive {
-        Dispatch::bool_mask_where(tensor, mask, source)
+        tensor: PrimitiveKind,
+        mask: PrimitiveKind,
+        source: PrimitiveKind,
+    ) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_mask_where(
+            tensor.into(),
+            mask.into(),
+            source.into(),
+        ))
     }
 
-    fn mask_fill(tensor: Self::Primitive, mask: BoolTensor, value: Scalar) -> Self::Primitive {
-        Dispatch::bool_mask_fill(tensor, mask, value)
+    fn mask_fill(tensor: PrimitiveKind, mask: PrimitiveKind, value: Scalar) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_mask_fill(tensor.into(), mask.into(), value))
     }
 
-    fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor) -> Self::Primitive {
-        Dispatch::bool_gather(dim, tensor, indices)
+    fn gather(dim: usize, tensor: PrimitiveKind, indices: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_gather(dim, tensor.into(), indices.into()))
     }
 
     fn scatter(
         dim: usize,
-        tensor: Self::Primitive,
-        indices: IntTensor,
-        values: Self::Primitive,
+        tensor: PrimitiveKind,
+        indices: PrimitiveKind,
+        values: PrimitiveKind,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> PrimitiveKind {
         match update {
-            IndexingUpdateOp::Add => Dispatch::bool_scatter_or(dim, tensor, indices, values),
+            IndexingUpdateOp::Add => PrimitiveKind::Bool(Dispatch::bool_scatter_or(
+                dim,
+                tensor.into(),
+                indices.into(),
+                values.into(),
+            )),
             _ => unimplemented!(),
         }
     }
 
     fn scatter_nd(
-        _data: Self::Primitive,
-        _indices: IntTensor,
-        _values: Self::Primitive,
+        _data: PrimitiveKind,
+        _indices: PrimitiveKind,
+        _values: PrimitiveKind,
         _reduction: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> PrimitiveKind {
         panic!("scatter_nd is not supported for bool tensors")
     }
 
-    fn gather_nd(_data: Self::Primitive, _indices: IntTensor) -> Self::Primitive {
+    fn gather_nd(_data: PrimitiveKind, _indices: PrimitiveKind) -> PrimitiveKind {
         panic!("gather_nd is not supported for bool tensors")
     }
 
-    fn device(tensor: &Self::Primitive) -> Device {
-        Dispatch::bool_device(tensor).into()
+    fn device(tensor: &PrimitiveKind) -> Device {
+        Dispatch::bool_device(tensor.as_dispatch()).into()
     }
 
-    fn to_device(tensor: Self::Primitive, device: &Device) -> Self::Primitive {
-        Dispatch::bool_to_device(tensor, &device.dispatch)
+    fn to_device(tensor: PrimitiveKind, device: &Device) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_to_device(tensor.into(), &device.dispatch))
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, ExecutionError> {
-        Dispatch::bool_into_data(tensor).await
+    async fn into_data_async(tensor: PrimitiveKind) -> Result<TensorData, ExecutionError> {
+        Dispatch::bool_into_data(tensor.into()).await
     }
 
-    fn from_data(data: TensorData, device: &Device, dtype: DType) -> Self::Primitive {
-        Dispatch::bool_from_data(data.convert_dtype(dtype), &device.dispatch)
+    fn from_data(data: TensorData, device: &Device, dtype: DType) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_from_data(
+            data.convert_dtype(dtype),
+            &device.dispatch,
+        ))
     }
 
-    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
-        Dispatch::bool_repeat_dim(tensor, dim, times)
+    fn repeat_dim(tensor: PrimitiveKind, dim: usize, times: usize) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_repeat_dim(tensor.into(), dim, times))
     }
 
-    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        Dispatch::bool_equal(lhs, rhs)
+    fn equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_equal(lhs.into(), rhs.into()))
     }
 
-    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor {
-        Dispatch::bool_not_equal(lhs, rhs)
+    fn not_equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_not_equal(lhs.into(), rhs.into()))
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        Dispatch::bool_equal_elem(lhs, rhs)
+    fn equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_equal_elem(lhs.into(), rhs.into()))
     }
 
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor {
-        Dispatch::bool_not_equal_elem(lhs, rhs)
+    fn not_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_not_equal_elem(lhs.into(), rhs.into()))
     }
 
-    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
-        Dispatch::bool_cat(vectors, dim)
+    fn cat(vectors: Vec<PrimitiveKind>, dim: usize) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_cat(
+            PrimitiveKind::into_dispatch_vec(vectors),
+            dim,
+        ))
     }
 
-    fn any(tensor: Self::Primitive) -> BoolTensor {
-        Dispatch::bool_any(tensor)
+    fn any(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_any(tensor.into()))
     }
 
-    fn any_dim(tensor: Self::Primitive, dim: usize) -> BoolTensor {
-        Dispatch::bool_any_dim(tensor, dim)
+    fn any_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_any_dim(tensor.into(), dim))
     }
 
-    fn all(tensor: Self::Primitive) -> BoolTensor {
-        Dispatch::bool_all(tensor)
+    fn all(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_all(tensor.into()))
     }
 
-    fn all_dim(tensor: Self::Primitive, dim: usize) -> BoolTensor {
-        Dispatch::bool_all_dim(tensor, dim)
+    fn all_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_all_dim(tensor.into(), dim))
     }
 
-    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        Dispatch::bool_permute(tensor, axes)
+    fn permute(tensor: PrimitiveKind, axes: &[usize]) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_permute(tensor.into(), axes))
     }
 
-    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        Dispatch::bool_expand(tensor, shape)
+    fn expand(tensor: PrimitiveKind, shape: Shape) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_expand(tensor.into(), shape))
     }
 
-    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        Dispatch::bool_flip(tensor, axes)
+    fn flip(tensor: PrimitiveKind, axes: &[usize]) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_flip(tensor.into(), axes))
     }
 
-    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
-        Dispatch::bool_unfold(tensor, dim, size, step)
+    fn unfold(tensor: PrimitiveKind, dim: usize, size: usize, step: usize) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_unfold(tensor.into(), dim, size, step))
     }
 }
 
 impl BasicAutodiffOps for Bool {
-    fn inner(tensor: Self::Primitive) -> Self::Primitive {
-        Dispatch::bool_inner(tensor)
+    fn inner(tensor: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_inner(tensor.into()))
     }
 
-    fn from_inner(inner: Self::Primitive) -> Self::Primitive {
-        Dispatch::bool_from_inner(inner)
+    fn from_inner(inner: PrimitiveKind) -> PrimitiveKind {
+        PrimitiveKind::Bool(Dispatch::bool_from_inner(inner.into()))
     }
 }

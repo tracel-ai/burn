@@ -6,6 +6,7 @@ use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
 use crate::kind::FloatMath;
+use crate::ops::PrimitiveKind;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
@@ -46,8 +47,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     )]
     #[cfg_attr(not(doc), doc = "`y_i = erf(x_i)`")]
     pub fn erf(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_erf(
-            self.primitive.tensor(),
+        Self::new(PrimitiveKind::Float(Dispatch::float_erf(
+            self.primitive.into_float(),
         )))
     }
 
@@ -57,8 +58,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     #[cfg_attr(doc, doc = r#"$y_i = \frac{1}{x_i}$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = 1/x_i`")]
     pub fn recip(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_recip(
-            self.primitive.tensor(),
+        Self::new(PrimitiveKind::Float(Dispatch::float_recip(
+            self.primitive.into_float(),
         )))
     }
 
@@ -87,22 +88,22 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// This function implements the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
     /// strategy, with halfway cases rounded to the nearest even integer value.
     pub fn round(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_round(
-            self.primitive.tensor(),
+        Self::new(PrimitiveKind::Float(Dispatch::float_round(
+            self.primitive.into_float(),
         )))
     }
 
     /// Applies element wise floor operation.
     pub fn floor(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_floor(
-            self.primitive.tensor(),
+        Self::new(PrimitiveKind::Float(Dispatch::float_floor(
+            self.primitive.into_float(),
         )))
     }
 
     /// Applies element wise ceil operation.
     pub fn ceil(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_ceil(
-            self.primitive.tensor(),
+        Self::new(PrimitiveKind::Float(Dispatch::float_ceil(
+            self.primitive.into_float(),
         )))
     }
 
@@ -139,13 +140,16 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
         let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(Dispatch::float_into_int(self.primitive.tensor(), out_dtype))
+        Tensor::new(PrimitiveKind::Int(Dispatch::float_into_int(
+            self.primitive.into_float(),
+            out_dtype,
+        )))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_random(
+        Self::new(PrimitiveKind::Float(Dispatch::float_random(
             self.shape(),
             distribution,
             &self.device().dispatch,
@@ -303,8 +307,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     #[must_use]
-    pub fn cast<T: Cast<Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
-        Tensor::new(T::cast(self.primitive, dtype))
+    pub fn cast<T: Cast<D, Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
+        T::cast(self, dtype)
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -313,8 +317,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_detach(
-            self.primitive.tensor(),
+        Self::new(PrimitiveKind::Float(Dispatch::float_detach(
+            self.primitive.into_float(),
         )))
     }
 
@@ -328,8 +332,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// Returns true if the tensor requires gradients during the backward pass.
     pub fn is_require_grad(&self) -> bool {
         match &self.primitive {
-            TensorPrimitive::Float(tensor) => Dispatch::float_is_require_grad(tensor),
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_is_require_grad(tensor),
+            PrimitiveKind::Float(tensor) => Dispatch::float_is_require_grad(tensor),
+            PrimitiveKind::QFloat(tensor) => Dispatch::q_is_require_grad(tensor),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
@@ -339,20 +344,21 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// This function does nothing when autodiff is not enabled.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
         let primitive = match self.primitive {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_set_require_grad(tensor, require_grad))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::float_set_require_grad(tensor, require_grad))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_set_require_grad(tensor, require_grad))
+            PrimitiveKind::QFloat(tensor) => {
+                PrimitiveKind::QFloat(Dispatch::q_set_require_grad(tensor, require_grad))
             }
+            _ => panic!("Should be Float primitive kind"),
         };
         Self::new(primitive)
     }
 
     /// Applies the relu function to the tensor.
     pub(crate) fn relu(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::relu(
-            self.primitive.tensor(),
+        Self::new(PrimitiveKind::Float(Dispatch::relu(
+            self.primitive.into_float(),
         )))
     }
 
@@ -383,11 +389,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The quantized tensor.
     pub fn quantize(self, scheme: &QuantScheme, qparams: QuantizationParameters) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::QFloat(Dispatch::quantize(
-            self.primitive.tensor(),
+        Tensor::new(PrimitiveKind::QFloat(Dispatch::quantize(
+            self.primitive.into_float(),
             scheme,
             QuantizationParametersPrimitive {
-                scales: qparams.scales.primitive.tensor(),
+                scales: qparams.scales.primitive.into_float(),
             },
         )))
     }
@@ -405,8 +411,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Notes
     /// This uses [min-max calibration](crate::quantization::Calibration::MinMax).
     pub fn quantize_dynamic(self, scheme: &QuantScheme) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::QFloat(Dispatch::quantize_dynamic(
-            self.primitive.tensor(),
+        Tensor::new(PrimitiveKind::QFloat(Dispatch::quantize_dynamic(
+            self.primitive.into_float(),
             scheme,
         )))
     }
@@ -419,7 +425,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The dequantized tensor.
     pub fn dequantize(self) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::Float(self.primitive.tensor()))
+        Tensor::new(PrimitiveKind::Float(self.primitive.into_float()))
     }
 
     /// Checks element wise if the tensor is close to another tensor.
@@ -548,7 +554,10 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```
     pub fn is_nan(self) -> Tensor<D, Bool> {
         let out_dtype = self.device().settings().bool_dtype;
-        Tensor::new(Dispatch::float_is_nan(self.primitive.tensor(), out_dtype))
+        Tensor::new(PrimitiveKind::Bool(Dispatch::float_is_nan(
+            self.primitive.into_float(),
+            out_dtype,
+        )))
     }
 
     /// Checks if the tensor contains any NaN values.
@@ -604,7 +613,10 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```
     pub fn is_inf(self) -> Tensor<D, Bool> {
         let out_dtype = self.device().settings().bool_dtype;
-        Tensor::new(Dispatch::float_is_inf(self.primitive.tensor(), out_dtype))
+        Tensor::new(PrimitiveKind::Bool(Dispatch::float_is_inf(
+            self.primitive.into_float(),
+            out_dtype,
+        )))
     }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is finite
@@ -666,9 +678,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         grid: Tensor<D>,
         options: impl Into<GridSampleOptions>,
     ) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::Float(Dispatch::float_grid_sample_2d(
-            self.primitive.tensor(),
-            grid.primitive.tensor(),
+        Tensor::new(PrimitiveKind::Float(Dispatch::float_grid_sample_2d(
+            self.primitive.into_float(),
+            grid.primitive.into_float(),
             options.into(),
         )))
     }
@@ -689,9 +701,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn cross<Dim: AsIndex>(self, other: Tensor<D>, dim: Dim) -> Tensor<D> {
         let dim = dim.expect_dim_index(D);
         check!(TensorCheck::cross(&self, &other, dim));
-        Tensor::new(TensorPrimitive::Float(Dispatch::float_cross(
-            self.primitive.tensor(),
-            other.primitive.tensor(),
+        Tensor::new(PrimitiveKind::Float(Dispatch::float_cross(
+            self.primitive.into_float(),
+            other.primitive.into_float(),
             dim,
         )))
     }
@@ -718,26 +730,30 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```
     pub fn powf(self, other: Self) -> Self {
         let primitive = match (self.primitive, other.primitive) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(Dispatch::float_powf(lhs, rhs))
+            (PrimitiveKind::Float(lhs), PrimitiveKind::Float(rhs)) => {
+                PrimitiveKind::Float(Dispatch::float_powf(lhs, rhs))
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                Dispatch::q_powf(lhs, rhs)
+            (PrimitiveKind::QFloat(lhs), PrimitiveKind::QFloat(rhs)) => {
+                match Dispatch::q_powf(lhs, rhs) {
+                    TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                    TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+                }
             }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+            (PrimitiveKind::QFloat(lhs), PrimitiveKind::Float(rhs)) => {
                 let dtype = rhs.dtype();
-                TensorPrimitive::Float(Dispatch::float_powf(
+                PrimitiveKind::Float(Dispatch::float_powf(
                     Dispatch::dequantize(lhs, dtype.into()),
                     rhs,
                 ))
             }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+            (PrimitiveKind::Float(lhs), PrimitiveKind::QFloat(rhs)) => {
                 let dtype = lhs.dtype();
-                TensorPrimitive::Float(Dispatch::float_powf(
+                PrimitiveKind::Float(Dispatch::float_powf(
                     lhs,
                     Dispatch::dequantize(rhs, dtype.into()),
                 ))
             }
+            _ => panic!("Should be Float primitive kind"),
         };
 
         Tensor::new(primitive)
@@ -766,10 +782,14 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         let rhs = Scalar::new(other, &self.dtype());
 
         let primitive = match self.primitive {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(Dispatch::float_powf_scalar(lhs, rhs))
+            PrimitiveKind::Float(lhs) => {
+                PrimitiveKind::Float(Dispatch::float_powf_scalar(lhs, rhs))
             }
-            TensorPrimitive::QFloat(lhs) => Dispatch::q_powf_scalar(lhs, rhs),
+            PrimitiveKind::QFloat(lhs) => match Dispatch::q_powf_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => PrimitiveKind::Float(out),
+                TensorPrimitive::QFloat(out) => PrimitiveKind::QFloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         };
 
         Tensor::new(primitive)
@@ -882,8 +902,8 @@ impl<const D: usize> Tensor<D> {
     /// This function does nothing when autodiff or distributed is not enabled.
     pub fn set_distributed(self, param_id: DistributedParamId) -> Self {
         let primitive = match self.primitive {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::set_distributed_params(tensor, param_id))
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(Dispatch::set_distributed_params(tensor, param_id))
             }
             TensorPrimitive::QFloat(_) => unimplemented!(),
         };

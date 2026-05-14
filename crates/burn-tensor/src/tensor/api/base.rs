@@ -1,7 +1,7 @@
 #![allow(clippy::single_range_in_vec_init)]
 use crate::check::unwrap_shape_reshape;
 use crate::kind::Basic;
-use crate::ops::TensorKind;
+use crate::ops::PrimitiveKind;
 
 use burn_backend::Scalar;
 
@@ -14,11 +14,12 @@ use alloc::vec;
 use burn_std::ExecutionError;
 use burn_std::{SliceOps, stub::RwLock};
 use core::iter::repeat;
+use core::marker::PhantomData;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
 use crate::{AsIndex, Device, Slice, SliceArg, wrap_index};
-use crate::{Bool, ElementConversion, Float, Int, Shape, TensorData, TensorMetadata, check};
+use crate::{Bool, ElementConversion, Float, Int, Shape, TensorData, check};
 use crate::{DType, Element};
 use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
@@ -74,7 +75,8 @@ pub struct Tensor<const D: usize, K = Float>
 where
     K: Basic,
 {
-    pub(crate) primitive: <K as TensorKind>::Primitive,
+    pub(crate) primitive: PrimitiveKind,
+    _kind: PhantomData<K>,
 }
 
 impl<const D: usize, K, T> From<T> for Tensor<D, K>
@@ -113,12 +115,12 @@ where
     // The primitive kind will be opaque, but for these public extension feature-gated methods
     // we could return/use the dispatch tensor type.
     /// Converts the tensor into a primitive tensor.
-    pub fn into_primitive(self) -> K::Primitive {
+    pub fn into_primitive(self) -> PrimitiveKind {
         self.primitive
     }
 
     /// Converts from a primitive tensor into a tensor.
-    pub fn from_primitive(tensor: K::Primitive) -> Self {
+    pub fn from_primitive(tensor: PrimitiveKind) -> Self {
         Self::new(tensor)
     }
 
