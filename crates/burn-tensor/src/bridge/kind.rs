@@ -49,6 +49,7 @@ pub enum PrimitiveKind {
     QFloat(DispatchTensor),
 }
 
+#[allow(missing_docs)]
 impl PrimitiveKind {
     pub fn dtype(&self) -> burn_std::DType {
         match self {

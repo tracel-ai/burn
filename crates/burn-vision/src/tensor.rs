@@ -1,4 +1,5 @@
-use burn_core::backend::{Dispatch, TensorPrimitive};
+use burn_core::backend::Dispatch;
+use burn_core::tensor::kind::PrimitiveKind;
 use burn_core::tensor::{Bool, Float, Int, Tensor};
 
 use crate::{
@@ -74,10 +75,12 @@ pub trait Nms {
 impl ConnectedComponents for Tensor<2, Bool> {
     fn connected_components(self, connectivity: Connectivity) -> Tensor<2, Int> {
         let settings = self.device().settings();
-        Tensor::new(<Dispatch as BoolVisionOps>::connected_components(
-            self.into_primitive(),
-            connectivity,
-            settings.int_dtype,
+        Tensor::new(PrimitiveKind::Int(
+            <Dispatch as BoolVisionOps>::connected_components(
+                self.into_primitive().into(),
+                connectivity,
+                settings.int_dtype,
+            ),
         ))
     }
 
@@ -89,40 +92,48 @@ impl ConnectedComponents for Tensor<2, Bool> {
         let settings = self.device().settings();
         let (labels, area, left, top, right, bottom, max_label) =
             <Dispatch as BoolVisionOps>::connected_components_with_stats(
-                self.into_primitive(),
+                self.into_primitive().into(),
                 connectivity,
                 options,
                 settings.int_dtype,
             );
         let stats = ConnectedStats {
-            area: Tensor::new(area),
-            left: Tensor::new(left),
-            top: Tensor::new(top),
-            right: Tensor::new(right),
-            bottom: Tensor::new(bottom),
-            max_label: Tensor::new(max_label),
+            area: Tensor::new(PrimitiveKind::Int(area)),
+            left: Tensor::new(PrimitiveKind::Int(left)),
+            top: Tensor::new(PrimitiveKind::Int(top)),
+            right: Tensor::new(PrimitiveKind::Int(right)),
+            bottom: Tensor::new(PrimitiveKind::Int(bottom)),
+            max_label: Tensor::new(PrimitiveKind::Int(max_label)),
         };
-        (Tensor::new(labels), stats)
+        (Tensor::new(PrimitiveKind::Int(labels)), stats)
     }
 }
 
 impl Morphology for Tensor<3, Float> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
         let out = match self.into_primitive() {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(
-                <Dispatch as FloatVisionOps>::float_erode(tensor, kernel.into_primitive(), opts),
-            ),
-            TensorPrimitive::QFloat(_) => unimplemented!(),
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(<Dispatch as FloatVisionOps>::float_erode(
+                    tensor,
+                    kernel.into_primitive().into(),
+                    opts,
+                ))
+            }
+            _ => unimplemented!(),
         };
         Tensor::new(out)
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
         let out = match self.into_primitive() {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(
-                <Dispatch as FloatVisionOps>::float_dilate(tensor, kernel.into_primitive(), opts),
-            ),
-            TensorPrimitive::QFloat(_) => unimplemented!(),
+            PrimitiveKind::Float(tensor) => {
+                PrimitiveKind::Float(<Dispatch as FloatVisionOps>::float_dilate(
+                    tensor,
+                    kernel.into_primitive().into(),
+                    opts,
+                ))
+            }
+            _ => unimplemented!(),
         };
         Tensor::new(out)
     }
@@ -130,36 +141,38 @@ impl Morphology for Tensor<3, Float> {
 
 impl Morphology for Tensor<3, Int> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(<Dispatch as IntVisionOps>::int_erode(
-            self.into_primitive(),
-            kernel.into_primitive(),
+        Tensor::new(PrimitiveKind::Int(<Dispatch as IntVisionOps>::int_erode(
+            self.into_primitive().into(),
+            kernel.into_primitive().into(),
             opts,
-        ))
+        )))
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(<Dispatch as IntVisionOps>::int_dilate(
-            self.into_primitive(),
-            kernel.into_primitive(),
+        Tensor::new(PrimitiveKind::Int(<Dispatch as IntVisionOps>::int_dilate(
+            self.into_primitive().into(),
+            kernel.into_primitive().into(),
             opts,
-        ))
+        )))
     }
 }
 
 impl Morphology for Tensor<3, Bool> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(<Dispatch as BoolVisionOps>::bool_erode(
-            self.into_primitive(),
-            kernel.into_primitive(),
+        Tensor::new(PrimitiveKind::Int(<Dispatch as BoolVisionOps>::bool_erode(
+            self.into_primitive().into(),
+            kernel.into_primitive().into(),
             opts,
-        ))
+        )))
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(<Dispatch as BoolVisionOps>::bool_dilate(
-            self.into_primitive(),
-            kernel.into_primitive(),
-            opts,
+        Tensor::new(PrimitiveKind::Int(
+            <Dispatch as BoolVisionOps>::bool_dilate(
+                self.into_primitive().into(),
+                kernel.into_primitive().into(),
+                opts,
+            ),
         ))
     }
 }
@@ -168,10 +181,15 @@ impl Nms for Tensor<2> {
     fn nms(self, scores: Tensor<1>, options: NmsOptions) -> Tensor<1, Int> {
         let settings = self.device().settings();
         match (self.into_primitive(), scores.into_primitive()) {
-            (TensorPrimitive::Float(boxes), TensorPrimitive::Float(scores)) => Tensor::new(
-                <Dispatch as FloatVisionOps>::nms(boxes, scores, options, settings.int_dtype),
-            ),
-            _ => unimplemented!("Quantized inputs are not yet supported"),
+            (PrimitiveKind::Float(boxes), PrimitiveKind::Float(scores)) => {
+                Tensor::new(PrimitiveKind::Int(<Dispatch as FloatVisionOps>::nms(
+                    boxes,
+                    scores,
+                    options,
+                    settings.int_dtype,
+                )))
+            }
+            _ => unimplemented!("Other inputs are not yet supported"),
         }
     }
 }

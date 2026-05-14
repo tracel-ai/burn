@@ -2,8 +2,8 @@ mod backward;
 mod forward;
 
 use burn::{
-    backend::{Autodiff, Dispatch, TensorPrimitive, Wgpu, backend_extension, tensor::FloatTensor},
-    tensor::{Tensor, activation},
+    backend::{Autodiff, Dispatch, Wgpu, backend_extension, tensor::FloatTensor},
+    tensor::{Tensor, activation, kind::PrimitiveKind},
 };
 
 /// We create our own Backend trait that extends the Burn backend trait.
@@ -22,12 +22,12 @@ pub trait AutodiffBackend: Backend + burn::backend::AutodiffBackend {}
 /// We define our custom implementation using the added function on our custom backend.
 pub fn matmul_add_relu_custom(lhs: Tensor<3>, rhs: Tensor<3>, bias: Tensor<3>) -> Tensor<3> {
     let output = Dispatch::fused_matmul_add_relu(
-        lhs.into_primitive().tensor(),
-        rhs.into_primitive().tensor(),
-        bias.into_primitive().tensor(),
+        lhs.into_primitive().into(),
+        rhs.into_primitive().into(),
+        bias.into_primitive().into(),
     );
 
-    Tensor::from_primitive(TensorPrimitive::Float(output))
+    Tensor::from_primitive(PrimitiveKind::Float(output))
 }
 
 /// We define a reference implementation using basic tensor operations.
