@@ -469,7 +469,7 @@ impl Metric for MsSsimMetric {
         }
 
         let ms_ssim_per_image = ms_ssim_tensor.mean_dim(1);
-        let avg_ms_ssim = ms_ssim_per_image.mean().into_scalar().elem::<f64>();
+        let avg_ms_ssim = ms_ssim_per_image.mean().into_scalar::<f64>();
 
         self.state.update(
             avg_ms_ssim,
