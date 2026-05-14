@@ -2,7 +2,7 @@ use burn_backend::Scalar;
 
 use crate::{
     bridge::Numeric,
-    kind::{BoolTensor, IntTensor},
+    ops::{BoolTensor, IntTensor},
 };
 
 /// Trait that list all operations that can be applied on all numerical tensors

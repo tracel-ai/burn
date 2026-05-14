@@ -1365,7 +1365,11 @@ impl TensorCheck {
     }
 
     /// Checks if expand operation is possible for the given shapes.
-    pub fn expand<const D1: usize, const D2: usize>(ops: &str, shape: &Shape, to: &Shape) -> Self {
+    pub(crate) fn expand<const D1: usize, const D2: usize>(
+        ops: &str,
+        shape: &Shape,
+        to: &Shape,
+    ) -> Self {
         let mut check = TensorCheck::Ok;
         let max_dims = core::cmp::max(D1, D2);
 
@@ -1411,7 +1415,7 @@ impl TensorCheck {
     }
 
     /// Checks if unfold operation is possible for the given shapes.
-    pub fn unfold<const D1: usize, const D2: usize>(
+    pub(crate) fn unfold<const D1: usize, const D2: usize>(
         ops: &str,
         _shape: &Shape,
         _dim: usize,
@@ -1434,7 +1438,7 @@ impl TensorCheck {
     }
 
     /// Checks if input is compatible with convolution weights.
-    pub fn conv<const D1: usize, const D2: usize>(
+    pub(crate) fn conv<const D1: usize, const D2: usize>(
         ops: &str,
         x: [usize; D1],
         weight: [usize; D2],

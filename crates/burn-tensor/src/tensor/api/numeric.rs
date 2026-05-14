@@ -1,7 +1,7 @@
 use burn_backend::Scalar;
 
 use crate::alloc::borrow::ToOwned;
-use crate::bridge::Numeric;
+use crate::kind::Numeric;
 use alloc::vec::Vec;
 
 use crate::{

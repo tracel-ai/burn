@@ -1,6 +1,6 @@
 #![allow(clippy::single_range_in_vec_init)]
-use crate::bridge::BasicOps;
 use crate::check::unwrap_shape_reshape;
+use crate::kind::Basic;
 
 use burn_backend::Scalar;
 
@@ -18,7 +18,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::{AsIndex, Device, Slice, SliceArg, wrap_index};
 use crate::{
-    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, TensorMetadata, check,
+    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorMetadata, check, ops::TensorKind,
 };
 use crate::{DType, Element};
 use crate::{IndexingUpdateOp, TensorCreationOptions};
@@ -73,7 +73,7 @@ use serde::{Serialize, Serializer};
 #[derive(new, Clone, Debug)]
 pub struct Tensor<const D: usize, K = Float>
 where
-    K: BasicOps,
+    K: Basic,
 {
     // TODO: float tensor primitive no longer needs to be a wrapped enum?
     pub(crate) primitive: <K as TensorKind>::Primitive,
@@ -81,7 +81,7 @@ where
 
 impl<const D: usize, K, T> From<T> for Tensor<D, K>
 where
-    K: BasicOps,
+    K: Basic,
     T: Into<TensorData>,
 {
     fn from(value: T) -> Self {
@@ -91,7 +91,7 @@ where
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     /// Executes an operation on the tensor and modifies its value.
     ///
@@ -2141,7 +2141,7 @@ where
     /// }
     /// ```
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
-        check!(TensorCheck::cat(&tensors, dim));
+        check!(TensorCheck::cat(tensors.as_slice(), dim));
 
         // Filter out tensors with size 0 along the concatenation dimension.
         // Empty tensors don't contribute to the output and would cause issues
@@ -2194,7 +2194,7 @@ where
     /// }
     /// ```
     pub fn stack<const D2: usize>(tensors: Vec<Tensor<D, K>>, dim: usize) -> Tensor<D2, K> {
-        check!(TensorCheck::stack::<D, K, D2>(&tensors, dim));
+        check!(TensorCheck::stack::<D, K, D2>(tensors.as_slice(), dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
         Tensor::<D2, K>::cat(tensors, dim)
     }
@@ -2734,7 +2734,7 @@ where
 /// Iterator given by (Tensor::iter_dim).
 pub struct DimIter<const D: usize, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     start: usize,
     end: usize,
@@ -2743,7 +2743,7 @@ where
     tensor: Tensor<D, K>,
 }
 
-impl<const D: usize, K: BasicOps> Iterator for DimIter<D, K> {
+impl<const D: usize, K: Basic> Iterator for DimIter<D, K> {
     type Item = Tensor<D, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -2761,7 +2761,7 @@ impl<const D: usize, K: BasicOps> Iterator for DimIter<D, K> {
     }
 }
 
-impl<const D: usize, K: BasicOps> DoubleEndedIterator for DimIter<D, K> {
+impl<const D: usize, K: Basic> DoubleEndedIterator for DimIter<D, K> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start >= self.end {
             return None;
@@ -2777,7 +2777,7 @@ impl<const D: usize, K: BasicOps> DoubleEndedIterator for DimIter<D, K> {
     }
 }
 
-impl<const D: usize, K: BasicOps> DimIter<D, K> {
+impl<const D: usize, K: Basic> DimIter<D, K> {
     fn new(tensor: Tensor<D, K>, dim: usize) -> Self {
         let dims = tensor.dims();
         let ranges = dims
@@ -2843,7 +2843,7 @@ impl DataIterFmt {
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     #[inline]
     fn push_newline_indent(acc: &mut String, indent: usize) {
@@ -3042,7 +3042,7 @@ pub fn set_print_options(options: PrintOptions) {
 /// Pretty print tensors
 impl<const D: usize, K> core::fmt::Display for Tensor<D, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
@@ -3207,7 +3207,7 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
 
 impl<const D: usize, K> Serialize for Tensor<D, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let data = self.to_data();
@@ -3217,7 +3217,7 @@ where
 
 impl<'de, const D: usize, K> Deserialize<'de> for Tensor<D, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         let tensor = Tensor::from_data(TensorData::deserialize(deserializer)?, &Device::default());

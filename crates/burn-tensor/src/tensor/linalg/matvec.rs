@@ -1,5 +1,5 @@
 use crate::{
-    bridge::Numeric,
+    kind::Numeric,
     tensor::{Shape, Tensor},
 };
 

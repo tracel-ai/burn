@@ -1,7 +1,7 @@
 use crate::tensor::Tensor;
 use crate::{
     ElementConversion,
-    bridge::{Numeric, Ordered},
+    kind::{Numeric, Ordered},
 };
 #[allow(unused_imports)]
 use num_traits::float::Float;

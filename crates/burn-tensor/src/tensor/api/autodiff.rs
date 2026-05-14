@@ -1,4 +1,4 @@
-use crate::{Tensor, bridge::BasicAutodiffOps};
+use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
 use crate::TensorPrimitive;
@@ -79,7 +79,7 @@ impl<const D: usize> Tensor<D> {
     }
 }
 
-impl<const D: usize, K: BasicAutodiffOps> Tensor<D, K> {
+impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// Returns the inner tensor without the autodiff information.
     pub fn inner(self) -> Tensor<D, K> {
         Tensor::new(K::inner(self.primitive))

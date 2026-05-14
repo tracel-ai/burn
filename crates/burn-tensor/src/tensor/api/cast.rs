@@ -2,17 +2,19 @@ use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
 use burn_backend::{DType, FloatDType, IntDType, TensorMetadata, TensorPrimitive};
 use burn_dispatch::Dispatch;
 
-use crate::bridge::BasicOps;
-use crate::kind::{BoolTensor, FloatTensor, IntTensor};
-use crate::{Bool, Float, Int, TensorKind};
+use crate::kind::Basic;
+use crate::ops::{BoolTensor, FloatTensor, IntTensor, TensorKind};
+use crate::{Bool, Float, Int};
+
+// TODO: Cast is in the public API but exposes the primitive. Should take `Tensor<D, K>` instead.
 
 /// Trait for types that represent a valid cast target from a tensor of kind `K`.
 ///
 /// The generic parameter `K` is the *input* tensor kind ([`Float`], [`Int`], or [`Bool`]).
 /// Implementors declare the output kind and provide the actual cast logic.
-pub trait Cast<K: BasicOps> {
+pub trait Cast<K: Basic> {
     /// The output tensor kind after casting.
-    type OutputKind: BasicOps;
+    type OutputKind: Basic;
 
     /// Cast a tensor primitive to the target dtype.
     fn cast(

@@ -1,7 +1,7 @@
 use burn_backend::{ElementConversion, Scalar};
 use burn_std::{AsIndex, IndexingUpdateOp};
 
-use crate::bridge::Ordered;
+use crate::kind::Ordered;
 use crate::{Bool, Int, check};
 use crate::{Tensor, check::TensorCheck};
 

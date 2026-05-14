@@ -1,3 +1,5 @@
+mod kind;
 mod ops;
 
-pub use ops::*;
+pub use kind::*;
+pub(crate) use ops::*;

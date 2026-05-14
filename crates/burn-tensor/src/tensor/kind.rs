@@ -1,50 +1,27 @@
-use burn_backend::{TensorMetadata, TensorPrimitive};
-use burn_dispatch::{Dispatch, DispatchTensor};
+pub use crate::ops::{Bool, Float, Int};
 
-/// A type-level representation of the kind of a float tensor
-#[derive(Clone, Debug)]
-pub struct Float;
+/// The base trait for any tensor kind.
+pub trait Basic: crate::ops::BasicOps {}
+impl<K: crate::ops::BasicOps> Basic for K {}
 
-/// A type-level representation of the kind of a int tensor.
-#[derive(Clone, Debug)]
-pub struct Int;
+/// Kinds that support numeric operations.
+pub trait Numeric: Basic + crate::ops::Numeric {}
+impl<K: Basic + crate::ops::Numeric> Numeric for K {}
 
-/// A type-level representation of the kind of a bool tensor.
-#[derive(Clone, Debug)]
-pub struct Bool;
+/// Kinds that support ordered operations.
+pub trait Ordered: Numeric + crate::ops::Ordered {}
+impl<K: Numeric + crate::ops::Ordered> Ordered for K {}
 
-/// A type-level representation of the kind of a tensor.
-/// Metadata access is lazy.
-pub trait TensorKind: Clone + core::fmt::Debug {
-    /// The primitive type of the tensor.
-    type Primitive: TensorMetadata;
+/// Kinds that support float math operations.
+pub trait FloatMath: Numeric + crate::ops::FloatMathOps {}
+impl<K: Numeric + crate::ops::FloatMathOps> FloatMath for K {}
 
-    /// The name of the tensor kind.
-    fn name() -> &'static str;
-}
+/// Kinds that support transaction operations.
+pub trait Transaction: Basic + crate::ops::TransactionOp {}
+impl<K: Basic + crate::ops::TransactionOp> Transaction for K {}
 
-impl TensorKind for Float {
-    type Primitive = FloatTensor;
-    fn name() -> &'static str {
-        "Float"
-    }
-}
-
-impl TensorKind for Int {
-    type Primitive = IntTensor;
-    fn name() -> &'static str {
-        "Int"
-    }
-}
-
-impl TensorKind for Bool {
-    type Primitive = BoolTensor;
-    fn name() -> &'static str {
-        "Bool"
-    }
-}
-
-// Tensor primitive type aliases
-pub(crate) type FloatTensor = TensorPrimitive<Dispatch>;
-pub(crate) type IntTensor = DispatchTensor;
-pub(crate) type BoolTensor = DispatchTensor;
+/// Kinds that support autodiff operations.
+// #[cfg(feature = "autodiff")]
+pub trait Autodiff: Basic + crate::ops::BasicAutodiffOps {}
+// #[cfg(feature = "autodiff")]
+impl<K: crate::ops::BasicAutodiffOps> Autodiff for K {}

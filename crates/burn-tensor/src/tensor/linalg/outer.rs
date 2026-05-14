@@ -1,5 +1,5 @@
 use crate::tensor::Tensor;
-use crate::{AsIndex, bridge::Numeric};
+use crate::{AsIndex, kind::Numeric};
 
 /// Computes the outer product for the last columns of 2 tensors.
 ///

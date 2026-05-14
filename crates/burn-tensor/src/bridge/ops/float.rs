@@ -10,7 +10,7 @@ use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 use crate::{
     Device, Float,
     bridge::{BasicAutodiffOps, BasicOps, FloatMathOps, Numeric, Ordered, TransactionOp},
-    kind::{BoolTensor, IntTensor},
+    ops::{BoolTensor, IntTensor},
 };
 
 macro_rules! q_bin_ops {

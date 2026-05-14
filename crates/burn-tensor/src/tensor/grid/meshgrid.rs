@@ -1,4 +1,4 @@
-use crate::bridge::BasicOps;
+use crate::kind::Basic;
 use crate::tensor::Tensor;
 use crate::tensor::grid::{GridIndexing, GridOptions, GridSparsity, IndexPos};
 use alloc::vec::Vec;
@@ -30,7 +30,7 @@ use alloc::vec::Vec;
 /// A vector of N N-dimensional tensors representing the grid coordinates.
 pub fn meshgrid<const N: usize, K, O>(tensors: &[Tensor<1, K>; N], options: O) -> [Tensor<N, K>; N]
 where
-    K: BasicOps,
+    K: Basic,
     O: Into<GridOptions>,
 {
     let options = options.into();
@@ -87,7 +87,7 @@ pub fn meshgrid_stack<const D: usize, const D2: usize, K>(
     index_pos: IndexPos,
 ) -> Tensor<D2, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     assert_eq!(D2, D + 1, "D2 ({D2}) != D ({D}) + 1");
 

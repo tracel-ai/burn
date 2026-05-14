@@ -1,6 +1,6 @@
-use crate::bridge::BasicOps;
 use crate::check;
 use crate::check::TensorCheck;
+use crate::kind::Basic;
 use crate::tensor::{Int, Tensor};
 
 /// Returns the diag of a matrix.
@@ -18,7 +18,7 @@ use crate::tensor::{Int, Tensor};
 /// A tensor of rank `D - 1`, where the last dimension contains the diagonal elements of the input.
 pub fn diag<const D: usize, const DO: usize, K>(tensor: Tensor<D, K>) -> Tensor<DO, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     check!(TensorCheck::diag::<D, DO>());
 

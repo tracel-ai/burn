@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{ElementConversion, Tensor, bridge::Numeric, ops::PadMode};
+use crate::{ElementConversion, Tensor, kind::Numeric, ops::PadMode};
 
 /// Trait for types that can be used as padding specifications.
 ///

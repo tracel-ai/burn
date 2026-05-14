@@ -1,9 +1,9 @@
-use crate::{AsIndex, Int, Tensor, bridge::BasicOps, check, check::TensorCheck};
+use crate::{AsIndex, Int, Tensor, check, check::TensorCheck, kind::Basic};
 use alloc::vec::Vec;
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: BasicOps,
+    K: Basic,
 {
     /// Takes elements from the tensor along the given dimension using indices of any dimensionality.
     ///

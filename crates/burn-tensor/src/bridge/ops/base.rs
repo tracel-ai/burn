@@ -1,11 +1,11 @@
 use alloc::vec::Vec;
-use burn_backend::{Scalar, TensorData, TensorMetadata, ops::TransactionPrimitive};
+use burn_backend::{Scalar, TensorData, ops::TransactionPrimitive};
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
 use crate::{
-    Device, TensorKind,
-    kind::{BoolTensor, IntTensor},
+    Device,
+    ops::{BoolTensor, IntTensor, TensorKind},
 };
 
 /// Trait for the one basic op that still requires Backend
@@ -622,11 +622,6 @@ pub trait BasicOps: TensorKind {
     /// For element-wise non-equality between two tensors, users should prefer the [`Tensor::not_equal_elem`](crate::Tensor::not_equal_elem)
     /// function, which is more high-level and designed for public use.
     fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
-
-    /// Returns the tensor data type.
-    fn dtype(tensor: &Self::Primitive) -> DType {
-        tensor.dtype()
-    }
 
     /// Tests if any element in the `tensor` evaluates to True.
     ///

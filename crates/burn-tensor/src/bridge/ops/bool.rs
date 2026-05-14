@@ -9,7 +9,7 @@ use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 use crate::{
     Bool, Device,
     bridge::{BasicAutodiffOps, BasicOps, TransactionOp},
-    kind::{BoolTensor, IntTensor},
+    ops::{BoolTensor, IntTensor},
 };
 
 impl TransactionOp for Bool {

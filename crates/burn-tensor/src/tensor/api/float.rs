@@ -2,10 +2,10 @@ use crate::AsIndex;
 use crate::Cast;
 use crate::Device;
 use crate::Tensor;
-use crate::bridge::FloatMathOps;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
+use crate::kind::FloatMath;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
@@ -893,7 +893,7 @@ impl<const D: usize> Tensor<D> {
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: FloatMathOps,
+    K: FloatMath,
 {
     /// Applies element wise square operation.
     ///

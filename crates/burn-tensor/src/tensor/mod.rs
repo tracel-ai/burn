@@ -12,7 +12,7 @@ pub use burn_std::{
 
 /// The tensor kind module.
 pub mod kind;
-pub use kind::{Bool, Float, Int, TensorKind};
+pub use kind::{Bool, Float, Int};
 
 /// The activation module.
 pub mod activation;
