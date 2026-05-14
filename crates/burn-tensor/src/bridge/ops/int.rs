@@ -185,18 +185,14 @@ impl BasicOps for Int {
         let out_dtype = Dispatch::int_device(lhs.as_dispatch())
             .settings()
             .bool_dtype;
-        PrimitiveKind::Int(Dispatch::int_equal_elem(lhs.into(), rhs.into(), out_dtype))
+        PrimitiveKind::Int(Dispatch::int_equal_elem(lhs.into(), rhs, out_dtype))
     }
 
     fn not_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
         let out_dtype = Dispatch::int_device(lhs.as_dispatch())
             .settings()
             .bool_dtype;
-        PrimitiveKind::Int(Dispatch::int_not_equal_elem(
-            lhs.into(),
-            rhs.into(),
-            out_dtype,
-        ))
+        PrimitiveKind::Int(Dispatch::int_not_equal_elem(lhs.into(), rhs, out_dtype))
     }
 
     fn cat(vectors: Vec<PrimitiveKind>, dim: usize) -> PrimitiveKind {
@@ -426,7 +422,7 @@ impl Ordered for Int {
         let out_dtype = Dispatch::int_device(lhs.as_dispatch())
             .settings()
             .bool_dtype;
-        PrimitiveKind::Bool(Dispatch::int_lower_elem(lhs.into(), rhs.into(), out_dtype))
+        PrimitiveKind::Bool(Dispatch::int_lower_elem(lhs.into(), rhs, out_dtype))
     }
 
     fn lower_equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind {

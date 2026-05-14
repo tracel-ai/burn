@@ -183,11 +183,11 @@ impl BasicOps for Bool {
     }
 
     fn equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
-        PrimitiveKind::Bool(Dispatch::bool_equal_elem(lhs.into(), rhs.into()))
+        PrimitiveKind::Bool(Dispatch::bool_equal_elem(lhs.into(), rhs))
     }
 
     fn not_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind {
-        PrimitiveKind::Bool(Dispatch::bool_not_equal_elem(lhs.into(), rhs.into()))
+        PrimitiveKind::Bool(Dispatch::bool_not_equal_elem(lhs.into(), rhs))
     }
 
     fn cat(vectors: Vec<PrimitiveKind>, dim: usize) -> PrimitiveKind {
