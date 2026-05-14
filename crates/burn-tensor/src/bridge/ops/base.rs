@@ -13,7 +13,7 @@ use crate::{
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait TransactionOp: BasicOps {
+pub(crate) trait TransactionOp: BasicOps {
     /// Read the data from the tensor using a transaction.
     ///
     /// # Remarks
@@ -29,7 +29,7 @@ pub trait TransactionOp: BasicOps {
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait BasicOps: TensorKind {
+pub(crate) trait BasicOps: TensorKind {
     /// Creates an empty tensor with the given shape.
     ///
     /// # Arguments

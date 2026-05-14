@@ -5,7 +5,7 @@ use crate::{bridge::BasicOps, ops::TensorKind};
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait BasicAutodiffOps: BasicOps {
+pub(crate) trait BasicAutodiffOps: BasicOps {
     /// Returns the inner tensor without the autodiff information.
     ///
     /// # Remarks

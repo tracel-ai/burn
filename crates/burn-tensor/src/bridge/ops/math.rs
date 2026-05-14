@@ -5,7 +5,7 @@ use crate::bridge::Numeric;
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait FloatMathOps: Numeric {
+pub(crate) trait FloatMathOps: Numeric {
     /// Applies element wise square operation
     ///
     #[cfg_attr(doc, doc = "$y_i = x^{2}$")]

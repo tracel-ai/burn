@@ -15,7 +15,7 @@ use crate::{
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait Ordered: Numeric {
+pub(crate) trait Ordered: Numeric {
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).

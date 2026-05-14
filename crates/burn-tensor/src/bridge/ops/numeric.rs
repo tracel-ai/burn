@@ -8,7 +8,7 @@ use crate::{Device, bridge::BasicOps};
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait Numeric: BasicOps {
+pub(crate) trait Numeric: BasicOps {
     /// Adds two tensors together.
     ///
     /// # Arguments
