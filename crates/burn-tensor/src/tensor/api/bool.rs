@@ -57,7 +57,7 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::< 1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let bool_tensor = Tensor::< 1, Bool>::from_bool([true, false, true], &device);
     ///     let int_tensor = bool_tensor.int();
     ///     println!("{int_tensor}"); // [1, 0, 1]
     /// }
@@ -80,7 +80,7 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::< 1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let bool_tensor = Tensor::< 1, Bool>::from_bool([true, false, true], &device);
     ///     let float_tensor = bool_tensor.float();
     ///     println!("{float_tensor}"); // [1.0, 0.0, 1.0]
     /// }
@@ -105,7 +105,7 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::< 1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let bool_tensor = Tensor::< 1, Bool>::from_bool([true, false, true], &device);
     ///
     ///     // Cast to int
     ///     let int_tensor = bool_tensor.clone().cast(IntDType::I64);
@@ -128,7 +128,7 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
+    ///     let tensor = Tensor::< 2, Bool>::from_bool([[true, false], [false, true]], &device);
     ///     let inverted = tensor.bool_not();
     ///     println!("{inverted}"); // [[false, true], [true, false]]
     /// }
@@ -154,8 +154,8 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let a = Tensor::< 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
-    ///     let b = Tensor::< 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let a = Tensor::< 2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::< 2, Bool>::from_bool([[true, false], [true, false]], &device);
     ///     let result = a.bool_and(b);
     ///     println!("{result}"); // [[true, false], [false, false]]
     /// }
@@ -181,8 +181,8 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let a = Tensor::< 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
-    ///     let b = Tensor::< 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let a = Tensor::< 2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::< 2, Bool>::from_bool([[true, false], [true, false]], &device);
     ///     let result = a.bool_or(b);
     ///     println!("{result}"); // [[true, true], [true, false]]
     /// }
@@ -209,8 +209,8 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let a = Tensor::< 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
-    ///     let b = Tensor::< 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let a = Tensor::< 2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::< 2, Bool>::from_bool([[true, false], [true, false]], &device);
     ///     let result = a.bool_xor(b);
     ///     println!("{result}"); // [[false, true], [true, false]]
     /// }
@@ -234,7 +234,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::< 2, Bool>::from_bool(
-    ///         [[true, false, true], [false, true, false], [false, true, false]].into(),
+    ///         [[true, false, true], [false, true, false], [false, true, false]],
     ///         &device,
     ///     );
     ///     let indices = tensor.nonzero();
@@ -284,7 +284,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::< 2, Bool>::from_bool(
-    ///         [[true, false, true], [false, true, false], [false, true, false]].into(),
+    ///         [[true, false, true], [false, true, false], [false, true, false]],
     ///         &device,
     ///     );
     ///     let indices = tensor.argwhere();
