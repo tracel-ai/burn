@@ -87,7 +87,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
         for batch in dataloader_train.iter() {
             let output = model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
-            train_loss += loss.clone().into_scalar().elem::<f32>() * batch.targets.dims()[0] as f32;
+            train_loss += loss.clone().into_scalar::<f32>() * batch.targets.dims()[0] as f32;
 
             // Gradients for the current backward pass
             let grads = loss.backward();
@@ -108,7 +108,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
         for batch in dataloader_valid.iter() {
             let output = valid_model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
-            valid_loss += loss.clone().into_scalar().elem::<f32>() * batch.targets.dims()[0] as f32;
+            valid_loss += loss.clone().into_scalar::<f32>() * batch.targets.dims()[0] as f32;
         }
         // The averaged train loss per epoch
         let avg_valid_loss = valid_loss / valid_num_items as f32;

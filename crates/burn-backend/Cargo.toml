@@ -43,7 +43,6 @@ num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
-thiserror = { workspace = true }
 oneshot = { version = "0.2.1", optional = true }
 spin = { workspace = true }
 

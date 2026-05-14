@@ -5,7 +5,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::{ElementConversion, Int, Tensor};
+use burn_core::tensor::{Int, Tensor};
 
 /// The Top-K accuracy metric.
 ///
@@ -65,7 +65,7 @@ impl Metric for TopKAccuracyMetric {
             Some(pad_token) => {
                 // we ignore the samples where the target is equal to the pad token
                 let mask = targets.clone().equal_elem(pad_token as i64);
-                let num_pad = mask.clone().int().sum().into_scalar().elem::<f64>();
+                let num_pad = mask.clone().int().sum().into_scalar::<f64>();
                 (targets.clone().mask_fill(mask, -1_i64), num_pad)
             }
             None => (targets.clone(), 0_f64),
@@ -77,8 +77,7 @@ impl Metric for TopKAccuracyMetric {
             .equal(outputs)
             .int()
             .sum()
-            .into_scalar()
-            .elem::<f64>()
+            .into_scalar::<f64>()
             / (batch_size as f64 - num_pad);
 
         self.state.update(

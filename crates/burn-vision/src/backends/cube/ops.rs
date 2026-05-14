@@ -4,13 +4,11 @@ use crate::{
 };
 use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
-use burn_core::tensor::{
-    Element, IntDType,
-    backend::{
-        BoolTensor, IntTensor,
-        ops::{BoolTensorOps, IntTensorOps},
-    },
+use burn_core::backend::{
+    ops::{BoolTensorOps, IntTensorOps},
+    tensor::{BoolTensor, IntTensor},
 };
+use burn_core::tensor::{Element, IntDType};
 
 use super::connected_components::hardware_accelerated;
 

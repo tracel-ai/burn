@@ -1,7 +1,7 @@
 use super::state::FormatOptions;
 use super::{MetricMetadata, NumericEntry, SerializedEntry, format_float};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericAttributes};
-use burn_core::tensor::{ElementConversion, Int, Tensor};
+use burn_core::tensor::{Int, Tensor};
 
 /// Custom state for perplexity metric that correctly accumulates negative log-likelihood.
 ///
@@ -195,14 +195,14 @@ impl Metric for PerplexityMetric {
                 let masked_log_probs = target_log_probs.mask_fill(mask.clone().bool_not(), 0.0);
 
                 // Sum the log probabilities and count effective tokens
-                let sum_log_prob = masked_log_probs.sum().into_scalar().elem::<f64>();
-                let effective_tokens = mask.int().sum().into_scalar().elem::<i64>() as usize;
+                let sum_log_prob = masked_log_probs.sum().into_scalar::<f64>();
+                let effective_tokens = mask.int().sum().into_scalar::<i64>() as usize;
 
                 (sum_log_prob, effective_tokens)
             }
             None => {
                 // No padding, use all tokens
-                let sum_log_prob = target_log_probs.sum().into_scalar().elem::<f64>();
+                let sum_log_prob = target_log_probs.sum().into_scalar::<f64>();
                 (sum_log_prob, total_tokens)
             }
         };

@@ -132,9 +132,6 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
-/// Backend module.
-pub mod backend;
-
 #[cfg(feature = "server")]
 pub use burn_remote::server;
 

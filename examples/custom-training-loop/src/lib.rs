@@ -65,7 +65,7 @@ pub fn run(device: impl Into<Device>) {
                 "[Train - Epoch {} - Iteration {}] Loss {:.3} | Accuracy {:.3} %",
                 epoch,
                 iteration,
-                loss.clone().into_scalar(),
+                loss.clone().into_scalar::<f32>(),
                 accuracy,
             );
 
@@ -91,7 +91,7 @@ pub fn run(device: impl Into<Device>) {
                 "[Valid - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
                 epoch,
                 iteration,
-                loss.clone().into_scalar(),
+                loss.clone().into_scalar::<f32>(),
                 accuracy,
             );
         }
@@ -101,8 +101,8 @@ pub fn run(device: impl Into<Device>) {
 /// Create out own accuracy metric calculation.
 fn accuracy(output: Tensor<2>, targets: Tensor<1, Int>) -> f32 {
     let predictions = output.argmax(1).squeeze_dim(1);
-    let num_predictions: usize = targets.dims().iter().product();
-    let num_corrects = predictions.equal(targets).int().sum().into_scalar();
+    let num_predictions = targets.dims().iter().product::<usize>() as f32;
+    let num_corrects = predictions.equal(targets).int().sum().into_scalar::<i64>() as f32;
 
-    num_corrects.elem::<f32>() / num_predictions as f32 * 100.0
+    num_corrects / num_predictions * 100.0
 }

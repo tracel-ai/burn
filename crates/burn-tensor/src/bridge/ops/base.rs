@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
-use burn_backend::{ExecutionError, Scalar, TensorData, TensorMetadata, ops::TransactionPrimitive};
+use burn_backend::{Scalar, TensorData, TensorMetadata, ops::TransactionPrimitive};
 use burn_dispatch::Dispatch;
-use burn_std::{DType, IndexingUpdateOp, Shape, Slice};
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
 use crate::{
     Device, TensorKind,

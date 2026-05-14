@@ -219,9 +219,9 @@ impl TensorKind {
 
     fn to_primitive_ty(self) -> TokenStream2 {
         match self {
-            Self::Float => quote! { burn::tensor::backend::FloatTensor<Self> },
-            Self::Int => quote! { burn::tensor::backend::IntTensor<Self> },
-            Self::Bool => quote! { burn::tensor::backend::BoolTensor<Self> },
+            Self::Float => quote! { burn::backend::tensor::FloatTensor<Self> },
+            Self::Int => quote! { burn::backend::tensor::IntTensor<Self> },
+            Self::Bool => quote! { burn::backend::tensor::BoolTensor<Self> },
         }
     }
 
@@ -336,7 +336,7 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
     quote! {
         #original_trait
 
-        impl #trait_name for burn::tensor::backend::extension::Dispatch {
+        impl #trait_name for burn::backend::Dispatch {
             #( #dispatch_methods )*
         }
     }
@@ -423,7 +423,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     // If the macro is in AD-mode, we include the field. If not, we don't.
     let wrap_output = |kinds_access: TokenStream2| {
         quote! {
-            burn::tensor::backend::extension::DispatchTensor {
+            burn::backend::DispatchTensor {
                 kind: #kinds_access,
                 checkpointing: checkpointing.clone(), // Field always present, but None when not autodiff
             }
@@ -478,10 +478,10 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
     // e.g., (DispatchTensorKind::Wgpu(lhs), DispatchTensorKind::Wgpu(rhs))
     let pattern = if tensor_args.len() == 1 {
         let (name, _) = tensor_args[0];
-        quote! { burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name) }
+        quote! { burn::backend::DispatchTensorKind::#b_ident(#name) }
     } else {
         let pats = tensor_args.iter().map(|(name, _)| {
-            quote! { burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name) }
+            quote! { burn::backend::DispatchTensorKind::#b_ident(#name) }
         });
         quote! { (#(#pats),*) }
     };
@@ -530,22 +530,22 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
 
             if *kind == TensorKind::Float {
                 quote! {
-                    burn::tensor::backend::extension::DispatchTensorKind::Autodiff(#name)
+                    burn::backend::DispatchTensorKind::Autodiff(#name)
                 }
             } else {
                 quote! {
-                    burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name)
+                    burn::backend::DispatchTensorKind::#b_ident(#name)
                 }
             }
         } else {
             let pats = tensor_args.iter().map(|(name, kind)| {
                 if **kind == TensorKind::Float {
                     quote! {
-                        burn::tensor::backend::extension::DispatchTensorKind::Autodiff(#name)
+                        burn::backend::DispatchTensorKind::Autodiff(#name)
                     }
                 } else {
                     quote! {
-                        burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name)
+                        burn::backend::DispatchTensorKind::#b_ident(#name)
                     }
                 }
             });
@@ -557,7 +557,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
             if **kind == TensorKind::Float {
                 quote! {
                     let #name = match *#name {
-                        burn::tensor::backend::extension::DispatchTensorKind::#b_ident(t) => t.autodiff(),
+                        burn::backend::DispatchTensorKind::#b_ident(t) => t.autodiff(),
                         _ => unreachable!("Autodiff backend mismatch"),
                     };
                 }
@@ -594,16 +594,16 @@ fn gen_result_wrap(op: &Operation, b_ident: &Ident, is_ad: bool) -> TokenStream2
         if is_ad && kind == TensorKind::Float {
             // Wrap as Autodiff(Backend(Autodiff(tensor)))
             quote! {
-                burn::tensor::backend::extension::DispatchTensorKind::Autodiff(
-                    Box::new(burn::tensor::backend::extension::DispatchTensorKind::#b_ident(
-                        burn::tensor::backend::extension::BackendTensor::Autodiff(#val)
+                burn::backend::DispatchTensorKind::Autodiff(
+                    Box::new(burn::backend::DispatchTensorKind::#b_ident(
+                        burn::backend::BackendTensor::Autodiff(#val)
                     ))
                 )
             }
         } else {
             quote! {
-                burn::tensor::backend::extension::DispatchTensorKind::#b_ident(
-                    burn::tensor::backend::extension::BackendTensor::#variant(#val)
+                burn::backend::DispatchTensorKind::#b_ident(
+                    burn::backend::BackendTensor::#variant(#val)
                 )
             }
         }

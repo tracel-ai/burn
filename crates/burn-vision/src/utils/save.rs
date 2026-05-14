@@ -1,6 +1,6 @@
 //! Utilities for saving tensors as images
 
-use burn_core::tensor::{ElementConversion, Tensor};
+use burn_core::tensor::Tensor;
 use image::{Rgb, RgbImage};
 use std::fs;
 use std::path::Path;
@@ -181,11 +181,9 @@ pub fn save_tensor_as_image<const D: usize, P: AsRef<std::ffi::OsStr>>(
 
 /// Normalize values in 2D tensor from 0 to 1
 fn normalize<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    let min = tensor.clone().min().into_scalar().elem::<f32>();
-    let max = tensor.clone().max().into_scalar().elem::<f32>();
+    let min = tensor.clone().min().into_scalar::<f32>();
+    let max = tensor.clone().max().into_scalar::<f32>();
     let range = if max - min == 0.0 { 1.0 } else { max - min };
 
-    tensor
-        .sub_scalar(min.elem::<f32>())
-        .div_scalar(range.elem::<f32>())
+    tensor.sub_scalar(min).div_scalar(range)
 }

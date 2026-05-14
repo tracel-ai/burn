@@ -1,5 +1,5 @@
 use burn::{
-    backend::wgpu::WgpuDevice,
+    backend::WgpuDevice,
     tensor::{Device, Distribution, Tensor, Tolerance},
 };
 use custom_cubecl_kernel::{matmul_add_relu_custom, matmul_add_relu_reference};

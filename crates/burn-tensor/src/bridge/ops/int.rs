@@ -1,10 +1,10 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    AutodiffBackend, Distribution, ExecutionError, Scalar, TensorData, get_device_settings,
+    AutodiffBackend, Distribution, Scalar, TensorData, get_device_settings,
     ops::{IntTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
-use burn_std::{DType, IndexingUpdateOp, Shape, Slice};
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
 use crate::{
     Device, Int,

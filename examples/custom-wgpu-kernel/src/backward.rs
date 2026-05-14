@@ -3,6 +3,7 @@ use crate::FloatTensor;
 use super::{AutodiffBackend, Backend};
 use burn::{
     backend::{
+        TensorMetadata,
         autodiff::{
             Autodiff, NodeId,
             checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
@@ -11,7 +12,7 @@ use burn::{
         },
         wgpu::{BoolElement, CubeBackend, FloatElement, IntElement, WgpuRuntime},
     },
-    tensor::{Shape, backend::TensorMetadata},
+    tensor::Shape,
 };
 
 impl<F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend

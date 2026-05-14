@@ -1,8 +1,9 @@
 use std::fmt::Debug;
 
+use burn_core::backend::Backend;
 use burn_core::tensor::{
     Bool, BoolStore, DType, Device, Element, ElementLimits, Scalar, Shape, Tensor, TensorData,
-    backend::Backend, cast::ToElement,
+    cast::ToElement,
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};

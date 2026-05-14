@@ -1,8 +1,6 @@
 use burn_core as burn;
 use core::f32::consts::PI;
 
-use burn::tensor::cast::ToElement;
-
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::{config::Config, module::Module};
@@ -197,8 +195,7 @@ impl PoissonNllLoss {
                 .clone()
                 .greater_equal_elem(0.)
                 .all()
-                .into_scalar()
-                .to_bool(),
+                .into_scalar::<bool>(),
             "All the values of `targets` must be non-negative."
         );
         if !self.log_input {
@@ -207,8 +204,7 @@ impl PoissonNllLoss {
                     .clone()
                     .greater_equal_elem(0.)
                     .all()
-                    .into_scalar()
-                    .to_bool(),
+                    .into_scalar::<bool>(),
                 "When `log_input` is `false`, all the values of `predictions` must be non-negative."
             );
         }

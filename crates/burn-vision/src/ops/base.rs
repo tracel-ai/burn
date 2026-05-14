@@ -5,11 +5,8 @@ use crate::{
 use bon::Builder;
 
 use burn_core as burn; // for backend_extension
-use burn_core::tensor::{
-    Int, IntDType, Scalar, Tensor,
-    backend::{Backend, IntTensor, extension::backend_extension},
-    read_sync,
-};
+use burn_core::backend::{Backend, backend_extension, tensor::IntTensor};
+use burn_core::tensor::{Int, IntDType, Scalar, Tensor, read_sync};
 
 /// Connected components connectivity
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

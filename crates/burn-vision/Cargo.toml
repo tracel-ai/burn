@@ -55,6 +55,8 @@ burn-core = { workspace = true, features = [
     "extension",
 ] }
 
+# TODO: requires burn-backend. The `extension` feature should expose this from `burn-core`.
+
 aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
 

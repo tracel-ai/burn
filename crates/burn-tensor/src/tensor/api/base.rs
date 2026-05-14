@@ -2,7 +2,7 @@
 use crate::bridge::BasicOps;
 use crate::check::unwrap_shape_reshape;
 
-use burn_backend::{ExecutionError, Scalar};
+use burn_backend::Scalar;
 
 use alloc::vec::Vec;
 
@@ -10,6 +10,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
+use burn_std::ExecutionError;
 use burn_std::{SliceOps, stub::RwLock};
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};

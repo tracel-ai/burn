@@ -5,7 +5,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::{ElementConversion, Int, Tensor, activation::sigmoid};
+use burn_core::tensor::{Int, Tensor, activation::sigmoid};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
 #[derive(Clone)]
@@ -82,8 +82,7 @@ impl Metric for HammingScore {
             .equal(targets.bool())
             .float()
             .mean()
-            .into_scalar()
-            .elem::<f64>();
+            .into_scalar::<f64>();
 
         self.state.update(
             100.0 * score,

@@ -43,7 +43,7 @@ pub fn infer(model: Model) {
     let output = model.forward(input);
 
     // Get the index of the maximum value
-    let arg_max: u8 = output.argmax(1).into_scalar().elem();
+    let arg_max: u8 = output.argmax(1).into_scalar();
 
     // Check if the index matches the label
     assert!(arg_max == item.label);

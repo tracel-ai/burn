@@ -151,6 +151,7 @@ burn-vision = { workspace = true, optional = true }
 burn-std = { workspace = true }
 
 # Backends
+# TODO: clean up from root; backends should be exposed from the extension
 burn-candle = { workspace = true, optional = true, features = ["default"] }
 burn-cuda = { workspace = true, optional = true }
 burn-cpu = { workspace = true, optional = true }

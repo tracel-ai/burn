@@ -19,7 +19,7 @@ pub fn infer(artifact_dir: &str, device: impl Into<Device>, item: MnistItem) {
     let batcher = MnistBatcher::default();
     let batch = batcher.batch(vec![item], &device);
     let output = model.forward(batch.images);
-    let predicted = output.argmax(1).flatten::<1>(0, 1).into_scalar();
+    let predicted: u8 = output.argmax(1).flatten::<1>(0, 1).into_scalar();
 
     println!("Predicted {predicted} Expected {label}");
 }

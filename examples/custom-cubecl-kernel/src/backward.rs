@@ -2,13 +2,16 @@ use crate::FloatTensor;
 
 use super::{AutodiffBackend, Backend};
 use burn::{
-    backend::autodiff::{
-        Autodiff, NodeId,
-        checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
-        grads::Gradients,
-        ops::{Backward, Ops, OpsKind, broadcast_shape},
+    backend::{
+        TensorMetadata,
+        autodiff::{
+            Autodiff, NodeId,
+            checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
+            grads::Gradients,
+            ops::{Backward, Ops, OpsKind, broadcast_shape},
+        },
     },
-    tensor::{Shape, backend::TensorMetadata},
+    tensor::Shape,
 };
 use burn_cubecl::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 

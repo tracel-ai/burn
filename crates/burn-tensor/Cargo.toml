@@ -46,9 +46,6 @@ metal = ["burn-dispatch/metal"]
 cpu = ["burn-dispatch/cpu"]
 autodiff = ["burn-dispatch/autodiff"]
 
-# For backend extensions
-extension = ["burn-backend-extension"]
-
 # TODO: re-export devices if we have feature flags to enable the backends
 
 # Backend features

@@ -32,7 +32,6 @@ doc = [
 ]
 tracing = ["burn-std/tracing", "burn-tensor/tracing", "burn-dataset?/tracing"]
 
-
 dataset = ["burn-dataset"]
 
 network = ["burn-std/network"]
@@ -70,6 +69,7 @@ wgpu = ["burn-tensor/wgpu"]
 metal = ["burn-tensor/metal"]
 cpu = ["burn-tensor/cpu"]
 autodiff = ["burn-tensor/autodiff"]
+ir = ["burn-ir"]
 
 # Backend features
 autotune = ["burn-tensor/autotune"]
@@ -77,7 +77,8 @@ autotune-checks = ["burn-tensor/autotune-checks"]
 fusion = ["burn-tensor/fusion"]
 
 # Backend extensions
-extension = ["burn-tensor/extension"]
+# burn-dispatch features are enabled from burn-tensor, we just re-export the public types
+extension = ["burn-backend-extension", "burn-dispatch", "burn-backend"]
 
 [dependencies]
 
@@ -87,6 +88,12 @@ burn-std = { workspace = true }
 burn-dataset = { workspace = true, optional = true }
 burn-derive = { workspace = true }
 burn-tensor = { workspace = true }
+
+# Backend extensions
+burn-backend = { workspace = true, optional = true }
+burn-dispatch = { workspace = true, optional = true }
+burn-backend-extension = { workspace = true, optional = true }
+burn-ir = { workspace = true, optional = true }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }

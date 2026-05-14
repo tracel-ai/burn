@@ -6,7 +6,6 @@ use super::GradientsParams;
 use crate::LearningRate;
 use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
-use burn::prelude::ToElement;
 use burn::record::Record;
 use burn::tensor::{Device, Tensor};
 use serde::{Deserialize, Serialize};
@@ -85,12 +84,12 @@ fn strong_wolfe<F>(
 where
     F: FnMut(&Tensor<1>, f64, &Tensor<1>) -> (f64, Tensor<1>),
 {
-    let d_norm = d.clone().abs().max().into_scalar().to_f64();
+    let d_norm: f64 = d.clone().abs().max().into_scalar();
 
     // evaluate objective and gradient using initial step
     let (mut f_new, mut g_new) = obj_func(x, t, d);
     let mut ls_func_evals = 1;
-    let mut gtd_new = g_new.clone().dot(d.clone()).into_scalar().to_f64();
+    let mut gtd_new = g_new.clone().dot(d.clone()).into_scalar();
 
     // bracket an interval [t_prev,t] containing a point satisfying the Wolfe criteria
     let (mut t_prev, mut f_prev, mut g_prev, mut gtd_prev) = (0.0, f, g.clone(), gtd);
@@ -177,7 +176,7 @@ where
         t = t_next;
         (f_new, g_new) = obj_func(x, t, d);
         ls_func_evals += 1;
-        gtd_new = g_new.clone().dot(d.clone()).into_scalar().to_f64();
+        gtd_new = g_new.clone().dot(d.clone()).into_scalar();
         ls_iter += 1;
     }
     if let Some(sample) = wolfe_bracket {
@@ -253,7 +252,7 @@ where
         (f_new, g_new) = obj_func(x, t, d);
 
         ls_func_evals += 1;
-        gtd_new = g_new.clone().dot(d.clone()).into_scalar().to_f64();
+        gtd_new = g_new.clone().dot(d.clone()).into_scalar();
         ls_iter += 1;
 
         let armijo_holds = f_new <= (f + c1 * t * gtd) && f_new < bracket[low_idx].f;
@@ -535,7 +534,7 @@ impl LBFGS {
         let mut x_flat = flatten_params_inner::<M>(&module);
 
         let opt_cond =
-            flat_grad.clone().abs().max().into_scalar().to_f64() <= self.config.tolerance_grad;
+            flat_grad.clone().abs().max().into_scalar::<f64>() <= self.config.tolerance_grad;
         // optimal condition
         if opt_cond {
             return (module, loss);
@@ -569,7 +568,7 @@ impl LBFGS {
                     let y = flat_grad.clone().sub(pg.clone());
                     let s = d.clone().mul_scalar(t);
 
-                    let ys = y.clone().dot(s.clone()).into_scalar().to_f64();
+                    let ys: f64 = y.clone().dot(s.clone()).into_scalar();
 
                     if ys > 1e-10 {
                         // updating memory
@@ -635,14 +634,14 @@ impl LBFGS {
 
             // compute step len
             if self.state.g_iter == 1 {
-                let grad_l1 = flat_grad.clone().abs().sum().into_scalar().to_f64();
+                let grad_l1: f64 = flat_grad.clone().abs().sum().into_scalar();
                 t = (1.0f64 / grad_l1).min(1.0) * lr;
             } else {
                 t = lr;
             }
 
             // directional derivative
-            let gtd = flat_grad.clone().dot(d.clone()).into_scalar().to_f64();
+            let gtd = flat_grad.clone().dot(d.clone()).into_scalar();
 
             if gtd > -self.config.tolerance_change {
                 break;
@@ -704,11 +703,11 @@ impl LBFGS {
                 break;
             }
 
-            if flat_grad.clone().abs().max().into_scalar().to_f64() <= self.config.tolerance_grad {
+            if flat_grad.clone().abs().max().into_scalar::<f64>() <= self.config.tolerance_grad {
                 break;
             }
 
-            if d.clone().mul_scalar(t).abs().max().into_scalar().to_f64()
+            if d.clone().mul_scalar(t).abs().max().into_scalar::<f64>()
                 <= self.config.tolerance_change
             {
                 break;
@@ -832,7 +831,7 @@ mod tests {
                 // f(x) = x^4 - 2*x^2 + x
                 let f_elements = x4 - x2.mul_scalar(2.0) + curr_x.clone();
 
-                let f_val = f_elements.sum().into_scalar().to_f64();
+                let f_val = f_elements.sum().into_scalar();
 
                 // g(x) = 4*x^3 - 4*x + 1
                 let g = x3.mul_scalar(4.0) - curr_x.clone().mul_scalar(4.0)
@@ -841,7 +840,7 @@ mod tests {
                 (f_val, g)
             }
             let (f_init, g_init) = func(&x, 0.0, &d);
-            let gtd_init = g_init.clone().dot(d.clone()).into_scalar().to_f64();
+            let gtd_init = g_init.clone().dot(d.clone()).into_scalar::<f64>();
             println!("Initial State: f={},gtd = {}", f_init, gtd_init);
             assert!((f_init - 13.7080059052).abs() < tol);
             assert!((gtd_init - 28.5305728912).abs() < tol);
@@ -860,14 +859,14 @@ mod tests {
                 1e-9, // tolerance_change
                 10,   // max_ls
             );
-            let g_f = _g_final.into_scalar().to_f64();
+            let g_f = _g_final.into_scalar::<f64>();
             println!(
                 "f_final:{:?},_g_final:{:?},t_final:{:?},evals:{:?}",
                 f_final, g_f, t_final, evals
             );
             assert!((f_final - 13.708005905151367).abs() < tol);
             assert!((g_f - 31.2450428009).abs() < tol);
-            assert!((t_final.to_f64() - 0.0).abs() < tol);
+            assert!((t_final - 0.0).abs() < tol);
             assert!((evals == 11));
         }
     }
@@ -895,20 +894,14 @@ mod tests {
             let grads = loss.backward();
             let grads_params = GradientsParams::from_grads(grads, &mod_in);
 
-            (loss.into_scalar().to_f64(), grads_params)
+            (loss.into_scalar::<f64>(), grads_params)
         };
         let initial_loss = closure(module.clone()).0;
         assert!((initial_loss - 50.1300048828).abs() < tol);
         let (updated_module, final_loss) = optimizer.step(0.001, module, &mut closure);
         assert!((final_loss - 0.0234732367).abs() < tol);
-        let optimized_data: f64 = updated_module.weight.val().into_scalar().to_f64();
-        let optimized_bias: f64 = updated_module
-            .bias
-            .as_ref()
-            .unwrap()
-            .val()
-            .into_scalar()
-            .to_f64();
+        let optimized_data: f64 = updated_module.weight.val().into_scalar();
+        let optimized_bias: f64 = updated_module.bias.as_ref().unwrap().val().into_scalar();
         assert!((optimized_data - 2.0570652485).abs() < tol);
         assert!((optimized_bias - 0.8106800914).abs() < tol);
     }
@@ -936,20 +929,14 @@ mod tests {
             let grads = loss.backward();
             let grads_params = GradientsParams::from_grads(grads, &mod_in);
 
-            (loss.into_scalar().to_f64(), grads_params)
+            (loss.into_scalar::<f64>(), grads_params)
         };
         let initial_loss = closure(module.clone()).0;
         assert!((initial_loss - 50.1300048828).abs() < tol);
         let (updated_module, final_loss) = optimizer.step(0.001, module, &mut closure);
         assert!((final_loss - 48.2181930542).abs() < tol);
-        let optimized_data: f64 = updated_module.weight.val().into_scalar().to_f64();
-        let optimized_bias: f64 = updated_module
-            .bias
-            .as_ref()
-            .unwrap()
-            .val()
-            .into_scalar()
-            .to_f64();
+        let optimized_data: f64 = updated_module.weight.val().into_scalar();
+        let optimized_bias: f64 = updated_module.bias.as_ref().unwrap().val().into_scalar();
 
         assert!((optimized_data - 0.5302446192).abs() < tol);
         assert!((optimized_bias - 0.1142520783).abs() < tol);
