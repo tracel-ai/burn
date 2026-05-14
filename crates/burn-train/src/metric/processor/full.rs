@@ -1,4 +1,5 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
+use crate::logger::TrainingProgressLogger;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
 use crate::renderer::{
@@ -13,6 +14,7 @@ pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
     metrics: MetricsTraining<T, V>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
+    progress_logger: Option<Box<dyn TrainingProgressLogger>>,
 }
 
 /// An [event processor](EventProcessorEvaluation) that handles:
@@ -34,7 +36,16 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
             metrics,
             renderer,
             store,
+            progress_logger: None,
         }
+    }
+
+    pub(crate) fn with_progress_logger(
+        mut self,
+        logger: Box<dyn TrainingProgressLogger>,
+    ) -> Self {
+        self.progress_logger = Some(logger);
+        self
     }
 
     fn progress_indicators(&self, progress: &TrainingProgress) -> Vec<ProgressType> {
@@ -193,6 +204,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 let indicators = self.progress_indicators(&progress);
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.update_train(&progress);
+                }
                 self.renderer.render_train(progress, indicators);
             }
             LearnerEvent::EndEpoch(epoch) => {
@@ -238,6 +252,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 let indicators = self.progress_indicators(&progress);
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.update_valid(&progress);
+                }
                 self.renderer.render_valid(progress, indicators);
             }
             LearnerEvent::EndEpoch(epoch) => {
@@ -246,6 +263,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                         epoch,
                         Split::Valid,
                     )));
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end_evaluation(epoch);
+                }
                 self.metrics.end_epoch_valid();
             }
             LearnerEvent::End(_) => {} // no-op for now

@@ -5,7 +5,7 @@ use crate::checkpoint::{
 use crate::components::{InferenceModelOutput, TrainingModelOutput};
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
-use crate::logger::{FileMetricLogger, MetricLogger};
+use crate::logger::{FileMetricLogger, MetricLogger, TrainingProgressLogger};
 use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, MetricsTraining,
 };
@@ -72,6 +72,7 @@ where
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
+    progress_logger: Option<Box<dyn TrainingProgressLogger>>,
 }
 
 impl<LR, M, O> SupervisedTraining<LearningComponentsMarker<LR, M, O>>
@@ -125,6 +126,7 @@ where
             summary: false,
             dataloader_train,
             dataloader_valid,
+            progress_logger: None,
         }
     }
 }
@@ -150,6 +152,19 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         ML: MetricLogger + 'static,
     {
         self.event_store.register_logger(logger);
+        self
+    }
+
+    /// Register a progress logger to track training progress.
+    ///
+    /// # Arguments
+    ///
+    /// * `logger` - The progress logger.
+    pub fn with_progress_logger<PL>(mut self, logger: PL) -> Self
+    where
+        PL: TrainingProgressLogger + 'static,
+    {
+        self.progress_logger = Some(Box::new(logger));
         self
     }
 
@@ -348,11 +363,12 @@ where
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let event_processor = AsyncProcessorTraining::new(FullEventProcessorTraining::new(
-            self.metrics,
-            renderer,
-            event_store.clone(),
-        ));
+        let full_processor = FullEventProcessorTraining::new(self.metrics, renderer, event_store.clone());
+        let full_processor = match self.progress_logger {
+            Some(logger) => full_processor.with_progress_logger(logger),
+            None => full_processor,
+        };
+        let event_processor = AsyncProcessorTraining::new(full_processor);
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
             LearningCheckpointer::new(
