@@ -1,4 +1,9 @@
-use crate::{Backend, IntTensor, Scalar, bridge::Numeric};
+use burn_backend::Scalar;
+
+use crate::{
+    bridge::Numeric,
+    kind::{BoolTensor, IntTensor},
+};
 
 /// Trait that list all operations that can be applied on all numerical tensors
 /// whose elements have a well-defined ordering.
@@ -10,7 +15,7 @@ use crate::{Backend, IntTensor, Scalar, bridge::Numeric};
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait Ordered<B: Backend>: Numeric<B> {
+pub trait Ordered: Numeric {
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
@@ -60,7 +65,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
         tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> (Self::Primitive, IntTensor<B>);
+    ) -> (Self::Primitive, IntTensor);
 
     /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
     ///
@@ -83,7 +88,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// Users should prefer the [`Tensor::argsort`](crate::Tensor::argsort)
     /// function, which is more high-level and designed for public use.
-    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B>;
+    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor;
 
     /// Computes the cumulative minimum of elements along a dimension.
     ///
@@ -150,7 +155,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise greater than comparison between two tensors, users should prefer the
     /// [`Tensor::greater`](crate::Tensor::greater) function, which is more high-level and designed for public use.
-    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise greater than comparison between a tensor and a scalar.
     ///
@@ -173,7 +178,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise greater than comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::greater_elem`](crate::Tensor::greater_elem) function, which is more high-level and designed for public use.
-    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -196,7 +201,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise greater than or equal comparison between two tensors, users should prefer the
     /// [`Tensor::greater_equal`](crate::Tensor::greater_equal) function, which is more high-level and designed for public use.
-    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise greater than or equal comparison between a tensor and a scalar.
     ///
@@ -219,7 +224,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::greater_equal_elem`](crate::Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -242,7 +247,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise less than comparison between two tensors, users should prefer the
     /// [`Tensor::lower`](crate::Tensor::lower) function, which is more high-level and designed for public use.
-    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise less than comparison between a tensor and a scalar.
     ///
@@ -265,7 +270,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise less than comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::lower_elem`](crate::Tensor::lower_elem) function, which is more high-level and designed for public use.
-    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -288,7 +293,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise less than or equal comparison between two tensors, users should prefer the
     /// [`Tensor::lower_equal`](crate::Tensor::lower_equal) function, which is more high-level and designed for public use.
-    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise less than or equal comparison between a tensor and a scalar.
     ///
@@ -311,7 +316,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::lower_equal_elem`](crate::Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -334,7 +339,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For getting the indices of the maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::argmax`](crate::Tensor::argmax) function, which is more high-level and designed for public use.
-    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B>;
+    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor;
 
     /// Gets the indices of the k maximum elements of a tensor along an axis.
     ///
@@ -358,7 +363,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For getting the indices of the k maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::argtopk`](crate::Tensor::argtopk) function, which is more high-level and designed for public use.
-    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B>;
+    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor;
 
     /// Gets the values of the k maximum elements of a tensor along an axis.
     ///
@@ -405,7 +410,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For getting the indices of the minimum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::argmin`](crate::Tensor::argmin) function, which is more high-level and designed for public use.
-    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B>;
+    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -471,8 +476,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::max_dim_with_indices`](crate::Tensor::max_dim_with_indices) function,
     /// which is more high-level and designed for public use.
-    fn max_dim_with_indices(tensor: Self::Primitive, dim: usize)
-    -> (Self::Primitive, IntTensor<B>);
+    fn max_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, IntTensor);
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -578,8 +582,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::min_dim_with_indices`](crate::Tensor::min_dim_with_indices) function, which is more high-level and designed for public use.
-    fn min_dim_with_indices(tensor: Self::Primitive, dim: usize)
-    -> (Self::Primitive, IntTensor<B>);
+    fn min_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, IntTensor);
 
     /// Clamp the tensor between the given min and max values.
     ///

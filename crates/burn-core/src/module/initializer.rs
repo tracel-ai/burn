@@ -346,8 +346,8 @@ mod tests {
             .into_value();
         let (var_act, mean_act) = normal.var_mean(0);
 
-        let var_act: f32 = var_act.into_scalar().elem();
-        let mean_act: f32 = mean_act.into_scalar().elem();
+        let var_act: f32 = var_act.into_scalar();
+        let mean_act: f32 = mean_act.into_scalar();
 
         assert!(
             var_act > 0.9 && var_act < 1.1,

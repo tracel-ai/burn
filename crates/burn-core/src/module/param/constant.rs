@@ -1,5 +1,5 @@
 use alloc::format;
-use burn_tensor::kind::Basic;
+use burn_tensor::ops::{BasicAutodiffOps, BasicOps};
 use core::fmt::Display;
 
 use crate as burn;
@@ -11,8 +11,6 @@ use crate::{
     record::{PrecisionSettings, Record},
 };
 use burn_tensor::{Device, Tensor};
-
-use burn_tensor::kind::Autodiff;
 
 #[deprecated(
     since = "0.21.0",
@@ -161,7 +159,7 @@ impl burn::module::ModuleDisplayDefault for str {
 }
 
 // TODO: tensor record should persist
-impl<const D: usize, K: Basic> Module for Tensor<D, K> {
+impl<const D: usize, K: BasicOps> Module for Tensor<D, K> {
     type Record = EmptyRecord;
 
     fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {}
@@ -197,16 +195,16 @@ impl<const D: usize, K: Basic> Module for Tensor<D, K> {
     }
 }
 
-impl<const D: usize, K: Basic> ModuleDisplayDefault for Tensor<D, K> {
+impl<const D: usize, K: BasicOps> ModuleDisplayDefault for Tensor<D, K> {
     fn content(&self, content: Content) -> Option<Content> {
         let string = format!("Tensor {{rank: {D}, shape: {:?}}}", self.shape().as_slice());
         content.add_single(&string).optional()
     }
 }
 
-impl<const D: usize, K: Basic> ModuleDisplay for Tensor<D, K> {}
+impl<const D: usize, K: BasicOps> ModuleDisplay for Tensor<D, K> {}
 
-impl<const D: usize, K: Autodiff<InnerKind = K>> AutodiffModule for Tensor<D, K> {
+impl<const D: usize, K: BasicAutodiffOps> AutodiffModule for Tensor<D, K> {
     fn valid(&self) -> Self {
         self.clone().inner()
     }

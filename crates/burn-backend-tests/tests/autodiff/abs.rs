@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{TensorData, Tolerance, cast::ToElement};
+use burn_tensor::{TensorData, Tolerance};
 
 #[test]
 fn should_diff_abs() {
@@ -54,5 +54,5 @@ fn should_diff_abs_no_nans() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 
     let contains_nan = grad_2.contains_nan();
-    assert!(!contains_nan.into_scalar().to_bool());
+    assert!(!contains_nan.into_scalar::<bool>());
 }

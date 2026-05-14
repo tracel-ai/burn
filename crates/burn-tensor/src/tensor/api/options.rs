@@ -1,5 +1,3 @@
-use burn_backend::Element;
-use burn_dispatch::Dispatch;
 use burn_std::DType;
 
 use crate::{Device, bridge::BasicOps};
@@ -57,15 +55,14 @@ impl TensorCreationOptions {
     }
 
     /// Returns the tensor data type, or the default from the [device settings](crate::DeviceSettings).
-    pub(crate) fn resolve_dtype<K: BasicOps<Dispatch>>(&self) -> DType {
-        let dtype = K::Elem::dtype();
+    pub(crate) fn resolve_dtype<K: BasicOps>(&self) -> DType {
         let kind_name = K::name();
         // TODO: tensor kind enum?
         self.dtype.unwrap_or_else(|| {
             let settings = self.device.settings();
-            if dtype.is_float() && kind_name == "Float" {
+            if kind_name == "Float" {
                 settings.float_dtype.into()
-            } else if (dtype.is_int() || dtype.is_uint()) && kind_name == "Int" {
+            } else if kind_name == "Int" {
                 settings.int_dtype.into()
             } else {
                 settings.bool_dtype.into()

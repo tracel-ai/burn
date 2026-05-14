@@ -2,11 +2,10 @@ use crate::AsIndex;
 use crate::Cast;
 use crate::Device;
 use crate::Tensor;
+use crate::bridge::FloatMathOps;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
-use crate::kind::FloatMath;
-use crate::ops::GridSampleOptions;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
@@ -20,6 +19,7 @@ use burn_backend::TensorMetadata;
 use burn_backend::distributed::DistributedParamId;
 use burn_backend::ops::ActivationOps;
 use burn_backend::ops::FloatTensorOps;
+use burn_backend::ops::GridSampleOptions;
 use burn_backend::ops::QTensorOps;
 use burn_backend::quantization::QuantizationParametersPrimitive;
 use burn_dispatch::Dispatch;
@@ -115,8 +115,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let _ = Tensor::< 1>::from_floats([1.0, 2.0], &device);
-    ///     let _ = Tensor::< 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+    ///     let _ = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    ///     let _ = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
     /// }
     /// ```
     pub fn from_floats<A: Into<TensorData>>(floats: A, device: &Device) -> Self {
@@ -133,7 +133,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let float_tensor = Tensor::< 1>::from_floats([1.0, 2.0], &device);
+    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
     ///     let int_tensor = float_tensor.int();
     /// }
     /// ```
@@ -202,7 +202,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// ```ignore
     /// let device = Default::default();
-    /// let tensor = Tensor::< 2>::from_data(
+    /// let tensor = Tensor::<2>::from_data(
     ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
     ///     &device,
     /// );
@@ -263,7 +263,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// ```ignore
     /// let device = Default::default();
-    /// let tensor = Tensor::< 2>::from_data(
+    /// let tensor = Tensor::<2>::from_data(
     ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
     ///     &device,
     /// );
@@ -293,7 +293,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let float_tensor = Tensor::< 1>::from_floats([1.0, 2.5], &device);
+    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.5], &device);
     ///
     ///     // Within-kind cast (float to float)
     ///     let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
@@ -450,8 +450,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor1.is_close(tensor2, None, None);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [true, true, true]]
@@ -513,8 +513,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let result = tensor1.all_close(tensor2, None, None);
     ///    println!("{}", result);
     ///    // true
@@ -523,7 +523,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
         self.is_close(other, rtol, atol)
             .all()
-            .into_scalar()
+            .into_scalar::<u8>()
             .to_bool()
     }
 
@@ -540,7 +540,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_nan();
     ///    println!("{tensor}");
     ///    // [[false, true, false], [false, false, false]]
@@ -564,11 +564,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
     ///   println!("{tensor}");
     ///   // [true]
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
     ///   println!("{tensor}");
     ///   // [false]
@@ -596,7 +596,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
     ///    // [[false, true, false], [false, false, false]]
@@ -621,7 +621,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
     ///    // [[true, false, true], [false, true, true]]
@@ -709,8 +709,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.powf(tensor2);
     ///    println!("{tensor}");
     ///    // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
@@ -756,7 +756,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.powf_scalar(2.0);
     ///    println!("{tensor}");
     ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
@@ -812,7 +812,7 @@ impl<const D: usize> Tensor<D> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let probs = Tensor::< 2>::from_floats(
+    ///     let probs = Tensor::<2>::from_floats(
     ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
     ///         &device,
     ///     );
@@ -893,7 +893,7 @@ impl<const D: usize> Tensor<D> {
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: FloatMath,
+    K: FloatMathOps,
 {
     /// Applies element wise square operation.
     ///
@@ -969,7 +969,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// }
     /// ```
@@ -990,7 +990,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// }
     /// ```
@@ -1011,7 +1011,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// }
     /// ```
@@ -1032,7 +1032,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
     /// }
     /// ```
@@ -1053,7 +1053,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([1.0, 2.0, 3.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
     ///     println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
     /// }
     /// ```
@@ -1074,7 +1074,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
     /// }
     /// ```
@@ -1095,7 +1095,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
     /// }
     /// ```
@@ -1116,7 +1116,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
     /// }
     /// ```
@@ -1137,7 +1137,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -0.5, 0.5], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -0.5, 0.5], &device);
     ///     println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
     /// }
     /// ```
@@ -1158,8 +1158,8 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let lhs = Tensor::< 1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::< 1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
     ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
     /// }
     /// ```

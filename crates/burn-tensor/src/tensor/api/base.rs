@@ -1,8 +1,8 @@
 #![allow(clippy::single_range_in_vec_init)]
-use crate::ExecutionError;
+use crate::bridge::BasicOps;
 use crate::check::unwrap_shape_reshape;
 
-use burn_backend::Scalar;
+use burn_backend::{ExecutionError, Scalar};
 
 use alloc::vec::Vec;
 
@@ -10,13 +10,12 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_dispatch::Dispatch;
 use burn_std::{SliceOps, stub::RwLock};
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
-use crate::{AsIndex, Device, Slice, SliceArg, kind::Basic, wrap_index};
+use crate::{AsIndex, Device, Slice, SliceArg, wrap_index};
 use crate::{
     Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, TensorMetadata, check,
 };
@@ -25,10 +24,7 @@ use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
 use serde::{Serialize, Serializer};
 
-/// A tensor with a given shape and data type, backed by a runtime-selected device.
-///
-/// Tensors are not statically tied to a backend. The backend is determined based on which device
-/// the tensor was created on.
+/// A tensor with a given backend, shape and data type.
 ///
 /// # Indexing
 /// Indexing a tensor can be done using [`slice`](Tensor::slice) for all tensor types
@@ -43,7 +39,7 @@ use serde::{Serialize, Serializer};
 /// fn example() {
 ///     let device = Default::default();
 ///
-///     let tensor = Tensor::< 2>::from_data(
+///     let tensor = Tensor::<2>::from_data(
 ///         [
 ///             [3.0, 4.9, 2.0],
 ///             [2.0, 1.9, 3.0],
@@ -68,7 +64,7 @@ use serde::{Serialize, Serializer};
 ///     // Index the tensor along the dimension 1 to get the elements 0 and 2:
 ///     // [[3.0, 2.0], [2.0, 3.0], [6.0, 7.0], [3.0, 9.0]]
 ///     // The resulting tensor will have dimensions [4, 2]
-///     let indices = Tensor::< 1, Int>::from_data([0, 2], &device);
+///     let indices = Tensor::<1, Int>::from_data([0, 2], &device);
 ///     let indexed = tensor.select(1, indices);
 ///     println!("{indexed}");
 /// }
@@ -76,15 +72,15 @@ use serde::{Serialize, Serializer};
 #[derive(new, Clone, Debug)]
 pub struct Tensor<const D: usize, K = Float>
 where
-    K: Basic,
+    K: BasicOps,
 {
     // TODO: float tensor primitive no longer needs to be a wrapped enum?
-    pub(crate) primitive: <K as TensorKind<Dispatch>>::Primitive,
+    pub(crate) primitive: <K as TensorKind>::Primitive,
 }
 
 impl<const D: usize, K, T> From<T> for Tensor<D, K>
 where
-    K: Basic,
+    K: BasicOps,
     T: Into<TensorData>,
 {
     fn from(value: T) -> Self {
@@ -94,8 +90,7 @@ where
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: Basic,
-    K::Elem: Element,
+    K: BasicOps,
 {
     /// Executes an operation on the tensor and modifies its value.
     ///
@@ -153,7 +148,7 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    // Create an empty tensor with dimensions [2, 3, 4].
-    ///    let tensor = Tensor::< 3>::empty([2, 3, 4], &device);
+    ///    let tensor = Tensor::<3>::empty([2, 3, 4], &device);
     /// }
     /// ```
     pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
@@ -161,7 +156,7 @@ where
         let shape = shape.into();
         let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape));
-        Self::new(K::empty(shape, &opt.device.dispatch, dtype))
+        Self::new(K::empty(shape, &opt.device, dtype))
     }
 
     /// Create a tensor of the given shape where each element is zero.
@@ -173,7 +168,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::zeros(Shape::new([2, 3]), &device);
+    ///    let tensor = Tensor::<2>::zeros(Shape::new([2, 3]), &device);
     ///    println!("{tensor}");
     ///    // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
@@ -183,7 +178,7 @@ where
         let shape = shape.into();
         let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape));
-        Self::new(K::zeros(shape, &opt.device.dispatch, dtype))
+        Self::new(K::zeros(shape, &opt.device, dtype))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
@@ -195,18 +190,14 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.zeros_like();
     ///   println!("{tensor}");
     ///   // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
     /// ```
     pub fn zeros_like(&self) -> Self {
-        Self::new(K::zeros(
-            self.shape(),
-            &self.device().dispatch,
-            self.dtype(),
-        ))
+        Self::new(K::zeros(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Create a tensor of the given shape where each element is one.
@@ -218,7 +209,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::ones(Shape::new([2, 3]), &device);
+    ///   let tensor = Tensor::<2>::ones(Shape::new([2, 3]), &device);
     ///   println!("{tensor}");
     ///   // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
@@ -228,7 +219,7 @@ where
         let shape = shape.into();
         let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape));
-        Self::new(K::ones(shape, &opt.device.dispatch, dtype))
+        Self::new(K::ones(shape, &opt.device, dtype))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
@@ -240,14 +231,14 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.ones_like();
     ///    println!("{tensor}");
     ///    // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
     pub fn ones_like(&self) -> Self {
-        Self::new(K::ones(self.shape(), &self.device().dispatch, self.dtype()))
+        Self::new(K::ones(self.shape(), &self.device(), self.dtype()))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -259,7 +250,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::full(Shape::new([2, 3]), 5.0, &device);
+    ///   let tensor = Tensor::<2>::full(Shape::new([2, 3]), 5.0, &device);
     ///   println!("{tensor}");
     ///   // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
     /// }
@@ -276,7 +267,7 @@ where
         Self::new(K::full(
             shape,
             Scalar::new(fill_value, &dtype),
-            &opt.device.dispatch,
+            &opt.device,
             dtype,
         ))
     }
@@ -291,7 +282,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.full_like(5.0);
     ///    println!("{tensor}");
     ///    // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
@@ -302,7 +293,7 @@ where
         Self::new(K::full(
             self.shape(),
             Scalar::new(fill_value, &dtype),
-            &self.device().dispatch,
+            &self.device(),
             dtype,
         ))
     }
@@ -315,7 +306,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 3>::ones([2, 3, 4], &device);
+    ///   let tensor = Tensor::<3>::ones([2, 3, 4], &device);
     ///   let dims = tensor.dims(); // [2, 3, 4]
     ///   println!("{dims:?}");
     /// }
@@ -332,7 +323,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 3>::ones([2, 3, 4], &device);
+    ///    let tensor = Tensor::<3>::ones([2, 3, 4], &device);
     ///    // Shape { dims: [2, 3, 4] }
     ///    let shape = tensor.shape();
     /// }
@@ -370,7 +361,7 @@ where
     /// fn example() {
     ///    let device = Default::default();
     ///    // Create a tensor with dimensions [2, 3, 4]
-    ///    let tensor = Tensor::< 3>::ones([2, 3, 4], &device);
+    ///    let tensor = Tensor::<3>::ones([2, 3, 4], &device);
     ///    // Reshape it to [2, 12], where 12 is inferred from the number of elements.
     ///    let reshaped = tensor.reshape([2, -1]);
     ///    println!("{reshaped}");
@@ -406,7 +397,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor of shape [2, 3]
-    ///     let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///
     ///     // Transpose the tensor:
     ///     // [[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]]
@@ -451,7 +442,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor of shape [2, 3]
-    ///     let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///
     ///     // Swap the dimensions 0 and -1 (equivalent to `tensor.transpose()`):
     ///     // [[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]]
@@ -498,7 +489,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor of shape [3, 2]
-    ///     let tensor = Tensor::< 2>::from_data([[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]], &device);
     ///
     ///     // Permute the dimensions 1 and 0:
     ///     // [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]]
@@ -557,7 +548,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor of shape [3, 2, 1]
-    ///     let tensor = Tensor::< 3>::from_data([[[1.0], [5.0]], [[-2.0], [9.0]], [[3.0], [6.0]]], &device);
+    ///     let tensor = Tensor::<3>::from_data([[[1.0], [5.0]], [[-2.0], [9.0]], [[3.0], [6.0]]], &device);
     ///
     ///     // Move the dimensions 0 and 1:
     ///     // [[[1.0], [-2.0], [3.0]], [[5.0], [9.0], [6.0]]]
@@ -621,7 +612,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [4, 3]
-    ///     let tensor = Tensor::< 2>::from_data(
+    ///     let tensor = Tensor::<2>::from_data(
     ///         [
     ///             [3.0, 4.9, 2.0],
     ///             [2.0, 1.9, 3.0],
@@ -687,7 +678,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor with dimensions [2, 3, 4]
-    ///     let tensor = Tensor::< 3>::ones(Shape::new([2, 3, 4]), &device);
+    ///     let tensor = Tensor::<3>::ones(Shape::new([2, 3, 4]), &device);
     ///
     ///     // Flatten the tensor from dimensions 1 to 2 (inclusive).
     ///     // The resulting tensor will have dimensions [2, 12]
@@ -728,7 +719,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 4D tensor with dimensions [1, 3, 1, 3]
-    ///     let tensor = Tensor::< 4>::from_data(
+    ///     let tensor = Tensor::<4>::from_data(
     ///         [[[[3.0, 4.9, 2.0]], [[2.0, 1.9, 3.0]], [[4.0, 5.9, 8.0]]]],
     ///         &device,
     ///     );
@@ -778,7 +769,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor with dimensions [3, 1, 3]
-    ///     let tensor = Tensor::< 3>::from_data(
+    ///     let tensor = Tensor::<3>::from_data(
     ///         [[[3.0, 4.9, 2.0]], [[2.0, 1.9, 3.0]], [[4.0, 5.9, 8.0]]],
     ///         &device,
     ///     );
@@ -830,7 +821,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 4D tensor with dimensions [2, 1, 4, 1]
-    ///     let tensor = Tensor::< 4>::ones(Shape::new([2, 1, 4, 1]), &device);
+    ///     let tensor = Tensor::<4>::ones(Shape::new([2, 1, 4, 1]), &device);
     ///
     ///     // Squeeze the dimensions 1 and 3.
     ///     // The resulting tensor will have dimensions [2, 4].
@@ -912,7 +903,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 3]
-    ///     let tensor = Tensor::< 2>::ones(Shape::new([3, 3]), &device);
+    ///     let tensor = Tensor::<2>::ones(Shape::new([3, 3]), &device);
     ///     // Unsqueeze the tensor up to 4 dimensions.
     ///     // The resulting tensor will have dimensions [1, 1, 3, 3].
     ///     let unsqueezed = tensor.unsqueeze::<4>();
@@ -942,7 +933,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 3]
-    ///     let tensor = Tensor::< 2>::ones(Shape::new([3, 3]), &device);
+    ///     let tensor = Tensor::<2>::ones(Shape::new([3, 3]), &device);
     ///     // Unsqueeze the dimension 1.
     ///     // The resulting tensor will have dimensions [3, 1, 3].
     ///     let unsqueezed: Tensor<3> = tensor.unsqueeze_dim(1);
@@ -980,7 +971,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor with dimensions [3, 4, 5]
-    ///     let tensor = Tensor::< 3>::ones(Shape::new([3, 4, 5]), &device);
+    ///     let tensor = Tensor::<3>::ones(Shape::new([3, 4, 5]), &device);
     ///     // Unsqueeze the leading dimension (0) once and the trailing dimension (-1) twice.
     ///     // The resulting tensor will have dimensions [1, 3, 4, 5, 1, 1].
     ///     let unsqueezed: Tensor<6> = tensor.unsqueeze_dims(&[0, -1, -1]);
@@ -1286,7 +1277,7 @@ where
     ///     let device = Default::default();
     ///
     ///     // Single dimension slicing - no brackets needed!
-    ///     let tensor = Tensor::< 1, burn_tensor::Int>::arange(0..10, &device);
+    ///     let tensor = Tensor::<1, burn_tensor::Int>::arange(0..10, &device);
     ///     let slice = tensor.clone().slice(2..8);  // Simple range
     ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
     ///
@@ -1299,7 +1290,7 @@ where
     ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
     ///
     ///     // Multi-dimensional slicing
-    ///     let tensor = Tensor::< 2>::ones(Shape::new([4, 6]), &device);
+    ///     let tensor = Tensor::<2>::ones(Shape::new([4, 6]), &device);
     ///
     ///     // Array syntax for simple ranges
     ///     let slice = tensor.clone().slice([1..3, 2..5]);
@@ -1310,12 +1301,12 @@ where
     ///     assert_eq!(slice.dims(), [2, 6]);
     ///
     ///     // Complex 3D example with mixed slice types
-    ///     let tensor = Tensor::< 3>::ones(Shape::new([4, 6, 8]), &device);
+    ///     let tensor = Tensor::<3>::ones(Shape::new([4, 6, 8]), &device);
     ///     let slice = tensor.slice(s![1..3, ..;2, -3..]);  // Rows 1-2, every 2nd col, last 3 depth
     ///     assert_eq!(slice.dims(), [2, 3, 3]);
     ///
     ///     // Using negative indices
-    ///     let tensor = Tensor::< 2>::ones(Shape::new([4, 6]), &device);
+    ///     let tensor = Tensor::<2>::ones(Shape::new([4, 6]), &device);
     ///     let slice = tensor.slice(s![-2.., ..-1]);  // Last 2 rows, all but last column
     ///     assert_eq!(slice.dims(), [2, 5]);
     /// }
@@ -1378,32 +1369,32 @@ where
     ///     let device = Default::default();
     ///
     ///     // Simple assignment to a sub-region
-    ///     let mut tensor = Tensor::< 2>::zeros([4, 6], &device);
-    ///     let values = Tensor::< 2>::ones([2, 3], &device);
+    ///     let mut tensor = Tensor::<2>::zeros([4, 6], &device);
+    ///     let values = Tensor::<2>::ones([2, 3], &device);
     ///     tensor = tensor.slice_assign([1..3, 2..5], values);
     ///     // Now tensor[1..3, 2..5] contains ones
     ///
     ///     // Single dimension assignment with step
-    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
-    ///     let values = Tensor::< 1>::ones([5], &device);
+    ///     let mut tensor = Tensor::<1>::zeros([10], &device);
+    ///     let values = Tensor::<1>::ones([5], &device);
     ///     tensor = tensor.slice_assign(s![0..10;2], values);
     ///     // Now every 2nd element is 1: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
     ///
     ///     // Reverse assignment with negative step
-    ///     let mut tensor = Tensor::< 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
-    ///     let values = Tensor::< 1>::from_data([10.0, 11.0, 12.0, 13.0, 14.0], &device);
+    ///     let mut tensor = Tensor::<1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     let values = Tensor::<1>::from_data([10.0, 11.0, 12.0, 13.0, 14.0], &device);
     ///     tensor = tensor.slice_assign(s![..;-1], values);
     ///     // Assigns in reverse: [14, 13, 12, 11, 10]
     ///
     ///     // Complex multi-dimensional assignment
-    ///     let mut tensor = Tensor::< 3>::zeros([4, 6, 8], &device);
-    ///     let values = Tensor::< 3>::ones([2, 3, 3], &device);
+    ///     let mut tensor = Tensor::<3>::zeros([4, 6, 8], &device);
+    ///     let values = Tensor::<3>::ones([2, 3, 3], &device);
     ///     tensor = tensor.slice_assign(s![0..4;2, ..;2, -3..], values);
     ///     // Assigns to every 2nd row, every 2nd column, last 3 in depth
     ///
     ///     // Mixed syntax example
-    ///     let mut tensor = Tensor::< 2>::zeros([8, 8], &device);
-    ///     let pattern = Tensor::< 2>::ones([4, 4], &device);
+    ///     let mut tensor = Tensor::<2>::zeros([8, 8], &device);
+    ///     let pattern = Tensor::<2>::ones([4, 4], &device);
     ///     tensor = tensor.slice_assign(s![..;2, ..;2], pattern);
     ///     // Creates a checkerboard pattern with ones
     /// }
@@ -1468,27 +1459,27 @@ where
     ///     let device = Default::default();
     ///
     ///     // Simple fill for a single dimension
-    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
+    ///     let mut tensor = Tensor::<1>::zeros([10], &device);
     ///     tensor = tensor.slice_fill(2..5, 1.0);
     ///     // Now tensor is [0, 0, 1, 1, 1, 0, 0, 0, 0, 0]
     ///
     ///     // Multi-dimensional fill
-    ///     let mut tensor = Tensor::< 2>::zeros([4, 6], &device);
+    ///     let mut tensor = Tensor::<2>::zeros([4, 6], &device);
     ///     tensor = tensor.slice_fill([1..3, 2..5], -1.0);
     ///     // Fills the rectangle at rows 1-2, columns 2-4 with -1
     ///
     ///     // Using negative indices
-    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
+    ///     let mut tensor = Tensor::<1>::zeros([10], &device);
     ///     tensor = tensor.slice_fill(-3.., 2.0);
     ///     // Fills the last 3 elements with 2.0
     ///
     ///     // Complex multi-dimensional example
-    ///     let mut tensor = Tensor::< 3>::ones([4, 6, 8], &device);
+    ///     let mut tensor = Tensor::<3>::ones([4, 6, 8], &device);
     ///     tensor = tensor.slice_fill(s![1..3, .., -2..], 0.0);
     ///     // Sets rows 1-2, all columns, last 2 in depth to 0
     ///
     ///     // Stepped slicing is supported
-    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
+    ///     let mut tensor = Tensor::<1>::zeros([10], &device);
     ///     tensor = tensor.slice_fill(s![0..10;2], 1.0);
     ///     // Now every 2nd element is 1: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
     /// }
@@ -1501,7 +1492,7 @@ where
     /// - [`slice_assign`](Self::slice_assign) - Assign tensor values to a slice
     ///
     /// [`s!`]: crate::s!
-    pub fn slice_fill<S, E: ElementConversion>(self, slices: S, value: E) -> Self
+    pub fn slice_fill<S, E: Element>(self, slices: S, value: E) -> Self
     where
         S: SliceArg,
     {
@@ -1511,8 +1502,7 @@ where
         check!(TensorCheck::slice::<D>(&shape, &slices));
 
         let slice_shape = shape.slice(&slices).unwrap();
-        let value =
-            Tensor::<1, K>::from_data([value.elem::<K::Elem>()], (&self.device(), self.dtype()));
+        let value = Tensor::<1, K>::from_data([value], (&self.device(), self.dtype()));
         let value = value.expand(slice_shape);
         self.slice_assign(&slices, value)
     }
@@ -1540,7 +1530,7 @@ where
     /// #
     /// # fn example() {
     /// #     let device = Default::default();
-    ///     let tensor = Tensor::< 3>::zeros([3, 4, 5], &device);
+    ///     let tensor = Tensor::<3>::zeros([3, 4, 5], &device);
     ///
     ///     // Simple range slicing
     ///     let sliced = tensor.clone().slice_dim(1, 1..3);
@@ -1585,12 +1575,12 @@ where
 
     /// Returns the device of the current tensor.
     pub fn device(&self) -> Device {
-        Device::new(K::device(&self.primitive))
+        K::device(&self.primitive)
     }
 
     /// Move the tensor to the given device.
     pub fn to_device(self, device: &Device) -> Self {
-        Self::new(K::to_device(self.primitive, &device.dispatch))
+        Self::new(K::to_device(self.primitive, device))
     }
 
     /// Select tensor elements along the given dimension corresponding to the given indices.
@@ -1607,8 +1597,8 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-    ///   let indices = Tensor::< 1, Int>::from_data([0], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///   let indices = Tensor::<1, Int>::from_data([0], &device);
     ///   let tensor = tensor.select(0, indices);
     ///   println!("{tensor}");
     ///   //  [[1.0, -2.0, 3.0]]
@@ -1681,9 +1671,9 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let mask = Tensor::< 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
-    ///   let value = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let mask = Tensor::<2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let value = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor.mask_where(mask, value);
     ///   println!("{tensor}");
     ///   // [[2.0, -2.0, 4.0], [5.0, 2.0, 6.0]]
@@ -1709,8 +1699,8 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let mask = Tensor::< 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let mask = Tensor::<2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
     ///   let tensor = tensor.mask_fill(mask, 3.0);
     ///   println!("{tensor}");
     ///   // [[3.0, -2.0, 3.0], [5.0, 3.0, 6.0]]
@@ -1926,7 +1916,7 @@ where
         // Use the given dtype when provided, otherwise default device dtype
         let opt = options.into();
         let dtype = opt.resolve_dtype::<K>();
-        Self::new(K::from_data(data, &opt.device.dispatch, dtype))
+        Self::new(K::from_data(data, &opt.device, dtype))
     }
 
     /// Repeat the tensor along the given dimension.
@@ -1949,7 +1939,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 2]
-    ///     let tensor = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///
     ///     // Repeat the tensor along the dimension 0 twice.
     ///     // [[3.0, 4.9], [2.0, 1.9], [4.0, 5.9], [3.0, 4.9], [2.0, 1.9], [4.0, 5.9]]
@@ -1988,7 +1978,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 2]
-    ///     let tensor = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///
     ///     // Repeat the tensor along the dimension 0 twice and the dimension 0 once.
     ///     // [[3.0, 4.9], [2.0, 1.9], [4.0, 5.9], [3.0, 4.9], [2.0, 1.9], [4.0, 5.9]]
@@ -2031,8 +2021,8 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::< 2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
-    ///     let t2 = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t1 = Tensor::<2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t2 = Tensor::<2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///     // Compare the elements of the two 2D tensors with dimensions [3, 2].
     ///     // [[false, true], [true, true], [true, true]]
     ///     let equal = t1.equal(t2);
@@ -2060,8 +2050,8 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::< 2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
-    ///     let t2 = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t1 = Tensor::<2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t2 = Tensor::<2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///     // Compare the elements of the two 2D tensors for inequality.
     ///     // [[true, false], [false, false], [false, false]]
     ///     let not_equal = t1.not_equal(t2);
@@ -2086,7 +2076,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.equal_elem(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [false, false, false]]
@@ -2110,7 +2100,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.not_equal_elem(3.0);
     ///    println!("{tensor}");
     ///    // [[true, true, false], [true, true, true]]
@@ -2136,8 +2126,8 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::< 2>::from_data([[3.0, 4.9, 2.0, 1.0], [2.0, 1.9, 3.0, 1.0]], &device);
-    ///     let t2 = Tensor::< 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
+    ///     let t1 = Tensor::<2>::from_data([[3.0, 4.9, 2.0, 1.0], [2.0, 1.9, 3.0, 1.0]], &device);
+    ///     let t2 = Tensor::<2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
     ///
     ///     // Concatenate the two tensors with shapes [2, 4] and [2, 3] along the dimension 1.
     ///     // [[3.0, 4.9, 2.0, 1.0, 4.0, 5.9, 8.0], [2.0, 1.9, 3.0, 1.0, 1.4, 5.8, 6.0]]
@@ -2186,9 +2176,9 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::< 2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
-    ///     let t2 = Tensor::< 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
-    ///     let t3 = Tensor::< 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
+    ///     let t1 = Tensor::<2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
+    ///     let t2 = Tensor::<2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
+    ///     let t3 = Tensor::<2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
     ///
     ///     // Concatenate the three tensors with shape [2, 3] along a new dimension, 0.
     ///     // [[[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]],
@@ -2255,7 +2245,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [4, 3]
-    ///     let tensor = Tensor::< 2>::from_data(
+    ///     let tensor = Tensor::<2>::from_data(
     ///         [
     ///             [3.0, 4.9, 2.0],
     ///             [2.0, 1.9, 3.0],
@@ -2314,7 +2304,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [4, 3]
-    ///     let tensor = Tensor::< 2>::from_data(
+    ///     let tensor = Tensor::<2>::from_data(
     ///         [
     ///             [3.0, 4.9, 2.0],
     ///             [2.0, 1.9, 3.0],
@@ -2383,7 +2373,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 1D tensor with 5 elements
-    ///     let tensor = Tensor::< 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
     ///     // Split the tensor into chunks of size 2 along dimension 0
     ///     let chunks = tensor.split(2, 0);
     ///     // The result is a vector of tensors:
@@ -2428,7 +2418,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 1D tensor with 5 elements
-    ///     let tensor = Tensor::< 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
     ///     // Split the tensor into chunks with sizes [2, 3] along dimension 0
     ///     let chunks = tensor.split_with_sizes(vec![2, 3], 0);
     ///     // The result is a vector of tensors:
@@ -2513,7 +2503,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor =
-    ///         Tensor::< 2, Bool>::from_data([[true, false, false], [false, true, false]], &device);
+    ///         Tensor::<2, Bool>::from_data([[true, false, false], [false, true, false]], &device);
     ///     // Check if any element in the tensor evaluates to True along the dimension 1.
     ///     // [[true], [true]],
     ///     let any_dim = tensor.clone().any_dim(1);
@@ -2543,7 +2533,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor =
-    ///         Tensor::< 2, Bool>::from_data([[true, false, true], [true, true, true]], &device);
+    ///         Tensor::<2, Bool>::from_data([[true, false, true], [true, true, true]], &device);
     ///     // Check if all elements in the tensor evaluate to True (which is not the case).
     ///     // [false]
     ///     let all = tensor.all();
@@ -2575,7 +2565,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor =
-    ///         Tensor::< 2, Bool>::from_data([[true, true, false], [true, true, true]], &device);
+    ///         Tensor::<2, Bool>::from_data([[true, true, false], [true, true, true]], &device);
     ///     // Check if all elements in the tensor evaluate to True along the dimension 1.
     ///     // [[true, true, false]]
     ///     let all_dim = tensor.clone().all_dim(0);
@@ -2604,13 +2594,13 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 2>::from_data([[3.0]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[3.0]], &device);
     ///     // Convert the tensor with a single element into a scalar.
     ///     let scalar = tensor.into_scalar();
     ///     println!("{scalar}");
     /// }
     /// ```
-    pub fn into_scalar(self) -> K::Elem {
+    pub fn into_scalar<E: Element>(self) -> E {
         crate::try_read_sync(self.into_scalar_async())
             .expect(
             "Failed to read tensor data synchronously. This can happen on platforms
@@ -2630,7 +2620,7 @@ where
     /// # Returns
     ///
     /// The scalar value of the tensor.
-    pub fn try_into_scalar(self) -> Result<K::Elem, ExecutionError> {
+    pub fn try_into_scalar<E: Element>(self) -> Result<E, ExecutionError> {
         crate::try_read_sync(self.into_scalar_async()).expect(
             "Failed to read tensor data synchronously. This can happen on platforms
             that don't support blocking futures like WASM. Try into_scalar_async instead.",
@@ -2642,7 +2632,7 @@ where
     /// # Panics
     ///
     /// If the tensor doesn't have one element.
-    pub async fn into_scalar_async(self) -> Result<K::Elem, ExecutionError> {
+    pub async fn into_scalar_async<E: Element>(self) -> Result<E, ExecutionError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
 
         Ok(self.into_data_async().await?.iter().next().unwrap())
@@ -2676,7 +2666,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 1]
-    ///     let tensor = Tensor::< 2>::from_data([[1.], [2.], [3.]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[1.], [2.], [3.]], &device);
     ///     // Expand the tensor to a new shape [3, 4]
     ///     // [[1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 3.0]]
     ///     let expanded = tensor.expand([3, 4]);
@@ -2740,7 +2730,7 @@ where
 /// Iterator given by (Tensor::iter_dim).
 pub struct DimIter<const D: usize, K>
 where
-    K: Basic,
+    K: BasicOps,
 {
     start: usize,
     end: usize,
@@ -2749,7 +2739,7 @@ where
     tensor: Tensor<D, K>,
 }
 
-impl<const D: usize, K: Basic> Iterator for DimIter<D, K> {
+impl<const D: usize, K: BasicOps> Iterator for DimIter<D, K> {
     type Item = Tensor<D, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -2767,7 +2757,7 @@ impl<const D: usize, K: Basic> Iterator for DimIter<D, K> {
     }
 }
 
-impl<const D: usize, K: Basic> DoubleEndedIterator for DimIter<D, K> {
+impl<const D: usize, K: BasicOps> DoubleEndedIterator for DimIter<D, K> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start >= self.end {
             return None;
@@ -2783,7 +2773,7 @@ impl<const D: usize, K: Basic> DoubleEndedIterator for DimIter<D, K> {
     }
 }
 
-impl<const D: usize, K: Basic> DimIter<D, K> {
+impl<const D: usize, K: BasicOps> DimIter<D, K> {
     fn new(tensor: Tensor<D, K>, dim: usize) -> Self {
         let dims = tensor.dims();
         let ranges = dims
@@ -2849,7 +2839,7 @@ impl DataIterFmt {
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: Basic,
+    K: BasicOps,
 {
     #[inline]
     fn push_newline_indent(acc: &mut String, indent: usize) {
@@ -3048,7 +3038,7 @@ pub fn set_print_options(options: PrintOptions) {
 /// Pretty print tensors
 impl<const D: usize, K> core::fmt::Display for Tensor<D, K>
 where
-    K: Basic,
+    K: BasicOps,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
@@ -3213,8 +3203,7 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
 
 impl<const D: usize, K> Serialize for Tensor<D, K>
 where
-    K: Basic,
-    K::Elem: Debug + Copy + Serialize,
+    K: BasicOps,
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let data = self.to_data();
@@ -3224,8 +3213,7 @@ where
 
 impl<'de, const D: usize, K> Deserialize<'de> for Tensor<D, K>
 where
-    K: Basic,
-    K::Elem: Debug + Copy + Deserialize<'de>,
+    K: BasicOps,
 {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         let tensor = Tensor::from_data(TensorData::deserialize(deserializer)?, &Device::default());

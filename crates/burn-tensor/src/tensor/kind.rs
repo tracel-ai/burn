@@ -1,30 +1,49 @@
-use burn_dispatch::Dispatch;
+use burn_backend::{TensorMetadata, TensorPrimitive};
+use burn_dispatch::{Dispatch, DispatchTensor};
 
-use crate::bridge as backend;
-pub use crate::bridge::{Bool, Float, Int, TensorKind};
+/// A type-level representation of the kind of a float tensor
+#[derive(Clone, Debug)]
+pub struct Float;
 
-/// The base trait for any tensor kind.
-pub trait Basic: backend::BasicOps<Dispatch> {}
-impl<K: backend::BasicOps<Dispatch>> Basic for K {}
+/// A type-level representation of the kind of a int tensor.
+#[derive(Clone, Debug)]
+pub struct Int;
 
-/// Kinds that support numeric operations.
-pub trait Numeric: Basic + backend::Numeric<Dispatch> {}
-impl<K: Basic + backend::Numeric<Dispatch>> Numeric for K {}
+/// A type-level representation of the kind of a bool tensor.
+#[derive(Clone, Debug)]
+pub struct Bool;
 
-/// Kinds that support ordered operations.
-pub trait Ordered: Numeric + backend::Ordered<Dispatch> {}
-impl<K: Numeric + backend::Ordered<Dispatch>> Ordered for K {}
+/// A type-level representation of the kind of a tensor.
+/// Metadata access is lazy.
+pub trait TensorKind: Clone + core::fmt::Debug {
+    /// The primitive type of the tensor.
+    type Primitive: TensorMetadata;
 
-/// Kinds that support float math operations.
-pub trait FloatMath: Numeric + backend::FloatMathOps<Dispatch> {}
-impl<K: Numeric + backend::FloatMathOps<Dispatch>> FloatMath for K {}
+    /// The name of the tensor kind.
+    fn name() -> &'static str;
+}
 
-/// Kinds that support transaction operations.
-pub trait Transaction: Basic + backend::TransactionOp<Dispatch> {}
-impl<K: Basic + backend::TransactionOp<Dispatch>> Transaction for K {}
+impl TensorKind for Float {
+    type Primitive = FloatTensor;
+    fn name() -> &'static str {
+        "Float"
+    }
+}
 
-/// Kinds that support autodiff operations.
-// #[cfg(feature = "autodiff")]
-pub trait Autodiff: Basic + backend::BasicAutodiffOps<Dispatch> {}
-// #[cfg(feature = "autodiff")]
-impl<K: backend::BasicAutodiffOps<Dispatch, InnerKind = K>> Autodiff for K {}
+impl TensorKind for Int {
+    type Primitive = IntTensor;
+    fn name() -> &'static str {
+        "Int"
+    }
+}
+
+impl TensorKind for Bool {
+    type Primitive = BoolTensor;
+    fn name() -> &'static str {
+        "Bool"
+    }
+}
+
+pub(crate) type FloatTensor = TensorPrimitive<Dispatch>;
+pub(crate) type IntTensor = DispatchTensor;
+pub(crate) type BoolTensor = DispatchTensor;

@@ -4,11 +4,11 @@ use burn_tensor::TensorData;
 use burn_tensor::grid::{
     GridIndexing, GridOptions, GridSparsity, IndexPos, meshgrid, meshgrid_stack,
 };
-use burn_tensor::kind::Basic;
+use burn_tensor::ops::BasicOps;
 
 fn assert_tensors_equal<const N: usize, K>(actual: &[Tensor<N, K>; N], expected: &[Tensor<N, K>; N])
 where
-    K: Basic,
+    K: BasicOps,
 {
     for (a, e) in actual.iter().zip(expected.iter()) {
         a.clone()

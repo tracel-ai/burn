@@ -27,7 +27,7 @@ impl<const D: usize> Tensor<D, Float> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 1>::from_data([2.3, -1.7, 0.5, -0.5, 3.9], &device);
+    ///     let tensor = Tensor::<1>::from_data([2.3, -1.7, 0.5, -0.5, 3.9], &device);
     ///     let truncated = tensor.trunc();
     ///
     ///     // Result: [2.0, -1.0, 0.0, -0.0, 3.0]

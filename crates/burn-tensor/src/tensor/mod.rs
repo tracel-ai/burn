@@ -59,6 +59,7 @@ pub mod signal;
 
 /// Operations on tensors module.
 pub mod ops {
+    pub use crate::bridge::*;
     pub use burn_std::ops::*;
 }
 

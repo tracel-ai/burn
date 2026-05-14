@@ -1,5 +1,4 @@
 use super::*;
-use burn_tensor::cast::ToElement;
 
 #[test]
 fn is_nan() {
@@ -17,8 +16,8 @@ fn is_nan() {
 #[test]
 fn contains_nan() {
     let no_nan = TestTensor::<2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    assert!(!no_nan.contains_nan().into_scalar().to_bool());
+    assert!(!no_nan.contains_nan().into_scalar::<bool>());
 
     let with_nan = TestTensor::<2>::from([[0.0, f32::NAN, 2.0], [3.0, 4.0, 5.0]]);
-    assert!(with_nan.contains_nan().into_scalar().to_bool());
+    assert!(with_nan.contains_nan().into_scalar::<bool>());
 }

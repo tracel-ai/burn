@@ -1,8 +1,5 @@
-use crate::{
-    DType, Shape, Slice, Tensor,
-    cast::ToElement,
-    kind::{Basic, Ordered},
-};
+use crate::bridge::{BasicOps, Ordered};
+use crate::{DType, Shape, Slice, Tensor, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -42,7 +39,7 @@ pub(crate) enum TensorCheck {
 
 impl TensorCheck {
     /// Checks device and shape compatibility for element wise binary operations.
-    pub(crate) fn binary_ops_ew<const D: usize, K: Basic>(
+    pub(crate) fn binary_ops_ew<const D: usize, K: BasicOps>(
         ops: &str,
         lhs: &Tensor<D, K>,
         rhs: &Tensor<D, K>,
@@ -105,7 +102,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn narrow<const D: usize, K: Basic>(
+    pub(crate) fn narrow<const D: usize, K: BasicOps>(
         tensor: &Tensor<D, K>,
         dim: usize,
         start: usize,
@@ -431,7 +428,7 @@ impl TensorCheck {
             .clone()
             .greater_equal_elem(num_classes as i32)
             .any()
-            .into_scalar()
+            .into_scalar::<i64>()
             .to_bool()
         {
             check = check.register(
@@ -535,7 +532,7 @@ impl TensorCheck {
 
     pub(crate) fn matmul<const D: usize, K>(lhs: &Tensor<D, K>, rhs: &Tensor<D, K>) -> Self
     where
-        K: Basic,
+        K: BasicOps,
     {
         let mut check = Self::Ok;
 
@@ -574,7 +571,7 @@ impl TensorCheck {
         dim: usize,
     ) -> Self
     where
-        K: Basic,
+        K: BasicOps,
     {
         let mut check = Self::Ok;
 
@@ -624,7 +621,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn stack<const D1: usize, K: Basic, const D2: usize>(
+    pub(crate) fn stack<const D1: usize, K: BasicOps, const D2: usize>(
         tensors: &[Tensor<D1, K>],
         dim: usize,
     ) -> Self {
@@ -678,7 +675,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn cat<const D: usize, K: Basic>(tensors: &[Tensor<D, K>], dim: usize) -> Self {
+    pub(crate) fn cat<const D: usize, K: BasicOps>(tensors: &[Tensor<D, K>], dim: usize) -> Self {
         let mut check = Self::Ok;
 
         if dim >= D {

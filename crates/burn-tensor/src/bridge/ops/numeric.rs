@@ -1,16 +1,14 @@
+use burn_backend::{Distribution, Scalar};
 use burn_std::{DType, Shape};
 
-use crate::{BackendTypes, Distribution, Scalar, bridge::BasicOps, element::Element};
+use crate::{Device, bridge::BasicOps};
 
 /// Trait that list all operations that can be applied on all numerical tensors.
 ///
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait Numeric<B: BackendTypes>: BasicOps<B>
-where
-    Self::Elem: Element,
-{
+pub trait Numeric: BasicOps {
     /// Adds two tensors together.
     ///
     /// # Arguments
@@ -488,7 +486,7 @@ where
     fn random(
         shape: Shape,
         distribution: Distribution,
-        device: &B::Device,
+        device: &Device,
         dtype: DType,
     ) -> Self::Primitive;
 

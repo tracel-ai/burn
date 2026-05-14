@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 ///    use burn_tensor::{Shape, Tensor};
 ///    fn example() {
 ///        let device = Default::default();
-///        let result: Tensor<3, _> = Tensor::< 2, Int>::cartesian_grid([2, 3], &device);
+///        let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
 ///        println!("{}", result);
 ///    }
 /// ```
