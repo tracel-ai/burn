@@ -441,3 +441,51 @@ impl<const D: usize> Tensor<D, Bool> {
         Self::tri_mask(shape, TriPart::Diagonal, offset, device)
     }
 }
+
+// !tensor (bool only)
+impl<B, const D: usize> core::ops::Not for Tensor<B, D, Bool>
+where
+    B: Backend,
+{
+    type Output = Tensor<B, D, Bool>;
+
+    fn not(self) -> Self::Output {
+        self.bool_not()
+    }
+}
+
+// tensor & tensor (bool only)
+impl<B, const D: usize> core::ops::BitAnd for Tensor<B, D, Bool>
+where
+    B: Backend,
+{
+    type Output = Tensor<B, D, Bool>;
+
+    fn bitand(self, tensor: Tensor<B, D, Bool>) -> Self::Output {
+        self.bool_and(tensor)
+    }
+}
+
+// tensor | tensor (bool only)
+impl<B, const D: usize> core::ops::BitOr for Tensor<B, D, Bool>
+where
+    B: Backend,
+{
+    type Output = Tensor<B, D, Bool>;
+
+    fn bitor(self, tensor: Tensor<B, D, Bool>) -> Self::Output {
+        self.bool_or(tensor)
+    }
+}
+
+// tensor ^ tensor (bool only)
+impl<B, const D: usize> core::ops::BitXor for Tensor<B, D, Bool>
+where
+    B: Backend,
+{
+    type Output = Tensor<B, D, Bool>;
+
+    fn bitxor(self, tensor: Tensor<B, D, Bool>) -> Self::Output {
+        self.bool_xor(tensor)
+    }
+}
