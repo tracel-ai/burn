@@ -111,7 +111,7 @@ where
         core::mem::swap(&mut tensor_new, self);
     }
 
-    // TODO: feature gated for backend extensions?
+    // TODO: feature gated for backend extensions? Note that `Tensor::new(primitive)` also exists right now
     // The primitive kind will be opaque, but for these public extension feature-gated methods
     // we could return/use the dispatch tensor type.
     /// Converts the tensor into a primitive tensor.
