@@ -1,6 +1,8 @@
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricMetadata, SerializedEntry};
-use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry};
+use crate::metric::{
+    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
+};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 use core::marker::PhantomData;
@@ -28,9 +30,11 @@ pub enum BleuSmoothing {
     /// precisions. Corresponds to method 1 in Chen & Cherry (2014).
     AddEpsilon(f64),
 
-    /// Exponential decay: replace zero-count precision at order *k* with
-    /// `1 / 2^k`. Corresponds to method 3 in Chen & Cherry (2014) and the
-    /// default smoothing in SacreBLEU for sentence-level BLEU.
+    /// Exponential decay: for each n-gram order with zero matches, double a
+    /// running multiplier `k` (starting at 1 and doubling on every zero) and
+    /// replace the precision with `1 / (k * total_n)`. Corresponds to
+    /// method 3 in Chen & Cherry (2014) and the default smoothing in
+    /// SacreBLEU for sentence-level BLEU.
     Exponential,
 }
 
@@ -171,6 +175,9 @@ fn corpus_bleu(
     // Modified n-gram precisions (log-space)
     let mut log_avg = 0.0;
     let mut counted_orders = 0;
+    // Stateful multiplier for exponential smoothing (Chen & Cherry 2014, method 3;
+    // also used by SacreBLEU). Doubles on every n-gram order with zero matches.
+    let mut smooth_mult = 1.0_f64;
 
     for n in 0..max_n {
         let total = total_counts[n];
@@ -189,8 +196,8 @@ fn corpus_bleu(
                 BleuSmoothing::None => return 0.0,
                 BleuSmoothing::AddEpsilon(eps) => *eps / total as f64,
                 BleuSmoothing::Exponential => {
-                    let k = n + 1;
-                    1.0 / (1 << k) as f64 / total as f64
+                    smooth_mult *= 2.0;
+                    1.0 / (smooth_mult * total as f64)
                 }
             }
         } else {
@@ -373,8 +380,7 @@ mod tests {
     fn test_bleu_brevity_penalty() {
         let device = Default::default();
         let pad = 0_i64;
-        let mut metric = BleuScore::<TestBackend>::with_max_n(1)
-            .with_pad_token(pad as usize);
+        let mut metric = BleuScore::<TestBackend>::with_max_n(1).with_pad_token(pad as usize);
 
         // Candidate has 3 tokens, reference has 5 tokens.
         // Unigram precision = 3/3 = 1.0, BP = exp(1 - 5/3) ~= 0.5134
@@ -494,8 +500,8 @@ mod tests {
     #[test]
     fn test_bleu_exponential_smoothing() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::with_max_n(2)
-            .with_smoothing(BleuSmoothing::Exponential);
+        let mut metric =
+            BleuScore::<TestBackend>::with_max_n(2).with_smoothing(BleuSmoothing::Exponential);
 
         // Unigrams: {1,3,5,7,9} vs {1,2,3,4,5} — clipped = 2/5
         // Bigrams: {(1,3),(3,5),(5,7),(7,9)} vs {(1,2),(2,3),(3,4),(4,5)} — clipped = 0/4
@@ -504,19 +510,25 @@ mod tests {
 
         // Verify without smoothing this is 0.
         let mut metric_no_smooth = BleuScore::<TestBackend>::with_max_n(2);
-        metric_no_smooth.update(&BleuInput::new(preds.clone(), tgts.clone()), &MetricMetadata::fake());
+        metric_no_smooth.update(
+            &BleuInput::new(preds.clone(), tgts.clone()),
+            &MetricMetadata::fake(),
+        );
         assert_eq!(0.0, metric_no_smooth.value().current());
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!(metric.value().current() > 0.0, "smoothing should produce non-zero score");
+        assert!(
+            metric.value().current() > 0.0,
+            "smoothing should produce non-zero score"
+        );
     }
 
     /// Add-epsilon smoothing produces a non-zero score for zero-precision orders.
     #[test]
     fn test_bleu_add_epsilon_smoothing() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::with_max_n(2)
-            .with_smoothing(BleuSmoothing::AddEpsilon(0.1));
+        let mut metric =
+            BleuScore::<TestBackend>::with_max_n(2).with_smoothing(BleuSmoothing::AddEpsilon(0.1));
 
         // Unigrams: {1,3,5,7,9} vs {1,2,3,4,5} — clipped 2, total 5
         // Bigrams: {(1,3),(3,5),(5,7),(7,9)} vs {(1,2),(2,3),(3,4),(4,5)} — clipped 0, total 4
@@ -524,6 +536,9 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!(metric.value().current() > 0.0, "epsilon smoothing should produce non-zero score");
+        assert!(
+            metric.value().current() > 0.0,
+            "epsilon smoothing should produce non-zero score"
+        );
     }
 }
