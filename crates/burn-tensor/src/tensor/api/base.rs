@@ -111,6 +111,9 @@ where
         core::mem::swap(&mut tensor_new, self);
     }
 
+    // TODO: feature gated for backend extensions?
+    // The primitive kind will be opaque, but for these public extension feature-gated methods
+    // we could return/use the dispatch tensor type.
     /// Converts the tensor into a primitive tensor.
     pub fn into_primitive(self) -> K::Primitive {
         self.primitive

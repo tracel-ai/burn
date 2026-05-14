@@ -44,6 +44,7 @@ impl TensorKind for Bool {
     }
 }
 
+// Tensor primitive type aliases
 pub(crate) type FloatTensor = TensorPrimitive<Dispatch>;
 pub(crate) type IntTensor = DispatchTensor;
 pub(crate) type BoolTensor = DispatchTensor;
