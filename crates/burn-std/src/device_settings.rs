@@ -2,7 +2,7 @@
 
 use alloc::format;
 use alloc::string::String;
-use cubecl::backtrace::BackTrace;
+use cubecl_common::backtrace::BackTrace;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
