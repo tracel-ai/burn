@@ -7,6 +7,7 @@ use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
 
+#[cfg(feature = "autodiff")]
 type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
 
 /// Gradients container used during the backward pass.
