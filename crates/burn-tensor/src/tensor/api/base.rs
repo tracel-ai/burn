@@ -2598,7 +2598,7 @@ where
     ///     let device = Default::default();
     ///     let tensor = Tensor::<2>::from_data([[3.0]], &device);
     ///     // Convert the tensor with a single element into a scalar.
-    ///     let scalar = tensor.into_scalar();
+    ///     let scalar: f32 = tensor.into_scalar();
     ///     println!("{scalar}");
     /// }
     /// ```
