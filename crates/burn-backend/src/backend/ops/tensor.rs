@@ -1766,11 +1766,10 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
         dim: usize,
         descending: bool,
-        _out_dtype: IntDType,
+        out_dtype: IntDType,
     ) -> IntTensor<B> {
-        let dtype = tensor.dtype();
         let device = B::float_device(&tensor);
-        argsort::<B, _, _>(tensor, dim, descending, dtype.into(), device, |tensor| {
+        argsort::<B, _, _>(tensor, dim, descending, out_dtype, device, |tensor| {
             let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
             try_read_sync(B::float_into_data(tensor))
                 .expect(msg)
