@@ -1,3 +1,5 @@
+use alloc::{vec, vec::Vec};
+
 use crate::Autodiff;
 use crate::checkpoint::base::Checkpointer;
 use crate::checkpoint::strategy::CheckpointStrategy;
@@ -7,9 +9,11 @@ use crate::ops::{Backward, Ops, unary};
 use crate::tensor::AutodiffTensor;
 
 use burn_backend::Backend;
+use burn_backend::TensorMetadata;
 use burn_backend::ops::attention::attention_fallback;
 use burn_backend::ops::*;
 use burn_backend::tensor::{FloatTensor, IntTensor};
+use burn_std::Slice;
 
 use super::OpsKind;
 
@@ -1973,21 +1977,153 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     }
 
     fn rfft(
-        _signal: FloatTensor<Autodiff<B, C>>,
-        _dim: usize,
-        _n: Option<usize>,
+        signal: FloatTensor<Autodiff<B, C>>,
+        dim: usize,
+        n: Option<usize>,
     ) -> (FloatTensor<Autodiff<B, C>>, FloatTensor<Autodiff<B, C>>) {
-        todo!("rfft not yet supported for autodiff")
+        #[derive(Debug)]
+        struct Rfft;
+
+        impl<B: Backend> Backward<B, 1> for Rfft {
+            type State = (usize, Option<usize>, usize, Vec<Slice>, Vec<Slice>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    let (dim, n, n_fft, slices_re, slices_im) = ops.state;
+
+                    let grad_re = B::float_slice(grad.clone(), &slices_re);
+                    let grad_im = B::float_slice(grad.clone(), &slices_im);
+
+                    let grad_re = mul_interior::<B>(grad_re, dim, n_fft, 0.5);
+                    let grad_im = mul_interior::<B>(grad_im, dim, n_fft, 0.5);
+
+                    let grad = B::irfft(grad_re, grad_im, dim, n);
+
+                    B::float_mul_scalar(grad, (n_fft as f64).into())
+                });
+            }
+        }
+
+        let n_fft = n.unwrap_or(signal.shape()[dim]);
+        let (re, im) = B::rfft(signal.primitive, dim, n);
+
+        // In order to perform only a single irfft in the backward pass, we have to temporarily
+        // bundle `re` and `im` into a single tensor. The following slice vecs are used to split
+        // them back up in both the forward and the backward pass.
+        let slices_re = re
+            .shape()
+            .iter()
+            .map(|&len| Slice::from(0..len))
+            .collect::<Vec<Slice>>();
+        let slices_im = {
+            let mut slices = slices_re.clone();
+            let len = slices[0].end.unwrap();
+            slices[0].start = len;
+            slices[0].end = Some(2 * len);
+            slices
+        };
+        let spectrum = B::float_cat(vec![re, im], 0);
+        let state = (dim, n, n_fft, slices_re.clone(), slices_im.clone());
+
+        let spectrum = match Rfft
+            .prepare::<C>([signal.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(state, spectrum),
+            OpsKind::UnTracked(prep) => prep.finish(spectrum),
+        };
+
+        let re = Self::float_slice(spectrum.clone(), &slices_re);
+        let im = Self::float_slice(spectrum.clone(), &slices_im);
+
+        (re, im)
     }
 
     fn irfft(
-        _spectrum_re: FloatTensor<Autodiff<B, C>>,
-        _spectrum_im: FloatTensor<Autodiff<B, C>>,
-        _dim: usize,
-        _n: Option<usize>,
+        spectrum_re: FloatTensor<Autodiff<B, C>>,
+        spectrum_im: FloatTensor<Autodiff<B, C>>,
+        dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<Autodiff<B, C>> {
-        todo!("irfft not yet supported for autodiff")
+        #[derive(Debug)]
+        struct Irfft;
+
+        impl<B: Backend> Backward<B, 2> for Irfft {
+            type State = (usize, Option<usize>, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (dim, n, n_fft) = ops.state;
+                let [node_re, node_im] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let grad = B::float_div_scalar(grad, (n_fft as f64).into());
+
+                let (grad_re, grad_im) = B::rfft(grad, dim, n);
+
+                let grad_re = mul_interior::<B>(grad_re, dim, n_fft, 2.0);
+                let grad_im = mul_interior::<B>(grad_im, dim, n_fft, 2.0);
+
+                if let Some(node) = node_re {
+                    grads.register::<B>(node.id, grad_re);
+                }
+                if let Some(node) = node_im {
+                    grads.register::<B>(node.id, grad_im);
+                }
+            }
+        }
+
+        let signal = B::irfft(spectrum_re.primitive, spectrum_im.primitive, dim, n);
+        let n_fft = n.unwrap_or(signal.shape()[dim]);
+        let state = (dim, n, n_fft);
+
+        match Irfft
+            .prepare::<C>([spectrum_re.node.clone(), spectrum_im.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(state, signal),
+            OpsKind::UnTracked(prep) => prep.finish(signal),
+        }
     }
+}
+
+fn mul_interior<B: Backend>(
+    bins: FloatTensor<B>,
+    dim: usize,
+    n_fft: usize,
+    factor: f64,
+) -> FloatTensor<B> {
+    // identify the interior bins (all bins except DC and Nyquist)
+    let slices_interior: Vec<Slice> = {
+        let mut ranges = bins.shape().into_ranges();
+
+        // skip the DC bin
+        ranges[dim].start += 1;
+
+        // if `n_fft` is even, we have a Nyquist bin to skip
+        if n_fft.is_multiple_of(2) {
+            ranges[dim].end -= 1;
+        }
+
+        ranges.into_iter().map(Slice::from).collect()
+    };
+
+    // multiply only the interior bins by `factor`
+    let interior = B::float_slice(bins.clone(), &slices_interior);
+    let interior = B::float_mul_scalar(interior, factor.into());
+
+    B::float_slice_assign(bins, &slices_interior, interior)
 }
 
 #[derive(Debug)]

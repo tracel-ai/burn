@@ -63,6 +63,7 @@ mod relu;
 mod remainder;
 mod repeat_dim;
 mod reshape;
+mod rfft;
 mod round;
 mod select;
 mod sigmoid;
