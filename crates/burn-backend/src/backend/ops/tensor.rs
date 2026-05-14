@@ -1729,15 +1729,14 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
         dim: usize,
         descending: bool,
-        _indices_dtype: IntDType,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<B>, IntTensor<B>) {
-        let dtype = tensor.dtype();
         let device = B::float_device(&tensor);
         sort_with_indices::<B, _, _, _>(
             tensor,
             dim,
             descending,
-            dtype.into(),
+            indices_dtype,
             device,
             |tensor| {
                 let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
