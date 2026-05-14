@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use burn_backend::{TensorMetadata, TensorPrimitive};
 use burn_dispatch::{Dispatch, DispatchTensor};
 
@@ -15,7 +16,7 @@ pub struct Bool;
 
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
-pub trait TensorKind: Clone + core::fmt::Debug {
+pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
     /// The name of the tensor kind.
     fn name() -> &'static str;
 }
@@ -85,6 +86,7 @@ impl PrimitiveKind {
         }
     }
 
+    #[cfg(feature = "autodiff")]
     pub(crate) fn as_float(&self) -> &DispatchTensor {
         match self {
             PrimitiveKind::Float(tensor) => tensor,
