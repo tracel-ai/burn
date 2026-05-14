@@ -3,9 +3,7 @@ use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{
     Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
 };
-use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
-use core::marker::PhantomData;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -69,31 +67,30 @@ pub enum BleuSmoothing {
 /// Chen & Cherry, "A Systematic Comparison of Smoothing Techniques for
 /// Sentence-Level BLEU", WMT 2014.
 #[derive(Clone)]
-pub struct BleuScore<B: Backend> {
+pub struct BleuScore {
     name: MetricName,
     state: NumericMetricState,
     max_n: usize,
     pad_token: Option<usize>,
     smoothing: BleuSmoothing,
-    _b: PhantomData<B>,
 }
 
 /// The [BLEU score metric](BleuScore) input type.
 #[derive(new)]
-pub struct BleuInput<B: Backend> {
+pub struct BleuInput {
     /// The predicted token sequences (2-D tensor of token indices).
-    pub outputs: Tensor<B, 2, Int>,
+    pub outputs: Tensor<2, Int>,
     /// The reference token sequences (2-D tensor of token indices).
-    pub targets: Tensor<B, 2, Int>,
+    pub targets: Tensor<2, Int>,
 }
 
-impl<B: Backend> Default for BleuScore<B> {
+impl Default for BleuScore {
     fn default() -> Self {
         Self::with_max_n(4)
     }
 }
 
-impl<B: Backend> BleuScore<B> {
+impl BleuScore {
     /// Creates a BLEU metric with the given maximum n-gram order.
     ///
     /// Common values: 1 (BLEU-1), 2 (BLEU-2), 4 (BLEU-4).
@@ -109,7 +106,6 @@ impl<B: Backend> BleuScore<B> {
             max_n,
             pad_token: None,
             smoothing: BleuSmoothing::default(),
-            _b: PhantomData,
         }
     }
 
@@ -216,10 +212,10 @@ fn corpus_bleu(
     score * 100.0
 }
 
-impl<B: Backend> Metric for BleuScore<B> {
-    type Input = BleuInput<B>;
+impl Metric for BleuScore {
+    type Input = BleuInput;
 
-    fn update(&mut self, input: &BleuInput<B>, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(&mut self, input: &BleuInput, _metadata: &MetricMetadata) -> SerializedEntry {
         let outputs = &input.outputs;
         let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
@@ -316,7 +312,7 @@ impl<B: Backend> Metric for BleuScore<B> {
     }
 }
 
-impl<B: Backend> Numeric for BleuScore<B> {
+impl Numeric for BleuScore {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
@@ -329,13 +325,12 @@ impl<B: Backend> Numeric for BleuScore<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
 
     /// Perfect match => BLEU = 100 %.
     #[test]
     fn test_bleu_perfect_match() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::new();
+        let mut metric = BleuScore::new();
 
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
@@ -349,7 +344,7 @@ mod tests {
     #[test]
     fn test_bleu_no_match() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::new();
+        let mut metric = BleuScore::new();
 
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[6, 7, 8, 9, 10]], &device);
@@ -363,7 +358,7 @@ mod tests {
     #[test]
     fn test_bleu1_partial_match() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::with_max_n(1);
+        let mut metric = BleuScore::with_max_n(1);
 
         // 3 out of 5 unigrams match, same length so BP = 1
         let preds = Tensor::from_data([[1, 2, 3, 6, 7]], &device);
@@ -380,7 +375,7 @@ mod tests {
     fn test_bleu_brevity_penalty() {
         let device = Default::default();
         let pad = 0_i64;
-        let mut metric = BleuScore::<TestBackend>::with_max_n(1).with_pad_token(pad as usize);
+        let mut metric = BleuScore::with_max_n(1).with_pad_token(pad as usize);
 
         // Candidate has 3 tokens, reference has 5 tokens.
         // Unigram precision = 3/3 = 1.0, BP = exp(1 - 5/3) ~= 0.5134
@@ -398,7 +393,7 @@ mod tests {
     fn test_bleu_with_padding() {
         let device = Default::default();
         let pad = 99_i64;
-        let mut metric = BleuScore::<TestBackend>::new().with_pad_token(pad as usize);
+        let mut metric = BleuScore::new().with_pad_token(pad as usize);
 
         // Same non-pad content => should be 100%
         let preds = Tensor::from_data([[1, 2, 3, 4, 5, pad, pad]], &device);
@@ -413,7 +408,7 @@ mod tests {
     #[test]
     fn test_bleu_batch_corpus_style() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::with_max_n(1);
+        let mut metric = BleuScore::with_max_n(1);
 
         // Sequence 1: perfect match [1,2,3,4,5]
         // Sequence 2: no match [6,7,8,9,10] vs [11,12,13,14,15]
@@ -432,7 +427,7 @@ mod tests {
     #[test]
     fn test_clear_resets_state() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::new();
+        let mut metric = BleuScore::new();
 
         let preds = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
@@ -448,7 +443,7 @@ mod tests {
     #[test]
     fn test_bleu2_bigrams() {
         let device = Default::default();
-        let mut metric = BleuScore::<TestBackend>::with_max_n(2);
+        let mut metric = BleuScore::with_max_n(2);
 
         // Candidate: [1, 2, 3, 4]  Reference: [1, 2, 5, 6]
         // Unigrams: candidate {1,2,3,4}, reference {1,2,5,6}
@@ -469,14 +464,14 @@ mod tests {
     /// BLEU with custom name reflects max_n.
     #[test]
     fn test_bleu_custom_name() {
-        let metric = BleuScore::<crate::TestBackend>::with_max_n(2);
+        let metric = BleuScore::with_max_n(2);
         assert_eq!(*metric.name(), "BLEU-2");
     }
 
     /// Default name is BLEU-4.
     #[test]
     fn test_bleu_default_name() {
-        let metric = BleuScore::<crate::TestBackend>::new();
+        let metric = BleuScore::new();
         assert_eq!(*metric.name(), "BLEU-4");
     }
 
@@ -486,7 +481,7 @@ mod tests {
     fn test_bleu_short_candidate_no_smoothing() {
         let device = Default::default();
         let pad = 0_i64;
-        let mut metric = BleuScore::<TestBackend>::new().with_pad_token(pad as usize);
+        let mut metric = BleuScore::new().with_pad_token(pad as usize);
 
         // Only 3 tokens — no 4-grams exist, score must be 0.
         let preds = Tensor::from_data([[1, 2, 3, pad, pad]], &device);
@@ -501,7 +496,7 @@ mod tests {
     fn test_bleu_exponential_smoothing() {
         let device = Default::default();
         let mut metric =
-            BleuScore::<TestBackend>::with_max_n(2).with_smoothing(BleuSmoothing::Exponential);
+            BleuScore::with_max_n(2).with_smoothing(BleuSmoothing::Exponential);
 
         // Unigrams: {1,3,5,7,9} vs {1,2,3,4,5} — clipped = 2/5
         // Bigrams: {(1,3),(3,5),(5,7),(7,9)} vs {(1,2),(2,3),(3,4),(4,5)} — clipped = 0/4
@@ -509,7 +504,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
         // Verify without smoothing this is 0.
-        let mut metric_no_smooth = BleuScore::<TestBackend>::with_max_n(2);
+        let mut metric_no_smooth = BleuScore::with_max_n(2);
         metric_no_smooth.update(
             &BleuInput::new(preds.clone(), tgts.clone()),
             &MetricMetadata::fake(),
@@ -528,7 +523,7 @@ mod tests {
     fn test_bleu_add_epsilon_smoothing() {
         let device = Default::default();
         let mut metric =
-            BleuScore::<TestBackend>::with_max_n(2).with_smoothing(BleuSmoothing::AddEpsilon(0.1));
+            BleuScore::with_max_n(2).with_smoothing(BleuSmoothing::AddEpsilon(0.1));
 
         // Unigrams: {1,3,5,7,9} vs {1,2,3,4,5} — clipped 2, total 5
         // Bigrams: {(1,3),(3,5),(5,7),(7,9)} vs {(1,2),(2,3),(3,4),(4,5)} — clipped 0, total 4
