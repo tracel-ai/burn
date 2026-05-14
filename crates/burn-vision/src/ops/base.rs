@@ -159,26 +159,51 @@ impl Default for NmsOptions {
 }
 
 #[cfg(feature = "flex")]
-use burn_flex::Flex;
+use burn_core::backend::Flex;
 
-#[cfg(feature = "wgpu")]
-use burn_wgpu::Wgpu;
+#[cfg(feature = "webgpu")]
+use burn_core::backend::Wgpu;
+
+#[cfg(feature = "vulkan")]
+use burn_core::backend::Vulkan;
+
+#[cfg(feature = "metal")]
+use burn_core::backend::Metal;
 
 #[cfg(feature = "cuda")]
-use burn_cuda::Cuda;
+use burn_core::backend::Cuda;
+
+#[cfg(feature = "rocm")]
+use burn_core::backend::Rocm;
+
+#[cfg(feature = "cpu")]
+use burn_core::backend::Cpu;
+
+#[cfg(feature = "tch")]
+use burn_core::backend::LibTorch;
 
 /// Vision capable backend, implemented by each backend
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
+    Wgpu: cfg(feature = "webgpu"),
+    Vulkan: cfg(feature = "vulkan"),
+    Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
+    Rocm: cfg(feature = "rocm"),
+    Cpu: cfg(feature = "cpu"),
+    LibTorch: cfg(feature = "tch"),
 )]
 pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps {}
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
+    Wgpu: cfg(feature = "webgpu"),
+    Vulkan: cfg(feature = "vulkan"),
+    Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
+    Rocm: cfg(feature = "rocm"),
+    Cpu: cfg(feature = "cpu"),
+    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on bool tensors
 pub trait BoolVisionOps: Backend {
@@ -262,8 +287,13 @@ pub trait BoolVisionOps: Backend {
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
+    Wgpu: cfg(feature = "webgpu"),
+    Vulkan: cfg(feature = "vulkan"),
+    Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
+    Rocm: cfg(feature = "rocm"),
+    Cpu: cfg(feature = "cpu"),
+    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on int tensors
 pub trait IntVisionOps: Backend {
@@ -296,8 +326,13 @@ pub trait IntVisionOps: Backend {
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "wgpu"),
+    Wgpu: cfg(feature = "webgpu"),
+    Vulkan: cfg(feature = "vulkan"),
+    Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
+    Rocm: cfg(feature = "rocm"),
+    Cpu: cfg(feature = "cpu"),
+    LibTorch: cfg(feature = "tch"),
 )]
 /// Vision ops on float tensors
 pub trait FloatVisionOps: Backend {
