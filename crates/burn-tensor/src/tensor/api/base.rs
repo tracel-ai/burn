@@ -1,6 +1,7 @@
 #![allow(clippy::single_range_in_vec_init)]
 use crate::check::unwrap_shape_reshape;
 use crate::kind::Basic;
+use crate::ops::TensorKind;
 
 use burn_backend::Scalar;
 
@@ -17,9 +18,7 @@ use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
 use crate::{AsIndex, Device, Slice, SliceArg, wrap_index};
-use crate::{
-    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorMetadata, check, ops::TensorKind,
-};
+use crate::{Bool, ElementConversion, Float, Int, Shape, TensorData, TensorMetadata, check};
 use crate::{DType, Element};
 use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
@@ -75,7 +74,6 @@ pub struct Tensor<const D: usize, K = Float>
 where
     K: Basic,
 {
-    // TODO: float tensor primitive no longer needs to be a wrapped enum?
     pub(crate) primitive: <K as TensorKind>::Primitive,
 }
 

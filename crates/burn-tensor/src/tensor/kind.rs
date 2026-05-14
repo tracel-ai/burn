@@ -1,4 +1,4 @@
-pub use crate::ops::{Bool, Float, Int};
+pub use crate::bridge::{Bool, Float, Int};
 
 /// The base trait for any tensor kind.
 pub trait Basic: crate::ops::BasicOps {}

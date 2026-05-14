@@ -155,7 +155,7 @@ impl Applier {
         target_shape: Shape,
     ) -> Option<Tensor<D, K>>
     where
-        K: burn_core::tensor::ops::BasicOps,
+        K: burn_core::tensor::kind::Basic,
     {
         let path = self.current_path();
         let container_stack_str = self.container_stack.join(".");
