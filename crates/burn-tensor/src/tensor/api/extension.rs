@@ -30,7 +30,7 @@ where
     /// # Panics
     ///
     /// Panics if the [`BridgeTensor`] variant does not match the tensor kind `K`
-    /// (e.g. passing [`BridgeTensor::Int`] when `K` is [`Float`]).
+    /// (e.g. passing [`BridgeTensor::Int`] when `K` is [`Float`](crate::Float).
     pub fn from_bridge(tensor: BridgeTensor) -> Self {
         let dtype = tensor.dtype();
         match (&tensor, K::id()) {
