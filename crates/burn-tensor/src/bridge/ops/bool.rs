@@ -66,11 +66,7 @@ impl BasicOps for Bool {
         BridgeTensor::Bool(Dispatch::bool_slice(tensor.into(), slices))
     }
 
-    fn slice_assign(
-        tensor: BridgeTensor,
-        slices: &[Slice],
-        value: BridgeTensor,
-    ) -> BridgeTensor {
+    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
         BridgeTensor::Bool(Dispatch::bool_slice_assign(
             tensor.into(),
             slices,
@@ -100,11 +96,7 @@ impl BasicOps for Bool {
         }
     }
 
-    fn mask_where(
-        tensor: BridgeTensor,
-        mask: BridgeTensor,
-        source: BridgeTensor,
-    ) -> BridgeTensor {
+    fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
         BridgeTensor::Bool(Dispatch::bool_mask_where(
             tensor.into(),
             mask.into(),

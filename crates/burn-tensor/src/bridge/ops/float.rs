@@ -103,18 +103,12 @@ impl BasicOps for Float {
             BridgeTensor::Float(tensor) => {
                 BridgeTensor::Float(Dispatch::float_slice(tensor, slices))
             }
-            BridgeTensor::QFloat(tensor) => {
-                BridgeTensor::QFloat(Dispatch::q_slice(tensor, slices))
-            }
+            BridgeTensor::QFloat(tensor) => BridgeTensor::QFloat(Dispatch::q_slice(tensor, slices)),
             _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn slice_assign(
-        tensor: BridgeTensor,
-        slices: &[Slice],
-        value: BridgeTensor,
-    ) -> BridgeTensor {
+    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
         BridgeTensor::Float(Dispatch::float_slice_assign(
             tensor.into_float(),
             slices,
@@ -153,11 +147,7 @@ impl BasicOps for Float {
         }
     }
 
-    fn mask_where(
-        tensor: BridgeTensor,
-        mask: BridgeTensor,
-        source: BridgeTensor,
-    ) -> BridgeTensor {
+    fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
         BridgeTensor::Float(Dispatch::float_mask_where(
             tensor.into_float(),
             mask.into(),
@@ -342,9 +332,7 @@ impl BasicOps for Float {
             BridgeTensor::Float(tensor) => {
                 BridgeTensor::Float(Dispatch::float_permute(tensor, axes))
             }
-            BridgeTensor::QFloat(tensor) => {
-                BridgeTensor::QFloat(Dispatch::q_permute(tensor, axes))
-            }
+            BridgeTensor::QFloat(tensor) => BridgeTensor::QFloat(Dispatch::q_permute(tensor, axes)),
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -355,9 +343,7 @@ impl BasicOps for Float {
 
     fn flip(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
         match tensor {
-            BridgeTensor::Float(tensor) => {
-                BridgeTensor::Float(Dispatch::float_flip(tensor, axes))
-            }
+            BridgeTensor::Float(tensor) => BridgeTensor::Float(Dispatch::float_flip(tensor, axes)),
             BridgeTensor::QFloat(tensor) => BridgeTensor::QFloat(Dispatch::q_flip(tensor, axes)),
             _ => panic!("Should be Float primitive kind"),
         }
@@ -523,9 +509,7 @@ impl Numeric for Float {
 
     fn cumsum(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
         match tensor {
-            BridgeTensor::Float(tensor) => {
-                BridgeTensor::Float(Dispatch::float_cumsum(tensor, dim))
-            }
+            BridgeTensor::Float(tensor) => BridgeTensor::Float(Dispatch::float_cumsum(tensor, dim)),
             BridgeTensor::QFloat(tensor) => match Dispatch::q_cumsum(tensor, dim) {
                 TensorPrimitive::Float(out) => BridgeTensor::Float(out),
                 TensorPrimitive::QFloat(out) => BridgeTensor::QFloat(out),
@@ -561,9 +545,7 @@ impl Numeric for Float {
 
     fn powi_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         match lhs {
-            BridgeTensor::Float(lhs) => {
-                BridgeTensor::Float(Dispatch::float_powi_scalar(lhs, rhs))
-            }
+            BridgeTensor::Float(lhs) => BridgeTensor::Float(Dispatch::float_powi_scalar(lhs, rhs)),
             BridgeTensor::QFloat(lhs) => match Dispatch::q_powi_scalar(lhs, rhs) {
                 TensorPrimitive::Float(out) => BridgeTensor::Float(out),
                 TensorPrimitive::QFloat(out) => BridgeTensor::QFloat(out),
@@ -678,9 +660,7 @@ impl Ordered for Float {
 
     fn cummin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
         match tensor {
-            BridgeTensor::Float(tensor) => {
-                BridgeTensor::Float(Dispatch::float_cummin(tensor, dim))
-            }
+            BridgeTensor::Float(tensor) => BridgeTensor::Float(Dispatch::float_cummin(tensor, dim)),
             BridgeTensor::QFloat(tensor) => match Dispatch::q_cummin(tensor, dim) {
                 TensorPrimitive::Float(out) => BridgeTensor::Float(out),
                 TensorPrimitive::QFloat(out) => BridgeTensor::QFloat(out),
@@ -691,9 +671,7 @@ impl Ordered for Float {
 
     fn cummax(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
         match tensor {
-            BridgeTensor::Float(tensor) => {
-                BridgeTensor::Float(Dispatch::float_cummax(tensor, dim))
-            }
+            BridgeTensor::Float(tensor) => BridgeTensor::Float(Dispatch::float_cummax(tensor, dim)),
             BridgeTensor::QFloat(tensor) => match Dispatch::q_cummax(tensor, dim) {
                 TensorPrimitive::Float(out) => BridgeTensor::Float(out),
                 TensorPrimitive::QFloat(out) => BridgeTensor::QFloat(out),
@@ -813,9 +791,7 @@ impl Ordered for Float {
             BridgeTensor::Float(tensor) => {
                 BridgeTensor::Float(Dispatch::float_max_dim(tensor, dim))
             }
-            BridgeTensor::QFloat(tensor) => {
-                BridgeTensor::QFloat(Dispatch::q_max_dim(tensor, dim))
-            }
+            BridgeTensor::QFloat(tensor) => BridgeTensor::QFloat(Dispatch::q_max_dim(tensor, dim)),
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -825,9 +801,7 @@ impl Ordered for Float {
             BridgeTensor::Float(tensor) => {
                 BridgeTensor::Float(Dispatch::float_topk(tensor, dim, k))
             }
-            BridgeTensor::QFloat(tensor) => {
-                BridgeTensor::QFloat(Dispatch::q_topk(tensor, dim, k))
-            }
+            BridgeTensor::QFloat(tensor) => BridgeTensor::QFloat(Dispatch::q_topk(tensor, dim, k)),
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -862,9 +836,7 @@ impl Ordered for Float {
             BridgeTensor::Float(tensor) => {
                 BridgeTensor::Float(Dispatch::float_min_dim(tensor, dim))
             }
-            BridgeTensor::QFloat(tensor) => {
-                BridgeTensor::QFloat(Dispatch::q_min_dim(tensor, dim))
-            }
+            BridgeTensor::QFloat(tensor) => BridgeTensor::QFloat(Dispatch::q_min_dim(tensor, dim)),
             _ => panic!("Should be Float primitive kind"),
         }
     }

@@ -229,8 +229,7 @@ pub(crate) trait BasicOps: TensorKind {
     ///
     /// For assigning values to elements of a tensor, users should prefer the [`Tensor::slice_assign`](crate::Tensor::slice_assign)
     /// function, which is more high-level and designed for public use.
-    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor)
-    -> BridgeTensor;
+    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor;
 
     /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
@@ -310,11 +309,7 @@ pub(crate) trait BasicOps: TensorKind {
     ///
     /// For selecting elements from a tensor based on a boolean mask, users should prefer the [`Tensor::mask_where`](crate::Tensor::mask_where)
     /// function, which is more high-level and designed for public use.
-    fn mask_where(
-        tensor: BridgeTensor,
-        mask: BridgeTensor,
-        source: BridgeTensor,
-    ) -> BridgeTensor;
+    fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor;
 
     /// Fills elements of a tensor based on a boolean mask.
     ///

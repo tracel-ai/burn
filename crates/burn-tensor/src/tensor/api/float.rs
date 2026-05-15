@@ -782,9 +782,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         let rhs = Scalar::new(other, &self.dtype());
 
         let primitive = match self.primitive {
-            BridgeTensor::Float(lhs) => {
-                BridgeTensor::Float(Dispatch::float_powf_scalar(lhs, rhs))
-            }
+            BridgeTensor::Float(lhs) => BridgeTensor::Float(Dispatch::float_powf_scalar(lhs, rhs)),
             BridgeTensor::QFloat(lhs) => match Dispatch::q_powf_scalar(lhs, rhs) {
                 TensorPrimitive::Float(out) => BridgeTensor::Float(out),
                 TensorPrimitive::QFloat(out) => BridgeTensor::QFloat(out),

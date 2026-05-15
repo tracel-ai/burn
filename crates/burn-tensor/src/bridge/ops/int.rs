@@ -54,11 +54,7 @@ impl BasicOps for Int {
         BridgeTensor::Int(Dispatch::int_slice(tensor.into(), slices))
     }
 
-    fn slice_assign(
-        tensor: BridgeTensor,
-        slices: &[Slice],
-        value: BridgeTensor,
-    ) -> BridgeTensor {
+    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
         BridgeTensor::Int(Dispatch::int_slice_assign(
             tensor.into(),
             slices,
@@ -88,11 +84,7 @@ impl BasicOps for Int {
         }
     }
 
-    fn mask_where(
-        tensor: BridgeTensor,
-        mask: BridgeTensor,
-        source: BridgeTensor,
-    ) -> BridgeTensor {
+    fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
         BridgeTensor::Int(Dispatch::int_mask_where(
             tensor.into(),
             mask.into(),
