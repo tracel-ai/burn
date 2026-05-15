@@ -303,7 +303,7 @@ where
     ///     let device = Default::default();
     ///     let indices: Tensor<2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
     ///     // One-hot encoding
-    ///     let tensor:Tensor<3, Float> = indices.one_hot_fill(3, 5.0.into(), 0.0.into(), -1);
+    ///     let tensor: Tensor<3, Float> = indices.one_hot_fill(3, 5.0.into(), 0.0.into(), -1);
     ///     println!("{tensor}");
     ///     // [[[5.0, 0.0, 0.0],
     ///     // [0.0, 0.0, 5.0]],
