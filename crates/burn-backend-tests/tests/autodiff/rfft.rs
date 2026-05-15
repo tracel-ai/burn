@@ -4,6 +4,7 @@ use burn_tensor::Tolerance;
 use burn_tensor::signal;
 
 #[test]
+#[cfg(not(any(feature = "ndarray", feature = "candle")))]
 fn should_diff_rfft() {
     let device = AutodiffDevice::new();
 
@@ -29,6 +30,7 @@ fn should_diff_rfft() {
 }
 
 #[test]
+#[cfg(not(any(feature = "ndarray", feature = "candle")))]
 fn round_trip() {
     let device = AutodiffDevice::new();
 
@@ -45,6 +47,30 @@ fn round_trip() {
     let loss = x.powi_scalar(2).sum() * 0.5;
     let grads = loss.backward();
     let grad = tensor.grad(&grads).unwrap();
+
+    TensorData::assert_approx_eq::<FloatElem>(&grad.to_data(), &random, Tolerance::default());
+}
+
+#[test]
+#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+fn round_trip_with_dim_nonzero() {
+    let device = AutodiffDevice::new();
+
+    let random = TensorData::from([
+        0.26, 0.13, 0.36, 0.24, 0.40, 0.93, 0.12, 0.18, 0.03, 0.74, 0.33, 0.70, 0.07, 0.61, 0.32,
+        0.66,
+    ]);
+
+    let tensor = TestTensor::<1>::from_data(random.clone(), &device);
+    let tensor = tensor.reshape([1, 1, -1, 1, 1]).require_grad();
+
+    let y = signal::rfft(tensor.clone() * 3.0, 2, None);
+    let x = signal::irfft(y.0 * 2.0, y.1 * 2.0, 2, None) / 6.0;
+
+    let loss = x.powi_scalar(2).sum() * 0.5;
+    let grads = loss.backward();
+    let grad = tensor.grad(&grads).unwrap();
+    let grad = grad.reshape([-1]);
 
     TensorData::assert_approx_eq::<FloatElem>(&grad.to_data(), &random, Tolerance::default());
 }
