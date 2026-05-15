@@ -167,6 +167,7 @@ fn evaluate(
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
         .renderer(renderer)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .with_progress_logger(FileProgressLogger::new("./eval_progress.log"))
         .summary()
         .build(model);
 
