@@ -55,10 +55,8 @@ impl Display for StreamAnalyses {
                 "  - {} => operations: {} cursor: {}\n",
                 id, analysis.num_operations, analysis.cursor
             ))?;
-            for (tid, (origin, status)) in analysis.variables.iter() {
-                f.write_fmt(format_args!(
-                    "   - {tid} => origin: {origin} status: {status:?}\n",
-                ))?;
+            for (tid, status) in analysis.variables.iter() {
+                f.write_fmt(format_args!("   - {tid} => status: {status:?}\n"))?;
             }
         }
 
@@ -68,7 +66,7 @@ impl Display for StreamAnalyses {
 
 #[derive(Default, Debug)]
 struct Analysis {
-    variables: HashMap<TensorId, (StreamId, TensorStatus)>,
+    variables: HashMap<TensorId, TensorStatus>,
     num_operations: usize,
     cursor: u64,
 }

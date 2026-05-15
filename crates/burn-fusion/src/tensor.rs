@@ -1,6 +1,6 @@
 use crate::{
     Client, FusionBackend, FusionRuntime,
-    stream::{Operation, OperationStreams, StreamId},
+    stream::{Operation, StreamId},
 };
 use burn_backend::{
     DType, ExecutionError, QTensorPrimitive, Shape, TensorData, TensorMetadata,
@@ -156,27 +156,24 @@ impl<R: FusionRuntime> FusionTensor<R> {
             dtype: self.dtype,
         };
 
-        let mut streams = OperationStreams::default();
-        streams.tensor(self);
-        streams.current = current;
-
         let outputs = self.client.register(
-            streams,
+            current,
             OperationIr::SharedView(SharedViewOpIr {
                 src: src_ir,
                 out: out_ir,
             }),
-            SharedViewOp { new_id, src_id: self.id },
+            SharedViewOp {
+                new_id,
+                src_id: self.id,
+            },
         );
 
         self.client.flush_queue();
 
-        let mut out = outputs
+        outputs
             .into_iter()
             .next()
-            .expect("SharedView produces one output tensor");
-        out.stream = current;
-        out
+            .expect("SharedView produces one output tensor")
     }
 
     pub(crate) async fn into_data<B>(self) -> Result<TensorData, ExecutionError>
@@ -274,11 +271,11 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
                     status: TensorStatus::ReadWrite,
                     dtype: self.dtype,
                 };
-                let mut streams = OperationStreams::default();
-                streams.tensor(self);
 
+                // Drop is targeted at the tensor's home stream so it runs after any pending ops
+                // on this id, regardless of the thread we happen to be dropping from.
                 self.client
-                    .register(streams, OperationIr::Drop(ir), DropOp { id: self.id });
+                    .register(self.stream, OperationIr::Drop(ir), DropOp { id: self.id });
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}

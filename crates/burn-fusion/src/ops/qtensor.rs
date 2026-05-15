@@ -17,7 +17,7 @@ use crate::{
     Fusion, FusionBackend,
     client::GlobalFusionClient,
     get_client,
-    stream::{OperationStreams, execution::Operation},
+    stream::{StreamId, execution::Operation},
 };
 
 use super::NoOp;
@@ -34,7 +34,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         client
             .register(
-                OperationStreams::default(),
+                StreamId::current(),
                 OperationIr::Init(desc),
                 NoOp::<B>::new(),
             )
@@ -63,7 +63,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &qparams.scales]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let qparams = QuantizationParametersIr {
@@ -98,7 +98,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let dtype = dtype.into();
@@ -159,7 +159,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = ShapeOpIr::reshape(tensor.into_ir(), shape, || client.create_empty_handle());
@@ -196,7 +196,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = SwapDimsOpIr::create(tensor.into_ir(), dim1, dim2, || {
@@ -227,7 +227,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
@@ -258,7 +258,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = FlipOpIr::create(tensor.into_ir(), axes.into(), || {
@@ -295,7 +295,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = GatherOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
@@ -333,7 +333,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = SelectOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
@@ -366,7 +366,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = SliceOpIr::create(tensor.into_ir(), slices.into(), || {
@@ -398,7 +398,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = ShapeOpIr::expand(tensor.into_ir(), shape, || client.create_empty_handle());
@@ -449,30 +449,18 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let mut propagation = QuantPropagation::Inhibit;
         let mut scheme = QuantScheme::default();
-        let mut streams = OperationStreams::default();
+        let streams = StreamId::current();
         let mut lhs_quantized = false;
         let mut rhs_quantized = false;
-        match &lhs {
-            TensorPrimitive::QFloat(lhs) => {
-                propagation = lhs.propagation();
-                scheme = *lhs.scheme();
-                lhs_quantized = true;
-                streams.tensor(lhs);
-            }
-            TensorPrimitive::Float(lhs) => {
-                streams.tensor(lhs);
-            }
+        if let TensorPrimitive::QFloat(lhs) = &lhs {
+            propagation = lhs.propagation();
+            scheme = *lhs.scheme();
+            lhs_quantized = true;
         }
-        match &rhs {
-            TensorPrimitive::QFloat(rhs) => {
-                propagation = rhs.propagation();
-                scheme = *rhs.scheme();
-                rhs_quantized = true;
-                streams.tensor(rhs);
-            }
-            TensorPrimitive::Float(rhs) => {
-                streams.tensor(rhs);
-            }
+        if let TensorPrimitive::QFloat(rhs) = &rhs {
+            propagation = rhs.propagation();
+            scheme = *rhs.scheme();
+            rhs_quantized = true;
         }
 
         let dtype = match propagation {

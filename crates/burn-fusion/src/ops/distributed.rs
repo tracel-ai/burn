@@ -9,7 +9,7 @@ use burn_ir::{AllReduceOpIr, DistributedOperationIr, HandleContainer, OperationI
 
 use crate::{
     Fusion, FusionBackend, get_client,
-    stream::{Operation, OperationStreams},
+    stream::{StreamId, Operation},
 };
 use burn_ir::OperationOutput;
 
@@ -37,7 +37,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
