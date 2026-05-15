@@ -7,8 +7,9 @@ use hashbrown::HashMap;
 /// A growing list of [tensor operation descriptions](OperationIr).
 ///
 /// Every queue is associated with a single [`StreamId`](super::super::StreamId) — every tensor it
-/// references is local to that stream (cross-stream sharing is handled out-of-band via
-/// [`SharedView`](burn_ir::OperationIr::SharedView)).
+/// references is local to that stream (cross-stream sharing is handled out-of-band by
+/// [`MultiStream::tag_shared_view`](super::super::MultiStream::tag_shared_view), which aliases
+/// the source handle under a fresh local tensor id before the op is enqueued).
 pub struct OperationQueue<R: FusionRuntime> {
     /// List of operation descriptions. These contain the exact tensor IDs
     /// and shapes so that kernels can be run correctly.

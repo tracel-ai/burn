@@ -10,12 +10,12 @@ use hashbrown::{HashMap, HashSet};
 
 /// Keep track of multiple concurrent lazy streams of operations.
 ///
-/// Cross-stream tensor sharing is expressed in the IR via [`OperationIr::SharedView`]: when a
+/// Cross-stream tensor sharing is handled out-of-band by [`Self::tag_shared_view`]: when a
 /// tensor crosses streams, [`FusionTensor::clone`](crate::FusionTensor::clone) (or `into_ir`)
-/// emits a [`SharedView`](OperationIr::SharedView) op that drains the source stream and aliases
-/// the underlying handle under a fresh tensor id on the current stream. Every op submitted to a
-/// stream after that point operates on tensors that are *local* to that stream — so this struct
-/// no longer needs to analyse cross-stream sharing or coordinate deferred drops.
+/// drains the source stream once and aliases its backing handle under a fresh tensor id on the
+/// current stream. No new [`OperationIr`] variant is involved — every op submitted to a stream
+/// after that point operates on tensors that are *local* to that stream, so this struct no
+/// longer needs to analyse cross-stream sharing or coordinate deferred drops.
 pub struct MultiStream<R: FusionRuntime> {
     resolved: HashSet<TensorId>,
     streams: HashMap<StreamId, Stream<R>>,
@@ -53,7 +53,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         crate::inspect::emit_handle_snapshot(stream, handles.handle_ids().copied());
     }
 
-    pub(crate) fn tag_shared_vuew(
+    pub(crate) fn tag_shared_view(
         &mut self,
         src_stream: StreamId,
         src: TensorId,

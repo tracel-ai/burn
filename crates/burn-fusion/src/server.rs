@@ -40,7 +40,7 @@ where
 
     pub fn tag_shared_view(&mut self, src_stream: StreamId, src: TensorId, dst: TensorId) {
         self.streams
-            .tag_shared_vuew(src_stream, src, dst, &mut self.handles)
+            .tag_shared_view(src_stream, src, dst, &mut self.handles)
     }
 
     pub fn drain_stream(&mut self, id: StreamId) {
