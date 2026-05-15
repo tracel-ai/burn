@@ -1713,6 +1713,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
             OperationIr::Drop(repr) => {
                 handles.remove_handle(repr.id);
             }
+            OperationIr::SharedView(repr) => {
+                if let Some(handle) = handles.get_handle_ref(&repr.src.id).cloned() {
+                    handles.register_handle(repr.out.id, handle);
+                }
+            }
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(_op) => todo!(),
         }

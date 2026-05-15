@@ -91,6 +91,18 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
+        if let OperationIr::SharedView(view) = &repr {
+            self.handle_shared_view(view, &streams, handles);
+            #[cfg(feature = "memory-checks")]
+            self.memory_checks.check(&self.streams, handles);
+            #[cfg(feature = "test-util")]
+            crate::inspect::emit_handle_snapshot(
+                streams.current,
+                handles.handle_ids().copied(),
+            );
+            return;
+        }
+
         let id = self.resolve_streams(&streams, handles, &mut repr);
 
         let drop_action = match &mut repr {
@@ -153,6 +165,28 @@ impl<R: FusionRuntime> MultiStream<R> {
         self.memory_checks.check(&self.streams, handles);
         #[cfg(feature = "test-util")]
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
+    }
+
+    /// Resolve a [`SharedView`](OperationIr::SharedView) op by draining the source stream and
+    /// aliasing the handle under the new tensor id.
+    ///
+    /// The new id is then a regular tensor on the current stream — no cross-stream tracking is
+    /// needed for it. This is the only path used to share a tensor across streams.
+    fn handle_shared_view(
+        &mut self,
+        view: &burn_ir::SharedViewOpIr,
+        streams: &OperationStreams,
+        handles: &mut HandleContainer<R::FusionHandle>,
+    ) {
+        let src_stream = streams.get(view.src.id).unwrap_or(streams.current);
+
+        if src_stream != streams.current {
+            self.drain(handles, src_stream);
+        }
+
+        if let Some(handle) = handles.get_handle_ref(&view.src.id).cloned() {
+            handles.register_handle(view.out.id, handle);
+        }
     }
 
     /// Decide what to do with a drop operation on the given stream.
