@@ -90,12 +90,6 @@ pub enum OperationIr {
     Custom(CustomOpIr),
     /// A tensor is dropped.
     Drop(TensorIr),
-    /// A new tensor id that shares the underlying handle of an existing tensor.
-    ///
-    /// Used to bridge a tensor across streams without duplicating storage: the server
-    /// drains the source stream and aliases the handle under the new id, after which
-    /// the new id is treated as a regular tensor on the current stream.
-    SharedView(SharedViewOpIr),
     #[cfg(feature = "distributed")]
     /// Operation specific to a distributed tensor.
     Distributed(DistributedOperationIr),
@@ -820,15 +814,6 @@ pub struct FullOpIr {
 /// It is necessary to register for proper orphan detection and avoid memory leak.
 pub struct InitOperationIr {
     /// The initialized tensor.
-    pub out: TensorIr,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-/// Declares a new tensor that aliases the handle of an existing tensor.
-pub struct SharedViewOpIr {
-    /// The source tensor whose handle will be aliased.
-    pub src: TensorIr,
-    /// The new tensor that will share the source's underlying handle.
     pub out: TensorIr,
 }
 
@@ -1973,7 +1958,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.inputs(),
             OperationIr::Custom(repr) => repr.inputs(),
             OperationIr::Drop(repr) => Box::new([repr].into_iter()),
-            OperationIr::SharedView(repr) => Box::new([&repr.src].into_iter()),
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.inputs(),
         }
@@ -1994,7 +1978,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.outputs(),
             OperationIr::Custom(repr) => repr.outputs(),
             OperationIr::Drop(_repr) => Box::new([].into_iter()),
-            OperationIr::SharedView(repr) => Box::new([&repr.out].into_iter()),
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.outputs(),
         }
@@ -2026,7 +2009,6 @@ impl OperationIr {
                 repr.mark_read_only(nodes, &mut output);
                 output
             }
-            OperationIr::SharedView(_) => Vec::new(),
             OperationIr::Custom(repr) => {
                 let mut output = Vec::new();
 

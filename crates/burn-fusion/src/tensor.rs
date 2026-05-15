@@ -6,7 +6,7 @@ use burn_backend::{
     DType, ExecutionError, QTensorPrimitive, Shape, TensorData, TensorMetadata,
     quantization::QuantScheme,
 };
-use burn_ir::{OperationIr, SharedViewOpIr, TensorId, TensorIr, TensorStatus};
+use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use std::sync::{
     Arc,
     atomic::{AtomicU32, Ordering},
@@ -113,6 +113,11 @@ impl<R: FusionRuntime> FusionTensor<R> {
 
     /// Intermediate representation to be used when using an initialized tensor used as input.
     pub fn into_ir(mut self) -> TensorIr {
+        let current = StreamId::current();
+        if self.stream != current {
+            self = self.shared_view(current);
+        }
+
         let count = self.count.load(Ordering::Acquire);
         let status = self.status(count);
 
@@ -135,45 +140,18 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    /// Register a [`SharedView`](OperationIr::SharedView) op aliasing this tensor's handle under
-    /// a new id on the current stream, then return a fresh [`FusionTensor`] owning that id.
-    ///
-    /// `flush_queue` is called before returning so the server has aliased the handle by the time
-    /// the new tensor is observable to the caller.
     fn shared_view(&self, current: StreamId) -> Self {
         let new_id = self.client.create_empty_handle();
 
-        let src_ir = TensorIr {
-            id: self.id,
-            shape: self.shape.clone(),
-            status: TensorStatus::ReadOnly,
-            dtype: self.dtype,
-        };
-        let out_ir = TensorIr {
-            id: new_id,
-            shape: self.shape.clone(),
-            status: TensorStatus::NotInit,
-            dtype: self.dtype,
-        };
+        self.client.tag_shared_view(self.stream, self.id, new_id);
 
-        let outputs = self.client.register(
+        Self::new(
+            new_id,
+            self.shape.clone(),
+            self.dtype,
+            self.client.clone(),
             current,
-            OperationIr::SharedView(SharedViewOpIr {
-                src: src_ir,
-                out: out_ir,
-            }),
-            SharedViewOp {
-                new_id,
-                src_id: self.id,
-            },
-        );
-
-        self.client.flush_queue();
-
-        outputs
-            .into_iter()
-            .next()
-            .expect("SharedView produces one output tensor")
+        )
     }
 
     pub(crate) async fn into_data<B>(self) -> Result<TensorData, ExecutionError>
@@ -229,25 +207,6 @@ pub(crate) struct DropOp {
 impl<RO: FusionRuntime> Operation<RO> for DropOp {
     fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
         handles.remove_handle(self.id);
-    }
-}
-
-/// Fallback operation for [`OperationIr::SharedView`].
-///
-/// The handle alias is performed eagerly by [`MultiStream::handle_shared_view`] when the op is
-/// registered, so this only runs if the op somehow reaches the queue — in that case, replay the
-/// alias to keep behavior correct.
-#[derive(Debug)]
-struct SharedViewOp {
-    new_id: TensorId,
-    src_id: TensorId,
-}
-
-impl<RO: FusionRuntime> Operation<RO> for SharedViewOp {
-    fn execute(&self, handles: &mut burn_ir::HandleContainer<RO::FusionHandle>) {
-        if let Some(handle) = handles.get_handle_ref(&self.src_id).cloned() {
-            handles.register_handle(self.new_id, handle);
-        }
     }
 }
 

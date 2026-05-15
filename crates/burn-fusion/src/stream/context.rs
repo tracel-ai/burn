@@ -173,7 +173,6 @@ impl RelativeOps for OperationIr {
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
             OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
-            OperationIr::SharedView(ops) => OperationIr::SharedView(ops.to_relative(converter)),
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(ops) => OperationIr::Distributed(ops.to_relative(converter)),
         }
@@ -1255,15 +1254,6 @@ impl RelativeOps for BaseOperationIr {
 impl RelativeOps for InitOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         Self {
-            out: self.out.to_relative(converter),
-        }
-    }
-}
-
-impl RelativeOps for SharedViewOpIr {
-    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        Self {
-            src: self.src.to_relative(converter),
             out: self.out.to_relative(converter),
         }
     }

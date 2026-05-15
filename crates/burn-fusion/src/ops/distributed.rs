@@ -9,7 +9,7 @@ use burn_ir::{AllReduceOpIr, DistributedOperationIr, HandleContainer, OperationI
 
 use crate::{
     Fusion, FusionBackend, get_client,
-    stream::{StreamId, Operation},
+    stream::{Operation, StreamId},
 };
 use burn_ir::OperationOutput;
 

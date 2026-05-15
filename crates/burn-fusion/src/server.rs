@@ -5,7 +5,7 @@ use crate::{
     stream::{MultiStream, StreamId},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
-use burn_ir::{HandleContainer, OperationIr, TensorIr};
+use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 use burn_std::{CommunicationId, stub::RwLock};
 use hashbrown::HashSet;
 
@@ -36,6 +36,11 @@ where
     pub fn register(&mut self, stream: StreamId, repr: OperationIr, operation: UnfusedOp<R>) {
         self.streams
             .register(stream, repr, operation, &mut self.handles)
+    }
+
+    pub fn tag_shared_view(&mut self, src_stream: StreamId, src: TensorId, dst: TensorId) {
+        self.streams
+            .tag_shared_vuew(src_stream, src, dst, &mut self.handles)
     }
 
     pub fn drain_stream(&mut self, id: StreamId) {

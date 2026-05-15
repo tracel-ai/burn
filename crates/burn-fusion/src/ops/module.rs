@@ -1631,8 +1631,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             handles.register_float_tensor::<B>(&args.out.id, output);
         });
 
-        let streams =
-            StreamId::current();
+        let streams = StreamId::current();
         let client = log_probs.client.clone();
         let desc = CtcLossOpIr::create(
             log_probs.into_ir(),

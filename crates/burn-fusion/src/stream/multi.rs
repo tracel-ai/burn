@@ -1,7 +1,3 @@
-use burn_ir::{HandleContainer, OperationIr};
-use hashbrown::HashMap;
-use smallvec;
-
 use super::{
     StreamId,
     execution::{ExecutionMode, Processor, StreamSegment},
@@ -9,6 +5,8 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::{FusionRuntime, UnfusedOp};
+use burn_ir::{HandleContainer, OperationIr, TensorId};
+use hashbrown::{HashMap, HashSet};
 
 /// Keep track of multiple concurrent lazy streams of operations.
 ///
@@ -19,6 +17,7 @@ use crate::{FusionRuntime, UnfusedOp};
 /// stream after that point operates on tensors that are *local* to that stream — so this struct
 /// no longer needs to analyse cross-stream sharing or coordinate deferred drops.
 pub struct MultiStream<R: FusionRuntime> {
+    resolved: HashSet<TensorId>,
     streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
     device: R::FusionDevice,
@@ -29,6 +28,7 @@ pub struct MultiStream<R: FusionRuntime> {
 impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn new(device: R::FusionDevice) -> Self {
         Self {
+            resolved: HashSet::new(),
             streams: HashMap::new(),
             optimizations: ExecutionPlanStore::new(),
             device,
@@ -38,10 +38,6 @@ impl<R: FusionRuntime> MultiStream<R> {
     }
 
     /// Register a new tensor operation on the given `stream`.
-    ///
-    /// [`OperationIr::SharedView`] is intercepted: the source stream is drained and the handle
-    /// is aliased eagerly, with nothing enqueued. Every other op is appended to `stream`'s queue
-    /// and processed lazily.
     pub(crate) fn register(
         &mut self,
         stream: StreamId,
@@ -49,22 +45,6 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        if let OperationIr::SharedView(view) = &repr {
-            self.handle_shared_view(view.clone(), handles);
-            #[cfg(feature = "memory-checks")]
-            self.memory_checks.check(&self.streams, handles);
-            #[cfg(feature = "test-util")]
-            crate::inspect::emit_handle_snapshot(stream, handles.handle_ids().copied());
-            return;
-        }
-
-        // Before enqueueing, drain any *other* streams that still reference this op's input
-        // tensors. Without this, lazy ops queued on a peer stream may outlive the source stream's
-        // own Drop and try to access a freed handle. (Pre-removal `OperationStreams` did this via
-        // `merge_streams_timelines`; with the new invariant cross-stream sharing goes through
-        // [`SharedView`], so this only covers the residual "Drop on shared tensor" path.)
-        self.drain_peer_streams_for(&repr, stream, handles);
-
         self.enqueue_operation(stream, repr, operation, handles);
 
         #[cfg(feature = "memory-checks")]
@@ -73,57 +53,23 @@ impl<R: FusionRuntime> MultiStream<R> {
         crate::inspect::emit_handle_snapshot(stream, handles.handle_ids().copied());
     }
 
-    /// For each tensor referenced by `repr`, drain any *peer* stream (different from `current`)
-    /// whose queue still tracks the tensor. This guarantees that ops registered on the current
-    /// stream observe the same ordering they would have under the old per-tensor stream tracking.
-    fn drain_peer_streams_for(
+    pub(crate) fn tag_shared_vuew(
         &mut self,
-        repr: &OperationIr,
-        current: StreamId,
+        src_stream: StreamId,
+        src: TensorId,
+        dst: TensorId,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        let mut to_drain: smallvec::SmallVec<[StreamId; 4]> = smallvec::SmallVec::new();
-        for node in repr.nodes() {
-            for (stream_id, stream) in self.streams.iter() {
-                if *stream_id != current
-                    && stream.queue.variables.contains_key(&node.id)
-                    && !to_drain.contains(stream_id)
-                {
-                    to_drain.push(*stream_id);
-                }
-            }
-        }
-        for id in to_drain {
-            self.drain(handles, id);
-        }
-    }
-
-    /// Resolve a [`SharedView`](OperationIr::SharedView) op by draining the source stream and
-    /// aliasing the handle under the new tensor id.
-    fn handle_shared_view(
-        &mut self,
-        view: burn_ir::SharedViewOpIr,
-        handles: &mut HandleContainer<R::FusionHandle>,
-    ) {
-        // The source tensor's home stream is the one that owns its handle. Drain it so any
-        // pending ops on `src.id` have produced their handle before we alias.
-        if let Some(stream) = self.find_owning_stream(view.src.id) {
-            self.drain(handles, stream);
+        if !self.resolved.contains(&src) {
+            self.resolved.insert(src);
+            // Only drain when it's the first time a tensor is tagged as being shared.
+            // After that the handle is up to date and can be used by other streams.
+            self.drain(handles, src_stream);
         }
 
-        if let Some(handle) = handles.get_handle_ref(&view.src.id).cloned() {
-            handles.register_handle(view.out.id, handle);
+        if let Some(handle) = handles.get_handle_ref(&src) {
+            handles.register_handle(dst, handle.clone());
         }
-    }
-
-    /// Find the stream whose queue still tracks the given tensor id.
-    fn find_owning_stream(&self, id: burn_ir::TensorId) -> Option<StreamId> {
-        for (stream_id, stream) in self.streams.iter() {
-            if stream.queue.variables.contains_key(&id) {
-                return Some(*stream_id);
-            }
-        }
-        None
     }
 
     /// Enqueue an operation on the queue for `stream` and run the lazy processor.
