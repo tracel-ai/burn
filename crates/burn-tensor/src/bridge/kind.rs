@@ -39,18 +39,28 @@ impl TensorKind for Bool {
     }
 }
 
-// TODO: maybe pub(crate)?
-#[allow(missing_docs)]
+/// A type-tagged tensor at the bridge layer between the high-level tensor API
+/// and the dispatch system.
+///
+/// `BridgeTensor` serves as the runtime representation for the public tensor
+/// kinds (Float, Int, Bool) and internal variants like quantized floats, wrapping
+/// the uniform [`DispatchTensor`] used by the underlying dispatch layer. This
+/// separation keeps tensor kind tracking out of the backends while avoiding
+/// exposure of backend-level primitives in the public API.
 #[derive(Clone, Debug)]
-pub enum PrimitiveKind {
+pub enum BridgeTensor {
+    /// A boolean tensor.
     Bool(DispatchTensor),
+    /// An integer tensor.
     Int(DispatchTensor),
+    /// A floating-point tensor.
     Float(DispatchTensor),
+    /// A quantized floating-point tensor.
     QFloat(DispatchTensor),
 }
 
-#[allow(missing_docs)]
-impl PrimitiveKind {
+impl BridgeTensor {
+    /// Returns the dtype of the tensor.
     pub fn dtype(&self) -> burn_std::DType {
         match self {
             Self::Bool(tensor) => tensor.dtype(),
@@ -60,6 +70,7 @@ impl PrimitiveKind {
         }
     }
 
+    /// Returns the shape of the tensor.
     pub fn shape(&self) -> burn_std::Shape {
         match self {
             Self::Bool(tensor) => tensor.shape(),
@@ -69,6 +80,7 @@ impl PrimitiveKind {
         }
     }
 
+    /// Returns the number of dimensions of the tensor.
     pub fn rank(&self) -> usize {
         match self {
             Self::Bool(tensor) => tensor.rank(),
@@ -80,17 +92,17 @@ impl PrimitiveKind {
 
     pub(crate) fn as_dispatch(&self) -> &DispatchTensor {
         match self {
-            PrimitiveKind::Bool(tensor) => tensor,
-            PrimitiveKind::Int(tensor) => tensor,
-            PrimitiveKind::Float(tensor) => tensor,
-            PrimitiveKind::QFloat(tensor) => tensor,
+            BridgeTensor::Bool(tensor) => tensor,
+            BridgeTensor::Int(tensor) => tensor,
+            BridgeTensor::Float(tensor) => tensor,
+            BridgeTensor::QFloat(tensor) => tensor,
         }
     }
 
     #[cfg(feature = "autodiff")]
     pub(crate) fn as_float(&self) -> &DispatchTensor {
         match self {
-            PrimitiveKind::Float(tensor) => tensor,
+            BridgeTensor::Float(tensor) => tensor,
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -101,21 +113,21 @@ impl PrimitiveKind {
 
     pub(crate) fn into_float(self) -> DispatchTensor {
         match self {
-            PrimitiveKind::Float(tensor) => tensor,
+            BridgeTensor::Float(tensor) => tensor,
             // Returns the dequantized float tensor.
-            PrimitiveKind::QFloat(tensor) => TensorPrimitive::<Dispatch>::QFloat(tensor).tensor(),
+            BridgeTensor::QFloat(tensor) => TensorPrimitive::<Dispatch>::QFloat(tensor).tensor(),
             _ => panic!("Should be Float primitive kind"),
         }
     }
 }
 
-impl From<PrimitiveKind> for DispatchTensor {
-    fn from(value: PrimitiveKind) -> Self {
+impl From<BridgeTensor> for DispatchTensor {
+    fn from(value: BridgeTensor) -> Self {
         match value {
-            PrimitiveKind::Bool(tensor) => tensor,
-            PrimitiveKind::Int(tensor) => tensor,
-            PrimitiveKind::Float(tensor) => tensor,
-            PrimitiveKind::QFloat(tensor) => tensor,
+            BridgeTensor::Bool(tensor) => tensor,
+            BridgeTensor::Int(tensor) => tensor,
+            BridgeTensor::Float(tensor) => tensor,
+            BridgeTensor::QFloat(tensor) => tensor,
         }
     }
 }

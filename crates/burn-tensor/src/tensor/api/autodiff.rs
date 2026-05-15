@@ -1,7 +1,7 @@
 use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
-use crate::ops::PrimitiveKind;
+use crate::ops::BridgeTensor;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
@@ -38,14 +38,14 @@ impl<const D: usize> Tensor<D> {
     /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D>> {
         Dispatch::grad(self.primitive.as_float(), &grads.inner)
-            .map(PrimitiveKind::Float)
+            .map(BridgeTensor::Float)
             .map(Tensor::new)
     }
 
     /// Remove the grad tensor from the [grads](AutodiffBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut Gradients) -> Option<Tensor<D>> {
         Dispatch::grad_remove(self.primitive.as_float(), &mut grads.inner)
-            .map(PrimitiveKind::Float)
+            .map(BridgeTensor::Float)
             .map(Tensor::new)
     }
 

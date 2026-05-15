@@ -1,6 +1,6 @@
 use burn_backend::Scalar;
 
-use crate::{bridge::Numeric, ops::PrimitiveKind};
+use crate::{bridge::Numeric, ops::BridgeTensor};
 
 /// Trait that list all operations that can be applied on all numerical tensors
 /// whose elements have a well-defined ordering.
@@ -34,7 +34,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// Users should prefer the [`Tensor::sort`](crate::Tensor::sort)
     /// function, which is more high-level and designed for public use.
-    fn sort(tensor: PrimitiveKind, dim: usize, descending: bool) -> PrimitiveKind;
+    fn sort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor;
 
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
@@ -59,10 +59,10 @@ pub(crate) trait Ordered: Numeric {
     /// For sorting the elements of a tensor, users should prefer the [`Tensor::sort_with_indices`](crate::Tensor::sort_with_indices)
     /// function, which is more high-level and designed for public use.
     fn sort_with_indices(
-        tensor: PrimitiveKind,
+        tensor: BridgeTensor,
         dim: usize,
         descending: bool,
-    ) -> (PrimitiveKind, PrimitiveKind);
+    ) -> (BridgeTensor, BridgeTensor);
 
     /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
     ///
@@ -85,7 +85,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// Users should prefer the [`Tensor::argsort`](crate::Tensor::argsort)
     /// function, which is more high-level and designed for public use.
-    fn argsort(tensor: PrimitiveKind, dim: usize, descending: bool) -> PrimitiveKind;
+    fn argsort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor;
 
     /// Computes the cumulative minimum of elements along a dimension.
     ///
@@ -107,7 +107,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For computing the cumulative minimum of elements along a dimension, users should prefer the
     /// [`Tensor::cummin`](crate::Tensor::cummin) function, which is more high-level and designed for public use.
-    fn cummin(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind;
+    fn cummin(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Computes the cumulative maximum of elements along a dimension.
     ///
@@ -129,7 +129,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For computing the cumulative maximum of elements along a dimension, users should prefer the
     /// [`Tensor::cummax`](crate::Tensor::cummax) function, which is more high-level and designed for public use.
-    fn cummax(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind;
+    fn cummax(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Element-wise greater than comparison between two tensors.
     ///
@@ -152,7 +152,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise greater than comparison between two tensors, users should prefer the
     /// [`Tensor::greater`](crate::Tensor::greater) function, which is more high-level and designed for public use.
-    fn greater(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind;
+    fn greater(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise greater than comparison between a tensor and a scalar.
     ///
@@ -175,7 +175,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise greater than comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::greater_elem`](crate::Tensor::greater_elem) function, which is more high-level and designed for public use.
-    fn greater_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind;
+    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -198,7 +198,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise greater than or equal comparison between two tensors, users should prefer the
     /// [`Tensor::greater_equal`](crate::Tensor::greater_equal) function, which is more high-level and designed for public use.
-    fn greater_equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind;
+    fn greater_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise greater than or equal comparison between a tensor and a scalar.
     ///
@@ -221,7 +221,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::greater_equal_elem`](crate::Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
-    fn greater_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind;
+    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -244,7 +244,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise less than comparison between two tensors, users should prefer the
     /// [`Tensor::lower`](crate::Tensor::lower) function, which is more high-level and designed for public use.
-    fn lower(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind;
+    fn lower(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise less than comparison between a tensor and a scalar.
     ///
@@ -267,7 +267,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise less than comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::lower_elem`](crate::Tensor::lower_elem) function, which is more high-level and designed for public use.
-    fn lower_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind;
+    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -290,7 +290,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise less than or equal comparison between two tensors, users should prefer the
     /// [`Tensor::lower_equal`](crate::Tensor::lower_equal) function, which is more high-level and designed for public use.
-    fn lower_equal(lhs: PrimitiveKind, rhs: PrimitiveKind) -> PrimitiveKind;
+    fn lower_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise less than or equal comparison between a tensor and a scalar.
     ///
@@ -313,7 +313,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer the
     /// [`Tensor::lower_equal_elem`](crate::Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
-    fn lower_equal_elem(lhs: PrimitiveKind, rhs: Scalar) -> PrimitiveKind;
+    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -336,7 +336,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the indices of the maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::argmax`](crate::Tensor::argmax) function, which is more high-level and designed for public use.
-    fn argmax(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind;
+    fn argmax(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Gets the indices of the k maximum elements of a tensor along an axis.
     ///
@@ -360,7 +360,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the indices of the k maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::argtopk`](crate::Tensor::argtopk) function, which is more high-level and designed for public use.
-    fn argtopk(tensor: PrimitiveKind, dim: usize, k: usize) -> PrimitiveKind;
+    fn argtopk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor;
 
     /// Gets the values of the k maximum elements of a tensor along an axis.
     ///
@@ -384,7 +384,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the values of the k maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::topk`](crate::Tensor::topk) function, which is more high-level and designed for public use.
-    fn topk(tensor: PrimitiveKind, dim: usize, k: usize) -> PrimitiveKind;
+    fn topk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
@@ -407,7 +407,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the indices of the minimum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::argmin`](crate::Tensor::argmin) function, which is more high-level and designed for public use.
-    fn argmin(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind;
+    fn argmin(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -427,7 +427,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::max`](crate::Tensor::max) function, which is more high-level and designed for public use.
-    fn max(tensor: PrimitiveKind) -> PrimitiveKind;
+    fn max(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -449,7 +449,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::max_dim`](crate::Tensor::max_dim) function, which is more high-level and designed for public use.
-    fn max_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind;
+    fn max_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -473,7 +473,7 @@ pub(crate) trait Ordered: Numeric {
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::max_dim_with_indices`](crate::Tensor::max_dim_with_indices) function,
     /// which is more high-level and designed for public use.
-    fn max_dim_with_indices(tensor: PrimitiveKind, dim: usize) -> (PrimitiveKind, PrimitiveKind);
+    fn max_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor);
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -493,7 +493,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the maximum absolute elements of a tensor, users should prefer the
     /// [`Tensor::max_abs`](crate::Tensor::max_abs) function, which is more high-level and designed for public use.
-    fn max_abs(tensor: PrimitiveKind) -> PrimitiveKind;
+    fn max_abs(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -515,7 +515,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::max_abs_dim`](crate::Tensor::max_abs_dim) function, which is more high-level and designed for public use.
-    fn max_abs_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind;
+    fn max_abs_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Gets the minimum elements of a tensor along an axis.
     ///
@@ -535,7 +535,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::min`](crate::Tensor::min) function, which is more high-level and designed for public use.
-    fn min(tensor: PrimitiveKind) -> PrimitiveKind;
+    fn min(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Gets the minimum elements of a tensor along an axis.
     ///
@@ -557,7 +557,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::min_dim`](crate::Tensor::min_dim) function, which is more high-level and designed for public use.
-    fn min_dim(tensor: PrimitiveKind, dim: usize) -> PrimitiveKind;
+    fn min_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Gets the minimum elements and indices of a tensor along an axis.
     ///
@@ -579,7 +579,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [`Tensor::min_dim_with_indices`](crate::Tensor::min_dim_with_indices) function, which is more high-level and designed for public use.
-    fn min_dim_with_indices(tensor: PrimitiveKind, dim: usize) -> (PrimitiveKind, PrimitiveKind);
+    fn min_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor);
 
     /// Clamp the tensor between the given min and max values.
     ///
@@ -599,7 +599,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For clamping a tensor between the given min and max values, users should prefer the
     /// [`Tensor::clamp`](crate::Tensor::clamp) function, which is more high-level and designed for public use.
-    fn clamp(tensor: PrimitiveKind, min: Scalar, max: Scalar) -> PrimitiveKind;
+    fn clamp(tensor: BridgeTensor, min: Scalar, max: Scalar) -> BridgeTensor;
 
     /// Clamps a tensor under a minimum value.
     ///
@@ -619,7 +619,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For clamping a tensor under a minimum value, users should prefer the
     /// [`Tensor::clamp_min`](crate::Tensor::clamp_min) function, which is more high-level and designed for public use.
-    fn clamp_min(tensor: PrimitiveKind, min: Scalar) -> PrimitiveKind;
+    fn clamp_min(tensor: BridgeTensor, min: Scalar) -> BridgeTensor;
 
     /// Clamps a tensor over a maximum value.
     ///
@@ -639,5 +639,5 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For clamping a tensor over a maximum value, users should prefer the
     /// [`Tensor::clamp_max`](crate::Tensor::clamp_max) function, which is more high-level and designed for public use.
-    fn clamp_max(tensor: PrimitiveKind, max: Scalar) -> PrimitiveKind;
+    fn clamp_max(tensor: BridgeTensor, max: Scalar) -> BridgeTensor;
 }

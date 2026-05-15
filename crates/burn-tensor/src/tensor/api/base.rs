@@ -1,7 +1,7 @@
 #![allow(clippy::single_range_in_vec_init)]
 use crate::check::unwrap_shape_reshape;
 use crate::kind::Basic;
-use crate::ops::PrimitiveKind;
+use crate::ops::BridgeTensor;
 
 use burn_backend::Scalar;
 
@@ -75,7 +75,7 @@ pub struct Tensor<const D: usize, K = Float>
 where
     K: Basic,
 {
-    pub(crate) primitive: PrimitiveKind,
+    pub(crate) primitive: BridgeTensor,
     _kind: PhantomData<K>,
 }
 
@@ -115,12 +115,12 @@ where
     // The primitive kind will be opaque, but for these public extension feature-gated methods
     // we could return/use the dispatch tensor type.
     /// Converts the tensor into a primitive tensor.
-    pub fn into_primitive(self) -> PrimitiveKind {
+    pub fn into_primitive(self) -> BridgeTensor {
         self.primitive
     }
 
     /// Converts from a primitive tensor into a tensor.
-    pub fn from_primitive(tensor: PrimitiveKind) -> Self {
+    pub fn from_primitive(tensor: BridgeTensor) -> Self {
         Self::new(tensor)
     }
 

@@ -1,7 +1,7 @@
 // Sealed traits, limited to Bool, Float and Int types which implement the pub(crate) traits.
 #![allow(private_bounds)]
 
-pub use crate::bridge::{Bool, Float, Int, PrimitiveKind};
+pub use crate::bridge::{Bool, BridgeTensor, Float, Int};
 
 /// The base trait for any tensor kind.
 pub trait Basic: crate::ops::BasicOps {}

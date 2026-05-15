@@ -1,5 +1,5 @@
 use burn_core::backend::Dispatch;
-use burn_core::tensor::kind::PrimitiveKind;
+use burn_core::tensor::kind::BridgeTensor;
 use burn_core::tensor::{Bool, Float, Int, Tensor};
 
 use crate::{
@@ -75,7 +75,7 @@ pub trait Nms {
 impl ConnectedComponents for Tensor<2, Bool> {
     fn connected_components(self, connectivity: Connectivity) -> Tensor<2, Int> {
         let settings = self.device().settings();
-        Tensor::new(PrimitiveKind::Int(
+        Tensor::new(BridgeTensor::Int(
             <Dispatch as BoolVisionOps>::connected_components(
                 self.into_primitive().into(),
                 connectivity,
@@ -98,22 +98,22 @@ impl ConnectedComponents for Tensor<2, Bool> {
                 settings.int_dtype,
             );
         let stats = ConnectedStats {
-            area: Tensor::new(PrimitiveKind::Int(area)),
-            left: Tensor::new(PrimitiveKind::Int(left)),
-            top: Tensor::new(PrimitiveKind::Int(top)),
-            right: Tensor::new(PrimitiveKind::Int(right)),
-            bottom: Tensor::new(PrimitiveKind::Int(bottom)),
-            max_label: Tensor::new(PrimitiveKind::Int(max_label)),
+            area: Tensor::new(BridgeTensor::Int(area)),
+            left: Tensor::new(BridgeTensor::Int(left)),
+            top: Tensor::new(BridgeTensor::Int(top)),
+            right: Tensor::new(BridgeTensor::Int(right)),
+            bottom: Tensor::new(BridgeTensor::Int(bottom)),
+            max_label: Tensor::new(BridgeTensor::Int(max_label)),
         };
-        (Tensor::new(PrimitiveKind::Int(labels)), stats)
+        (Tensor::new(BridgeTensor::Int(labels)), stats)
     }
 }
 
 impl Morphology for Tensor<3, Float> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
         let out = match self.into_primitive() {
-            PrimitiveKind::Float(tensor) => {
-                PrimitiveKind::Float(<Dispatch as FloatVisionOps>::float_erode(
+            BridgeTensor::Float(tensor) => {
+                BridgeTensor::Float(<Dispatch as FloatVisionOps>::float_erode(
                     tensor,
                     kernel.into_primitive().into(),
                     opts,
@@ -126,8 +126,8 @@ impl Morphology for Tensor<3, Float> {
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
         let out = match self.into_primitive() {
-            PrimitiveKind::Float(tensor) => {
-                PrimitiveKind::Float(<Dispatch as FloatVisionOps>::float_dilate(
+            BridgeTensor::Float(tensor) => {
+                BridgeTensor::Float(<Dispatch as FloatVisionOps>::float_dilate(
                     tensor,
                     kernel.into_primitive().into(),
                     opts,
@@ -141,7 +141,7 @@ impl Morphology for Tensor<3, Float> {
 
 impl Morphology for Tensor<3, Int> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(PrimitiveKind::Int(<Dispatch as IntVisionOps>::int_erode(
+        Tensor::new(BridgeTensor::Int(<Dispatch as IntVisionOps>::int_erode(
             self.into_primitive().into(),
             kernel.into_primitive().into(),
             opts,
@@ -149,7 +149,7 @@ impl Morphology for Tensor<3, Int> {
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(PrimitiveKind::Int(<Dispatch as IntVisionOps>::int_dilate(
+        Tensor::new(BridgeTensor::Int(<Dispatch as IntVisionOps>::int_dilate(
             self.into_primitive().into(),
             kernel.into_primitive().into(),
             opts,
@@ -159,7 +159,7 @@ impl Morphology for Tensor<3, Int> {
 
 impl Morphology for Tensor<3, Bool> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(PrimitiveKind::Int(<Dispatch as BoolVisionOps>::bool_erode(
+        Tensor::new(BridgeTensor::Int(<Dispatch as BoolVisionOps>::bool_erode(
             self.into_primitive().into(),
             kernel.into_primitive().into(),
             opts,
@@ -167,7 +167,7 @@ impl Morphology for Tensor<3, Bool> {
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(PrimitiveKind::Int(
+        Tensor::new(BridgeTensor::Int(
             <Dispatch as BoolVisionOps>::bool_dilate(
                 self.into_primitive().into(),
                 kernel.into_primitive().into(),
@@ -181,8 +181,8 @@ impl Nms for Tensor<2> {
     fn nms(self, scores: Tensor<1>, options: NmsOptions) -> Tensor<1, Int> {
         let settings = self.device().settings();
         match (self.into_primitive(), scores.into_primitive()) {
-            (PrimitiveKind::Float(boxes), PrimitiveKind::Float(scores)) => {
-                Tensor::new(PrimitiveKind::Int(<Dispatch as FloatVisionOps>::nms(
+            (BridgeTensor::Float(boxes), BridgeTensor::Float(scores)) => {
+                Tensor::new(BridgeTensor::Int(<Dispatch as FloatVisionOps>::nms(
                     boxes,
                     scores,
                     options,

@@ -3,7 +3,7 @@ mod forward;
 
 use burn::{
     backend::{Autodiff, Dispatch, Wgpu, backend_extension, tensor::FloatTensor},
-    tensor::{Tensor, activation, kind::PrimitiveKind},
+    tensor::{Tensor, activation, kind::BridgeTensor},
 };
 
 /// We create our own Backend trait that extends the Burn backend trait.
@@ -27,7 +27,7 @@ pub fn matmul_add_relu_custom(lhs: Tensor<3>, rhs: Tensor<3>, bias: Tensor<3>) -
         bias.into_primitive().into(),
     );
 
-    Tensor::from_primitive(PrimitiveKind::Float(output))
+    Tensor::from_primitive(BridgeTensor::Float(output))
 }
 
 /// We define a reference implementation using basic tensor operations.
