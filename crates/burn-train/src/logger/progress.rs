@@ -1,4 +1,8 @@
-use std::{fs::File, io::Write, path::Path};
+use std::{
+    fs::{File, OpenOptions},
+    io::Write,
+    path::Path,
+};
 
 use crate::renderer::{EvaluationProgress, TrainingProgress};
 
@@ -15,6 +19,25 @@ pub trait TrainingProgressLogger: Send {
 }
 
 /// Trait for logging evaluation progress at each step and end of evaluation.
+///
+/// # Example
+///
+/// ```no_run
+/// use burn_train::logger::{EvaluationProgressLogger, FileProgressLogger};
+/// use burn_train::renderer::EvaluationProgress;
+///
+/// struct MyEvalLogger;
+///
+/// impl EvaluationProgressLogger for MyEvalLogger {
+///     fn update_test(&mut self, progress: &EvaluationProgress) {
+///         println!("Step {}/{}", progress.progress.items_processed, progress.progress.items_total);
+///     }
+///
+///     fn end_eval(&mut self) {
+///         println!("Evaluation complete.");
+///     }
+/// }
+/// ```
 pub trait EvaluationProgressLogger: Send {
     /// Log the progress of the current test step.
     fn update_test(&mut self, progress: &EvaluationProgress);
@@ -30,8 +53,14 @@ pub struct FileProgressLogger {
 
 impl FileProgressLogger {
     /// Create a new file progress logger writing to the given path.
+    ///
+    /// If the file already exists, new entries are appended to it.
     pub fn new(path: impl AsRef<Path>) -> Self {
-        let file = File::create(path).expect("Should be able to create progress log file.");
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .expect("Should be able to create progress log file.");
         Self { file }
     }
 }
