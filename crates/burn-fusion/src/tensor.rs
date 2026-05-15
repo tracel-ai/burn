@@ -140,6 +140,17 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
+    /// Create a fresh `FusionTensor` on `current` that aliases the same backing
+    /// handle as `self`. Used by [`Clone`] and [`Self::into_ir`] when the tensor is
+    /// crossing stream boundaries — the rest of the pipeline only ever sees ids
+    /// whose home stream is the calling stream.
+    ///
+    /// The cross-stream coordination (draining the source stream so the handle
+    /// exists, then aliasing it under a fresh id) is done by
+    /// [`MultiStream::tag_shared_view`](crate::stream::MultiStream::tag_shared_view).
+    /// See that type's docs for the full strategy — how shares are tagged, how the
+    /// buffer's lifetime is managed across the two sides, and why a single drain
+    /// per source is enough.
     fn shared_view(&self, current: StreamId) -> Self {
         let new_id = self.client.create_empty_handle();
 
