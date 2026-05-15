@@ -1,6 +1,6 @@
 use std::{fs::File, io::Write, path::Path};
 
-use crate::renderer::TrainingProgress;
+use crate::renderer::{EvaluationProgress, TrainingProgress};
 
 /// Trait for logging training progress at each step and end of epoch.
 pub trait TrainingProgressLogger: Send {
@@ -14,7 +14,16 @@ pub trait TrainingProgressLogger: Send {
     fn end_epoch(&mut self, epoch: usize);
 }
 
-/// A simple file-based implementation of [TrainingProgressLogger] for debugging.
+/// Trait for logging evaluation progress at each step and end of evaluation.
+pub trait EvaluationProgressLogger: Send {
+    /// Log the progress of the current test step.
+    fn update_test(&mut self, progress: &EvaluationProgress);
+
+    /// Called at the end of the evaluation.
+    fn end_eval(&mut self);
+}
+
+/// A simple file-based implementation of [TrainingProgressLogger] and [EvaluationProgressLogger] for debugging.
 pub struct FileProgressLogger {
     file: File,
 }
@@ -70,5 +79,24 @@ impl TrainingProgressLogger for FileProgressLogger {
 
     fn end_epoch(&mut self, epoch: usize) {
         writeln!(self.file, "[END_EPOCH] epoch: {}", epoch).ok();
+    }
+}
+
+impl EvaluationProgressLogger for FileProgressLogger {
+    fn update_test(&mut self, progress: &EvaluationProgress) {
+        writeln!(
+            self.file,
+            "[TEST] items: {}/{} | iter: {}",
+            progress.progress.items_processed,
+            progress.progress.items_total,
+            progress
+                .iteration
+                .map_or("?".to_string(), |i| i.to_string()),
+        )
+        .ok();
+    }
+
+    fn end_eval(&mut self) {
+        writeln!(self.file, "[END_EVAL]").ok();
     }
 }

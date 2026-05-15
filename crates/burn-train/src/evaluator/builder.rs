@@ -2,7 +2,7 @@ use crate::{
     ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, InferenceStep,
     Interrupter, LearnerSummaryConfig, TestOutput,
     evaluator::components::{EvaluatorComponentTypes, EvaluatorComponentTypesMarker},
-    logger::FileMetricLogger,
+    logger::{EvaluationProgressLogger, FileMetricLogger},
     metric::{
         Adaptor, Metric, Numeric,
         processor::{AsyncProcessorEvaluation, FullEventProcessorEvaluation, MetricsEvaluation},
@@ -30,6 +30,7 @@ pub struct EvaluatorBuilder<EC: EvaluatorComponentTypes> {
     metrics: MetricsEvaluation<TestOutput<EC>>,
     directory: PathBuf,
     summary: bool,
+    progress_logger: Option<Box<dyn EvaluationProgressLogger>>,
 }
 
 impl<M> EvaluatorBuilder<EvaluatorComponentTypesMarker<M>>
@@ -54,6 +55,7 @@ where
             summary: false,
             metrics: MetricsEvaluation::default(),
             directory,
+            progress_logger: None,
         }
     }
 }
@@ -120,6 +122,15 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
         self
     }
 
+    /// Register a progress logger to track evaluation progress at each step.
+    pub fn with_progress_logger<PL>(mut self, logger: PL) -> Self
+    where
+        PL: EvaluationProgressLogger + 'static,
+    {
+        self.progress_logger = Some(Box::new(logger));
+        self
+    }
+
     /// Builds the evaluator.
     #[allow(clippy::type_complexity)]
     pub fn build(mut self, model: EC::Model) -> Evaluator<EC> {
@@ -131,11 +142,12 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
             .register_logger(FileMetricLogger::new_eval(self.directory.clone()));
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
 
-        let event_processor = AsyncProcessorEvaluation::new(FullEventProcessorEvaluation::new(
-            self.metrics,
-            renderer,
-            event_store,
-        ));
+        let full_processor = FullEventProcessorEvaluation::new(self.metrics, renderer, event_store);
+        let full_processor = match self.progress_logger {
+            Some(logger) => full_processor.with_progress_logger(logger),
+            None => full_processor,
+        };
+        let event_processor = AsyncProcessorEvaluation::new(full_processor);
 
         let summary = if self.summary {
             Some(LearnerSummaryConfig {

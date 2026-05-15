@@ -1,5 +1,5 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
-use crate::logger::TrainingProgressLogger;
+use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
 use crate::renderer::{
@@ -24,6 +24,7 @@ pub struct FullEventProcessorEvaluation<T: ItemLazy> {
     metrics: MetricsEvaluation<T>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
+    progress_logger: Option<Box<dyn EvaluationProgressLogger>>,
 }
 
 impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
@@ -80,7 +81,16 @@ impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
             metrics,
             renderer,
             store,
+            progress_logger: None,
         }
+    }
+
+    pub(crate) fn with_progress_logger(
+        mut self,
+        logger: Box<dyn EvaluationProgressLogger>,
+    ) -> Self {
+        self.progress_logger = Some(logger);
+        self
     }
 
     fn progress_indicators(&self, progress: &EvaluationProgress) -> Vec<ProgressType> {
@@ -147,9 +157,15 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     });
 
                 let indicators = self.progress_indicators(&progress);
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.update_test(&progress);
+                }
                 self.renderer.render_test(progress, indicators);
             }
             EvaluatorEvent::End(summary) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end_eval();
+                }
                 self.renderer.on_test_end(summary).ok();
             }
         }
