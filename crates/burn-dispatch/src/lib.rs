@@ -41,10 +41,13 @@
 #[macro_use]
 mod macros;
 
-mod backend;
-mod device;
+/// Dispatch backend module.
+pub mod backend;
+/// Dispatch device module.
+pub mod device;
 mod ops;
-mod tensor;
+/// Dispatch tensor module.
+pub mod tensor;
 
 pub use backend::*;
 pub use device::*;
@@ -53,27 +56,43 @@ pub use tensor::*;
 extern crate alloc;
 
 /// Backends and devices used.
-pub(crate) mod backends {
+pub mod backends {
     #[cfg(feature = "autodiff")]
-    pub use burn_autodiff::Autodiff;
+    pub use burn_autodiff as autodiff;
+    #[cfg(feature = "autodiff")]
+    pub use burn_autodiff::Autodiff; // re-export for extensions
 
+    #[cfg(feature = "cpu")]
+    pub use burn_cpu as cpu;
     #[cfg(feature = "cpu")]
     pub use burn_cpu::Cpu;
     #[cfg(feature = "cuda")]
+    pub use burn_cuda as cuda;
+    #[cfg(feature = "cuda")]
     pub use burn_cuda::Cuda;
     #[cfg(feature = "rocm")]
+    pub use burn_rocm as rocm;
+    #[cfg(feature = "rocm")]
     pub use burn_rocm::Rocm;
+    #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
+    pub use burn_wgpu as wgpu;
     #[cfg(wgpu_metal)]
     pub use burn_wgpu::Metal;
     #[cfg(wgpu_vulkan)]
     pub use burn_wgpu::Vulkan;
     #[cfg(wgpu_webgpu)]
-    pub use burn_wgpu::Wgpu;
+    pub use burn_wgpu::{WebGpu, Wgpu};
 
+    #[cfg(feature = "flex")]
+    pub use burn_flex as flex;
     #[cfg(feature = "flex")]
     pub use burn_flex::Flex;
     #[cfg(any(feature = "ndarray", default_backend))]
+    pub use burn_ndarray as ndarray;
+    #[cfg(any(feature = "ndarray", default_backend))]
     pub use burn_ndarray::NdArray;
+    #[cfg(feature = "tch")]
+    pub use burn_tch as libtorch;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorch;
 

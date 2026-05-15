@@ -5,43 +5,21 @@ mod api;
 pub use api::*;
 
 // Re-exported types
-pub use burn_backend::{
-    BoolDType, BoolStore, DType, DataError, FloatDType, IntDType, TensorData, TensorMetadata,
-    TensorPrimitive, Tolerance, distribution::*, element::*, indexing::*,
-    ops::TransactionPrimitive, shape::*, slice::*,
+pub use burn_std::{
+    BoolDType, BoolStore, DType, DataError, FloatDType, IndexingUpdateOp, IntDType, TensorData,
+    Tolerance, distribution::*, element::*, indexing::*, s, shape::*, slice::*,
 };
 
 /// The tensor kind module.
 pub mod kind;
-pub use kind::{Bool, Float, Int, TensorKind};
+pub use kind::{Bool, Float, Int};
 
 /// The activation module.
 pub mod activation;
 
-/// The backend module.
-pub mod backend {
-    #[cfg(not(feature = "extension"))]
-    pub use burn_backend::backend::ExecutionError;
-    #[cfg(feature = "distributed")]
-    pub use burn_backend::distributed;
-
-    #[cfg(feature = "extension")]
-    pub use burn_backend::backend::*;
-
-    #[cfg(feature = "extension")]
-    pub use burn_backend::tensor::{BasicOps, Numeric, Ordered};
-
-    #[cfg(feature = "extension")]
-    /// The backend extension module.
-    pub mod extension {
-        pub use burn_backend_extension::backend_extension;
-        pub use burn_dispatch::*;
-    }
-}
-
 /// The container module.
 pub mod container {
-    pub use burn_backend::tensor::TensorContainer;
+    pub use burn_std::tensor::container::TensorContainer;
 }
 
 /// The grid module.
@@ -61,17 +39,8 @@ pub mod signal;
 
 /// Operations on tensors module.
 pub mod ops {
-    // Re-export explicit types without exposing the backend-level traits
-    // TODO: group them in burn-backend module instead, and re-export ::*
-    // pub use burn_backend::backend::ops::{
-    //     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
-    //     GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
-    //     PaddedConvOptions, TransactionPrimitive, UnfoldOptions,
-    // };
-    pub use burn_backend::backend::ops::*;
-    pub use burn_backend::tensor::{
-        BoolElem, BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
-    };
+    pub(crate) use crate::bridge::*;
+    pub use burn_std::ops::*;
 }
 
 /// Tensor quantization module.

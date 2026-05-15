@@ -29,6 +29,10 @@ pub mod tensor;
 // Tensor at root: `burn::Tensor`
 pub use tensor::Tensor;
 
+#[cfg(feature = "extension")]
+/// Backend module.
+pub mod backend;
+
 extern crate alloc;
 
 // TODO: configurable device priority

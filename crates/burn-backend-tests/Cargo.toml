@@ -59,6 +59,7 @@ quantization = []
 
 [dependencies]
 burn-tensor = { workspace = true, features = ["autodiff"] }
+burn-backend = { workspace = true }
 
 # For random tests
 cubek = { workspace = true, features = ["random"], optional = true }

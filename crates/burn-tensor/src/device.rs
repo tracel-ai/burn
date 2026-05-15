@@ -1,5 +1,7 @@
-pub use burn_backend::{DeviceError, DeviceId, DeviceSettings};
 pub use burn_dispatch::devices::*;
+pub use burn_std::{
+    DeviceError, DeviceSettings, ExecutionError, backtrace::BackTrace, device::DeviceId,
+};
 
 use burn_backend::Backend;
 #[allow(unused)]
@@ -18,8 +20,14 @@ use enumset::EnumSetType;
 /// [`Device`] provides a unified interface to interact with the underlying compute backend.
 ///
 /// Autodiff support is a property of the device rather than a separate type parameter.
-/// Wrap a device with [`.autodiff()`](Device::autodiff) to enable automatic  differentiation
-/// with the device.
+#[cfg_attr(
+    feature = "autodiff",
+    doc = "Wrap a device with [`.autodiff()`](Device::autodiff) to enable automatic differentiation with the device."
+)]
+#[cfg_attr(
+    not(feature = "autodiff"),
+    doc = "Enable the `autodiff` feature to add automatic differentiation support to devices."
+)]
 ///
 /// # Backend selection
 ///
@@ -188,8 +196,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an [`ExecutionError`](burn_backend::ExecutionError) if an operation failed to execute.
-    pub fn sync(&self) -> Result<(), burn_backend::ExecutionError> {
+    /// Returns an [`ExecutionError`] if an operation failed to execute.
+    pub fn sync(&self) -> Result<(), ExecutionError> {
         Dispatch::sync(&self.dispatch)
     }
 

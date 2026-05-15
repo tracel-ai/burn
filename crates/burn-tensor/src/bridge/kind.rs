@@ -1,4 +1,5 @@
-use crate::{Backend, BackendTypes, TensorMetadata, TensorPrimitive};
+use burn_backend::{TensorMetadata, TensorPrimitive};
+use burn_dispatch::{Dispatch, DispatchTensor};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -14,7 +15,7 @@ pub struct Bool;
 
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
-pub trait TensorKind<B: BackendTypes>: Clone + core::fmt::Debug {
+pub trait TensorKind: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
     type Primitive: TensorMetadata;
 
@@ -22,23 +23,28 @@ pub trait TensorKind<B: BackendTypes>: Clone + core::fmt::Debug {
     fn name() -> &'static str;
 }
 
-impl<B: Backend> TensorKind<B> for Float {
-    type Primitive = TensorPrimitive<B>;
+impl TensorKind for Float {
+    type Primitive = FloatTensor;
     fn name() -> &'static str {
         "Float"
     }
 }
 
-impl<B: Backend> TensorKind<B> for Int {
-    type Primitive = B::IntTensorPrimitive;
+impl TensorKind for Int {
+    type Primitive = IntTensor;
     fn name() -> &'static str {
         "Int"
     }
 }
 
-impl<B: Backend> TensorKind<B> for Bool {
-    type Primitive = B::BoolTensorPrimitive;
+impl TensorKind for Bool {
+    type Primitive = BoolTensor;
     fn name() -> &'static str {
         "Bool"
     }
 }
+
+// Tensor primitive type aliases
+pub(crate) type FloatTensor = TensorPrimitive<Dispatch>;
+pub(crate) type IntTensor = DispatchTensor;
+pub(crate) type BoolTensor = DispatchTensor;

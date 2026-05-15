@@ -9,26 +9,17 @@ extern crate derive_new;
 
 extern crate alloc;
 
-mod data;
-pub use data::*;
-
-pub mod distribution;
-pub use distribution::*;
-pub mod element;
-pub use element::*;
-
 /// [`Backend`] trait and required types.
 pub mod backend;
 pub use backend::*;
 
-/// Backend tensor primitives and operations.
-pub mod tensor;
-
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
 pub use burn_std::{
-    AllocationProperty, BoolDType, BoolStore, Bytes, DType, DeviceHandle, FloatDType, IntDType,
-    bf16, f16, stream_id::StreamId,
+    AllocationProperty, BoolDType, BoolStore, Bytes, DType, DataError, DeviceHandle, Distribution,
+    DistributionSampler, DistributionSamplerKind, Element, ElementConversion, ElementEq,
+    ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar, TensorData, Tolerance, bf16,
+    distribution, element, f16, stream_id::StreamId,
 };
 
 /// Shape definition.
@@ -49,14 +40,11 @@ pub mod indexing {
 }
 pub use indexing::*;
 
+mod alias;
+pub use alias::*;
+
 /// Quantization data representation.
-pub mod quantization {
-    pub use crate::tensor::quantization::*;
-    pub use burn_std::quantization::{
-        BlockSize, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantStore,
-        QuantValue, QuantizedBytes,
-    };
-}
+pub mod quantization;
 
 #[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {

@@ -1,5 +1,3 @@
-pub use burn_backend::tensor::BasicAutodiffOps;
-
 use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
@@ -9,16 +7,19 @@ use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
 
+#[cfg(feature = "autodiff")]
+type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
+
 /// Gradients container used during the backward pass.
 #[cfg(feature = "autodiff")]
 pub struct Gradients {
     // Encapsulate the inner type to avoid leaking internals into the top-level API.
-    pub(crate) inner: <Dispatch as AutodiffBackend>::Gradients,
+    pub(crate) inner: AutodiffGradients,
 }
 
 #[cfg(feature = "autodiff")]
 impl Gradients {
-    fn new(inner: <Dispatch as AutodiffBackend>::Gradients) -> Self {
+    fn new(inner: AutodiffGradients) -> Self {
         Self { inner }
     }
 }
@@ -78,7 +79,7 @@ impl<const D: usize> Tensor<D> {
     }
 }
 
-impl<const D: usize, K: Autodiff<InnerKind = K>> Tensor<D, K> {
+impl<const D: usize, K: Autodiff> Tensor<D, K> {
     /// Returns the inner tensor without the autodiff information.
     pub fn inner(self) -> Tensor<D, K> {
         Tensor::new(K::inner(self.primitive))

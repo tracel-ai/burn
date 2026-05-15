@@ -1,16 +1,13 @@
-use burn_backend::{
-    ElementConversion, Scalar,
-    tensor::{Bool, IndexingUpdateOp, Int, Ordered},
-};
-use burn_dispatch::Dispatch;
-use burn_std::AsIndex;
+use burn_backend::{ElementConversion, Scalar};
+use burn_std::{AsIndex, IndexingUpdateOp};
 
-use crate::check;
+use crate::kind::Ordered;
+use crate::{Bool, Int, check};
 use crate::{Tensor, check::TensorCheck};
 
 impl<const D: usize, K> Tensor<D, K>
 where
-    K: Ordered<Dispatch>,
+    K: Ordered,
 {
     /// Sort the elements by value in ascending order along a given dimension.
     ///
@@ -31,7 +28,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///   let tensor = tensor.sort(0);
     ///   println!("{tensor}");
     ///   // [[5.0, -2.0, 3.0], [12.0, 3.0, 6.0]]
@@ -64,7 +61,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let tensor = tensor.sort_descending(0);
     ///    println!("{tensor}");
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
@@ -98,7 +95,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///   let (tensor, indices) = tensor.sort_with_indices(0);
     ///   println!("{tensor}");
     ///   // [[5.0, -2.0, 3.0], [12.0, 3.0, 6.0]]
@@ -129,7 +126,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let (tensor, indices) = tensor.sort_descending_with_indices(0);
     ///    println!("{tensor}");
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
@@ -158,7 +155,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let tensor = tensor.argsort(0);
     ///    println!("{tensor}");
     ///    // [[1, 0, 0], [0, 1, 1]]
@@ -184,7 +181,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let tensor = tensor.argsort_descending(0);
     ///    println!("{tensor}");
     ///    // [[0, 1, 1], [1, 0, 0]]
@@ -215,7 +212,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///   let tensor = tensor.topk(2, 0);
     ///   println!("{tensor}");
     ///   // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
@@ -244,7 +241,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let (tensor, indices) = tensor.topk_with_indices(2, 0);
     ///    println!("{tensor}");
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
@@ -379,8 +376,8 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor2 = Tensor::< 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///   let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor2 = Tensor::<2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor1.greater(tensor2);
     ///   println!("{tensor}");
     ///   // [[false, false, false], [true, true, true]]
@@ -404,8 +401,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.greater_equal(tensor2);
     ///    println!("{tensor}");
     ///    // [[true, false, false], [true, true, true]]
@@ -429,8 +426,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.lower(tensor2);
     ///    println!("{tensor}");
     ///    // [[false, true, true], [false, false, false]]
@@ -454,8 +451,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[1.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.lower_equal(tensor2);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [false, false, false]]
@@ -479,7 +476,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.greater_elem(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [true, true, true]]
@@ -503,7 +500,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.greater_equal_elem(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [true, true, true]]
@@ -527,7 +524,7 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///     let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///     let tensor = tensor.lower_elem(3.0);
     ///     println!("{tensor}");
     ///     // [[true, true, false], [false, false, false]]
@@ -551,7 +548,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.lower_equal_elem(3.0);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [false, false, false]]
@@ -571,7 +568,7 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 3>::ones(Shape::new([2, 3, 3]), &device);
+    ///     let tensor = Tensor::<3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmax(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -590,7 +587,7 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 3>::ones(Shape::new([2, 3, 3]), &device);
+    ///     let tensor = Tensor::<3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argtopk(1, 2);
     ///     println!("{:?}", tensor.shape());
     /// }
@@ -609,7 +606,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.max();
     ///   println!("{tensor}");
     ///   // [9.0]
@@ -630,7 +627,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let (tensor, index) = tensor.max_dim_with_indices(0);
     ///    // [[5.0, 9.0, 6.0]]
     ///    println!("{tensor}");
@@ -659,7 +656,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -7.0, 3.0], [5.0, -1.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -7.0, 3.0], [5.0, -1.0, 6.0]], &device);
     ///   let tensor = tensor.max_abs();
     ///   println!("{tensor}");
     ///   // [7.0]
@@ -687,8 +684,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.max_pair(tensor2);
     ///    println!("{tensor}");
     ///    // [[2.0, 3.0, 4.0], [5.0, 9.0, 6.0]]
@@ -718,7 +715,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.max_dim(0);
     ///   println!("{tensor}");
     ///   // [[5.0, 9.0, 6.0]]
@@ -750,7 +747,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.max_abs_dims(&[0, 1]);
     ///   println!("{tensor}");
     ///   // [[9.0]]
@@ -770,7 +767,7 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 3>::ones(Shape::new([2, 3, 3]), &device);
+    ///     let tensor = Tensor::<3>::ones(Shape::new([2, 3, 3]), &device);
     ///     let tensor = tensor.argmin(1);
     ///     println!("{:?}", tensor.shape());
     ///     // Shape { dims: [2, 1, 3] }
@@ -789,7 +786,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.min();
     ///    println!("{tensor}");
     ///    // [-2.0]
@@ -818,7 +815,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.min_dim(0);
     ///    println!("{tensor}");
     ///    // [[1.0, -2.0, 3.0]]
@@ -849,7 +846,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.min_dims(&[0, 1]);
     ///   println!("{tensor}");
     ///   // [[-2.0]]
@@ -870,7 +867,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[7.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[7.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let (tensor, index) = tensor.min_dim_with_indices(0);
     ///    println!("{tensor}");
     ///    // [[5.0, -2.0, 3.0]]
@@ -908,8 +905,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.min_pair(tensor2);
     ///    println!("{tensor}");
     ///    // [[1.0, -2.0, 3.0], [1.0, 2.0, 3.0]]
@@ -937,7 +934,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2, Int>::from_ints(
+    ///   let tensor = Tensor::<2, Int>::from_ints(
     ///    [
     ///     [1, 2, 3],
     ///     [4, 5, 6],
@@ -976,7 +973,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2, Int>::from_ints(
+    ///    let tensor = Tensor::<2, Int>::from_ints(
     ///    [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
     ///    &device);
     ///    let tensor = tensor.clamp_min(4);
@@ -1007,7 +1004,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2, Int>::from_ints(
+    ///    let tensor = Tensor::<2, Int>::from_ints(
     ///    [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
     ///    &device);
     ///    let tensor = tensor.clamp_max(5);
@@ -1033,7 +1030,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[3.0, 5.0, 2.0], [4.0, 1.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[3.0, 5.0, 2.0], [4.0, 1.0, 6.0]], &device);
     ///    let result = tensor.clone().cummin(0);
     ///    println!("{result}");
     ///    // [[3.0, 5.0, 2.0], [3.0, 1.0, 2.0]]
@@ -1060,7 +1057,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[3.0, 1.0, 2.0], [4.0, 5.0, 2.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[3.0, 1.0, 2.0], [4.0, 5.0, 2.0]], &device);
     ///    let result = tensor.clone().cummax(0);
     ///    println!("{result}");
     ///    // [[3.0, 1.0, 2.0], [4.0, 5.0, 2.0]]
@@ -1092,7 +1089,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.max_dim(0);
     ///   println!("{tensor}");
     ///   // [[5.0, 9.0, 6.0]]
@@ -1123,7 +1120,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.max_dims(&[0, 1]);
     ///   println!("{tensor}");
     ///   // [[9.0]]

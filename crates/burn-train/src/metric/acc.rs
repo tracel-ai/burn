@@ -1,7 +1,7 @@
 use super::MetricMetadata;
 use super::state::{FormatOptions, NumericMetricState};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, SerializedEntry};
-use burn_core::tensor::{ElementConversion, Int, Tensor};
+use burn_core::tensor::{Int, Tensor};
 
 /// The accuracy metric.
 #[derive(Clone)]
@@ -60,17 +60,9 @@ impl Metric for AccuracyMetric {
 
                 let acc = matches.sum() / (num_pad.neg() + batch_size as f32);
 
-                acc.into_scalar().elem::<f64>()
+                acc.into_scalar::<f64>()
             }
-            None => {
-                outputs
-                    .equal(targets)
-                    .int()
-                    .sum()
-                    .into_scalar()
-                    .elem::<f64>()
-                    / batch_size as f64
-            }
+            None => outputs.equal(targets).int().sum().into_scalar::<f64>() / batch_size as f64,
         };
 
         self.state.update(

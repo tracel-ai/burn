@@ -11,13 +11,20 @@ extern crate derive_new;
 
 extern crate alloc;
 
+mod bridge;
 mod tensor;
 
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
 // Re-exported types
-pub use burn_backend::{AllocationProperty, Bytes, StreamId, bf16, f16, read_sync, try_read_sync};
+pub use burn_std::{
+    AllocationProperty, Bytes, bf16, f16,
+    reader::{read_sync, try_read_sync},
+    stream_id::StreamId,
+};
 
 mod device;
 pub use device::*;
+
+pub(crate) use burn_backend::{TensorMetadata, TensorPrimitive};

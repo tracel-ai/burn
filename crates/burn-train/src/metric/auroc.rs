@@ -3,7 +3,7 @@ use core::f64;
 use super::MetricMetadata;
 use super::state::{FormatOptions, NumericMetricState};
 use crate::metric::{Metric, MetricName, Numeric, SerializedEntry};
-use burn_core::tensor::{ElementConversion, Int, Tensor};
+use burn_core::tensor::{Int, Tensor};
 
 /// The Area Under the Receiver Operating Characteristic Curve (AUROC, also referred to as [ROC AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)) for binary classification.
 #[derive(Clone)]
@@ -37,7 +37,7 @@ impl AurocMetric {
     fn binary_auroc(&self, probabilities: &Tensor<1>, targets: &Tensor<1, Int>) -> f64 {
         let n = targets.dims()[0];
 
-        let n_pos = targets.clone().sum().into_scalar().elem::<u64>() as usize;
+        let n_pos = targets.clone().sum().into_scalar::<u64>() as usize;
 
         // Early return if we don't have both positive and negative samples
         if n_pos == 0 || n_pos == n {
@@ -62,12 +62,11 @@ impl AurocMetric {
         let ties = prob_i.equal(prob_j).int();
 
         // Calculate AUC components
-        let num_pairs = valid_pairs.clone().sum().into_scalar().elem::<f64>();
+        let num_pairs = valid_pairs.clone().sum().into_scalar::<f64>();
         let correct_pairs = (correct_order * valid_pairs.clone())
             .sum()
-            .into_scalar()
-            .elem::<f64>();
-        let tied_pairs = (ties * valid_pairs).sum().into_scalar().elem::<f64>();
+            .into_scalar::<f64>();
+        let tied_pairs = (ties * valid_pairs).sum().into_scalar::<f64>();
 
         (correct_pairs + 0.5 * tied_pairs) / num_pairs
     }

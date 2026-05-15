@@ -10,12 +10,8 @@ use crate::{
 };
 use crate::{
     Scalar,
-    tensor::{
-        BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor,
-        quantization::{
-            Calibration, QuantizationParametersPrimitive, compute_q_params, compute_range,
-        },
-    },
+    quantization::{Calibration, QuantizationParametersPrimitive, compute_q_params, compute_range},
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 
 /// Automatically applies `dequantization -> float operation -> quantization`.

@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-/// Computes the [CTC loss](crate::ops::ModuleOps::ctc_loss).
+/// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
 ///
 /// # Arguments
 ///
@@ -39,7 +39,7 @@ pub fn ctc_loss(
     )))
 }
 
-/// Applies the [embedding module](crate::ops::ModuleOps::embedding).
+/// Applies the [embedding module](burn_backend::ops::ModuleOps::embedding).
 pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
     Tensor::new(TensorPrimitive::Float(Dispatch::embedding(
         weights.primitive.tensor(),
@@ -47,7 +47,7 @@ pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
     )))
 }
 
-/// Applies a [1D convolution](crate::ops::ModuleOps::conv1d).
+/// Applies a [1D convolution](burn_backend::ops::ModuleOps::conv1d).
 ///
 /// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
 /// asymmetric padding. When asymmetric padding is specified, an explicit pad
@@ -93,7 +93,7 @@ pub fn conv1d(
     }
 }
 
-/// Applies a [2D convolution](crate::ops::ModuleOps::conv2d).
+/// Applies a [2D convolution](burn_backend::ops::ModuleOps::conv2d).
 ///
 /// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
 /// asymmetric padding. When asymmetric padding is specified, an explicit pad
@@ -141,7 +141,7 @@ pub fn conv2d(
     }
 }
 
-/// Applies a [3D convolution](crate::ops::ModuleOps::conv3d).
+/// Applies a [3D convolution](burn_backend::ops::ModuleOps::conv3d).
 ///
 /// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
 /// asymmetric padding. Asymmetric 3D padding is not yet supported.
@@ -171,7 +171,7 @@ pub fn conv3d(
     )))
 }
 
-/// Applies a [Deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d).
+/// Applies a [Deformable 2D convolution](burn_backend::ops::ModuleOps::deform_conv2d).
 pub fn deform_conv2d(
     x: Tensor<4>,
     offset: Tensor<4>,
@@ -196,7 +196,7 @@ pub fn deform_conv2d(
     )))
 }
 
-/// Applies a [1D transposed convolution](crate::ops::ModuleOps::conv_transpose1d).
+/// Applies a [1D transposed convolution](burn_backend::ops::ModuleOps::conv_transpose1d).
 pub fn conv_transpose1d(
     x: Tensor<3>,
     weight: Tensor<3>,
@@ -216,7 +216,7 @@ pub fn conv_transpose1d(
     )))
 }
 
-/// Applies a [2D transposed convolution](crate::ops::ModuleOps::conv_transpose2d).
+/// Applies a [2D transposed convolution](burn_backend::ops::ModuleOps::conv_transpose2d).
 pub fn conv_transpose2d(
     x: Tensor<4>,
     weight: Tensor<4>,
@@ -236,7 +236,7 @@ pub fn conv_transpose2d(
     )))
 }
 
-/// Applies a 3D transposed convolution](crate::ops::ModuleOps::conv_transpose3d).
+/// Applies a 3D transposed convolution](burn_backend::ops::ModuleOps::conv_transpose3d).
 pub fn conv_transpose3d(
     x: Tensor<5>,
     weight: Tensor<5>,
@@ -256,7 +256,7 @@ pub fn conv_transpose3d(
     )))
 }
 
-/// Applies a [4D to 3D unfold](crate::ops::ModuleOps::unfold4d).
+/// Applies a [4D to 3D unfold](burn_backend::ops::ModuleOps::unfold4d).
 pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -> Tensor<3> {
     Tensor::new(TensorPrimitive::Float(Dispatch::unfold4d(
         x.primitive.tensor(),
@@ -265,7 +265,7 @@ pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -
     )))
 }
 
-/// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
+/// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
 pub fn max_pool1d(
     x: Tensor<3>,
     kernel_size: usize,
@@ -284,7 +284,7 @@ pub fn max_pool1d(
     )))
 }
 
-/// Applies a [2D max pooling](crate::ops::ModuleOps::max_pool2d).
+/// Applies a [2D max pooling](burn_backend::ops::ModuleOps::max_pool2d).
 pub fn max_pool2d(
     x: Tensor<4>,
     kernel_size: [usize; 2],
@@ -303,7 +303,7 @@ pub fn max_pool2d(
     )))
 }
 
-/// Applies a [2D avg pooling](crate::ops::ModuleOps::avg_pool2d).
+/// Applies a [2D avg pooling](burn_backend::ops::ModuleOps::avg_pool2d).
 pub fn avg_pool2d(
     x: Tensor<4>,
     kernel_size: [usize; 2],
@@ -322,7 +322,7 @@ pub fn avg_pool2d(
     )))
 }
 
-/// Applies a [1D avg pooling](crate::ops::ModuleOps::avg_pool1d).
+/// Applies a [1D avg pooling](burn_backend::ops::ModuleOps::avg_pool1d).
 pub fn avg_pool1d(
     x: Tensor<3>,
     kernel_size: usize,
@@ -341,7 +341,7 @@ pub fn avg_pool1d(
     )))
 }
 
-/// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
+/// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
 pub fn max_pool1d_with_indices(
     x: Tensor<3>,
     kernel_size: usize,
@@ -365,7 +365,7 @@ pub fn max_pool1d_with_indices(
     )
 }
 
-/// Applies a [2D max pooling with indices](crate::ops::ModuleOps::max_pool2d_with_indices).
+/// Applies a [2D max pooling with indices](burn_backend::ops::ModuleOps::max_pool2d_with_indices).
 pub fn max_pool2d_with_indices(
     x: Tensor<4>,
     kernel_size: [usize; 2],
@@ -389,7 +389,7 @@ pub fn max_pool2d_with_indices(
     )
 }
 
-/// Applies a [2D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool2d).
+/// Applies a [2D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
 pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
     Tensor::new(TensorPrimitive::Float(Dispatch::adaptive_avg_pool2d(
         x.primitive.tensor(),
@@ -397,7 +397,7 @@ pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
     )))
 }
 
-/// Applies a [1D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool1d).
+/// Applies a [1D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
 pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
     Tensor::new(TensorPrimitive::Float(Dispatch::adaptive_avg_pool1d(
         x.primitive.tensor(),
@@ -405,7 +405,7 @@ pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
     )))
 }
 
-/// Applies a [2D interpolation](crate::ops::ModuleOps::interpolate).
+/// Applies a [2D interpolation](burn_backend::ops::ModuleOps::interpolate).
 pub fn interpolate(
     x: Tensor<4>,
     output_size: [usize; 2],
@@ -522,7 +522,7 @@ pub fn attention_fallback(
     ))
 }
 
-/// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass, returning the gradient for `weight`.
+/// Calculate the [2D convolution](burn_backend::ops::ModuleOps::conv2d) backward pass, returning the gradient for `weight`.
 pub fn conv2d_weight_backward(
     x: Tensor<4>,
     weight: Tensor<4>,

@@ -18,18 +18,24 @@ workspace = true
 cubecl = ["dep:cubecl"]
 default = ["std", "cubecl-common/default"]
 doc = ["default"]
-std = ["cubecl-common/std", "num-traits/std"]
+std = ["cubecl-common/std", "num-traits/std", "rand/std"]
 tracing = ["cubecl?/tracing", "cubecl-common/tracing"]
 
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 [dependencies]
+hashbrown = { workspace = true }
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
+derive-new = { workspace = true }
+enumset = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
+rand = { workspace = true, default-features = false }
+rand_distr = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true, features = ["serde"] }
 spin = { workspace = true }
+thiserror = { workspace = true }
 
 cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-common = { workspace = true, default-features = false, features = [
@@ -48,11 +54,16 @@ tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }
+paste = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
+serde_json = { workspace = true, features = ["alloc"] }
+serial_test = { workspace = true }
 tempfile = { workspace = true }
 
 # Enable extra-platforms for bytes on targets without native atomics (e.g., thumbv6m-none-eabi)
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 bytes = { workspace = true, features = ["extra-platforms"] }
+portable-atomic-util = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

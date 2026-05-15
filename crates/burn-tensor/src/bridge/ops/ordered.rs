@@ -1,6 +1,8 @@
+use burn_backend::Scalar;
+
 use crate::{
-    Backend, Scalar,
-    tensor::{IntTensor, Numeric},
+    bridge::Numeric,
+    ops::{BoolTensor, IntTensor},
 };
 
 /// Trait that list all operations that can be applied on all numerical tensors
@@ -12,11 +14,8 @@ use crate::{
 ///
 /// # Warnings
 ///
-/// This is an internal trait, use the public API provided by the
-#[cfg_attr(doc, doc = crate::doc_tensor!())]
-#[cfg_attr(not(doc), doc = "`Tensor`")]
-/// struct.
-pub trait Ordered<B: Backend>: Numeric<B> {
+/// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
+pub(crate) trait Ordered: Numeric {
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).
@@ -36,9 +35,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("sort"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::sort`")]
+    /// Users should prefer the [`Tensor::sort`](crate::Tensor::sort)
     /// function, which is more high-level and designed for public use.
     fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive;
 
@@ -62,15 +59,13 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For sorting the elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("sort_with_indices"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::sort_with_indices`")]
+    /// For sorting the elements of a tensor, users should prefer the [`Tensor::sort_with_indices`](crate::Tensor::sort_with_indices)
     /// function, which is more high-level and designed for public use.
     fn sort_with_indices(
         tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> (Self::Primitive, IntTensor<B>);
+    ) -> (Self::Primitive, IntTensor);
 
     /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
     ///
@@ -91,11 +86,9 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// Users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("argsort"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::argsort`")]
+    /// Users should prefer the [`Tensor::argsort`](crate::Tensor::argsort)
     /// function, which is more high-level and designed for public use.
-    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B>;
+    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor;
 
     /// Computes the cumulative minimum of elements along a dimension.
     ///
@@ -116,9 +109,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For computing the cumulative minimum of elements along a dimension, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("cummin"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::cummin`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::cummin`](crate::Tensor::cummin) function, which is more high-level and designed for public use.
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the cumulative maximum of elements along a dimension.
@@ -140,9 +131,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For computing the cumulative maximum of elements along a dimension, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("cummax"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::cummax`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::cummax`](crate::Tensor::cummax) function, which is more high-level and designed for public use.
     fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Element-wise greater than comparison between two tensors.
@@ -165,10 +154,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise greater than comparison between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("greater"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::greater`")]
-    /// function, which is more high-level and designed for public use.
-    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    /// [`Tensor::greater`](crate::Tensor::greater) function, which is more high-level and designed for public use.
+    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise greater than comparison between a tensor and a scalar.
     ///
@@ -190,10 +177,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise greater than comparison between a tensor and a scalar, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("greater_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::greater_elem`")]
-    /// function, which is more high-level and designed for public use.
-    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    /// [`Tensor::greater_elem`](crate::Tensor::greater_elem) function, which is more high-level and designed for public use.
+    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -215,10 +200,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise greater than or equal comparison between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("greater_equal"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::greater_equal`")]
-    /// function, which is more high-level and designed for public use.
-    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    /// [`Tensor::greater_equal`](crate::Tensor::greater_equal) function, which is more high-level and designed for public use.
+    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise greater than or equal comparison between a tensor and a scalar.
     ///
@@ -240,10 +223,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("greater_equal_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::greater_equal_elem`")]
-    /// function, which is more high-level and designed for public use.
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    /// [`Tensor::greater_equal_elem`](crate::Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -265,10 +246,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise less than comparison between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("lower"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::lower`")]
-    /// function, which is more high-level and designed for public use.
-    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    /// [`Tensor::lower`](crate::Tensor::lower) function, which is more high-level and designed for public use.
+    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise less than comparison between a tensor and a scalar.
     ///
@@ -290,10 +269,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise less than comparison between a tensor and a scalar, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("lower_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::lower_elem`")]
-    /// function, which is more high-level and designed for public use.
-    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    /// [`Tensor::lower_elem`](crate::Tensor::lower_elem) function, which is more high-level and designed for public use.
+    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -315,10 +292,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise less than or equal comparison between two tensors, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("lower_equal"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::lower_equal`")]
-    /// function, which is more high-level and designed for public use.
-    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    /// [`Tensor::lower_equal`](crate::Tensor::lower_equal) function, which is more high-level and designed for public use.
+    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor;
 
     /// Element-wise less than or equal comparison between a tensor and a scalar.
     ///
@@ -340,10 +315,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("lower_equal_elem"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::lower_equal_elem`")]
-    /// function, which is more high-level and designed for public use.
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    /// [`Tensor::lower_equal_elem`](crate::Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> BoolTensor;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -365,10 +338,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the indices of the maximum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("argmax"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::argmax`")]
-    /// function, which is more high-level and designed for public use.
-    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B>;
+    /// [`Tensor::argmax`](crate::Tensor::argmax) function, which is more high-level and designed for public use.
+    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor;
 
     /// Gets the indices of the k maximum elements of a tensor along an axis.
     ///
@@ -391,10 +362,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the indices of the k maximum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("argtopk"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::argtopk`")]
-    /// function, which is more high-level and designed for public use.
-    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B>;
+    /// [`Tensor::argtopk`](crate::Tensor::argtopk) function, which is more high-level and designed for public use.
+    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor;
 
     /// Gets the values of the k maximum elements of a tensor along an axis.
     ///
@@ -417,9 +386,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the values of the k maximum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("topk"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::topk`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::topk`](crate::Tensor::topk) function, which is more high-level and designed for public use.
     fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
@@ -442,10 +409,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the indices of the minimum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("argmin"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::argmin`")]
-    /// function, which is more high-level and designed for public use.
-    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B>;
+    /// [`Tensor::argmin`](crate::Tensor::argmin) function, which is more high-level and designed for public use.
+    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -464,9 +429,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("max"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::max`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::max`](crate::Tensor::max) function, which is more high-level and designed for public use.
     fn max(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -488,9 +451,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("max_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::max_dim`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::max_dim`](crate::Tensor::max_dim) function, which is more high-level and designed for public use.
     fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -513,11 +474,9 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("max_dim_with_indices"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::max_dim_with_indices`")]
-    /// function, which is more high-level and designed for public use.
-    fn max_dim_with_indices(tensor: Self::Primitive, dim: usize)
-    -> (Self::Primitive, IntTensor<B>);
+    /// [`Tensor::max_dim_with_indices`](crate::Tensor::max_dim_with_indices) function,
+    /// which is more high-level and designed for public use.
+    fn max_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, IntTensor);
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -536,9 +495,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the maximum absolute elements of a tensor, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("max_abs"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::max_abs`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::max_abs`](crate::Tensor::max_abs) function, which is more high-level and designed for public use.
     fn max_abs(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
@@ -560,9 +517,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("max_abs_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::max_abs_dim`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::max_abs_dim`](crate::Tensor::max_abs_dim) function, which is more high-level and designed for public use.
     fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the minimum elements of a tensor along an axis.
@@ -582,9 +537,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("min"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::min`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::min`](crate::Tensor::min) function, which is more high-level and designed for public use.
     fn min(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the minimum elements of a tensor along an axis.
@@ -606,9 +559,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("min_dim"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::min_dim`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::min_dim`](crate::Tensor::min_dim) function, which is more high-level and designed for public use.
     fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the minimum elements and indices of a tensor along an axis.
@@ -630,11 +581,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// or use this function directly.
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("min_dim_with_indices"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::min_dim_with_indices`")]
-    /// function, which is more high-level and designed for public use.
-    fn min_dim_with_indices(tensor: Self::Primitive, dim: usize)
-    -> (Self::Primitive, IntTensor<B>);
+    /// [`Tensor::min_dim_with_indices`](crate::Tensor::min_dim_with_indices) function, which is more high-level and designed for public use.
+    fn min_dim_with_indices(tensor: Self::Primitive, dim: usize) -> (Self::Primitive, IntTensor);
 
     /// Clamp the tensor between the given min and max values.
     ///
@@ -653,9 +601,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// with static dispatch. It is not designed for direct usage by users.
     ///
     /// For clamping a tensor between the given min and max values, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("clamp"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::clamp`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::clamp`](crate::Tensor::clamp) function, which is more high-level and designed for public use.
     fn clamp(tensor: Self::Primitive, min: Scalar, max: Scalar) -> Self::Primitive;
 
     /// Clamps a tensor under a minimum value.
@@ -675,9 +621,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// with static dispatch. It is not designed for direct usage by users.
     ///
     /// For clamping a tensor under a minimum value, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_min"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::clamp_min`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::clamp_min`](crate::Tensor::clamp_min) function, which is more high-level and designed for public use.
     fn clamp_min(tensor: Self::Primitive, min: Scalar) -> Self::Primitive;
 
     /// Clamps a tensor over a maximum value.
@@ -697,8 +641,6 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// with static dispatch. It is not designed for direct usage by users.
     ///
     /// For clamping a tensor over a maximum value, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_max"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::clamp_max`")]
-    /// function, which is more high-level and designed for public use.
+    /// [`Tensor::clamp_max`](crate::Tensor::clamp_max) function, which is more high-level and designed for public use.
     fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive;
 }

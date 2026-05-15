@@ -1,6 +1,12 @@
+/// Generic container for storing tensors keyed by an id.
+pub mod container;
+/// Tensor data type definitions.
 pub mod dtype;
+/// Quantization data representation.
 pub mod quantization;
+/// Tensor shape utilities.
 pub mod shape;
+/// Tensor slicing utilities.
 pub mod slice;
 
 pub use dtype::*;

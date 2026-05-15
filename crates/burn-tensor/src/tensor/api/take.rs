@@ -25,14 +25,14 @@ where
     ///   let device = Default::default();
     ///
     ///   // Example with 1D indices
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-    ///   let indices = Tensor::< 1, Int>::from_data([2, 0, 1], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///   let indices = Tensor::<1, Int>::from_data([2, 0, 1], &device);
     ///   let result: Tensor<2> = tensor.clone().take::<1, 2>(-1, indices);  // -1 refers to last dimension
     ///   println!("{result}");
     ///   // [[3.0, 1.0, 2.0], [6.0, 4.0, 5.0]]
     ///
     ///   // Example with 2D indices - output will have +1 dimension (2D -> 3D)
-    ///   let indices_2d = Tensor::< 2, Int>::from_data([[0, 2], [1, 0]], &device);
+    ///   let indices_2d = Tensor::<2, Int>::from_data([[0, 2], [1, 0]], &device);
     ///   let result: Tensor<3> = tensor.take::<2, 3>(1, indices_2d);
     ///   println!("{result}");
     ///   // [[[1.0, 3.0], [2.0, 1.0]], [[4.0, 6.0], [5.0, 4.0]]]

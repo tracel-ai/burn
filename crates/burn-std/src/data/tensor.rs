@@ -11,8 +11,8 @@ use thiserror::Error;
 use crate::Scalar;
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
-use burn_std::tensor::DType;
-use burn_std::{
+use crate::tensor::DType;
+use crate::{
     BoolStore, Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16,
     f16,
 };
@@ -35,7 +35,7 @@ pub struct TensorData {
 
 // For backward compatibility with shape `Vec<usize>`
 mod shape_inner {
-    use burn_std::SmallVec;
+    use crate::SmallVec;
 
     use super::*;
 
@@ -754,8 +754,8 @@ pub enum DataError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shape;
     use alloc::vec;
-    use burn_std::shape;
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},

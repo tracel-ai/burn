@@ -75,7 +75,7 @@ impl<const D: usize> Tensor<D, Int> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let int_tensor = Tensor::< 1, Int>::arange(0..5, &device);
+    ///     let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
     ///     let float_tensor = int_tensor.float();
     /// }
     /// ```
@@ -106,7 +106,7 @@ impl<const D: usize> Tensor<D, Int> {
     ///    use burn_tensor::{Shape, Tensor};
     ///    fn example() {
     ///        let device = Default::default();
-    ///        let result: Tensor<3, _> = Tensor::< 2, Int>::cartesian_grid([2, 3], &device);
+    ///        let result: Tensor<3, _> = Tensor::<2, Int>::cartesian_grid([2, 3], &device);
     ///        println!("{}", result);
     ///    }
     /// ```
@@ -197,7 +197,7 @@ impl<const D: usize> Tensor<D, Int> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let int_tensor = Tensor::< 1, Int>::arange(0..5, &device);
+    ///     let int_tensor = Tensor::<1, Int>::arange(0..5, &device);
     ///
     ///     // Within-kind cast (int to int)
     ///     let i64_tensor = int_tensor.clone().cast(IntDType::I64);

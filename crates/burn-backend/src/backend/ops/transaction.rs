@@ -92,7 +92,7 @@ impl<B: Backend> TransactionPrimitive<B> {
         }
     }
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
-    /// in which they were [registered](crate::tensor::TransactionOp::register_transaction).
+    /// in which they were registered.
     pub async fn execute_async(mut self) -> Result<Vec<TensorData>, ExecutionError> {
         let mut orders = Vec::new();
         core::mem::swap(&mut orders, &mut self.orders);
@@ -114,7 +114,8 @@ impl<B: Backend> TransactionPrimitive<B> {
             .collect::<Vec<_>>())
     }
 
-    pub(crate) fn register_float(&mut self, tensor: TensorPrimitive<B>) {
+    /// Register a float (or quantized-float) tensor to read in this transaction.
+    pub fn register_float(&mut self, tensor: TensorPrimitive<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 self.orders.push(Order::Float(self.read_floats.len()));
@@ -127,12 +128,14 @@ impl<B: Backend> TransactionPrimitive<B> {
         }
     }
 
-    pub(crate) fn register_int(&mut self, tensor: IntTensor<B>) {
+    /// Register an int tensor to read in this transaction.
+    pub fn register_int(&mut self, tensor: IntTensor<B>) {
         self.orders.push(Order::Int(self.read_ints.len()));
         self.read_ints.push(tensor);
     }
 
-    pub(crate) fn register_bool(&mut self, tensor: BoolTensor<B>) {
+    /// Register a bool tensor to read in this transaction.
+    pub fn register_bool(&mut self, tensor: BoolTensor<B>) {
         self.orders.push(Order::Bool(self.read_bools.len()));
         self.read_bools.push(tensor);
     }

@@ -1,30 +1,30 @@
-use burn_backend::tensor as backend;
-use burn_dispatch::Dispatch;
+// Sealed traits, limited to Bool, Float and Int types which implement the pub(crate) traits.
+#![allow(private_bounds)]
 
-pub use burn_backend::tensor::{Bool, Float, Int, TensorKind};
+pub use crate::bridge::{Bool, Float, Int};
 
 /// The base trait for any tensor kind.
-pub trait Basic: backend::BasicOps<Dispatch> {}
-impl<K: backend::BasicOps<Dispatch>> Basic for K {}
+pub trait Basic: crate::ops::BasicOps {}
+impl<K: crate::ops::BasicOps> Basic for K {}
 
 /// Kinds that support numeric operations.
-pub trait Numeric: Basic + backend::Numeric<Dispatch> {}
-impl<K: Basic + backend::Numeric<Dispatch>> Numeric for K {}
+pub trait Numeric: Basic + crate::ops::Numeric {}
+impl<K: Basic + crate::ops::Numeric> Numeric for K {}
 
 /// Kinds that support ordered operations.
-pub trait Ordered: Numeric + backend::Ordered<Dispatch> {}
-impl<K: Numeric + backend::Ordered<Dispatch>> Ordered for K {}
+pub trait Ordered: Numeric + crate::ops::Ordered {}
+impl<K: Numeric + crate::ops::Ordered> Ordered for K {}
 
 /// Kinds that support float math operations.
-pub trait FloatMath: Numeric + backend::FloatMathOps<Dispatch> {}
-impl<K: Numeric + backend::FloatMathOps<Dispatch>> FloatMath for K {}
+pub trait FloatMath: Numeric + crate::ops::FloatMathOps {}
+impl<K: Numeric + crate::ops::FloatMathOps> FloatMath for K {}
 
 /// Kinds that support transaction operations.
-pub trait Transaction: Basic + backend::TransactionOp<Dispatch> {}
-impl<K: Basic + backend::TransactionOp<Dispatch>> Transaction for K {}
+pub trait Transaction: Basic + crate::ops::TransactionOp {}
+impl<K: Basic + crate::ops::TransactionOp> Transaction for K {}
 
 /// Kinds that support autodiff operations.
 // #[cfg(feature = "autodiff")]
-pub trait Autodiff: Basic + backend::BasicAutodiffOps<Dispatch> {}
+pub trait Autodiff: Basic + crate::ops::BasicAutodiffOps {}
 // #[cfg(feature = "autodiff")]
-impl<K: backend::BasicAutodiffOps<Dispatch, InnerKind = K>> Autodiff for K {}
+impl<K: crate::ops::BasicAutodiffOps> Autodiff for K {}

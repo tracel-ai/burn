@@ -1,5 +1,7 @@
-use crate::kind::Numeric;
-use crate::tensor::{Shape, Tensor};
+use crate::{
+    kind::Numeric,
+    tensor::{Shape, Tensor},
+};
 
 /// Performs matrix-vector multiplication with optional batch dimensions.
 ///

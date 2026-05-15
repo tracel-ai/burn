@@ -2,10 +2,10 @@ use core::cmp::Ordering;
 use rand::Rng;
 
 use crate::distribution::Distribution;
-use burn_std::{BoolStore, DType, bf16, f16};
+use crate::{BoolStore, DType, bf16, f16};
 
 #[cfg(feature = "cubecl")]
-use burn_std::flex32;
+use crate::flex32;
 
 use super::cast::ToElement;
 
@@ -117,7 +117,7 @@ macro_rules! make_element {
     ) => {
         impl Element for $type {
             #[inline(always)]
-            fn dtype() -> burn_std::DType {
+            fn dtype() -> $crate::DType {
                 $dtype
             }
         }

@@ -1,5 +1,4 @@
-use crate::Tensor;
-use burn_backend::tensor::Int;
+use crate::{Int, Tensor};
 
 pub fn var<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     let mean = tensor.clone().mean_dim(dim);

@@ -25,24 +25,23 @@ tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
     "burn-ir/tracing",
-    "burn-tch?/tracing",
     "burn-core/tracing",
     "cubecl/tracing",
 ]
 
 cubecl-backend = ["cubecl", "burn-cubecl"]
-fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
+fusion = ["burn-fusion", "burn-core/fusion"]
 
 # TODO: should remove backend crate deps and use re-exported types from burn-core
-cuda = ["cubecl-backend", "burn-core/cuda", "burn-cuda"]
-rocm = ["cubecl-backend", "burn-core/rocm", "burn-rocm"]
-wgpu = ["cubecl-backend", "burn-core/wgpu", "burn-wgpu"]
-vulkan = ["wgpu", "burn-core/vulkan", "burn-wgpu/vulkan"]
-webgpu = ["wgpu", "burn-core/webgpu", "burn-wgpu/webgpu"]
-metal = ["wgpu", "burn-core/metal", "burn-wgpu/metal"]
-cpu = ["cubecl-backend", "burn-core/cpu", "burn-cpu"]
-flex = ["burn-core/flex", "burn-flex"]
-tch = ["burn-core/tch", "burn-tch"]
+cuda = ["cubecl-backend", "burn-core/cuda"]
+rocm = ["cubecl-backend", "burn-core/rocm"]
+wgpu = ["cubecl-backend", "burn-core/wgpu"]
+vulkan = ["wgpu", "burn-core/vulkan"]
+webgpu = ["wgpu", "burn-core/webgpu"]
+metal = ["wgpu", "burn-core/metal"]
+cpu = ["cubecl-backend", "burn-core/cpu"]
+flex = ["burn-core/flex"]
+tch = ["burn-core/tch"]
 
 # TODO: move somewhere else
 loss = ["std", "burn-store/pytorch", "burn-core/network", "dirs"]
@@ -54,6 +53,8 @@ burn-ir = { workspace = true, features = ["default"]}
 burn-core = { workspace = true, features = [
     "extension",
 ] }
+
+# TODO: requires burn-backend. The `extension` feature should expose this from `burn-core`.
 
 aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
@@ -73,10 +74,3 @@ num-traits = { workspace = true }
 paste = { workspace = true }
 serde = { workspace = true }
 
-# Backends
-burn-cpu = { workspace = true, optional = true }
-burn-cuda = { workspace = true, optional = true }
-burn-wgpu = { workspace = true, optional = true }
-burn-rocm = { workspace = true, optional = true }
-burn-flex = { workspace = true, optional = true, features = ["default"]}
-burn-tch = { workspace = true, optional = true, features = ["default"]}
