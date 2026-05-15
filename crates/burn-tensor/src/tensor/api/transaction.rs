@@ -29,7 +29,7 @@ impl Transaction {
         mut self,
         tensor: Tensor<D, K>,
     ) -> Self {
-        K::register_transaction(&mut self.op, tensor.into_primitive());
+        K::register_transaction(&mut self.op, tensor.primitive);
         self
     }
 

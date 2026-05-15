@@ -4,7 +4,7 @@ mod kernel;
 
 use burn::{
     backend::{Autodiff, Dispatch, Wgpu, backend_extension, tensor::FloatTensor},
-    tensor::{Tensor, activation, kind::BridgeTensor},
+    tensor::{Tensor, activation},
 };
 
 /// We create our own Backend trait that extends the Burn backend trait.
@@ -23,12 +23,12 @@ pub trait AutodiffBackend: Backend + burn::backend::AutodiffBackend {}
 /// We define our custom implementation using the added function on our custom backend.
 pub fn matmul_add_relu_custom(lhs: Tensor<3>, rhs: Tensor<3>, bias: Tensor<3>) -> Tensor<3> {
     let output = Dispatch::fused_matmul_add_relu(
-        lhs.into_primitive().into(),
-        rhs.into_primitive().into(),
-        bias.into_primitive().into(),
+        lhs.into_primitive(),
+        rhs.into_primitive(),
+        bias.into_primitive(),
     );
 
-    Tensor::from_primitive(BridgeTensor::Float(output))
+    Tensor::from_primitive(output)
 }
 
 /// We define a reference implementation using basic tensor operations.

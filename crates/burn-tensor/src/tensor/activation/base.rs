@@ -39,7 +39,7 @@ $$
     doc = "`f(x) =`\n- `x for x >= 0`\n- `negative_slope * x if x < 0`"
 )]
 pub fn leaky_relu<const D: usize>(tensor: Tensor<D>, negative_slope: f64) -> Tensor<D> {
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::leaky_relu(
+    Tensor::new(BridgeTensor::Float(Dispatch::leaky_relu(
         tensor.primitive.into_float(),
         negative_slope.into(),
     )))
@@ -69,7 +69,7 @@ where `Φ(x)` is the cumulative distribution function for the Gaussian distribut
 "#
 )]
 pub fn gelu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::gelu(
+    Tensor::new(BridgeTensor::Float(Dispatch::gelu(
         tensor.primitive.into_float(),
     )))
 }
@@ -144,7 +144,7 @@ pub fn prelu<const D: usize>(tensor: Tensor<D>, alpha: Tensor<1>) -> Tensor<D> {
         alpha.reshape(s)
     };
 
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::prelu(
+    Tensor::new(BridgeTensor::Float(Dispatch::prelu(
         tensor.primitive.into_float(),
         weight.primitive.into_float(),
     )))
@@ -170,7 +170,7 @@ $$
 pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::softmax(
+    Tensor::new(BridgeTensor::Float(Dispatch::softmax(
         tensor.primitive.into_float(),
         dim,
     )))
@@ -196,7 +196,7 @@ $$
 pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmin", dim));
 
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::softmin(
+    Tensor::new(BridgeTensor::Float(Dispatch::softmin(
         tensor.primitive.into_float(),
         dim,
     )))
@@ -280,7 +280,7 @@ $$
 pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("log softmax", dim));
 
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::log_softmax(
+    Tensor::new(BridgeTensor::Float(Dispatch::log_softmax(
         tensor.primitive.into_float(),
         dim,
     )))
@@ -300,7 +300,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`sigmoid(x) = 1 / (1 + exp(-x))`")]
 pub fn sigmoid<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::sigmoid(
+    Tensor::new(BridgeTensor::Float(Dispatch::sigmoid(
         tensor.primitive.into_float(),
     )))
 }
@@ -317,7 +317,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`hard_sigmoid(x) = max(0, min(1, alpha * x + beta))`")]
 pub fn hard_sigmoid<const D: usize>(tensor: Tensor<D>, alpha: f64, beta: f64) -> Tensor<D> {
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::hard_sigmoid(
+    Tensor::new(BridgeTensor::Float(Dispatch::hard_sigmoid(
         tensor.primitive.into_float(),
         alpha.into(),
         beta.into(),
@@ -336,7 +336,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`log_sigmoid(x) = log(1 / (1 + exp(-x)))`")]
 pub fn log_sigmoid<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::log_sigmoid(
+    Tensor::new(BridgeTensor::Float(Dispatch::log_sigmoid(
         tensor.primitive.into_float(),
     )))
 }

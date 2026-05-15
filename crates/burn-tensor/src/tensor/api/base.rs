@@ -111,19 +111,6 @@ where
         core::mem::swap(&mut tensor_new, self);
     }
 
-    // TODO: feature gated for backend extensions? Note that `Tensor::new(primitive)` also exists right now
-    // The primitive kind will be opaque, but for these public extension feature-gated methods
-    // we could return/use the dispatch tensor type.
-    /// Converts the tensor into a primitive tensor.
-    pub fn into_primitive(self) -> BridgeTensor {
-        self.primitive
-    }
-
-    /// Converts from a primitive tensor into a tensor.
-    pub fn from_primitive(tensor: BridgeTensor) -> Self {
-        Self::new(tensor)
-    }
-
     /// Returns the number of dimensions of the tensor.
     pub fn rank(&self) -> usize {
         self.primitive.rank()

@@ -600,7 +600,7 @@ pub fn layer_norm<const D: usize>(
     beta: Option<Tensor<1>>,
     epsilon: f64,
 ) -> Tensor<D> {
-    Tensor::from_primitive(BridgeTensor::Float(Dispatch::layer_norm(
+    Tensor::new(BridgeTensor::Float(Dispatch::layer_norm(
         input.primitive.into_float(),
         gamma.primitive.into_float(),
         beta.map(|b| b.primitive.into_float()),

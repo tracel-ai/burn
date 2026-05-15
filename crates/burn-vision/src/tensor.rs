@@ -1,6 +1,5 @@
 use burn_core::backend::Dispatch;
-use burn_core::tensor::kind::BridgeTensor;
-use burn_core::tensor::{Bool, Float, Int, Tensor};
+use burn_core::tensor::{Bool, DType, Float, Int, Tensor};
 
 use crate::{
     BoolVisionOps, ConnectedStats, ConnectedStatsOptions, Connectivity, FloatVisionOps,
@@ -37,22 +36,6 @@ pub trait Morphology {
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self;
 }
 
-// /// Morphology tensor operations
-// pub trait MorphologyKind: BasicOps<B> {
-//     /// Erodes this tensor using the specified kernel
-//     fn erode(
-//         tensor: Self::Primitive,
-//         kernel: BoolTensor<B>,
-//         opts: MorphOptions<B, Self>,
-//     ) -> Self::Primitive;
-//     /// Dilates this tensor using the specified kernel
-//     fn dilate(
-//         tensor: Self::Primitive,
-//         kernel: BoolTensor<B>,
-//         opts: MorphOptions<B, Self>,
-//     ) -> Self::Primitive;
-// }
-
 /// Non-maximum suppression tensor operations
 pub trait Nms {
     /// Perform Non-Maximum Suppression on this tensor of bounding boxes.
@@ -71,16 +54,13 @@ pub trait Nms {
     fn nms(self, scores: Tensor<1, Float>, opts: NmsOptions) -> Tensor<1, Int>;
 }
 
-// THE IMPLEMENTATION WHICH SHOULD CALL DISPATCH
 impl ConnectedComponents for Tensor<2, Bool> {
     fn connected_components(self, connectivity: Connectivity) -> Tensor<2, Int> {
         let settings = self.device().settings();
-        Tensor::new(BridgeTensor::Int(
-            <Dispatch as BoolVisionOps>::connected_components(
-                self.into_primitive().into(),
-                connectivity,
-                settings.int_dtype,
-            ),
+        Tensor::from_primitive(<Dispatch as BoolVisionOps>::connected_components(
+            self.into_primitive(),
+            connectivity,
+            settings.int_dtype,
         ))
     }
 
@@ -92,104 +72,100 @@ impl ConnectedComponents for Tensor<2, Bool> {
         let settings = self.device().settings();
         let (labels, area, left, top, right, bottom, max_label) =
             <Dispatch as BoolVisionOps>::connected_components_with_stats(
-                self.into_primitive().into(),
+                self.into_primitive(),
                 connectivity,
                 options,
                 settings.int_dtype,
             );
         let stats = ConnectedStats {
-            area: Tensor::new(BridgeTensor::Int(area)),
-            left: Tensor::new(BridgeTensor::Int(left)),
-            top: Tensor::new(BridgeTensor::Int(top)),
-            right: Tensor::new(BridgeTensor::Int(right)),
-            bottom: Tensor::new(BridgeTensor::Int(bottom)),
-            max_label: Tensor::new(BridgeTensor::Int(max_label)),
+            area: Tensor::from_primitive(area),
+            left: Tensor::from_primitive(left),
+            top: Tensor::from_primitive(top),
+            right: Tensor::from_primitive(right),
+            bottom: Tensor::from_primitive(bottom),
+            max_label: Tensor::from_primitive(max_label),
         };
-        (Tensor::new(BridgeTensor::Int(labels)), stats)
+        (Tensor::from_primitive(labels), stats)
     }
 }
 
 impl Morphology for Tensor<3, Float> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        let out = match self.into_primitive() {
-            BridgeTensor::Float(tensor) => {
-                BridgeTensor::Float(<Dispatch as FloatVisionOps>::float_erode(
-                    tensor,
-                    kernel.into_primitive().into(),
-                    opts,
-                ))
-            }
-            _ => unimplemented!(),
-        };
-        Tensor::new(out)
+        if matches!(self.dtype(), DType::QFloat(_)) {
+            unimplemented!("Quantized float is not supported");
+        }
+
+        let out = <Dispatch as FloatVisionOps>::float_erode(
+            self.into_primitive(),
+            kernel.into_primitive(),
+            opts,
+        );
+        Tensor::from_primitive(out)
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        let out = match self.into_primitive() {
-            BridgeTensor::Float(tensor) => {
-                BridgeTensor::Float(<Dispatch as FloatVisionOps>::float_dilate(
-                    tensor,
-                    kernel.into_primitive().into(),
-                    opts,
-                ))
-            }
-            _ => unimplemented!(),
-        };
-        Tensor::new(out)
+        if matches!(self.dtype(), DType::QFloat(_)) {
+            unimplemented!("Quantized float is not supported");
+        }
+
+        let out = <Dispatch as FloatVisionOps>::float_dilate(
+            self.into_primitive(),
+            kernel.into_primitive(),
+            opts,
+        );
+        Tensor::from_primitive(out)
     }
 }
 
 impl Morphology for Tensor<3, Int> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(BridgeTensor::Int(<Dispatch as IntVisionOps>::int_erode(
-            self.into_primitive().into(),
-            kernel.into_primitive().into(),
+        Tensor::from_primitive(<Dispatch as IntVisionOps>::int_erode(
+            self.into_primitive(),
+            kernel.into_primitive(),
             opts,
-        )))
+        ))
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(BridgeTensor::Int(<Dispatch as IntVisionOps>::int_dilate(
-            self.into_primitive().into(),
-            kernel.into_primitive().into(),
+        Tensor::from_primitive(<Dispatch as IntVisionOps>::int_dilate(
+            self.into_primitive(),
+            kernel.into_primitive(),
             opts,
-        )))
+        ))
     }
 }
 
 impl Morphology for Tensor<3, Bool> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(BridgeTensor::Int(<Dispatch as BoolVisionOps>::bool_erode(
-            self.into_primitive().into(),
-            kernel.into_primitive().into(),
+        Tensor::from_primitive(<Dispatch as BoolVisionOps>::bool_erode(
+            self.into_primitive(),
+            kernel.into_primitive(),
             opts,
-        )))
+        ))
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::new(BridgeTensor::Int(
-            <Dispatch as BoolVisionOps>::bool_dilate(
-                self.into_primitive().into(),
-                kernel.into_primitive().into(),
-                opts,
-            ),
+        Tensor::from_primitive(<Dispatch as BoolVisionOps>::bool_dilate(
+            self.into_primitive(),
+            kernel.into_primitive(),
+            opts,
         ))
     }
 }
 
 impl Nms for Tensor<2> {
     fn nms(self, scores: Tensor<1>, options: NmsOptions) -> Tensor<1, Int> {
-        let settings = self.device().settings();
-        match (self.into_primitive(), scores.into_primitive()) {
-            (BridgeTensor::Float(boxes), BridgeTensor::Float(scores)) => {
-                Tensor::new(BridgeTensor::Int(<Dispatch as FloatVisionOps>::nms(
-                    boxes,
-                    scores,
-                    options,
-                    settings.int_dtype,
-                )))
-            }
-            _ => unimplemented!("Other inputs are not yet supported"),
+        if matches!(self.dtype(), DType::QFloat(_)) {
+            unimplemented!("Quantized float is not supported");
         }
+
+        let settings = self.device().settings();
+
+        Tensor::from_primitive(<Dispatch as FloatVisionOps>::nms(
+            self.into_primitive(),
+            scores.into_primitive(),
+            options,
+            settings.int_dtype,
+        ))
     }
 }

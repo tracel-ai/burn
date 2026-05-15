@@ -18,24 +18,51 @@ pub struct Bool;
 /// Metadata access is lazy.
 pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
     /// The name of the tensor kind.
-    fn name() -> &'static str;
+    fn name() -> &'static str {
+        Self::id().as_str()
+    }
+
+    /// The tensor kind identifier.
+    fn id() -> TensorKindId;
 }
 
 impl TensorKind for Float {
-    fn name() -> &'static str {
-        "Float"
+    fn id() -> TensorKindId {
+        TensorKindId::Float
     }
 }
 
 impl TensorKind for Int {
-    fn name() -> &'static str {
-        "Int"
+    fn id() -> TensorKindId {
+        TensorKindId::Int
     }
 }
 
 impl TensorKind for Bool {
-    fn name() -> &'static str {
-        "Bool"
+    fn id() -> TensorKindId {
+        TensorKindId::Bool
+    }
+}
+
+/// Runtime identifier for a tensor kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TensorKindId {
+    /// A float tensor kind.
+    Float,
+    /// An integer tensor kind.
+    Int,
+    /// A boolean tensor kind.
+    Bool,
+}
+
+impl TensorKindId {
+    /// Get the string representation of the [`TensorKindId`].
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TensorKindId::Float => "Float",
+            TensorKindId::Int => "Int",
+            TensorKindId::Bool => "Bool",
+        }
     }
 }
 

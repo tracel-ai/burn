@@ -27,3 +27,8 @@ pub use cast::*;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
 pub use options::*;
 pub use transaction::*;
+
+#[cfg(feature = "extension")]
+mod extension;
+#[cfg(feature = "extension")]
+pub use extension::*;

@@ -32,8 +32,8 @@ pub fn compute_range<const D: usize>(
     };
 
     CalibrationRange {
-        min: Tensor::from_primitive(BridgeTensor::Float(min)),
-        max: Tensor::from_primitive(BridgeTensor::Float(max)),
+        min: Tensor::new(BridgeTensor::Float(min)),
+        max: Tensor::new(BridgeTensor::Float(max)),
     }
 }
 
@@ -43,7 +43,7 @@ pub fn compute_q_params(scheme: &QuantScheme, range: CalibrationRange) -> Quanti
         (BridgeTensor::Float(min), BridgeTensor::Float(max)) => {
             let qparams = quantization::compute_q_params::<Dispatch>(scheme, min, max);
             QuantizationParameters {
-                scales: Tensor::from_primitive(BridgeTensor::Float(qparams.scales)),
+                scales: Tensor::new(BridgeTensor::Float(qparams.scales)),
             }
         }
         _ => unreachable!(),
