@@ -4,7 +4,6 @@ use burn_tensor::Tolerance;
 use burn_tensor::signal;
 
 #[test]
-#[ignore = "rfft is not supported for ndarray"]
 fn should_diff_rfft() {
     let device = AutodiffDevice::new();
 
@@ -30,7 +29,6 @@ fn should_diff_rfft() {
 }
 
 #[test]
-#[ignore = "rfft is not supported for ndarray"]
 fn round_trip() {
     let device = AutodiffDevice::new();
 
