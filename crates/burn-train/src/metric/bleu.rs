@@ -495,8 +495,7 @@ mod tests {
     #[test]
     fn test_bleu_exponential_smoothing() {
         let device = Default::default();
-        let mut metric =
-            BleuScore::with_max_n(2).with_smoothing(BleuSmoothing::Exponential);
+        let mut metric = BleuScore::with_max_n(2).with_smoothing(BleuSmoothing::Exponential);
 
         // Unigrams: {1,3,5,7,9} vs {1,2,3,4,5} — clipped = 2/5
         // Bigrams: {(1,3),(3,5),(5,7),(7,9)} vs {(1,2),(2,3),(3,4),(4,5)} — clipped = 0/4
@@ -522,8 +521,7 @@ mod tests {
     #[test]
     fn test_bleu_add_epsilon_smoothing() {
         let device = Default::default();
-        let mut metric =
-            BleuScore::with_max_n(2).with_smoothing(BleuSmoothing::AddEpsilon(0.1));
+        let mut metric = BleuScore::with_max_n(2).with_smoothing(BleuSmoothing::AddEpsilon(0.1));
 
         // Unigrams: {1,3,5,7,9} vs {1,2,3,4,5} — clipped 2, total 5
         // Bigrams: {(1,3),(3,5),(5,7),(7,9)} vs {(1,2),(2,3),(3,4),(4,5)} — clipped 0, total 4
