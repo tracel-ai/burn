@@ -11,7 +11,7 @@ pub trait TrainingProgressLogger: Send {
     fn update_valid(&mut self, progress: &TrainingProgress);
 
     /// Called at the end of an epoch evaluation.
-    fn end_evaluation(&mut self, epoch: usize);
+    fn end_epoch(&mut self, epoch: usize);
 }
 
 /// A simple file-based implementation of [TrainingProgressLogger] for debugging.
@@ -41,7 +41,9 @@ impl TrainingProgressLogger for FileProgressLogger {
             progress.global_progress.items_processed,
             progress.global_progress.items_total,
             items,
-            progress.iteration.map_or("?".to_string(), |i| i.to_string()),
+            progress
+                .iteration
+                .map_or("?".to_string(), |i| i.to_string()),
         )
         .ok();
     }
@@ -59,12 +61,14 @@ impl TrainingProgressLogger for FileProgressLogger {
             progress.global_progress.items_processed,
             progress.global_progress.items_total,
             items,
-            progress.iteration.map_or("?".to_string(), |i| i.to_string()),
+            progress
+                .iteration
+                .map_or("?".to_string(), |i| i.to_string()),
         )
         .ok();
     }
 
-    fn end_evaluation(&mut self, epoch: usize) {
+    fn end_epoch(&mut self, epoch: usize) {
         writeln!(self.file, "[END_EPOCH] epoch: {}", epoch).ok();
     }
 }

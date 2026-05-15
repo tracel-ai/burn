@@ -155,11 +155,16 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         self
     }
 
-    /// Register a progress logger to track training progress.
+    /// Register a progress logger to track and store training progress.
     ///
-    /// # Arguments
+    /// # Example
     ///
-    /// * `logger` - The progress logger.
+    /// ```no_run
+    /// use burn_train::logger::FileProgressLogger;
+    ///
+    /// let learner = SupervisedTraining::new(...)
+    ///     .with_progress_logger(FileProgressLogger::new("progress.log"));
+    /// ```
     pub fn with_progress_logger<PL>(mut self, logger: PL) -> Self
     where
         PL: TrainingProgressLogger + 'static,
@@ -363,7 +368,8 @@ where
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let full_processor = FullEventProcessorTraining::new(self.metrics, renderer, event_store.clone());
+        let full_processor =
+            FullEventProcessorTraining::new(self.metrics, renderer, event_store.clone());
         let full_processor = match self.progress_logger {
             Some(logger) => full_processor.with_progress_logger(logger),
             None => full_processor,

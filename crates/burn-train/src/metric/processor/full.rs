@@ -40,10 +40,7 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
         }
     }
 
-    pub(crate) fn with_progress_logger(
-        mut self,
-        logger: Box<dyn TrainingProgressLogger>,
-    ) -> Self {
+    pub(crate) fn with_progress_logger(mut self, logger: Box<dyn TrainingProgressLogger>) -> Self {
         self.progress_logger = Some(logger);
         self
     }
@@ -264,7 +261,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                         Split::Valid,
                     )));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.end_evaluation(epoch);
+                    logger.end_epoch(epoch);
                 }
                 self.metrics.end_epoch_valid();
             }
