@@ -1,22 +1,19 @@
 use burn_std::DType;
-pub use burn_std::backtrace::BackTrace;
+pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
-use alloc::string::String;
-use enumset::{EnumSet, EnumSetType};
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-use crate::element::Element;
+pub use crate::element::Element;
 use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{QTensorPrimitive, TensorData, TensorMetadata};
+use alloc::string::String;
+use enumset::{EnumSet, EnumSetType};
 
 #[cfg(feature = "distributed")]
 use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 
-/// The mapping of types used by Backend and traits like Numeric, BasicOps
+/// The mapping of types used by Backend and traits.
 pub trait BackendTypes {
     /// Device type.
     type Device: DeviceOps;
@@ -177,36 +174,6 @@ pub trait Backend:
     /// A CUDA device will return all devices available to CUDA, a Vulkan device will return all
     /// devices available to Vulkan, etc.
     fn device_count(type_id: u16) -> usize;
-}
-
-/// An error that can happen when syncing a device.
-#[derive(Error, Serialize, Deserialize)]
-pub enum ExecutionError {
-    /// A generic error happened during execution.
-    ///
-    /// The backtrace and context information should be included in the reason string.
-    #[error("An error happened during execution\nCaused by:\n  {reason}")]
-    WithContext {
-        /// The reason of the error.
-        reason: String,
-    },
-    /// A generic error happened during execution thrown in the Burn project.
-    ///
-    /// The full context isn't captured by the string alone.
-    #[error("An error happened during execution\nCaused by:\n  {reason}")]
-    Generic {
-        /// The reason of the error.
-        reason: String,
-        /// The backtrace.
-        #[serde(skip)]
-        backtrace: BackTrace,
-    },
-}
-
-impl core::fmt::Debug for ExecutionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("{self}"))
-    }
 }
 
 /// Trait that allows a backend to support autodiff.

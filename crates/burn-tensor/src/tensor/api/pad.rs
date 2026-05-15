@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{Element, ElementConversion, Tensor, kind::Numeric, ops::PadMode};
+use crate::{ElementConversion, Tensor, kind::Numeric, ops::PadMode};
 
 /// Trait for types that can be used as padding specifications.
 ///
@@ -101,7 +101,6 @@ fn build_slice_ranges<const D: usize>(
 impl<const D: usize, K> Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     /// Pads the tensor using the specified padding mode.
     ///
@@ -139,7 +138,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///
     ///    // Constant padding with value 0.0 (backward-compatible tuple)
     ///    let padded = tensor.clone().pad((1, 1, 1, 1), PadMode::Constant(0.0));
@@ -169,7 +168,6 @@ fn pad_constant<const D: usize, K, E>(
 ) -> Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
     E: ElementConversion,
 {
     let mut padded_dims: [usize; D] = tensor.dims();
@@ -204,7 +202,6 @@ fn pad_reflect<const D: usize, K>(
 ) -> Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     let dims = tensor.dims();
 
@@ -241,7 +238,6 @@ fn pad_reflect_dim<const D: usize, K>(
 ) -> Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     let dims = tensor.dims();
     let dim_size = dims[dim];
@@ -283,7 +279,6 @@ where
 fn pad_edge<const D: usize, K>(tensor: Tensor<D, K>, padding: &[(usize, usize); D]) -> Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     let dims = tensor.dims();
 
@@ -317,7 +312,6 @@ fn pad_edge_dim<const D: usize, K>(
 ) -> Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     let dims = tensor.dims();
     let dim_size = dims[dim];

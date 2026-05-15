@@ -1,4 +1,5 @@
-use burn_core::tensor::{Shape, backend::TensorMetadata};
+use burn_core::backend::TensorMetadata;
+use burn_core::tensor::Shape;
 use cubecl::prelude::*;
 
 use burn_cubecl::{

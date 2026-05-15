@@ -1,18 +1,17 @@
 use burn_backend::Scalar;
 
 use crate::alloc::borrow::ToOwned;
+use crate::kind::Numeric;
 use alloc::vec::Vec;
 
 use crate::{
-    AsIndex, Bool, Distribution, Element, ElementConversion, Int, Shape, Tensor, check,
-    check::TensorCheck,
+    AsIndex, Bool, Distribution, ElementConversion, Int, Shape, Tensor, check, check::TensorCheck,
 };
-use crate::{Device, IndexingUpdateOp, TensorCreationOptions, kind::Numeric};
+use crate::{Device, IndexingUpdateOp, TensorCreationOptions};
 
 impl<const D: usize, K> Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     /// Applies element wise addition operation.
     ///
@@ -29,8 +28,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1 + tensor2;
     ///    println!("{tensor}");
     ///    // [[3.0, 1.0, 7.0], [6.0, 11.0, 9.0]]
@@ -57,7 +56,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let scalar = 2.0;
     ///   let tensor = tensor + scalar;
     ///   println!("{tensor}");
@@ -84,8 +83,8 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///   let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor1 - tensor2;
     ///   println!("{tensor}");
     ///   // [[-1.0, -5.0, -1.0], [4.0, 7.0, 3.0]]
@@ -112,7 +111,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor - scalar;
     ///    println!("{tensor}");
@@ -139,8 +138,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1 / tensor2;
     ///    println!("{tensor}");
     ///    // [[0.5, -0.6666667, 0.75], [5.0, 4.5, 2.0]]
@@ -167,7 +166,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor / scalar;
     ///    println!("{tensor}");
@@ -201,7 +200,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor1 % scalar;
     ///    println!("{tensor}");
@@ -228,8 +227,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1 * tensor2;
     ///    println!("{tensor}");
     ///    // [[2.0, -6.0, 12.0], [5.0, 18.0, 18.0]]
@@ -256,7 +255,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor * scalar;
     ///    println!("{tensor}");
@@ -279,7 +278,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = -tensor;
     ///    println!("{tensor}");
     ///    // [[-1.0, 2.0, -3.0], [-5.0, -9.0, -6.0]]
@@ -299,7 +298,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.sign();
     ///    println!("{tensor}");
     ///    // [[1.0, -1.0, 1.0], [1.0, 1.0, 1.0]]
@@ -318,7 +317,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.mean();
     ///    println!("{tensor}");
     ///    // [3.6666667]
@@ -337,7 +336,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.sum();
     ///   println!("{tensor}");
     ///   // [22.0]
@@ -362,7 +361,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.clone().mean_dim(0);
     ///   println!("{tensor}");
     ///   // [[3.0, 3.5, 4.5]]
@@ -396,7 +395,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[2.0, 4.0], [6.0, -4.0]], &device);
     ///    let tensor = tensor.clone().mean_dims(&[0, 1]);
     ///    println!("{tensor}");
     ///    // [[2.0]]
@@ -421,7 +420,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.clone().sum_dim(0);
     ///    println!("{tensor}");
     ///    // [[6.0, 7.0, 9.0]]
@@ -455,7 +454,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
     ///    println!("{tensor}");
     ///    // [[27]]
@@ -485,7 +484,7 @@ where
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 3>::from_data([
+    ///     let tensor = Tensor::<3>::from_data([
     ///         [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
     ///         [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
     ///     ], &device);
@@ -512,7 +511,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.prod();
     ///    println!("{tensor}");
     ///    // [-1620.0]
@@ -542,7 +541,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.clone().prod_dim(0);
     ///    println!("{tensor}");
     ///    // [[5.0, -18.0, 18.0]]
@@ -576,7 +575,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.clone().sum_dims(&[0, 1]);
     ///    println!("{tensor}");
     ///    // [[-1620.0]]
@@ -599,7 +598,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
     ///    let result = tensor.clone().cumsum(0);
     ///    println!("{result}");
     ///    // [[1.0, 2.0, 3.0], [5.0, 7.0, 9.0]]
@@ -626,7 +625,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
     ///    let result = tensor.clone().cumprod(0);
     ///    println!("{result}");
     ///    // [[1.0, 2.0, 3.0], [4.0, 10.0, 18.0]]
@@ -649,7 +648,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
+    ///   let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
     ///   let tensor = tensor.abs();
     ///   println!("{tensor}");
     ///   // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
@@ -680,7 +679,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2, Int>::from_ints(
+    ///    let tensor = Tensor::<2, Int>::from_ints(
     ///        [
     ///          [1, 2, 3],
     ///          [4, 5, 6],
@@ -723,7 +722,7 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2, Int>::from_ints(
+    ///    let tensor = Tensor::<2, Int>::from_ints(
     ///        [
     ///          [1, 2, 3],
     ///          [4, 5, 6],
@@ -764,8 +763,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
-    ///    let tensor2 = Tensor::< 2, Int>::from_ints([[2, 3, 4], [1, 2, 3]], &device);
+    ///    let tensor1 = Tensor::<2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
+    ///    let tensor2 = Tensor::<2, Int>::from_ints([[2, 3, 4], [1, 2, 3]], &device);
     ///    let tensor = tensor1.powi(tensor2);
     ///    println!("{tensor}");
     ///    // [[1, -8, 81], [5, 81, 216]]
@@ -788,12 +787,12 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
+    ///    let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
     ///    let tensor = tensor.powi_scalar(2);
     ///    println!("{tensor}");
     ///
     ///    // [[1, 4, 9], [25, 81, 36]]
-    ///    let tensor = Tensor::< 2>::from_data([[1.5, -2., 3.], [5., 9., 6.]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.5, -2., 3.], [5., 9., 6.]], &device);
     ///    let tensor = tensor.powi_scalar(2);
     ///    println!("{tensor}");
     ///    // [[2.25, 4., 9.], [25., 81., 36.]]
@@ -817,7 +816,7 @@ where
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [0.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [0.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.bool();
     ///   println!("{tensor}");
     ///   // [
@@ -852,7 +851,7 @@ where
     /// fn example() {
     ///   let device = Default::default();
     ///   let distribution = Distribution::Uniform(0.0, 1.0); // Any random value between 0.0 and 1.0
-    ///   let tensor = Tensor::< 2>::random(Shape::new([2, 3]), distribution, &device);
+    ///   let tensor = Tensor::<2>::random(Shape::new([2, 3]), distribution, &device);
     ///   println!("{tensor}");
     ///   // [
     ///   //   [0.08347523, 0.70498955, 0.60332155],
@@ -868,12 +867,7 @@ where
         // Use the given dtype when provided, otherwise default device dtype
         let opt = options.into();
         let dtype = opt.resolve_dtype::<K>();
-        Self::new(K::random(
-            shape.into(),
-            distribution,
-            &opt.device.dispatch,
-            dtype,
-        ))
+        Self::new(K::random(shape.into(), distribution, &opt.device, dtype))
     }
 
     /// Applies the matrix multiplication operation.
@@ -912,7 +906,6 @@ where
 impl<K> Tensor<1, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     /// Calculates the dot product with another tensor.
     ///
@@ -933,8 +926,8 @@ where
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 1>::from_data([1.0, 2.0], &device);
-    ///    let tensor2 = Tensor::< 1>::from_data([-2.0, 3.0], &device);
+    ///    let tensor1 = Tensor::<1>::from_data([1.0, 2.0], &device);
+    ///    let tensor2 = Tensor::<1>::from_data([-2.0, 3.0], &device);
     ///    let tensor = tensor1.dot(tensor2);
     ///    println!("{tensor}");
     ///    // [4]
@@ -948,7 +941,6 @@ where
 impl<K> Tensor<2, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     /// Creates a new 2D tensor with ones on the diagonal and zeros elsewhere.
     ///
@@ -965,10 +957,7 @@ where
 }
 
 // Tensor + tensor
-impl<const D: usize, K: Numeric> core::ops::Add<Self> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<const D: usize, K: Numeric> core::ops::Add<Self> for Tensor<D, K> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -977,10 +966,7 @@ where
 }
 
 // Tensor + scalar
-impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Add<E> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Add<E> for Tensor<D, K> {
     type Output = Self;
 
     fn add(self, other: E) -> Self::Output {
@@ -993,8 +979,6 @@ macro_rules! impl_tensor_scalar_add {
     ($($t:ty),*) => {
         $(
             impl<const D: usize, K: Numeric> core::ops::Add<Tensor<D, K>> for $t
-            where
-                K::Elem: Element,
             {
                 type Output = Tensor<D, K>;
 
@@ -1008,10 +992,7 @@ macro_rules! impl_tensor_scalar_add {
 impl_tensor_scalar_add!(f32, f64, i32, i64, u32, u64);
 
 // Tensor - tensor
-impl<const D: usize, K: Numeric> core::ops::Sub<Self> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<const D: usize, K: Numeric> core::ops::Sub<Self> for Tensor<D, K> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -1020,10 +1001,7 @@ where
 }
 
 // Tensor - scalar
-impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Sub<E> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Sub<E> for Tensor<D, K> {
     type Output = Self;
 
     fn sub(self, other: E) -> Self::Output {
@@ -1036,8 +1014,6 @@ macro_rules! impl_tensor_scalar_sub {
     ($($t:ty),*) => {
         $(
             impl<const D: usize, K: Numeric> core::ops::Sub<Tensor<D, K>> for $t
-            where
-                K::Elem: Element,
             {
                 type Output = Tensor<D, K>;
 
@@ -1051,10 +1027,7 @@ macro_rules! impl_tensor_scalar_sub {
 impl_tensor_scalar_sub!(f32, f64, i32, i64, u32, u64);
 
 // Tensor / tensor
-impl<const D: usize, K: Numeric> core::ops::Div<Self> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<const D: usize, K: Numeric> core::ops::Div<Self> for Tensor<D, K> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -1063,10 +1036,7 @@ where
 }
 
 // Tensor / scalar
-impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Div<E> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Div<E> for Tensor<D, K> {
     type Output = Self;
 
     fn div(self, other: E) -> Self::Output {
@@ -1093,10 +1063,7 @@ macro_rules! impl_tensor_scalar_div {
 impl_tensor_scalar_div!(f32, f64);
 
 // Tensor % tensor.
-impl<const D: usize, K: Numeric> core::ops::Rem<Self> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<const D: usize, K: Numeric> core::ops::Rem<Self> for Tensor<D, K> {
     type Output = Self;
 
     fn rem(self, rhs: Self) -> Self::Output {
@@ -1105,10 +1072,7 @@ where
 }
 
 // Tensor % scalar.
-impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Rem<E> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Rem<E> for Tensor<D, K> {
     type Output = Self;
 
     fn rem(self, other: E) -> Self::Output {
@@ -1117,10 +1081,7 @@ where
 }
 
 // Tensor * tensor.
-impl<const D: usize, K: Numeric> core::ops::Mul<Self> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<const D: usize, K: Numeric> core::ops::Mul<Self> for Tensor<D, K> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -1129,10 +1090,7 @@ where
 }
 
 // Tensor * scalar.
-impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Mul<E> for Tensor<D, K>
-where
-    K::Elem: Element,
-{
+impl<E: ElementConversion, const D: usize, K: Numeric> core::ops::Mul<E> for Tensor<D, K> {
     type Output = Self;
 
     fn mul(self, other: E) -> Self::Output {
@@ -1144,8 +1102,6 @@ macro_rules! impl_tensor_scalar_mul {
     ($($t:ty),*) => {
         $(
             impl<const D: usize, K: Numeric> core::ops::Mul<Tensor<D, K>> for $t
-            where
-                K::Elem: Element,
             {
                 type Output = Tensor<D, K>;
 
@@ -1162,7 +1118,6 @@ impl_tensor_scalar_mul!(f32, f64, i32, i64, u32, u64);
 impl<const D: usize, K> core::ops::Neg for Tensor<D, K>
 where
     K: Numeric,
-    K::Elem: Element,
 {
     type Output = Self;
 

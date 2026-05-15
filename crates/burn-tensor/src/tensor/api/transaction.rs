@@ -1,8 +1,7 @@
 use super::Tensor;
-use crate::{
-    ExecutionError, TensorData, TransactionPrimitive, kind::Transaction as TransactionKind,
-};
+use crate::{ExecutionError, TensorData};
 use alloc::vec::Vec;
+use burn_backend::ops::TransactionPrimitive;
 use burn_dispatch::Dispatch;
 
 #[derive(Default)]
@@ -26,7 +25,10 @@ pub struct Transaction {
 
 impl Transaction {
     /// Add a [tensor](Tensor) to the transaction to be read.
-    pub fn register<const D: usize, K: TransactionKind>(mut self, tensor: Tensor<D, K>) -> Self {
+    pub fn register<const D: usize, K: crate::kind::Transaction>(
+        mut self,
+        tensor: Tensor<D, K>,
+    ) -> Self {
         K::register_transaction(&mut self.op, tensor.into_primitive());
         self
     }

@@ -1,5 +1,7 @@
 pub use burn_dispatch::devices::*;
-pub use burn_std::{DeviceError, DeviceSettings, device::DeviceId};
+pub use burn_std::{
+    DeviceError, DeviceSettings, ExecutionError, backtrace::BackTrace, device::DeviceId,
+};
 
 use burn_backend::Backend;
 #[allow(unused)]
@@ -194,8 +196,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an [`ExecutionError`](burn_backend::ExecutionError) if an operation failed to execute.
-    pub fn sync(&self) -> Result<(), burn_backend::ExecutionError> {
+    /// Returns an [`ExecutionError`] if an operation failed to execute.
+    pub fn sync(&self) -> Result<(), ExecutionError> {
         Dispatch::sync(&self.dispatch)
     }
 

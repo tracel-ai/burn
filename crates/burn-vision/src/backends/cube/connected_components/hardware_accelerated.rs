@@ -6,11 +6,8 @@
 use crate::{
     ConnectedStatsOptions, Connectivity, backends::cube::connected_components::stats_from_opts,
 };
-use burn_core::tensor::{
-    Shape,
-    backend::{TensorMetadata, ops::IntTensorOps},
-    cast::ToElement,
-};
+use burn_core::backend::{TensorMetadata, ops::IntTensorOps};
+use burn_core::tensor::{Shape, cast::ToElement};
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel,
     ops::{into_data_sync, numeric::zeros_client},

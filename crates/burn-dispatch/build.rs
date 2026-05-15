@@ -55,4 +55,6 @@ fn main() {
     if no_backend_enabled {
         println!("cargo:rustc-cfg=default_backend");
     }
+
+    println!("cargo:warning=Detected features: [cuda={cuda}, vulkan={vulkan}].",);
 }

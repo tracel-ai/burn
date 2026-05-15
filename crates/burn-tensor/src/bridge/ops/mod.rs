@@ -3,11 +3,12 @@ mod base;
 mod bool;
 mod float;
 mod int;
+mod math;
 mod numeric;
 mod ordered;
 
-pub use autodiff::*;
-pub use base::*;
-pub use float::FloatMathOps;
-pub use numeric::*;
-pub use ordered::*;
+pub(crate) use autodiff::*;
+pub(crate) use base::*;
+pub(crate) use math::*;
+pub(crate) use numeric::*;
+pub(crate) use ordered::*;

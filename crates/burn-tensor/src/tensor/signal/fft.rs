@@ -3,9 +3,9 @@ use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 
 use crate::Tensor;
-use crate::TensorPrimitive;
 use crate::check;
 use crate::check::TensorCheck;
+use crate::ops::BridgeTensor;
 
 /// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
 ///
@@ -48,7 +48,7 @@ where $N$ is the size of the signal along the specified dimension.
 ///
 /// fn example() {
 ///     let device = Default::default();
-///     let signal = Tensor::< 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+///     let signal = Tensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 ///     let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
 /// }
 /// ```
@@ -74,10 +74,10 @@ pub fn rfft<const D: usize>(
         }
     }
 
-    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.tensor(), dim, n);
+    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.into_float(), dim, n);
     (
-        Tensor::new(TensorPrimitive::Float(spectrum_re)),
-        Tensor::new(TensorPrimitive::Float(spectrum_im)),
+        Tensor::new(BridgeTensor::Float(spectrum_re)),
+        Tensor::new(BridgeTensor::Float(spectrum_im)),
     )
 }
 
@@ -119,8 +119,8 @@ where $N$ is the size of the reconstructed signal.
 ///
 /// fn example() {
 ///     let device = Default::default();
-///     let real = Tensor::< 1>::from_floats([10.0, -2.0, 2.0], &device);
-///     let imag = Tensor::< 1>::from_floats([0.0, 2.0, 0.0], &device);
+///     let real = Tensor::<1>::from_floats([10.0, -2.0, 2.0], &device);
+///     let imag = Tensor::<1>::from_floats([0.0, 2.0, 0.0], &device);
 ///     let signal = burn_tensor::signal::irfft(real, imag, 0, None);
 /// }
 /// ```
@@ -142,12 +142,12 @@ pub fn irfft<const D: usize>(
     }
 
     let signal = Dispatch::irfft(
-        spectrum_re.primitive.tensor(),
-        spectrum_im.primitive.tensor(),
+        spectrum_re.primitive.into_float(),
+        spectrum_im.primitive.into_float(),
         dim,
         n,
     );
-    Tensor::new(TensorPrimitive::Float(signal))
+    Tensor::new(BridgeTensor::Float(signal))
 }
 
 /// Computes the 1-dimensional discrete Fourier Transform of complex-valued input.
@@ -193,8 +193,8 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 ///
 /// fn example() {
 ///     let device = Default::default();
-///     let re = Tensor::< 1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
-///     let im = Tensor::< 1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
+///     let re = Tensor::<1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
+///     let im = Tensor::<1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
 ///     let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
 /// }
 /// ```

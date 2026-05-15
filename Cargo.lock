@@ -728,7 +728,6 @@ dependencies = [
  "serde_json",
  "serial_test",
  "spin",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -801,8 +800,12 @@ version = "0.22.0-pre.1"
 dependencies = [
  "ahash",
  "bincode",
+ "burn-backend",
+ "burn-backend-extension",
  "burn-dataset",
  "burn-derive",
+ "burn-dispatch",
+ "burn-ir",
  "burn-std",
  "burn-tensor",
  "data-encoding",
@@ -1229,16 +1232,10 @@ dependencies = [
  "aligned-vec",
  "bon",
  "burn-core",
- "burn-cpu",
  "burn-cubecl",
- "burn-cuda",
- "burn-flex",
  "burn-fusion",
  "burn-ir",
- "burn-rocm",
  "burn-store",
- "burn-tch",
- "burn-wgpu",
  "bytemuck",
  "cubecl",
  "derive-new",

@@ -348,7 +348,7 @@ impl Metric for SsimMetric {
 
         // Average SSIM across all dimensions to get a single scalar value
         let ssim_per_image = ssim_tensor.mean_dims(&[1, 2, 3]);
-        let avg_ssim = ssim_per_image.mean().into_scalar().elem::<f64>();
+        let avg_ssim = ssim_per_image.mean().into_scalar::<f64>();
 
         self.state.update(
             avg_ssim,

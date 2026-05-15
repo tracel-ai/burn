@@ -1,5 +1,5 @@
 use alloc::format;
-use burn_tensor::kind::Basic;
+use burn_tensor::kind::{Autodiff, Basic};
 use core::fmt::Display;
 
 use crate as burn;
@@ -11,8 +11,6 @@ use crate::{
     record::{PrecisionSettings, Record},
 };
 use burn_tensor::{Device, Tensor};
-
-use burn_tensor::kind::Autodiff;
 
 #[deprecated(
     since = "0.21.0",
@@ -206,7 +204,7 @@ impl<const D: usize, K: Basic> ModuleDisplayDefault for Tensor<D, K> {
 
 impl<const D: usize, K: Basic> ModuleDisplay for Tensor<D, K> {}
 
-impl<const D: usize, K: Autodiff<InnerKind = K>> AutodiffModule for Tensor<D, K> {
+impl<const D: usize, K: Autodiff> AutodiffModule for Tensor<D, K> {
     fn valid(&self) -> Self {
         self.clone().inner()
     }

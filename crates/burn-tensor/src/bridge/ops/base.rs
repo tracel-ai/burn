@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
-use burn_std::{DType, Shape, Slice};
+use burn_backend::{Scalar, TensorData, ops::TransactionPrimitive};
+use burn_dispatch::Dispatch;
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
 use crate::{
-    Backend, BackendTypes, ExecutionError, IndexingUpdateOp, IntTensor, Scalar, TensorData,
-    TensorMetadata, TransactionPrimitive, bridge::TensorKind, element::Element,
+    Device,
+    ops::{BridgeTensor, TensorKind},
 };
 
 /// Trait for the one basic op that still requires Backend
@@ -11,7 +13,7 @@ use crate::{
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait TransactionOp<B: Backend>: TensorKind<B> {
+pub(crate) trait TransactionOp: BasicOps {
     /// Read the data from the tensor using a transaction.
     ///
     /// # Remarks
@@ -19,17 +21,15 @@ pub trait TransactionOp<B: Backend>: TensorKind<B> {
     /// This is a low-level function used internally by the library to call different backend functions
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
-    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive);
+    fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: BridgeTensor);
 }
+
 /// Trait that list all operations that can be applied on all tensors.
 ///
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
-    /// The type of the tensor elements.
-    type Elem: Element;
-
+pub(crate) trait BasicOps: TensorKind {
     /// Creates an empty tensor with the given shape.
     ///
     /// # Arguments
@@ -50,7 +50,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For creating empty tensors, users should prefer the [`Tensor::empty`](crate::Tensor::empty)
     /// function, which is more high-level and designed for public use.
-    fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
+    fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor;
 
     /// Creates a tensor filled with zeros.
     ///
@@ -72,7 +72,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For creating a tensor filled with zeros, users should prefer the [`Tensor::zeros`](crate::Tensor::zeros)
     /// function, which is more high-level and designed for public use.
-    fn zeros(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
+    fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor;
 
     /// Creates a tensor filled with ones.
     ///
@@ -94,7 +94,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For creating a tensor filled with ones, users should prefer the [`Tensor::ones`](crate::Tensor::ones)
     /// function, which is more high-level and designed for public use.
-    fn ones(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive;
+    fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor;
 
     /// Creates a tensor of the given shape where each element is equal to the provided value.
     ///
@@ -117,7 +117,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For creating full tensors, users should prefer the [`Tensor::full`](crate::Tensor::full)
     /// function, which is more high-level and designed for public use.
-    fn full(shape: Shape, fill_value: Scalar, device: &B::Device, dtype: DType) -> Self::Primitive;
+    fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor;
 
     /// Reshapes the tensor.
     ///
@@ -138,7 +138,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For reshaping a tensor, users should prefer the [`Tensor::reshape`](crate::Tensor::reshape)
     /// function, which is more high-level and designed for public use.
-    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive;
+    fn reshape(tensor: BridgeTensor, shape: Shape) -> BridgeTensor;
 
     /// Transposes a tensor.
     ///
@@ -149,7 +149,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// # Returns
     ///
     /// The transposed tensor.
-    fn transpose(tensor: Self::Primitive) -> Self::Primitive;
+    fn transpose(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Swaps two dimensions of a tensor.
     ///
@@ -162,7 +162,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// # Returns
     ///
     /// The tensor with the dimensions swapped.
-    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive;
+    fn swap_dims(tensor: BridgeTensor, dim1: usize, dim2: usize) -> BridgeTensor;
 
     /// Permutes the dimensions of a tensor.
     ///
@@ -174,7 +174,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// # Returns
     ///
     /// The tensor with the dimensions permuted.
-    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive;
+    fn permute(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor;
 
     /// Flips the tensor along the given axes.
     ///
@@ -186,7 +186,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// # Returns
     ///
     /// The tensor with the axes flipped.
-    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive;
+    fn flip(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor;
 
     ///  Select tensor elements corresponding to the given slices.
     ///
@@ -207,7 +207,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For selecting elements of a tensor, users should prefer the [`Tensor::slice`](crate::Tensor::slice)
     /// function, which is more high-level and designed for public use.
-    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive;
+    fn slice(tensor: BridgeTensor, slices: &[Slice]) -> BridgeTensor;
 
     /// Assigns the given value to the tensor elements corresponding to the given slices.
     ///
@@ -229,11 +229,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For assigning values to elements of a tensor, users should prefer the [`Tensor::slice_assign`](crate::Tensor::slice_assign)
     /// function, which is more high-level and designed for public use.
-    fn slice_assign(
-        tensor: Self::Primitive,
-        slices: &[Slice],
-        value: Self::Primitive,
-    ) -> Self::Primitive;
+    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor;
 
     /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
@@ -255,7 +251,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For selecting elements from a tensor along an axis, users should prefer the [`Tensor::select`](crate::Tensor::select)
     /// function, which is more high-level and designed for public use.
-    fn select(tensor: Self::Primitive, dim: usize, indices: IntTensor<B>) -> Self::Primitive;
+    fn select(tensor: BridgeTensor, dim: usize, indices: BridgeTensor) -> BridgeTensor;
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
     /// from the value tensor.
@@ -284,12 +280,12 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// For assigning elements to a tensor along an axis, users should prefer the [`Tensor::select_assign`](crate::Tensor::select_assign)
     /// function, which is more high-level and designed for public use.
     fn select_assign(
-        tensor: Self::Primitive,
+        tensor: BridgeTensor,
         dim: usize,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive;
+    ) -> BridgeTensor;
 
     /// Selects elements from a tensor based on a boolean mask.
     ///
@@ -313,11 +309,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For selecting elements from a tensor based on a boolean mask, users should prefer the [`Tensor::mask_where`](crate::Tensor::mask_where)
     /// function, which is more high-level and designed for public use.
-    fn mask_where(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        source: Self::Primitive,
-    ) -> Self::Primitive;
+    fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor;
 
     /// Fills elements of a tensor based on a boolean mask.
     ///
@@ -342,11 +334,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For filling elements of a tensor based on a boolean mask, users should prefer the [`Tensor::mask_fill`](crate::Tensor::mask_fill)
     /// function, which is more high-level and designed for public use.
-    fn mask_fill(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        value: Scalar,
-    ) -> Self::Primitive;
+    fn mask_fill(tensor: BridgeTensor, mask: BridgeTensor, value: Scalar) -> BridgeTensor;
 
     /// Gathers elements from a tensor along an axis.
     ///
@@ -369,7 +357,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For gathering elements from a tensor along an axis, users should prefer the [`Tensor::gather`](crate::Tensor::gather)
     /// function, which is more high-level and designed for public use.
-    fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive;
+    fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor;
 
     /// Scatters elements into a tensor along an axis.
     ///
@@ -398,22 +386,22 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// function, which is more high-level and designed for public use.
     fn scatter(
         dim: usize,
-        tensor: Self::Primitive,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
+        tensor: BridgeTensor,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive;
+    ) -> BridgeTensor;
 
     /// Multi-dimensional scatter: update `data` at multi-index locations specified by `indices`.
     fn scatter_nd(
-        data: Self::Primitive,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
+        data: BridgeTensor,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         reduction: IndexingUpdateOp,
-    ) -> Self::Primitive;
+    ) -> BridgeTensor;
 
     /// Multi-dimensional gather: collect slices from `data` at multi-index locations.
-    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive;
+    fn gather_nd(data: BridgeTensor, indices: BridgeTensor) -> BridgeTensor;
 
     /// Returns the device on which the tensor is allocated.
     ///
@@ -433,7 +421,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For getting the device of a tensor, users should prefer the [`Tensor::device`](crate::Tensor::device)
     /// function, which is more high-level and designed for public use.
-    fn device(tensor: &Self::Primitive) -> B::Device;
+    fn device(tensor: &BridgeTensor) -> Device;
 
     /// Moves the tensor to the given device.
     ///
@@ -455,7 +443,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// For moving a tensor to a device, users should prefer the [`Tensor::to_device`](crate::Tensor::to_device)
     /// function, which is more high-level and designed for public use.
     #[allow(clippy::wrong_self_convention)]
-    fn to_device(tensor: Self::Primitive, device: &B::Device) -> Self::Primitive;
+    fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor;
 
     /// Extracts the data from the tensor asynchronously.
     ///
@@ -477,7 +465,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// function, which is more high-level and designed for public use.
     #[allow(clippy::wrong_self_convention)]
     fn into_data_async(
-        tensor: Self::Primitive,
+        tensor: BridgeTensor,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Creates a tensor from the given data enforcing the provided data type.
@@ -496,7 +484,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For creating a tensor from data, users should prefer the [`Tensor::from_data`](crate::Tensor::from_data)
     /// function, which is more high-level and designed for public use.
-    fn from_data(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive;
+    fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -518,7 +506,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For repeating a tensor, users should prefer the [`Tensor::repeat_dim`](crate::Tensor::repeat_dim)
     /// function, which is more high-level and designed for public use.
-    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive;
+    fn repeat_dim(tensor: BridgeTensor, dim: usize, times: usize) -> BridgeTensor;
 
     /// Concatenates the given tensors along the given dimension.
     ///
@@ -539,7 +527,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For concatenating tensors, users should prefer the [`Tensor::cat`](crate::Tensor::cat)
     /// function, which is more high-level and designed for public use.
-    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive;
+    fn cat(vectors: Vec<BridgeTensor>, dim: usize) -> BridgeTensor;
 
     /// Equates the given tensors.
     ///
@@ -560,7 +548,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For equating tensors, users should prefer the [`Tensor::equal`](crate::Tensor::equal)
     /// function, which is more high-level and designed for public use.
-    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise equality between two tensors.
     ///
@@ -582,7 +570,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For element-wise equality between two tensors, users should prefer the [`Tensor::equal_elem`](crate::Tensor::equal_elem)
     /// function, which is more high-level and designed for public use.
-    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
+    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Applies element-wise non-equality comparison between the given tensors.
     ///
@@ -603,7 +591,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For non-equality comparison of tensors, users should prefer the [`Tensor::not_equal`](crate::Tensor::not_equal)
     /// function, which is more high-level and designed for public use.
-    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise non-equality between two tensors.
     ///
@@ -625,17 +613,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ///
     /// For element-wise non-equality between two tensors, users should prefer the [`Tensor::not_equal_elem`](crate::Tensor::not_equal_elem)
     /// function, which is more high-level and designed for public use.
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
-
-    /// Returns the name of the element type.
-    fn elem_type_name() -> &'static str {
-        core::any::type_name::<Self::Elem>()
-    }
-
-    /// Returns the tensor data type.
-    fn dtype(tensor: &Self::Primitive) -> DType {
-        tensor.dtype()
-    }
+    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Tests if any element in the `tensor` evaluates to True.
     ///
@@ -653,7 +631,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [`Tensor::any`](crate::Tensor::any)
     /// function, which is more high-level and designed for public use.
-    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn any(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Tests if any element in the tensor evaluates to True along a given dimension dim.
     ///
@@ -673,7 +651,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [`Tensor::any_dim`](crate::Tensor::any_dim)
     /// function, which is more high-level and designed for public use.
-    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive;
+    fn any_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Tests if all elements in the `tensor` evaluate to True.
     ///
@@ -691,7 +669,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [`Tensor::all`](crate::Tensor::all)
     /// function, which is more high-level and designed for public use.
-    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive;
+    fn all(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
     ///
@@ -710,7 +688,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [`Tensor::all_dim`](crate::Tensor::all_dim)
     /// function, which is more high-level and designed for public use.
-    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive;
+    fn all_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Broadcasts the given tensor to the specified shape.
     ///
@@ -722,7 +700,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// # Returns
     ///
     /// The broadcasted tensor.
-    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive;
+    fn expand(tensor: BridgeTensor, shape: Shape) -> BridgeTensor;
 
     /// Unfold windows along a dimension.
     ///
@@ -745,5 +723,5 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// # Returns
     ///
     /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
-    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive;
+    fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor;
 }

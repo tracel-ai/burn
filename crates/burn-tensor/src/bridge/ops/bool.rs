@@ -1,231 +1,233 @@
 use alloc::vec::Vec;
-use burn_std::{DType, Shape, Slice};
+use burn_backend::{
+    AutodiffBackend, Scalar, TensorData,
+    ops::{BoolTensorOps, TransactionPrimitive},
+};
+use burn_dispatch::Dispatch;
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, ExecutionError, IndexingUpdateOp, IntTensor, Scalar, TensorData,
-    TransactionPrimitive,
-    bridge::{BasicAutodiffOps, BasicOps, Bool, Device, TensorKind, TransactionOp},
+    Bool, Device,
+    bridge::{BasicAutodiffOps, BasicOps, TransactionOp},
+    ops::BridgeTensor,
 };
 
-impl<B: Backend> TransactionOp<B> for Bool {
-    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
-        tr.register_bool(tensor);
+impl TransactionOp for Bool {
+    fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: BridgeTensor) {
+        tr.register_bool(tensor.into());
     }
 }
 
-impl<B: Backend> BasicOps<B> for Bool {
-    type Elem = B::BoolElem;
-
-    fn empty(shape: Shape, device: &Device<B>, dtype: DType) -> Self::Primitive {
+impl BasicOps for Bool {
+    fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        B::bool_empty(shape, device, dtype.into())
+        BridgeTensor::Bool(Dispatch::bool_empty(shape, &device.dispatch, dtype.into()))
     }
 
-    fn zeros(shape: Shape, device: &Device<B>, dtype: DType) -> Self::Primitive {
+    fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        B::bool_zeros(shape, device, dtype.into())
+        BridgeTensor::Bool(Dispatch::bool_zeros(shape, &device.dispatch, dtype.into()))
     }
-    fn ones(shape: Shape, device: &Device<B>, dtype: DType) -> Self::Primitive {
+    fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        B::bool_ones(shape, device, dtype.into())
+        BridgeTensor::Bool(Dispatch::bool_ones(shape, &device.dispatch, dtype.into()))
     }
 
-    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: DType) -> Self::Primitive {
+    fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
         if fill_value.elem() {
-            B::bool_ones(shape, device, dtype.into())
+            BridgeTensor::Bool(Dispatch::bool_ones(shape, &device.dispatch, dtype.into()))
         } else {
-            B::bool_zeros(shape, device, dtype.into())
+            BridgeTensor::Bool(Dispatch::bool_zeros(shape, &device.dispatch, dtype.into()))
         }
     }
 
-    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        B::bool_reshape(tensor, shape)
+    fn reshape(tensor: BridgeTensor, shape: Shape) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_reshape(tensor.into(), shape))
     }
 
-    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
-        B::bool_transpose(tensor)
+    fn transpose(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_transpose(tensor.into()))
     }
 
-    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
-        B::bool_swap_dims(tensor, dim1, dim2)
+    fn swap_dims(tensor: BridgeTensor, dim1: usize, dim2: usize) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_swap_dims(tensor.into(), dim1, dim2))
     }
 
-    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive {
-        B::bool_slice(tensor, slices)
+    fn slice(tensor: BridgeTensor, slices: &[Slice]) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_slice(tensor.into(), slices))
     }
 
-    fn slice_assign(
-        tensor: Self::Primitive,
-        slices: &[Slice],
-        value: Self::Primitive,
-    ) -> Self::Primitive {
-        B::bool_slice_assign(tensor, slices, value)
+    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_slice_assign(
+            tensor.into(),
+            slices,
+            value.into(),
+        ))
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: IntTensor<B>) -> Self::Primitive {
-        B::bool_select(tensor, dim, indices)
+    fn select(tensor: BridgeTensor, dim: usize, indices: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_select(tensor.into(), dim, indices.into()))
     }
 
     fn select_assign(
-        tensor: Self::Primitive,
+        tensor: BridgeTensor,
         dim: usize,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> BridgeTensor {
         match update {
-            IndexingUpdateOp::Add => B::bool_select_or(tensor, dim, indices, values),
+            IndexingUpdateOp::Add => BridgeTensor::Bool(Dispatch::bool_select_or(
+                tensor.into(),
+                dim,
+                indices.into(),
+                values.into(),
+            )),
             _ => unimplemented!(),
         }
     }
 
-    fn mask_where(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        source: Self::Primitive,
-    ) -> Self::Primitive {
-        B::bool_mask_where(tensor, mask, source)
+    fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_mask_where(
+            tensor.into(),
+            mask.into(),
+            source.into(),
+        ))
     }
 
-    fn mask_fill(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        value: Scalar,
-    ) -> Self::Primitive {
-        B::bool_mask_fill(tensor, mask, value)
+    fn mask_fill(tensor: BridgeTensor, mask: BridgeTensor, value: Scalar) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_mask_fill(tensor.into(), mask.into(), value))
     }
 
-    fn gather(
-        dim: usize,
-        tensor: Self::Primitive,
-        indices: B::IntTensorPrimitive,
-    ) -> Self::Primitive {
-        B::bool_gather(dim, tensor, indices)
+    fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_gather(dim, tensor.into(), indices.into()))
     }
 
     fn scatter(
         dim: usize,
-        tensor: Self::Primitive,
-        indices: B::IntTensorPrimitive,
-        values: Self::Primitive,
+        tensor: BridgeTensor,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> BridgeTensor {
         match update {
-            IndexingUpdateOp::Add => B::bool_scatter_or(dim, tensor, indices, values),
+            IndexingUpdateOp::Add => BridgeTensor::Bool(Dispatch::bool_scatter_or(
+                dim,
+                tensor.into(),
+                indices.into(),
+                values.into(),
+            )),
             _ => unimplemented!(),
         }
     }
 
     fn scatter_nd(
-        _data: Self::Primitive,
-        _indices: IntTensor<B>,
-        _values: Self::Primitive,
+        _data: BridgeTensor,
+        _indices: BridgeTensor,
+        _values: BridgeTensor,
         _reduction: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> BridgeTensor {
         panic!("scatter_nd is not supported for bool tensors")
     }
 
-    fn gather_nd(_data: Self::Primitive, _indices: IntTensor<B>) -> Self::Primitive {
+    fn gather_nd(_data: BridgeTensor, _indices: BridgeTensor) -> BridgeTensor {
         panic!("gather_nd is not supported for bool tensors")
     }
 
-    fn device(tensor: &Self::Primitive) -> Device<B> {
-        B::bool_device(tensor)
+    fn device(tensor: &BridgeTensor) -> Device {
+        Dispatch::bool_device(tensor.as_dispatch()).into()
     }
 
-    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
-        B::bool_to_device(tensor, device)
+    fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_to_device(tensor.into(), &device.dispatch))
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, ExecutionError> {
-        B::bool_into_data(tensor).await
+    async fn into_data_async(tensor: BridgeTensor) -> Result<TensorData, ExecutionError> {
+        Dispatch::bool_into_data(tensor.into()).await
     }
 
-    fn from_data(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        // Bool tensors have exactly one representation per backend, so the
-        // requested dtype should have been resolved to the default bool dtype with the
-        // tensor creation options.
-        B::bool_from_data(data.convert_dtype(dtype), device)
+    fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_from_data(
+            data.convert_dtype(dtype),
+            &device.dispatch,
+        ))
     }
 
-    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
-        B::bool_repeat_dim(tensor, dim, times)
+    fn repeat_dim(tensor: BridgeTensor, dim: usize, times: usize) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_repeat_dim(tensor.into(), dim, times))
     }
 
-    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::bool_equal(lhs, rhs)
+    fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_equal(lhs.into(), rhs.into()))
     }
 
-    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::bool_not_equal(lhs, rhs)
+    fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_not_equal(lhs.into(), rhs.into()))
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::bool_equal_elem(lhs, rhs)
+    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_equal_elem(lhs.into(), rhs))
     }
 
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::bool_not_equal_elem(lhs, rhs)
+    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_not_equal_elem(lhs.into(), rhs))
     }
 
-    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
-        B::bool_cat(vectors, dim)
+    fn cat(vectors: Vec<BridgeTensor>, dim: usize) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_cat(
+            BridgeTensor::into_dispatch_vec(vectors),
+            dim,
+        ))
     }
 
-    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::bool_any(tensor)
+    fn any(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_any(tensor.into()))
     }
 
-    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        B::bool_any_dim(tensor, dim)
+    fn any_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_any_dim(tensor.into(), dim))
     }
 
-    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::bool_all(tensor)
+    fn all(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_all(tensor.into()))
     }
 
-    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        B::bool_all_dim(tensor, dim)
+    fn all_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_all_dim(tensor.into(), dim))
     }
 
-    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        B::bool_permute(tensor, axes)
+    fn permute(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_permute(tensor.into(), axes))
     }
 
-    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        B::bool_expand(tensor, shape)
+    fn expand(tensor: BridgeTensor, shape: Shape) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_expand(tensor.into(), shape))
     }
 
-    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        B::bool_flip(tensor, axes)
+    fn flip(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_flip(tensor.into(), axes))
     }
 
-    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
-        B::bool_unfold(tensor, dim, size, step)
+    fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_unfold(tensor.into(), dim, size, step))
     }
 }
 
-impl<B: AutodiffBackend> BasicAutodiffOps<B> for Bool {
-    type InnerKind = Bool;
-
-    fn inner(
-        tensor: <Self as TensorKind<B>>::Primitive,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
-        B::bool_inner(tensor)
+impl BasicAutodiffOps for Bool {
+    fn inner(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_inner(tensor.into()))
     }
 
-    fn from_inner(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
-    ) -> <Self as TensorKind<B>>::Primitive {
-        B::bool_from_inner(inner)
+    fn from_inner(inner: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::Bool(Dispatch::bool_from_inner(inner.into()))
     }
 }

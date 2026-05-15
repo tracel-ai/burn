@@ -174,8 +174,8 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
                     config.num_epochs,
                     iteration,
                     batch_num,
-                    loss_d.into_scalar(),
-                    loss_g.into_scalar()
+                    loss_d.into_scalar::<f32>(),
+                    loss_g.into_scalar::<f32>()
                 );
             }
             //  If at save interval => save the first 25 generated images
