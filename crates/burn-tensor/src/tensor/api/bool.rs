@@ -59,6 +59,9 @@ impl<const D: usize> Tensor<D, Bool> {
     ///     let device = Default::default();
     ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
     ///     let int_tensor = bool_tensor.int();
+    ///     println!("{int_tensor}"); // [1, 0, 1]
+    /// }
+    /// ```
     pub fn int(self) -> Tensor<D, Int> {
         let out_dtype = self.device().settings().int_dtype;
         Tensor::new(BridgeTensor::Int(Dispatch::bool_into_int(
