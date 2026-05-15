@@ -17,6 +17,14 @@ use hashbrown::{HashMap, HashSet};
 /// after that point operates on tensors that are *local* to that stream, so this struct no
 /// longer needs to analyse cross-stream sharing or coordinate deferred drops.
 pub struct MultiStream<R: FusionRuntime> {
+    /// Set of tensor ids for which [`Self::tag_shared_view`] has already drained the
+    /// source stream. Used to short-circuit redundant drains on subsequent shares of
+    /// the same source. Entries are pruned eagerly when the source tensor's `Drop` op
+    /// is registered (see [`Self::register`]) — at that point no live `FusionTensor`
+    /// can hold that id, so no future share will reference it as a source. The
+    /// handle-existence fallback in [`Self::tag_shared_view`] covers the chained-share
+    /// fast path where the source's handle was set up as a view by an earlier share
+    /// (and so was never added here).
     resolved: HashSet<TensorId>,
     streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
@@ -45,6 +53,16 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
+        // When the last `FusionTensor` for an id is dropped, a `Drop` op is registered
+        // here. At that point no live `FusionTensor` holds this id anymore, so no
+        // future `tag_shared_view` call can use it as a source — it is safe to remove
+        // it from `resolved` immediately, without waiting for the queued `Drop` op to
+        // actually execute. Doing it here (rather than from inside the op itself)
+        // keeps `resolved` bounded by the number of currently-live shared sources.
+        if let OperationIr::Drop(ir) = &repr {
+            self.resolved.remove(&ir.id);
+        }
+
         self.enqueue_operation(stream, repr, operation, handles);
 
         #[cfg(feature = "memory-checks")]
@@ -60,10 +78,19 @@ impl<R: FusionRuntime> MultiStream<R> {
         dst: TensorId,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        if !self.resolved.contains(&src) {
+        // Skip the drain when the source's handle is already in the container. Two
+        // ways that can happen:
+        //   - `resolved` already contains `src`: we drained for it on an earlier share.
+        //   - `handles.get_handle_ref(&src)` is `Some`: the source's handle was set up
+        //     directly (e.g., `src` is itself a view registered by a previous
+        //     `tag_shared_view` call, so its home stream may not have any pending op
+        //     that affects it).
+        //
+        // Only the first case adds to `resolved` — the second is naturally covered by
+        // the handle-existence check on subsequent calls, so we don't bother tracking
+        // it.
+        if !self.resolved.contains(&src) && handles.get_handle_ref(&src).is_none() {
             self.resolved.insert(src);
-            // Only drain when it's the first time a tensor is tagged as being shared.
-            // After that the handle is up to date and can be used by other streams.
             self.drain(handles, src_stream);
         }
 

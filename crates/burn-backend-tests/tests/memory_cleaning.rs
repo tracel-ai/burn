@@ -403,16 +403,15 @@ mod fusion {
             let peer_data = peer.executes(|| (b_for_peer + 0.0).into_data());
 
             // 6 + 0 = 6
-            peer_data
-                .assert_approx_eq::<FloatElem>(
-                    &burn_tensor::TensorData::from([
-                        [6.0_f32, 6.0, 6.0, 6.0],
-                        [6.0, 6.0, 6.0, 6.0],
-                        [6.0, 6.0, 6.0, 6.0],
-                        [6.0, 6.0, 6.0, 6.0],
-                    ]),
-                    burn_tensor::Tolerance::default(),
-                );
+            peer_data.assert_approx_eq::<FloatElem>(
+                &burn_tensor::TensorData::from([
+                    [6.0_f32, 6.0, 6.0, 6.0],
+                    [6.0, 6.0, 6.0, 6.0],
+                    [6.0, 6.0, 6.0, 6.0],
+                    [6.0, 6.0, 6.0, 6.0],
+                ]),
+                burn_tensor::Tolerance::default(),
+            );
 
             drop(a);
             drop(b);
@@ -692,6 +691,254 @@ mod fusion {
             assert_no_leaked_handles(
                 &inspector,
                 "repeated shares of the same source to the same peer must not leak",
+            );
+        });
+    }
+
+    /// The peer must observe the values the owner produced. Most other tests only
+    /// check that handles are released; this one pins down data-side correctness across
+    /// the shared-view aliasing boundary.
+    #[test]
+    #[serial]
+    fn peer_observes_owner_values_after_share() {
+        let owner = test_stream();
+        let peer = test_stream();
+
+        owner.executes(|| {
+            let device = Default::default();
+            let inspector = install_and_baseline(&device, owner);
+
+            // Owner stages a non-trivial pending computation: (1 + 1) * 5 = 10, then
+            // shares the result with the peer *without* a manual sync. The first-share
+            // drain must flush the chain so the peer sees 10, not garbage.
+            let a = TestTensor::<2>::ones([2, 3], &device);
+            let b = (a.clone() + 1.0) * 5.0;
+            let b_for_peer = b.clone();
+
+            let peer_data = peer.executes(|| (b_for_peer + 0.5).into_data());
+            peer_data.assert_approx_eq::<FloatElem>(
+                &burn_tensor::TensorData::from([[10.5_f32, 10.5, 10.5], [10.5, 10.5, 10.5]]),
+                burn_tensor::Tolerance::default(),
+            );
+
+            // Owner still sees the same upstream values via its own copy of `b`.
+            let owner_data = b.into_data();
+            owner_data.assert_approx_eq::<FloatElem>(
+                &burn_tensor::TensorData::from([[10.0_f32, 10.0, 10.0], [10.0, 10.0, 10.0]]),
+                burn_tensor::Tolerance::default(),
+            );
+
+            drop(a);
+            sync_streams(&device, &[peer]);
+
+            assert_no_leaked_handles(
+                &inspector,
+                "peer/owner views of the shared tensor must agree numerically and not leak",
+            );
+        });
+    }
+
+    /// Bool tensors take a separate dtype branch through `register_bool_tensor` and the
+    /// boolean ops; sharing must route through the same path without leaks.
+    #[test]
+    #[serial]
+    fn bool_tensor_cross_stream_released() {
+        let owner = test_stream();
+        let peer = test_stream();
+
+        owner.executes(|| {
+            let device = Default::default();
+            let inspector = install_and_baseline(&device, owner);
+
+            let a = TestTensor::<2>::ones([4, 4], &device);
+            // Build a bool tensor on owner: `a == a` is all-true.
+            let mask = a.clone().equal(a.clone());
+            device.sync().unwrap();
+
+            let mask_for_peer = mask.clone();
+            peer.executes(|| {
+                let any_true = mask_for_peer.any();
+                let data = any_true.into_data();
+                let v: bool = data.iter::<bool>().next().expect("scalar bool");
+                assert!(v, "shared bool tensor must remain all-true on peer side");
+            });
+
+            drop(a);
+            drop(mask);
+            sync_streams(&device, &[peer]);
+
+            assert_no_leaked_handles(
+                &inspector,
+                "bool tensor sharing must release its aliased handle",
+            );
+        });
+    }
+
+    /// A sliced view is a separate `FusionTensor` with its own id that depends on the
+    /// parent's data. Sharing the view across streams must alias the *view's* handle
+    /// (which is materialised by the slice op on the source stream) — not the parent's.
+    #[test]
+    #[serial]
+    fn sliced_view_cross_stream_released() {
+        let owner = test_stream();
+        let peer = test_stream();
+
+        owner.executes(|| {
+            let device = Default::default();
+            let inspector = install_and_baseline(&device, owner);
+
+            let a = TestTensor::<2>::from_floats(
+                [
+                    [1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0],
+                ],
+                &device,
+            );
+
+            // Slice on owner: 2x2 top-left block. The slice op produces a new tensor.
+            let slice = a.clone().slice([0..2, 0..2]);
+            let slice_for_peer = slice.clone();
+
+            // Peer doubles every element of the view and reads it back.
+            let peer_data = peer.executes(|| (slice_for_peer * 2.0).into_data());
+            peer_data.assert_approx_eq::<FloatElem>(
+                &burn_tensor::TensorData::from([[2.0_f32, 4.0], [10.0, 12.0]]),
+                burn_tensor::Tolerance::default(),
+            );
+
+            drop(a);
+            drop(slice);
+            sync_streams(&device, &[peer]);
+
+            assert_no_leaked_handles(
+                &inspector,
+                "sliced-view sharing must release both parent and view aliases",
+            );
+        });
+    }
+
+    /// High fan-out: a single source tensor is shared with eight peer streams. This
+    /// stresses the `MultiStream::resolved` short-circuit (one drain, many aliased
+    /// handles) and the handle-removal path when every alias eventually drops.
+    #[test]
+    #[serial]
+    fn high_fan_out_eight_peers_released() {
+        let owner = test_stream();
+        let peers: Vec<StreamId> = (0..8).map(|_| test_stream()).collect();
+
+        owner.executes(|| {
+            let device = Default::default();
+            let inspector = install_and_baseline(&device, owner);
+
+            let a = TestTensor::<2>::ones([4, 4], &device);
+            device.sync().unwrap();
+
+            // Each peer takes its own clone and consumes it.
+            let clones: Vec<_> = (0..peers.len()).map(|_| a.clone()).collect();
+            for (peer, c) in peers.iter().zip(clones) {
+                let peer = *peer;
+                peer.executes(|| {
+                    let _ = (c + 1.0).into_data();
+                });
+            }
+
+            drop(a);
+            sync_streams(&device, &peers);
+
+            assert_no_leaked_handles(
+                &inspector,
+                "many fan-out peers must each release their aliased handle",
+            );
+        });
+    }
+
+    /// Real OS-thread cross-stream sharing with leak detection. The other cross-stream
+    /// tests use [`StreamId::executes`] to swap the per-thread id in place; this one
+    /// actually spawns threads (the production code path) and checks that handles are
+    /// reclaimed after every thread joins.
+    #[test]
+    #[serial]
+    fn real_threads_cross_stream_no_leak() {
+        let owner = test_stream();
+        owner.executes(|| {
+            let device: Device = Default::default();
+            let inspector = install_and_baseline(&device, owner);
+
+            let a = TestTensor::<2>::ones([4, 4], &device);
+            device.sync().unwrap();
+
+            // Hand each worker thread its own clone. Cross-thread `clone()` is exactly
+            // the path `FusionTensor::clone` takes in user code that spawns threads.
+            let mut handles = Vec::new();
+            for i in 0..4 {
+                let c = a.clone();
+                let dev = device.clone();
+                handles.push(std::thread::spawn(move || {
+                    let _ = (c + i as f32).into_data();
+                    dev.sync().unwrap();
+                }));
+            }
+            for h in handles {
+                h.join().unwrap();
+            }
+
+            drop(a);
+            device.sync().unwrap();
+
+            assert_no_leaked_handles(
+                &inspector,
+                "real-thread cross-stream sharing must not leak handles",
+            );
+        });
+    }
+
+    /// Two peer streams *both* take a clone of the same source, and one of them
+    /// re-shares its clone onward to a third stream. Exercises the case where a
+    /// non-owner stream is itself the source of a `tag_shared_view` call.
+    #[test]
+    #[serial]
+    fn peer_reshares_to_third_stream() {
+        let owner = test_stream();
+        let p1 = test_stream();
+        let p2 = test_stream();
+
+        owner.executes(|| {
+            let device = Default::default();
+            let inspector = install_and_baseline(&device, owner);
+
+            let a = TestTensor::<2>::ones([4, 4], &device);
+            device.sync().unwrap();
+
+            // owner -> p1 (consumed)
+            let c1 = a.clone();
+            let on_p1 = p1.executes(|| c1 + 1.0); // on_p1.stream == p1, value = 2
+
+            // p1 -> p2 (re-share); the source stream for tag_shared_view is p1, not owner.
+            let on_p1_clone = p2.executes(|| on_p1.clone());
+            let p2_data = p2.executes(|| (on_p1_clone * 3.0).into_data());
+            p2_data.assert_approx_eq::<FloatElem>(
+                &burn_tensor::TensorData::from([
+                    [6.0_f32, 6.0, 6.0, 6.0],
+                    [6.0, 6.0, 6.0, 6.0],
+                    [6.0, 6.0, 6.0, 6.0],
+                    [6.0, 6.0, 6.0, 6.0],
+                ]),
+                burn_tensor::Tolerance::default(),
+            );
+
+            // Drain p1's pending tensor.
+            p1.executes(|| {
+                let _ = on_p1.into_data();
+            });
+
+            drop(a);
+            sync_streams(&device, &[p1, p2]);
+
+            assert_no_leaked_handles(
+                &inspector,
+                "peer-as-source share path must release every alias",
             );
         });
     }
