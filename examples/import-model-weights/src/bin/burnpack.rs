@@ -1,12 +1,8 @@
 use std::env;
 use std::path::Path;
 
-use burn::backend::Flex;
-
 use burn_store::{BurnpackStore, ModuleSnapshot};
 use import_model_weights::{Model, infer};
-
-type B = Flex;
 
 pub fn main() {
     let args: Vec<String> = env::args().collect();
@@ -25,7 +21,7 @@ pub fn main() {
 
     // Initialize a model with default weights
     let device = Default::default();
-    let mut model: Model<B> = Model::init(&device);
+    let mut model = Model::init(&device);
 
     // Load the model from the Burnpack file
     let mut store = BurnpackStore::from_file(model_path);

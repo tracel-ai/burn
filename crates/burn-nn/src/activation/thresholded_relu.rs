@@ -2,7 +2,6 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_core as burn;
 
 use burn::tensor::activation::thresholded_relu;
@@ -10,7 +9,7 @@ use burn::tensor::activation::thresholded_relu;
 /// Thresholded ReLU layer.
 ///
 /// Should be created with [ThresholdedReluConfig](ThresholdedReluConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct ThresholdedRelu {
     /// The alpha threshold.
@@ -52,7 +51,7 @@ impl ThresholdedRelu {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         thresholded_relu(input, self.alpha)
     }
 }
@@ -60,15 +59,13 @@ impl ThresholdedRelu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
 
     #[test]
     fn test_thresholded_relu_forward() {
         let device = Default::default();
-        let model: ThresholdedRelu = ThresholdedReluConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.5, 1.5, -0.2]]), &device);
+        let model = ThresholdedReluConfig::new().init();
+        let input = Tensor::<2>::from_data(TensorData::from([[0.5, 1.5, -0.2]]), &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0, 1.5, 0.0]]);
         out.to_data().assert_eq(&expected, false);

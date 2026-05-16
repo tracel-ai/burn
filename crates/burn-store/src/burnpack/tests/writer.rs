@@ -8,7 +8,7 @@ use crate::burnpack::{
 
 use super::*;
 use burn_core::module::ParamId;
-use burn_tensor::{BoolStore, DType, TensorData, shape};
+use burn_core::tensor::{BoolStore, DType, TensorData, shape};
 use std::rc::Rc;
 
 #[test]

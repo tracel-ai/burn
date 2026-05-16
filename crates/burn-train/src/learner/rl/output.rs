@@ -12,9 +12,7 @@ pub struct EpisodeSummary {
 }
 
 impl ItemLazy for EpisodeSummary {
-    type ItemSync = EpisodeSummary;
-
-    fn sync(self) -> Self::ItemSync {
+    fn sync(self) -> Self {
         self
     }
 }

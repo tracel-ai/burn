@@ -4,8 +4,14 @@ use crate::{
     graph::{ComputingProperty, Node, NodeId, NodeRef, Parent, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
-use alloc::{boxed::Box, sync::Arc, vec};
+use alloc::{boxed::Box, vec};
 use burn_backend::{Backend, TensorMetadata};
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
 
 #[cfg(feature = "distributed")]
 use burn_backend::distributed::{DistributedBackend, DistributedParamId, DistributedParams};

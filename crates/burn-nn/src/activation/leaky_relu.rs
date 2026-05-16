@@ -2,7 +2,6 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_core as burn;
 
 use burn::tensor::activation::leaky_relu;
@@ -10,7 +9,7 @@ use burn::tensor::activation::leaky_relu;
 /// Leaky ReLu layer.
 ///
 /// Should be created with [LeakyReluConfig](LeakyReluConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct LeakyRelu {
     /// The negative slope.
@@ -54,7 +53,7 @@ impl LeakyRelu {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         leaky_relu(input, self.negative_slope)
     }
 }
@@ -62,17 +61,15 @@ impl LeakyRelu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_leaky_relu_forward() {
         let device = Default::default();
         let model: LeakyRelu = LeakyReluConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
+        let input = Tensor::<2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.4410, -0.002507]]);
         out.to_data().assert_eq(&expected, false);
@@ -105,8 +102,8 @@ mod tests {
         ]);
 
         let device = Default::default();
-        let model: LeakyRelu = LeakyReluConfig::new().init();
-        let input_data = Tensor::<TestBackend, 3>::from_data(TensorData::from(input), &device);
+        let model = LeakyReluConfig::new().init();
+        let input_data = Tensor::<3>::from_data(TensorData::from(input), &device);
         let actual_output = model.forward(input_data);
         actual_output
             .to_data()

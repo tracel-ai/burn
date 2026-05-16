@@ -3,36 +3,36 @@
 use burn::{
     module::Module,
     nn,
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 use burn_store::{ModuleSnapshot, SafetensorsStore};
 
 /// Simple model for testing SafeTensors storage
 #[derive(Module, Debug)]
-pub struct TestModel<B: Backend> {
-    linear1: nn::Linear<B>,
-    linear2: nn::Linear<B>,
+pub struct TestModel {
+    linear1: nn::Linear,
+    linear2: nn::Linear,
 }
 
-impl<B: Backend> TestModel<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl TestModel {
+    pub fn new(device: &Device) -> Self {
         Self {
             linear1: nn::LinearConfig::new(10, 20).init(device),
             linear2: nn::LinearConfig::new(20, 10).init(device),
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         let x = self.linear1.forward(x);
         self.linear2.forward(x)
     }
 }
 
 /// Test basic SafeTensors save and load in no-std
-pub fn test_safetensors_basic<B: Backend>(device: &B::Device) {
+pub fn test_safetensors_basic(device: &Device) {
     // Create a model
-    let model = TestModel::<B>::new(device);
+    let model = TestModel::new(device);
 
     // Save to bytes (no file I/O in no-std)
     let mut save_store = SafetensorsStore::from_bytes(None);
@@ -45,19 +45,19 @@ pub fn test_safetensors_basic<B: Backend>(device: &B::Device) {
 
     // Load from bytes
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-    let mut loaded_model = TestModel::<B>::new(device);
+    let mut loaded_model = TestModel::new(device);
     loaded_model
         .load_from(&mut load_store)
         .expect("Failed to load model");
 
     // Test that the model still works
-    let input = Tensor::<B, 2>::ones([2, 10], device);
+    let input = Tensor::<2>::ones([2, 10], device);
     let _output = loaded_model.forward(input);
 }
 
 /// Test SafeTensors with filtering in no-std
-pub fn test_safetensors_filtering<B: Backend>(device: &B::Device) {
-    let model = TestModel::<B>::new(device);
+pub fn test_safetensors_filtering(device: &Device) {
+    let model = TestModel::new(device);
 
     // Save only linear1 weights
     let mut save_store = SafetensorsStore::from_bytes(None)
@@ -71,7 +71,7 @@ pub fn test_safetensors_filtering<B: Backend>(device: &B::Device) {
 
     // Load with partial loading allowed
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes)).allow_partial(true);
-    let mut partial_model = TestModel::<B>::new(device);
+    let mut partial_model = TestModel::new(device);
     let result = partial_model
         .load_from(&mut load_store)
         .expect("Failed to load partial model");
@@ -82,8 +82,8 @@ pub fn test_safetensors_filtering<B: Backend>(device: &B::Device) {
 }
 
 /// Test SafeTensors with metadata in no-std
-pub fn test_safetensors_metadata<B: Backend>(device: &B::Device) {
-    let model = TestModel::<B>::new(device);
+pub fn test_safetensors_metadata(device: &Device) {
+    let model = TestModel::new(device);
 
     // Save with metadata
     let mut save_store = SafetensorsStore::from_bytes(None)
@@ -97,15 +97,15 @@ pub fn test_safetensors_metadata<B: Backend>(device: &B::Device) {
 
     // Load and verify it works
     let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-    let mut loaded_model = TestModel::<B>::new(device);
+    let mut loaded_model = TestModel::new(device);
     loaded_model
         .load_from(&mut load_store)
         .expect("Failed to load model with metadata");
 }
 
 /// Run all SafeTensors no-std tests
-pub fn run_all_tests<B: Backend>(device: &B::Device) {
-    test_safetensors_basic::<B>(device);
-    test_safetensors_filtering::<B>(device);
-    test_safetensors_metadata::<B>(device);
+pub fn run_all_tests(device: &Device) {
+    test_safetensors_basic(device);
+    test_safetensors_filtering(device);
+    test_safetensors_metadata(device);
 }

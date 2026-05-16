@@ -1,7 +1,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::Tensor;
 use burn_core as burn;
 
 /// Configuration for the [SmoothL1Loss](SmoothL1Loss) module.
@@ -93,7 +93,7 @@ impl SmoothL1LossConfig {
 /// // Per-image loss: reduce over C, H, W → [batch, 1, 1, 1]
 /// let loss_per_image = smooth_l1.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
 /// ```
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 pub struct SmoothL1Loss {
     /// Specifies the threshold at which to change between L1 and L2 loss.
     /// The value must be positive. Default: 1.0
@@ -118,11 +118,7 @@ impl SmoothL1Loss {
     /// - predictions: `[...dims]` - Any shape
     /// - targets: `[...dims]` - Must match predictions shape
     /// - output: `[...dims]` - Same shape as inputs
-    pub fn forward<const D: usize, B: Backend>(
-        &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, predictions: Tensor<D>, targets: Tensor<D>) -> Tensor<D> {
         let error = predictions.sub(targets);
         let abs_error = error.clone().abs();
 
@@ -155,12 +151,12 @@ impl SmoothL1Loss {
     /// - predictions: `[...dims]` - Any shape
     /// - targets: `[...dims]` - Must match predictions shape
     /// - output: `[1]` - Scalar loss value
-    pub fn forward_with_reduction<const D: usize, B: Backend>(
+    pub fn forward_with_reduction<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let unreduced_loss = self.forward(predictions, targets);
 
         match reduction {
@@ -197,12 +193,12 @@ impl SmoothL1Loss {
     /// // Per-image loss: reduce over C, H, W → [batch, 1, 1, 1]
     /// let loss_per_image = smooth_l1.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
     /// ```
-    pub fn forward_reduce_dims<const D: usize, B: Backend>(
+    pub fn forward_reduce_dims<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
         dims: &[usize],
-    ) -> Tensor<B, D> {
+    ) -> Tensor<D> {
         let error = self.forward(predictions, targets);
 
         // Sort the dimensions to ascending order
@@ -217,11 +213,10 @@ impl SmoothL1Loss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::Tolerance;
 
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     // =========================================================================
     // Configuration Tests
@@ -264,10 +259,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.5]]), &device);
-        let targets =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+        let predictions = Tensor::<2>::from_data(TensorData::from([[0.0_f32, 0.5]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
 
         let output = loss.forward(predictions, targets);
         let expected = TensorData::from([[0.0_f32, 0.125]]);
@@ -284,10 +277,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 2.0]]), &device);
-        let targets =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+        let predictions = Tensor::<2>::from_data(TensorData::from([[0.0_f32, 2.0]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
 
         let output = loss.forward(predictions, targets);
         let expected = TensorData::from([[0.0_f32, 1.5]]);
@@ -299,8 +290,7 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[1.0_f32, 2.0, 3.0]]), &device);
+        let predictions = Tensor::<2>::from_data(TensorData::from([[1.0_f32, 2.0, 3.0]]), &device);
         let targets = predictions.clone();
 
         let output = loss.forward(predictions, targets);
@@ -317,9 +307,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions =
-            Tensor::<TestBackend, 1>::from_data(TensorData::from([-3.0_f32]), &device);
-        let targets = Tensor::<TestBackend, 1>::zeros([1], &device);
+        let predictions = Tensor::<1>::from_data(TensorData::from([-3.0_f32]), &device);
+        let targets = Tensor::<1>::zeros([1], &device);
 
         let output = loss.forward(predictions, targets);
         let expected = TensorData::from([2.5_f32]);
@@ -338,9 +327,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions =
-            Tensor::<TestBackend, 1>::from_data(TensorData::from([0.5_f32, 1.5, 3.0]), &device);
-        let targets = Tensor::<TestBackend, 1>::zeros([3], &device);
+        let predictions = Tensor::<1>::from_data(TensorData::from([0.5_f32, 1.5, 3.0]), &device);
+        let targets = Tensor::<1>::zeros([3], &device);
 
         let output = loss.forward(predictions, targets);
         let expected = TensorData::from([0.125_f32, 1.0, 2.5]);
@@ -355,9 +343,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().with_beta(0.5).init();
 
-        let predictions =
-            Tensor::<TestBackend, 1>::from_data(TensorData::from([0.25_f32, 1.0]), &device);
-        let targets = Tensor::<TestBackend, 1>::zeros([2], &device);
+        let predictions = Tensor::<1>::from_data(TensorData::from([0.25_f32, 1.0]), &device);
+        let targets = Tensor::<1>::zeros([2], &device);
 
         let output = loss.forward(predictions, targets);
         let expected = TensorData::from([0.0625_f32, 0.75]);
@@ -375,10 +362,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.5_f32, 2.0]]), &device);
-        let targets =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+        let predictions = Tensor::<2>::from_data(TensorData::from([[0.5_f32, 2.0]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
 
         let output = loss.forward_with_reduction(predictions, targets, Reduction::Mean);
         let expected = TensorData::from([0.8125_f32]);
@@ -392,10 +377,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.5_f32, 2.0]]), &device);
-        let targets =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+        let predictions = Tensor::<2>::from_data(TensorData::from([[0.5_f32, 2.0]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
 
         let output = loss.forward_with_reduction(predictions, targets, Reduction::Sum);
         let expected = TensorData::from([1.625_f32]);
@@ -407,8 +390,8 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions = Tensor::<TestBackend, 1>::from_data(TensorData::from([2.0_f32]), &device);
-        let targets = Tensor::<TestBackend, 1>::zeros([1], &device);
+        let predictions = Tensor::<1>::from_data(TensorData::from([2.0_f32]), &device);
+        let targets = Tensor::<1>::zeros([1], &device);
 
         let mean_out =
             loss.forward_with_reduction(predictions.clone(), targets.clone(), Reduction::Mean);
@@ -435,11 +418,11 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().with_beta(2.0).init();
 
-        let predictions = Tensor::<TestBackend, 2>::from_data(
+        let predictions = Tensor::<2>::from_data(
             TensorData::from([[0.0_f32, 1.0, 4.0], [5.0_f32, 5.0, 5.0]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 2>::from_data(
+        let targets = Tensor::<2>::from_data(
             TensorData::from([[0.0_f32, 0.0, 0.0], [5.0_f32, 5.0, 5.0]]),
             &device,
         );
@@ -459,14 +442,14 @@ mod tests {
         let loss = SmoothL1LossConfig::new().init(); // beta = 1.0
 
         // Shape: [2, 1, 2, 2] (batch=2, C=1, H=2, W=2)
-        let predictions = Tensor::<TestBackend, 4>::from_data(
+        let predictions = Tensor::<4>::from_data(
             TensorData::from([
                 [[[0.5_f32, 2.0], [0.0, 3.0]]], // Image 1
                 [[[1.0_f32, 0.0], [0.5, 1.5]]], // Image 2
             ]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 4>::zeros([2, 1, 2, 2], &device);
+        let targets = Tensor::<4>::zeros([2, 1, 2, 2], &device);
 
         // Reduce over C, H, W (dims 1, 2, 3) to get per-image loss
         let output = loss.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
@@ -483,11 +466,11 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions = Tensor::<TestBackend, 3>::from_data(
+        let predictions = Tensor::<3>::from_data(
             TensorData::from([[[1.0_f32, 2.0], [3.0, 4.0]], [[5.0_f32, 6.0], [7.0, 8.0]]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 3>::zeros([2, 2, 2], &device);
+        let targets = Tensor::<3>::zeros([2, 2, 2], &device);
 
         // Pass dims in reverse order
         let output = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[2, 1]);
@@ -504,11 +487,9 @@ mod tests {
         let device = Default::default();
         let loss = SmoothL1LossConfig::new().init();
 
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[0.5_f32, 2.0], [0.0, 3.0]]),
-            &device,
-        );
-        let targets = Tensor::<TestBackend, 2>::zeros([2, 2], &device);
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[0.5_f32, 2.0], [0.0, 3.0]]), &device);
+        let targets = Tensor::<2>::zeros([2, 2], &device);
 
         let loss_reduce_dims = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
         let loss_no_reduction = loss.forward(predictions, targets);

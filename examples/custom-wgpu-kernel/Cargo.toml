@@ -15,8 +15,13 @@ burn = { workspace = true, features = [
     "wgpu",
     "autotune",
     "template",
+    "extension"
 ] }
 cubecl = { workspace = true, features = ["wgpu"] }
+
+# TODO: for now it's just to shut up clippy and the rust-analyzer due to workspace features,
+# but the example should show how to add a custom up wrapper with fusion.
+burn-fusion = { workspace = true, features = ["default"] }
 
 # Serialization
 log = { workspace = true }

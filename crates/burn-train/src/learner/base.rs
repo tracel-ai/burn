@@ -2,7 +2,7 @@ use crate::LearningComponentsMarker;
 use crate::checkpoint::{
     AsyncCheckpointer, Checkpointer, CheckpointingAction, CheckpointingStrategy,
 };
-use crate::components::{LearningComponentsTypes, TrainingBackend};
+use crate::components::LearningComponentsTypes;
 use crate::metric::store::EventStoreClient;
 use crate::{
     CloneEarlyStoppingStrategy, InferenceStep, TrainOutput, TrainStep, TrainingModelInput,
@@ -10,27 +10,24 @@ use crate::{
 };
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::lr_scheduler::LrScheduler;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// The record of the learner's model.
-pub type LearnerModelRecord<LC> =
-    <<LC as LearningComponentsTypes>::TrainingModel as Module<TrainingBackend<LC>>>::Record;
+pub type LearnerModelRecord<LC> = <<LC as LearningComponentsTypes>::Model as Module>::Record;
 /// The record of the optimizer.
 pub type LearnerOptimizerRecord<LC> = <<LC as LearningComponentsTypes>::Optimizer as Optimizer<
-    <LC as LearningComponentsTypes>::TrainingModel,
-    TrainingBackend<LC>,
+    <LC as LearningComponentsTypes>::Model,
 >>::Record;
 /// The record of the LR scheduler.
 pub type LearnerSchedulerRecord<LC> =
-    <<LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<TrainingBackend<LC>>;
+    <<LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record;
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 pub struct Learner<LC: LearningComponentsTypes> {
-    pub(crate) model: LC::TrainingModel,
+    pub(crate) model: LC::Model,
     optim: LC::Optimizer,
     lr_scheduler: LC::LrScheduler,
     lr: f64,
@@ -47,13 +44,11 @@ impl<LC: LearningComponentsTypes> Clone for Learner<LC> {
     }
 }
 
-impl<B, LR, M, O> Learner<LearningComponentsMarker<B, LR, M, O>>
+impl<LR, M, O> Learner<LearningComponentsMarker<LR, M, O>>
 where
-    B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
-    M::InnerModule: InferenceStep,
-    O: Optimizer<M, B> + 'static,
+    M: TrainStep + InferenceStep + AutodiffModule + core::fmt::Display + 'static,
+    O: Optimizer<M> + 'static,
 {
     /// Create a learner.
     pub fn new(model: M, optim: O, lr_scheduler: LR) -> Self {
@@ -68,12 +63,12 @@ where
 
 impl<LC: LearningComponentsTypes> Learner<LC> {
     /// Fork the learner's model to the given device.
-    pub fn fork(&mut self, device: &Device<TrainingBackend<LC>>) {
+    pub fn fork(&mut self, device: &Device) {
         self.model = self.model().fork(device);
     }
 
     /// Returns the current model.
-    pub fn model(&self) -> LC::TrainingModel {
+    pub fn model(&self) -> LC::Model {
         self.model.clone()
     }
 
@@ -97,7 +92,7 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     ///
     /// The output containing the model output and the gradients.
     pub fn train_step(&self, item: TrainingModelInput<LC>) -> TrainOutput<TrainingModelOutput<LC>> {
-        self.model.step(item)
+        TrainStep::step(&self.model, item)
     }
 
     /// Optimize the current module with the provided gradients and learning rate.
@@ -141,9 +136,9 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
 #[derive(new)]
 /// Used to create, delete, or load checkpoints of the training process.
 pub struct LearningCheckpointer<LC: LearningComponentsTypes> {
-    model: AsyncCheckpointer<LearnerModelRecord<LC>, LC::Backend>,
-    optim: AsyncCheckpointer<LearnerOptimizerRecord<LC>, LC::Backend>,
-    lr_scheduler: AsyncCheckpointer<LearnerSchedulerRecord<LC>, LC::Backend>,
+    model: AsyncCheckpointer<LearnerModelRecord<LC>>,
+    optim: AsyncCheckpointer<LearnerOptimizerRecord<LC>>,
+    lr_scheduler: AsyncCheckpointer<LearnerSchedulerRecord<LC>>,
     strategy: Box<dyn CheckpointingStrategy>,
 }
 
@@ -184,7 +179,7 @@ impl<LC: LearningComponentsTypes> LearningCheckpointer<LC> {
     pub fn load_checkpoint(
         &self,
         mut learner: Learner<LC>,
-        device: &Device<LC::Backend>,
+        device: &Device,
         epoch: usize,
     ) -> Learner<LC> {
         let record = self

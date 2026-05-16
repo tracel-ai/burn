@@ -2,30 +2,28 @@ pub(super) use alloc::string::String;
 use burn_core as burn;
 
 use burn::record::Record;
-use burn::tensor::backend::Backend;
 
 use crate::LearningRate;
 
 /// Learning rate scheduler defines how the learning rate will evolve during training.
 pub trait LrScheduler: Clone + Send + Sync {
     /// Scheduler associative type to be used when saving and loading the state.
-    type Record<B: Backend>: Record<B> + Clone + 'static;
+    type Record: Record + Clone + 'static;
 
     /// Perform the scheduler step, potentially updating its state, and returning the effective
     /// learning rate.
     fn step(&mut self) -> LearningRate;
 
     /// Get the current state of the scheduler as a [record](Record).
-    fn to_record<B: Backend>(&self) -> Self::Record<B>;
+    fn to_record(&self) -> Self::Record;
 
     /// Load the state of the scheduler as a [record](Record).
-    fn load_record<B: Backend>(self, record: Self::Record<B>) -> Self;
+    fn load_record(self, record: Self::Record) -> Self;
 }
 
 #[cfg(test)]
 pub(super) mod test_utils {
     use super::*;
-    use crate::TestBackend;
 
     // A small tolerance for learning rate comparisons. Depending on how learning rates are
     // computed, floating-point arithmetic error might exceed f64::EPSILON, so a larger value is
@@ -62,8 +60,8 @@ pub(super) mod test_utils {
             truth.step();
             scheduler.step();
         });
-        let rec = scheduler.to_record::<TestBackend>();
-        scheduler = scheduler.load_record::<TestBackend>(rec);
+        let rec = scheduler.to_record();
+        scheduler = scheduler.load_record(rec);
 
         // Validate that the scheduler resumes from where it left off.
         compare_steps(&mut scheduler, &mut truth, save_at_step);

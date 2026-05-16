@@ -1,18 +1,18 @@
 use burn::{
     module::Module,
     nn::conv::{ConvTranspose2d, ConvTranspose2dConfig},
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: ConvTranspose2d<B>,
-    conv2: ConvTranspose2d<B>,
+pub struct Net {
+    conv1: ConvTranspose2d,
+    conv2: ConvTranspose2d,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model from the given record.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let conv1 = ConvTranspose2dConfig::new([2, 2], [2, 2]).init(device);
         let conv2 = ConvTranspose2dConfig::new([2, 2], [2, 2])
             .with_bias(false)
@@ -22,7 +22,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let x = self.conv1.forward(x);
 
         self.conv2.forward(x)
@@ -31,17 +31,16 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
 
     use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
 
-    fn conv_transpose2d(model: Net<TestBackend>, precision: f32) {
+    fn conv_transpose2d(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             [[
                 [[0.024_595_8, 0.25883394], [0.93905586, 0.416_715_5]],
                 [[0.713_979_7, 0.267_644_3], [0.990_609, 0.28845078]],
@@ -51,7 +50,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 4>::from_data(
+        let expected = Tensor::<4>::from_data(
             [[
                 [
                     [0.04547675, 0.01879685, -0.01636661, 0.00310803],
@@ -76,7 +75,7 @@ mod tests {
     #[test]
     fn conv_transpose2d_full() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/conv_transpose2d/conv_transpose2d.pt");
         model
             .load_from(&mut store)
@@ -88,7 +87,7 @@ mod tests {
     #[test]
     fn conv_transpose2d_half() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/conv_transpose2d/conv_transpose2d.pt");
         model
             .load_from(&mut store)

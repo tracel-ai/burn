@@ -1,10 +1,6 @@
-use burn::backend::Flex;
-
 use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 
 use import_model_weights::{Model, infer};
-
-type B = Flex;
 
 const WEIGHTS_FILE: &str = "weights/mnist.safetensors";
 
@@ -13,7 +9,7 @@ pub fn main() {
 
     // Initialize a model with default weights
     let device = Default::default();
-    let mut model: Model<B> = Model::init(&device);
+    let mut model = Model::init(&device);
 
     // Load Safetensors weights into the model (using PyTorch adapter since weights were exported from PyTorch)
     let mut store =

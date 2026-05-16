@@ -8,21 +8,23 @@ use burn::{
 use burn::backend::wgpu::{Wgpu, WgpuDevice, graphics::AutoGraphicsApi, init_setup_async};
 
 #[cfg(feature = "wgpu")]
-pub type Backend = Wgpu<f32, i32>;
+pub type Device = WgpuDevice;
 
 #[cfg(all(feature = "flex", not(feature = "wgpu")))]
-pub type Backend = burn::backend::Flex;
+pub type Device = burn::backend::flex::FlexDevice;
 
 static STATE_ENCODED: &[u8] = include_bytes!("../model.bin");
 
 /// Builds and loads trained parameters into the model.
-pub async fn build_and_load_model() -> Model<Backend> {
-    #[cfg(feature = "wgpu")]
-    init_setup_async::<AutoGraphicsApi>(&WgpuDevice::default(), Default::default()).await;
+pub async fn build_and_load_model() -> Model {
+    let device = Device::default();
 
-    let model: Model<Backend> = Model::new(&Default::default());
+    #[cfg(feature = "wgpu")]
+    init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
+
+    let model = Model::new(&device.into());
     let record = BinBytesRecorder::<FullPrecisionSettings, &'static [u8]>::default()
-        .load(STATE_ENCODED, &Default::default())
+        .load(STATE_ENCODED, &device.into())
         .expect("Failed to decode state");
 
     model.load_record(record)

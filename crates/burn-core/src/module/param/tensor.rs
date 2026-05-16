@@ -1,19 +1,13 @@
 use super::{Param, ParamId, Parameter};
 use crate::module::{
-    AutodiffModule, Content, HasAutodiffModule, Module, ModuleDisplay, ModuleDisplayDefault,
-    ModuleMapper, ModuleVisitor,
-};
-use crate::tensor::{
-    Tensor,
-    backend::{AutodiffBackend, Backend},
+    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor,
 };
 use alloc::{format, string::ToString, vec::Vec};
-use burn_tensor::{Bool, Float, Int, TensorData, ops::Device};
+use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
-impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
-    type Device = B::Device;
-
-    fn device(&self) -> Self::Device {
+impl<const D: usize> Parameter for Tensor<D, Float> {
+    fn device(&self) -> Device {
         Tensor::device(self)
     }
 
@@ -26,10 +20,8 @@ impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Float> {
     }
 }
 
-impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Int> {
-    type Device = B::Device;
-
-    fn device(&self) -> Self::Device {
+impl<const D: usize> Parameter for Tensor<D, Int> {
+    fn device(&self) -> Device {
         Tensor::device(self)
     }
 
@@ -42,10 +34,8 @@ impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Int> {
     }
 }
 
-impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Bool> {
-    type Device = B::Device;
-
-    fn device(&self) -> Self::Device {
+impl<const D: usize> Parameter for Tensor<D, Bool> {
+    fn device(&self) -> Device {
         Tensor::device(self)
     }
 
@@ -58,7 +48,7 @@ impl<B: Backend, const D: usize> Parameter for Tensor<B, D, Bool> {
     }
 }
 
-impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
+impl<const D: usize> Param<Tensor<D>> {
     /// Create a new parameter from a float tensor.
     ///
     /// # Warnings
@@ -66,7 +56,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     /// We strongly recommend using [Param::uninitialized] if you are using this method to
     /// initialize parameters inside a module, since the tensor initialization will be lazy,
     /// making the loading of weights more performant.
-    pub fn from_tensor(value: Tensor<B, D>) -> Self {
+    pub fn from_tensor(value: Tensor<D>) -> Self {
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.
         Param::initialized(ParamId::new(), value.require_grad())
@@ -95,14 +85,14 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     }
 
     /// Create a new parameter from data.
-    pub fn from_data<T>(data: T, device: &B::Device) -> Self
+    pub fn from_data<T>(data: T, device: &Device) -> Self
     where
         T: Into<TensorData>,
     {
         let data: TensorData = data.into();
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.
-        B::memory_persistent_allocations(device, data, |data| {
+        device.memory_persistent_allocations(data, |data| {
             let value = Tensor::from_data(data, device);
             Param::initialized(ParamId::new(), value.require_grad())
         })
@@ -113,7 +103,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
     /// It ensures the tensor is moved to the expected device, applies the param mapper's
     /// `on_load` transformation, and preserves the autodiff settings (require_grad).
-    pub fn transform_for_load(self, tensor: Tensor<B, D>, param_id: ParamId) -> Self {
+    pub fn transform_for_load(self, tensor: Tensor<D>, param_id: ParamId) -> Self {
         let mut new_tensor = tensor;
 
         let mapper = self.param_mapper.clone();
@@ -151,7 +141,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     }
 }
 
-impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
+impl<const D: usize> Param<Tensor<D, Int>> {
     /// The shape of the parameter, **without triggering initialization**.
     ///
     /// This is critical for shape validation during loading: when applying tensors to an
@@ -179,7 +169,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
     /// It ensures the tensor is moved to the expected device and applies the param mapper's
     /// `on_load` transformation.
-    pub fn transform_for_load(self, tensor: Tensor<B, D, Int>, param_id: ParamId) -> Self {
+    pub fn transform_for_load(self, tensor: Tensor<D, Int>, param_id: ParamId) -> Self {
         let mut new_tensor = tensor;
 
         let mapper = self.param_mapper.clone();
@@ -213,7 +203,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Int>> {
     }
 }
 
-impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
+impl<const D: usize> Param<Tensor<D, Bool>> {
     /// The shape of the parameter, **without triggering initialization**.
     ///
     /// This is critical for shape validation during loading: when applying tensors to an
@@ -245,7 +235,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
     /// This method is used to restore a parameter from a tensor (typically during deserialization).
     /// It ensures the tensor is moved to the expected device and applies the param mapper's
     /// `on_load` transformation.
-    pub fn transform_for_load(self, tensor: Tensor<B, D, Bool>, param_id: ParamId) -> Self {
+    pub fn transform_for_load(self, tensor: Tensor<D, Bool>, param_id: ParamId) -> Self {
         let mut new_tensor = tensor;
 
         let mapper = self.param_mapper.clone();
@@ -279,14 +269,14 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D, Bool>> {
     }
 }
 
-impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
-    type Record = Param<Tensor<B, D>>;
+impl<const D: usize> Module for Param<Tensor<D>> {
+    type Record = Param<Tensor<D>>;
 
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_float(self)
     }
 
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_float(self)
     }
 
@@ -299,11 +289,11 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         self.transform_for_load(record_tensor, record_param_id)
     }
 
-    fn to_device(self, device: &Device<B>) -> Self {
+    fn to_device(self, device: &Device) -> Self {
         self.map(|tensor| tensor.to_device(device))
     }
 
-    fn fork(self, device: &Device<B>) -> Self {
+    fn fork(self, device: &Device) -> Self {
         self.map(|tensor| {
             let is_require_grad = tensor.is_require_grad();
             let mut tensor = tensor.to_device(device).detach();
@@ -316,7 +306,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         })
     }
 
-    fn collect_devices(&self, mut devices: Vec<Device<B>>) -> Vec<Device<B>> {
+    fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
         let device = self.val().device();
 
         if !devices.contains(&device) {
@@ -327,7 +317,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 }
 
-impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D>> {
+impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D>> {
     fn content(&self, content: Content) -> Option<Content> {
         let id = if content.display_settings.show_param_id() {
             format!(", id: {}", self.id)
@@ -341,16 +331,16 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D>> {
         content.add_formatted(&string).optional()
     }
 }
-impl<const D: usize, B: Backend> ModuleDisplay for Param<Tensor<B, D>> {}
+impl<const D: usize> ModuleDisplay for Param<Tensor<D>> {}
 
-impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
-    type Record = Param<Tensor<B, D, Int>>;
+impl<const D: usize> Module for Param<Tensor<D, Int>> {
+    type Record = Param<Tensor<D, Int>>;
 
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_int(self)
     }
 
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_int(self)
     }
 
@@ -363,15 +353,15 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
         self.transform_for_load(record_tensor, record_param_id)
     }
 
-    fn to_device(self, device: &Device<B>) -> Self {
+    fn to_device(self, device: &Device) -> Self {
         self.map(|tensor| tensor.to_device(device))
     }
 
-    fn fork(self, device: &Device<B>) -> Self {
+    fn fork(self, device: &Device) -> Self {
         self.to_device(device) // Don't support autodiff.
     }
 
-    fn collect_devices(&self, mut devices: Vec<Device<B>>) -> Vec<Device<B>> {
+    fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
         let device = self.val().device();
 
         if !devices.contains(&device) {
@@ -382,7 +372,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     }
 }
 
-impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Int>> {
+impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Int>> {
     fn content(&self, content: Content) -> Option<Content> {
         let id = if content.display_settings.show_param_id() {
             format!(", id: {}", self.id)
@@ -396,16 +386,16 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Int
         content.add_formatted(&string).optional()
     }
 }
-impl<const D: usize, B: Backend> ModuleDisplay for Param<Tensor<B, D, Int>> {}
+impl<const D: usize> ModuleDisplay for Param<Tensor<D, Int>> {}
 
-impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
-    type Record = Param<Tensor<B, D, Bool>>;
+impl<const D: usize> Module for Param<Tensor<D, Bool>> {
+    type Record = Param<Tensor<D, Bool>>;
 
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_bool(self)
     }
 
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_bool(self)
     }
 
@@ -418,15 +408,15 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
         self.transform_for_load(record_tensor, record_param_id)
     }
 
-    fn to_device(self, device: &Device<B>) -> Self {
+    fn to_device(self, device: &Device) -> Self {
         self.map(|tensor| tensor.to_device(device))
     }
 
-    fn fork(self, device: &Device<B>) -> Self {
+    fn fork(self, device: &Device) -> Self {
         self.to_device(device) // Don't support autodiff.
     }
 
-    fn collect_devices(&self, mut devices: Vec<Device<B>>) -> Vec<Device<B>> {
+    fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
         let device = self.val().device();
 
         if !devices.contains(&device) {
@@ -437,7 +427,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     }
 }
 
-impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Bool>> {
+impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Bool>> {
     fn content(&self, content: Content) -> Option<Content> {
         let id = if content.display_settings.show_param_id() {
             format!(", id: {}", self.id)
@@ -453,12 +443,10 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Boo
     }
 }
 
-impl<const D: usize, B: Backend> ModuleDisplay for Param<Tensor<B, D, Bool>> {}
+impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 
-impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D>> {
-    type InnerModule = Param<Tensor<B::InnerBackend, D>>;
-
-    fn valid(&self) -> Self::InnerModule {
+impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
+    fn valid(&self) -> Self {
         // Preserve initialized param `require_grad` state, but reset the inner value's
         let require_grad = self.require_grad;
         let mut param = Param::initialized(self.id, self.val().inner().set_require_grad(false));
@@ -466,56 +454,52 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
         param
     }
 
-    fn from_inner(module: Self::InnerModule) -> Self {
+    fn from_inner(module: Self) -> Self {
         // Reinstate the param's `require_grad` state
         let tensor = Tensor::from_inner(module.val()).set_require_grad(module.require_grad);
         Param::initialized(module.id, tensor)
     }
 }
 
-impl<const D: usize, B: AutodiffBackend> HasAutodiffModule<B>
-    for Param<Tensor<B::InnerBackend, D>>
-{
-    type TrainModule = Param<Tensor<B, D>>;
-}
+// impl<const D: usize, B: AutodiffBackend> HasAutodiffModule
+//     for Param<Tensor<B::InnerBackend, D>>
+// {
+//     type TrainModule = Param<Tensor<D>>;
+// }
 
-impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D, Int>> {
-    type InnerModule = Param<Tensor<B::InnerBackend, D, Int>>;
-
-    fn valid(&self) -> Self::InnerModule {
+impl<const D: usize> AutodiffModule for Param<Tensor<D, Int>> {
+    fn valid(&self) -> Self {
         Param::initialized(self.id, self.val().inner())
     }
 
-    fn from_inner(module: Self::InnerModule) -> Self {
+    fn from_inner(module: Self) -> Self {
         Param::initialized(module.id, Tensor::from_inner(module.val()))
     }
 }
 
-impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D, Bool>> {
-    type InnerModule = Param<Tensor<B::InnerBackend, D, Bool>>;
-
-    fn valid(&self) -> Self::InnerModule {
+impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
+    fn valid(&self) -> Self {
         Param::initialized(self.id, self.val().inner())
     }
 
-    fn from_inner(module: Self::InnerModule) -> Self {
+    fn from_inner(module: Self) -> Self {
         Param::initialized(module.id, Tensor::from_inner(module.val()))
     }
 }
 
-#[cfg(all(test, feature = "std"))]
+#[cfg(all(test, feature = "std", feature = "autodiff"))]
 mod tests {
     use super::*;
     use crate::{
-        TestAutodiffBackend,
+        TestDevice,
         module::Module,
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
     };
 
     #[test]
     fn test_load_record_setting() {
-        let device = Default::default();
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device).require_grad();
+        let device = Device::new(TestDevice::default()).autodiff();
+        let tensor = Tensor::<2>::ones([3, 3], &device).require_grad();
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let bytes = byte_recorder
@@ -540,8 +524,8 @@ mod tests {
 
     #[test]
     fn test_param_require_grad_stateful() {
-        let device = Default::default();
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], &device).require_grad();
+        let device = Device::new(TestDevice::default()).autodiff();
+        let tensor = Tensor::<2>::ones([3, 3], &device).require_grad();
 
         let param = Param::initialized(ParamId::new(), tensor);
         assert!(param.is_require_grad());
@@ -553,7 +537,7 @@ mod tests {
 
         // Without `HasAutodiffModule`, we would need to specify the param type as well, which would be annoying:
         // let param: Param<Tensor<TestAutodiffBackend, _>> = param.train();
-        let param = param.train::<TestAutodiffBackend>();
+        let param = param.train();
         assert!(param.is_require_grad());
         assert!(param.require_grad); // stateful
 
@@ -565,7 +549,7 @@ mod tests {
         assert!(!param.is_require_grad()); // always
         assert!(!param.require_grad); // stateful
 
-        let param = param.train::<TestAutodiffBackend>();
+        let param = param.train();
         assert!(!param.is_require_grad());
         assert!(!param.require_grad); // stateful
     }

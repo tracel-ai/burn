@@ -4,13 +4,13 @@ use crate::{
     evaluator::components::{EvaluatorComponentTypes, EvaluatorComponentTypesMarker},
     logger::FileMetricLogger,
     metric::{
-        Adaptor, ItemLazy, Metric, Numeric,
+        Adaptor, Metric, Numeric,
         processor::{AsyncProcessorEvaluation, FullEventProcessorEvaluation, MetricsEvaluation},
         store::{EventStoreClient, LogEventStore},
     },
     renderer::{MetricsRenderer, default_renderer},
 };
-use burn_core::{module::Module, prelude::Backend};
+use burn_core::module::Module;
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
@@ -32,10 +32,9 @@ pub struct EvaluatorBuilder<EC: EvaluatorComponentTypes> {
     summary: bool,
 }
 
-impl<B, M> EvaluatorBuilder<EvaluatorComponentTypesMarker<B, M>>
+impl<M> EvaluatorBuilder<EvaluatorComponentTypesMarker<M>>
 where
-    B: Backend,
-    M: Module<B> + InferenceStep + core::fmt::Display + 'static,
+    M: Module + InferenceStep + core::fmt::Display + 'static,
 {
     /// Creates a new evaluator builder.
     ///
@@ -85,7 +84,7 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
     pub fn metric_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        <TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        TestOutput<EC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_test_metric_numeric(metric);
@@ -96,7 +95,7 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
     pub fn metric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + 'static,
-        <TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        TestOutput<EC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_test_metric(metric);
@@ -172,7 +171,7 @@ macro_rules! gen_tuple {
     ($($M:ident),*) => {
         impl<$($M,)* EC: EvaluatorComponentTypes> EvalTextMetricRegistration<EC> for ($($M,)*)
         where
-            $(<TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(TestOutput<EC>: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
@@ -188,7 +187,7 @@ macro_rules! gen_tuple {
 
         impl<$($M,)* EC: EvaluatorComponentTypes> EvalMetricRegistration<EC> for ($($M,)*)
         where
-            $(<TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(TestOutput<EC>: Adaptor<$M::Input>,)*
             $($M: Metric + $crate::metric::Numeric + 'static,)*
         {
             #[allow(non_snake_case)]

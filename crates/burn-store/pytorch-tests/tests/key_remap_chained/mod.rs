@@ -1,35 +1,33 @@
-use std::marker::PhantomData;
-
 use burn::{
     module::Module,
     nn::{
         BatchNorm, BatchNormConfig,
         conv::{Conv2d, Conv2dConfig},
     },
-    tensor::{Device, Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 /// Some module that implements a specific method so it can be used in a sequential block.
-pub trait ForwardModule<B: Backend> {
-    fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4>;
+pub trait ForwardModule {
+    fn forward(&self, input: Tensor<4>) -> Tensor<4>;
 }
 
 /// Conv2d + BatchNorm block.
 #[derive(Module, Debug)]
-pub struct ConvBlock<B: Backend> {
-    conv: Conv2d<B>,
-    bn: BatchNorm<B>,
+pub struct ConvBlock {
+    conv: Conv2d,
+    bn: BatchNorm,
 }
 
-impl<B: Backend> ForwardModule<B> for ConvBlock<B> {
-    fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+impl ForwardModule for ConvBlock {
+    fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let out = self.conv.forward(input);
         self.bn.forward(out)
     }
 }
 
-impl<B: Backend> ConvBlock<B> {
-    pub fn new(in_channels: usize, out_channels: usize, device: &Device<B>) -> Self {
+impl ConvBlock {
+    pub fn new(in_channels: usize, out_channels: usize, device: &Device) -> Self {
         let conv = Conv2dConfig::new([in_channels, out_channels], [1, 1])
             .with_bias(false)
             .init(device);
@@ -41,13 +39,12 @@ impl<B: Backend> ConvBlock<B> {
 
 /// Collection of sequential blocks.
 #[derive(Module, Debug)]
-pub struct ModuleBlock<B: Backend, M> {
+pub struct ModuleBlock<M> {
     blocks: Vec<M>,
-    _backend: PhantomData<B>,
 }
 
-impl<B: Backend, M: ForwardModule<B>> ModuleBlock<B, M> {
-    pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+impl<M: ForwardModule> ModuleBlock<M> {
+    pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let mut out = input;
         for block in &self.blocks {
             out = block.forward(out);
@@ -56,26 +53,23 @@ impl<B: Backend, M: ForwardModule<B>> ModuleBlock<B, M> {
     }
 }
 
-impl<B: Backend> ModuleBlock<B, ConvBlock<B>> {
-    pub fn new(device: &Device<B>) -> Self {
+impl ModuleBlock<ConvBlock> {
+    pub fn new(device: &Device) -> Self {
         let blocks = vec![ConvBlock::new(6, 6, device), ConvBlock::new(6, 6, device)];
 
-        Self {
-            blocks,
-            _backend: PhantomData,
-        }
+        Self { blocks }
     }
 }
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend, M> {
-    conv: Conv2d<B>,
-    bn: BatchNorm<B>,
-    layer: ModuleBlock<B, M>,
+pub struct Model<M> {
+    conv: Conv2d,
+    bn: BatchNorm,
+    layer: ModuleBlock<M>,
 }
 
-impl<B: Backend> Model<B, ConvBlock<B>> {
-    pub fn new(device: &Device<B>) -> Self {
+impl Model<ConvBlock> {
+    pub fn new(device: &Device) -> Self {
         let conv = Conv2dConfig::new([3, 6], [3, 3])
             .with_bias(false)
             .init(device);
@@ -86,7 +80,7 @@ impl<B: Backend> Model<B, ConvBlock<B>> {
         Self { conv, bn, layer }
     }
 
-    pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let out = self.conv.forward(input);
         let out = self.bn.forward(out);
         self.layer.forward(out)
@@ -95,11 +89,10 @@ impl<B: Backend> Model<B, ConvBlock<B>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
 
-    use burn::tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     use super::*;
 
@@ -108,7 +101,7 @@ mod tests {
     fn key_remap_chained_missing_pattern() {
         // Loading record should fail due to missing pattern to map the layer.blocks
         let device = Default::default();
-        let mut model: Model<TestBackend, _> = Model::new(&device);
+        let mut model: Model<_> = Model::new(&device);
         let mut store = PytorchStore::from_file("tests/key_remap_chained/key_remap.pt")
             // Map *.block.0.* -> *.conv.*
             .with_key_remapping("(.+)\\.block\\.0\\.(.+)", "$1.conv.$2")
@@ -123,7 +116,7 @@ mod tests {
     #[test]
     fn key_remap_chained() {
         let device = Default::default();
-        let mut model: Model<TestBackend, _> = Model::new(&device);
+        let mut model: Model<_> = Model::new(&device);
         let mut store = PytorchStore::from_file("tests/key_remap_chained/key_remap.pt")
             // Map *.block.0.* -> *.conv.*
             .with_key_remapping("(.+)\\.block\\.0\\.(.+)", "$1.conv.$2")
@@ -136,7 +129,7 @@ mod tests {
             .load_from(&mut store)
             .expect("Should decode state successfully");
 
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             [[
                 [
                     [0.76193494, 0.626_546_1, 0.49510366, 0.11974698],
@@ -159,7 +152,7 @@ mod tests {
             ]],
             &device,
         );
-        let expected = Tensor::<TestBackend, 4>::from_data(
+        let expected = Tensor::<4>::from_data(
             [[
                 [[0.198_967_1, 0.17847246], [0.06883702, 0.20012866]],
                 [[0.17582723, 0.11344293], [0.05444185, 0.13307181]],

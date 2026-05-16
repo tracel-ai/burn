@@ -3,11 +3,11 @@ use burn_core as burn;
 use core::marker::PhantomData;
 
 use burn::module::{AutodiffModule, ModuleVisitor, Param};
-use burn::tensor::{Tensor, backend::AutodiffBackend};
+use burn::tensor::Tensor;
 
 use super::GradientsParams;
 
-/// Accumulate gradients into a single [Gradients](AutodiffBackend::Gradients) object.
+/// Accumulate gradients into a single [GradientsParams] object.
 pub struct GradientsAccumulator<M> {
     grads: GradientsParams,
     phantom: PhantomData<M>,
@@ -31,9 +31,9 @@ impl<M> GradientsAccumulator<M> {
 
 impl<M> GradientsAccumulator<M> {
     /// Accumulate the given gradients for each parameter in the given module.
-    pub fn accumulate<B: AutodiffBackend>(&mut self, module: &M, grads: GradientsParams)
+    pub fn accumulate(&mut self, module: &M, grads: GradientsParams)
     where
-        M: AutodiffModule<B>,
+        M: AutodiffModule,
     {
         let mut visitor = ModuleGradsAccumulator::<M>::new(&mut self.grads, grads);
         module.visit(&mut visitor);
@@ -55,37 +55,35 @@ struct ModuleGradsAccumulator<'a, M> {
     phantom: PhantomData<M>,
 }
 
-impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsAccumulator<'_, M> {
-    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
-        let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(param.id) {
-            Some(new) => match self.grads.remove::<B::InnerBackend, D>(param.id) {
+impl<M: AutodiffModule> ModuleVisitor for ModuleGradsAccumulator<'_, M> {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
+        let grad_updated = match self.grads_new.remove::<D>(param.id) {
+            Some(new) => match self.grads.remove::<D>(param.id) {
                 Some(grad) => grad.add(new),
                 None => new,
             },
-            None => match self.grads.remove::<B::InnerBackend, D>(param.id) {
+            None => match self.grads.remove::<D>(param.id) {
                 Some(grad) => grad,
                 None => return,
             },
         };
 
-        self.grads
-            .register::<B::InnerBackend, D>(param.id, grad_updated);
+        self.grads.register::<D>(param.id, grad_updated);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestAutodiffBackend;
-    use burn::tensor::{Distribution, backend::Backend};
+    use burn::tensor::{Device, Distribution};
     use burn_nn::{Linear, LinearConfig};
 
     #[test]
     fn test_accumulate_gradients_one_step() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let mut accumulator = GradientsAccumulator::new();
-        let layer = layer::<TestAutodiffBackend>(&device);
-        let loss = layer.forward(random_tensor::<TestAutodiffBackend>(&device));
+        let layer = layer(&device);
+        let loss = layer.forward(random_tensor(&device));
         let grads = GradientsParams::from_grads(loss.backward(), &layer);
 
         accumulator.accumulate(&layer, grads);
@@ -96,9 +94,9 @@ mod tests {
 
     #[test]
     fn test_accumulate_gradients_two_steps() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let mut accumulator = GradientsAccumulator::new();
-        let layer = layer::<TestAutodiffBackend>(&device);
+        let layer = layer(&device);
         let loss_1 = layer.forward(random_tensor(&device));
         let loss_2 = layer.forward(random_tensor(&device));
         let grads_1 = GradientsParams::from_grads(loss_1.backward(), &layer);
@@ -111,11 +109,11 @@ mod tests {
         assert_eq!(grads.len(), 2)
     }
 
-    fn layer<B: Backend>(device: &B::Device) -> Linear<B> {
+    fn layer(device: &Device) -> Linear {
         LinearConfig::new(20, 20).init(device)
     }
 
-    fn random_tensor<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
-        Tensor::<B, 2>::random([2, 20], Distribution::Default, device)
+    fn random_tensor(device: &Device) -> Tensor<2> {
+        Tensor::<2>::random([2, 20], Distribution::Default, device)
     }
 }

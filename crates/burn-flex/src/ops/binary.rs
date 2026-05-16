@@ -343,10 +343,7 @@ where
 }
 
 /// Helper to check if binary operation can use in-place optimization
-pub(crate) fn can_use_binary_inplace(
-    lhs: &FlexTensor,
-    rhs: &FlexTensor,
-) -> Option<(usize, usize, usize)> {
+pub fn can_use_binary_inplace(lhs: &FlexTensor, rhs: &FlexTensor) -> Option<(usize, usize, usize)> {
     if lhs.is_unique()
         && let (Some((0, l_end)), Some((r_start, r_end))) = (
             lhs.layout().contiguous_offsets(),
@@ -360,11 +357,7 @@ pub(crate) fn can_use_binary_inplace(
 }
 
 /// Generic binary operation that converts between element types E -> O.
-pub(crate) fn binary_op_typed_convert<E, O, Op>(
-    lhs: FlexTensor,
-    rhs: &FlexTensor,
-    op: Op,
-) -> FlexTensor
+pub fn binary_op_typed_convert<E, O, Op>(lhs: FlexTensor, rhs: &FlexTensor, op: Op) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
     O: Element + bytemuck::Pod,
@@ -411,7 +404,7 @@ where
     make_tensor(result, shape, O::dtype())
 }
 
-pub(crate) fn binary_op_typed<E, Op>(mut lhs: FlexTensor, rhs: &FlexTensor, op: Op) -> FlexTensor
+pub fn binary_op_typed<E, Op>(mut lhs: FlexTensor, rhs: &FlexTensor, op: Op) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
     Op: Fn(E, E) -> E,
@@ -619,7 +612,7 @@ where
 }
 
 /// Helper to construct a tensor from result data.
-pub(crate) fn make_tensor<E: bytemuck::Pod + Send + Sync>(
+pub fn make_tensor<E: bytemuck::Pod + Send + Sync>(
     data: Vec<E>,
     shape: Shape,
     dtype: DType,

@@ -1,6 +1,7 @@
 use super::*;
+use burn_tensor::Device;
+use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, backend::Backend};
 
 #[test]
 fn mask_where_should_match_reference_backend() {
@@ -50,10 +51,10 @@ fn inputs_mask_where() -> (
     TestTensor<3>,
     TestTensorBool<3>,
 ) {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let tensor = TestTensor::<3>::random([2, 6, 256], Distribution::Default, &device);
     let value = TestTensor::<3>::random([2, 6, 256], Distribution::Default, &device);

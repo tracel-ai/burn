@@ -6,9 +6,9 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 
@@ -21,38 +21,38 @@ use super::l2pool::{L2Pool2d, L2Pool2dConfig};
 ///
 /// Output channels per stage: [64, 128, 256, 512, 512]
 #[derive(Module, Debug)]
-pub struct Vgg16L2PoolExtractor<B: Backend> {
+pub struct Vgg16L2PoolExtractor {
     // Stage 1: 2 conv layers, 64 channels
-    pub(crate) conv1_1: Conv2d<B>,
-    pub(crate) conv1_2: Conv2d<B>,
-    pub(crate) pool1: L2Pool2d<B>,
+    pub(crate) conv1_1: Conv2d,
+    pub(crate) conv1_2: Conv2d,
+    pub(crate) pool1: L2Pool2d,
 
     // Stage 2: 2 conv layers, 128 channels
-    pub(crate) conv2_1: Conv2d<B>,
-    pub(crate) conv2_2: Conv2d<B>,
-    pub(crate) pool2: L2Pool2d<B>,
+    pub(crate) conv2_1: Conv2d,
+    pub(crate) conv2_2: Conv2d,
+    pub(crate) pool2: L2Pool2d,
 
     // Stage 3: 3 conv layers, 256 channels
-    pub(crate) conv3_1: Conv2d<B>,
-    pub(crate) conv3_2: Conv2d<B>,
-    pub(crate) conv3_3: Conv2d<B>,
-    pub(crate) pool3: L2Pool2d<B>,
+    pub(crate) conv3_1: Conv2d,
+    pub(crate) conv3_2: Conv2d,
+    pub(crate) conv3_3: Conv2d,
+    pub(crate) pool3: L2Pool2d,
 
     // Stage 4: 3 conv layers, 512 channels
-    pub(crate) conv4_1: Conv2d<B>,
-    pub(crate) conv4_2: Conv2d<B>,
-    pub(crate) conv4_3: Conv2d<B>,
-    pub(crate) pool4: L2Pool2d<B>,
+    pub(crate) conv4_1: Conv2d,
+    pub(crate) conv4_2: Conv2d,
+    pub(crate) conv4_3: Conv2d,
+    pub(crate) pool4: L2Pool2d,
 
     // Stage 5: 3 conv layers, 512 channels
-    pub(crate) conv5_1: Conv2d<B>,
-    pub(crate) conv5_2: Conv2d<B>,
-    pub(crate) conv5_3: Conv2d<B>,
+    pub(crate) conv5_1: Conv2d,
+    pub(crate) conv5_2: Conv2d,
+    pub(crate) conv5_3: Conv2d,
 }
 
-impl<B: Backend> Vgg16L2PoolExtractor<B> {
+impl Vgg16L2PoolExtractor {
     /// Create a new VGG16 feature extractor with L2 Pooling.
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         let pool_config = L2Pool2dConfig::default();
 
         Self {
@@ -126,7 +126,7 @@ impl<B: Backend> Vgg16L2PoolExtractor<B> {
     /// - Stage 3: After conv3 [batch, 256, H/8, W/8]
     /// - Stage 4: After conv4 [batch, 512, H/16, W/16]
     /// - Stage 5: After conv5 [batch, 512, H/32, W/32]
-    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 4>> {
+    pub fn forward(&self, x: Tensor<4>) -> Vec<Tensor<4>> {
         let mut features = Vec::with_capacity(6);
 
         // Stage 0: Input image

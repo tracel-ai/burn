@@ -1,9 +1,6 @@
-use crate::{Float, Tensor, backend::Backend};
+use crate::{Float, Tensor};
 
-impl<B, const D: usize> Tensor<B, D, Float>
-where
-    B: Backend,
-{
+impl<const D: usize> Tensor<D, Float> {
     /// Computes the floating-point remainder of dividing `self` by `other`.
     ///
     /// The result has the same sign as `self` and magnitude less than `other`.
@@ -27,13 +24,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
-    ///     let dividend = Tensor::<B, 1>::from_data([5.3, -5.3, 5.3, -5.3], &device);
-    ///     let divisor = Tensor::<B, 1>::from_data([2.0, 2.0, -2.0, -2.0], &device);
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let dividend = Tensor::< 1>::from_data([5.3, -5.3, 5.3, -5.3], &device);
+    ///     let divisor = Tensor::< 1>::from_data([2.0, 2.0, -2.0, -2.0], &device);
     ///     let result = dividend.fmod(divisor);
     ///
     ///     // Result: [1.3, -1.3, 1.3, -1.3]
@@ -80,12 +76,11 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
-    ///     let tensor = Tensor::<B, 1>::from_data([5.3, -5.3, 7.5, -7.5], &device);
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::< 1>::from_data([5.3, -5.3, 7.5, -7.5], &device);
     ///     let result = tensor.fmod_scalar(2.0);
     ///
     ///     // Result: [1.3, -1.3, 1.5, -1.5]

@@ -15,11 +15,8 @@ pub use policy::*;
 pub use transition_buffer::*;
 
 #[cfg(test)]
-pub(crate) type TestBackend = burn_flex::Flex;
-
-#[cfg(test)]
 pub(crate) mod tests {
-    use crate::{Batchable, Policy, PolicyState, TestBackend};
+    use crate::{Batchable, Policy, PolicyState};
 
     use burn_core::record::Record;
     use burn_core::{self as burn};
@@ -40,7 +37,7 @@ pub(crate) mod tests {
         }
     }
 
-    impl Policy<TestBackend> for MockPolicy {
+    impl Policy for MockPolicy {
         type Observation = MockObservation;
         type ActionDistribution = MockActionDistribution;
         type Action = MockAction;
@@ -82,10 +79,7 @@ pub(crate) mod tests {
             MockPolicyState
         }
 
-        fn load_record(
-            self,
-            _record: <Self::PolicyState as PolicyState<TestBackend>>::Record,
-        ) -> Self {
+        fn load_record(self, _record: <Self::PolicyState as PolicyState>::Record) -> Self {
             self
         }
     }
@@ -114,7 +108,7 @@ pub(crate) mod tests {
         item: usize,
     }
 
-    impl PolicyState<TestBackend> for MockPolicyState {
+    impl PolicyState for MockPolicyState {
         type Record = MockRecord;
 
         fn into_record(self) -> Self::Record {

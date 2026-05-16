@@ -4,20 +4,20 @@ use crate::GateController;
 use crate::activation::{Activation, ActivationConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
-pub struct LstmState<B: Backend, const D: usize> {
+pub struct LstmState<const D: usize> {
     /// The cell state.
-    pub cell: Tensor<B, D>,
+    pub cell: Tensor<D>,
     /// The hidden state.
-    pub hidden: Tensor<B, D>,
+    pub hidden: Tensor<D>,
 }
 
-impl<B: Backend, const D: usize> LstmState<B, D> {
+impl<const D: usize> LstmState<D> {
     /// Initialize a new [LSTM State](LstmState).
-    pub fn new(cell: Tensor<B, D>, hidden: Tensor<B, D>) -> Self {
+    pub fn new(cell: Tensor<D>, hidden: Tensor<D>) -> Self {
         Self { cell, hidden }
     }
 }
@@ -71,16 +71,16 @@ pub struct LstmConfig {
 /// Should be created with [LstmConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Lstm<B: Backend> {
+pub struct Lstm {
     /// The input gate regulates which information to update and store in the cell state at each time step.
-    pub input_gate: GateController<B>,
+    pub input_gate: GateController,
     /// The forget gate is used to control which information to discard or keep in the memory cell at each time step.
     /// Note: When `input_forget` is true, this gate is not used (forget = 1 - input).
-    pub forget_gate: GateController<B>,
+    pub forget_gate: GateController,
     /// The output gate determines which information from the cell state to output at each time step.
-    pub output_gate: GateController<B>,
+    pub output_gate: GateController,
     /// The cell gate is used to compute the cell state that stores and carries information through time.
-    pub cell_gate: GateController<B>,
+    pub cell_gate: GateController,
     /// The hidden state of the LSTM.
     pub d_hidden: usize,
     /// If true, input is `[batch_size, seq_length, input_size]`.
@@ -93,14 +93,14 @@ pub struct Lstm<B: Backend> {
     /// If true, couples input and forget gates: f_t = 1 - i_t.
     pub input_forget: bool,
     /// Activation function for gates (input, forget, output).
-    pub gate_activation: Activation<B>,
+    pub gate_activation: Activation,
     /// Activation function for cell gate (candidate cell state).
-    pub cell_activation: Activation<B>,
+    pub cell_activation: Activation,
     /// Activation function for hidden output.
-    pub hidden_activation: Activation<B>,
+    pub hidden_activation: Activation,
 }
 
-impl<B: Backend> ModuleDisplay for Lstm<B> {
+impl ModuleDisplay for Lstm {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -121,7 +121,7 @@ impl<B: Backend> ModuleDisplay for Lstm<B> {
 
 impl LstmConfig {
     /// Initialize a new [lstm](Lstm) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Lstm<B> {
+    pub fn init(&self, device: &Device) -> Lstm {
         let d_output = self.d_hidden;
 
         let new_gate = || {
@@ -151,7 +151,7 @@ impl LstmConfig {
     }
 }
 
-impl<B: Backend> Lstm<B> {
+impl Lstm {
     /// Applies the forward pass on the input tensor. This LSTM implementation
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
@@ -171,9 +171,9 @@ impl<B: Backend> Lstm<B> {
     ///   `[batch_size, hidden_size]`.
     pub fn forward(
         &self,
-        batched_input: Tensor<B, 3>,
-        state: Option<LstmState<B, 2>>,
-    ) -> (Tensor<B, 3>, LstmState<B, 2>) {
+        batched_input: Tensor<3>,
+        state: Option<LstmState<2>>,
+    ) -> (Tensor<3>, LstmState<2>) {
         // Convert to batch-first layout internally if needed
         let batched_input = if self.batch_first {
             batched_input
@@ -213,14 +213,14 @@ impl<B: Backend> Lstm<B> {
         (output, state)
     }
 
-    fn forward_iter<I: Iterator<Item = (Tensor<B, 3>, usize)>>(
+    fn forward_iter<I: Iterator<Item = (Tensor<3>, usize)>>(
         &self,
         input_timestep_iter: I,
-        state: Option<LstmState<B, 2>>,
+        state: Option<LstmState<2>>,
         batch_size: usize,
         seq_length: usize,
-        device: &B::Device,
-    ) -> (Tensor<B, 3>, LstmState<B, 2>) {
+        device: &Device,
+    ) -> (Tensor<3>, LstmState<2>) {
         let mut batched_hidden_state =
             Tensor::empty([batch_size, seq_length, self.d_hidden], device);
 
@@ -328,11 +328,11 @@ pub struct BiLstmConfig {
 /// Should be created with [BiLstmConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct BiLstm<B: Backend> {
+pub struct BiLstm {
     /// LSTM for the forward direction.
-    pub forward: Lstm<B>,
+    pub forward: Lstm,
     /// LSTM for the reverse direction.
-    pub reverse: Lstm<B>,
+    pub reverse: Lstm,
     /// The size of the hidden state.
     pub d_hidden: usize,
     /// If true, input is `[batch_size, seq_length, input_size]`.
@@ -340,7 +340,7 @@ pub struct BiLstm<B: Backend> {
     pub batch_first: bool,
 }
 
-impl<B: Backend> ModuleDisplay for BiLstm<B> {
+impl ModuleDisplay for BiLstm {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -367,7 +367,7 @@ impl<B: Backend> ModuleDisplay for BiLstm<B> {
 
 impl BiLstmConfig {
     /// Initialize a new [Bidirectional LSTM](BiLstm) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> BiLstm<B> {
+    pub fn init(&self, device: &Device) -> BiLstm {
         // Internal LSTMs always use batch_first=true; BiLstm handles layout conversion
         let base_config = LstmConfig::new(self.d_input, self.d_hidden, self.bias)
             .with_initializer(self.initializer.clone())
@@ -387,7 +387,7 @@ impl BiLstmConfig {
     }
 }
 
-impl<B: Backend> BiLstm<B> {
+impl BiLstm {
     /// Applies the forward pass on the input tensor. This Bidirectional LSTM implementation
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
@@ -407,9 +407,9 @@ impl<B: Backend> BiLstm<B> {
     ///   `state.hidden` have the shape `[2, batch_size, hidden_size]`.
     pub fn forward(
         &self,
-        batched_input: Tensor<B, 3>,
-        state: Option<LstmState<B, 3>>,
-    ) -> (Tensor<B, 3>, LstmState<B, 3>) {
+        batched_input: Tensor<3>,
+        state: Option<LstmState<3>>,
+    ) -> (Tensor<3>, LstmState<3>) {
         // Convert to batch-first layout internally if needed
         let batched_input = if self.batch_first {
             batched_input
@@ -493,26 +493,22 @@ impl<B: Backend> BiLstm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LinearRecord, TestBackend};
+    use crate::LinearRecord;
     use burn::module::Param;
-    use burn::tensor::{Device, Distribution, TensorData};
-    use burn::tensor::{ElementConversion, Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
-
-    #[cfg(feature = "std")]
-    use crate::TestAutodiffBackend;
+    use burn::tensor::{Distribution, TensorData};
+    use burn::tensor::{ElementConversion, Tolerance};
+    type FT = f32;
 
     #[test]
     fn test_with_uniform_initializer() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = LstmConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
-        let lstm = config.init::<TestBackend>(&Default::default());
+        let lstm = config.init(&Default::default());
 
-        let gate_to_data =
-            |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
+        let gate_to_data = |gate: GateController| gate.input_transform.weight.val().to_data();
 
         gate_to_data(lstm.input_gate).assert_within_range::<FT>(0.elem()..1.elem());
         gate_to_data(lstm.forget_gate).assert_within_range::<FT>(0.elem()..1.elem());
@@ -530,12 +526,11 @@ mod tests {
     /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
     #[test]
     fn test_forward_single_input_single_feature() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = LstmConfig::new(1, 1, false);
-        let device = Default::default();
-        let mut lstm = config.init::<TestBackend>(&device);
+        let mut lstm = config.init(&device);
 
         fn create_gate_controller(
             weights: f32,
@@ -544,8 +539,8 @@ mod tests {
             d_output: usize,
             bias: bool,
             initializer: Initializer,
-            device: &Device<TestBackend>,
-        ) -> GateController<TestBackend> {
+            device: &Device,
+        ) -> GateController {
             let record_1 = LinearRecord {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
@@ -602,7 +597,7 @@ mod tests {
         );
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
+        let input = Tensor::<3>::from_data(TensorData::from([[[0.1]]]), &device);
 
         let (output, state) = lstm.forward(input, None);
 
@@ -630,8 +625,7 @@ mod tests {
     fn test_batched_forward_pass() {
         let device = Default::default();
         let lstm = LstmConfig::new(64, 1024, true).init(&device);
-        let batched_input =
-            Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
+        let batched_input = Tensor::<3>::random([8, 10, 64], Distribution::Default, &device);
 
         let (output, state) = lstm.forward(batched_input, None);
 
@@ -644,8 +638,7 @@ mod tests {
     fn test_batched_forward_pass_batch_of_one() {
         let device = Default::default();
         let lstm = LstmConfig::new(64, 1024, true).init(&device);
-        let batched_input =
-            Tensor::<TestBackend, 3>::random([1, 2, 64], Distribution::Default, &device);
+        let batched_input = Tensor::<3>::random([1, 2, 64], Distribution::Default, &device);
 
         let (output, state) = lstm.forward(batched_input, None);
 
@@ -658,11 +651,10 @@ mod tests {
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
         use burn::tensor::Shape;
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
         let shape: Shape = [8, 10, 64].into();
-        let batched_input =
-            Tensor::<TestAutodiffBackend, 3>::random(shape, Distribution::Default, &device);
+        let batched_input = Tensor::<3>::random(shape, Distribution::Default, &device);
 
         let (output, _) = lstm.forward(batched_input.clone(), None);
         let fake_loss = output;
@@ -689,11 +681,10 @@ mod tests {
 
     #[test]
     fn test_bidirectional() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = BiLstmConfig::new(2, 3, true);
-        let device = Default::default();
         let mut lstm = config.init(&device);
 
         fn create_gate_controller<const D1: usize, const D2: usize>(
@@ -701,8 +692,8 @@ mod tests {
             input_biases: [f32; D1],
             hidden_weights: [[f32; D1]; D1],
             hidden_biases: [f32; D1],
-            device: &Device<TestBackend>,
-        ) -> GateController<TestBackend> {
+            device: &Device,
+        ) -> GateController {
             let d_input = input_weights[0].len();
             let d_output = input_weights.len();
 
@@ -724,7 +715,7 @@ mod tests {
             )
         }
 
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([[
                 [0.949, -0.861],
                 [0.892, 0.927],
@@ -733,11 +724,11 @@ mod tests {
             ]]),
             &device,
         );
-        let h0 = Tensor::<TestBackend, 3>::from_data(
+        let h0 = Tensor::<3>::from_data(
             TensorData::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
             &device,
         );
-        let c0 = Tensor::<TestBackend, 3>::from_data(
+        let c0 = Tensor::<3>::from_data(
             TensorData::from([[[0.723, 0.397, -0.262]], [[0.471, 0.613, 1.885]]]),
             &device,
         );
@@ -900,7 +891,7 @@ mod tests {
     fn display_lstm() {
         let config = LstmConfig::new(2, 3, true);
 
-        let layer = config.init::<TestBackend>(&Default::default());
+        let layer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{layer}"),
@@ -912,7 +903,7 @@ mod tests {
     fn display_bilstm() {
         let config = BiLstmConfig::new(2, 3, true);
 
-        let layer = config.init::<TestBackend>(&Default::default());
+        let layer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{layer}"),

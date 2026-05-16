@@ -1,6 +1,7 @@
 use super::*;
+use burn_tensor::Device;
+use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, backend::Backend};
 
 #[test]
 fn cat_should_match_reference_backend_dim0() {
@@ -18,11 +19,11 @@ fn cat_should_support_uneven_launch() {
 }
 
 fn test_same_as_reference(shape: [usize; 2], num_tensors: usize, dim: usize) {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
-    TestBackend::seed(&ref_device, 0);
+    device.seed(0);
+    ref_device.seed(0);
 
     let tensors = (0..num_tensors)
         .map(|_| TestTensor::<2>::random(shape, Distribution::Default, &device))

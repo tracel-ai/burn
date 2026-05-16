@@ -120,3 +120,15 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
         output
     }
 }
+
+impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for burn_fusion::Fusion<CubeBackend<WgpuRuntime, F, I, BT>>
+{
+    fn fused_matmul_add_relu(
+        _lhs: FloatTensor<Self>,
+        _rhs: FloatTensor<Self>,
+        _bias: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        todo!()
+    }
+}

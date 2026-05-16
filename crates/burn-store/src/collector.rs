@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use burn_tensor::{Bool, Int, Tensor, backend::Backend};
+use burn_core::tensor::{Bool, Int, Tensor};
 
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 use burn_core::module::{ModuleVisitor, Param, ParamId};
@@ -125,7 +125,7 @@ impl Collector {
     }
 }
 
-impl<B: Backend> ModuleVisitor<B> for Collector {
+impl ModuleVisitor for Collector {
     fn enter_module(&mut self, name: &str, container_type: &str) {
         // Always track the container type for proper filtering and module type detection
         self.container_stack.push(container_type.to_string());
@@ -146,7 +146,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
         }
     }
 
-    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
         if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_float(
                 &param.transform_for_save().val(),
@@ -157,7 +157,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
         }
     }
 
-    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
+    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
         if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_int(
                 &param.transform_for_save().val(),
@@ -168,7 +168,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
         }
     }
 
-    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
+    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
         if self.should_collect(&self.path_stack, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_bool(
                 &param.transform_for_save().val(),
@@ -183,7 +183,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
         &mut self,
         path: &[String],
         id: ParamId,
-        tensor: &Tensor<B, D>,
+        tensor: &Tensor<D>,
     ) {
         // For path-based visits, we use the current container stack for filtering
         if self.should_collect(path, &self.container_stack) {
@@ -200,7 +200,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
         &mut self,
         path: &[String],
         id: ParamId,
-        tensor: &Tensor<B, D, Int>,
+        tensor: &Tensor<D, Int>,
     ) {
         if self.should_collect(path, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_int(
@@ -216,7 +216,7 @@ impl<B: Backend> ModuleVisitor<B> for Collector {
         &mut self,
         path: &[String],
         id: ParamId,
-        tensor: &Tensor<B, D, Bool>,
+        tensor: &Tensor<D, Bool>,
     ) {
         if self.should_collect(path, &self.container_stack) {
             self.tensors.push(TensorSnapshot::from_bool(
@@ -235,17 +235,16 @@ mod tests {
 
     use burn_core as burn;
 
-    type TestBackend = burn_flex::Flex;
     use alloc::collections::BTreeMap;
     use alloc::string::String;
     use burn_core::module::{Module, Param};
+    use burn_core::tensor::{Device, shape};
     use burn_nn::LinearConfig;
-    use burn_tensor::shape;
 
     #[test]
     fn tensor_snapshot_collector() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         let mut collector = Collector::new(None, None, false);
         let id = ParamId::new();
@@ -269,21 +268,21 @@ mod tests {
         let device = Default::default();
 
         // Create root-level parameters (single-element path, not nested in modules)
-        let weight = Param::<Tensor<TestBackend, 2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
-        let bias = Param::<Tensor<TestBackend, 1>>::from_data([5.0, 6.0], &device);
+        let weight = Param::<Tensor<2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let bias = Param::<Tensor<1>>::from_data([5.0, 6.0], &device);
 
         let mut collector = Collector::new(None, None, false);
 
         // Simulate module traversal for root-level parameters
         // Enter "weight" path (as if we're visiting a field named "weight")
-        ModuleVisitor::<TestBackend>::enter_module(&mut collector, "weight", "");
-        ModuleVisitor::<TestBackend>::visit_float(&mut collector, &weight);
-        ModuleVisitor::<TestBackend>::exit_module(&mut collector, "weight", "");
+        ModuleVisitor::enter_module(&mut collector, "weight", "");
+        ModuleVisitor::visit_float(&mut collector, &weight);
+        ModuleVisitor::exit_module(&mut collector, "weight", "");
 
         // Enter "bias" path (as if we're visiting a field named "bias")
-        ModuleVisitor::<TestBackend>::enter_module(&mut collector, "bias", "");
-        ModuleVisitor::<TestBackend>::visit_float(&mut collector, &bias);
-        ModuleVisitor::<TestBackend>::exit_module(&mut collector, "bias", "");
+        ModuleVisitor::enter_module(&mut collector, "bias", "");
+        ModuleVisitor::visit_float(&mut collector, &bias);
+        ModuleVisitor::exit_module(&mut collector, "bias", "");
 
         // Verify both parameters were collected
         assert_eq!(collector.tensors.len(), 2);
@@ -312,7 +311,7 @@ mod tests {
     #[cfg(target_has_atomic = "ptr")]
     fn tensor_snapshot_collector_with_filter() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         let filter = PathFilter::new().with_regex(r"^encoder\..*");
         let mut collector = Collector::new(Some(filter), None, false);
@@ -339,7 +338,7 @@ mod tests {
     #[cfg(target_has_atomic = "ptr")]
     fn tensor_snapshot_collector_with_multiple_filters() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Multiple patterns - collect if matches ANY (OR union)
         let filter = PathFilter::new()
@@ -375,7 +374,7 @@ mod tests {
     #[test]
     fn tensor_snapshot_collector_with_predicate() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Use predicate function for filtering
         fn filter_fn(path: &str, _container_path: &str) -> bool {
@@ -414,7 +413,7 @@ mod tests {
     #[test]
     fn tensor_snapshot_collector_predicate_with_complex_logic() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
 
         // Complex predicate with multiple conditions
         fn complex_filter(path: &str, _container_path: &str) -> bool {
@@ -502,7 +501,7 @@ mod tests {
         }
     }
 
-    impl<B: Backend> ModuleVisitor<B> for TensorPathCollector {
+    impl ModuleVisitor for TensorPathCollector {
         fn enter_module(&mut self, name: &str, _container_type: &str) {
             self.path_stack.push(name.to_string());
         }
@@ -511,7 +510,7 @@ mod tests {
             self.path_stack.pop();
         }
 
-        fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+        fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
             let path = self.current_path();
             if !path.is_empty() {
                 self.paths.insert(
@@ -521,7 +520,7 @@ mod tests {
             }
         }
 
-        fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
+        fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
             let path = self.current_path();
             if !path.is_empty() {
                 self.paths.insert(
@@ -531,7 +530,7 @@ mod tests {
             }
         }
 
-        fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
+        fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
             let path = self.current_path();
             if !path.is_empty() {
                 self.paths.insert(
@@ -544,19 +543,19 @@ mod tests {
 
     // Simple nested module for testing
     #[derive(Module, Debug)]
-    struct InnerModule<B: Backend> {
-        weight: Param<Tensor<B, 2>>,
-        bias: Param<Tensor<B, 1>>,
+    struct InnerModule {
+        weight: Param<Tensor<2>>,
+        bias: Param<Tensor<1>>,
     }
 
     #[derive(Module, Debug)]
-    struct OuterModule<B: Backend> {
-        layer1: InnerModule<B>,
-        layer2: InnerModule<B>,
+    struct OuterModule {
+        layer1: InnerModule,
+        layer2: InnerModule,
     }
 
-    impl<B: Backend> InnerModule<B> {
-        fn new(device: &B::Device) -> Self {
+    impl InnerModule {
+        fn new(device: &Device) -> Self {
             Self {
                 weight: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
                 bias: Param::from_data([5.0, 6.0], device),
@@ -564,8 +563,8 @@ mod tests {
         }
     }
 
-    impl<B: Backend> OuterModule<B> {
-        fn new(device: &B::Device) -> Self {
+    impl OuterModule {
+        fn new(device: &Device) -> Self {
             Self {
                 layer1: InnerModule::new(device),
                 layer2: InnerModule::new(device),
@@ -576,7 +575,7 @@ mod tests {
     #[test]
     fn nested_module_path_tracking() {
         let device = Default::default();
-        let module = OuterModule::<TestBackend>::new(&device);
+        let module = OuterModule::new(&device);
 
         let mut collector = TensorPathCollector::new();
         module.visit(&mut collector);
@@ -601,7 +600,7 @@ mod tests {
     fn linear_module_paths() {
         let device = Default::default();
         let config = LinearConfig::new(10, 20).with_bias(true);
-        let linear = config.init::<TestBackend>(&device);
+        let linear = config.init(&device);
 
         let mut collector = TensorPathCollector::new();
         linear.visit(&mut collector);
@@ -619,37 +618,37 @@ mod tests {
 
     // Deep nesting test structures (4+ levels)
     #[derive(Module, Debug)]
-    struct Level4Module<B: Backend> {
-        weight: Param<Tensor<B, 2>>,
-        bias: Param<Tensor<B, 1>>,
+    struct Level4Module {
+        weight: Param<Tensor<2>>,
+        bias: Param<Tensor<1>>,
     }
 
     #[derive(Module, Debug)]
-    struct Level3Module<B: Backend> {
-        layer: Level4Module<B>,
-        extra: Level4Module<B>,
+    struct Level3Module {
+        layer: Level4Module,
+        extra: Level4Module,
     }
 
     #[derive(Module, Debug)]
-    struct Level2Module<B: Backend> {
-        block1: Level3Module<B>,
-        block2: Level3Module<B>,
+    struct Level2Module {
+        block1: Level3Module,
+        block2: Level3Module,
     }
 
     #[derive(Module, Debug)]
-    struct Level1Module<B: Backend> {
-        encoder: Level2Module<B>,
-        decoder: Level2Module<B>,
+    struct Level1Module {
+        encoder: Level2Module,
+        decoder: Level2Module,
     }
 
     #[derive(Module, Debug)]
-    struct DeepModel<B: Backend> {
-        backbone: Level1Module<B>,
-        head: Level4Module<B>,
+    struct DeepModel {
+        backbone: Level1Module,
+        head: Level4Module,
     }
 
-    impl<B: Backend> Level4Module<B> {
-        fn new(device: &B::Device) -> Self {
+    impl Level4Module {
+        fn new(device: &Device) -> Self {
             Self {
                 weight: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
                 bias: Param::from_data([5.0, 6.0], device),
@@ -657,8 +656,8 @@ mod tests {
         }
     }
 
-    impl<B: Backend> Level3Module<B> {
-        fn new(device: &B::Device) -> Self {
+    impl Level3Module {
+        fn new(device: &Device) -> Self {
             Self {
                 layer: Level4Module::new(device),
                 extra: Level4Module::new(device),
@@ -666,8 +665,8 @@ mod tests {
         }
     }
 
-    impl<B: Backend> Level2Module<B> {
-        fn new(device: &B::Device) -> Self {
+    impl Level2Module {
+        fn new(device: &Device) -> Self {
             Self {
                 block1: Level3Module::new(device),
                 block2: Level3Module::new(device),
@@ -675,8 +674,8 @@ mod tests {
         }
     }
 
-    impl<B: Backend> Level1Module<B> {
-        fn new(device: &B::Device) -> Self {
+    impl Level1Module {
+        fn new(device: &Device) -> Self {
             Self {
                 encoder: Level2Module::new(device),
                 decoder: Level2Module::new(device),
@@ -684,8 +683,8 @@ mod tests {
         }
     }
 
-    impl<B: Backend> DeepModel<B> {
-        fn new(device: &B::Device) -> Self {
+    impl DeepModel {
+        fn new(device: &Device) -> Self {
             Self {
                 backbone: Level1Module::new(device),
                 head: Level4Module::new(device),
@@ -696,7 +695,7 @@ mod tests {
     #[test]
     fn deep_module_path_tracking() {
         let device = Default::default();
-        let model = DeepModel::<TestBackend>::new(&device);
+        let model = DeepModel::new(&device);
 
         let mut collector = Collector::new(None, None, false);
         model.visit(&mut collector);
@@ -744,7 +743,7 @@ mod tests {
     #[test]
     fn deep_module_filtered_export() {
         let device = Default::default();
-        let model = DeepModel::<TestBackend>::new(&device);
+        let model = DeepModel::new(&device);
 
         // Test filtering at different depths
         #[cfg(target_has_atomic = "ptr")]
@@ -803,20 +802,20 @@ mod tests {
 
     // Test module with Option fields
     #[derive(Module, Debug)]
-    struct OptionalFieldModule<B: Backend> {
-        required: Param<Tensor<B, 2>>,
-        optional: Option<Param<Tensor<B, 1>>>,
+    struct OptionalFieldModule {
+        required: Param<Tensor<2>>,
+        optional: Option<Param<Tensor<1>>>,
     }
 
-    impl<B: Backend> OptionalFieldModule<B> {
-        fn new_with_optional(device: &B::Device) -> Self {
+    impl OptionalFieldModule {
+        fn new_with_optional(device: &Device) -> Self {
             Self {
                 required: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
                 optional: Some(Param::from_data([5.0, 6.0], device)),
             }
         }
 
-        fn new_without_optional(device: &B::Device) -> Self {
+        fn new_without_optional(device: &Device) -> Self {
             Self {
                 required: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
                 optional: None,
@@ -827,7 +826,7 @@ mod tests {
     #[test]
     fn optional_field_module_with_value() {
         let device = Default::default();
-        let module = OptionalFieldModule::<TestBackend>::new_with_optional(&device);
+        let module = OptionalFieldModule::new_with_optional(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
             .collect(None, None, false)
@@ -843,7 +842,7 @@ mod tests {
     #[test]
     fn optional_field_module_without_value() {
         let device = Default::default();
-        let module = OptionalFieldModule::<TestBackend>::new_without_optional(&device);
+        let module = OptionalFieldModule::new_without_optional(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
             .collect(None, None, false)
@@ -858,12 +857,12 @@ mod tests {
 
     // Test Vec of modules
     #[derive(Module, Debug)]
-    struct VecModule<B: Backend> {
-        layers: Vec<Linear<B>>,
+    struct VecModule {
+        layers: Vec<Linear>,
     }
 
-    impl<B: Backend> VecModule<B> {
-        fn new(device: &B::Device, num_layers: usize) -> Self {
+    impl VecModule {
+        fn new(device: &Device, num_layers: usize) -> Self {
             Self {
                 layers: (0..num_layers)
                     .map(|_| LinearConfig::new(10, 10).init(device))
@@ -874,12 +873,12 @@ mod tests {
 
     // Test tuple of modules
     #[derive(Module, Debug)]
-    struct TupleModule<B: Backend> {
-        layers: (Linear<B>, Linear<B>, Linear<B>),
+    struct TupleModule {
+        layers: (Linear, Linear, Linear),
     }
 
-    impl<B: Backend> TupleModule<B> {
-        fn new(device: &B::Device) -> Self {
+    impl TupleModule {
+        fn new(device: &Device) -> Self {
             Self {
                 layers: (
                     LinearConfig::new(10, 10).init(device),
@@ -893,7 +892,7 @@ mod tests {
     #[test]
     fn vec_module_collect() {
         let device = Default::default();
-        let module = VecModule::<TestBackend>::new(&device, 3);
+        let module = VecModule::new(&device, 3);
 
         let views: HashMap<String, TensorSnapshot> = module
             .collect(None, None, false)
@@ -916,7 +915,7 @@ mod tests {
     #[test]
     fn tuple_module_collect() {
         let device = Default::default();
-        let module = TupleModule::<TestBackend>::new(&device);
+        let module = TupleModule::new(&device);
 
         let snapshots = module.collect(None, None, false);
         assert_eq!(snapshots.len(), 6);
@@ -936,12 +935,12 @@ mod tests {
 
     // Test array of modules
     #[derive(Module, Debug)]
-    struct ArrayModule<B: Backend> {
-        layers: [Linear<B>; 3],
+    struct ArrayModule {
+        layers: [Linear; 3],
     }
 
-    impl<B: Backend> ArrayModule<B> {
-        fn new(device: &B::Device) -> Self {
+    impl ArrayModule {
+        fn new(device: &Device) -> Self {
             Self {
                 layers: [
                     LinearConfig::new(10, 10).init(device),
@@ -955,7 +954,7 @@ mod tests {
     #[test]
     fn array_module_collect() {
         let device = Default::default();
-        let module = ArrayModule::<TestBackend>::new(&device);
+        let module = ArrayModule::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = module
             .collect(None, None, false)
@@ -975,10 +974,10 @@ mod tests {
 
     // Test enum modules
     #[derive(Module, Debug)]
-    enum EnumModule<B: Backend> {
-        LayerA(Linear<B>),
-        LayerB(Linear<B>),
-        LayerC(Linear<B>),
+    enum EnumModule {
+        LayerA(Linear),
+        LayerB(Linear),
+        LayerC(Linear),
     }
 
     #[test]
@@ -986,7 +985,7 @@ mod tests {
         let device = Default::default();
 
         // Test variant A
-        let module_a = EnumModule::<TestBackend>::LayerA(LinearConfig::new(10, 20).init(&device));
+        let module_a = EnumModule::LayerA(LinearConfig::new(10, 20).init(&device));
         let views_a: HashMap<String, TensorSnapshot> = module_a
             .collect(None, None, false)
             .into_iter()
@@ -999,7 +998,7 @@ mod tests {
         assert!(views_a.contains_key("LayerA.bias"));
 
         // Test variant B
-        let module_b = EnumModule::<TestBackend>::LayerB(LinearConfig::new(10, 20).init(&device));
+        let module_b = EnumModule::LayerB(LinearConfig::new(10, 20).init(&device));
         let views_b: HashMap<String, TensorSnapshot> = module_b
             .collect(None, None, false)
             .into_iter()
@@ -1017,19 +1016,19 @@ mod tests {
         let device = Default::default();
 
         #[derive(Module, Debug)]
-        struct ModelWithLinear<B: Backend> {
-            linear: Linear<B>,
+        struct ModelWithLinear {
+            linear: Linear,
         }
 
-        impl<B: Backend> ModelWithLinear<B> {
-            fn new(device: &B::Device) -> Self {
+        impl ModelWithLinear {
+            fn new(device: &Device) -> Self {
                 Self {
                     linear: LinearConfig::new(10, 20).init(device),
                 }
             }
         }
 
-        let model = ModelWithLinear::<TestBackend>::new(&device);
+        let model = ModelWithLinear::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = model
             .collect(None, None, false)
@@ -1055,14 +1054,14 @@ mod tests {
         let device = Default::default();
 
         #[derive(Module, Debug)]
-        struct ComplexModel<B: Backend> {
-            linear_layers: [Linear<B>; 2],
-            vec_layers: Vec<Linear<B>>,
-            single_linear: Linear<B>,
+        struct ComplexModel {
+            linear_layers: [Linear; 2],
+            vec_layers: Vec<Linear>,
+            single_linear: Linear,
         }
 
-        impl<B: Backend> ComplexModel<B> {
-            fn new(device: &B::Device) -> Self {
+        impl ComplexModel {
+            fn new(device: &Device) -> Self {
                 Self {
                     linear_layers: [
                         LinearConfig::new(100, 50).init(device),
@@ -1077,7 +1076,7 @@ mod tests {
             }
         }
 
-        let model = ComplexModel::<TestBackend>::new(&device);
+        let model = ComplexModel::new(&device);
 
         let views: HashMap<String, TensorSnapshot> = model
             .collect(None, None, false)
@@ -1099,12 +1098,12 @@ mod tests {
         let device = Default::default();
 
         #[derive(Module, Debug)]
-        struct FilterTestModel<B: Backend> {
-            layers: Vec<Linear<B>>,
+        struct FilterTestModel {
+            layers: Vec<Linear>,
         }
 
-        impl<B: Backend> FilterTestModel<B> {
-            fn new(device: &B::Device) -> Self {
+        impl FilterTestModel {
+            fn new(device: &Device) -> Self {
                 Self {
                     layers: vec![
                         LinearConfig::new(10, 10).init(device),
@@ -1114,7 +1113,7 @@ mod tests {
             }
         }
 
-        let model = FilterTestModel::<TestBackend>::new(&device);
+        let model = FilterTestModel::new(&device);
 
         // Filter to only collect tensors from Linear modules
         let filter = PathFilter::new().with_predicate(|_path, container_path| {

@@ -4,19 +4,19 @@ use burn::{
         BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
         conv::{Conv2d, Conv2dConfig},
     },
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: Conv2d<B>,
-    norm1: BatchNorm<B>,
-    fc1: Linear<B>,
+pub struct Net {
+    conv1: Conv2d,
+    norm1: BatchNorm,
+    fc1: Linear,
     relu: Relu,
 }
 
-impl<B: Backend> Net<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl Net {
+    pub fn new(device: &Device) -> Self {
         Self {
             conv1: Conv2dConfig::new([3, 4], [3, 3])
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
@@ -28,7 +28,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.conv1.forward(x);
         let x = self.norm1.forward(x);
         let x = self.relu.forward(x);
@@ -40,8 +40,6 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
-
     use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 
@@ -50,7 +48,7 @@ mod tests {
     #[test]
     fn multi_layer_model() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::new(&device);
+        let mut model = Net::new(&device);
         let mut store = SafetensorsStore::from_file("tests/multi_layer/multi_layer.safetensors")
             .with_from_adapter(PyTorchToBurnAdapter);
 
@@ -58,12 +56,12 @@ mod tests {
             .load_from(&mut store)
             .expect("Should decode state successfully");
 
-        let input = Tensor::<TestBackend, 4>::ones([1, 3, 8, 8], &device);
+        let input = Tensor::<4>::ones([1, 3, 8, 8], &device);
 
         let output = model.forward(input);
 
         // Note: Expected values should be updated based on the actual output from the PyTorch model
-        let expected = Tensor::<TestBackend, 2>::from_data(
+        let expected = Tensor::<2>::from_data(
             [[
                 0.04971555,
                 -0.16849735,

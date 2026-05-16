@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{TensorData, backend::Backend};
+use burn_tensor::TensorData;
 
 #[test]
 fn test_add_d2() {
@@ -89,7 +89,7 @@ fn add_maybe_fused_not_contiguous() {
     let tensor2 = tensor2.reshape([4, 2]);
     let tensor2 = tensor2.swap_dims(0, 1);
 
-    TestBackend::sync(&tensor2.device()).unwrap();
+    tensor2.device().sync().unwrap();
 
     let output = tensor1 + tensor2;
 
@@ -140,7 +140,7 @@ fn add_maybe_fused_not_contiguous_broadcasted() {
     let tensor2 = tensor2.reshape([1, 2]);
     let tensor2 = tensor2.swap_dims(0, 1);
 
-    TestBackend::sync(&tensor2.device()).unwrap();
+    tensor2.device().sync().unwrap();
 
     let output = tensor2 + tensor1;
 

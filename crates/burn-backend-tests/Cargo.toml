@@ -14,42 +14,41 @@ version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+proc-macro = true
+
 [features]
 default = [
     "burn-tensor/default",
-    "burn-dispatch/default",
     # Default
     # "ndarray",
     "std",
 ]
-std = ["burn-tensor/std", "burn-dispatch/std"]
+std = ["burn-tensor/std"]
 
 # Backends
-cuda = ["burn-dispatch/cuda", "quantization", "cube"]
-flex = ["burn-dispatch/flex", "quantization"]
-rocm = ["burn-dispatch/rocm", "quantization", "cube"]
-ndarray = ["burn-dispatch/ndarray", "quantization"]
-tch = ["burn-dispatch/tch"]
-vulkan = ["wgpu", "burn-dispatch/vulkan"]
-webgpu = ["wgpu", "burn-dispatch/webgpu"]
-metal = ["wgpu", "burn-dispatch/metal"]
-wgpu = ["burn-dispatch/wgpu", "quantization", "cube"]
-cpu = ["burn-dispatch/cpu", "cube"]
+cuda = ["burn-tensor/cuda", "quantization", "cube"]
+rocm = ["burn-tensor/rocm", "quantization", "cube"]
+flex = ["burn-tensor/flex", "quantization"]
+ndarray = ["burn-tensor/ndarray", "quantization"]
+tch = ["burn-tensor/tch"]
+vulkan = ["wgpu", "burn-tensor/vulkan"]
+webgpu = ["wgpu", "burn-tensor/webgpu"]
+metal = ["wgpu", "burn-tensor/metal"]
+wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
+cpu = ["burn-tensor/cpu", "cube"]
 
-autotune = ["burn-dispatch/autotune"]
-autotune-checks = ["burn-dispatch/autotune-checks"]
+autotune = ["burn-tensor/autotune"]
+autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
-fusion = ["burn-dispatch/fusion", "burn-fusion/test-util"]
-distributed = [
-    "std",
-    "burn-dispatch/distributed"
-]
+fusion = ["burn-tensor/fusion", "burn-fusion/test-util"]
+distributed = ["std", "burn-tensor/distributed"]
 
 # CubeCL backends
 cube = [
     "cubek",
     "autotune",
-    "burn-dispatch/ndarray",
+    "burn-tensor/ndarray",
     "burn-ndarray",
     # Not used directly, but included to avoid recompiling with and without fusion
     "burn-cubecl",
@@ -59,19 +58,14 @@ cube = [
 quantization = []
 
 [dependencies]
-burn-tensor = { workspace = true }
-burn-tensor-testgen = { workspace = true }
-burn-dispatch = { workspace = true, features = [
-    "autodiff",
-] }
+burn-tensor = { workspace = true, features = ["autodiff"] }
+burn-backend = { workspace = true }
 
 # For random tests
 cubek = { workspace = true, features = ["random"], optional = true }
 
 # Explicitly enable test-only checks
-burn-autodiff = { workspace = true, features = [
-    "export_tests",
-] }
+burn-autodiff = { workspace = true, features = ["export_tests"] }
 burn-ndarray = { workspace = true, optional = true, features = [
     "export_tests",
 ] }
@@ -88,6 +82,11 @@ burn-fusion = { workspace = true, optional = true }
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 rand.workspace = true
+
+# might-panic macro
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
 
 
 [dev-dependencies]

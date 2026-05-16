@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Distribution, ElementConversion, TensorData, Tolerance, backend::Backend};
+use burn_tensor::{Device, Distribution, ElementConversion, TensorData, Tolerance};
 
 #[test]
 fn rand_default() {
@@ -42,10 +42,10 @@ fn rand_bernoulli() {
 #[test]
 #[ignore] // TODO: mark serial for backends that handle the same devices (e.g. fusion)?
 fn test_seed_reproducibility() {
-    let device = Default::default();
-    TestBackend::seed(&device, 42);
+    let device = Device::default();
+    device.seed(42);
     let t1 = TestTensor::<1>::random([5], Distribution::Default, &device);
-    TestBackend::seed(&device, 42);
+    device.seed(42);
     let t2 = TestTensor::<1>::random([5], Distribution::Default, &device);
 
     t1.into_data()

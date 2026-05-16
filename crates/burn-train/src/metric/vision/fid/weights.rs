@@ -1,6 +1,3 @@
-use burn_core as burn;
-
-use burn::tensor::backend::Backend;
 use burn_std::network::downloader::download_file_as_bytes;
 use burn_store::{ModuleSnapshot, PytorchStore};
 use std::fs::{File, create_dir_all};
@@ -35,7 +32,7 @@ fn download_if_needed(url: &str, cache_path: &PathBuf, message: &str) {
 /// Download and load pretrained pytorch-fid InceptionV3 weights.
 ///
 /// Weights are cached in `~/.cache/burn-dataset/fid/`.
-pub fn load_pretrained_weights<B: Backend>(mut fid: Fid<B>) -> Fid<B> {
+pub fn load_pretrained_weights(mut fid: Fid) -> Fid {
     let cache_dir = get_cache_dir();
     let cache_path = cache_dir.join("pt-inception-2015-12-05-6726825d.pth");
 

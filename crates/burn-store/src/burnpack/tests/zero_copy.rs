@@ -5,25 +5,23 @@ use crate::burnpack::store::BurnpackStore;
 
 use burn_core as burn;
 use burn_core::module::{Module, Param};
-use burn_tensor::{AllocationProperty, Bytes, Tensor, backend::Backend};
-
-type TestBackend = burn_flex::Flex;
+use burn_core::tensor::{AllocationProperty, Bytes, Device, Tensor};
 
 #[derive(Module, Debug)]
-struct SimpleModule<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    bias: Param<Tensor<B, 1>>,
+struct SimpleModule {
+    weight: Param<Tensor<2>>,
+    bias: Param<Tensor<1>>,
 }
 
-impl<B: Backend> SimpleModule<B> {
-    fn new(device: &B::Device) -> Self {
+impl SimpleModule {
+    fn new(device: &Device) -> Self {
         Self {
             weight: Param::from_data([[1.0f32, 2.0], [3.0, 4.0]], device),
             bias: Param::from_data([0.5f32, 1.5], device),
         }
     }
 
-    fn new_zeros(device: &B::Device) -> Self {
+    fn new_zeros(device: &Device) -> Self {
         Self {
             weight: Param::from_tensor(Tensor::zeros([2, 2], device)),
             bias: Param::from_tensor(Tensor::zeros([2], device)),
@@ -35,7 +33,7 @@ impl<B: Backend> SimpleModule<B> {
 #[test]
 fn test_from_static_enables_zero_copy() {
     let device = Default::default();
-    let module = SimpleModule::<TestBackend>::new(&device);
+    let module = SimpleModule::new(&device);
 
     // Save to bytes first
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -50,7 +48,7 @@ fn test_from_static_enables_zero_copy() {
     let mut load_store = BurnpackStore::from_static(static_bytes);
 
     // Load into a new module
-    let mut loaded_module = SimpleModule::<TestBackend>::new_zeros(&device);
+    let mut loaded_module = SimpleModule::new_zeros(&device);
     load_store.apply_to(&mut loaded_module).unwrap();
 
     // Verify data is correct
@@ -68,7 +66,7 @@ fn test_from_static_enables_zero_copy() {
 #[test]
 fn test_zero_copy_builder_method() {
     let device = Default::default();
-    let module = SimpleModule::<TestBackend>::new(&device);
+    let module = SimpleModule::new(&device);
 
     // Save to bytes first
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -83,7 +81,7 @@ fn test_zero_copy_builder_method() {
     let mut load_store = BurnpackStore::from_bytes(Some(cubecl_bytes)).zero_copy(true);
 
     // Load into a new module
-    let mut loaded_module = SimpleModule::<TestBackend>::new_zeros(&device);
+    let mut loaded_module = SimpleModule::new_zeros(&device);
     load_store.apply_to(&mut loaded_module).unwrap();
 
     // Verify data is correct
@@ -98,7 +96,7 @@ fn test_zero_copy_builder_method() {
 #[test]
 fn test_zero_copy_disabled_uses_copy() {
     let device = Default::default();
-    let module = SimpleModule::<TestBackend>::new(&device);
+    let module = SimpleModule::new(&device);
 
     // Save to bytes first
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -113,7 +111,7 @@ fn test_zero_copy_disabled_uses_copy() {
     let mut load_store = BurnpackStore::from_static(static_bytes).zero_copy(false);
 
     // Load into a new module
-    let mut loaded_module = SimpleModule::<TestBackend>::new_zeros(&device);
+    let mut loaded_module = SimpleModule::new_zeros(&device);
     load_store.apply_to(&mut loaded_module).unwrap();
 
     // Verify data is correct (copied, not zero-copy)
@@ -128,7 +126,7 @@ fn test_zero_copy_disabled_uses_copy() {
 #[test]
 fn test_from_bytes_uses_copy_by_default() {
     let device = Default::default();
-    let module = SimpleModule::<TestBackend>::new(&device);
+    let module = SimpleModule::new(&device);
 
     // Save to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -137,7 +135,7 @@ fn test_from_bytes_uses_copy_by_default() {
 
     // Load from bytes (default: zero_copy = false)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut loaded_module = SimpleModule::<TestBackend>::new_zeros(&device);
+    let mut loaded_module = SimpleModule::new_zeros(&device);
     load_store.apply_to(&mut loaded_module).unwrap();
 
     // Verify data is correct
@@ -154,7 +152,7 @@ fn test_storage_backend_slice_bytes() {
     use crate::burnpack::reader::BurnpackReader;
 
     let device = Default::default();
-    let module = SimpleModule::<TestBackend>::new(&device);
+    let module = SimpleModule::new(&device);
 
     // Save to bytes first
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -186,7 +184,7 @@ fn test_zero_copy_file_based_works() {
     use tempfile::NamedTempFile;
 
     let device = Default::default();
-    let module = SimpleModule::<TestBackend>::new(&device);
+    let module = SimpleModule::new(&device);
 
     // Save to a temporary file
     let temp_file = NamedTempFile::new().unwrap();
@@ -197,7 +195,7 @@ fn test_zero_copy_file_based_works() {
 
     // Load with zero_copy=true - should work because mmap is converted to bytes::Bytes
     let mut load_store = BurnpackStore::from_file(path).zero_copy(true);
-    let mut loaded_module = SimpleModule::<TestBackend>::new_zeros(&device);
+    let mut loaded_module = SimpleModule::new_zeros(&device);
 
     // The apply should succeed - mmap now supports zero-copy via bytes::Bytes::from_owner()
     load_store.apply_to(&mut loaded_module).unwrap();

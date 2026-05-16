@@ -1,6 +1,5 @@
 use std::{env, path::Path, process};
 
-use burn::backend::Flex;
 use burn_store::{
     BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore,
 };
@@ -10,9 +9,6 @@ use import_model_weights::Model;
 const PYTORCH_WEIGHTS_PATH: &str = "weights/mnist.pt";
 const SAFETENSORS_WEIGHTS_PATH: &str = "weights/mnist.safetensors";
 const MODEL_OUTPUT_NAME: &str = "mnist";
-
-// Basic backend type (not used for computation).
-type B = Flex;
 
 pub fn main() {
     let args: Vec<String> = env::args().collect();
@@ -34,7 +30,7 @@ pub fn main() {
     let device = Default::default();
 
     // Initialize a model with default weights
-    let mut model: Model<B> = Model::init(&device);
+    let mut model = Model::init(&device);
 
     // Load the model weights based on the specified format
     match weight_format {

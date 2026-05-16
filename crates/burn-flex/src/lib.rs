@@ -32,7 +32,7 @@ compile_error!(
 mod backend;
 mod layout;
 mod qtensor;
-mod strided_index;
+pub mod strided_index;
 mod tensor;
 
 #[doc(hidden)]
@@ -41,7 +41,7 @@ pub mod ops;
 #[doc(hidden)]
 pub mod simd;
 
-pub use backend::{Flex, FlexDevice};
+pub use backend::{Flex, FlexDevice, SEED, get_seeded_rng};
 pub use layout::Layout;
 pub use qtensor::FlexQTensor;
 pub use tensor::FlexTensor;

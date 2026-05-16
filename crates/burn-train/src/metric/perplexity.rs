@@ -1,9 +1,6 @@
-use core::marker::PhantomData;
-
 use super::state::FormatOptions;
 use super::{MetricMetadata, NumericEntry, SerializedEntry, format_float};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericAttributes};
-use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// Custom state for perplexity metric that correctly accumulates negative log-likelihood.
@@ -130,36 +127,34 @@ impl PerplexityState {
 /// This implementation correctly accumulates the total negative log-likelihood and
 /// total token count across batches, then computes perplexity as exp(total_nll / total_tokens).
 #[derive(Clone)]
-pub struct PerplexityMetric<B: Backend> {
+pub struct PerplexityMetric {
     name: MetricName,
     state: PerplexityState,
     pad_token: Option<usize>,
-    _b: PhantomData<B>,
 }
 
 /// The [perplexity metric](PerplexityMetric) input type.
 #[derive(new)]
-pub struct PerplexityInput<B: Backend> {
+pub struct PerplexityInput {
     /// Logits tensor of shape [batch_size * sequence_length, vocab_size]
-    outputs: Tensor<B, 2>,
+    outputs: Tensor<2>,
     /// Target tokens tensor of shape [batch_size * sequence_length]
-    targets: Tensor<B, 1, Int>,
+    targets: Tensor<1, Int>,
 }
 
-impl<B: Backend> Default for PerplexityMetric<B> {
+impl Default for PerplexityMetric {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> PerplexityMetric<B> {
+impl PerplexityMetric {
     /// Creates the metric.
     pub fn new() -> Self {
         Self {
             name: MetricName::new("Perplexity".to_string()),
             state: PerplexityState::new(),
             pad_token: Default::default(),
-            _b: PhantomData,
         }
     }
 
@@ -174,14 +169,10 @@ impl<B: Backend> PerplexityMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for PerplexityMetric<B> {
-    type Input = PerplexityInput<B>;
+impl Metric for PerplexityMetric {
+    type Input = PerplexityInput;
 
-    fn update(
-        &mut self,
-        input: &PerplexityInput<B>,
-        _metadata: &MetricMetadata,
-    ) -> SerializedEntry {
+    fn update(&mut self, input: &PerplexityInput, _metadata: &MetricMetadata) -> SerializedEntry {
         let targets = input.targets.clone();
         let outputs = input.outputs.clone();
 
@@ -242,7 +233,7 @@ impl<B: Backend> Metric for PerplexityMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for PerplexityMetric<B> {
+impl Numeric for PerplexityMetric {
     fn value(&self) -> NumericEntry {
         self.state.value()
     }
@@ -255,12 +246,11 @@ impl<B: Backend> Numeric for PerplexityMetric<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     fn test_perplexity_perfect_prediction() {
         let device = Default::default();
-        let mut metric = PerplexityMetric::<TestBackend>::new();
+        let mut metric = PerplexityMetric::new();
 
         // Perfect prediction: target is always the highest probability class
         let input = PerplexityInput::new(
@@ -289,7 +279,7 @@ mod tests {
     #[test]
     fn test_perplexity_uniform_prediction() {
         let device = Default::default();
-        let mut metric = PerplexityMetric::<TestBackend>::new();
+        let mut metric = PerplexityMetric::new();
 
         // Uniform prediction: all classes have equal probability
         let input = PerplexityInput::new(
@@ -318,7 +308,7 @@ mod tests {
     #[test]
     fn test_perplexity_with_padding() {
         let device = Default::default();
-        let mut metric = PerplexityMetric::<TestBackend>::new().with_pad_token(3);
+        let mut metric = PerplexityMetric::new().with_pad_token(3);
 
         let input = PerplexityInput::new(
             Tensor::from_data(
@@ -347,7 +337,7 @@ mod tests {
     #[test]
     fn test_perplexity_wrong_prediction() {
         let device = Default::default();
-        let mut metric = PerplexityMetric::<TestBackend>::new();
+        let mut metric = PerplexityMetric::new();
 
         // Wrong predictions: target class has very low probability
         let input = PerplexityInput::new(
@@ -376,7 +366,7 @@ mod tests {
     #[test]
     fn test_perplexity_multi_batch_aggregation() {
         let device = Default::default();
-        let mut metric = PerplexityMetric::<TestBackend>::new();
+        let mut metric = PerplexityMetric::new();
 
         // First batch: 2 tokens with uniform distribution (log_prob ≈ -1.0986 each)
         let input1 = PerplexityInput::new(
@@ -418,7 +408,7 @@ mod tests {
         );
 
         // Compare with single batch containing all data
-        let mut single_batch_metric = PerplexityMetric::<TestBackend>::new();
+        let mut single_batch_metric = PerplexityMetric::new();
         let single_input = PerplexityInput::new(
             Tensor::from_data([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], &device),
             Tensor::from_data([0, 1, 2], &device),

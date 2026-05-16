@@ -18,6 +18,7 @@ workspace = true
 default = ["std", "autotune", "fusion", "burn-cubecl/default", "cubecl/default"]
 doc = ["burn-cubecl/doc"]
 std = ["burn-cubecl/std", "cubecl/std"]
+
 tracing = [
     "cubecl/tracing",
     "burn-backend/tracing",
@@ -25,10 +26,11 @@ tracing = [
     "burn-cubecl/tracing",
 ]
 
+fusion = ["burn-fusion", "burn-cubecl/fusion"]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
+
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
-fusion = ["burn-fusion", "burn-cubecl/fusion"]
 template = ["burn-cubecl/template", "cubecl/template"]
 
 # Backends

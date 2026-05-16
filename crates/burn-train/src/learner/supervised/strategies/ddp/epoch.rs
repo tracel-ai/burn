@@ -30,7 +30,7 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        model: &<LC as LearningComponentsTypes>::TrainingModel,
+        model: &<LC as LearningComponentsTypes>::Model,
         global_progress: &Progress,
         processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,

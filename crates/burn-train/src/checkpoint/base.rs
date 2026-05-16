@@ -1,6 +1,6 @@
 use burn_core::{
     record::{Record, RecorderError},
-    tensor::backend::Backend,
+    tensor::Device,
 };
 use thiserror::Error;
 
@@ -21,10 +21,9 @@ pub enum CheckpointerError {
 }
 
 /// The trait for checkpointer.
-pub trait Checkpointer<R, B>: Send + Sync
+pub trait Checkpointer<R>: Send + Sync
 where
-    R: Record<B>,
-    B: Backend,
+    R: Record,
 {
     /// Save the record.
     ///
@@ -47,5 +46,5 @@ where
     /// # Returns
     ///
     /// The record.
-    fn restore(&self, epoch: usize, device: &B::Device) -> Result<R, CheckpointerError>;
+    fn restore(&self, epoch: usize, device: &Device) -> Result<R, CheckpointerError>;
 }

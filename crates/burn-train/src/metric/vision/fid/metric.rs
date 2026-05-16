@@ -2,8 +2,8 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::linalg;
 
 use super::inception::InceptionV3FeatureExtractor;
@@ -31,13 +31,13 @@ pub struct FidConfig {
 
 impl FidConfig {
     /// Initialize with pretrained InceptionV3 weights from pytorch-fid.
-    pub fn init_pretrained<B: Backend>(&self, device: &B::Device) -> Fid<B> {
+    pub fn init_pretrained(&self, device: &Device) -> Fid {
         let fid = self.init(device);
         super::weights::load_pretrained_weights(fid)
     }
 
     /// Initialize with random weights.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Fid<B> {
+    pub fn init(&self, device: &Device) -> Fid {
         Fid {
             extractor: InceptionV3FeatureExtractor::new(device),
             normalize: self.normalize,
@@ -58,15 +58,15 @@ impl FidConfig {
 /// let score = fid.compute_fid(feats_real, feats_gen);
 /// ```
 #[derive(Module, Debug)]
-pub struct Fid<B: Backend> {
-    extractor: InceptionV3FeatureExtractor<B>,
+pub struct Fid {
+    extractor: InceptionV3FeatureExtractor,
     normalize: bool,
     num_iterations: usize,
 }
 
-impl<B: Backend> Fid<B> {
+impl Fid {
     /// Extract 2048-dim InceptionV3 features from images of shape `[batch, 3, H, W]`.
-    pub fn extract_features(&self, images: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn extract_features(&self, images: Tensor<4>) -> Tensor<2> {
         let images = if self.normalize {
             imagenet_normalize(images)
         } else {
@@ -76,35 +76,31 @@ impl<B: Backend> Fid<B> {
     }
 
     /// Compute FID from pre-extracted feature tensors of shape `[N, 2048]`.
-    pub fn compute_fid(
-        &self,
-        features_real: Tensor<B, 2>,
-        features_gen: Tensor<B, 2>,
-    ) -> Tensor<B, 1> {
+    pub fn compute_fid(&self, features_real: Tensor<2>, features_gen: Tensor<2>) -> Tensor<1> {
         let (mu1, sigma1) = compute_statistics(features_real);
         let (mu2, sigma2) = compute_statistics(features_gen);
         frechet_distance(mu1, sigma1, mu2, sigma2, self.num_iterations)
     }
 
     /// Compute FID end-to-end from image tensors of shape `[N, 3, H, W]` in [0,1].
-    pub fn forward(&self, images_real: Tensor<B, 4>, images_gen: Tensor<B, 4>) -> Tensor<B, 1> {
+    pub fn forward(&self, images_real: Tensor<4>, images_gen: Tensor<4>) -> Tensor<1> {
         let features_real = self.extract_features(images_real);
         let features_gen = self.extract_features(images_gen);
         self.compute_fid(features_real, features_gen)
     }
 }
 
-fn imagenet_normalize<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+fn imagenet_normalize(x: Tensor<4>) -> Tensor<4> {
     let device = x.device();
 
-    let mean = Tensor::<B, 1>::from_floats(IMAGENET_MEAN, &device).reshape([1, 3, 1, 1]);
-    let std = Tensor::<B, 1>::from_floats(IMAGENET_STD, &device).reshape([1, 3, 1, 1]);
+    let mean = Tensor::<1>::from_floats(IMAGENET_MEAN, &device).reshape([1, 3, 1, 1]);
+    let std = Tensor::<1>::from_floats(IMAGENET_STD, &device).reshape([1, 3, 1, 1]);
 
     x.sub(mean).div(std)
 }
 
 /// Mean vector `[D]` and unbiased covariance matrix `[D, D]` from feature rows `[N, D]`.
-fn compute_statistics<B: Backend>(features: Tensor<B, 2>) -> (Tensor<B, 1>, Tensor<B, 2>) {
+fn compute_statistics(features: Tensor<2>) -> (Tensor<1>, Tensor<2>) {
     let [n, d] = features.dims();
     let n_f = n as f64;
 
@@ -122,14 +118,14 @@ fn compute_statistics<B: Backend>(features: Tensor<B, 2>) -> (Tensor<B, 1>, Tens
 
 /// Newton-Schulz iteration for the square root of a symmetric PD matrix.
 /// Input must be symmetric positive-definite for convergence.
-fn matrix_sqrt_newton_schulz<B: Backend>(a: Tensor<B, 2>, num_iterations: usize) -> Tensor<B, 2> {
+fn matrix_sqrt_newton_schulz(a: Tensor<2>, num_iterations: usize) -> Tensor<2> {
     let [d, _] = a.dims();
     let device = a.device();
 
     // Clamp to avoid division by near-zero norms (also avoids a GPU sync).
     let norm_a = a.clone().mul(a.clone()).sum().sqrt().clamp_min(EPS);
 
-    let identity = Tensor::<B, 2>::eye(d, &device);
+    let identity = Tensor::<2>::eye(d, &device);
     let mut y = a.div(norm_a.clone().unsqueeze_dim::<2>(0).expand([d, d]));
     let mut z = identity.clone();
     let three_i = identity.clone().mul_scalar(3.0);
@@ -151,13 +147,13 @@ fn matrix_sqrt_newton_schulz<B: Backend>(a: Tensor<B, 2>, num_iterations: usize)
 ///
 /// Uses the symmetric form (S @ sigma2 @ S where S = sqrtm(sigma1)) so that
 /// Newton-Schulz converges — the naive sqrtm(sigma1 @ sigma2) is non-symmetric.
-fn frechet_distance<B: Backend>(
-    mu1: Tensor<B, 1>,
-    sigma1: Tensor<B, 2>,
-    mu2: Tensor<B, 1>,
-    sigma2: Tensor<B, 2>,
+fn frechet_distance(
+    mu1: Tensor<1>,
+    sigma1: Tensor<2>,
+    mu2: Tensor<1>,
+    sigma2: Tensor<2>,
     num_iterations: usize,
-) -> Tensor<B, 1> {
+) -> Tensor<1> {
     let [d, _] = sigma1.dims();
     let device = sigma1.device();
 
@@ -167,11 +163,9 @@ fn frechet_distance<B: Backend>(
     // Small regularization (eps · I) scaled to the average variance for numerical
     // stability with near-singular covariances. Done entirely with tensor ops to
     // avoid forcing a GPU sync.
-    let tr_sum =
-        linalg::trace::<B, 2, 1>(sigma1.clone()).add(linalg::trace::<B, 2, 1>(sigma2.clone()));
+    let tr_sum = linalg::trace::<2, 1>(sigma1.clone()).add(linalg::trace::<2, 1>(sigma2.clone()));
     let avg_variance = tr_sum.div_scalar(2.0 * d as f64).clamp_min(EPS);
-    let reg =
-        Tensor::<B, 2>::eye(d, &device).mul(avg_variance.mul_scalar(EPS).unsqueeze_dim::<2>(0));
+    let reg = Tensor::<2>::eye(d, &device).mul(avg_variance.mul_scalar(EPS).unsqueeze_dim::<2>(0));
     let sigma1 = sigma1.add(reg.clone());
     let sigma2 = sigma2.add(reg);
 
@@ -183,7 +177,7 @@ fn frechet_distance<B: Backend>(
     let sqrt_m = matrix_sqrt_newton_schulz(m, num_iterations);
 
     let cov_term = sigma1.add(sigma2).sub(sqrt_m.mul_scalar(2.0));
-    let trace = linalg::trace::<B, 2, 1>(cov_term);
+    let trace = linalg::trace::<2, 1>(cov_term);
 
     mean_term.add(trace).reshape([1])
 }
@@ -191,17 +185,14 @@ fn frechet_distance<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core::tensor::{TensorData, Tolerance, ops::FloatElem};
-    use burn_flex::Flex;
+    use burn_core::tensor::{TensorData, Tolerance};
 
-    type TestBackend = Flex;
-    type FT = FloatElem<TestBackend>;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    type FT = f32;
 
     #[test]
     fn test_newton_schulz_identity() {
         let device = Default::default();
-        let identity = TestTensor::<2>::eye(3, &device);
+        let identity = Tensor::<2>::eye(3, &device);
         let sqrt_i = matrix_sqrt_newton_schulz(identity.clone(), 50);
 
         sqrt_i
@@ -213,14 +204,12 @@ mod tests {
     fn test_newton_schulz_diagonal() {
         // sqrt(diag(4, 9, 16)) should be diag(2, 3, 4)
         let device = Default::default();
-        let a = TestTensor::<2>::from_floats(
+        let a = Tensor::<2>::from_floats(
             [[4.0, 0.0, 0.0], [0.0, 9.0, 0.0], [0.0, 0.0, 16.0]],
             &device,
         );
-        let expected = TestTensor::<2>::from_floats(
-            [[2.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 4.0]],
-            &device,
-        );
+        let expected =
+            Tensor::<2>::from_floats([[2.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 4.0]], &device);
 
         let sqrt_a = matrix_sqrt_newton_schulz(a, 50);
 
@@ -234,7 +223,7 @@ mod tests {
         // [[1,2],[3,4],[5,6]] -> mean [3,4], centered [[-2,-2],[0,0],[2,2]]
         // cov = [[8,8],[8,8]] / 2 = [[4,4],[4,4]]
         let device = Default::default();
-        let features = TestTensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device);
+        let features = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device);
 
         let (mean, cov) = compute_statistics(features);
 
@@ -249,7 +238,7 @@ mod tests {
     #[test]
     fn test_fid_same_features_is_zero() {
         let device = Default::default();
-        let features = TestTensor::<2>::from_floats(
+        let features = Tensor::<2>::from_floats(
             [
                 [1.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0],
@@ -272,7 +261,7 @@ mod tests {
         let device = Default::default();
 
         // Handcrafted feature rows with some spread
-        let base = TestTensor::<2>::from_floats(
+        let base = Tensor::<2>::from_floats(
             [
                 [-0.3, 0.1, 0.4],
                 [0.2, -0.5, 0.1],
@@ -289,7 +278,7 @@ mod tests {
         );
 
         // Same data but shifted by [2, 0, 0]
-        let shift = TestTensor::<2>::from_floats([[2.0, 0.0, 0.0]], &device).expand([10, 3]);
+        let shift = Tensor::<2>::from_floats([[2.0, 0.0, 0.0]], &device).expand([10, 3]);
         let shifted = base.clone().add(shift);
 
         let (mu1, sigma1) = compute_statistics(base);
@@ -306,9 +295,9 @@ mod tests {
     fn test_fid_symmetry() {
         let device = Default::default();
         let features1 =
-            TestTensor::<2>::from_floats([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]], &device);
+            Tensor::<2>::from_floats([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]], &device);
         let features2 =
-            TestTensor::<2>::from_floats([[2.0, 1.0], [1.0, 2.0], [2.0, 2.0], [1.5, 1.5]], &device);
+            Tensor::<2>::from_floats([[2.0, 1.0], [1.0, 2.0], [2.0, 2.0], [1.5, 1.5]], &device);
 
         let (mu1, sigma1) = compute_statistics(features1.clone());
         let (mu2, sigma2) = compute_statistics(features2.clone());
@@ -325,16 +314,16 @@ mod tests {
     #[test]
     fn test_inception_output_shape() {
         let device = Default::default();
-        let extractor = InceptionV3FeatureExtractor::<TestBackend>::new(&device);
-        let input = TestTensor::<4>::zeros([1, 3, 299, 299], &device);
+        let extractor = InceptionV3FeatureExtractor::new(&device);
+        let input = Tensor::<4>::zeros([1, 3, 299, 299], &device);
         assert_eq!(extractor.forward(input).dims(), [1, 2048]);
     }
 
     #[test]
     fn test_fid_extract_features_shape() {
         let device = Default::default();
-        let fid: Fid<TestBackend> = FidConfig::new().init(&device);
-        let images = TestTensor::<4>::zeros([2, 3, 299, 299], &device);
+        let fid = FidConfig::new().init(&device);
+        let images = Tensor::<4>::zeros([2, 3, 299, 299], &device);
         assert_eq!(fid.extract_features(images).dims(), [2, 2048]);
     }
 
@@ -342,9 +331,9 @@ mod tests {
     #[ignore = "downloads pre-trained weights"]
     fn test_fid_pretrained_features() {
         let device = Default::default();
-        let fid: Fid<TestBackend> = FidConfig::new().init_pretrained(&device);
+        let fid = FidConfig::new().init_pretrained(&device);
 
-        let images = TestTensor::<4>::ones([1, 3, 299, 299], &device).mul_scalar(0.5);
+        let images = Tensor::<4>::ones([1, 3, 299, 299], &device).mul_scalar(0.5);
         let features = fid.extract_features(images);
 
         assert_eq!(features.dims(), [1, 2048]);

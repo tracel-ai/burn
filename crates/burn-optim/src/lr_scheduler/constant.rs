@@ -1,7 +1,3 @@
-use burn_core as burn;
-
-use burn::tensor::backend::Backend;
-
 use super::LrScheduler;
 use crate::LearningRate;
 
@@ -22,29 +18,29 @@ impl From<LearningRate> for ConstantLr {
 }
 
 impl LrScheduler for ConstantLr {
-    type Record<B: Backend> = ();
+    type Record = ();
 
     fn step(&mut self) -> LearningRate {
         self.lr
     }
 
-    fn to_record<B: Backend>(&self) -> Self::Record<B> {}
+    fn to_record(&self) -> Self::Record {}
 
-    fn load_record<B: Backend>(self, _record: Self::Record<B>) -> Self {
+    fn load_record(self, _record: Self::Record) -> Self {
         self
     }
 }
 
 impl LrScheduler for LearningRate {
-    type Record<B: Backend> = ();
+    type Record = ();
 
     fn step(&mut self) -> LearningRate {
         *self
     }
 
-    fn to_record<B: Backend>(&self) -> Self::Record<B> {}
+    fn to_record(&self) -> Self::Record {}
 
-    fn load_record<B: Backend>(self, _record: Self::Record<B>) -> Self {
+    fn load_record(self, _record: Self::Record) -> Self {
         self
     }
 }

@@ -5,26 +5,24 @@ use crate::{ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 
 use burn_core as burn;
 use burn_core::module::{Module, Param};
-use burn_tensor::shape;
-use burn_tensor::{Tensor, backend::Backend};
-
-type TestBackend = burn_flex::Flex;
+use burn_core::tensor::shape;
+use burn_core::tensor::{Device, Tensor};
 
 #[derive(Module, Debug)]
-struct TestModule<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    bias: Param<Tensor<B, 1>>,
-    nested: NestedModule<B>,
+struct TestModule {
+    weight: Param<Tensor<2>>,
+    bias: Param<Tensor<1>>,
+    nested: NestedModule,
 }
 
 #[derive(Module, Debug)]
-struct NestedModule<B: Backend> {
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
+struct NestedModule {
+    gamma: Param<Tensor<1>>,
+    beta: Param<Tensor<1>>,
 }
 
-impl<B: Backend> TestModule<B> {
-    fn new(device: &B::Device) -> Self {
+impl TestModule {
+    fn new(device: &Device) -> Self {
         Self {
             weight: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
             bias: Param::from_data([0.1, 0.2], device),
@@ -35,7 +33,7 @@ impl<B: Backend> TestModule<B> {
         }
     }
 
-    fn new_zeros(device: &B::Device) -> Self {
+    fn new_zeros(device: &Device) -> Self {
         Self {
             weight: Param::from_tensor(Tensor::zeros([2, 2], device)),
             bias: Param::from_tensor(Tensor::zeros([2], device)),
@@ -46,7 +44,7 @@ impl<B: Backend> TestModule<B> {
         }
     }
 
-    fn new_uninitialized(device: &B::Device) -> Self {
+    fn new_uninitialized(device: &Device) -> Self {
         use burn_core::module::ParamId;
         let device_clone = device.clone();
         let device_clone2 = device.clone();
@@ -91,7 +89,7 @@ impl<B: Backend> TestModule<B> {
 #[test]
 fn test_store_from_bytes_round_trip() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -100,7 +98,7 @@ fn test_store_from_bytes_round_trip() {
 
     // Load from bytes
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     // Verify success
@@ -117,7 +115,7 @@ fn test_store_from_bytes_round_trip() {
 #[test]
 fn test_store_with_metadata() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save with metadata
     let mut save_store = BurnpackStore::from_bytes(None)
@@ -130,7 +128,7 @@ fn test_store_with_metadata() {
 
     // Load and verify metadata is preserved
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -141,7 +139,7 @@ fn test_store_with_metadata() {
 #[cfg(feature = "std")]
 fn test_store_with_path_filter() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save all tensors
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -151,7 +149,7 @@ fn test_store_with_path_filter() {
     // Load with filter - only load weight and bias (not nested)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).with_regex("^(weight|bias)$");
 
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -177,7 +175,7 @@ fn test_store_with_path_filter() {
 #[cfg(feature = "std")]
 fn test_store_with_key_remapping() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save with original names
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -195,7 +193,7 @@ fn test_store_with_key_remapping() {
         .remap(remapper)
         .allow_partial(true);
 
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     // The remapping should cause missing tensors since names don't match
@@ -207,7 +205,7 @@ fn test_store_with_key_remapping() {
 #[test]
 fn test_store_allow_partial() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save only weight and bias
     let filter = PathFilter::new()
@@ -220,7 +218,7 @@ fn test_store_allow_partial() {
     // Load with allow_partial
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).allow_partial(true);
 
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -235,7 +233,7 @@ fn test_store_allow_partial() {
 #[test]
 fn test_store_match_all() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save with match_all filter (should save everything)
     let mut save_store = BurnpackStore::from_bytes(None).match_all();
@@ -244,7 +242,7 @@ fn test_store_match_all() {
 
     // Load everything
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -257,7 +255,7 @@ fn test_store_match_all() {
 #[test]
 fn test_store_with_full_path() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save everything
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -269,7 +267,7 @@ fn test_store_with_full_path() {
         .with_full_path("weight")
         .with_full_path("nested.gamma");
 
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -281,7 +279,7 @@ fn test_store_with_full_path() {
 #[cfg(feature = "std")]
 fn test_store_chain_multiple_patterns() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save with chained metadata and filters
     let mut save_store = BurnpackStore::from_bytes(None)
@@ -295,7 +293,7 @@ fn test_store_chain_multiple_patterns() {
 
     // Load everything since match_all was called last
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -306,7 +304,7 @@ fn test_store_chain_multiple_patterns() {
 #[cfg(feature = "std")]
 fn test_store_with_remap_pattern() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save normally
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -318,7 +316,7 @@ fn test_store_with_remap_pattern() {
         .with_remap_pattern(r"^nested\.", "sub_module.")
         .allow_partial(true);
 
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     // After remapping, nested.* becomes sub_module.*, which won't match
@@ -329,7 +327,7 @@ fn test_store_with_remap_pattern() {
 #[test]
 fn test_store_default_metadata() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save without adding custom metadata
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -340,7 +338,7 @@ fn test_store_default_metadata() {
     // We can't directly inspect metadata from bytes, but we can verify
     // that the model loads successfully which means metadata was written correctly
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -349,7 +347,7 @@ fn test_store_default_metadata() {
 #[test]
 fn test_store_default_metadata_with_custom() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save with custom metadata (should preserve defaults)
     let mut save_store = BurnpackStore::from_bytes(None)
@@ -360,7 +358,7 @@ fn test_store_default_metadata_with_custom() {
 
     // Load and verify it works (metadata including defaults was saved)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -369,7 +367,7 @@ fn test_store_default_metadata_with_custom() {
 #[test]
 fn test_store_clear_metadata() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save with cleared metadata (no defaults)
     let mut save_store = BurnpackStore::from_bytes(None).clear_metadata();
@@ -378,7 +376,7 @@ fn test_store_clear_metadata() {
 
     // Verify it still loads correctly
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -387,7 +385,7 @@ fn test_store_clear_metadata() {
 #[test]
 fn test_store_validate_enabled() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save normally
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -396,7 +394,7 @@ fn test_store_validate_enabled() {
 
     // Load with validation enabled (default)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -406,7 +404,7 @@ fn test_store_validate_enabled() {
 #[test]
 fn test_store_validate_disabled() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save normally
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -415,7 +413,7 @@ fn test_store_validate_disabled() {
 
     // Load with validation disabled
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).validate(false);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     // Should still succeed
@@ -425,7 +423,7 @@ fn test_store_validate_disabled() {
 #[test]
 fn test_store_allow_partial_missing_tensors() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save only weight (not bias or nested)
     let filter = PathFilter::new().with_full_path("weight");
@@ -435,7 +433,7 @@ fn test_store_allow_partial_missing_tensors() {
 
     // Try to load without allow_partial - should fail due to missing tensors
     let mut load_store = BurnpackStore::from_bytes(Some(bytes.clone()));
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2);
 
     // Should fail because of missing tensors
@@ -443,7 +441,7 @@ fn test_store_allow_partial_missing_tensors() {
 
     // Now try with allow_partial - should succeed
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).allow_partial(true);
-    let mut module3 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module3 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module3).unwrap();
 
     assert!(result.is_success());
@@ -457,7 +455,7 @@ fn test_store_file_round_trip() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Create temp directory and file path
     let temp_dir = tempdir().unwrap();
@@ -472,7 +470,7 @@ fn test_store_file_round_trip() {
 
     // Load from file
     let mut load_store = BurnpackStore::from_file(&path);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
 
     assert!(result.is_success());
@@ -490,7 +488,7 @@ fn test_store_overwrite_protection() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Create temp directory and file path (file doesn't exist yet)
     let temp_dir = tempdir().unwrap();
@@ -518,7 +516,7 @@ fn test_store_overwrite_protection() {
 
     // Verify file still exists and is valid
     let mut load_store = BurnpackStore::from_file(&path);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
@@ -529,7 +527,7 @@ fn test_store_overwrite_with_metadata() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Create temp directory and file path
     let temp_dir = tempdir().unwrap();
@@ -549,7 +547,7 @@ fn test_store_overwrite_with_metadata() {
 
     // Verify file loads correctly
     let mut load_store = BurnpackStore::from_file(&path);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
@@ -560,7 +558,7 @@ fn test_store_auto_extension_default() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Create temp directory
     let temp_dir = tempdir().unwrap();
@@ -577,7 +575,7 @@ fn test_store_auto_extension_default() {
 
     // Load using the path without extension - should work
     let mut load_store = BurnpackStore::from_file(&path);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
@@ -588,7 +586,7 @@ fn test_store_auto_extension_with_existing_extension() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Create temp directory
     let temp_dir = tempdir().unwrap();
@@ -605,7 +603,7 @@ fn test_store_auto_extension_with_existing_extension() {
 
     // Load and verify
     let mut load_store = BurnpackStore::from_file(&path);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
@@ -616,7 +614,7 @@ fn test_store_auto_extension_with_custom_extension() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Create temp directory
     let temp_dir = tempdir().unwrap();
@@ -633,7 +631,7 @@ fn test_store_auto_extension_with_custom_extension() {
 
     // Load and verify
     let mut load_store = BurnpackStore::from_file(&path);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
@@ -644,7 +642,7 @@ fn test_store_auto_extension_disabled() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Create temp directory
     let temp_dir = tempdir().unwrap();
@@ -661,7 +659,7 @@ fn test_store_auto_extension_disabled() {
 
     // Load with auto_extension disabled
     let mut load_store = BurnpackStore::from_file(&path).auto_extension(false);
-    let mut module2 = TestModule::<TestBackend>::new_zeros(&device);
+    let mut module2 = TestModule::new_zeros(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
@@ -674,7 +672,7 @@ fn test_partial_loading_preserves_lazy_initialization() {
     let device = Default::default();
 
     // Create and save a full module
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("model.bpk");
 
@@ -682,7 +680,7 @@ fn test_partial_loading_preserves_lazy_initialization() {
     save_store.collect_from(&module).unwrap();
 
     // Create an uninitialized module (all params lazy)
-    let mut load_module = TestModule::<TestBackend>::new_uninitialized(&device);
+    let mut load_module = TestModule::new_uninitialized(&device);
 
     // Before loading: verify ALL params are uninitialized (lazy)
     assert!(
@@ -759,14 +757,14 @@ fn test_partial_loading_preserves_lazy_initialization() {
 
 // Model with forward pass for testing weight preservation
 #[derive(Module, Debug)]
-struct ForwardTestModel<B: Backend> {
-    linear1: burn_nn::Linear<B>,
-    linear2: burn_nn::Linear<B>,
+struct ForwardTestModel {
+    linear1: burn_nn::Linear,
+    linear2: burn_nn::Linear,
 }
 
-impl<B: Backend> ForwardTestModel<B> {
+impl ForwardTestModel {
     /// Forward pass: input -> linear1 -> gelu -> linear2
-    fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+    fn forward(&self, input: Tensor<2>) -> Tensor<2> {
         let x = self.linear1.forward(input);
         let x = burn::tensor::activation::gelu(x);
         self.linear2.forward(x)
@@ -781,7 +779,7 @@ struct ForwardTestModelConfig {
 }
 
 impl ForwardTestModelConfig {
-    fn init<B: Backend>(&self, device: &B::Device) -> ForwardTestModel<B> {
+    fn init(&self, device: &Device) -> ForwardTestModel {
         ForwardTestModel {
             linear1: burn_nn::LinearConfig::new(self.input_size, self.hidden_size)
                 .with_bias(true)
@@ -808,12 +806,12 @@ fn test_forward_pass_preservation_after_save_load() {
     };
 
     // Initialize model1 with random weights
-    let model1 = config.init::<TestBackend>(&device);
+    let model1 = config.init(&device);
 
     // Create random input
-    let input = Tensor::<TestBackend, 2>::random(
+    let input = Tensor::<2>::random(
         [1, 4],
-        burn_tensor::Distribution::Uniform(-1.0, 1.0),
+        burn_core::tensor::Distribution::Uniform(-1.0, 1.0),
         &device,
     );
 
@@ -827,7 +825,7 @@ fn test_forward_pass_preservation_after_save_load() {
     save_store.collect_from(&model1).unwrap();
 
     // Initialize model2 with different random weights
-    let mut model2 = config.init::<TestBackend>(&device);
+    let mut model2 = config.init(&device);
 
     // Forward pass with model2 -> output2 (should differ from output1)
     let output2 = model2.forward(input.clone());
@@ -859,7 +857,7 @@ fn test_forward_pass_preservation_after_save_load() {
 #[test]
 fn test_store_get_all_snapshots() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save module to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -883,7 +881,7 @@ fn test_store_get_all_snapshots() {
 #[test]
 fn test_store_get_snapshot_existing() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save module to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -908,7 +906,7 @@ fn test_store_get_snapshot_existing() {
 #[test]
 fn test_store_get_snapshot_nested() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save module to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -928,7 +926,7 @@ fn test_store_get_snapshot_nested() {
 #[test]
 fn test_store_get_snapshot_not_found() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save module to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -946,7 +944,7 @@ fn test_store_get_snapshot_not_found() {
 #[test]
 fn test_store_keys() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save module to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -971,7 +969,7 @@ fn test_store_get_all_snapshots_from_file() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save to file
     let temp_dir = tempdir().unwrap();
@@ -995,7 +993,7 @@ fn test_store_get_all_snapshots_from_file() {
 #[test]
 fn test_store_caching_behavior() {
     let device = Default::default();
-    let module = TestModule::<TestBackend>::new(&device);
+    let module = TestModule::new(&device);
 
     // Save module to bytes
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -1023,7 +1021,7 @@ fn test_store_cache_invalidation_on_save() {
     let device = Default::default();
 
     // Create first module with specific weights
-    let module1 = TestModule::<TestBackend>::new(&device);
+    let module1 = TestModule::new(&device);
 
     // Save module1 to bytes store
     let mut store = BurnpackStore::from_bytes(None);
@@ -1036,7 +1034,7 @@ fn test_store_cache_invalidation_on_save() {
     let weight1_values: Vec<f32> = weight1_data.to_vec().unwrap();
 
     // Create a different module with different weights
-    let module2 = TestModule::<TestBackend> {
+    let module2 = TestModule {
         weight: Param::from_tensor(Tensor::from_data([[10.0, 20.0], [30.0, 40.0]], &device)),
         bias: Param::from_tensor(Tensor::from_data([100.0, 200.0], &device)),
         nested: NestedModule {
@@ -1064,20 +1062,17 @@ fn test_store_cache_invalidation_on_save() {
 #[test]
 fn test_store_quantized_module_round_trip() {
     use burn_core::module::Quantizer;
+    use burn_core::tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantValue};
     use burn_nn::LinearConfig;
-    use burn_tensor::quantization::{
-        Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue,
-    };
 
     let device = Default::default();
 
     // Create a simple linear module (512x512 as in the bug report)
-    let linear = LinearConfig::new(512, 512)
-        .with_bias(false)
-        .init::<TestBackend>(&device);
+    let linear = LinearConfig::new(512, 512).with_bias(false).init(&device);
 
     // Define quantization scheme (Q8S with tensor-level quantization)
-    let scheme = <<TestBackend as burn_tensor::backend::BackendTypes>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+    let scheme = device
+        .default_quant_scheme()
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::Tensor)
         .with_param(QuantParam::F32);
@@ -1127,16 +1122,16 @@ fn test_store_quantized_module_round_trip() {
 #[test]
 fn test_store_half_precision_round_trip() {
     use crate::HalfPrecisionAdapter;
+    use burn_core::tensor::DType;
     use burn_nn::{Linear, LinearConfig};
-    use burn_tensor::DType;
 
     #[derive(Module, Debug)]
-    struct HalfModel<B: Backend> {
-        linear: Linear<B>,
+    struct HalfModel {
+        linear: Linear,
     }
 
     let device = Default::default();
-    let model = HalfModel::<TestBackend> {
+    let model = HalfModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
     };
 
@@ -1155,7 +1150,7 @@ fn test_store_half_precision_round_trip() {
 
     // Load back with same adapter instance (F16 -> F32)
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).with_from_adapter(adapter);
-    let mut model2 = HalfModel::<TestBackend> {
+    let mut model2 = HalfModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
     };
     let result = load_store.apply_to(&mut model2).unwrap();
@@ -1184,17 +1179,17 @@ fn test_store_half_precision_round_trip() {
 #[test]
 fn test_store_half_precision_batch_norm_excluded() {
     use crate::HalfPrecisionAdapter;
+    use burn_core::tensor::DType;
     use burn_nn::{BatchNorm, BatchNormConfig, Linear, LinearConfig};
-    use burn_tensor::DType;
 
     #[derive(Module, Debug)]
-    struct BnModel<B: Backend> {
-        linear: Linear<B>,
-        bn: BatchNorm<B>,
+    struct BnModel {
+        linear: Linear,
+        bn: BatchNorm,
     }
 
     let device = Default::default();
-    let model = BnModel::<TestBackend> {
+    let model = BnModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
         bn: BatchNormConfig::new(2).init(&device),
     };
@@ -1230,17 +1225,17 @@ fn test_store_half_precision_batch_norm_excluded() {
 #[test]
 fn test_store_half_precision_without_module() {
     use crate::HalfPrecisionAdapter;
+    use burn_core::tensor::DType;
     use burn_nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
-    use burn_tensor::DType;
 
     #[derive(Module, Debug)]
-    struct MixedModel<B: Backend> {
-        linear: Linear<B>,
-        norm: LayerNorm<B>,
+    struct MixedModel {
+        linear: Linear,
+        norm: LayerNorm,
     }
 
     let device = Default::default();
-    let model = MixedModel::<TestBackend> {
+    let model = MixedModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
         norm: LayerNormConfig::new(2).init(&device),
     };
@@ -1276,16 +1271,16 @@ fn test_store_half_precision_without_module() {
 #[test]
 fn test_store_half_precision_chained_with_pytorch() {
     use crate::{HalfPrecisionAdapter, PyTorchToBurnAdapter};
+    use burn_core::tensor::DType;
     use burn_nn::{Linear, LinearConfig};
-    use burn_tensor::DType;
 
     #[derive(Module, Debug)]
-    struct ChainModel<B: Backend> {
-        linear: Linear<B>,
+    struct ChainModel {
+        linear: Linear,
     }
 
     let device = Default::default();
-    let model = ChainModel::<TestBackend> {
+    let model = ChainModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
     };
 
@@ -1306,7 +1301,7 @@ fn test_store_half_precision_chained_with_pytorch() {
     // Load back with reverse chain: half-precision (F16 -> F32) then PyTorchToBurn
     let adapter = HalfPrecisionAdapter::new().chain(PyTorchToBurnAdapter);
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).with_from_adapter(adapter);
-    let mut model2 = ChainModel::<TestBackend> {
+    let mut model2 = ChainModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
     };
     let result = load_store.apply_to(&mut model2).unwrap();
@@ -1317,20 +1312,17 @@ fn test_store_half_precision_chained_with_pytorch() {
 #[test]
 fn test_store_quantized_module_block_level() {
     use burn_core::module::Quantizer;
+    use burn_core::tensor::quantization::{Calibration, QuantLevel, QuantParam, QuantValue};
     use burn_nn::LinearConfig;
-    use burn_tensor::quantization::{
-        Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue,
-    };
 
     let device = Default::default();
 
     // Create a linear module
-    let linear = LinearConfig::new(128, 128)
-        .with_bias(false)
-        .init::<TestBackend>(&device);
+    let linear = LinearConfig::new(128, 128).with_bias(false).init(&device);
 
     // Define quantization scheme with block-level quantization
-    let scheme = <<TestBackend as burn_tensor::backend::BackendTypes>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+    let scheme = device
+        .default_quant_scheme()
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([32])) // Block size of 32
         .with_param(QuantParam::F32);

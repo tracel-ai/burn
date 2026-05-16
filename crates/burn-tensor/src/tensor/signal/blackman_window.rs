@@ -1,9 +1,4 @@
-use burn_backend::{
-    Backend,
-    tensor::{Float, Int},
-};
-
-use crate::{Tensor, TensorCreationOptions, check, check::TensorCheck};
+use crate::{Float, Int, Tensor, TensorCreationOptions, check, check::TensorCheck};
 
 /// Creates a 1D Blackman window tensor.
 ///
@@ -41,44 +36,44 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 ///
 /// # Example
 /// ```rust
-/// use burn_tensor::{backend::Backend, DType, signal::blackman_window};
+/// use burn_tensor::{Device, DType, signal::blackman_window};
 ///
-/// fn example<B: Backend>() {
+/// fn example() {
 ///     // Creating a window with default dtype
-///     let device = B::Device::default();
-///     let window_tensor = blackman_window::<B>(5, true, &device);
+///     let device = Device::default();
+///     let window_tensor = blackman_window(5, true, &device);
 ///     // Output: [0.0, 0.20077015, 0.84922993, 0.8492298, 0.2007701]
 ///
 ///     // Creating a window with explicit dtype.
 ///     // Note that this does not perform the computation at higher precision but it
 ///     // widens the storage of the returned tensor to F64.
-///     let device = B::Device::default();
-///     let window_tensor_f64 = blackman_window::<B>(5, true, (&device, DType::F64));
+///     let device = Device::default();
+///     let window_tensor_f64 = blackman_window(5, true, (&device, DType::F64));
 ///     // Output: [0.0, 0.20077015, 0.84922993, 0.8492298, 0.2007701]
 /// }
 /// ```
-pub fn blackman_window<B: Backend>(
+pub fn blackman_window(
     size: usize,
     periodic: bool,
-    options: impl Into<TensorCreationOptions<B>>,
-) -> Tensor<B, 1> {
+    options: impl Into<TensorCreationOptions>,
+) -> Tensor<1> {
     let opt = options.into();
     let dtype = opt.resolve_dtype::<Float>();
     let shape = [size];
     check!(TensorCheck::creation_ops::<1>("BlackmanWindow", &shape));
 
     if size == 0 {
-        return Tensor::<B, 1>::empty(shape, opt).cast(dtype);
+        return Tensor::<1>::empty(shape, opt).cast(dtype);
     }
 
     if size == 1 {
-        return Tensor::<B, 1>::ones(shape, opt).cast(dtype);
+        return Tensor::<1>::ones(shape, opt).cast(dtype);
     }
 
     let size_i64 = i64::try_from(size).expect("BlackmanWindow size doesn't fit in i64 range.");
     let denominator = if periodic { size } else { size - 1 };
     let angular_increment = (2.0 * core::f64::consts::PI) / denominator as f64;
-    let cos_val = Tensor::<B, 1, Int>::arange(0..size_i64, &opt.device)
+    let cos_val = Tensor::<1, Int>::arange(0..size_i64, &opt.device)
         .float()
         .mul_scalar(angular_increment)
         .cos();

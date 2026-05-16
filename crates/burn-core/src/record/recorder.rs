@@ -1,9 +1,8 @@
 use core::any::type_name;
-use core::marker::PhantomData;
 
 use alloc::format;
 use alloc::string::{String, ToString};
-use burn_tensor::backend::Backend;
+use burn_tensor::Device;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use super::{BinBytesRecorder, FullPrecisionSettings, PrecisionSettings, Record};
@@ -15,9 +14,7 @@ use super::{
 };
 
 /// Record any item implementing [Serialize](Serialize) and [DeserializeOwned](DeserializeOwned).
-pub trait Recorder<B: Backend>:
-    Send + Sync + core::default::Default + core::fmt::Debug + Clone
-{
+pub trait Recorder: Send + Sync + core::default::Default + core::fmt::Debug + Clone {
     /// Type of the settings used by the recorder.
     type Settings: PrecisionSettings;
 
@@ -46,7 +43,7 @@ pub trait Recorder<B: Backend>:
         args: Self::RecordArgs,
     ) -> Result<Self::RecordOutput, RecorderError>
     where
-        R: Record<B>,
+        R: Record,
     {
         let item = record.into_item::<Self::Settings>();
         let item = BurnRecord::new::<Self>(item);
@@ -55,15 +52,15 @@ pub trait Recorder<B: Backend>:
     }
 
     /// Load an item from the given arguments.
-    fn load<R>(&self, mut args: Self::LoadArgs, device: &B::Device) -> Result<R, RecorderError>
+    fn load<R>(&self, mut args: Self::LoadArgs, device: &Device) -> Result<R, RecorderError>
     where
-        R: Record<B>,
+        R: Record,
     {
-        let item: BurnRecord<R::Item<Self::Settings>, B> =
+        let item: BurnRecord<R::Item<Self::Settings>> =
             self.load_item(&mut args).map_err(|err| {
                 if let Ok(record) = self.load_item::<BurnRecordNoItem>(&mut args) {
                     let mut message = "Unable to load record.".to_string();
-                    let metadata = recorder_metadata::<Self, B>();
+                    let metadata = recorder_metadata::<Self>();
                     if metadata.float != record.metadata.float {
                         message += format!(
                             "\nMetadata has a different float type: Actual {:?}, Expected {:?}",
@@ -138,10 +135,9 @@ pub trait Recorder<B: Backend>:
         I: DeserializeOwned;
 }
 
-fn recorder_metadata<R, B>() -> BurnMetadata
+fn recorder_metadata<R>() -> BurnMetadata
 where
-    R: Recorder<B>,
-    B: Backend,
+    R: Recorder,
 {
     BurnMetadata::new(
         type_name::<<R::Settings as PrecisionSettings>::FloatElem>().to_string(),
@@ -198,17 +194,15 @@ pub struct BurnMetadata {
 
 /// Record that can be saved by a [Recorder](Recorder).
 #[derive(Serialize, Deserialize, Debug)]
-pub struct BurnRecord<I, B: Backend> {
+pub struct BurnRecord<I> {
     /// Metadata of the record.
     pub metadata: BurnMetadata,
 
     /// Item to record.
     pub item: I,
-
-    _b: PhantomData<B>,
 }
 
-impl<I, B: Backend> BurnRecord<I, B> {
+impl<I> BurnRecord<I> {
     /// Creates a new record.
     ///
     /// # Arguments
@@ -218,14 +212,10 @@ impl<I, B: Backend> BurnRecord<I, B> {
     /// # Returns
     ///
     /// The new record.
-    pub fn new<R: Recorder<B>>(item: I) -> Self {
-        let metadata = recorder_metadata::<R, B>();
+    pub fn new<R: Recorder>(item: I) -> Self {
+        let metadata = recorder_metadata::<R>();
 
-        Self {
-            metadata,
-            item,
-            _b: PhantomData,
-        }
+        Self { metadata, item }
     }
 }
 
@@ -277,7 +267,7 @@ pub type DebugRecordSettings = PrettyJsonFileRecorder<FullPrecisionSettings>;
 mod tests {
     static FILE_PATH: &str = "/tmp/burn_test_record";
 
-    use crate::TestBackend;
+    use crate::TestDevice;
 
     use super::*;
     use burn_tensor::{Device, ElementConversion};
@@ -290,10 +280,9 @@ mod tests {
             value: S::FloatElem,
         }
 
-        impl<D, B> Record<B> for Item<D>
+        impl<D> Record for Item<D>
         where
             D: PrecisionSettings,
-            B: Backend,
         {
             type Item<S: PrecisionSettings> = Item<S>;
 
@@ -303,7 +292,7 @@ mod tests {
                 }
             }
 
-            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
+            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &Device) -> Self {
                 Item {
                     value: item.value.elem(),
                 }
@@ -311,19 +300,15 @@ mod tests {
         }
 
         let item = Item::<FullPrecisionSettings>::new(16.elem());
-        let device: Device<TestBackend> = Default::default();
+        let device = TestDevice::default().into();
 
         // Serialize in f32.
         let recorder = DefaultFileRecorder::<FullPrecisionSettings>::new();
-        Recorder::<TestBackend>::record(&recorder, item, FILE_PATH.into()).unwrap();
+        Recorder::record(&recorder, item, FILE_PATH.into()).unwrap();
 
         // Can't deserialize f32 into f16.
         let recorder = DefaultFileRecorder::<HalfPrecisionSettings>::new();
-        Recorder::<TestBackend>::load::<Item<FullPrecisionSettings>>(
-            &recorder,
-            FILE_PATH.into(),
-            &device,
-        )
-        .unwrap();
+        Recorder::load::<Item<FullPrecisionSettings>>(&recorder, FILE_PATH.into(), &device)
+            .unwrap();
     }
 }

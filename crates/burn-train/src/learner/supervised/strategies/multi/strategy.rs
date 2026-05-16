@@ -1,28 +1,22 @@
 use crate::{
     Learner, LearningComponentsTypes, MultiDeviceOptim, SupervisedLearningStrategy,
-    SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend, TrainingComponents,
-    TrainingModel, ValidLoader,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, TrainingModel, ValidLoader,
     multi::epoch::MultiDeviceTrainEpoch,
     single::{TrainingLoop, epoch::SingleDeviceValidEpoch},
 };
-use burn_core::{
-    data::dataloader::split::split_dataloader,
-    tensor::{Device, backend::DeviceOps},
-};
+use burn_core::{data::dataloader::split::split_dataloader, tensor::Device};
 
-pub struct MultiDeviceLearningStrategy<LC: LearningComponentsTypes> {
-    devices: Vec<Device<TrainingBackend<LC>>>,
+pub struct MultiDeviceLearningStrategy {
+    devices: Vec<Device>,
     optim: MultiDeviceOptim,
 }
-impl<LC: LearningComponentsTypes> MultiDeviceLearningStrategy<LC> {
-    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, optim: MultiDeviceOptim) -> Self {
+impl MultiDeviceLearningStrategy {
+    pub fn new(devices: Vec<Device>, optim: MultiDeviceOptim) -> Self {
         Self { devices, optim }
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
-    for MultiDeviceLearningStrategy<LC>
-{
+impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MultiDeviceLearningStrategy {
     fn fit(
         &self,
         training_components: TrainingComponents<LC>,
@@ -37,7 +31,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
         // for each (worker) data loader. This matches the expected device on the worker, so we
         // don't have to move the data between devices.
         let dataloader_train = split_dataloader(dataloader_train, &self.devices);
-        let dataloader_valid = dataloader_valid.to_device(main_device.inner());
+        let dataloader_valid = dataloader_valid.to_device(&main_device.clone().inner());
 
         learner.fork(main_device);
         let mut event_processor = training_components.event_processor;

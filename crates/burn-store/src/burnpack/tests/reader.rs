@@ -8,7 +8,7 @@ use crate::burnpack::{
 };
 
 use super::*;
-use burn_tensor::{BoolStore, Bytes, DType, TensorData, shape};
+use burn_core::tensor::{BoolStore, Bytes, DType, TensorData, shape};
 
 #[test]
 fn test_reader_from_bytes_empty() {
@@ -599,7 +599,7 @@ fn test_reader_corrupted_offsets_returns_error() {
         use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
         use alloc::collections::BTreeMap;
         use alloc::rc::Rc;
-        use burn_tensor::DType;
+        use burn_core::tensor::DType;
 
         // On 64-bit platforms, test offset overflow during addition
         let mut tensors = BTreeMap::new();
@@ -642,7 +642,7 @@ fn test_reader_inverted_offsets_returns_error() {
     use crate::burnpack::base::{BurnpackMetadata, TensorDescriptor};
     use alloc::collections::BTreeMap;
     use alloc::rc::Rc;
-    use burn_tensor::DType;
+    use burn_core::tensor::DType;
 
     // Create metadata with end offset < start offset (corrupted)
     let mut tensors = BTreeMap::new();

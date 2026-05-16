@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 
-use burn_backend::{Element, ElementComparison, bf16, f16};
+use burn_backend::{Element, bf16, f16};
+use burn_std::ElementComparison;
 use candle_core::{FloatDType, Tensor, WithDType};
 
 /// Candle element

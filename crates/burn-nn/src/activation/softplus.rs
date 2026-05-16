@@ -5,7 +5,6 @@ use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::activation::softplus;
-use burn::tensor::backend::Backend;
 
 /// Softplus layer.
 ///
@@ -13,7 +12,7 @@ use burn::tensor::backend::Backend;
 /// `softplus(x) = (1/beta) * log(1 + exp(beta * x))`
 ///
 /// Should be created with [SoftplusConfig](SoftplusConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Softplus {
     /// The beta value.
@@ -55,7 +54,7 @@ impl Softplus {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         softplus(input, self.beta)
     }
 }
@@ -64,17 +63,15 @@ impl Softplus {
 #[allow(clippy::approx_constant)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_softplus_forward() {
         let device = Default::default();
-        let model: Softplus = SoftplusConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0, 1.0, -1.0]]), &device);
+        let model = SoftplusConfig::new().init();
+        let input = Tensor::<2>::from_data(TensorData::from([[0.0, 1.0, -1.0]]), &device);
         let out = model.forward(input);
         // softplus(0) = log(2) ≈ 0.6931
         // softplus(1) = log(1 + e) ≈ 1.3133
@@ -87,8 +84,8 @@ mod tests {
     #[test]
     fn test_softplus_with_beta() {
         let device = Default::default();
-        let model: Softplus = SoftplusConfig::new().with_beta(2.0).init();
-        let input = Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0, 1.0]]), &device);
+        let model = SoftplusConfig::new().with_beta(2.0).init();
+        let input = Tensor::<2>::from_data(TensorData::from([[0.0, 1.0]]), &device);
         let out = model.forward(input);
         // softplus(0, beta=2) = (1/2) * log(1 + exp(0)) = 0.5 * log(2) ≈ 0.3466
         // softplus(1, beta=2) = (1/2) * log(1 + exp(2)) = 0.5 * log(8.389) ≈ 1.0635

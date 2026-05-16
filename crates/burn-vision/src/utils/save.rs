@@ -1,6 +1,6 @@
 //! Utilities for saving tensors as images
 
-use burn_tensor::{ElementConversion, Tensor, backend::Backend};
+use burn_core::tensor::{ElementConversion, Tensor};
 use image::{Rgb, RgbImage};
 use std::fs;
 use std::path::Path;
@@ -62,8 +62,8 @@ pub enum BatchDisplayOpts {
 /// * `tensor` - Image batch with shape (N, height, width)
 /// * `opts` - Options for how to draw the tensor
 /// * `path` - The file path to use
-pub fn save_tensor_as_image<B: Backend, const D: usize, P: AsRef<std::ffi::OsStr>>(
-    tensor: Tensor<B, D>,
+pub fn save_tensor_as_image<const D: usize, P: AsRef<std::ffi::OsStr>>(
+    tensor: Tensor<D>,
     opts: TensorDisplayOptions,
     path: P,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -76,7 +76,7 @@ pub fn save_tensor_as_image<B: Backend, const D: usize, P: AsRef<std::ffi::OsStr
     let tensor = normalize(tensor);
 
     // convert to (N,C,H,W) format
-    let tensor: Tensor<B, 4> = match opts.dim_order {
+    let tensor: Tensor<4> = match opts.dim_order {
         ImageDimOrder::Hw => {
             let [h, w] = tensor.shape().dims();
             tensor.reshape([1, 1, h, w])
@@ -180,7 +180,7 @@ pub fn save_tensor_as_image<B: Backend, const D: usize, P: AsRef<std::ffi::OsStr
 }
 
 /// Normalize values in 2D tensor from 0 to 1
-fn normalize<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+fn normalize<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     let min = tensor.clone().min().into_scalar().elem::<f32>();
     let max = tensor.clone().max().into_scalar().elem::<f32>();
     let range = if max - min == 0.0 { 1.0 } else { max - min };

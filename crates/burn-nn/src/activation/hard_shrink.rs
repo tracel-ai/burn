@@ -5,7 +5,6 @@ use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::activation::hard_shrink;
-use burn::tensor::backend::Backend;
 
 /// Hard Shrink layer.
 ///
@@ -13,7 +12,7 @@ use burn::tensor::backend::Backend;
 /// `hard_shrink(x) = x if |x| > lambda else 0`
 ///
 /// Should be created with [HardShrinkConfig](HardShrinkConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct HardShrink {
     /// The lambda value for the Hard Shrink formulation.
@@ -57,7 +56,7 @@ impl HardShrink {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         hard_shrink(input, self.lambda)
     }
 }
@@ -65,15 +64,13 @@ impl HardShrink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
 
     #[test]
     fn test_hard_shrink_forward() {
         let device = Default::default();
-        let model: HardShrink = HardShrinkConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
+        let model = HardShrinkConfig::new().init();
+        let input = Tensor::<2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -1.0], [8.0, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
@@ -82,9 +79,8 @@ mod tests {
     #[test]
     fn test_hard_shrink_with_lambda() {
         let device = Default::default();
-        let model: HardShrink = HardShrinkConfig::new().with_lambda(0.2).init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data([[0.1, -0.1, -0.3], [0.5, 0.1, 0.0]], &device);
+        let model = HardShrinkConfig::new().with_lambda(0.2).init();
+        let input = Tensor::<2>::from_data([[0.1, -0.1, -0.3], [0.5, 0.1, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -0.3], [0.5, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);

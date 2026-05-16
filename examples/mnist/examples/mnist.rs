@@ -1,6 +1,6 @@
 #![recursion_limit = "256"]
 
-use burn::{Dispatch, DispatchDevice};
+use burn::tensor::Device;
 use mnist::training;
 
 #[cfg(feature = "cuda")]
@@ -15,7 +15,7 @@ use burn::backend::rocm::RocmDevice;
 use burn::backend::wgpu::WgpuDevice;
 
 #[allow(unreachable_code)]
-fn select_device() -> DispatchDevice {
+fn select_device() -> Device {
     #[cfg(feature = "flex")]
     return FlexDevice.into();
 
@@ -42,5 +42,5 @@ fn select_device() -> DispatchDevice {
 
 fn main() {
     let device = select_device();
-    training::run::<Dispatch>(DispatchDevice::autodiff(device));
+    training::run(device);
 }

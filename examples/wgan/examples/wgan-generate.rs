@@ -1,25 +1,21 @@
-use burn::tensor::backend::Backend;
+use burn::tensor::Device;
 
-pub fn launch<B: Backend>(device: B::Device) {
-    wgan::infer::generate::<B>("/tmp/wgan-mnist", device);
+pub fn launch(device: impl Into<Device>) {
+    wgan::infer::generate("/tmp/wgan-mnist", device.into());
 }
 
 #[cfg(feature = "flex")]
 mod flex {
-    use burn::backend::Flex;
-
-    use crate::launch;
+    use burn::backend::flex::FlexDevice;
 
     pub fn run() {
-        launch::<Flex>(Default::default());
+        crate::launch(FlexDevice);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-
-    use crate::launch;
+    use burn::backend::libtorch::LibTorchDevice;
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -27,38 +23,34 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        launch::<LibTorch>(device);
+        crate::launch(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-
-    use crate::launch;
+    use burn::backend::libtorch::LibTorchDevice;
 
     pub fn run() {
-        launch::<LibTorch>(LibTorchDevice::Cpu);
+        crate::launch(LibTorchDevice::Cpu);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use crate::launch;
-    use burn::backend::wgpu::Wgpu;
+    use burn::backend::wgpu::WgpuDevice;
 
     pub fn run() {
-        launch::<Wgpu>(Default::default());
+        crate::launch(WgpuDevice::default());
     }
 }
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::launch;
-    use burn::backend::Cuda;
+    use burn::backend::cuda::CudaDevice;
 
     pub fn run() {
-        launch::<Cuda>(Default::default());
+        crate::launch(CudaDevice::default());
     }
 }
 

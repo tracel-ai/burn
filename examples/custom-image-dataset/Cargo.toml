@@ -13,17 +13,12 @@ workspace = true
 [features]
 default = ["burn/std", "burn/tui"]
 tch-gpu = ["burn/tch"]
-wgpu = ["burn/wgpu", "burn/fusion"]
-metal = ["burn/metal", "burn/fusion"]
+wgpu = ["burn/wgpu"]
+metal = ["burn/metal"]
+vulkan = ["burn/vulkan"]
 
 [dependencies]
-# Disable autotune default for now (convolutions not optimized)
-burn = { workspace = true, features = [
-    "train",
-    "vision",
-    "network",
-] }
-
+burn = { workspace = true, features = ["train", "vision", "network"] }
 
 # File download
 flate2 = { workspace = true }

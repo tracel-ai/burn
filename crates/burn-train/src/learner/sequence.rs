@@ -1,8 +1,7 @@
 use crate::metric::{AccuracyInput, PerplexityInput, TopKAccuracyInput};
 use crate::metric::{Adaptor, CerInput, LossInput, WerInput, processor::ItemLazy};
-use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Int, Tensor, Transaction};
-use burn_flex::Flex;
+use burn_core::tensor::{Device, Int, Tensor, Transaction};
+use burn_flex::FlexDevice;
 
 /// Sequence prediction output adapted for multiple metrics.
 ///
@@ -14,48 +13,45 @@ use burn_flex::Flex;
 /// - CER
 /// - WER
 #[derive(new)]
-pub struct SequenceOutput<B: Backend> {
+pub struct SequenceOutput {
     /// The loss.
-    pub loss: Tensor<B, 1>,
+    pub loss: Tensor<1>,
 
     /// Raw logits. Shape: `[batch_size, seq_len, vocab_size]`
-    pub logits: Tensor<B, 3>,
+    pub logits: Tensor<3>,
 
     /// Optional predicted token indices. Shape: `[batch_size, seq_length]`.
     /// If not provided, predictions default to argmax of `logits` along the last dimension.
-    pub predictions: Option<Tensor<B, 2, Int>>,
+    pub predictions: Option<Tensor<2, Int>>,
 
     /// The target token indices. Shape: `[batch_size, seq_length]`
-    pub targets: Tensor<B, 2, Int>,
+    pub targets: Tensor<2, Int>,
 }
 
-impl<B: Backend> SequenceOutput<B> {
-    fn predicted_tokens(&self) -> Tensor<B, 2, Int> {
+impl SequenceOutput {
+    fn predicted_tokens(&self) -> Tensor<2, Int> {
         match &self.predictions {
             Some(preds) => preds.clone(),
             None => self.logits.clone().argmax(2).squeeze_dim::<2>(2),
         }
     }
 
-    fn flat_logits(&self) -> Tensor<B, 2> {
+    fn flat_logits(&self) -> Tensor<2> {
         let [batch_size, seq_len, vocab_size] = self.logits.dims();
         self.logits
             .clone()
             .reshape([batch_size * seq_len, vocab_size])
     }
 
-    fn flat_targets(&self) -> Tensor<B, 1, Int> {
+    fn flat_targets(&self) -> Tensor<1, Int> {
         let [batch_size, seq_len] = self.targets.dims();
         self.targets.clone().reshape([batch_size * seq_len])
     }
 }
 
-impl<B: Backend> ItemLazy for SequenceOutput<B> {
-    // Flex's IntElem is i32; token IDs > i32::MAX would truncate on sync.
-    type ItemSync = SequenceOutput<Flex>;
-
-    fn sync(self) -> Self::ItemSync {
-        let device = &Default::default();
+impl ItemLazy for SequenceOutput {
+    fn sync(self) -> Self {
+        let device: Device = FlexDevice.into();
 
         match self.predictions {
             Some(preds) => {
@@ -69,10 +65,10 @@ impl<B: Backend> ItemLazy for SequenceOutput<B> {
                     .expect("Correct amount of tensor data");
 
                 SequenceOutput {
-                    logits: Tensor::from_data(logits, device),
-                    loss: Tensor::from_data(loss, device),
-                    targets: Tensor::from_data(targets, device),
-                    predictions: Some(Tensor::from_data(predictions, device)),
+                    logits: Tensor::from_data(logits, &device),
+                    loss: Tensor::from_data(loss, &device),
+                    targets: Tensor::from_data(targets, &device),
+                    predictions: Some(Tensor::from_data(predictions, &device)),
                 }
             }
             None => {
@@ -85,9 +81,9 @@ impl<B: Backend> ItemLazy for SequenceOutput<B> {
                     .expect("Correct amount of tensor data");
 
                 SequenceOutput {
-                    logits: Tensor::from_data(logits, device),
-                    loss: Tensor::from_data(loss, device),
-                    targets: Tensor::from_data(targets, device),
+                    logits: Tensor::from_data(logits, &device),
+                    loss: Tensor::from_data(loss, &device),
+                    targets: Tensor::from_data(targets, &device),
                     predictions: None,
                 }
             }
@@ -95,38 +91,38 @@ impl<B: Backend> ItemLazy for SequenceOutput<B> {
     }
 }
 
-impl<B: Backend> Adaptor<LossInput<B>> for SequenceOutput<B> {
-    fn adapt(&self) -> LossInput<B> {
+impl Adaptor<LossInput> for SequenceOutput {
+    fn adapt(&self) -> LossInput {
         LossInput::new(self.loss.clone())
     }
 }
 
-impl<B: Backend> Adaptor<CerInput<B>> for SequenceOutput<B> {
-    fn adapt(&self) -> CerInput<B> {
+impl Adaptor<CerInput> for SequenceOutput {
+    fn adapt(&self) -> CerInput {
         CerInput::new(self.predicted_tokens(), self.targets.clone())
     }
 }
 
-impl<B: Backend> Adaptor<WerInput<B>> for SequenceOutput<B> {
-    fn adapt(&self) -> WerInput<B> {
+impl Adaptor<WerInput> for SequenceOutput {
+    fn adapt(&self) -> WerInput {
         WerInput::new(self.predicted_tokens(), self.targets.clone())
     }
 }
 
-impl<B: Backend> Adaptor<AccuracyInput<B>> for SequenceOutput<B> {
-    fn adapt(&self) -> AccuracyInput<B> {
+impl Adaptor<AccuracyInput> for SequenceOutput {
+    fn adapt(&self) -> AccuracyInput {
         AccuracyInput::new(self.flat_logits(), self.flat_targets())
     }
 }
 
-impl<B: Backend> Adaptor<TopKAccuracyInput<B>> for SequenceOutput<B> {
-    fn adapt(&self) -> TopKAccuracyInput<B> {
+impl Adaptor<TopKAccuracyInput> for SequenceOutput {
+    fn adapt(&self) -> TopKAccuracyInput {
         TopKAccuracyInput::new(self.flat_logits(), self.flat_targets())
     }
 }
 
-impl<B: Backend> Adaptor<PerplexityInput<B>> for SequenceOutput<B> {
-    fn adapt(&self) -> PerplexityInput<B> {
+impl Adaptor<PerplexityInput> for SequenceOutput {
+    fn adapt(&self) -> PerplexityInput {
         PerplexityInput::new(self.flat_logits(), self.flat_targets())
     }
 }

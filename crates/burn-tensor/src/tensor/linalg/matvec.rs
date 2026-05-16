@@ -1,6 +1,5 @@
-use crate::Numeric;
-use crate::backend::Backend;
-use crate::tensor::{BasicOps, Shape, Tensor};
+use crate::kind::Numeric;
+use crate::tensor::{Shape, Tensor};
 
 /// Performs matrix-vector multiplication with optional batch dimensions.
 ///
@@ -14,12 +13,12 @@ use crate::tensor::{BasicOps, Shape, Tensor};
 /// * If the vector rank isn't one less than the matrix rank.
 /// * If batch dimensions differ between the operands.
 /// * If the inner dimensions are incompatible for multiplication.
-pub fn matvec<B: Backend, const DM: usize, const DV: usize, K>(
-    matrix: Tensor<B, DM, K>,
-    vector: Tensor<B, DV, K>,
-) -> Tensor<B, DV, K>
+pub fn matvec<const DM: usize, const DV: usize, K>(
+    matrix: Tensor<DM, K>,
+    vector: Tensor<DV, K>,
+) -> Tensor<DV, K>
 where
-    K: BasicOps<B> + Numeric<B>,
+    K: Numeric,
 {
     assert!(
         DM >= 2,

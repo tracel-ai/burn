@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
 use burn_core::tensor::backend::distributed::{DistributedBackend, DistributedConfig};
-use burn_core::{module::AutodiffModule, prelude::Backend};
+use burn_core::{module::AutodiffModule, prelude::Device};
 
 use crate::{
     EarlyStoppingStrategyRef, InferenceModel, Interrupter, Learner, LearnerSummaryConfig,
@@ -28,26 +28,26 @@ pub enum MultiDeviceOptim {
 }
 
 /// Describes where training runs.
-pub enum ExecutionStrategy<B: Backend> {
+pub enum ExecutionStrategy {
     /// Training on one device
-    SingleDevice(B::Device),
+    SingleDevice(Device),
     /// Performs data-parallel distributed training where the optimization is
     /// done on an elected master device.
-    MultiDevice(Vec<B::Device>, MultiDeviceOptim),
+    MultiDevice(Vec<Device>, MultiDeviceOptim),
     /// Training with input distributed across devices, each device has its own copy of the model.
     /// Collective ops are used to sync the gradients after each pass.
     #[cfg(feature = "ddp")]
     DistributedDataParallel {
         /// Devices on this node for the DDP
-        devices: Vec<B::Device>,
+        devices: Vec<Device>,
         /// The distributed runtime.
         runtime: Box<dyn DistributedRuntime>,
     },
 }
 
-impl<B: Backend> ExecutionStrategy<B> {
+impl ExecutionStrategy {
     /// Returns the primary device responsible for coordination.
-    pub fn main_device(&self) -> &B::Device {
+    pub fn main_device(&self) -> &Device {
         match self {
             ExecutionStrategy::SingleDevice(device) => device,
             ExecutionStrategy::MultiDevice(devices, _optim) => &devices[0],
@@ -60,21 +60,21 @@ impl<B: Backend> ExecutionStrategy<B> {
     }
 
     /// Creates a strategy for a single device.
-    pub fn single(device: B::Device) -> Self {
+    pub fn single(device: Device) -> Self {
         Self::SingleDevice(device)
     }
 
     /// Creates a multi-device strategy.
-    pub fn multi(devices: Vec<B::Device>, optim: MultiDeviceOptim) -> Self {
+    pub fn multi(devices: Vec<Device>, optim: MultiDeviceOptim) -> Self {
         Self::MultiDevice(devices, optim)
     }
 }
 
 #[cfg(feature = "ddp")]
-impl<B: DistributedBackend> ExecutionStrategy<B> {
+impl<B: DistributedBackend> ExecutionStrategy {
     /// Creates a distributed data parallel (DDP) strategy.
-    pub fn ddp(devices: Vec<B::Device>, config: DistributedConfig) -> Self {
-        let session = DistributedSession::<B> {
+    pub fn ddp(devices: Vec<Device>, config: DistributedConfig) -> Self {
+        let session = DistributedSession {
             devices: devices.clone(),
             config,
         };
@@ -88,13 +88,13 @@ impl<B: DistributedBackend> ExecutionStrategy<B> {
 /// How should the learner run the learning for the model
 pub enum TrainingStrategy<LC: LearningComponentsTypes> {
     /// Default training loop with specified device strategy.
-    Default(ExecutionStrategy<LC::Backend>),
+    Default(ExecutionStrategy),
     /// Training using a custom learning strategy
     Custom(CustomLearningStrategy<LC>),
 }
 
-impl<LC: LearningComponentsTypes> From<ExecutionStrategy<LC::Backend>> for TrainingStrategy<LC> {
-    fn from(value: ExecutionStrategy<LC::Backend>) -> Self {
+impl<LC: LearningComponentsTypes> From<ExecutionStrategy> for TrainingStrategy<LC> {
+    fn from(value: ExecutionStrategy) -> Self {
         Self::Default(value)
     }
 }
@@ -118,12 +118,12 @@ pub trait DistributedRuntime: Send + Sync + 'static {
 /// It encapsulates the necessary configuration and device information to
 /// manage the resources related to a [`DistributedBackend`].
 pub struct DistributedSession<B: DistributedBackend> {
-    devices: Vec<B::Device>,
+    devices: Vec<Device>,
     config: DistributedConfig,
 }
 
 #[cfg(feature = "ddp")]
-impl<B: DistributedBackend> DistributedRuntime for DistributedSession<B> {
+impl<B: DistributedBackend> DistributedRuntime for DistributedSession {
     fn start(&self) {
         B::start_communication_server(&self.devices, self.config.clone());
     }

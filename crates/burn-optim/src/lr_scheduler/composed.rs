@@ -9,7 +9,6 @@ use crate::LearningRate;
 
 use burn::config::Config;
 use burn::record::Record;
-use burn::tensor::backend::Backend;
 
 /// Compose multiple [learning rate schedulers](LrScheduler) together.
 #[derive(Config, Debug)]
@@ -103,25 +102,25 @@ enum LrSchedulerItem {
 
 #[derive(Record, Clone)]
 /// Record item for the [composed learning rate scheduler](ComposedLrScheduler).
-pub enum LrSchedulerRecord<B: Backend> {
+pub enum LrSchedulerRecord {
     /// The linear variant.
-    Linear(<LinearLrScheduler as LrScheduler>::Record<B>),
+    Linear(<LinearLrScheduler as LrScheduler>::Record),
     /// The cosine variant.
-    Cosine(<CosineAnnealingLrScheduler as LrScheduler>::Record<B>),
+    Cosine(<CosineAnnealingLrScheduler as LrScheduler>::Record),
     /// The exponential variant.
-    Exponential(<ExponentialLrScheduler as LrScheduler>::Record<B>),
+    Exponential(<ExponentialLrScheduler as LrScheduler>::Record),
     /// The noam variant.
-    Noam(<NoamLrScheduler as LrScheduler>::Record<B>),
+    Noam(<NoamLrScheduler as LrScheduler>::Record),
 }
 
 #[derive(Record, Clone)]
 /// Records for the [composed learning rate scheduler](ComposedLrScheduler).
-pub struct ComposedLrSchedulerRecord<B: Backend> {
-    schedulers: Vec<LrSchedulerRecord<B>>,
+pub struct ComposedLrSchedulerRecord {
+    schedulers: Vec<LrSchedulerRecord>,
 }
 
 impl LrScheduler for ComposedLrScheduler {
-    type Record<B: Backend> = ComposedLrSchedulerRecord<B>;
+    type Record = ComposedLrSchedulerRecord;
 
     fn step(&mut self) -> LearningRate {
         let mut step = match self.reduction {
@@ -147,44 +146,40 @@ impl LrScheduler for ComposedLrScheduler {
         step
     }
 
-    fn to_record<B: Backend>(&self) -> Self::Record<B> {
-        ComposedLrSchedulerRecord::<B> {
+    fn to_record(&self) -> Self::Record {
+        ComposedLrSchedulerRecord {
             schedulers: self
                 .schedulers
                 .iter()
                 .map(|s| match s {
-                    LrSchedulerItem::Linear(item) => {
-                        LrSchedulerRecord::Linear(item.to_record::<B>())
-                    }
-                    LrSchedulerItem::Cosine(item) => {
-                        LrSchedulerRecord::Cosine(item.to_record::<B>())
-                    }
+                    LrSchedulerItem::Linear(item) => LrSchedulerRecord::Linear(item.to_record()),
+                    LrSchedulerItem::Cosine(item) => LrSchedulerRecord::Cosine(item.to_record()),
                     LrSchedulerItem::Exponential(item) => {
-                        LrSchedulerRecord::Exponential(item.to_record::<B>())
+                        LrSchedulerRecord::Exponential(item.to_record())
                     }
-                    LrSchedulerItem::Noam(item) => LrSchedulerRecord::Noam(item.to_record::<B>()),
+                    LrSchedulerItem::Noam(item) => LrSchedulerRecord::Noam(item.to_record()),
                 })
                 .collect(),
         }
     }
 
-    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+    fn load_record(mut self, record: Self::Record) -> Self {
         self.schedulers = self
             .schedulers
             .into_iter()
             .zip(record.schedulers)
             .map(|scheduler| match scheduler {
                 (LrSchedulerItem::Linear(item), LrSchedulerRecord::Linear(record)) => {
-                    LrSchedulerItem::Linear(item.load_record::<B>(record))
+                    LrSchedulerItem::Linear(item.load_record(record))
                 }
                 (LrSchedulerItem::Cosine(item), LrSchedulerRecord::Cosine(record)) => {
-                    LrSchedulerItem::Cosine(item.load_record::<B>(record))
+                    LrSchedulerItem::Cosine(item.load_record(record))
                 }
                 (LrSchedulerItem::Exponential(item), LrSchedulerRecord::Exponential(record)) => {
-                    LrSchedulerItem::Exponential(item.load_record::<B>(record))
+                    LrSchedulerItem::Exponential(item.load_record(record))
                 }
                 (LrSchedulerItem::Noam(item), LrSchedulerRecord::Noam(record)) => {
-                    LrSchedulerItem::Noam(item.load_record::<B>(record))
+                    LrSchedulerItem::Noam(item.load_record(record))
                 }
                 _ => panic!("Invalid state"),
             })

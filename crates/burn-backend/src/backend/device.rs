@@ -1,8 +1,7 @@
 pub use burn_std::device::*;
-use burn_std::{BoolDType, BoolStore, ComplexDType, DType, FloatDType, IntDType};
+use burn_std::{BoolDType, BoolStore, Complex, ComplexDType, DType, FloatDType, IntDType};
+pub use burn_std::{DeviceError, DeviceSettings};
 
-use alloc::format;
-use alloc::string::String;
 use burn_std::stub::RwLock;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -10,7 +9,6 @@ use alloc::sync::Arc;
 
 #[cfg(not(target_has_atomic = "ptr"))]
 use portable_atomic_util::Arc;
-use thiserror::Error;
 
 use core::any::TypeId;
 
@@ -24,7 +22,7 @@ pub use hashbrown::HashMap;
 #[cfg(not(feature = "std"))]
 use spin::{Lazy as LazyLock, Once as OnceLock};
 
-use crate::{Backend, BackendTypes, Complex};
+use crate::{Backend, BackendTypes};
 
 /// Device trait for all burn backend devices.
 pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debug + Device {
@@ -39,43 +37,6 @@ pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debu
     /// devices, this returns the underlying inner device.
     fn inner(&self) -> &Self {
         self
-    }
-}
-
-/// Settings controlling the default data types for a specific device.
-///
-/// These settings are managed in a global registry that enforces strict initialization semantics:
-///
-/// 1. Manual Initialization: You can set these once at the start of your program using [`set_default_dtypes`].
-/// 2. Default Initialization: If an operation (like creating a tensor) occurs before manual initialization,
-///    the settings are permanently locked to their default values.
-/// 3. Immutability: Once initialized, settings cannot be changed. This ensures consistent behavior across
-///    all threads and operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DeviceSettings {
-    /// Default floating-point data type.
-    pub float_dtype: FloatDType,
-    /// Default integer data type.
-    pub int_dtype: IntDType,
-    /// Default bool data type.
-    pub bool_dtype: BoolDType,
-    /// Default complex data type.
-    pub complex_dtype: ComplexDType,
-}
-
-impl DeviceSettings {
-    fn new(
-        float_dtype: impl Into<FloatDType>,
-        int_dtype: impl Into<IntDType>,
-        bool_dtype: impl Into<BoolDType>,
-        complex_dtype: impl Into<ComplexDType>,
-    ) -> Self {
-        Self {
-            float_dtype: float_dtype.into(),
-            int_dtype: int_dtype.into(),
-            bool_dtype: bool_dtype.into(),
-            complex_dtype: complex_dtype.into(),
-        }
     }
 }
 
@@ -224,46 +185,6 @@ fn default_int<B: BackendTypes>() -> IntDType {
 
 fn default_complex<B: BackendTypes>() -> ComplexDType {
     <Complex<B::FloatElem> as crate::Element>::dtype().into()
-}
-
-/// Errors that can occur during device-related operations.
-///
-/// This covers errors related to hardware capability mismatches, such as
-/// requesting a data type not supported by the device, and configuration
-/// errors like attempting to change a settings in an invalid context.
-#[derive(Debug, Error)]
-pub enum DeviceError {
-    /// Unsupported data type by the device.
-    #[error("Device {device} does not support the requested data type {dtype:?}")]
-    UnsupportedDType {
-        /// The string representation of the device.
-        device: String,
-        /// The data type that caused the error.
-        dtype: DType,
-    },
-    /// Device settings have already been initialized.
-    #[error("Device {device} settings have already been initialized")]
-    AlreadyInitialized {
-        /// The string representation of the device.
-        device: String,
-    },
-}
-
-impl DeviceError {
-    /// Helper to create a [`DeviceError::UnsupportedDType`] from any device.
-    pub fn unsupported_dtype<D: DeviceOps>(device: &D, dtype: DType) -> Self {
-        Self::UnsupportedDType {
-            device: format!("{device:?}"),
-            dtype,
-        }
-    }
-
-    /// Helper to create a [`DeviceError::AlreadyInitialized`] from any device.
-    pub fn already_initialized<D: DeviceOps>(device: &D) -> Self {
-        Self::AlreadyInitialized {
-            device: format!("{device:?}"),
-        }
-    }
 }
 
 fn check_dtype_support<B: Backend>(
@@ -479,20 +400,17 @@ mod tests {
 
     impl DeviceOps for TestDeviceB {}
 
-    // Test defaults
-    impl DeviceSettings {
-        fn defaults() -> Self {
-            DeviceSettings::new(
-                FloatDType::F32,
-                IntDType::I32,
-                BoolDType::Native,
-                ComplexDType::Complex32,
-            )
-        }
+    fn default_settings() -> DeviceSettings {
+        DeviceSettings::new(
+            FloatDType::F32,
+            IntDType::I32,
+            BoolDType::Native,
+            ComplexDType::Complex32,
+        )
     }
 
     fn get_test_device_settings<D: DeviceOps>(device: &D) -> DeviceSettings {
-        DeviceSettingsRegistry::get_or_insert(device, DeviceSettings::defaults)
+        DeviceSettingsRegistry::get_or_insert(device, default_settings)
     }
 
     #[test]
@@ -506,7 +424,7 @@ mod tests {
         let s2 = get_test_device_settings(&device);
 
         assert_eq!(s1, s2);
-        assert_eq!(s1, DeviceSettings::defaults());
+        assert_eq!(s1, default_settings());
     }
 
     #[test]
@@ -552,7 +470,7 @@ mod tests {
 
         assert_ne!(s1, s2);
         assert_eq!(s1, settings);
-        assert_eq!(s2, DeviceSettings::defaults());
+        assert_eq!(s2, default_settings());
     }
 
     #[test]
@@ -575,7 +493,7 @@ mod tests {
         let s2 = get_test_device_settings(&d2);
 
         assert_ne!(s1, s2);
-        assert_eq!(s1, DeviceSettings::defaults());
+        assert_eq!(s1, default_settings());
         assert_eq!(s2, settings);
     }
 
@@ -616,7 +534,7 @@ mod tests {
         );
         initialize_unchecked(&device, settings).unwrap();
 
-        let result = initialize_unchecked(&device, DeviceSettings::defaults());
+        let result = initialize_unchecked(&device, default_settings());
         assert!(matches!(
             result,
             Err(DeviceError::AlreadyInitialized { .. })

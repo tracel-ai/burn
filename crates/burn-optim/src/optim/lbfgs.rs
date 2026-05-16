@@ -8,8 +8,7 @@ use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
 use burn::prelude::ToElement;
 use burn::record::Record;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, backend::AutodiffBackend};
+use burn::tensor::{Device, Tensor};
 use serde::{Deserialize, Serialize};
 
 use alloc::vec;
@@ -56,35 +55,35 @@ fn cubic_interpolate(
     }
 }
 /// Auxiliary Struct For Strong_Wolfe
-struct LineSearchSample<B: Backend> {
+struct LineSearchSample {
     // step size
     t: f64,
     // loss
     f: f64,
     // gradient
-    g: Tensor<B, 1>,
+    g: Tensor<1>,
     // directional derivative
     gtd: f64,
 }
 
 #[allow(clippy::too_many_arguments)]
-fn strong_wolfe<B: Backend, F>(
+fn strong_wolfe<F>(
     // obj_func(x,step size,direction) -> (loss,grad)
     obj_func: &mut F,
-    x: &Tensor<B, 1>,
+    x: &Tensor<1>,
     // initial step size
     mut t: f64,
-    d: &Tensor<B, 1>,
+    d: &Tensor<1>,
     f: f64,
-    g: Tensor<B, 1>,
+    g: Tensor<1>,
     gtd: f64,
     c1: f64,
     c2: f64,
     tolerance_change: f64,
     max_ls: usize,
-) -> (f64, Tensor<B, 1>, f64, usize)
+) -> (f64, Tensor<1>, f64, usize)
 where
-    F: FnMut(&Tensor<B, 1>, f64, &Tensor<B, 1>) -> (f64, Tensor<B, 1>),
+    F: FnMut(&Tensor<1>, f64, &Tensor<1>) -> (f64, Tensor<1>),
 {
     let d_norm = d.clone().abs().max().into_scalar().to_f64();
 
@@ -99,9 +98,9 @@ where
     let mut ls_iter = 0;
 
     // the interval [low,high] using for Zoom phase
-    let mut bracket: Option<[LineSearchSample<B>; 2]> = None;
+    let mut bracket: Option<[LineSearchSample; 2]> = None;
     // point which satisfy the wolfe condition
-    let mut wolfe_bracket: Option<LineSearchSample<B>> = None;
+    let mut wolfe_bracket: Option<LineSearchSample> = None;
     while ls_iter < max_ls {
         // Checking Conditions.
 
@@ -345,7 +344,7 @@ impl LBFGSConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module
-    pub fn init<B: AutodiffBackend>(&self) -> LBFGS<B> {
+    pub fn init(&self) -> LBFGS {
         // by default max_eval = max_iter * 5/4
         let max_eval = self.max_eval.unwrap_or(self.max_iter * 5 / 4);
         LBFGS {
@@ -363,14 +362,14 @@ impl LBFGSConfig {
 }
 
 /// Collects gradients in module visit order.
-struct FlattenGradsVisitorInner<'a, B: AutodiffBackend> {
+struct FlattenGradsVisitorInner<'a> {
     grads: &'a GradientsParams,
-    tensors: &'a mut Vec<Tensor<B::InnerBackend, 1>>,
+    tensors: &'a mut Vec<Tensor<1>>,
 }
 
-impl<B: AutodiffBackend> ModuleVisitor<B> for FlattenGradsVisitorInner<'_, B> {
-    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
-        if let Some(g) = self.grads.get::<B::InnerBackend, D>(param.id) {
+impl ModuleVisitor for FlattenGradsVisitorInner<'_> {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
+        if let Some(g) = self.grads.get::<D>(param.id) {
             let numel = g.shape().num_elements();
             self.tensors.push(g.reshape([numel]));
         }
@@ -378,26 +377,24 @@ impl<B: AutodiffBackend> ModuleVisitor<B> for FlattenGradsVisitorInner<'_, B> {
 }
 
 /// Flatten params to inner backend 1D tensor.
-fn flatten_params_inner<B: AutodiffBackend, M: Module<B>>(
-    module: &M,
-) -> Tensor<B::InnerBackend, 1> {
+fn flatten_params_inner<M: Module>(module: &M) -> Tensor<1> {
     let mut tensors = Vec::new();
-    let mut visitor = FlattenParamsVisitorInner::<B> {
+    let mut visitor = FlattenParamsVisitorInner {
         tensors: &mut tensors,
     };
     module.visit(&mut visitor);
     if tensors.is_empty() {
-        return Tensor::empty([0], &module.devices()[0]);
+        return Tensor::empty([0], &module.devices()[0].clone().inner());
     }
     Tensor::cat(tensors, 0)
 }
 
-struct FlattenParamsVisitorInner<'a, B: AutodiffBackend> {
-    tensors: &'a mut Vec<Tensor<B::InnerBackend, 1>>,
+struct FlattenParamsVisitorInner<'a> {
+    tensors: &'a mut Vec<Tensor<1>>,
 }
 
-impl<B: AutodiffBackend> ModuleVisitor<B> for FlattenParamsVisitorInner<'_, B> {
-    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+impl ModuleVisitor for FlattenParamsVisitorInner<'_> {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
         let t = param.val().inner();
         let numel = t.shape().num_elements();
         self.tensors.push(t.reshape([numel]));
@@ -405,10 +402,7 @@ impl<B: AutodiffBackend> ModuleVisitor<B> for FlattenParamsVisitorInner<'_, B> {
 }
 
 /// Flatten gradients for a module.
-fn flatten_grads_inner<B: AutodiffBackend, M: Module<B>>(
-    module: &M,
-    grads: &GradientsParams,
-) -> Tensor<B::InnerBackend, 1> {
+fn flatten_grads_inner<M: Module>(module: &M, grads: &GradientsParams) -> Tensor<1> {
     let mut tensors = Vec::new();
     let mut visitor = FlattenGradsVisitorInner {
         grads,
@@ -416,27 +410,27 @@ fn flatten_grads_inner<B: AutodiffBackend, M: Module<B>>(
     };
     module.visit(&mut visitor);
     if tensors.is_empty() {
-        return Tensor::empty([0], &module.devices()[0]);
+        return Tensor::empty([0], &module.devices()[0].clone().inner());
     }
     Tensor::cat(tensors, 0)
 }
 
 /// Mapper that assigns each float param from a flat inner-backend 1D tensor.
-struct ParamsFromFlatMapperInner<'a, B: AutodiffBackend> {
-    flat: &'a Tensor<B::InnerBackend, 1>,
+struct ParamsFromFlatMapperInner<'a> {
+    flat: &'a Tensor<1>,
     offset: &'a mut usize,
 }
 
-impl<B: AutodiffBackend> ParamsFromFlatMapperInner<'_, B> {
-    fn take_slice(&mut self, numel: usize) -> Tensor<B::InnerBackend, 1> {
+impl ParamsFromFlatMapperInner<'_> {
+    fn take_slice(&mut self, numel: usize) -> Tensor<1> {
         let start = *self.offset;
         *self.offset += numel;
         self.flat.clone().slice(start..*self.offset)
     }
 }
 
-impl<B: AutodiffBackend> ModuleMapper<B> for ParamsFromFlatMapperInner<'_, B> {
-    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+impl ModuleMapper for ParamsFromFlatMapperInner<'_> {
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, tensor, mapper) = param.consume();
         let numel = tensor.shape().num_elements();
         let slice_1d = self.take_slice(numel);
@@ -447,10 +441,7 @@ impl<B: AutodiffBackend> ModuleMapper<B> for ParamsFromFlatMapperInner<'_, B> {
 }
 
 /// Overwrite module parameters from a flat inner-backend 1D tensor
-fn set_params_from_flat_inner<B: AutodiffBackend, M: Module<B>>(
-    module: M,
-    flat: Tensor<B::InnerBackend, 1>,
-) -> M {
+fn set_params_from_flat_inner<M: Module>(module: M, flat: Tensor<1>) -> M {
     let mut offset = 0;
     let mut mapper = ParamsFromFlatMapperInner {
         flat: &flat,
@@ -461,26 +452,26 @@ fn set_params_from_flat_inner<B: AutodiffBackend, M: Module<B>>(
 
 /// L-BFGS optimizer state
 #[derive(Clone, Record)]
-pub struct LBFGSState<B: Backend> {
+pub struct LBFGSState {
     /// Historical displacement vectors
-    pub history_s: Vec<Tensor<B, 1>>,
+    pub history_s: Vec<Tensor<1>>,
     /// Historical gradient difference vectors
-    pub history_y: Vec<Tensor<B, 1>>,
+    pub history_y: Vec<Tensor<1>>,
     /// Search direction
-    pub d: Option<Tensor<B, 1>>,
+    pub d: Option<Tensor<1>>,
     /// Step size from the previous iteration
     pub t: Option<f64>,
     /// Flattened gradient from the previous iteration
-    pub prev_flat_grad: Option<Tensor<B, 1>>,
+    pub prev_flat_grad: Option<Tensor<1>>,
     /// Loss value from the previous iteration
     pub prev_loss: Option<f64>,
     /// Global iteration count
     pub g_iter: usize,
 }
 
-impl<B: Backend> LBFGSState<B> {
+impl LBFGSState {
     /// Moves all historical tensors to the target device.
-    pub fn to_device(self, device: &B::Device) -> Self {
+    pub fn to_device(self, device: &Device) -> Self {
         Self {
             history_s: self
                 .history_s
@@ -500,7 +491,7 @@ impl<B: Backend> LBFGSState<B> {
         }
     }
 }
-impl<B: Backend> Default for LBFGSState<B> {
+impl Default for LBFGSState {
     fn default() -> Self {
         Self {
             history_s: Vec::new(),
@@ -524,24 +515,24 @@ impl<B: Backend> Default for LBFGSState<B> {
 /// # Note
 /// This optimizer is memory intensive
 #[derive(Clone)]
-pub struct LBFGS<B: Backend + AutodiffBackend> {
+pub struct LBFGS {
     config: LBFGSConfig,
-    state: LBFGSState<B::InnerBackend>,
+    state: LBFGSState,
 }
 
-impl<B: Backend + AutodiffBackend> LBFGS<B> {
+impl LBFGS {
     /// A single optimization step for any tensor that represents the parameters of a model.
     pub fn step<M, F>(&mut self, lr: LearningRate, mut module: M, mut closure: F) -> (M, f64)
     where
-        M: AutodiffModule<B> + Clone,
+        M: AutodiffModule + Clone,
         F: FnMut(M) -> (f64, GradientsParams),
     {
         // evaluate initial f(x) and df/dx
         let (mut loss, grads) = closure(module.clone());
         let mut current_evals = 1;
 
-        let mut flat_grad = flatten_grads_inner::<B, M>(&module, &grads);
-        let mut x_flat = flatten_params_inner::<B, M>(&module);
+        let mut flat_grad = flatten_grads_inner::<M>(&module, &grads);
+        let mut x_flat = flatten_params_inner::<M>(&module);
 
         let opt_cond =
             flat_grad.clone().abs().max().into_scalar().to_f64() <= self.config.tolerance_grad;
@@ -596,8 +587,8 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
                 // multiplied by the gradient
                 let num_old = self.state.history_s.len();
                 let mut q = flat_grad.clone().neg();
-                let mut alphas: Vec<Tensor<B::InnerBackend, 1>> =
-                    vec![Tensor::zeros([1], &flat_grad.device()); num_old];
+                let mut alphas: Vec<Tensor<1>> =
+                    vec![Tensor::zeros([1], &flat_grad.device().inner()); num_old];
 
                 if num_old > 0 {
                     // multiply by initial Hessian
@@ -661,16 +652,13 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
 
             if let LineSearchFn::StrongWolfe = self.config.line_search_fn {
                 // perform line search, using user function
-                let mut obj_func =
-                    |current_x: &Tensor<B::InnerBackend, 1>,
-                     step: f64,
-                     dir: &Tensor<B::InnerBackend, 1>| {
-                        let update = dir.clone().mul_scalar(step);
-                        let new_x = current_x.clone().add(update);
-                        let tmp_module = set_params_from_flat_inner::<B, M>(module.clone(), new_x);
-                        let (l, g) = closure(tmp_module);
-                        (l, flatten_grads_inner::<B, M>(&module, &g))
-                    };
+                let mut obj_func = |current_x: &Tensor<1>, step: f64, dir: &Tensor<1>| {
+                    let update = dir.clone().mul_scalar(step);
+                    let new_x = current_x.clone().add(update);
+                    let tmp_module = set_params_from_flat_inner::<M>(module.clone(), new_x);
+                    let (l, g) = closure(tmp_module);
+                    (l, flatten_grads_inner::<M>(&module, &g))
+                };
 
                 let (ls_f, ls_g, ls_t, evals) = strong_wolfe(
                     &mut obj_func,
@@ -692,18 +680,18 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
                 ls_func_evals = evals;
 
                 x_flat = x_flat.add(d.clone().mul_scalar(t));
-                module = set_params_from_flat_inner::<B, M>(module, x_flat.clone());
+                module = set_params_from_flat_inner::<M>(module, x_flat.clone());
             } else {
                 // no line search, simply move with fixed-step
                 let step_vec = d.clone().mul_scalar(t);
                 x_flat = x_flat.add(step_vec);
-                module = set_params_from_flat_inner::<B, M>(module, x_flat.clone());
+                module = set_params_from_flat_inner::<M>(module, x_flat.clone());
                 // re-evaluate function only if not in last iteration
                 // the reason we do this: in a stochastic setting,
                 // no use to re-evaluate that function here
                 let (new_loss, new_grads) = closure(module.clone());
                 loss = new_loss;
-                flat_grad = flatten_grads_inner::<B, M>(&module, &new_grads);
+                flat_grad = flatten_grads_inner::<M>(&module, &new_grads);
                 ls_func_evals = 1;
             }
 
@@ -737,7 +725,7 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
         (module, loss)
     }
     /// Moves the optimizer state to the specified device.
-    pub fn to_device(self, device: &B::Device) -> Self {
+    pub fn to_device(self, device: &Device) -> Self {
         Self {
             config: self.config,
             // History tensors reside in InnerBackend, so we convert the device accordingly
@@ -751,19 +739,17 @@ mod tests {
 
     use super::*;
     use crate::GradientsParams;
-    use crate::TestAutodiffBackend;
     use burn::module::{Module, Param};
     use burn::tensor::{Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
-        let device = Default::default();
+    fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
         let record = LinearRecord {
-            weight: Param::from_data(weight, &device),
-            bias: Some(Param::from_data(bias, &device)),
+            weight: Param::from_data(weight, device),
+            bias: Some(Param::from_data(bias, device)),
         };
 
-        LinearConfig::new(6, 6).init(&device).load_record(record)
+        LinearConfig::new(6, 6).init(device).load_record(record)
     }
     #[test]
     fn test_cubic_interpolate() {
@@ -830,18 +816,14 @@ mod tests {
     }
     #[test]
     fn test_strong_wolfe_direct_comparison() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let tol = 1e-6;
 
         {
-            let x = Tensor::<TestAutodiffBackend, 1>::from_floats([2.1321912957_f64], &device);
-            let d = Tensor::<TestAutodiffBackend, 1>::from_floats([0.91312321_f64], &device);
+            let x = Tensor::<1>::from_floats([2.1321912957_f64], &device);
+            let d = Tensor::<1>::from_floats([0.91312321_f64], &device);
             let t_initial = 1.213132_f64;
-            fn func<B: Backend>(
-                x_base: &Tensor<B, 1>,
-                t_val: f64,
-                d_vec: &Tensor<B, 1>,
-            ) -> (f64, Tensor<B, 1>) {
+            fn func(x_base: &Tensor<1>, t_val: f64, d_vec: &Tensor<1>) -> (f64, Tensor<1>) {
                 let curr_x = x_base.clone().add(d_vec.clone().mul_scalar(t_val));
                 let x2 = curr_x.clone().mul(curr_x.clone());
                 let x3 = x2.clone().mul(curr_x.clone());
@@ -863,10 +845,7 @@ mod tests {
             println!("Initial State: f={},gtd = {}", f_init, gtd_init);
             assert!((f_init - 13.7080059052).abs() < tol);
             assert!((gtd_init - 28.5305728912).abs() < tol);
-            let mut obj_func =
-                |xb: &Tensor<TestAutodiffBackend, 1>,
-                 tv: f64,
-                 dv: &Tensor<TestAutodiffBackend, 1>| func(xb, tv, dv);
+            let mut obj_func = |xb: &Tensor<1>, tv: f64, dv: &Tensor<1>| func(xb, tv, dv);
 
             let (f_final, _g_final, t_final, evals) = strong_wolfe(
                 &mut obj_func,
@@ -894,18 +873,18 @@ mod tests {
     }
     #[test]
     fn test_lbfgs_strong_wolfe_comparison() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let tol = 1e-5;
-        let x_data = Tensor::<TestAutodiffBackend, 2>::from_data([[1.0], [2.0], [3.0]], &device);
-        let y_true = Tensor::<TestAutodiffBackend, 2>::from_data([[3.0], [5.0], [7.0]], &device);
+        let x_data = Tensor::<2>::from_data([[1.0], [2.0], [3.0]], &device);
+        let y_true = Tensor::<2>::from_data([[3.0], [5.0], [7.0]], &device);
         let weight = TensorData::from([[0.5f64]]);
         let bias = TensorData::from([0.1f64]);
-        let module = given_linear_layer(weight, bias);
+        let module = given_linear_layer(weight, bias, &device);
 
-        let mut optimizer: LBFGS<TestAutodiffBackend> = LBFGSConfig::new()
+        let mut optimizer = LBFGSConfig::new()
             .with_line_search_fn(LineSearchFn::StrongWolfe)
             .init();
-        let mut closure = |mod_in: Linear<TestAutodiffBackend>| {
+        let mut closure = |mod_in: Linear| {
             let output = mod_in.forward(x_data.clone());
             let loss = burn_nn::loss::MseLoss::new().forward(
                 output,
@@ -935,18 +914,18 @@ mod tests {
     }
     #[test]
     fn test_lbfgs_no_strong_wolfe_comparison() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let tol = 1e-5;
-        let x_data = Tensor::<TestAutodiffBackend, 2>::from_data([[1.0], [2.0], [3.0]], &device);
-        let y_true = Tensor::<TestAutodiffBackend, 2>::from_data([[3.0], [5.0], [7.0]], &device);
+        let x_data = Tensor::<2>::from_data([[1.0], [2.0], [3.0]], &device);
+        let y_true = Tensor::<2>::from_data([[3.0], [5.0], [7.0]], &device);
         let weight = TensorData::from([[0.5f64]]);
         let bias = TensorData::from([0.1f64]);
-        let module = given_linear_layer(weight, bias);
+        let module = given_linear_layer(weight, bias, &device);
 
-        let mut optimizer: LBFGS<TestAutodiffBackend> = LBFGSConfig::new()
+        let mut optimizer = LBFGSConfig::new()
             .with_line_search_fn(LineSearchFn::None)
             .init();
-        let mut closure = |mod_in: Linear<TestAutodiffBackend>| {
+        let mut closure = |mod_in: Linear| {
             let output = mod_in.forward(x_data.clone());
             let loss = burn_nn::loss::MseLoss::new().forward(
                 output,

@@ -2,14 +2,14 @@
 
 use std::collections::HashMap;
 
-use burn_tensor::TensorData;
+use burn_core::tensor::TensorData;
 use burn_vision::{ConnectedComponents, ConnectedStatsOptions, Connectivity};
 
 mod common;
 use common::*;
 
-fn space_invader() -> [[IntType; 14]; 9] {
-    as_type!(IntType: [
+fn space_invader() -> [[i32; 14]; 9] {
+    [
         [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
         [0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0],
         [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
@@ -19,12 +19,13 @@ fn space_invader() -> [[IntType; 14]; 9] {
         [1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1],
         [1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1],
         [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
-    ])
+    ]
 }
 
 #[test]
 fn should_support_8_connectivity() {
-    let tensor = TestTensorBool::<2>::from(space_invader());
+    let device = TestDevice::default().into();
+    let tensor = TestTensorBool::<2>::from_data(space_invader(), &device);
 
     let output = tensor.connected_components(Connectivity::Eight);
     let expected = space_invader(); // All pixels are in the same group for 8-connected
@@ -35,7 +36,8 @@ fn should_support_8_connectivity() {
 
 #[test]
 fn should_support_8_connectivity_with_stats() {
-    let tensor = TestTensorBool::<2>::from(space_invader());
+    let device = TestDevice::default().into();
+    let tensor = TestTensorBool::<2>::from_data(space_invader(), &device);
 
     let (output, stats) =
         tensor.connected_components_with_stats(Connectivity::Eight, ConnectedStatsOptions::all());
@@ -65,10 +67,11 @@ fn should_support_8_connectivity_with_stats() {
 
 #[test]
 fn should_support_4_connectivity() {
-    let tensor = TestTensorBool::<2>::from(space_invader());
+    let device = TestDevice::default().into();
+    let tensor = TestTensorBool::<2>::from_data(space_invader(), &device);
 
     let output = tensor.connected_components(Connectivity::Four);
-    let expected = as_type!(IntType: [
+    let expected = [
         [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0],
         [0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0],
         [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0],
@@ -78,7 +81,7 @@ fn should_support_4_connectivity() {
         [4, 4, 0, 0, 3, 3, 3, 3, 3, 3, 0, 0, 5, 5],
         [4, 4, 0, 3, 3, 3, 0, 0, 3, 3, 3, 0, 5, 5],
         [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],
-    ]);
+    ];
     let expected = TestTensorInt::<2>::from(expected);
 
     normalize_labels(output.into_data()).assert_eq(&expected.into_data(), false);
@@ -86,11 +89,12 @@ fn should_support_4_connectivity() {
 
 #[test]
 fn should_support_4_connectivity_with_stats() {
-    let tensor = TestTensorBool::<2>::from(space_invader());
+    let device = TestDevice::default().into();
+    let tensor = TestTensorBool::<2>::from_data(space_invader(), &device);
 
     let (output, stats) =
         tensor.connected_components_with_stats(Connectivity::Four, ConnectedStatsOptions::all());
-    let expected = as_type!(IntType: [
+    let expected = [
         [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0],
         [0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 0, 0, 0],
         [0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0],
@@ -100,7 +104,7 @@ fn should_support_4_connectivity_with_stats() {
         [4, 4, 0, 0, 3, 3, 3, 3, 3, 3, 0, 0, 5, 5],
         [4, 4, 0, 3, 3, 3, 0, 0, 3, 3, 3, 0, 5, 5],
         [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],
-    ]);
+    ];
     let expected = TestTensorInt::<2>::from(expected);
 
     // Slice off background and limit to compacted labels

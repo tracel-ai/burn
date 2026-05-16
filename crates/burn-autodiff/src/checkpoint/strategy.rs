@@ -2,8 +2,13 @@ use core::fmt::Debug;
 
 use burn_backend::Backend;
 
-use crate::{graph::ComputingProperty, tensor::AutodiffTensor};
+#[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
+
+use crate::{graph::ComputingProperty, tensor::AutodiffTensor};
 
 use super::{
     builder::{ActionType, CheckpointerBuilder},

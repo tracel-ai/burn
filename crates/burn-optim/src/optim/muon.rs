@@ -3,8 +3,8 @@ use burn_core as burn;
 use burn::{module::AutodiffModule, record::Record};
 
 use burn::config::Config;
-use burn::tensor::{Tensor, backend::AutodiffBackend};
-use burn::tensor::{backend::Backend, ops::Device};
+use burn::tensor::Device;
+use burn::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -161,7 +161,7 @@ pub struct MuonConfig {
 
 impl MuonConfig {
     /// Build a [`Muon`] from the config.
-    pub fn build<B: Backend>(&self) -> Muon<B> {
+    pub fn build(&self) -> Muon {
         let momentum = Momentum::new(&self.momentum);
         let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
 
@@ -206,9 +206,7 @@ impl MuonConfig {
     ///     .with_ns_steps(7)
     ///     .init();
     /// ```
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
-        &self,
-    ) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
+    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Muon, M> {
         OptimizerAdaptor::from(self.build())
     }
 }
@@ -251,15 +249,15 @@ impl NewtonSchulzParams {
 /// 3. **Weight decay timing**: Unlike typical optimizers, Muon applies weight decay
 ///    AFTER orthogonalization but uses the original (unadjusted) learning rate for it.
 #[derive(Clone)]
-pub struct Muon<B: Backend> {
-    momentum: Momentum<B>,
+pub struct Muon {
+    momentum: Momentum,
     ns_params: NewtonSchulzParams,
     weight_decay_penalty: Option<f32>,
     epsilon: f32,
     adjust_lr_fn: AdjustLrFn,
 }
 
-impl<B: Backend> Muon<B> {
+impl Muon {
     /// Adjust learning rate based on parameter shape.
     ///
     /// # Arguments
@@ -299,7 +297,7 @@ impl<B: Backend> Muon<B> {
     ///
     /// - Original: https://github.com/KellerJordan/Muon/blob/master/muon.py
     /// - PyTorch: https://github.com/pytorch/pytorch/blob/main/torch/optim/muon.py
-    fn zeropower_via_newtonschulz<const D: usize>(&self, g: Tensor<B, D>) -> Tensor<B, D> {
+    fn zeropower_via_newtonschulz<const D: usize>(&self, g: Tensor<D>) -> Tensor<D> {
         let shape = g.shape();
         let dim_m2 = shape[D - 2];
         let dim_m1 = shape[D - 1];
@@ -351,13 +349,13 @@ impl<B: Backend> Muon<B> {
 
 /// Muon state.
 #[derive(Record, Clone, new)]
-pub struct MuonState<B: Backend, const D: usize> {
+pub struct MuonState<const D: usize> {
     /// Current momentum state
-    pub momentum: MomentumState<B, D>,
+    pub momentum: MomentumState<D>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
-    type State<const D: usize> = MuonState<B, D>;
+impl SimpleOptimizer for Muon {
+    type State<const D: usize> = MuonState<D>;
 
     /// Perform a single Muon optimization step.
     ///
@@ -381,10 +379,10 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
     fn step<const D: usize>(
         &self,
         lr: LearningRate,
-        tensor: Tensor<B, D>,
-        grad: Tensor<B, D>,
+        tensor: Tensor<D>,
+        grad: Tensor<D>,
         state: Option<Self::State<D>>,
-    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
+    ) -> (Tensor<D>, Option<Self::State<D>>) {
         assert!(
             D == 2,
             "Newton-Schulz iteration requires 2D tensors, got {}D",
@@ -417,7 +415,7 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
         (tensor - delta, Some(new_state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
+    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
         state.momentum = state.momentum.to_device(device);
         state
     }
@@ -426,18 +424,15 @@ impl<B: Backend> SimpleOptimizer<B> for Muon<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestAutodiffBackend;
     use crate::{GradientsParams, Optimizer};
     use burn::module::{Module, Param};
     use burn::tensor::{Distribution, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
 
-    type TestBackend = burn_flex::Flex;
-
     const TOLERANCE: f64 = 1e-8;
 
-    fn given_linear_layer_no_bias(weight: TensorData) -> Linear<TestAutodiffBackend> {
-        let device = Default::default();
+    fn given_linear_layer_no_bias(weight: TensorData) -> Linear {
+        let device = Device::default().autodiff();
         let record = LinearRecord {
             weight: Param::from_data(weight, &device),
             bias: None, //No bias for Muon optimizer
@@ -487,7 +482,7 @@ mod tests {
     fn test_1d_tensor_panics() {
         let device = Default::default();
         let config = MuonConfig::new();
-        let optim: Muon<TestBackend> = Muon {
+        let optim = Muon {
             momentum: Momentum::new(&config.momentum),
             ns_params: NewtonSchulzParams::new(config.ns_coefficients, config.ns_steps),
             weight_decay_penalty: None,
@@ -495,24 +490,23 @@ mod tests {
             adjust_lr_fn: config.adjust_lr_fn,
         };
 
-        let tensor_1d = Tensor::<TestBackend, 1>::zeros([512], &device);
-        let grad_1d = Tensor::<TestBackend, 1>::ones([512], &device);
+        let tensor_1d = Tensor::<1>::zeros([512], &device);
+        let grad_1d = Tensor::<1>::ones([512], &device);
 
         let _ = optim.step(0.01, tensor_1d, grad_1d, None);
     }
 
     #[test]
     fn test_muon_optimizer_save_load_state() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         // Use Linear layer WITHOUT bias for Muon optimizer
         let linear = LinearConfig::new(6, 6)
             .with_bias(false) // No bias - only 2D weight matrix
-            .init::<TestAutodiffBackend>(&device);
+            .init(&device);
 
-        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
+        let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
 
-        let mut optimizer =
-            MuonConfig::new().init::<TestAutodiffBackend, Linear<TestAutodiffBackend>>();
+        let mut optimizer = MuonConfig::new().init::<Linear>();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(0.01, linear, grads);
@@ -520,8 +514,7 @@ mod tests {
         let state_before = optimizer.to_record();
         let state_before_copy = optimizer.to_record();
 
-        let optimizer_new =
-            MuonConfig::new().init::<TestAutodiffBackend, Linear<TestAutodiffBackend>>();
+        let optimizer_new = MuonConfig::new().init::<Linear>();
         let optimizer_loaded = optimizer_new.load_record(state_before_copy);
         let state_after = optimizer_loaded.to_record();
 
@@ -530,7 +523,7 @@ mod tests {
 
     #[test]
     fn test_muon_with_weight_decay() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         // Create Linear layer WITHOUT bias for Muon
         let linear = given_linear_layer_no_bias(TensorData::from([
             [1.0, 1.0, 1.0, 1.0],
@@ -539,15 +532,12 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0],
         ]));
 
-        let x = Tensor::<TestAutodiffBackend, 2>::from_floats(
-            [[0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]],
-            &device,
-        )
-        .require_grad();
+        let x = Tensor::<2>::from_floats([[0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]], &device)
+            .require_grad();
 
         let mut optimizer = MuonConfig::new()
             .with_weight_decay(Some(WeightDecayConfig::new(0.01)))
-            .init::<TestAutodiffBackend, Linear<TestAutodiffBackend>>();
+            .init::<Linear>();
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -568,10 +558,10 @@ mod tests {
     #[test]
     fn test_newton_schulz_orthogonalization() {
         let device = Default::default();
-        let matrix = Tensor::<TestBackend, 2>::from_floats([[1.0, 0.5], [0.5, 1.0]], &device);
+        let matrix = Tensor::<2>::from_floats([[1.0, 0.5], [0.5, 1.0]], &device);
 
         let config = MuonConfig::new();
-        let muon: Muon<TestBackend> = Muon {
+        let muon = Muon {
             momentum: Momentum::new(&config.momentum),
             ns_params: NewtonSchulzParams::new(config.ns_coefficients, config.ns_steps),
             weight_decay_penalty: None,
@@ -605,7 +595,7 @@ mod tests {
         let device = Default::default();
 
         // Create a tall matrix: [8, 4] (more rows than columns)
-        let tall_matrix = Tensor::<TestBackend, 2>::from_floats(
+        let tall_matrix = Tensor::<2>::from_floats(
             [
                 [1.0, 0.5, 0.3, 0.2],
                 [0.5, 1.0, 0.4, 0.1],
@@ -620,7 +610,7 @@ mod tests {
         );
 
         let config = MuonConfig::new();
-        let muon: Muon<TestBackend> = Muon {
+        let muon = Muon {
             momentum: Momentum::new(&config.momentum),
             ns_params: NewtonSchulzParams::new(config.ns_coefficients, config.ns_steps),
             weight_decay_penalty: None,
@@ -650,7 +640,7 @@ mod tests {
         );
 
         // For comparison, test a wide matrix [4, 8] should NOT be transposed
-        let wide_matrix = Tensor::<TestBackend, 2>::from_floats(
+        let wide_matrix = Tensor::<2>::from_floats(
             [
                 [1.0, 0.5, 0.3, 0.2, 0.1, 0.4, 0.2, 0.3],
                 [0.5, 1.0, 0.4, 0.1, 0.2, 0.3, 0.4, 0.1],
@@ -677,7 +667,7 @@ mod tests {
         // Test that Muon handles zero gradients gracefully
         let device = Default::default();
 
-        let tensor = Tensor::<TestBackend, 2>::from_floats(
+        let tensor = Tensor::<2>::from_floats(
             [
                 [1.0, 0.5, 0.3, 0.2],
                 [0.5, 1.0, 0.4, 0.1],
@@ -688,10 +678,10 @@ mod tests {
         );
 
         // Zero gradient - all zeros
-        let zero_grad = Tensor::<TestBackend, 2>::zeros([4, 4], &device);
+        let zero_grad = Tensor::<2>::zeros([4, 4], &device);
 
         let config = MuonConfig::new();
-        let muon: Muon<TestBackend> = Muon {
+        let muon = Muon {
             momentum: Momentum::new(&config.momentum),
             ns_params: NewtonSchulzParams::new(config.ns_coefficients, config.ns_steps),
             weight_decay_penalty: None,
@@ -728,7 +718,7 @@ mod tests {
         }
 
         // Test with weight decay - should still work
-        let muon_with_decay: Muon<TestBackend> = Muon {
+        let muon_with_decay = Muon {
             momentum: Momentum::new(&config.momentum),
             ns_params: NewtonSchulzParams::new(config.ns_coefficients, config.ns_steps),
             weight_decay_penalty: Some(0.01),
@@ -736,7 +726,7 @@ mod tests {
             adjust_lr_fn: config.adjust_lr_fn,
         };
 
-        let tensor2 = Tensor::<TestBackend, 2>::from_floats(
+        let tensor2 = Tensor::<2>::from_floats(
             [
                 [1.0, 0.5, 0.3, 0.2],
                 [0.5, 1.0, 0.4, 0.1],
@@ -745,7 +735,7 @@ mod tests {
             ],
             &device,
         );
-        let zero_grad2 = Tensor::<TestBackend, 2>::zeros([4, 4], &device);
+        let zero_grad2 = Tensor::<2>::zeros([4, 4], &device);
 
         let (updated_tensor_decay, _) =
             muon_with_decay.step(0.01, tensor2.clone(), zero_grad2, None);

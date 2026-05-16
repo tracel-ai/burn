@@ -2,7 +2,6 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_core as burn;
 
 use burn::tensor::activation::elu;
@@ -10,7 +9,7 @@ use burn::tensor::activation::elu;
 /// ELU (Exponential Linear Unit) layer.
 ///
 /// Should be created with [EluConfig](EluConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Elu {
     /// The alpha value.
@@ -50,7 +49,7 @@ impl Elu {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         elu(input, self.alpha)
     }
 }
@@ -58,17 +57,15 @@ impl Elu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_elu_forward() {
         let device = Default::default();
-        let model: Elu = EluConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
+        let model = EluConfig::new().init();
+        let input = Tensor::<2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
         // elu(0.4410, 1.0) = 0.4410
         // elu(-0.2507, 1.0) = 1.0 * (exp(-0.2507) - 1) = -0.22186

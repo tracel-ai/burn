@@ -136,10 +136,11 @@ impl IntoKind for DType {
             DType::F16 => Ok(tch::Kind::Half),
             DType::BF16 => Ok(tch::Kind::BFloat16),
             DType::I64 => Ok(tch::Kind::Int64),
-            DType::I32 => Ok(tch::Kind::Int),
-            DType::I16 => Ok(tch::Kind::Int16),
-            DType::I8 => Ok(tch::Kind::Int8),
-            DType::U8 => Ok(tch::Kind::Uint8),
+            // LibTorch backend currently forces I64 int dtype
+            // DType::I32 => Ok(tch::Kind::Int),
+            // DType::I16 => Ok(tch::Kind::Int16),
+            // DType::I8 => Ok(tch::Kind::Int8),
+            // DType::U8 => Ok(tch::Kind::Uint8),
             DType::Bool(BoolStore::Native) => Ok(tch::Kind::Bool),
             other => Err(tch::TchError::Kind(format!("Unsupported dtype {other:?}"))),
         }

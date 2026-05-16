@@ -41,6 +41,8 @@ num-traits = { workspace = true }
 portable-atomic = { workspace = true }
 tracing = { workspace = true, optional = true, features = ["default"] }
 
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["default"]

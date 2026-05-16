@@ -5,7 +5,7 @@ use syn::{GenericParam, Generics, Type, TypeParamBound, WherePredicate, visit::V
 
 #[derive(Debug)]
 pub enum GenericKind {
-    /// A generic with `Module<B>` bound.
+    /// A generic with `Module` bound.
     Module,
     /// A generic used in a field marked by `#[module(skip)]`.
     Skip,
@@ -46,16 +46,14 @@ impl ModuleGenerics {
 pub fn parse_module_generics(generics: &Generics) -> ModuleGenerics {
     let mut kinds = HashMap::new();
 
-    // Check inline bounds e.g. `M: Module<B>`
+    // Check inline bounds e.g. `M: Module`
     for param in &generics.params {
         if let GenericParam::Type(type_param) = param {
             let ident = &type_param.ident;
-            if ident != "B" {
-                if has_module_bound(&type_param.bounds) {
-                    kinds.insert(ident.clone(), GenericKind::Module);
-                } else {
-                    kinds.insert(ident.clone(), GenericKind::Plain);
-                }
+            if has_module_bound(&type_param.bounds) {
+                kinds.insert(ident.clone(), GenericKind::Module);
+            } else {
+                kinds.insert(ident.clone(), GenericKind::Plain);
             }
         }
     }
@@ -67,7 +65,6 @@ pub fn parse_module_generics(generics: &Generics) -> ModuleGenerics {
                 // We only care if the bounded type is a simple identifier (like 'M')
                 if let Type::Path(p) = &pt.bounded_ty
                     && let Some(ident) = p.path.get_ident()
-                    && ident != "B"
                 {
                     if has_module_bound(&pt.bounds) {
                         kinds.insert(ident.clone(), GenericKind::Module);
@@ -81,8 +78,6 @@ pub fn parse_module_generics(generics: &Generics) -> ModuleGenerics {
 
     ModuleGenerics { kinds }
 }
-
-// TODO: remove special cases for `ident == "B"`, this could be used to check for `Backend` bound.
 
 /// Helper to check if a list of bounds contains "Module".
 fn has_module_bound(
@@ -116,7 +111,7 @@ pub fn parse_ty_generics(ty: &Type, declared: &ModuleGenerics) -> HashSet<Ident>
         fn visit_type_path(&mut self, type_path: &'ast syn::TypePath) {
             if type_path.qself.is_none()
                 && let Some(ident) = type_path.path.get_ident()
-                && (self.declared.contains(ident) || ident == "B")
+                && (self.declared.contains(ident))
             {
                 self.generics.insert(ident.clone());
             }

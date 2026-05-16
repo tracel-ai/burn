@@ -2,7 +2,7 @@
 use burn_core as burn;
 
 use burn_core::module::Module;
-use burn_tensor::{Tensor, backend::Backend};
+use burn_core::tensor::{Device, Tensor, Tolerance};
 
 use burn_nn::{
     BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
@@ -11,16 +11,16 @@ use burn_nn::{
 
 /// Multi-layer neural network model for testing
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: Conv2d<B>,
-    norm1: BatchNorm<B>,
-    fc1: Linear<B>,
+pub struct Net {
+    conv1: Conv2d,
+    norm1: BatchNorm,
+    fc1: Linear,
     relu: Relu,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new network instance
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         Self {
             conv1: Conv2dConfig::new([3, 4], [3, 3])
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
@@ -32,7 +32,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.conv1.forward(x);
         let x = self.norm1.forward(x);
         let x = self.relu.forward(x);
@@ -43,9 +43,6 @@ impl<B: Backend> Net<B> {
 }
 
 use crate::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
-use burn_tensor::Tolerance;
-
-type TestBackend = burn_flex::Flex;
 
 /// Path to the multi_layer.safetensors test file
 fn get_safetensors_path() -> &'static str {
@@ -66,7 +63,7 @@ fn multi_layer_model() {
         .validate(false)
         .allow_partial(true);
 
-    let mut model = Net::<TestBackend>::new(&device);
+    let mut model = Net::new(&device);
     let result = model.load_from(&mut store).unwrap();
 
     // Verify loading was successful
@@ -81,11 +78,11 @@ fn multi_layer_model() {
     );
 
     // Test forward pass
-    let input = Tensor::<TestBackend, 4>::ones([1, 3, 8, 8], &device);
+    let input = Tensor::<4>::ones([1, 3, 8, 8], &device);
     let output = model.forward(input);
 
     // Expected output values from PyTorch model
-    let expected = Tensor::<TestBackend, 2>::from_data(
+    let expected = Tensor::<2>::from_data(
         [[
             0.04971555,
             -0.16849735,

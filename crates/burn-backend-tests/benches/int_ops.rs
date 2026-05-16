@@ -7,9 +7,9 @@
 
 #[path = "common/mod.rs"]
 mod common;
-use common::{BencherExt, TestBackend};
+use common::BencherExt;
 
-use burn_tensor::{DType, Distribution, Int, Tensor, TensorData, backend::Backend};
+use burn_tensor::{DType, Distribution, Int, Tensor, TensorData};
 use divan::{AllocProfiler, Bencher};
 
 #[global_allocator]
@@ -23,7 +23,7 @@ fn main() {
     common::report_failures();
 }
 
-fn make_int_tensor<B: Backend>(shape: &[usize]) -> Option<Tensor<B, 2, Int>> {
+fn make_int_tensor(shape: &[usize]) -> Option<Tensor<2, Int>> {
     common::try_setup(|| {
         let size: usize = shape.iter().product();
         // Use values that fit in i8 (-128 to 127) so all casts work
@@ -37,12 +37,10 @@ fn make_int_tensor<B: Backend>(shape: &[usize]) -> Option<Tensor<B, 2, Int>> {
 // =============================================================================
 
 macro_rules! bench_cast_backend {
-    ($backend:ty, $mod_name:ident, $backend_name:literal) => {
+    ($mod_name:ident, $backend_name:literal) => {
         #[divan::bench_group(name = $backend_name)]
         mod $mod_name {
             use super::*;
-
-            type B = $backend;
 
             #[divan::bench_group(name = "cast")]
             mod cast {
@@ -51,7 +49,7 @@ macro_rules! bench_cast_backend {
                 // Small tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_64x64(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[64, 64]) else {
+                    let Some(t) = make_int_tensor(&[64, 64]) else {
                         bencher.bench(|| ());
                         return;
                     };
@@ -61,7 +59,7 @@ macro_rules! bench_cast_backend {
                 // Medium tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_256x256(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else {
+                    let Some(t) = make_int_tensor(&[256, 256]) else {
                         bencher.bench(|| ());
                         return;
                     };
@@ -71,7 +69,7 @@ macro_rules! bench_cast_backend {
                 // Large tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_1024x1024(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[1024, 1024]) else {
+                    let Some(t) = make_int_tensor(&[1024, 1024]) else {
                         bencher.bench(|| ());
                         return;
                     };
@@ -81,7 +79,7 @@ macro_rules! bench_cast_backend {
                 // Cast to smaller type (i8)
                 #[divan::bench]
                 fn cast_i64_to_i8_256x256(bencher: Bencher) {
-                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else {
+                    let Some(t) = make_int_tensor(&[256, 256]) else {
                         bencher.bench(|| ());
                         return;
                     };
@@ -92,19 +90,17 @@ macro_rules! bench_cast_backend {
     };
 }
 
-bench_cast_backend!(TestBackend, backend_cast, "backend_cast");
+bench_cast_backend!(backend_cast, "backend_cast");
 
 // =============================================================================
 // Int Random Benchmarks
 // =============================================================================
 
 macro_rules! bench_random_backend {
-    ($backend:ty, $mod_name:ident, $backend_name:literal) => {
+    ($mod_name:ident, $backend_name:literal) => {
         #[divan::bench_group(name = $backend_name)]
         mod $mod_name {
             use super::*;
-
-            type B = $backend;
 
             #[divan::bench_group(name = "random")]
             mod random {
@@ -114,7 +110,7 @@ macro_rules! bench_random_backend {
                 #[divan::bench]
                 fn random_uniform_64x64(bencher: Bencher) {
                     bencher.bench_synced(|| {
-                        Tensor::<B, 2, Int>::random(
+                        Tensor::<2, Int>::random(
                             [64, 64],
                             Distribution::Uniform(0.0, 100.0),
                             &Default::default(),
@@ -126,7 +122,7 @@ macro_rules! bench_random_backend {
                 #[divan::bench]
                 fn random_uniform_256x256(bencher: Bencher) {
                     bencher.bench_synced(|| {
-                        Tensor::<B, 2, Int>::random(
+                        Tensor::<2, Int>::random(
                             [256, 256],
                             Distribution::Uniform(0.0, 100.0),
                             &Default::default(),
@@ -138,7 +134,7 @@ macro_rules! bench_random_backend {
                 #[divan::bench]
                 fn random_uniform_1024x1024(bencher: Bencher) {
                     bencher.bench_synced(|| {
-                        Tensor::<B, 2, Int>::random(
+                        Tensor::<2, Int>::random(
                             [1024, 1024],
                             Distribution::Uniform(0.0, 100.0),
                             &Default::default(),
@@ -150,7 +146,7 @@ macro_rules! bench_random_backend {
                 #[divan::bench]
                 fn random_uniform_batch_16x128x128(bencher: Bencher) {
                     bencher.bench_synced(|| {
-                        Tensor::<B, 3, Int>::random(
+                        Tensor::<3, Int>::random(
                             [16, 128, 128],
                             Distribution::Uniform(-1000.0, 1000.0),
                             &Default::default(),
@@ -162,4 +158,4 @@ macro_rules! bench_random_backend {
     };
 }
 
-bench_random_backend!(TestBackend, backend_random, "backend_random");
+bench_random_backend!(backend_random, "backend_random");

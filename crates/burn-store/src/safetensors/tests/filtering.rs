@@ -2,14 +2,12 @@ use crate::{ModuleSnapshot, SafetensorsStore};
 
 use super::round_trip::ComplexModule;
 
-type TestBackend = burn_flex::Flex;
-
 #[test]
 #[cfg(target_has_atomic = "ptr")]
 fn filtered_export_import() {
     let device = Default::default();
-    let module1 = ComplexModule::<TestBackend>::new(&device);
-    let mut module2 = ComplexModule::<TestBackend>::new_zeros(&device);
+    let module1 = ComplexModule::new(&device);
+    let mut module2 = ComplexModule::new_zeros(&device);
 
     // Export only encoder tensors using the builder pattern
     let mut save_store = SafetensorsStore::from_bytes(None).with_regex(r"^encoder\..*");
@@ -35,7 +33,7 @@ fn filtered_export_import() {
 #[cfg(target_has_atomic = "ptr")]
 fn builder_pattern_filtering() {
     let device = Default::default();
-    let module = ComplexModule::<TestBackend>::new(&device);
+    let module = ComplexModule::new(&device);
 
     // Test with_regex - multiple patterns (OR logic)
     let mut store = SafetensorsStore::from_bytes(None)
@@ -64,7 +62,7 @@ fn builder_pattern_filtering() {
 #[test]
 fn builder_pattern_exact_paths() {
     let device = Default::default();
-    let module = ComplexModule::<TestBackend>::new(&device);
+    let module = ComplexModule::new(&device);
 
     // Test with_full_path and with_full_paths
     let paths = vec!["encoder.weight", "decoder.scale"];
@@ -89,7 +87,7 @@ fn builder_pattern_exact_paths() {
 #[test]
 fn builder_pattern_with_predicate() {
     let device = Default::default();
-    let module = ComplexModule::<TestBackend>::new(&device);
+    let module = ComplexModule::new(&device);
 
     // Test with_predicate - custom logic
     let mut store = SafetensorsStore::from_bytes(None).with_predicate(|path, _| {
@@ -114,7 +112,7 @@ fn builder_pattern_with_predicate() {
 #[test]
 fn builder_pattern_combined() {
     let device = Default::default();
-    let module = ComplexModule::<TestBackend>::new(&device);
+    let module = ComplexModule::new(&device);
 
     // Combine multiple filter methods
     #[cfg(target_has_atomic = "ptr")]
@@ -151,7 +149,7 @@ fn builder_pattern_combined() {
 #[test]
 fn builder_pattern_match_all() {
     let device = Default::default();
-    let module = ComplexModule::<TestBackend>::new(&device);
+    let module = ComplexModule::new(&device);
 
     let all_views = module.collect(None, None, false);
     let total_count = all_views.len();

@@ -2,11 +2,11 @@ use crate::tensor::Shape;
 
 use crate::config::Config;
 use crate::module::{Param, ParamId};
-use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor, s};
 
 use crate as burn;
 
+use burn_tensor::Device;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -84,11 +84,11 @@ impl Initializer {
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    pub fn init<B: Backend, const D: usize, S: Into<Shape>>(
+    pub fn init<const D: usize, S: Into<Shape>>(
         &self,
         shape: S,
-        device: &B::Device,
-    ) -> Param<Tensor<B, D>> {
+        device: &Device,
+    ) -> Param<Tensor<D>> {
         self.init_with(shape, None, None, device)
     }
 
@@ -97,13 +97,13 @@ impl Initializer {
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    pub fn init_with<B: Backend, const D: usize, S: Into<Shape>>(
+    pub fn init_with<const D: usize, S: Into<Shape>>(
         &self,
         shape: S,
         fan_in: Option<usize>,
         fan_out: Option<usize>,
-        device: &B::Device,
-    ) -> Param<Tensor<B, D>> {
+        device: &Device,
+    ) -> Param<Tensor<D>> {
         let device = device.clone();
         let shape: Shape = shape.into();
         let config = self.clone();
@@ -114,7 +114,7 @@ impl Initializer {
             move |device, require_grad| {
                 let config = config.clone();
                 let shape = shape.clone();
-                B::memory_persistent_allocations(device, (), move |_| {
+                device.memory_persistent_allocations((), move |_| {
                     let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
 
                     if require_grad {
@@ -130,18 +130,18 @@ impl Initializer {
         )
     }
 
-    fn init_tensor<B: Backend, const D: usize, S: Into<Shape>>(
+    fn init_tensor<const D: usize, S: Into<Shape>>(
         &self,
         shape: S,
         fan_in: Option<usize>,
         fan_out: Option<usize>,
-        device: &B::Device,
-    ) -> Tensor<B, D> {
+        device: &Device,
+    ) -> Tensor<D> {
         let shape = shape.into();
         match self {
-            Initializer::Constant { value } => Tensor::<B, D>::full(shape, *value, device),
-            Initializer::Ones => Tensor::<B, D>::ones(shape, device),
-            Initializer::Zeros => Tensor::<B, D>::zeros(shape, device),
+            Initializer::Constant { value } => Tensor::<D>::full(shape, *value, device),
+            Initializer::Ones => Tensor::<D>::ones(shape, device),
+            Initializer::Zeros => Tensor::<D>::zeros(shape, device),
             Initializer::Uniform { min, max } => uniform_draw(shape, *min, *max, device),
             Initializer::Normal { mean, std } => normal_draw(shape, *mean, *std, device),
             Initializer::KaimingUniform { gain, fan_out_only } => {
@@ -166,13 +166,13 @@ impl Initializer {
 
                 assert!(
                     D >= 2,
-                    "Expected D (in Tensor<B, D>) to be greater or equal 2; (D >= 2)"
+                    "Expected D (in Tensor<D>) to be greater or equal 2; (D >= 2)"
                 );
 
                 let rows: usize = shape.dims::<D>()[0];
                 let cols: usize = shape.num_elements() / rows;
 
-                let mut t: Tensor<B, 2> = normal_draw([rows, cols], 0.0, 1.0, device);
+                let mut t: Tensor<2> = normal_draw([rows, cols], 0.0, 1.0, device);
 
                 if rows < cols {
                     t = t.transpose();
@@ -181,8 +181,8 @@ impl Initializer {
                 let (q, r) = qr_decomposition(t, device);
                 let [r_rows, r_cols] = r.clone().dims();
 
-                let diag_r = Tensor::<B, 2>::ones([1, r_rows], device)
-                    .matmul(Tensor::<B, 2>::eye(r_cols, device).mul(r.clone()));
+                let diag_r = Tensor::<2>::ones([1, r_rows], device)
+                    .matmul(Tensor::<2>::eye(r_cols, device).mul(r.clone()));
 
                 let ph = diag_r.clone().sign();
 
@@ -224,41 +224,38 @@ impl Initializer {
     }
 }
 
-fn uniform_draw<B: Backend, const D: usize, S: Into<Shape>>(
+fn uniform_draw<const D: usize, S: Into<Shape>>(
     shape: S,
     low: f64,
     high: f64,
-    device: &B::Device,
-) -> Tensor<B, D> {
+    device: &Device,
+) -> Tensor<D> {
     let distribution = Distribution::Uniform(low, high);
-    Tensor::<B, D>::random(shape, distribution, device)
+    Tensor::<D>::random(shape, distribution, device)
 }
 
-fn normal_draw<B: Backend, const D: usize, S: Into<Shape>>(
+fn normal_draw<const D: usize, S: Into<Shape>>(
     shape: S,
     mean: f64,
     std: f64,
-    device: &B::Device,
-) -> Tensor<B, D> {
+    device: &Device,
+) -> Tensor<D> {
     let distribution = Distribution::Normal(mean, std);
-    Tensor::<B, D>::random(shape, distribution, device)
+    Tensor::<D>::random(shape, distribution, device)
 }
 
-fn qr_decomposition<B: Backend>(
-    a: Tensor<B, 2>,
-    device: &B::Device,
-) -> (Tensor<B, 2>, Tensor<B, 2>) {
+fn qr_decomposition(a: Tensor<2>, device: &Device) -> (Tensor<2>, Tensor<2>) {
     // Calculate the QR decomposition using Gram-Schmidt-process: https://en.wikipedia.org/wiki/Gram%E2%80%93Schmidt_process
 
     let [m, n] = a.clone().dims();
-    let mut q = Tensor::<B, 2>::zeros([m, n], device);
-    let mut r = Tensor::<B, 2>::zeros([n, n], device);
+    let mut q = Tensor::<2>::zeros([m, n], device);
+    let mut r = Tensor::<2>::zeros([n, n], device);
 
     for j in 0..n {
-        let mut v: Tensor<B, 1> = a.clone().slice(s![.., j..=j]).squeeze_dim(1);
+        let mut v: Tensor<1> = a.clone().slice(s![.., j..=j]).squeeze_dim(1);
 
         for i in 0..j {
-            let q_i: Tensor<B, 1> = q.clone().slice(s![.., i..=i]).squeeze_dim(1);
+            let q_i: Tensor<1> = q.clone().slice(s![.., i..=i]).squeeze_dim(1);
             let r_ij = q_i.clone().mul(v.clone()).sum();
 
             r = r
@@ -291,16 +288,17 @@ fn qr_decomposition<B: Backend>(
 
 #[cfg(test)]
 mod tests {
+    use crate::TestDevice;
+
     use super::*;
 
     use burn_tensor::{ElementConversion, TensorData};
     use num_traits::Pow;
 
-    pub type TB = burn_flex::Flex;
-    use burn_tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TB>;
+    use burn_tensor::Tolerance;
+    type FT = f32;
 
-    fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<TB, 2>) {
+    fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);
         let actual_vars = actual_vars.to_data();
         let actual_vars = actual_vars.as_slice::<FT>().unwrap();
@@ -324,12 +322,12 @@ mod tests {
 
     #[test]
     fn initializer_uniform_init() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let (min, max) = (0.0, 1.0);
         let uniform = Initializer::Uniform { min, max };
-        let tensor: Tensor<TB, 4> = uniform.init([2, 2, 2, 2], &Default::default()).into_value();
+        let tensor: Tensor<4> = uniform.init([2, 2, 2, 2], &device).into_value();
 
         tensor
             .into_data()
@@ -339,12 +337,12 @@ mod tests {
     #[test]
     fn initializer_normal_init() {
         // seed random generator
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let (mean, std) = (0.0, 1.0);
-        let normal: Tensor<TB, 1> = Initializer::Normal { mean, std }
-            .init([10000], &Default::default())
+        let normal: Tensor<1> = Initializer::Normal { mean, std }
+            .init([10000], &device)
             .into_value();
         let (var_act, mean_act) = normal.var_mean(0);
 
@@ -364,8 +362,8 @@ mod tests {
     #[test]
     fn initializer_constant_init() {
         let value = 5.0;
-        let constants: Tensor<TB, 4> = Initializer::Constant { value }
-            .init([2, 2, 2, 2], &Default::default())
+        let constants: Tensor<4> = Initializer::Constant { value }
+            .init([2, 2, 2, 2], &TestDevice::default().into())
             .into_value();
         constants.sum().to_data().assert_approx_eq::<FT>(
             &TensorData::from([value as f32 * 16.0]),
@@ -375,8 +373,8 @@ mod tests {
 
     #[test]
     fn initializer_zeros_init() {
-        let zeros: Tensor<TB, 4> = Initializer::Zeros
-            .init([2, 2, 2, 2], &Default::default())
+        let zeros: Tensor<4> = Initializer::Zeros
+            .init([2, 2, 2, 2], &TestDevice::default().into())
             .into_value();
         zeros
             .sum()
@@ -386,8 +384,8 @@ mod tests {
 
     #[test]
     fn initializer_ones_init() {
-        let ones: Tensor<TB, 4> = Initializer::Ones
-            .init([2, 2, 2, 2], &Default::default())
+        let ones: Tensor<4> = Initializer::Ones
+            .init([2, 2, 2, 2], &TestDevice::default().into())
             .into_value();
         ones.sum()
             .to_data()
@@ -396,74 +394,74 @@ mod tests {
 
     #[test]
     fn initializer_kaiming_uniform_init() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
         let k = (gain * (3.0 / fan_in as f64).sqrt()).elem::<FT>();
 
-        let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
+        let tensor: Tensor<2> = Initializer::KaimingUniform {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .init_with([fan_out, fan_in], Some(fan_in), None, &device)
         .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
     #[test]
     fn initializer_kaiming_normal_init() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (1000, 10);
         let expected_mean = 0_f64;
 
         let expected_var = (gain * (1. / (fan_in as f64)).sqrt()).pow(2.);
-        let tensor: Tensor<TB, 2> = Initializer::KaimingNormal {
+        let tensor: Tensor<2> = Initializer::KaimingNormal {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .init_with([fan_out, fan_in], Some(fan_in), None, &device)
         .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
 
     #[test]
     fn initializer_kaiming_uniform_init_bias() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2_f64;
         let shape = [3];
         let fan_in = 5;
         let k = (gain * (3.0 / fan_in as f64).sqrt()).elem::<FT>();
 
-        let tensor: Tensor<TB, 1> = Initializer::KaimingUniform {
+        let tensor: Tensor<1> = Initializer::KaimingUniform {
             gain,
             fan_out_only: false,
         }
-        .init_with(shape, Some(fan_in), None, &Default::default())
+        .init_with(shape, Some(fan_in), None, &device)
         .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
     #[test]
     fn initializer_kaiming_uniform_init_fan_out() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
         let k = (gain * (3.0 / fan_out as f64).sqrt()).elem::<FT>();
 
-        let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
+        let tensor: Tensor<2> = Initializer::KaimingUniform {
             gain,
             fan_out_only: true,
         }
-        .init_with([fan_out, fan_in], None, Some(fan_out), &Default::default())
+        .init_with([fan_out, fan_in], None, Some(fan_out), &device)
         .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
@@ -471,35 +469,30 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_kaiming_uniform_no_fan() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
 
-        let _: Tensor<TB, 2> = Initializer::KaimingUniform {
+        let _: Tensor<2> = Initializer::KaimingUniform {
             gain,
             fan_out_only: false,
         }
-        .init([fan_out, fan_in], &Default::default())
+        .init([fan_out, fan_in], &device)
         .into_value();
     }
 
     #[test]
     fn initializer_xavier_uniform_init() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
         let bound = (gain * (6. / (fan_in + fan_out) as f64).sqrt()).elem::<FT>();
-        let tensor: Tensor<TB, 2> = Initializer::XavierUniform { gain }
-            .init_with(
-                [fan_out, fan_in],
-                Some(fan_in),
-                Some(fan_out),
-                &Default::default(),
-            )
+        let tensor: Tensor<2> = Initializer::XavierUniform { gain }
+            .init_with([fan_out, fan_in], Some(fan_in), Some(fan_out), &device)
             .into_value();
 
         tensor.into_data().assert_within_range(-bound..bound);
@@ -507,21 +500,16 @@ mod tests {
 
     #[test]
     fn initializer_xavier_normal_init() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (1000, 10);
         let expected_mean = 0_f64;
 
         let expected_var = (gain * (2. / (fan_in as f64 + fan_out as f64)).sqrt()).powf(2.);
-        let tensor: Tensor<TB, 2> = Initializer::XavierNormal { gain }
-            .init_with(
-                [fan_out, fan_in],
-                Some(fan_in),
-                Some(fan_out),
-                &Default::default(),
-            )
+        let tensor: Tensor<2> = Initializer::XavierNormal { gain }
+            .init_with([fan_out, fan_in], Some(fan_in), Some(fan_out), &device)
             .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
@@ -529,27 +517,27 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_xavier_uniform_no_fan() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
-        let _: Tensor<TB, 2> = Initializer::XavierUniform { gain }
-            .init([fan_out, fan_in], &Default::default())
+        let _: Tensor<2> = Initializer::XavierUniform { gain }
+            .init([fan_out, fan_in], &device)
             .into_value();
     }
 
     #[test]
     fn test_qr_decomposition() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         // test values follow the example from https://pytorch.org/docs/stable/generated/torch.linalg.qr.html#torch.linalg.qr
-        let a = Tensor::<TB, 2>::from_floats(
+        let a = Tensor::<2>::from_floats(
             [[12., -51., 4.], [6., 167., -68.], [-4., 24., -41.]],
-            &Default::default(),
+            &device,
         );
-        let qr = qr_decomposition(a.clone(), &Default::default());
+        let qr = qr_decomposition(a.clone(), &device);
 
         // Q @ R should reconstruct input `a`
         let q_matmul_r = qr.0.clone().matmul(qr.1.clone());
@@ -562,17 +550,17 @@ mod tests {
 
     #[test]
     fn initializer_orthogonal_correct() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 1.;
 
         // test 2D tensor
         let size = 10;
-        let q: Tensor<TB, 2> = Initializer::Orthogonal { gain }
-            .init([size, size], &Default::default())
+        let q: Tensor<2> = Initializer::Orthogonal { gain }
+            .init([size, size], &device)
             .into_value();
-        let eye = Tensor::<TB, 2>::eye(size, &Default::default());
+        let eye = Tensor::<2>::eye(size, &device);
 
         // Q.T @ Q should be close to identity matrix
         q.clone()
@@ -584,15 +572,15 @@ mod tests {
 
     #[test]
     fn initializer_orthogonal_init() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 1.;
 
         // test 2D tensor
         let shape = [25, 30];
-        let t: Tensor<TB, 2> = Initializer::Orthogonal { gain }
-            .init(shape, &Default::default())
+        let t: Tensor<2> = Initializer::Orthogonal { gain }
+            .init(shape, &device)
             .into_value();
         let dims = t.dims();
         assert_eq!(
@@ -602,8 +590,8 @@ mod tests {
 
         // test 3D tensor
         let shape = [24, 6, 85];
-        let t: Tensor<TB, 3> = Initializer::Orthogonal { gain }
-            .init(shape, &Default::default())
+        let t: Tensor<3> = Initializer::Orthogonal { gain }
+            .init(shape, &device)
             .into_value();
         let dims = t.dims();
         assert_eq!(
@@ -615,15 +603,15 @@ mod tests {
     #[test]
     #[should_panic]
     fn initializer_orthogonal_init_1d() {
-        let device = Default::default();
-        TB::seed(&device, 0);
+        let device = Device::new(TestDevice::default());
+        device.seed(0);
 
         let gain = 1.;
 
         // test 1D tensor
         let shape = [3];
-        let _: Tensor<TB, 1> = Initializer::Orthogonal { gain }
-            .init(shape, &Default::default())
+        let _: Tensor<1> = Initializer::Orthogonal { gain }
+            .init(shape, &device)
             .into_value();
     }
 }

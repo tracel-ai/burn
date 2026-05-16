@@ -2,27 +2,24 @@ use burn_core as burn;
 
 use crate::{ModuleStore, SafetensorsStore};
 use burn_core::module::{Module, Param};
-use burn_tensor::backend::Backend;
-use burn_tensor::{Tensor, shape};
-
-type TestBackend = burn_flex::Flex;
+use burn_core::tensor::{Device, Tensor, shape};
 
 // Test module for direct access tests
 #[derive(Module, Debug)]
-struct DirectAccessTestModule<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    bias: Param<Tensor<B, 1>>,
-    nested: DirectAccessNestedModule<B>,
+struct DirectAccessTestModule {
+    weight: Param<Tensor<2>>,
+    bias: Param<Tensor<1>>,
+    nested: DirectAccessNestedModule,
 }
 
 #[derive(Module, Debug)]
-struct DirectAccessNestedModule<B: Backend> {
-    gamma: Param<Tensor<B, 1>>,
-    beta: Param<Tensor<B, 1>>,
+struct DirectAccessNestedModule {
+    gamma: Param<Tensor<1>>,
+    beta: Param<Tensor<1>>,
 }
 
-impl<B: Backend> DirectAccessTestModule<B> {
-    fn new(device: &B::Device) -> Self {
+impl DirectAccessTestModule {
+    fn new(device: &Device) -> Self {
         Self {
             weight: Param::from_data([[1.0, 2.0], [3.0, 4.0]], device),
             bias: Param::from_data([0.1, 0.2], device),
@@ -37,7 +34,7 @@ impl<B: Backend> DirectAccessTestModule<B> {
 #[test]
 fn test_memory_get_all_snapshots() {
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     // Save module to memory
     let mut save_store = SafetensorsStore::from_bytes(None);
@@ -60,7 +57,7 @@ fn test_memory_get_all_snapshots() {
 #[test]
 fn test_memory_get_snapshot_existing() {
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let mut save_store = SafetensorsStore::from_bytes(None);
     save_store.collect_from(&module).unwrap();
@@ -84,7 +81,7 @@ fn test_memory_get_snapshot_existing() {
 #[test]
 fn test_memory_get_snapshot_nested() {
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let mut save_store = SafetensorsStore::from_bytes(None);
     save_store.collect_from(&module).unwrap();
@@ -105,7 +102,7 @@ fn test_memory_get_snapshot_nested() {
 #[test]
 fn test_memory_get_snapshot_not_found() {
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let mut save_store = SafetensorsStore::from_bytes(None);
     save_store.collect_from(&module).unwrap();
@@ -121,7 +118,7 @@ fn test_memory_get_snapshot_not_found() {
 #[test]
 fn test_memory_keys() {
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let mut save_store = SafetensorsStore::from_bytes(None);
     save_store.collect_from(&module).unwrap();
@@ -140,7 +137,7 @@ fn test_memory_keys() {
 #[test]
 fn test_memory_caching_behavior() {
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let mut save_store = SafetensorsStore::from_bytes(None);
     save_store.collect_from(&module).unwrap();
@@ -170,7 +167,7 @@ fn test_file_get_all_snapshots() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("test_get_all_snapshots.safetensors");
@@ -194,7 +191,7 @@ fn test_file_get_snapshot_existing() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("test_get_snapshot.safetensors");
@@ -221,7 +218,7 @@ fn test_file_get_snapshot_not_found() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("test_not_found.safetensors");
@@ -241,7 +238,7 @@ fn test_file_keys() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("test_keys.safetensors");
@@ -265,7 +262,7 @@ fn test_file_keys_fast_path() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("test_keys_fast.safetensors");
@@ -295,7 +292,7 @@ fn test_file_caching_behavior() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("test_caching.safetensors");
@@ -320,7 +317,7 @@ fn test_file_cache_invalidation_on_save() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = DirectAccessTestModule::<TestBackend>::new(&device);
+    let module = DirectAccessTestModule::new(&device);
 
     let temp_dir = tempdir().unwrap();
     let path = temp_dir.path().join("test_invalidation.safetensors");

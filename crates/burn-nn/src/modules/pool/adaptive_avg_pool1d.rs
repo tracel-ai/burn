@@ -4,7 +4,6 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 use burn::tensor::module::adaptive_avg_pool1d;
 
@@ -18,7 +17,7 @@ pub struct AdaptiveAvgPool1dConfig {
 /// Applies a 1D adaptive avg pooling over input tensors.
 ///
 /// Should be created with [AdaptiveAvgPool1dConfig].
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct AdaptiveAvgPool1d {
     /// The size of the output.
@@ -55,7 +54,7 @@ impl AdaptiveAvgPool1d {
     ///
     /// - input: `[batch_size, channels, length]`
     /// - output: `[batch_size, channels, length_out]`
-    pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         adaptive_avg_pool1d(input, self.output_size)
     }
 }

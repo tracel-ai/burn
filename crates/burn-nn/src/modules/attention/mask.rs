@@ -2,29 +2,28 @@ use burn_core as burn;
 use burn_core::config::Config;
 
 use alloc::vec::Vec;
-use burn::tensor::ops::IntElem;
 
-use burn::tensor::{Bool, ElementConversion, Int, Shape, Tensor, TensorData, backend::Backend};
+use burn::tensor::{Bool, Device, Int, Shape, Tensor, TensorData};
 
 /// Generate an autoregressive attention mask.
 ///
 /// The mask can be used in Transformer modules to train models to generate tensors sequentially.
-pub fn generate_autoregressive_mask<B: Backend>(
+pub fn generate_autoregressive_mask(
     batch_size: usize,
     seq_length: usize,
-    device: &B::Device,
-) -> Tensor<B, 3, Bool> {
-    let mask = Tensor::<B, 2, Bool>::tril_mask([seq_length, seq_length], 0, device);
+    device: &Device,
+) -> Tensor<3, Bool> {
+    let mask = Tensor::<2, Bool>::tril_mask([seq_length, seq_length], 0, device);
     mask.expand([batch_size, seq_length, seq_length])
 }
 
 /// Generate a padding attention mask.
-pub struct GeneratePaddingMask<B: Backend> {
+pub struct GeneratePaddingMask {
     /// The generated tensor.
-    pub tensor: Tensor<B, 2, Int>,
+    pub tensor: Tensor<2, Int>,
 
     /// The generated mask.
-    pub mask: Tensor<B, 2, Bool>,
+    pub mask: Tensor<2, Bool>,
 }
 
 /// Defines an enumeration to specify sequence length options for padding
@@ -59,12 +58,12 @@ impl From<Option<usize>> for SeqLengthOption {
 /// # Returns
 ///
 /// A `GeneratePaddingMask` containing the padded tensor and corresponding mask
-pub fn generate_padding_mask<B: Backend>(
+pub fn generate_padding_mask(
     pad_token: usize,
     tokens_list: Vec<Vec<usize>>,
     seq_length: impl Into<SeqLengthOption>,
-    device: &B::Device,
-) -> GeneratePaddingMask<B> {
+    device: &Device,
+) -> GeneratePaddingMask {
     let tokens_max = || {
         tokens_list
             .iter()
@@ -89,11 +88,7 @@ pub fn generate_padding_mask<B: Backend>(
             [index..index + 1, 0..seq_length],
             Tensor::from_data(
                 TensorData::new(
-                    tokens
-                        .into_iter()
-                        .take(size)
-                        .map(|e| (e as i64).elem::<IntElem<B>>())
-                        .collect(),
+                    tokens.into_iter().take(size).map(|e| e as i64).collect(),
                     Shape::new([1, seq_length]),
                 ),
                 device,
@@ -109,7 +104,6 @@ pub fn generate_padding_mask<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use alloc::vec;
     use burn::tensor::TensorData;
 
@@ -117,7 +111,7 @@ mod tests {
     fn test_generate_autoregressive_mask() {
         let device = Default::default();
 
-        let mask = generate_autoregressive_mask::<TestBackend>(2, 3, &device);
+        let mask = generate_autoregressive_mask(2, 3, &device);
 
         mask.into_data().assert_eq(
             &TensorData::from([
@@ -146,7 +140,7 @@ mod tests {
             vec![3, 3, 3, 4, 10, 15],
         ];
 
-        let mask = generate_padding_mask::<TestBackend>(0, tokens, None, &device);
+        let mask = generate_padding_mask(0, tokens, None, &device);
 
         mask.mask.into_data().assert_eq(
             &TensorData::from([

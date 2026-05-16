@@ -22,22 +22,22 @@ use burn::{
 // │       maxpool      │
 // └────────────────────┘
 #[derive(Module, Debug)]
-pub struct Cnn<B: Backend> {
+pub struct Cnn {
     activation: Relu,
     dropout: Dropout,
     pool: MaxPool2d,
-    conv1: Conv2d<B>,
-    conv2: Conv2d<B>,
-    conv3: Conv2d<B>,
-    conv4: Conv2d<B>,
-    conv5: Conv2d<B>,
-    conv6: Conv2d<B>,
-    fc1: Linear<B>,
-    fc2: Linear<B>,
+    conv1: Conv2d,
+    conv2: Conv2d,
+    conv3: Conv2d,
+    conv4: Conv2d,
+    conv5: Conv2d,
+    conv6: Conv2d,
+    fc1: Linear,
+    fc2: Linear,
 }
 
-impl<B: Backend> Cnn<B> {
-    pub fn new(num_classes: usize, device: &Device<B>) -> Self {
+impl Cnn {
+    pub fn new(num_classes: usize, device: &Device) -> Self {
         let conv1 = Conv2dConfig::new([3, 32], [3, 3])
             .with_padding(PaddingConfig2d::Same)
             .init(device);
@@ -81,7 +81,7 @@ impl<B: Backend> Cnn<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.conv1.forward(x);
         let x = self.activation.forward(x);
         let x = self.conv2.forward(x);

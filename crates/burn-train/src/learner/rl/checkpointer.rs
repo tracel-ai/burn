@@ -12,8 +12,8 @@ use crate::{
 #[derive(new)]
 /// Used to create, delete, or load checkpoints of the training process.
 pub struct RLCheckpointer<RLC: RLComponentsTypes> {
-    policy: AsyncCheckpointer<RLPolicyRecord<RLC>, RLC::Backend>,
-    learning_agent: AsyncCheckpointer<RLAgentRecord<RLC>, RLC::Backend>,
+    policy: AsyncCheckpointer<RLPolicyRecord<RLC>>,
+    learning_agent: AsyncCheckpointer<RLAgentRecord<RLC>>,
     strategy: Box<dyn CheckpointingStrategy>,
 }
 
@@ -54,7 +54,7 @@ impl<RLC: RLComponentsTypes> RLCheckpointer<RLC> {
     pub fn load_checkpoint(
         &self,
         learning_agent: RLC::LearningAgent,
-        device: &Device<RLC::Backend>,
+        device: &Device,
         epoch: usize,
     ) -> RLC::LearningAgent {
         let record = self

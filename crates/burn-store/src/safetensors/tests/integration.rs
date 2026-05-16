@@ -2,53 +2,50 @@ use burn_core as burn;
 
 use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::{Module, Param};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
-
-type TestBackend = burn_flex::Flex;
+use burn_core::tensor::{Device, Tensor};
 
 // Integration tests demonstrating the SafeTensors store API
 #[derive(Module, Debug)]
-struct IntegrationTestModel<B: Backend> {
-    encoder: IntegrationEncoderModule<B>,
-    decoder: IntegrationDecoderModule<B>,
-    head: IntegrationHeadModule<B>,
+struct IntegrationTestModel {
+    encoder: IntegrationEncoderModule,
+    decoder: IntegrationDecoderModule,
+    head: IntegrationHeadModule,
 }
 
 #[derive(Module, Debug)]
-struct IntegrationEncoderModule<B: Backend> {
-    layer1: IntegrationLinearLayer<B>,
-    layer2: IntegrationLinearLayer<B>,
-    norm: IntegrationNormLayer<B>,
+struct IntegrationEncoderModule {
+    layer1: IntegrationLinearLayer,
+    layer2: IntegrationLinearLayer,
+    norm: IntegrationNormLayer,
 }
 
 #[derive(Module, Debug)]
-struct IntegrationDecoderModule<B: Backend> {
-    layer1: IntegrationLinearLayer<B>,
-    layer2: IntegrationLinearLayer<B>,
-    norm: IntegrationNormLayer<B>,
+struct IntegrationDecoderModule {
+    layer1: IntegrationLinearLayer,
+    layer2: IntegrationLinearLayer,
+    norm: IntegrationNormLayer,
 }
 
 #[derive(Module, Debug)]
-struct IntegrationHeadModule<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    bias: Param<Tensor<B, 1>>,
+struct IntegrationHeadModule {
+    weight: Param<Tensor<2>>,
+    bias: Param<Tensor<1>>,
 }
 
 #[derive(Module, Debug)]
-struct IntegrationLinearLayer<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    bias: Param<Tensor<B, 1>>,
+struct IntegrationLinearLayer {
+    weight: Param<Tensor<2>>,
+    bias: Param<Tensor<1>>,
 }
 
 #[derive(Module, Debug)]
-struct IntegrationNormLayer<B: Backend> {
-    scale: Param<Tensor<B, 1>>,
-    shift: Param<Tensor<B, 1>>,
+struct IntegrationNormLayer {
+    scale: Param<Tensor<1>>,
+    shift: Param<Tensor<1>>,
 }
 
-impl<B: Backend> IntegrationTestModel<B> {
-    fn new(device: &B::Device) -> Self {
+impl IntegrationTestModel {
+    fn new(device: &Device) -> Self {
         Self {
             encoder: IntegrationEncoderModule::new(device),
             decoder: IntegrationDecoderModule::new(device),
@@ -57,8 +54,8 @@ impl<B: Backend> IntegrationTestModel<B> {
     }
 }
 
-impl<B: Backend> IntegrationEncoderModule<B> {
-    fn new(device: &B::Device) -> Self {
+impl IntegrationEncoderModule {
+    fn new(device: &Device) -> Self {
         Self {
             layer1: IntegrationLinearLayer::new(device, 1),
             layer2: IntegrationLinearLayer::new(device, 2),
@@ -67,8 +64,8 @@ impl<B: Backend> IntegrationEncoderModule<B> {
     }
 }
 
-impl<B: Backend> IntegrationDecoderModule<B> {
-    fn new(device: &B::Device) -> Self {
+impl IntegrationDecoderModule {
+    fn new(device: &Device) -> Self {
         Self {
             layer1: IntegrationLinearLayer::new(device, 3),
             layer2: IntegrationLinearLayer::new(device, 4),
@@ -77,8 +74,8 @@ impl<B: Backend> IntegrationDecoderModule<B> {
     }
 }
 
-impl<B: Backend> IntegrationHeadModule<B> {
-    fn new(device: &B::Device) -> Self {
+impl IntegrationHeadModule {
+    fn new(device: &Device) -> Self {
         Self {
             weight: Param::from_data([[5.0, 6.0], [7.0, 8.0]], device),
             bias: Param::from_data([9.0, 10.0], device),
@@ -86,8 +83,8 @@ impl<B: Backend> IntegrationHeadModule<B> {
     }
 }
 
-impl<B: Backend> IntegrationLinearLayer<B> {
-    fn new(device: &B::Device, seed: i32) -> Self {
+impl IntegrationLinearLayer {
+    fn new(device: &Device, seed: i32) -> Self {
         let weight_data = [
             [seed as f32, (seed + 1) as f32],
             [(seed + 2) as f32, (seed + 3) as f32],
@@ -101,8 +98,8 @@ impl<B: Backend> IntegrationLinearLayer<B> {
     }
 }
 
-impl<B: Backend> IntegrationNormLayer<B> {
-    fn new(device: &B::Device) -> Self {
+impl IntegrationNormLayer {
+    fn new(device: &Device) -> Self {
         Self {
             scale: Param::from_data([1.0, 2.0], device),
             shift: Param::from_data([0.1, 0.2], device),
@@ -113,7 +110,7 @@ impl<B: Backend> IntegrationNormLayer<B> {
 #[test]
 fn basic_usage() {
     let device = Default::default();
-    let model = IntegrationTestModel::<TestBackend>::new(&device);
+    let model = IntegrationTestModel::new(&device);
 
     // Save using new API (format, producer and version are automatically added)
     let mut save_store = SafetensorsStore::from_bytes(None).metadata("model_name", "test_model");
@@ -129,7 +126,7 @@ fn basic_usage() {
         p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
-    let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);
+    let mut target_model = IntegrationTestModel::new(&device);
     let result = target_model.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
@@ -142,7 +139,7 @@ fn basic_usage() {
 #[cfg(target_has_atomic = "ptr")]
 fn with_filtering() {
     let device = Default::default();
-    let model = IntegrationTestModel::<TestBackend>::new(&device);
+    let model = IntegrationTestModel::new(&device);
 
     // Save only encoder tensors using the builder pattern
     let mut save_store = SafetensorsStore::from_bytes(None)
@@ -159,7 +156,7 @@ fn with_filtering() {
         p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
-    let mut target_model = IntegrationTestModel::<TestBackend>::new(&device);
+    let mut target_model = IntegrationTestModel::new(&device);
     let result = target_model.load_from(&mut load_store).unwrap();
 
     // Only encoder tensors should be applied

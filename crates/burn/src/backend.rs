@@ -13,10 +13,10 @@ pub use ndarray::NdArray;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
-#[cfg(feature = "remote")]
-pub use burn_remote as remote;
-#[cfg(feature = "remote")]
-pub use burn_remote::RemoteBackend;
+// #[cfg(feature = "remote")]
+// pub use burn_remote as remote;
+// #[cfg(feature = "remote")]
+// pub use burn_remote::RemoteBackend;
 
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;
@@ -60,19 +60,13 @@ pub use burn_tch as libtorch;
 #[cfg(feature = "tch")]
 pub use burn_tch::LibTorch;
 
-#[cfg(feature = "router")]
-pub use burn_router::Router;
-
-#[cfg(feature = "router")]
-pub use burn_router as router;
+// #[cfg(feature = "router")]
+// pub use burn_router::Router;
+// #[cfg(feature = "router")]
+// pub use burn_router as router;
 
 #[cfg(feature = "ir")]
 pub use burn_ir as ir;
-
-#[cfg(feature = "collective")]
-pub use burn_collective as collective;
-#[cfg(feature = "cpu")]
-pub use burn_cpu as cpu;
 
 #[cfg(feature = "cpu")]
 pub use burn_cpu::Cpu;

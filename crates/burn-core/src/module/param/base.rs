@@ -5,7 +5,7 @@ use alloc::format;
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::boxed::Box;
 use burn_std::stub::RwLock;
-use burn_tensor::Shape;
+use burn_tensor::{Device, Shape};
 use core::ops::Deref;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -34,20 +34,20 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 /// On targets without atomics, `portable_atomic_util::Arc` needs `Box` indirection
 /// for unsized types, mirroring the `Mapper` pattern above.
 #[cfg(target_has_atomic = "ptr")]
-type InitFn<P> = Arc<dyn Fn(&<P as Parameter>::Device, bool) -> P + Send + Sync>;
+type InitFn<P> = Arc<dyn Fn(&Device, bool) -> P + Send + Sync>;
 
 #[cfg(not(target_has_atomic = "ptr"))]
-type InitFn<P> = Arc<Box<dyn Fn(&<P as Parameter>::Device, bool) -> P + Send + Sync>>;
+type InitFn<P> = Arc<Box<dyn Fn(&Device, bool) -> P + Send + Sync>>;
 
 #[cfg(target_has_atomic = "ptr")]
-fn new_init_fn<P: Parameter, F: Fn(&P::Device, bool) -> P + Send + Sync + 'static>(
+fn new_init_fn<P: Parameter, F: Fn(&Device, bool) -> P + Send + Sync + 'static>(
     func: F,
 ) -> InitFn<P> {
     Arc::new(func)
 }
 
 #[cfg(not(target_has_atomic = "ptr"))]
-fn new_init_fn<P: Parameter, F: Fn(&P::Device, bool) -> P + Send + Sync + 'static>(
+fn new_init_fn<P: Parameter, F: Fn(&Device, bool) -> P + Send + Sync + 'static>(
     func: F,
 ) -> InitFn<P> {
     Arc::new(Box::new(func))
@@ -154,11 +154,8 @@ impl<T: Parameter> core::fmt::Debug for Param<T> {
 
 /// Trait that defines what is necessary for a type to be a parameter.
 pub trait Parameter: Clone + core::fmt::Debug + Send {
-    /// The device type to be used.
-    type Device: Clone;
-
     /// Fetch the device.
-    fn device(&self) -> Self::Device;
+    fn device(&self) -> Device;
 
     /// Fetch the gradient requirement.
     fn is_require_grad(&self) -> bool;
@@ -177,7 +174,7 @@ pub(crate) struct Uninitialized<P: Parameter> {
     init: InitFn<P>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
-    pub(crate) device: P::Device,
+    pub(crate) device: Device,
     /// The gradient requirement for the parameter.
     /// Used by `lazy_is_require_grad()` to provide gradient settings without triggering initialization.
     pub(crate) is_require_grad: bool,
@@ -228,12 +225,12 @@ impl<T: Parameter> Param<T> {
     pub fn uninitialized<F>(
         id: ParamId,
         init: F,
-        device: T::Device,
+        device: Device,
         is_require_grad: bool,
         shape: Shape,
     ) -> Self
     where
-        F: Fn(&T::Device, bool) -> T + Send + Sync + 'static,
+        F: Fn(&Device, bool) -> T + Send + Sync + 'static,
     {
         Self {
             id,
@@ -372,7 +369,7 @@ impl<T: Parameter> Param<T> {
     ///
     /// Use this instead of [crate::tensor::Tensor::device] when you need the device but want to
     /// preserve lazy initialization.
-    pub fn lazy_device(&self) -> T::Device {
+    pub fn lazy_device(&self) -> Device {
         let initialization = match &self.initialization {
             Some(init) => init,
             None => return self.device(),
@@ -484,7 +481,7 @@ impl<T: Parameter> Deref for Param<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, backend::Backend};
+    use burn_tensor::Tensor;
 
     // Param<T> should be Sync so that models can be shared across threads
     // (e.g. parallel inference with rayon).
@@ -492,10 +489,10 @@ mod tests {
 
     #[test]
     fn param_is_sync() {
-        fn check<B: Backend>() {
-            _assert_sync::<Param<Tensor<B, 2>>>();
+        fn check() {
+            _assert_sync::<Param<Tensor<2>>>();
         }
-        check::<burn_flex::Flex>();
+        check();
     }
 
     /// Concurrent lazy initialization must not panic.
@@ -508,10 +505,9 @@ mod tests {
     fn param_concurrent_lazy_init() {
         use alloc::vec::Vec;
 
-        type B = burn_flex::Flex;
         let device = Default::default();
 
-        let param: Param<Tensor<B, 2>> = Param::uninitialized(
+        let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
             |device, _require_grad| Tensor::zeros([2, 3], device),
             device,

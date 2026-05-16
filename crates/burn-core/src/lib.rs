@@ -31,58 +31,28 @@ pub use tensor::Tensor;
 
 extern crate alloc;
 
-/// Backend for test cases
-#[cfg(all(
-    test,
-    not(feature = "test-tch"),
-    not(feature = "test-wgpu"),
-    not(feature = "test-cuda"),
-    not(feature = "test-rocm")
-))]
-pub type TestBackend = burn_flex::Flex;
-
-#[cfg(all(test, feature = "test-tch"))]
-/// Backend for test cases
-pub type TestBackend = burn_tch::LibTorch<f32>;
-
-#[cfg(all(test, feature = "test-wgpu"))]
-/// Backend for test cases
-pub type TestBackend = burn_wgpu::Wgpu;
-
-#[cfg(all(test, feature = "test-cuda"))]
-/// Backend for test cases
-pub type TestBackend = burn_cuda::Cuda;
-
-#[cfg(all(test, feature = "test-rocm"))]
-/// Backend for test cases
-pub type TestBackend = burn_rocm::Rocm;
-
-/// Backend for autodiff test cases
+// TODO: configurable device priority
 #[cfg(test)]
-pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
-
-#[cfg(all(test, feature = "test-memory-checks"))]
-mod tests {
-    burn_fusion::memory_checks!();
-}
+#[allow(missing_docs)]
+pub type TestDevice = burn_tensor::NdArrayDevice;
 
 #[cfg(test)]
 mod test_utils {
     use crate as burn;
     use crate::module::Module;
     use crate::module::Param;
+    use burn_tensor::Device;
     use burn_tensor::Tensor;
-    use burn_tensor::backend::Backend;
 
     /// Simple linear module.
     #[derive(Module, Debug)]
-    pub struct SimpleLinear<B: Backend> {
-        pub weight: Param<Tensor<B, 2>>,
-        pub bias: Option<Param<Tensor<B, 1>>>,
+    pub struct SimpleLinear {
+        pub weight: Param<Tensor<2>>,
+        pub bias: Option<Param<Tensor<1>>>,
     }
 
-    impl<B: Backend> SimpleLinear<B> {
-        pub fn new(in_features: usize, out_features: usize, device: &B::Device) -> Self {
+    impl SimpleLinear {
+        pub fn new(in_features: usize, out_features: usize, device: &Device) -> Self {
             let weight = Tensor::random(
                 [out_features, in_features],
                 burn_tensor::Distribution::Default,
@@ -107,7 +77,7 @@ pub mod prelude {
         module::Module,
         tensor::{
             Bool, Device, ElementConversion, Float, Int, Shape, SliceArg, Tensor, TensorData,
-            backend::Backend, cast::ToElement, s,
+            cast::ToElement, s,
         },
     };
     pub use burn_std::device::Device as DeviceOps;

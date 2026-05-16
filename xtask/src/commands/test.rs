@@ -46,12 +46,22 @@ enum TestBackend {
     #[strum(to_string = "ndarray")]
     Ndarray,
 }
+
+fn set_burn_device(device: &str) {
+    // SAFETY: This is called in a single-threaded context within the xtask before spawning child processes.
+    unsafe {
+        std::env::set_var("BURN_DEVICE", device);
+    }
+}
+
 fn handle_backend_tests(
     mut args: TestCmdArgs,
     backend: TestBackend,
     env: Environment,
     context: Context,
 ) -> anyhow::Result<()> {
+    set_burn_device(&backend.to_string()); // default device
+
     args.target = Target::AllPackages;
     args.only.push("burn-backend-tests".to_string());
     args.no_default_features = true;
@@ -166,6 +176,8 @@ pub(crate) fn handle_command(
                         "dqn-agent".to_string(),
                         // Requires wgpu runtime
                         "burn-cubecl-fusion".to_string(),
+                        // Backend tests are explicitly handled
+                        "burn-backend-tests".to_string(),
                     ]);
 
                     // Burn remote tests don't work on windows for now
@@ -174,6 +186,7 @@ pub(crate) fn handle_command(
                         args.exclude.extend(vec!["burn-remote".to_string()]);
                     };
 
+                    set_burn_device("flex"); // default device for base tests
                     base_commands::test::handle_command(
                         args.clone().try_into().unwrap(),
                         env.clone(),
@@ -231,8 +244,7 @@ pub(crate) fn handle_command(
                     )?;
 
                     args.target = Target::AllPackages;
-                    let mut args_vulkan: TestCmdArgs = args.clone().try_into().unwrap();
-                    args_vulkan.features = Some(vec!["test-vulkan".into()]);
+                    let args_vulkan = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-core", &args_vulkan)?;
                     handle_wgpu_test("burn-optim", &args_vulkan)?;
                     handle_wgpu_test("burn-nn", &args_vulkan)?;
@@ -247,12 +259,11 @@ pub(crate) fn handle_command(
                     )?;
                     // "burn-router" uses "burn-wgpu" for the tests.
                     args.target = Target::AllPackages;
-                    let mut args_wgpu = args.clone().try_into().unwrap();
+                    let args_wgpu = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_wgpu)?;
                     handle_wgpu_test("burn-router", &args_wgpu)?;
                     handle_wgpu_test("burn-cubecl-fusion", &args_wgpu)?;
 
-                    args_wgpu.features = Some(vec!["test-wgpu".into()]);
                     handle_wgpu_test("burn-core", &args_wgpu)?;
                     handle_wgpu_test("burn-optim", &args_wgpu)?;
                     handle_wgpu_test("burn-nn", &args_wgpu)?;
@@ -274,15 +285,16 @@ pub(crate) fn handle_command(
                     )?;
 
                     // burn-core
+                    set_burn_device("tch"); // test-tch
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
                         handle_test_args(
-                            &["--features", "test-tch,record-item-custom-serde"],
+                            &["--features", "tch,record-item-custom-serde"],
                             args.release,
                         ),
                         None,
                         None,
-                        "std with features: test-tch,record-item-custom-serde",
+                        "std with features: tch,record-item-custom-serde",
                     )?;
 
                     // burn-nn (pretrained and local tests)
@@ -291,12 +303,13 @@ pub(crate) fn handle_command(
                     //     nn_features.push_str(",test-local");
                     // }
                     // burn-vision
+                    set_burn_device("flex");
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        handle_test_args(&["--features", "test-cpu", "loss"], args.release),
+                        handle_test_args(&["--features", "flex", "loss"], args.release),
                         None,
                         None,
-                        "std cpu",
+                        "std cpu (flex)",
                     )?;
 
                     // burn-train vision (LPIPS, DISTS metrics)
@@ -320,24 +333,17 @@ pub(crate) fn handle_command(
                         "std blas-accelerate",
                     )?;
 
-                    // burn-train vision (LPIPS, DISTS metrics)
-                    helpers::custom_crates_tests(
-                        vec!["burn-train"],
-                        handle_test_args(&["--features", "vision"], args.release),
-                        None,
-                        None,
-                        "std vision",
-                    )?;
+                    set_burn_device("metal");
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        handle_test_args(&["--features", "test-metal"], args.release),
+                        handle_test_args(&["--features", "metal"], args.release),
                         None,
                         None,
                         "std metal",
                     )?;
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        handle_test_args(&["--features", "test-metal"], args.release),
+                        handle_test_args(&["--features", "metal"], args.release),
                         None,
                         None,
                         "std metal",

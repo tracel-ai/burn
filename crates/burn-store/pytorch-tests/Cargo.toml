@@ -5,9 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dev-dependencies]
-burn = { workspace = true, features = ["default"] }
-burn-flex = { workspace = true, features = ["default"] }
-burn-autodiff = { workspace = true, features = ["default"] }
+burn = { workspace = true, features = ["default", "flex"] }
 burn-store = { workspace = true, features = ["default", "std", "pytorch"] }
 serde = { workspace = true }
 float-cmp = { workspace = true }

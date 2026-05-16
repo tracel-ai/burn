@@ -1,7 +1,7 @@
-use crate::NmsOptions;
+use crate::{NmsOptions, dispatch_int_dtype};
 use aligned_vec::{AVec, ConstAlign};
 use alloc::vec::Vec;
-use burn_tensor::{Int, Shape, Tensor, TensorData, backend::Backend};
+use burn_core::tensor::{Element, ElementConversion, IntDType, Shape, TensorData};
 use macerator::{Scalar, Simd, Vector, vload};
 
 /// Perform NMS on CPU using SIMD acceleration.
@@ -10,32 +10,31 @@ use macerator::{Scalar, Simd, Vector, vload};
 /// 1. Sorts boxes by score (descending)
 /// 2. Iteratively selects the highest-scoring non-suppressed box
 /// 3. Suppresses all boxes with IoU > threshold using SIMD
-pub fn nms<B: Backend>(
-    boxes: Tensor<B, 2>,
-    scores: Tensor<B, 1>,
+pub fn nms(
+    boxes: TensorData,
+    scores: TensorData,
     options: NmsOptions,
-) -> Tensor<B, 1, Int> {
-    let device = boxes.device();
-    let [n_boxes, _] = boxes.shape().dims();
+    out_dtype: IntDType,
+) -> Option<TensorData> {
+    let [n_boxes, _] = boxes.shape.dims();
     if n_boxes == 0 {
-        return Tensor::<B, 1, Int>::empty([0], &device);
+        return None;
     }
 
     // Get raw data
-    let boxes_data = boxes.to_data();
-    let boxes_vec: Vec<f32> = boxes_data.to_vec().unwrap();
+    let boxes_vec: Vec<f32> = boxes.convert::<f32>().to_vec().unwrap();
+    let scores_vec: Vec<f32> = scores.convert::<f32>().to_vec().unwrap();
 
-    let scores_data = scores.to_data();
-    let scores_vec: Vec<f32> = scores_data.to_vec().unwrap();
-
-    let keep = nms_vec(boxes_vec, scores_vec, options);
-    let n_kept = keep.len();
-    let indices_data = TensorData::new(keep, Shape::new([n_kept]));
-    Tensor::<B, 1, Int>::from_data(indices_data, &device)
+    let indices_data = dispatch_int_dtype!(out_dtype, |I| {
+        let keep = nms_vec::<I>(boxes_vec, scores_vec, options);
+        let n_kept = keep.len();
+        TensorData::new(keep, Shape::new([n_kept]))
+    });
+    Some(indices_data)
 }
 
 /// Perform NMS on CPU using SIMD acceleration.
-fn nms_vec(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Vec<i32> {
+fn nms_vec<I: Element>(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Vec<I> {
     let n_boxes = scores_vec.len();
 
     if n_boxes == 0 {
@@ -93,7 +92,7 @@ fn nms_vec(boxes_vec: Vec<f32>, scores_vec: Vec<f32>, options: NmsOptions) -> Ve
 
         // Optimization to reduce inner loop comparisons
         suppressed[i] = true;
-        keep.push(filtered_indices[i] as i32); // original index
+        keep.push((filtered_indices[i] as i64).elem()); // original index
 
         if options.max_output_boxes > 0 && keep.len() >= options.max_output_boxes {
             break;

@@ -3,7 +3,6 @@ use burn_core as burn;
 use super::Reduction;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::{config::Config, module::Module};
 
 /// Configuration to create a [KLDiv loss](KLDivLoss).
@@ -36,7 +35,7 @@ impl KLDivLossConfig {
 ///
 /// See
 /// - [Kullback–Leibler divergence](https://en.wikipedia.org/wiki/Kullback-Leibler_divergence)
-#[derive(Module, Debug, Clone)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct KLDivLoss {
     /// Specifies whether target is the log space. Default: False.
@@ -65,12 +64,12 @@ impl KLDivLoss {
     /// - predictions: \[batch_size,num_targets\]
     /// - targets: \[batch_size,num_targets\]
     /// - output: \[1\]
-    pub fn forward<const D: usize, B: Backend>(
+    pub fn forward<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let loss = self.forward_no_reduction(predictions, targets);
         match reduction {
             Reduction::BatchMean | Reduction::Auto => {
@@ -82,11 +81,11 @@ impl KLDivLoss {
         }
     }
     /// Compute the criterion on the input tensor without reducing.
-    pub fn forward_no_reduction<const D: usize, B: Backend>(
+    pub fn forward_no_reduction<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
+    ) -> Tensor<D> {
         match self.log_target {
             true => targets.clone().exp().mul(targets.sub(predictions)),
             false => {
@@ -105,11 +104,9 @@ impl KLDivLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_kl_div_loss() {
@@ -117,8 +114,8 @@ mod tests {
         let targets = TensorData::from([[0.4, 0.6], [0.1, 0.9]]);
 
         let device = Default::default();
-        let predict = TestTensor::<2>::from_data(predict, &device);
-        let targets = TestTensor::<2>::from_data(targets, &device);
+        let predict = Tensor::<2>::from_data(predict, &device);
+        let targets = Tensor::<2>::from_data(targets, &device);
 
         let kl_loss = KLDivLossConfig { log_target: false }.init();
 
@@ -147,8 +144,8 @@ mod tests {
     #[test]
     fn test_kl_div_loss_log_target() {
         let device = Default::default();
-        let predict = TestTensor::<1>::from_data([-1.0, -2.0], &device);
-        let targets = TestTensor::<1>::from_data([-0.5, -1.5], &device);
+        let predict = Tensor::<1>::from_data([-1.0, -2.0], &device);
+        let targets = Tensor::<1>::from_data([-0.5, -1.5], &device);
 
         let kl_loss = KLDivLossConfig { log_target: true }.init();
 
@@ -175,11 +172,10 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn test_kl_div_ad_loss() {
-        type TestAutodiffTensor = Tensor<crate::TestAutodiffBackend, 2>;
-
-        let device = Default::default();
-        let predict = TestAutodiffTensor::from_data([[-1.0, -0.5]], &device).require_grad();
-        let targets = TestAutodiffTensor::from_data([[0.4, 0.6]], &device);
+        use burn::tensor::Device;
+        let device = Device::default().autodiff();
+        let predict = Tensor::<2>::from_data([[-1.0, -0.5]], &device).require_grad();
+        let targets = Tensor::<2>::from_data([[0.4, 0.6]], &device);
 
         let kl_loss = KLDivLossConfig { log_target: false }.init();
         let loss = kl_loss.forward(predict.clone(), targets, Reduction::Sum);

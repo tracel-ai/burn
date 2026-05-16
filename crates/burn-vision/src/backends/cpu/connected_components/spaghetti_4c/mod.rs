@@ -13,7 +13,7 @@
 
 #![allow(unreachable_code)]
 
-use burn_tensor::{Element, ElementConversion, cast::ToElement};
+use burn_core::tensor::{Element, ElementConversion, cast::ToElement};
 use ndarray::Array2;
 
 use crate::Connectivity;

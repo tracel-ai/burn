@@ -1,20 +1,17 @@
 use crate::{
     Learner, LearningComponentsTypes, SupervisedLearningStrategy, SupervisedTrainingEventProcessor,
-    TrainLoader, TrainingBackend, TrainingComponents, TrainingModel, ValidLoader,
+    TrainLoader, TrainingComponents, TrainingModel, ValidLoader,
     single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
-use burn_core::{
-    data::dataloader::Progress,
-    tensor::{Device, backend::DeviceOps},
-};
+use burn_core::{data::dataloader::Progress, tensor::Device};
 
 /// Simplest learning strategy possible, with only a single devices doing both the training and
 /// validation.
-pub struct SingleDeviceTrainingStrategy<LC: LearningComponentsTypes> {
-    device: Device<TrainingBackend<LC>>,
+pub struct SingleDeviceTrainingStrategy {
+    device: Device,
 }
-impl<LC: LearningComponentsTypes> SingleDeviceTrainingStrategy<LC> {
-    pub fn new(device: Device<TrainingBackend<LC>>) -> Self {
+impl SingleDeviceTrainingStrategy {
+    pub fn new(device: Device) -> Self {
         Self { device }
     }
 }
@@ -44,9 +41,7 @@ impl Iterator for TrainingLoop {
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
-    for SingleDeviceTrainingStrategy<LC>
-{
+impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDeviceTrainingStrategy {
     fn fit(
         &self,
         training_components: TrainingComponents<LC>,
@@ -56,7 +51,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
         starting_epoch: usize,
     ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
-        let dataloader_valid = dataloader_valid.to_device(self.device.inner());
+        let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
         learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;

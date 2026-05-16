@@ -10,13 +10,8 @@ version.workspace = true
 workspace = true
 
 [dependencies]
-burn = {workspace = true, features=["default", "autodiff", "webgpu", "vision"] }
-guide = {path = "../guide"}
+burn = { workspace = true, features = ["autodiff", "webgpu", "vision"] }
+guide = { path = "../guide" }
 
 # Serialization
-log = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"] }
-
-# Wgpu internal dependencies
-derive-new = { workspace = true }
-bytemuck = { workspace = true }
+log = { workspace = true }

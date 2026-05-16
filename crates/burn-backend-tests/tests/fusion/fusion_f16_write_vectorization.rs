@@ -13,8 +13,7 @@
 
 use super::*;
 use burn_tensor::{
-    DType, Device, TensorCreationOptions, TensorData, Tolerance, backend::Backend, module::conv2d,
-    ops::ConvOptions,
+    DType, Device, TensorCreationOptions, TensorData, Tolerance, module::conv2d, ops::ConvOptions,
 };
 use std::sync::{Arc, Mutex};
 
@@ -47,7 +46,7 @@ struct BatchNorm {
 }
 
 impl BatchNorm {
-    fn new(opts: TensorCreationOptions<TestBackend>) -> Self {
+    fn new(opts: TensorCreationOptions) -> Self {
         Self {
             gamma: TestTensor::<1>::ones([CH], opts.clone()),
             beta: TestTensor::<1>::zeros([CH], opts.clone()),
@@ -72,18 +71,18 @@ impl BatchNorm {
     }
 }
 
-fn make_conv_weight(opts: TensorCreationOptions<TestBackend>) -> TestTensor<4> {
+fn make_conv_weight(opts: TensorCreationOptions) -> TestTensor<4> {
     TestTensor::full([CH, 3, 1, 1], INIT, opts)
 }
 
-fn two_branch_conv_bn_add(dev: Device<TestBackend>, dtype: DType) -> TensorData {
-    let opts: TensorCreationOptions<TestBackend> = (&dev, dtype).into();
+fn two_branch_conv_bn_add(dev: Device, dtype: DType) -> TensorData {
+    let opts: TensorCreationOptions = (&dev, dtype).into();
     let weight_a = make_conv_weight(opts.clone());
     let weight_b = make_conv_weight(opts.clone());
     let bn_a = BatchNorm::new(opts.clone());
     let bn_b = BatchNorm::new(opts.clone());
 
-    TestBackend::sync(&dev).unwrap();
+    dev.sync().unwrap();
 
     let input = TestTensor::<4>::ones([1, 3, 32, 32], opts) * 0.5;
     let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);

@@ -2,12 +2,11 @@ use burn_core as burn;
 
 use burn::module::Module;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// Applies the rectified linear unit function element-wise
 /// See also [relu](burn::tensor::activation::relu)
 ///
-#[derive(Module, Clone, Debug, Default)]
+#[derive(Module, Debug, Default)]
 pub struct Relu;
 
 impl Relu {
@@ -21,7 +20,7 @@ impl Relu {
     ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         burn::tensor::activation::relu(input)
     }
 }

@@ -1,6 +1,6 @@
-//! Shared TestBackend setup for benches.
+//! Shared setup for benches.
 //!
-//! Mirrors `tests/common/backend.rs`: `TestBackend = burn_dispatch::Dispatch`, with a `#[ctor]`
+//! Mirrors `tests/common/backend.rs`: `Device::default()`, with a `#[ctor]`
 //! that pins the default float/int dtypes to `f32`/`i32` so backends that advertise a different
 //! default (e.g. bf16) don't silently convert bench inputs.
 
@@ -8,22 +8,20 @@ use std::cell::Cell;
 use std::panic::{self, AssertUnwindSafe, Location};
 use std::sync::Mutex;
 
-use burn_tensor::backend::Backend;
 use ctor::ctor;
 
 pub type FloatElem = f32;
 pub type IntElem = i32;
-pub type TestBackend = burn_dispatch::Dispatch;
 
 #[ctor]
 fn init_device_settings() {
-    let device = burn_dispatch::DispatchDevice::default();
-    burn_tensor::set_default_dtypes::<TestBackend>(
-        &device,
-        <FloatElem as burn_tensor::Element>::dtype(),
-        <IntElem as burn_tensor::Element>::dtype(),
-    )
-    .unwrap();
+    let mut device = burn_tensor::Device::default();
+    device
+        .set_default_dtypes(
+            <FloatElem as burn_tensor::Element>::dtype(),
+            <IntElem as burn_tensor::Element>::dtype(),
+        )
+        .unwrap();
 }
 
 /// Block until all outstanding ops on the default device complete.
@@ -33,7 +31,7 @@ fn init_device_settings() {
 /// On CPU backends (flex, ndarray) this is a no-op via the `Backend::sync` default.
 #[inline]
 pub fn sync() {
-    TestBackend::sync(&Default::default()).unwrap();
+    burn_tensor::Device::default().sync().unwrap();
 }
 
 // --- Panic-tolerant bench execution -----------------------------------------
@@ -81,6 +79,7 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
 /// an op used during setup), returns `None` and records the failure location. Lets benches that
 /// rely on op-heavy setup (e.g. `make_qtensor` calls `quantize_dynamic`, fft inverse benches call
 /// `rfft` to produce the input) fall through to a no-op without taking down the whole binary.
+#[allow(unused)] // it's used in benches
 #[track_caller]
 pub fn try_setup<T>(f: impl FnOnce() -> T) -> Option<T> {
     let loc = Location::caller();

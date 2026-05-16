@@ -11,7 +11,6 @@
 
 use super::*;
 use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
-use burn_tensor::backend::Backend;
 
 /// `a + b` followed by `exp` should collapse into a single element-wise fused kernel.
 #[test]
@@ -25,12 +24,12 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
         let a = TestTensor::<2>::ones([4, 4], &device);
         let b = TestTensor::<2>::ones([4, 4], &device);
         let dtype = a.dtype();
-        TestBackend::sync(&device).unwrap();
+        device.sync().unwrap();
 
         let inspector = FusionInspector::install(stream);
         let out = (a + b).exp();
         let _ = out.into_data();
-        TestBackend::sync(&device).unwrap();
+        device.sync().unwrap();
 
         let reports = inspector.drain();
         assert!(!reports.is_empty(), "expected at least one fusion report");
@@ -65,11 +64,11 @@ fn sync_between_ops_splits_into_separate_kernels() {
         let dtype = intermediate.dtype();
 
         // Force materialization of the intermediate.
-        TestBackend::sync(&device).unwrap();
+        device.sync().unwrap();
 
         let out = intermediate.exp();
         let _ = out.into_data();
-        TestBackend::sync(&device).unwrap();
+        device.sync().unwrap();
 
         let reports = inspector.drain();
 
@@ -116,13 +115,13 @@ fn chained_elementwise_ops_fuse_together() {
         let a = TestTensor::<2>::ones([8, 8], &device);
         let b = TestTensor::<2>::ones([8, 8], &device);
         let c = TestTensor::<2>::ones([8, 8], &device);
-        TestBackend::sync(&device).unwrap();
+        device.sync().unwrap();
 
         let inspector = FusionInspector::install(stream);
         // add → mul → exp, all element-wise on the same shape.
         let out = ((a + b) * c).exp();
         let _ = out.into_data();
-        TestBackend::sync(&device).unwrap();
+        device.sync().unwrap();
 
         let reports = inspector.drain();
 
@@ -162,7 +161,7 @@ fn elementwise_and_creation_into_single_kernel() {
 
     // Materialize the base tensor so it doesn't land in the inspector's first report.
     let original = TestTensor::<2>::ones([8, 8], &device);
-    TestBackend::sync(&device).unwrap();
+    device.sync().unwrap();
 
     let inspector = FusionInspector::install(stream);
 
@@ -173,7 +172,7 @@ fn elementwise_and_creation_into_single_kernel() {
     }
 
     let _ = tmp.into_data();
-    TestBackend::sync(&device).unwrap();
+    device.sync().unwrap();
 
     let reports = inspector.drain();
     assert!(!reports.is_empty(), "expected at least one fusion report");

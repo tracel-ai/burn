@@ -1,22 +1,19 @@
 use burn_core::{self as burn, Tensor};
 
 use burn_core::module::ParamId;
-use burn_core::prelude::{Backend, DeviceOps};
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::DeviceId;
 
 use super::GradientsParams;
 use crate::LearningRate;
 use alloc::vec::Vec;
 use burn::module::AutodiffModule;
 use burn::record::Record;
-use burn::tensor::backend::AutodiffBackend;
 
 #[derive(Default)]
 /// Exposes multiple gradients for each parameter.
 pub struct MultiGradientsParams {
-    /// Each [GradientsParams] has its associated [DeviceId].
-    pub grads: Vec<(GradientsParams, DeviceId)>,
+    /// Each [GradientsParams] has its associated [Device].
+    pub grads: Vec<(GradientsParams, Device)>,
 }
 
 impl MultiGradientsParams {
@@ -25,10 +22,7 @@ impl MultiGradientsParams {
     /// Potentially accumulates the gradients from multiple sources using a device associated with
     /// a parameter id. The same parameter will be accumulated using the same device during
     /// all training.
-    pub fn remove<B: Backend, const D: usize>(
-        &mut self,
-        id: ParamId,
-    ) -> Option<(Tensor<B, D>, Device<B>)> {
+    pub fn remove<const D: usize>(&mut self, id: ParamId) -> Option<(Tensor<D>, Device)> {
         let (mut tensor, device, index) = self.select(id)?;
 
         for (i, (grads, _)) in self.grads.iter_mut().enumerate() {
@@ -36,7 +30,7 @@ impl MultiGradientsParams {
                 continue;
             }
 
-            if let Some(grad) = grads.remove::<B, D>(id) {
+            if let Some(grad) = grads.remove::<D>(id) {
                 tensor = tensor + grad.to_device(&device);
             }
         }
@@ -44,18 +38,14 @@ impl MultiGradientsParams {
         Some((tensor, device))
     }
 
-    fn select<B: Backend, const D: usize>(
-        &mut self,
-        id: ParamId,
-    ) -> Option<(Tensor<B, D>, Device<B>, usize)> {
+    fn select<const D: usize>(&mut self, id: ParamId) -> Option<(Tensor<D>, Device, usize)> {
         let id_val = id.val() as usize;
         for i in 0..self.grads.len() {
             let selected_device_index = (id_val + i) % self.grads.len();
 
-            if let Some(acc) = self.grads[selected_device_index].0.remove::<B, D>(id) {
-                let device_id = self.grads[selected_device_index].1;
-                let device = <B::Device as DeviceOps>::from_id(device_id);
-                return Some((acc.to_device(&device), device, selected_device_index));
+            if let Some(acc) = self.grads[selected_device_index].0.remove::<D>(id) {
+                let device = &self.grads[selected_device_index].1;
+                return Some((acc.to_device(device), device.clone(), selected_device_index));
             }
         }
 
@@ -64,13 +54,12 @@ impl MultiGradientsParams {
 }
 
 /// General trait to optimize [module](AutodiffModule).
-pub trait Optimizer<M, B>: Send + Clone
+pub trait Optimizer<M>: Send + Clone
 where
-    M: AutodiffModule<B>,
-    B: AutodiffBackend,
+    M: AutodiffModule,
 {
     /// Optimizer associative type to be used when saving and loading the state.
-    type Record: Record<B>;
+    type Record: Record;
 
     /// Perform the optimizer step using the given learning rate and gradients.
     /// The updated module is returned.

@@ -5,12 +5,11 @@ use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::activation::hard_sigmoid;
-use burn::tensor::backend::Backend;
 
 /// Hard Sigmoid layer.
 ///
 /// Should be created with [HardSigmoidConfig](HardSigmoidConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct HardSigmoid {
     /// The alpha value.
@@ -61,7 +60,7 @@ impl HardSigmoid {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         hard_sigmoid(input, self.alpha, self.beta)
     }
 }
@@ -69,17 +68,15 @@ impl HardSigmoid {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_hard_sigmoid_forward() {
         let device = Default::default();
-        let model: HardSigmoid = HardSigmoidConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
+        let model = HardSigmoidConfig::new().init();
+        let input = Tensor::<2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.5882, 0.44986]]);
         out.to_data()

@@ -1,6 +1,5 @@
-use crate::backend::Backend;
-use crate::tensor::{BasicOps, Tensor};
-use crate::{AsIndex, Numeric};
+use crate::tensor::Tensor;
+use crate::{AsIndex, kind::Numeric};
 
 /// Computes the outer product for the last columns of 2 tensors.
 ///
@@ -17,12 +16,12 @@ use crate::{AsIndex, Numeric};
 /// ``
 /// result[..., i, j] = lhs[..., i] * rhs[..., j]
 /// ``
-pub fn outer<B: Backend, const D: usize, const R: usize, K>(
-    lhs: Tensor<B, D, K>,
-    rhs: Tensor<B, D, K>,
-) -> Tensor<B, R, K>
+pub fn outer<const D: usize, const R: usize, K>(
+    lhs: Tensor<D, K>,
+    rhs: Tensor<D, K>,
+) -> Tensor<R, K>
 where
-    K: BasicOps<B> + Numeric<B>,
+    K: Numeric,
 {
     outer_dim(lhs, rhs, -1)
 }
@@ -49,13 +48,13 @@ where
 // Notes:
 // - For large batched inputs, `x_col.matmul(y_row)` *might* be more performant
 //   than broadcasted elemwise multiply; benchmarking needed to confirm.
-pub fn outer_dim<B: Backend, const D: usize, const R: usize, Dim: AsIndex, K>(
-    lhs: Tensor<B, D, K>,
-    rhs: Tensor<B, D, K>,
+pub fn outer_dim<const D: usize, const R: usize, Dim: AsIndex, K>(
+    lhs: Tensor<D, K>,
+    rhs: Tensor<D, K>,
     dim: Dim,
-) -> Tensor<B, R, K>
+) -> Tensor<R, K>
 where
-    K: BasicOps<B> + Numeric<B>,
+    K: Numeric,
 {
     assert_eq!(
         R,

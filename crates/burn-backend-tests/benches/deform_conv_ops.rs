@@ -9,9 +9,9 @@
 
 #[path = "common/mod.rs"]
 mod common;
-use common::{BencherExt, TestBackend};
+use common::BencherExt;
 
-use burn_tensor::{Tensor, TensorData, backend::Backend, module, ops::DeformConvOptions};
+use burn_tensor::{Tensor, TensorData, module, ops::DeformConvOptions};
 use divan::{AllocProfiler, Bencher};
 
 #[global_allocator]
@@ -26,12 +26,7 @@ fn main() {
 }
 
 /// Create input tensor [batch, channels, height, width]
-fn make_input<B: Backend>(
-    batch: usize,
-    channels: usize,
-    height: usize,
-    width: usize,
-) -> Tensor<B, 4> {
+fn make_input(batch: usize, channels: usize, height: usize, width: usize) -> Tensor<4> {
     let data: Vec<f32> = (0..batch * channels * height * width)
         .map(|i| ((i % 1000) as f32 / 1000.0) - 0.5)
         .collect();
@@ -42,12 +37,7 @@ fn make_input<B: Backend>(
 }
 
 /// Create weight tensor [out_channels, in_channels/groups, kernel_h, kernel_w]
-fn make_weight<B: Backend>(
-    out_ch: usize,
-    in_ch_per_group: usize,
-    kh: usize,
-    kw: usize,
-) -> Tensor<B, 4> {
+fn make_weight(out_ch: usize, in_ch_per_group: usize, kh: usize, kw: usize) -> Tensor<4> {
     let data: Vec<f32> = (0..out_ch * in_ch_per_group * kh * kw)
         .map(|i| ((i % 100) as f32 / 100.0) - 0.5)
         .collect();
@@ -58,14 +48,14 @@ fn make_weight<B: Backend>(
 }
 
 /// Create offset tensor [batch, offset_groups * kernel_h * kernel_w * 2, out_h, out_w]
-fn make_offset<B: Backend>(
+fn make_offset(
     batch: usize,
     offset_groups: usize,
     kh: usize,
     kw: usize,
     out_h: usize,
     out_w: usize,
-) -> Tensor<B, 4> {
+) -> Tensor<4> {
     let channels = offset_groups * kh * kw * 2;
     let data: Vec<f32> = (0..batch * channels * out_h * out_w)
         .map(|i| ((i % 100) as f32 / 100.0) - 0.5)
@@ -77,14 +67,14 @@ fn make_offset<B: Backend>(
 }
 
 /// Create mask tensor [batch, offset_groups * kernel_h * kernel_w, out_h, out_w]
-fn make_mask<B: Backend>(
+fn make_mask(
     batch: usize,
     offset_groups: usize,
     kh: usize,
     kw: usize,
     out_h: usize,
     out_w: usize,
-) -> Tensor<B, 4> {
+) -> Tensor<4> {
     let channels = offset_groups * kh * kw;
     let data: Vec<f32> = (0..batch * channels * out_h * out_w)
         .map(|i| (i % 100) as f32 / 100.0)
@@ -96,7 +86,7 @@ fn make_mask<B: Backend>(
 }
 
 /// Create bias tensor [out_channels]
-fn make_bias<B: Backend>(out_ch: usize) -> Tensor<B, 1> {
+fn make_bias(out_ch: usize) -> Tensor<1> {
     let data: Vec<f32> = (0..out_ch).map(|i| (i % 10) as f32 / 10.0).collect();
     Tensor::from_data(TensorData::new(data, [out_ch]), &Default::default())
 }
@@ -113,12 +103,10 @@ fn compute_output_size(
 }
 
 macro_rules! bench_backend {
-    ($backend:ty, $mod_name:ident, $backend_name:literal) => {
+    ($mod_name:ident, $backend_name:literal) => {
         #[divan::bench_group(name = $backend_name)]
         mod $mod_name {
             use super::*;
-
-            type B = $backend;
 
             #[divan::bench_group(name = "deform_conv2d_tiny")]
             mod deform_conv2d_tiny {
@@ -135,11 +123,11 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let mask = make_mask::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let bias = make_bias::<B>(out_ch);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
+                    let mask = make_mask(batch, offset_groups, kh, kw, out_h, out_w);
+                    let bias = make_bias(out_ch);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -149,7 +137,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -171,9 +159,9 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -183,7 +171,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -210,11 +198,11 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let mask = make_mask::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let bias = make_bias::<B>(out_ch);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
+                    let mask = make_mask(batch, offset_groups, kh, kw, out_h, out_w);
+                    let bias = make_bias(out_ch);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -224,7 +212,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -246,11 +234,11 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let mask = make_mask::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let bias = make_bias::<B>(out_ch);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
+                    let mask = make_mask(batch, offset_groups, kh, kw, out_h, out_w);
+                    let bias = make_bias(out_ch);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -260,7 +248,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -282,11 +270,11 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let mask = make_mask::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let bias = make_bias::<B>(out_ch);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
+                    let mask = make_mask(batch, offset_groups, kh, kw, out_h, out_w);
+                    let bias = make_bias(out_ch);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -296,7 +284,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -323,11 +311,11 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let mask = make_mask::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let bias = make_bias::<B>(out_ch);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
+                    let mask = make_mask(batch, offset_groups, kh, kw, out_h, out_w);
+                    let bias = make_bias(out_ch);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -337,7 +325,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -359,11 +347,11 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let mask = make_mask::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let bias = make_bias::<B>(out_ch);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
+                    let mask = make_mask(batch, offset_groups, kh, kw, out_h, out_w);
+                    let bias = make_bias(out_ch);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -373,7 +361,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -395,11 +383,11 @@ macro_rules! bench_backend {
                     let out_h = compute_output_size(h, kh, padding[0], stride[0], dilation[0]);
                     let out_w = compute_output_size(w, kw, padding[1], stride[1], dilation[1]);
 
-                    let x = make_input::<B>(batch, in_ch, h, w);
-                    let weight = make_weight::<B>(out_ch, in_ch / weight_groups, kh, kw);
-                    let offset = make_offset::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let mask = make_mask::<B>(batch, offset_groups, kh, kw, out_h, out_w);
-                    let bias = make_bias::<B>(out_ch);
+                    let x = make_input(batch, in_ch, h, w);
+                    let weight = make_weight(out_ch, in_ch / weight_groups, kh, kw);
+                    let offset = make_offset(batch, offset_groups, kh, kw, out_h, out_w);
+                    let mask = make_mask(batch, offset_groups, kh, kw, out_h, out_w);
+                    let bias = make_bias(out_ch);
                     let opts = DeformConvOptions::new(
                         stride,
                         padding,
@@ -409,7 +397,7 @@ macro_rules! bench_backend {
                     );
 
                     bencher.bench_synced(|| {
-                        module::deform_conv2d::<B>(
+                        module::deform_conv2d(
                             x.clone(),
                             offset.clone(),
                             weight.clone(),
@@ -424,4 +412,4 @@ macro_rules! bench_backend {
     };
 }
 
-bench_backend!(TestBackend, backend, "backend");
+bench_backend!(backend, "backend");

@@ -1,51 +1,27 @@
 use std::path::PathBuf;
 
-use burn_tensor::{Shape, Tensor, TensorData, backend::Backend};
+use burn_core::tensor::{Device, Shape, TensorData};
 use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 
-use burn_tensor::{Bool, Int};
-
-#[cfg(all(
-    any(feature = "test-cpu", feature = "flex"),
-    not(any(feature = "test-wgpu", feature = "test-cuda"))
-))]
-pub type TestBackend = burn_flex::Flex;
-
-#[cfg(all(test, feature = "test-wgpu"))]
-pub type TestBackend = burn_wgpu::Wgpu;
-
-#[cfg(all(test, feature = "test-cuda"))]
-pub type TestBackend = burn_cuda::Cuda;
+use burn_core::tensor::{Bool, Int};
 
 #[allow(unused)]
-pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, Int>;
+#[cfg(all(test, feature = "flex", not(any(feature = "wgpu", feature = "cuda"))))]
+pub type TestDevice = burn_flex::FlexDevice;
+
+#[cfg(all(test, feature = "wgpu"))]
+pub type TestDevice = burn_wgpu::WgpuDevice;
+
+#[cfg(all(test, feature = "cuda"))]
+pub type TestDevice = burn_cuda::CudaDevice;
+
+pub use burn_core::tensor::Tensor;
+pub type TestTensorInt<const D: usize> = Tensor<D, Int>;
 #[allow(unused)]
-pub type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, Bool>;
-
-#[allow(unused)]
-pub type IntType = <TestBackend as burn_tensor::backend::BackendTypes>::IntElem;
-
-#[allow(missing_docs)]
-#[macro_export]
-macro_rules! as_type {
-    ($ty:ident: [$($elem:tt),*]) => {
-        [$($crate::as_type![$ty: $elem]),*]
-    };
-    ($ty:ident: [$($elem:tt,)*]) => {
-        [$($crate::as_type![$ty: $elem]),*]
-    };
-    ($ty:ident: $elem:expr) => {
-        {
-            use cubecl::prelude::*;
-
-            $ty::new($elem)
-        }
-    };
-}
+pub type TestTensorBool<const D: usize> = Tensor<D, Bool>;
 
 #[allow(unused)]
-pub fn test_image<B: Backend>(name: &str, device: &B::Device, luma: bool) -> Tensor<B, 3> {
+pub fn test_image(name: &str, device: &Device, luma: bool) -> Tensor<3> {
     let file = PathBuf::from("tests/images").join(name);
     let image = image::open(file).unwrap();
     if luma {
@@ -64,7 +40,7 @@ pub fn test_image<B: Backend>(name: &str, device: &B::Device, luma: bool) -> Ten
 }
 
 #[allow(unused)]
-pub fn save_test_image<B: Backend>(name: &str, tensor: Tensor<B, 3>, luma: bool) {
+pub fn save_test_image(name: &str, tensor: Tensor<3>, luma: bool) {
     let file = PathBuf::from("tests/images").join(name);
     let [h, w, _] = tensor.shape().dims();
     let data = tensor

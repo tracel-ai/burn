@@ -10,8 +10,7 @@ use super::{
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 use burn::config::Config;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Tensor, backend::AutodiffBackend, ops::Device};
+use burn::tensor::{Device, Tensor};
 
 /// Configuration to create the [RmsProp](RmsProp) optimizer.
 #[derive(Config, Debug)]
@@ -54,9 +53,7 @@ impl RmsPropConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
-        &self,
-    ) -> OptimizerAdaptor<RmsProp, M, B> {
+    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<RmsProp, M> {
         let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
@@ -73,21 +70,21 @@ pub struct RmsProp {
     alpha: f32,
     // epsilon: f32,
     centered: bool,
-    // momentum: Option<Momentum<B>>,
+    // momentum: Option<Momentum>,
     momentum: RmsPropMomentum,
     weight_decay: Option<WeightDecay>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for RmsProp {
-    type State<const D: usize> = RmsPropState<B, D>;
+impl SimpleOptimizer for RmsProp {
+    type State<const D: usize> = RmsPropState<D>;
 
     fn step<const D: usize>(
         &self,
         lr: LearningRate,
-        tensor: Tensor<B, D>,
-        mut grad: Tensor<B, D>,
+        tensor: Tensor<D>,
+        mut grad: Tensor<D>,
         state: Option<Self::State<D>>,
-    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
+    ) -> (Tensor<D>, Option<Self::State<D>>) {
         // fetch state for params
         let mut state_square_avg = None;
         let mut state_centered = None;
@@ -129,7 +126,7 @@ impl<B: Backend> SimpleOptimizer<B> for RmsProp {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
+    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
         state.square_avg = state.square_avg.to_device(device);
         state.centered = state.centered.to_device(device);
         state.momentum = state.momentum.map(|momentum| momentum.to_device(device));
@@ -139,25 +136,25 @@ impl<B: Backend> SimpleOptimizer<B> for RmsProp {
 
 /// State of [RmsProp](RmsProp)
 #[derive(Record, Clone, new)]
-pub struct RmsPropState<B: Backend, const D: usize> {
+pub struct RmsPropState<const D: usize> {
     /// Current squared average state.
-    pub square_avg: SquareAvgState<B, D>,
+    pub square_avg: SquareAvgState<D>,
     /// Current centered state
-    pub centered: CenteredState<B, D>,
+    pub centered: CenteredState<D>,
     /// Current gradient momentum, if any.
-    pub momentum: Option<RmsPropMomentumState<B, D>>,
+    pub momentum: Option<RmsPropMomentumState<D>>,
 }
 
 /// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
-pub struct SquareAvgState<B: Backend, const D: usize> {
+pub struct SquareAvgState<const D: usize> {
     /// Current squared average.
-    pub square_avg: Tensor<B, D>,
+    pub square_avg: Tensor<D>,
 }
 
-impl<B: Backend, const D: usize> SquareAvgState<B, D> {
+impl<const D: usize> SquareAvgState<D> {
     /// transform [SquareAvgState] to the next step
-    fn transform(alpha: f32, grad: Tensor<B, D>, state: Option<Self>) -> (Tensor<B, D>, Self) {
+    fn transform(alpha: f32, grad: Tensor<D>, state: Option<Self>) -> (Tensor<D>, Self) {
         match state {
             Some(state) => {
                 let square_avg = state
@@ -182,7 +179,7 @@ impl<B: Backend, const D: usize> SquareAvgState<B, D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &B::Device) -> Self {
+    pub fn to_device(mut self, device: &Device) -> Self {
         self.square_avg = self.square_avg.to_device(device);
         self
     }
@@ -190,22 +187,22 @@ impl<B: Backend, const D: usize> SquareAvgState<B, D> {
 
 /// [CenteredState](CenteredState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
-pub struct CenteredState<B: Backend, const D: usize> {
+pub struct CenteredState<const D: usize> {
     /// The averaged gradient to calculate the centered gradient, if available.
-    pub grad_avg: Option<Tensor<B, D>>,
+    pub grad_avg: Option<Tensor<D>>,
     /// The current average value.
-    pub avg: Tensor<B, D>,
+    pub avg: Tensor<D>,
 }
 
-impl<B: Backend, const D: usize> CenteredState<B, D> {
+impl<const D: usize> CenteredState<D> {
     /// transform [CenteredState] to the next step
     fn transform(
         alpha: f32,
         centered: bool,
-        grad: Tensor<B, D>,
-        square_avg_state: SquareAvgState<B, D>,
+        grad: Tensor<D>,
+        square_avg_state: SquareAvgState<D>,
         centered_state: Option<Self>,
-    ) -> (Tensor<B, D>, SquareAvgState<B, D>, Self) {
+    ) -> (Tensor<D>, SquareAvgState<D>, Self) {
         if centered {
             let grad_avg_constant = grad.clone().mul_scalar(1. - alpha);
             let grad_avg = match centered_state {
@@ -250,7 +247,7 @@ impl<B: Backend, const D: usize> CenteredState<B, D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &B::Device) -> Self {
+    pub fn to_device(mut self, device: &Device) -> Self {
         self.grad_avg = self.grad_avg.map(|grad_avg| grad_avg.to_device(device));
         self.avg = self.avg.to_device(device);
         self
@@ -267,16 +264,12 @@ pub struct RmsPropMomentum {
 
 impl RmsPropMomentum {
     /// transform [grad](Tensor) and [RmsPropMomentumState] to the next step
-    fn transform<B: Backend, const D: usize>(
+    fn transform<const D: usize>(
         &self,
-        grad: Tensor<B, D>,
-        centered_state: CenteredState<B, D>,
-        momentum_state: Option<RmsPropMomentumState<B, D>>,
-    ) -> (
-        Tensor<B, D>,
-        CenteredState<B, D>,
-        Option<RmsPropMomentumState<B, D>>,
-    ) {
+        grad: Tensor<D>,
+        centered_state: CenteredState<D>,
+        momentum_state: Option<RmsPropMomentumState<D>>,
+    ) -> (Tensor<D>, CenteredState<D>, Option<RmsPropMomentumState<D>>) {
         let grad = grad.div(centered_state.avg.clone().sqrt().add_scalar(self.epsilon));
 
         if self.momentum > 0. {
@@ -297,11 +290,11 @@ impl RmsPropMomentum {
 
 /// [RmsPropMomentumState](RmsPropMomentumState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
-pub struct RmsPropMomentumState<B: Backend, const D: usize> {
-    buf: Tensor<B, D>,
+pub struct RmsPropMomentumState<const D: usize> {
+    buf: Tensor<D>,
 }
 
-impl<B: Backend, const D: usize> RmsPropMomentumState<B, D> {
+impl<const D: usize> RmsPropMomentumState<D> {
     /// Moves the state to a device.
     ///
     /// # Arguments
@@ -311,7 +304,7 @@ impl<B: Backend, const D: usize> RmsPropMomentumState<B, D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &B::Device) -> Self {
+    pub fn to_device(mut self, device: &Device) -> Self {
         self.buf = self.buf.to_device(device);
         self
     }
@@ -319,25 +312,23 @@ impl<B: Backend, const D: usize> RmsPropMomentumState<B, D> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::ops::FloatElem;
-    use burn::tensor::{Shape, Tolerance};
+    use burn::tensor::Tolerance;
 
     use super::*;
-    use crate::TestAutodiffBackend;
     use crate::optim::{GradientsParams, Optimizer};
     use burn::module::{Module, Param};
     use burn::tensor::{Distribution, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
 
-    type FT = FloatElem<TestAutodiffBackend>;
+    type FT = f32;
 
     const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
     fn test_rmsprop_optimizer_save_load_state() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let linear = LinearConfig::new(6, 6).init(&device);
-        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
+        let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_rmsprop();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -376,6 +367,7 @@ mod tests {
     /// used for test differences and debug
     #[test]
     fn test_rmsprop_optimizer_with_numbers_basic() {
+        let device = Device::default().autodiff();
         let linear = given_linear_layer(
             TensorData::from([
                 [1., 1., 1., 1., 1., 1.],
@@ -386,9 +378,9 @@ mod tests {
                 [1., 1., 1., 1., 1., 1.],
             ]),
             TensorData::from([0.5, 0.5, 0.5, 0.5, 0.5, 0.5]),
+            &device,
         );
-        let device = Default::default();
-        let x_1 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+        let x_1 = Tensor::<2>::from_floats(
             [
                 [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
                 [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
@@ -396,7 +388,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_2 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+        let x_2 = Tensor::<2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
@@ -452,6 +444,7 @@ mod tests {
 
     #[test]
     fn test_rmsprop_optimizer_with_numbers() {
+        let device = Device::default().autodiff();
         let linear = given_linear_layer(
             TensorData::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
@@ -462,9 +455,9 @@ mod tests {
                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
             ]),
             TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+            &device,
         );
-        let device = Default::default();
-        let x_1 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+        let x_1 = Tensor::<2>::from_floats(
             [
                 [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
                 [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
@@ -472,7 +465,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_2 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+        let x_2 = Tensor::<2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
@@ -535,27 +528,16 @@ mod tests {
         weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
     }
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
-        let device = Default::default();
+    fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
         let record = LinearRecord {
-            weight: Param::from_data(weight, &device),
-            bias: Some(Param::from_data(bias, &device)),
+            weight: Param::from_data(weight, device),
+            bias: Some(Param::from_data(bias, device)),
         };
 
-        LinearConfig::new(6, 6).init(&device).load_record(record)
+        LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    #[allow(dead_code)]
-    fn create_random_tensor() -> Tensor<TestAutodiffBackend, 2> {
-        Tensor::<TestAutodiffBackend, 2>::random(
-            Shape::new([2, 20]),
-            Distribution::Default,
-            &Default::default(),
-        )
-    }
-
-    fn create_rmsprop()
-    -> OptimizerAdaptor<RmsProp, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn create_rmsprop() -> OptimizerAdaptor<RmsProp, Linear> {
         RmsPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,

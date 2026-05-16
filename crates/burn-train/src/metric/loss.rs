@@ -7,41 +7,38 @@ use super::state::NumericMetricState;
 use crate::metric::MetricName;
 use crate::metric::{Metric, MetricAttributes, Numeric, NumericAttributes, NumericEntry};
 use burn_core::tensor::Tensor;
-use burn_core::tensor::backend::Backend;
 
 /// The loss metric.
 #[derive(Clone)]
-pub struct LossMetric<B: Backend> {
+pub struct LossMetric {
     name: Arc<String>,
     state: NumericMetricState,
-    _b: B,
 }
 
 /// The [loss metric](LossMetric) input type.
 #[derive(new)]
-pub struct LossInput<B: Backend> {
-    tensor: Tensor<B, 1>,
+pub struct LossInput {
+    tensor: Tensor<1>,
 }
 
-impl<B: Backend> Default for LossMetric<B> {
+impl Default for LossMetric {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> LossMetric<B> {
+impl LossMetric {
     /// Create the metric.
     pub fn new() -> Self {
         Self {
             name: Arc::new("Loss".to_string()),
             state: NumericMetricState::default(),
-            _b: Default::default(),
         }
     }
 }
 
-impl<B: Backend> Metric for LossMetric<B> {
-    type Input = LossInput<B>;
+impl Metric for LossMetric {
+    type Input = LossInput;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [batch_size] = loss.tensor.dims();
@@ -78,7 +75,7 @@ impl<B: Backend> Metric for LossMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for LossMetric<B> {
+impl Numeric for LossMetric {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }

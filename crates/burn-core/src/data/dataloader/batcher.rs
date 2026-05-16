@@ -1,10 +1,7 @@
-use burn_tensor::{Device, backend::Backend};
-
-#[cfg(test)]
-use crate::TestBackend;
+use burn_tensor::Device;
 
 /// A trait for batching items of type `I` into items of type `O`.
-pub trait Batcher<B: Backend, I, O>: Send + Sync {
+pub trait Batcher<I, O>: Send + Sync {
     /// Batches the given items on the specified device.
     ///
     /// # Arguments
@@ -15,7 +12,7 @@ pub trait Batcher<B: Backend, I, O>: Send + Sync {
     /// # Returns
     ///
     /// The batched items.
-    fn batch(&self, items: Vec<I>, device: &Device<B>) -> O;
+    fn batch(&self, items: Vec<I>, device: &Device) -> O;
 }
 
 /// Test batcher
@@ -24,8 +21,8 @@ pub trait Batcher<B: Backend, I, O>: Send + Sync {
 pub struct TestBatcher;
 
 #[cfg(test)]
-impl<I> Batcher<TestBackend, I, Vec<I>> for TestBatcher {
-    fn batch(&self, items: Vec<I>, _device: &Device<TestBackend>) -> Vec<I> {
+impl<I> Batcher<I, Vec<I>> for TestBatcher {
+    fn batch(&self, items: Vec<I>, _device: &Device) -> Vec<I> {
         items
     }
 }

@@ -1,0 +1,20 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+description = "Burn backend extension proc macro"
+edition.workspace = true
+license.workspace = true
+name = "burn-backend-extension"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend-extension"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }

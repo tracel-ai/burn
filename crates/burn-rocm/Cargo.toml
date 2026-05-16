@@ -16,6 +16,9 @@ workspace = true
 
 [features]
 default = ["fusion", "burn-cubecl/default", "cubecl/default"]
+doc = ["burn-cubecl/doc"]
+std = ["burn-cubecl/std", "cubecl/std"]
+
 tracing = [
     "cubecl/tracing",
     "burn-cubecl/tracing",
@@ -26,8 +29,6 @@ tracing = [
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
-doc = ["burn-cubecl/doc"]
-std = ["burn-cubecl/std", "cubecl/std"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["hip"] }

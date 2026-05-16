@@ -13,8 +13,8 @@ mod cube {
         pub struct ReferenceDevice;
 
         impl ReferenceDevice {
-            pub fn new() -> burn_dispatch::DispatchDevice {
-                burn_dispatch::DispatchDevice::NdArray(Default::default())
+            pub fn new() -> burn_tensor::Device {
+                burn_ndarray::NdArrayDevice::Cpu.into()
             }
         }
     }

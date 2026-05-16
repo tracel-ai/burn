@@ -26,11 +26,8 @@ burn = { workspace = true, features = [
     "vision",
     "metrics",
     "fusion",
-    "dispatch",
     "flex",
 ] }
 
-# Serialization
 log = { workspace = true }
 rand.workspace = true
-serde = { workspace = true, features = ["std", "derive"] }

@@ -25,6 +25,7 @@ throughout the training process. We currently offer a restricted range of metric
 
 | Vision Metric | Description                                                                                          |
 | ------------- | ---------------------------------------------------------------------------------------------------- |
+| A-FINE        | Computes the Adaptive Fidelity-Naturalness Evaluator (A-FINE) full-reference perceptual quality metric built on CLIP ViT-B/32 features |
 | Dice          | Computes the Dice-Sorenson coefficient (DSC) for evaluating overlap between binary masks             |
 | DISTS         | Computes the Deep Image Structure and Texture Similarity (DISTS) metric for image quality assessment |
 | FID           | Computes the Frechet Inception Distance (FID) for evaluating generative model quality                |

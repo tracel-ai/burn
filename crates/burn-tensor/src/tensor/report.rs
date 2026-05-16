@@ -1,4 +1,4 @@
-use super::{Tensor, backend::Backend};
+use super::Tensor;
 
 use colored::*;
 
@@ -15,16 +15,15 @@ use colored::*;
 /// # Example
 ///
 /// ```no_run
-/// use burn_tensor::backend::Backend;
 /// use burn_tensor::{check_closeness, Tensor};
 ///
-/// fn example<B: Backend>() {
+/// fn example() {
 ///     let device = Default::default();
-///     let tensor1 = Tensor::<B, 1>::from_floats(
+///     let tensor1 = Tensor::< 1>::from_floats(
 ///         [1.0, 2.0, 3.0, 4.0, 5.0, 6.001, 7.002, 8.003, 9.004, 10.1],
 ///         &device,
 ///     );
-///     let tensor2 = Tensor::<B, 1>::from_floats(
+///     let tensor2 = Tensor::< 1>::from_floats(
 ///         [1.0, 2.0, 3.0, 4.000, 5.0, 6.0, 7.001, 8.002, 9.003, 10.004],
 ///         &device,
 ///     );
@@ -71,7 +70,7 @@ use colored::*;
 ///
 /// Closeness check complete.
 /// ```
-pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expected: &Tensor<B, D>) {
+pub fn check_closeness<const D: usize>(output: &Tensor<D>, expected: &Tensor<D>) {
     println!("{}", "Tensor Closeness Check Results:".bold());
     println!("===============================");
 

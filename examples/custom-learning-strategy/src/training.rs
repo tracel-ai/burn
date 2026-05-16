@@ -1,11 +1,10 @@
 use crate::model::ModelConfig;
 use burn::data::dataloader::Progress;
 use burn::record::NoStdTrainingRecorder;
-use burn::tensor::backend::DeviceOps;
 use burn::train::{
     EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
-    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend,
-    TrainingComponents, TrainingModel, ValidLoader,
+    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
+    TrainingModel, ValidLoader,
 };
 use burn::{
     data::{
@@ -20,7 +19,7 @@ use burn::{
     optim::AdamConfig,
     prelude::*,
     record::CompactRecorder,
-    tensor::{Device, backend::AutodiffBackend},
+    tensor::Device,
     train::{
         InferenceStep, LearnerEvent, MetricEarlyStoppingStrategy, StoppingCondition, TrainingItem,
         metric::{
@@ -30,9 +29,9 @@ use burn::{
     },
 };
 use guide::data::MnistBatcher;
-use std::{marker::PhantomData, sync::Arc};
+use std::sync::Arc;
 
-static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
+static ARTIFACT_DIR: &str = "/tmp/burn-example-custom-train-strategy";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
@@ -56,16 +55,18 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run(device: impl Into<Device>) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    B::seed(&device, config.seed);
+    let device = device.into();
+    device.seed(config.seed);
+    let autodiff_device = device.clone().autodiff();
 
-    let model = config.model.init::<B>(&device);
+    let model = config.model.init(&autodiff_device);
 
     let dataset_train_original = Arc::new(MnistDataset::train());
     let dataset_train = PartialDataset::new(dataset_train_original.clone(), 0, 15_000);
@@ -77,7 +78,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
     let early_stopping = MetricEarlyStoppingStrategy::new(
-        &LossMetric::<B>::new(),
+        &LossMetric::new(),
         Aggregate::Mean,
         Direction::Lowest,
         Split::Valid,
@@ -103,7 +104,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary()
         .with_training_strategy(burn::train::TrainingStrategy::Custom(Arc::new(
-            MyCustomLearningStrategy::new(device),
+            MyCustomLearningStrategy::new(autodiff_device),
         )));
 
     let result = training.launch(Learner::new(
@@ -121,21 +122,17 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .expect("Failed to save trained model");
 }
 
-struct MyCustomLearningStrategy<LC: LearningComponentsTypes> {
-    device: Device<TrainingBackend<LC>>,
-    _p: PhantomData<LC>,
+struct MyCustomLearningStrategy {
+    device: Device,
 }
 
-impl<LC: LearningComponentsTypes> MyCustomLearningStrategy<LC> {
-    pub fn new(device: Device<TrainingBackend<LC>>) -> Self {
-        Self {
-            device,
-            _p: PhantomData,
-        }
+impl MyCustomLearningStrategy {
+    pub fn new(device: Device) -> Self {
+        Self { device }
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLearningStrategy<LC> {
+impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLearningStrategy {
     fn fit(
         &self,
         training_components: TrainingComponents<LC>,
@@ -145,7 +142,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
         starting_epoch: usize,
     ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
-        let dataloader_valid = dataloader_valid.to_device(self.device.inner());
+        let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
         learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;

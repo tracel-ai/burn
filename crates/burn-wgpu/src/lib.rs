@@ -128,8 +128,7 @@ mod tests {
             &device,
             DType::QFloat(CubeTensor::<WgpuRuntime>::default_scheme())
         ));
-        // Registered as supported type but we don't actually use it?
-        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
+        assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
 
         #[cfg(feature = "vulkan")]
         {

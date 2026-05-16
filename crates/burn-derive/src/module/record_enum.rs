@@ -1,7 +1,8 @@
-use crate::shared::enum_variant::EnumVariant;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Generics, Visibility};
+
+use crate::module::codegen_enum::EnumVariant;
 
 use super::record::ModuleRecordCodegen;
 
@@ -23,7 +24,7 @@ impl ModuleRecordCodegen for EnumModuleRecordCodegen {
 
             variants.extend(quote! {
                 /// The module record associative type.
-                #name(<#ty as burn::module::Module<B>>::Record),
+                #name(<#ty as burn::module::Module>::Record),
             });
         }
 

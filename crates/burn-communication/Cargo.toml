@@ -14,10 +14,10 @@ workspace = true
 [features]
 tracing = [
     "burn-std/tracing",
-    "burn-tensor?/tracing",
+    "burn-backend?/tracing",
 ]
 
-data-service = ["burn-tensor"]
+data-service = ["burn-backend"]
 websocket = ["axum", "tokio-tungstenite", "futures"]
 
 [dependencies]
@@ -36,7 +36,7 @@ tracing-core = { workspace = true, features = ["default"] }
 tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"] }
 
 # Tensor Data Service
-burn-tensor = { workspace = true, optional = true, features = ["default"] }
+burn-backend = { workspace = true, optional = true, features = ["default"] }
 
 # Websocket
 axum = { workspace = true, features = ["ws"], optional = true }

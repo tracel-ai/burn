@@ -11,7 +11,7 @@ use crate::{
 };
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn::tensor::{Bool, Tensor, backend::Backend};
+use burn::tensor::{Bool, Device, Tensor};
 
 /// Configuration to create a [Transformer Encoder](TransformerEncoder) layer using the [init function](TransformerEncoderConfig::init).
 #[derive(Config, Debug)]
@@ -60,9 +60,9 @@ pub struct TransformerEncoderConfig {
 /// Should be created using [TransformerEncoderConfig]
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct TransformerEncoder<B: Backend> {
+pub struct TransformerEncoder {
     /// The transformer encoder layers.
-    pub layers: Vec<TransformerEncoderLayer<B>>,
+    pub layers: Vec<TransformerEncoderLayer>,
 
     /// The size of the model.
     pub d_model: usize,
@@ -86,7 +86,7 @@ pub struct TransformerEncoder<B: Backend> {
     pub quiet_softmax: bool,
 }
 
-impl<B: Backend> ModuleDisplay for TransformerEncoder<B> {
+impl ModuleDisplay for TransformerEncoder {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -108,15 +108,15 @@ impl<B: Backend> ModuleDisplay for TransformerEncoder<B> {
 
 /// [Transformer Encoder](TransformerEncoder) forward pass input argument.
 #[derive(Debug)]
-pub struct TransformerEncoderInput<B: Backend> {
-    tensor: Tensor<B, 3>,
-    mask_pad: Option<Tensor<B, 2, Bool>>,
-    mask_attn: Option<Tensor<B, 3, Bool>>,
+pub struct TransformerEncoderInput {
+    tensor: Tensor<3>,
+    mask_pad: Option<Tensor<2, Bool>>,
+    mask_attn: Option<Tensor<3, Bool>>,
 }
 
-impl<B: Backend> TransformerEncoderInput<B> {
+impl TransformerEncoderInput {
     /// Create a [transformer encoder](TransformerEncoder) input argument.
-    pub fn new(tensor: Tensor<B, 3>) -> Self {
+    pub fn new(tensor: Tensor<3>) -> Self {
         Self {
             tensor,
             mask_pad: None,
@@ -125,20 +125,20 @@ impl<B: Backend> TransformerEncoderInput<B> {
     }
 
     /// Register the padding mask.
-    pub fn mask_pad(mut self, mask_pad: Tensor<B, 2, Bool>) -> Self {
+    pub fn mask_pad(mut self, mask_pad: Tensor<2, Bool>) -> Self {
         self.mask_pad = Some(mask_pad);
         self
     }
 
     /// Register the attention mask.
-    pub fn mask_attn(mut self, mask_attn: Tensor<B, 3, Bool>) -> Self {
+    pub fn mask_attn(mut self, mask_attn: Tensor<3, Bool>) -> Self {
         self.mask_attn = Some(mask_attn);
         self
     }
 }
 impl TransformerEncoderConfig {
     /// Initialize a new [transformer encoder](TransformerEncoder) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerEncoder<B> {
+    pub fn init(&self, device: &Device) -> TransformerEncoder {
         let layers = (0..self.n_layers)
             .map(|_| TransformerEncoderLayer::new(self, device))
             .collect::<Vec<_>>();
@@ -156,14 +156,14 @@ impl TransformerEncoderConfig {
     }
 }
 
-impl<B: Backend> TransformerEncoder<B> {
+impl TransformerEncoder {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
     ///
     /// - tensor: `[batch_size, seq_length, d_model]`
     /// - output: `[batch_size, seq_length, d_model]`
-    pub fn forward(&self, input: TransformerEncoderInput<B>) -> Tensor<B, 3> {
+    pub fn forward(&self, input: TransformerEncoderInput) -> Tensor<3> {
         let mut x = input.tensor;
 
         for layer in self.layers.iter() {
@@ -180,9 +180,9 @@ impl<B: Backend> TransformerEncoder<B> {
     /// - output: `[batch_size, seq_length, d_model]`
     pub fn forward_autoregressive_inference(
         &self,
-        input: TransformerEncoderInput<B>,
-        cache: &mut TransformerEncoderAutoregressiveCache<B>,
-    ) -> Tensor<B, 3> {
+        input: TransformerEncoderInput,
+        cache: &mut TransformerEncoderAutoregressiveCache,
+    ) -> Tensor<3> {
         let mut x = input.tensor;
 
         for i in 0..self.layers.len() {
@@ -201,22 +201,22 @@ impl<B: Backend> TransformerEncoder<B> {
     }
 
     /// Create an empty autoregressive cache.
-    pub fn new_autoregressive_cache(&self) -> TransformerEncoderAutoregressiveCache<B> {
+    pub fn new_autoregressive_cache(&self) -> TransformerEncoderAutoregressiveCache {
         TransformerEncoderAutoregressiveCache::empty(self.layers.len())
     }
 }
 
 /// Transformer encoder layer module.
 #[derive(Module, Debug)]
-pub struct TransformerEncoderLayer<B: Backend> {
+pub struct TransformerEncoderLayer {
     /// Multi-head self-attention sub-layer.
-    pub mha: MultiHeadAttention<B>,
+    pub mha: MultiHeadAttention,
     /// Position-wise feed-forward sub-layer.
-    pub pwff: PositionWiseFeedForward<B>,
+    pub pwff: PositionWiseFeedForward,
     /// Layer normalization applied around the feed-forward sub-layer.
-    pub norm_1: LayerNorm<B>,
+    pub norm_1: LayerNorm,
     /// Layer normalization applied around the attention sub-layer.
-    pub norm_2: LayerNorm<B>,
+    pub norm_2: LayerNorm,
     /// Dropout module applied to residual connections.
     pub dropout: Dropout,
     /// If `true`, apply layer normalization before sub-layers (pre-norm),
@@ -224,9 +224,9 @@ pub struct TransformerEncoderLayer<B: Backend> {
     pub norm_first: bool,
 }
 
-impl<B: Backend> TransformerEncoderLayer<B> {
+impl TransformerEncoderLayer {
     /// Create a new transformer encoder layer from the given configuration.
-    pub fn new(config: &TransformerEncoderConfig, device: &B::Device) -> Self {
+    pub fn new(config: &TransformerEncoderConfig, device: &Device) -> Self {
         let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
@@ -263,10 +263,10 @@ impl<B: Backend> TransformerEncoderLayer<B> {
     /// - output: `[batch_size, seq_length, d_model]`
     pub fn forward(
         &self,
-        input: Tensor<B, 3>,
-        mask_pad: Option<Tensor<B, 2, Bool>>,
-        mask_attn: Option<Tensor<B, 3, Bool>>,
-    ) -> Tensor<B, 3> {
+        input: Tensor<3>,
+        mask_pad: Option<Tensor<2, Bool>>,
+        mask_attn: Option<Tensor<3, Bool>>,
+    ) -> Tensor<3> {
         // Multi-head attention residual path.
         let x = input;
         let mut residual_path = x.clone();
@@ -315,11 +315,11 @@ impl<B: Backend> TransformerEncoderLayer<B> {
     /// Applies the forward pass using an autoregressive cache.
     pub fn forward_autoregressive_inference(
         &self,
-        input: Tensor<B, 3>,
-        mask_pad: Option<Tensor<B, 2, Bool>>,
-        mask_attn: Option<Tensor<B, 3, Bool>>,
-        cache: &mut TransformerEncoderLayerAutoregressiveCache<B>,
-    ) -> Tensor<B, 3> {
+        input: Tensor<3>,
+        mask_pad: Option<Tensor<2, Bool>>,
+        mask_attn: Option<Tensor<3, Bool>>,
+        cache: &mut TransformerEncoderLayerAutoregressiveCache,
+    ) -> Tensor<3> {
         // Multi-head attention residual path.
         let x = input;
         let mut residual_path = x.clone();
@@ -377,18 +377,18 @@ impl<B: Backend> TransformerEncoderLayer<B> {
 }
 
 /// Autoregressive cache for a single [Transformer Encoder Layer](TransformerEncoderLayer).
-pub struct TransformerEncoderLayerAutoregressiveCache<B: Backend> {
+pub struct TransformerEncoderLayerAutoregressiveCache {
     /// Multi-head attention cache.
-    pub mha: MhaCache<B>,
+    pub mha: MhaCache,
     /// Position-wise feed-forward cache.
-    pub pwff: TensorCache<B, 3>,
+    pub pwff: TensorCache<3>,
     /// First layer norm cache.
-    pub norm_1: TensorCache<B, 3>,
+    pub norm_1: TensorCache<3>,
     /// Second layer norm cache.
-    pub norm_2: TensorCache<B, 3>,
+    pub norm_2: TensorCache<3>,
 }
 
-impl<B: Backend> TransformerEncoderLayerAutoregressiveCache<B> {
+impl TransformerEncoderLayerAutoregressiveCache {
     /// Create an empty cache.
     pub fn empty() -> Self {
         Self {
@@ -403,11 +403,11 @@ impl<B: Backend> TransformerEncoderLayerAutoregressiveCache<B> {
 /// Autoregressive cache for the [Transformer Encoder](TransformerEncoder) layer.
 ///
 /// To be used during inference when decoding tokens.
-pub struct TransformerEncoderAutoregressiveCache<B: Backend> {
-    layers: Vec<TransformerEncoderLayerAutoregressiveCache<B>>,
+pub struct TransformerEncoderAutoregressiveCache {
+    layers: Vec<TransformerEncoderLayerAutoregressiveCache>,
 }
 
-impl<B: Backend> TransformerEncoderAutoregressiveCache<B> {
+impl TransformerEncoderAutoregressiveCache {
     fn empty(num_layers: usize) -> Self {
         Self {
             layers: (0..num_layers)
@@ -420,10 +420,10 @@ impl<B: Backend> TransformerEncoderAutoregressiveCache<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TestBackend, attention::generate_autoregressive_mask};
+    use crate::attention::generate_autoregressive_mask;
     use burn::tensor::Distribution;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_autoregressive_norm_last() {
@@ -447,7 +447,7 @@ mod tests {
         let device = Default::default();
         let transformer = config.init(&device);
 
-        let tensor = Tensor::<TestBackend, 3>::random(
+        let tensor = Tensor::<3>::random(
             [batch_size, seq_length, d_model],
             Distribution::Default,
             &device,
@@ -478,7 +478,7 @@ mod tests {
     #[test]
     fn display() {
         let config = TransformerEncoderConfig::new(2, 4, 2, 3);
-        let transformer = config.init::<TestBackend>(&Default::default());
+        let transformer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{transformer}"),

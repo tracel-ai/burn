@@ -1,27 +1,27 @@
 use burn_core as burn;
 
 use burn_core::module::{Module, Param, ParamId};
+use burn_core::tensor::{Bool, Device, Int, Tensor};
 use burn_nn as nn;
-use burn_tensor::{Bool, Int, Tensor, backend::Backend};
 
 use crate::{ModuleSnapshot, SafetensorsStore};
 
 /// Simple model with different data types for testing
 #[derive(Module, Debug)]
-pub struct MixedDtypeModel<B: Backend> {
+pub struct MixedDtypeModel {
     // Standard neural network layers (float tensors)
-    linear: nn::Linear<B>,
+    linear: nn::Linear,
 
     // Direct tensor parameters of different types
-    float_tensor: Param<Tensor<B, 2>>,
+    float_tensor: Param<Tensor<2>>,
 
-    int_tensor: Param<Tensor<B, 2, Int>>,
+    int_tensor: Param<Tensor<2, Int>>,
 
-    bool_tensor: Param<Tensor<B, 2, Bool>>,
+    bool_tensor: Param<Tensor<2, Bool>>,
 }
 
-impl<B: Backend> MixedDtypeModel<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl MixedDtypeModel {
+    pub fn new(device: &Device) -> Self {
         Self {
             linear: nn::LinearConfig::new(3, 3).init(device),
 
@@ -55,17 +55,16 @@ impl<B: Backend> MixedDtypeModel<B> {
 #[cfg(test)]
 #[allow(clippy::excessive_precision)]
 mod tests {
-    use burn_tensor::{BoolStore, DType};
+    use burn_core::tensor::{BoolStore, DType};
 
     use super::*;
 
     #[test]
     fn test_mixed_dtypes_round_trip() {
-        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
         // Create model with mixed data types
-        let model = MixedDtypeModel::<TestBackend>::new(&device);
+        let model = MixedDtypeModel::new(&device);
 
         // Save to bytes
         let mut save_store = SafetensorsStore::from_bytes(None);
@@ -74,7 +73,7 @@ mod tests {
 
         // Load into a new model
         let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-        let mut loaded_model = MixedDtypeModel::<TestBackend>::new(&device);
+        let mut loaded_model = MixedDtypeModel::new(&device);
         loaded_model
             .load_from(&mut load_store)
             .expect("Failed to load");
@@ -97,10 +96,9 @@ mod tests {
 
     #[test]
     fn test_dtype_detection() {
-        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
-        let model = MixedDtypeModel::<TestBackend>::new(&device);
+        let model = MixedDtypeModel::new(&device);
         let snapshots = model.collect(None, None, false);
 
         for snapshot in snapshots {
@@ -140,18 +138,17 @@ mod tests {
 
     #[test]
     fn test_extreme_values() {
-        type TestBackend = burn_flex::Flex;
-        let device = Default::default();
+        let device = Device::default();
 
         #[derive(Module, Debug)]
-        struct ExtremeValueModel<B: Backend> {
-            large_floats: Param<Tensor<B, 1>>,
-            small_floats: Param<Tensor<B, 1>>,
-            large_ints: Param<Tensor<B, 1, Int>>,
+        struct ExtremeValueModel {
+            large_floats: Param<Tensor<1>>,
+            small_floats: Param<Tensor<1>>,
+            large_ints: Param<Tensor<1, Int>>,
         }
 
-        impl<B: Backend> ExtremeValueModel<B> {
-            fn new(device: &B::Device) -> Self {
+        impl ExtremeValueModel {
+            fn new(device: &Device) -> Self {
                 Self {
                     large_floats: Param::from_tensor(Tensor::from_floats(
                         [1e30, -1e30, f32::MAX, f32::MIN],
@@ -169,7 +166,7 @@ mod tests {
             }
         }
 
-        let model = ExtremeValueModel::<TestBackend>::new(&device);
+        let model = ExtremeValueModel::new(&device);
 
         // Save and load
         let mut save_store = SafetensorsStore::from_bytes(None);
@@ -177,7 +174,7 @@ mod tests {
         let bytes = save_store.get_bytes().expect("Failed to get bytes");
 
         let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-        let mut loaded_model = ExtremeValueModel::<TestBackend>::new(&device);
+        let mut loaded_model = ExtremeValueModel::new(&device);
         loaded_model
             .load_from(&mut load_store)
             .expect("Failed to load");
@@ -212,10 +209,9 @@ mod tests {
 
         // Test with f32 backend
         {
-            type TestBackend = burn_flex::Flex;
             let device = Default::default();
 
-            let model = MixedDtypeModel::<TestBackend>::new(&device);
+            let model = MixedDtypeModel::new(&device);
 
             // Save to bytes
             let mut save_store = SafetensorsStore::from_bytes(None);
@@ -224,7 +220,7 @@ mod tests {
 
             // Load and verify
             let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-            let mut loaded_model = MixedDtypeModel::<TestBackend>::new(&device);
+            let mut loaded_model = MixedDtypeModel::new(&device);
             loaded_model
                 .load_from(&mut load_store)
                 .expect("Failed to load");
@@ -238,16 +234,15 @@ mod tests {
 
         // Test with f64 weights
         {
-            type TestBackend = burn_flex::Flex;
             let device = Default::default();
 
             #[derive(Module, Debug)]
-            struct F64Model<B: Backend> {
-                weight: Param<Tensor<B, 2>>,
-                double_precision: Param<Tensor<B, 2>>,
+            struct F64Model {
+                weight: Param<Tensor<2>>,
+                double_precision: Param<Tensor<2>>,
             }
 
-            let model = F64Model::<TestBackend> {
+            let model = F64Model {
                 weight: Param::from_tensor(Tensor::ones([3, 3], (&device, DType::F64))),
                 double_precision: Param::from_tensor(Tensor::from_data(
                     [
@@ -265,7 +260,7 @@ mod tests {
 
             // Load and verify
             let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-            let mut loaded_model = F64Model::<TestBackend> {
+            let mut loaded_model = F64Model {
                 weight: Param::from_tensor(Tensor::ones([3, 3], &device)),
                 double_precision: Param::from_tensor(Tensor::zeros([2, 2], &device)),
             };
@@ -281,20 +276,19 @@ mod tests {
 
     #[test]
     fn test_mixed_precision_integers() {
-        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
         #[derive(Module, Debug)]
-        struct MultiIntModel<B: Backend> {
-            // Note: Burn's Tensor<B, D, Int> uses the backend's default int type
+        struct MultiIntModel {
+            // Note: Burn's Tensor<D, Int> uses the backend's default int type
             // We can't directly specify i8, i16, etc. in the type system
             // But we can test with different values that would fit in different ranges
-            small_ints: Param<Tensor<B, 1, Int>>, // Values that fit in i8
-            medium_ints: Param<Tensor<B, 1, Int>>, // Values that fit in i16
-            large_ints: Param<Tensor<B, 1, Int>>, // Values that need i32/i64
+            small_ints: Param<Tensor<1, Int>>, // Values that fit in i8
+            medium_ints: Param<Tensor<1, Int>>, // Values that fit in i16
+            large_ints: Param<Tensor<1, Int>>, // Values that need i32/i64
         }
 
-        let model = MultiIntModel::<TestBackend> {
+        let model = MultiIntModel {
             small_ints: Param::initialized(
                 ParamId::new(),
                 Tensor::from_ints([127i32, -128, 0, 42], &device),
@@ -316,7 +310,7 @@ mod tests {
 
         // Load and verify
         let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-        let mut loaded_model = MultiIntModel::<TestBackend> {
+        let mut loaded_model = MultiIntModel {
             small_ints: Param::initialized(ParamId::new(), Tensor::zeros([4], &device)),
             medium_ints: Param::initialized(ParamId::new(), Tensor::zeros([4], &device)),
             large_ints: Param::initialized(ParamId::new(), Tensor::zeros([4], &device)),
@@ -344,22 +338,21 @@ mod tests {
 
     #[test]
     fn test_comprehensive_mixed_types() {
-        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
         #[derive(Module, Debug)]
-        struct ComprehensiveModel<B: Backend> {
+        struct ComprehensiveModel {
             // Neural network layers
-            linear1: nn::Linear<B>,
-            conv2d: nn::conv::Conv2d<B>,
+            linear1: nn::Linear,
+            conv2d: nn::conv::Conv2d,
 
             // Different tensor types
-            float32_weights: Param<Tensor<B, 3>>,
-            integer_indices: Param<Tensor<B, 2, Int>>,
-            boolean_mask: Param<Tensor<B, 2, Bool>>,
+            float32_weights: Param<Tensor<3>>,
+            integer_indices: Param<Tensor<2, Int>>,
+            boolean_mask: Param<Tensor<2, Bool>>,
         }
 
-        let model = ComprehensiveModel::<TestBackend> {
+        let model = ComprehensiveModel {
             linear1: nn::LinearConfig::new(4, 8).init(&device),
             conv2d: nn::conv::Conv2dConfig::new([3, 16], [3, 3]).init(&device),
 
@@ -406,7 +399,7 @@ mod tests {
 
         // Load into fresh model
         let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
-        let mut loaded_model = ComprehensiveModel::<TestBackend> {
+        let mut loaded_model = ComprehensiveModel {
             linear1: nn::LinearConfig::new(4, 8).init(&device),
             conv2d: nn::conv::Conv2dConfig::new([3, 16], [3, 3]).init(&device),
             float32_weights: Param::from_tensor(Tensor::zeros([2, 2, 2], &device)),

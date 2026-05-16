@@ -10,8 +10,8 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, Param};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_nn::loss::Reduction;
 
 use super::vgg16_l2pool::Vgg16L2PoolExtractor;
@@ -34,16 +34,16 @@ const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
 /// This struct holds the mean and std tensors for normalization,
 /// avoiding the need to create them on each forward pass.
 #[derive(Module, Debug)]
-pub struct Normalizer<B: Backend> {
+pub struct Normalizer {
     /// Mean tensor of shape [1, 3, 1, 1] for broadcasting.
-    pub mean: Tensor<B, 4>,
+    pub mean: Tensor<4>,
     /// Std tensor of shape [1, 3, 1, 1] for broadcasting.
-    pub std: Tensor<B, 4>,
+    pub std: Tensor<4>,
 }
 
-impl<B: Backend> Normalizer<B> {
+impl Normalizer {
     /// Create a new ImageNet normalizer.
-    pub fn imagenet(device: &B::Device) -> Self {
+    pub fn imagenet(device: &Device) -> Self {
         // Shape: [1, 3, 1, 1] for broadcasting over [batch, channels, height, width]
         let mean = Tensor::from_floats(
             [[
@@ -65,7 +65,7 @@ impl<B: Backend> Normalizer<B> {
     }
 
     /// Normalize a tensor: (x - mean) / std
-    pub fn normalize(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn normalize(&self, x: Tensor<4>) -> Tensor<4> {
         x.sub(self.mean.clone()).div(self.std.clone())
     }
 }
@@ -80,7 +80,7 @@ pub struct DistsConfig {
 
 impl DistsConfig {
     /// Initialize a DISTS module with default weights.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Dists<B> {
+    pub fn init(&self, device: &Device) -> Dists {
         let total_channels: usize = CHANNELS.iter().sum();
 
         // Initialize alpha and beta with constant value 0.1 for all channels
@@ -102,7 +102,7 @@ impl DistsConfig {
     }
 
     /// Initialize a DISTS module with pretrained weights.
-    pub fn init_pretrained<B: Backend>(&self, device: &B::Device) -> Dists<B> {
+    pub fn init_pretrained(&self, device: &Device) -> Dists {
         let dists = self.init(device);
         super::weights::load_pretrained_weights(dists)
     }
@@ -122,25 +122,25 @@ impl DistsConfig {
 /// let device = Default::default();
 /// let dists = DistsConfig::new().init_pretrained(&device);
 ///
-/// let img1: Tensor<B, 4> = /* [batch, 3, H, W] */;
-/// let img2: Tensor<B, 4> = /* [batch, 3, H, W] */;
+/// let img1: Tensor<4> = /* [batch, 3, H, W] */;
+/// let img2: Tensor<4> = /* [batch, 3, H, W] */;
 ///
 /// let distance = dists.forward(img1, img2, Reduction::Mean);
 /// ```
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Dists<B: Backend> {
+pub struct Dists {
     /// VGG16 feature extractor with L2 pooling
-    pub(crate) extractor: Vgg16L2PoolExtractor<B>,
+    pub(crate) extractor: Vgg16L2PoolExtractor,
     /// Learned weights for structure similarity (per channel)
-    pub(crate) alpha: Param<Tensor<B, 1>>,
+    pub(crate) alpha: Param<Tensor<1>>,
     /// Learned weights for texture similarity (per channel)
-    pub(crate) beta: Param<Tensor<B, 1>>,
+    pub(crate) beta: Param<Tensor<1>>,
     /// Optional normalizer for input preprocessing
-    pub(crate) normalizer: Option<Normalizer<B>>,
+    pub(crate) normalizer: Option<Normalizer>,
 }
 
-impl<B: Backend> ModuleDisplay for Dists<B> {
+impl ModuleDisplay for Dists {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -155,7 +155,7 @@ impl<B: Backend> ModuleDisplay for Dists<B> {
     }
 }
 
-impl<B: Backend> Dists<B> {
+impl Dists {
     /// Compute DISTS distance with reduction.
     ///
     /// # Arguments
@@ -167,12 +167,7 @@ impl<B: Backend> Dists<B> {
     /// # Returns
     ///
     /// Scalar tensor of shape `[1]`.
-    pub fn forward(
-        &self,
-        input: Tensor<B, 4>,
-        target: Tensor<B, 4>,
-        reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    pub fn forward(&self, input: Tensor<4>, target: Tensor<4>, reduction: Reduction) -> Tensor<1> {
         let distance = self.forward_no_reduction(input, target);
 
         match reduction {
@@ -191,7 +186,7 @@ impl<B: Backend> Dists<B> {
     /// # Returns
     ///
     /// Per-sample distance tensor of shape `[batch]`.
-    pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
+    pub fn forward_no_reduction(&self, input: Tensor<4>, target: Tensor<4>) -> Tensor<1> {
         let [batch, _, _, _] = input.dims();
 
         // Preprocess inputs
@@ -212,8 +207,8 @@ impl<B: Backend> Dists<B> {
         let device = feats_x[0].device();
 
         // Initialize accumulators
-        let mut structure_dist = Tensor::<B, 1>::zeros([batch], &device);
-        let mut texture_dist = Tensor::<B, 1>::zeros([batch], &device);
+        let mut structure_dist = Tensor::<1>::zeros([batch], &device);
+        let mut texture_dist = Tensor::<1>::zeros([batch], &device);
 
         let mut channel_offset = 0;
 
@@ -251,11 +246,11 @@ impl<B: Backend> Dists<B> {
     /// Compute structure and texture similarity for a single stage.
     fn compute_stage_similarity(
         &self,
-        feat_x: Tensor<B, 4>,
-        feat_y: Tensor<B, 4>,
-        alpha: Tensor<B, 1>,
-        beta: Tensor<B, 1>,
-    ) -> (Tensor<B, 1>, Tensor<B, 1>) {
+        feat_x: Tensor<4>,
+        feat_y: Tensor<4>,
+        alpha: Tensor<1>,
+        beta: Tensor<1>,
+    ) -> (Tensor<1>, Tensor<1>) {
         let [batch, channels, height, width] = feat_x.dims();
         let device = feat_x.device();
 
@@ -268,7 +263,7 @@ impl<B: Backend> Dists<B> {
         let mean_y = y.clone().mean_dim(2).squeeze_dim::<2>(2);
 
         // Compute structure similarity: (2*mean_x*mean_y + c1) / (mean_x^2 + mean_y^2 + c1)
-        let c1 = Tensor::<B, 2>::full([batch, channels], C1, &device);
+        let c1 = Tensor::<2>::full([batch, channels], C1, &device);
         let structure_sim = mean_x
             .clone()
             .mul(mean_y.clone())
@@ -307,15 +302,15 @@ impl<B: Backend> Dists<B> {
             .sub(mean_x.clone().mul(mean_y.clone()));
 
         // Compute texture similarity: (2*cov_xy + c2) / (var_x + var_y + c2)
-        let c2 = Tensor::<B, 2>::full([batch, channels], C2, &device);
+        let c2 = Tensor::<2>::full([batch, channels], C2, &device);
         let texture_sim = cov_xy
             .mul_scalar(2.0)
             .add(c2.clone())
             .div(var_x.add(var_y).add(c2));
 
         // Convert similarity to distance: 1 - similarity
-        let structure_dist = Tensor::<B, 2>::ones([batch, channels], &device).sub(structure_sim);
-        let texture_dist = Tensor::<B, 2>::ones([batch, channels], &device).sub(texture_sim);
+        let structure_dist = Tensor::<2>::ones([batch, channels], &device).sub(structure_sim);
+        let texture_dist = Tensor::<2>::ones([batch, channels], &device).sub(texture_sim);
 
         // Apply weights: [batch, channels] * [channels] -> [batch, channels]
         // Then sum over channels -> [batch]
@@ -332,11 +327,7 @@ impl<B: Backend> Dists<B> {
     }
 
     /// Preprocess input images using the configured normalizer.
-    fn preprocess(
-        &self,
-        input: Tensor<B, 4>,
-        target: Tensor<B, 4>,
-    ) -> (Tensor<B, 4>, Tensor<B, 4>) {
+    fn preprocess(&self, input: Tensor<4>, target: Tensor<4>) -> (Tensor<4>, Tensor<4>) {
         match &self.normalizer {
             Some(normalizer) => {
                 let input = normalizer.normalize(input);
@@ -355,24 +346,21 @@ impl<B: Backend> Dists<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core::tensor::{TensorData, Tolerance, ops::FloatElem};
-    use burn_flex::Flex;
+    use burn_core::tensor::{TensorData, Tolerance};
 
-    type TestBackend = Flex;
-    type FT = FloatElem<TestBackend>;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    type FT = f32;
 
     #[test]
     fn test_dists_identical_images_zero_distance() {
         let device = Default::default();
         // Use random image instead of constant to avoid numerical edge cases
-        let image = TestTensor::<4>::random(
+        let image = Tensor::<4>::random(
             [1, 3, 64, 64],
             burn_core::tensor::Distribution::Uniform(0.0, 1.0),
             &device,
         );
 
-        let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
+        let dists = DistsConfig::new().init(&device);
         let distance = dists.forward(image.clone(), image, Reduction::Mean);
 
         let expected = TensorData::from([0.0]);
@@ -385,10 +373,10 @@ mod tests {
     fn test_dists_different_images_nonzero_distance() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
+        let dists = DistsConfig::new().init(&device);
         let distance = dists.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
@@ -402,10 +390,10 @@ mod tests {
     fn test_dists_symmetry() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([1, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 32, 32], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 32, 32], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 32, 32], &device);
 
-        let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
+        let dists = DistsConfig::new().init(&device);
         let distance_forward = dists.forward(image1.clone(), image2.clone(), Reduction::Mean);
         let distance_reverse = dists.forward(image2, image1, Reduction::Mean);
 
@@ -418,10 +406,10 @@ mod tests {
     fn test_dists_batch_processing() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([2, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([2, 3, 32, 32], &device);
+        let image1 = Tensor::<4>::zeros([2, 3, 32, 32], &device);
+        let image2 = Tensor::<4>::ones([2, 3, 32, 32], &device);
 
-        let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
+        let dists = DistsConfig::new().init(&device);
         let distance = dists.forward(image1, image2, Reduction::Mean);
 
         assert_eq!(distance.dims(), [1]);
@@ -432,10 +420,10 @@ mod tests {
         let device = Default::default();
 
         let batch_size = 4;
-        let image1 = TestTensor::<4>::zeros([batch_size, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([batch_size, 3, 32, 32], &device);
+        let image1 = Tensor::<4>::zeros([batch_size, 3, 32, 32], &device);
+        let image2 = Tensor::<4>::ones([batch_size, 3, 32, 32], &device);
 
-        let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
+        let dists = DistsConfig::new().init(&device);
         let distance = dists.forward_no_reduction(image1, image2);
 
         assert_eq!(distance.dims(), [batch_size]);
@@ -444,7 +432,7 @@ mod tests {
     #[test]
     fn display_dists() {
         let device = Default::default();
-        let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
+        let dists = DistsConfig::new().init(&device);
 
         let display_str = format!("{dists}");
         assert!(display_str.contains("Dists"));
@@ -461,11 +449,11 @@ mod tests {
     fn test_dists_pretrained() {
         let device = Default::default();
 
-        let dists: Dists<TestBackend> = DistsConfig::new().init_pretrained(&device);
+        let dists = DistsConfig::new().init_pretrained(&device);
 
         // Test with identical images - should be ~0
         // Use random image to avoid numerical edge cases with constant images
-        let image = TestTensor::<4>::random(
+        let image = Tensor::<4>::random(
             [1, 3, 64, 64],
             burn_core::tensor::Distribution::Uniform(0.0, 1.0),
             &device,
@@ -479,12 +467,12 @@ mod tests {
         );
 
         // Test with different images - should be positive
-        let image1 = TestTensor::<4>::random(
+        let image1 = Tensor::<4>::random(
             [1, 3, 64, 64],
             burn_core::tensor::Distribution::Uniform(0.0, 0.3),
             &device,
         );
-        let image2 = TestTensor::<4>::random(
+        let image2 = Tensor::<4>::random(
             [1, 3, 64, 64],
             burn_core::tensor::Distribution::Uniform(0.7, 1.0),
             &device,

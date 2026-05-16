@@ -70,7 +70,7 @@ where
 }
 
 /// Generic unary operation for any element type.
-pub(crate) fn unary_op_typed<E, Op>(mut tensor: FlexTensor, op: Op) -> FlexTensor
+pub fn unary_op_typed<E, Op>(mut tensor: FlexTensor, op: Op) -> FlexTensor
 where
     E: burn_backend::Element + bytemuck::Pod,
     Op: Fn(E) -> E,
@@ -90,7 +90,7 @@ where
     unary_op_typed_convert(tensor, op)
 }
 
-pub(crate) fn unary_op_typed_convert<E, O, Op>(tensor: FlexTensor, op: Op) -> FlexTensor
+pub fn unary_op_typed_convert<E, O, Op>(tensor: FlexTensor, op: Op) -> FlexTensor
 where
     E: burn_backend::Element + bytemuck::Pod,
     O: burn_backend::Element + bytemuck::Pod,

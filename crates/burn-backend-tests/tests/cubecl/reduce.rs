@@ -1,7 +1,6 @@
 use super::*;
 use burn_tensor::Distribution;
 use burn_tensor::Shape;
-use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
 const RANK: usize = 4;

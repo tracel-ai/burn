@@ -2,7 +2,7 @@ use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::AdamConfig,
-    tensor::backend::AutodiffBackend,
+    tensor::Device,
     train::{
         Learner, SupervisedTraining,
         renderer::{
@@ -61,16 +61,17 @@ impl MetricsRendererEvaluation for CustomRenderer {
     }
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run(device: impl Into<Device>) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    B::seed(&device, config.seed);
+    let device = device.into().autodiff();
+    device.seed(config.seed);
 
     // Create the model and optimizer.
-    let model = config.model.init::<B>(&device);
+    let model = config.model.init(&device);
     let optim = config.optimizer.init();
 
     // Create the batcher.

@@ -2,25 +2,22 @@ use burn_core as burn;
 
 use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::Module;
+use burn_core::tensor::{Device, Tensor};
 use burn_nn::{
     BatchNorm, BatchNormConfig, Linear, LinearConfig, PaddingConfig2d, Relu,
     conv::{Conv2d, Conv2dConfig},
 };
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
-
-type TestBackend = burn_flex::Flex;
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: Conv2d<B>,
-    norm1: BatchNorm<B>,
-    fc1: Linear<B>,
+pub struct Net {
+    conv1: Conv2d,
+    norm1: BatchNorm,
+    fc1: Linear,
     relu: Relu,
 }
 
-impl<B: Backend> Net<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl Net {
+    pub fn new(device: &Device) -> Self {
         Self {
             conv1: Conv2dConfig::new([3, 4], [3, 3])
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
@@ -32,7 +29,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.conv1.forward(x);
         let x = self.norm1.forward(x);
         let x = self.relu.forward(x);
@@ -60,7 +57,7 @@ fn multi_layer_model_import() {
     let mut store = SafetensorsStore::from_file(safetensors_path)
         .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
-    let mut model = Net::<TestBackend>::new(&device);
+    let mut model = Net::new(&device);
 
     let result = model.load_from(&mut store).unwrap();
 
@@ -76,7 +73,7 @@ fn multi_layer_model_import() {
     // Note: Due to shape mismatches (PyTorch vs Burn conventions for linear layers),
     // we can't directly compare outputs with PyTorch model.
     // This test mainly verifies that the loading mechanism works.
-    let input = Tensor::<TestBackend, 4>::ones([1, 3, 8, 8], &device);
+    let input = Tensor::<4>::ones([1, 3, 8, 8], &device);
     let _output = model.forward(input);
 
     // Verify that some tensors were loaded successfully
@@ -100,7 +97,7 @@ fn safetensors_round_trip_with_pytorch_model() {
     let mut load_store = SafetensorsStore::from_file(safetensors_path)
         .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
-    let mut model = Net::<TestBackend>::new(&device);
+    let mut model = Net::new(&device);
     let load_result = model.load_from(&mut load_store).unwrap();
     // With the adapter, weights should load correctly
     assert!(!load_result.applied.is_empty());
@@ -116,7 +113,7 @@ fn safetensors_round_trip_with_pytorch_model() {
     model.save_into(&mut save_store).unwrap();
 
     // Load into a new model
-    let mut model2 = Net::<TestBackend>::new(&device);
+    let mut model2 = Net::new(&device);
     let mut load_store2 = SafetensorsStore::from_bytes(None);
     if let SafetensorsStore::Memory(ref mut p) = load_store2
         && let SafetensorsStore::Memory(ref p_save) = save_store
@@ -128,7 +125,7 @@ fn safetensors_round_trip_with_pytorch_model() {
     assert!(!result.applied.is_empty());
 
     // Verify both models produce the same output
-    let input = Tensor::<TestBackend, 4>::ones([1, 3, 8, 8], &device);
+    let input = Tensor::<4>::ones([1, 3, 8, 8], &device);
     let output1 = model.forward(input.clone());
     let output2 = model2.forward(input);
 
@@ -157,7 +154,7 @@ fn partial_load_from_pytorch_model() {
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true);
 
-    let mut model = Net::<TestBackend>::new(&device);
+    let mut model = Net::new(&device);
 
     // Save initial fc1 weights for comparison
     let _initial_fc1_weight = model.fc1.weight.val().to_data();
@@ -184,7 +181,7 @@ fn verify_tensor_names_from_pytorch() {
     );
 
     // Create a model and load from PyTorch
-    let mut model = Net::<TestBackend>::new(&device);
+    let mut model = Net::new(&device);
     let mut store = SafetensorsStore::from_file(safetensors_path)
         .validate(false) // Disable validation due to shape differences
         .allow_partial(true); // Allow partial loading due to naming differences

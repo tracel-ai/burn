@@ -33,15 +33,9 @@ pub use evaluator::*;
 pub use components::*;
 
 #[cfg(test)]
-pub(crate) type TestBackend = burn_flex::Flex;
-
-#[cfg(test)]
 pub(crate) mod tests {
-    use crate::TestBackend;
     use burn_core::{prelude::Tensor, tensor::Bool};
     use std::default::Default;
-
-    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
     /// Probability of tp before adding errors
     pub const THRESHOLD: f64 = 0.5;
@@ -58,7 +52,7 @@ pub(crate) mod tests {
     /// classification metrics testing
     pub fn dummy_classification_input(
         classification_type: &ClassificationType,
-    ) -> (Tensor<TestBackend, 2>, Tensor<TestBackend, 2, Bool>) {
+    ) -> (Tensor<2>, Tensor<2, Bool>) {
         match classification_type {
             ClassificationType::Binary => {
                 (

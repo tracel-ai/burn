@@ -4,7 +4,7 @@ use burn::config::Config;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::module::linear;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::{Device, Tensor};
 
 /// Configuration to create a [`Linear`] layer using the [init function](LinearConfig::init).
 #[derive(Config, Debug)]
@@ -44,18 +44,18 @@ pub enum LinearLayout {
 /// `O = IW + b`
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Linear<B: Backend> {
+pub struct Linear {
     /// Matrix of shape `[d_input, d_output]` initialized from a uniform distribution:
     ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
-    pub weight: Param<Tensor<B, 2>>,
+    pub weight: Param<Tensor<2>>,
     /// Vector of size `d_output` initialized from a uniform distribution:
     ///     `U(-k, k)`, where `k = sqrt(1 / d_input)`
-    pub bias: Option<Param<Tensor<B, 1>>>,
+    pub bias: Option<Param<Tensor<1>>>,
 }
 
 impl LinearConfig {
     /// Initialize a new [`Linear`] module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Linear<B> {
+    pub fn init(&self, device: &Device) -> Linear {
         let weight = match self.layout {
             LinearLayout::Row => {
                 let shape = [self.d_input, self.d_output];
@@ -70,24 +70,27 @@ impl LinearConfig {
                     // The param is already transposed when init. We re-transpose to have
                     // [d_output, d_input] while saving.
                     .save_mapper(move |tensor| {
-                        B::sync(&tensor.device()).unwrap();
+                        let device = tensor.device();
+                        device.sync().unwrap();
                         let tensor = tensor.transpose();
-                        B::sync(&tensor.device()).unwrap();
+                        device.sync().unwrap();
                         tensor
                     })
                     // When loading from record we have to transpose.
                     .load_mapper(move |tensor| {
-                        B::sync(&tensor.device()).unwrap();
+                        let device = tensor.device();
+                        device.sync().unwrap();
                         let tensor = tensor.transpose();
-                        B::sync(&tensor.device()).unwrap();
+                        device.sync().unwrap();
 
                         tensor
                     })
                     // When loading from initialization, we have to transpose.
                     .init_mapper(|tensor| {
-                        B::sync(&tensor.device()).unwrap();
+                        let device = tensor.device();
+                        device.sync().unwrap();
                         let tensor = tensor.transpose();
-                        B::sync(&tensor.device()).unwrap();
+                        device.sync().unwrap();
                         tensor
                     })
             }
@@ -107,7 +110,7 @@ impl LinearConfig {
     }
 }
 
-impl<B: Backend> Linear<B> {
+impl Linear {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Arguments
@@ -122,7 +125,7 @@ impl<B: Backend> Linear<B> {
     /// # Returns
     ///
     /// The transformed tensor of shape `[..., d_output]`.
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         linear(
             input,
             self.weight.val(),
@@ -131,7 +134,7 @@ impl<B: Backend> Linear<B> {
     }
 }
 
-impl<B: Backend> ModuleDisplay for Linear<B> {
+impl ModuleDisplay for Linear {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -151,22 +154,21 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::module::ParamId;
     use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
     use burn::tensor::ElementConversion;
+    use burn::tensor::Tolerance;
     use burn::tensor::{Shape, TensorData};
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     #[test]
     fn initializer_default() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = LinearConfig::new(5, 5);
         let k = (1.0 / config.d_input as f64).sqrt().elem::<FT>();
-        let linear = config.init::<TestBackend>(&device);
+        let linear = config.init(&device);
 
         assert_eq!(
             config.initializer,
@@ -180,11 +182,11 @@ mod tests {
 
     #[test]
     fn initializer_zeros() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = LinearConfig::new(5, 5).with_initializer(Initializer::Zeros);
-        let linear = config.init::<TestBackend>(&device);
+        let linear = config.init(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
         linear.weight.to_data().assert_approx_eq::<FT>(
@@ -195,53 +197,51 @@ mod tests {
 
     #[test]
     fn test_linear_forward_no_bias() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let value = 2.;
         let config = LinearConfig::new(2, 3)
             .with_initializer(Initializer::Constant { value })
             .with_bias(false);
-        let linear = config.init::<TestBackend>(&device);
+        let linear = config.init(&device);
 
-        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
+        let input = Tensor::<2>::ones(Shape::new([1, 2]), &device);
         let result = linear.forward(input);
-        let expected_result = Tensor::<TestBackend, 2>::from_data([[4., 4., 4.]], &device);
+        let expected_result = Tensor::<2>::from_data([[4., 4., 4.]], &device);
 
         assert_eq!(result.into_data(), expected_result.into_data());
     }
 
     #[test]
     fn test_linear_forward_with_bias() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
-        let device = Default::default();
+        let device = Device::default();
 
         let value = 2.;
         let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant { value });
-        let linear = config.init::<TestBackend>(&device);
+        let linear = config.init(&device);
 
-        let input = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
+        let input = Tensor::<2>::ones(Shape::new([1, 2]), &device);
         let result = linear.forward(input);
-        let expected_result = Tensor::<TestBackend, 2>::from_data([[6., 6., 6.]], &device);
+        let expected_result = Tensor::<2>::from_data([[6., 6., 6.]], &device);
 
         assert_eq!(result.into_data(), expected_result.into_data());
     }
 
     #[test]
     fn test_linear_1d() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
-
-        let device = Default::default();
+        let device = Device::default();
+        device.seed(0);
 
         let value = 2.;
         let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant { value });
-        let linear = config.init::<TestBackend>(&device);
+        let linear = config.init(&device);
 
-        let input_1d = Tensor::<TestBackend, 1>::ones(Shape::new([2]), &device);
-        let input_2d = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
+        let input_1d = Tensor::<1>::ones(Shape::new([2]), &device);
+        let input_2d = Tensor::<2>::ones(Shape::new([1, 2]), &device);
 
         let result_1d = linear.forward(input_1d).unsqueeze::<2>();
         let result_2d = linear.forward(input_2d);
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn display() {
         let config = LinearConfig::new(3, 5);
-        let linear = config.init::<TestBackend>(&Default::default());
+        let linear = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{linear}"),
@@ -264,7 +264,7 @@ mod tests {
     fn layout() {
         let device = Default::default();
         let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear = config.init::<TestBackend>(&device);
+        let linear = config.init(&device);
 
         assert_eq!(linear.weight.dims(), [6, 12], "Shape is as configured");
 
@@ -276,7 +276,7 @@ mod tests {
         let record = recorder.load(data.clone(), &device).unwrap();
 
         let config = LinearConfig::new(12, 6).with_layout(LinearLayout::Row);
-        let linear_row = config.init::<TestBackend>(&device).load_record(record);
+        let linear_row = config.init(&device).load_record(record);
 
         assert_eq!(
             linear_row.weight.dims(),
@@ -286,7 +286,7 @@ mod tests {
 
         let record = recorder.load(data.clone(), &device).unwrap();
         let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear_col = config.init::<TestBackend>(&device).load_record(record);
+        let linear_col = config.init(&device).load_record(record);
 
         assert_eq!(
             linear_col.weight.dims(),
@@ -303,7 +303,7 @@ mod tests {
 
         let record = recorder.load(data, &device).unwrap();
         let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear_col = config.init::<TestBackend>(&device).load_record(record);
+        let linear_col = config.init(&device).load_record(record);
 
         assert_eq!(
             linear_col.weight.dims(),
@@ -316,8 +316,8 @@ mod tests {
     fn col_row_same_result() {
         let device = Default::default();
         let config_col = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear_col = config_col.init::<TestBackend>(&device);
-        let signal = Tensor::<_, 2>::random([8, 6], burn::tensor::Distribution::Default, &device);
+        let linear_col = config_col.init(&device);
+        let signal = Tensor::<2>::random([8, 6], burn::tensor::Distribution::Default, &device);
         let value = linear_col.forward(signal.clone());
 
         let data_1 = value.into_data();

@@ -1,23 +1,24 @@
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_core as burn;
+
 /// Parametric Relu layer.
 ///
 /// Should be created using [PReluConfig]
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct PRelu<B: Backend> {
+pub struct PRelu {
     /// the weights learnt for PReLu. can be of shape \[1\] or \[num_parameters\] in which case it must
     /// be the same as number of channels in the input tensor
-    pub alpha: Param<Tensor<B, 1>>,
+    pub alpha: Param<Tensor<1>>,
 
     /// Alpha value for the PRelu layer
     pub alpha_value: f64,
 }
 
-impl<B: Backend> ModuleDisplay for PRelu<B> {
+impl ModuleDisplay for PRelu {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -47,7 +48,7 @@ pub struct PReluConfig {
 
 impl PReluConfig {
     /// Initialize a new [Parametric Relu](PRelu) Layer
-    pub fn init<B: Backend>(&self, device: &B::Device) -> PRelu<B> {
+    pub fn init(&self, device: &Device) -> PRelu {
         PRelu {
             // alpha is a tensor of length num_parameters
             alpha: Initializer::Constant { value: self.alpha }.init([self.num_parameters], device),
@@ -56,7 +57,7 @@ impl PReluConfig {
     }
 }
 
-impl<B: Backend> PRelu<B> {
+impl PRelu {
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
@@ -65,7 +66,7 @@ impl<B: Backend> PRelu<B> {
     /// - output: `[..., any]`
     ///
     /// See also [prelu](burn::tensor::activation::prelu) for more information.
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         burn::tensor::activation::prelu(input, self.alpha.val())
     }
 }
@@ -73,11 +74,10 @@ impl<B: Backend> PRelu<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     fn display() {
-        let layer = PReluConfig::new().init::<TestBackend>(&Default::default());
+        let layer = PReluConfig::new().init(&Default::default());
 
         assert_eq!(
             alloc::format!("{layer}"),

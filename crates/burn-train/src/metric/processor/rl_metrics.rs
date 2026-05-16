@@ -8,15 +8,15 @@ use crate::{
 };
 
 pub(crate) struct RLMetrics<TS: ItemLazy, ES: ItemLazy> {
-    train_step: Vec<Box<dyn MetricUpdater<TS::ItemSync>>>,
-    env_step: Vec<Box<dyn MetricUpdater<ES::ItemSync>>>,
-    env_step_valid: Vec<Box<dyn MetricUpdater<ES::ItemSync>>>,
+    train_step: Vec<Box<dyn MetricUpdater<TS>>>,
+    env_step: Vec<Box<dyn MetricUpdater<ES>>>,
+    env_step_valid: Vec<Box<dyn MetricUpdater<ES>>>,
     episode_end: Vec<Box<dyn MetricUpdater<EpisodeSummary>>>,
     episode_end_valid: Vec<Box<dyn MetricUpdater<EpisodeSummary>>>,
 
-    train_step_numeric: Vec<Box<dyn NumericMetricUpdater<TS::ItemSync>>>,
-    env_step_numeric: Vec<Box<dyn NumericMetricUpdater<ES::ItemSync>>>,
-    env_step_valid_numeric: Vec<Box<dyn NumericMetricUpdater<ES::ItemSync>>>,
+    train_step_numeric: Vec<Box<dyn NumericMetricUpdater<TS>>>,
+    env_step_numeric: Vec<Box<dyn NumericMetricUpdater<ES>>>,
+    env_step_valid_numeric: Vec<Box<dyn NumericMetricUpdater<ES>>>,
     episode_end_numeric: Vec<Box<dyn NumericMetricUpdater<EpisodeSummary>>>,
     episode_end_valid_numeric: Vec<Box<dyn NumericMetricUpdater<EpisodeSummary>>>,
 
@@ -45,7 +45,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a training metric.
     pub(crate) fn register_text_metric_agent<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        ES::ItemSync: Adaptor<Me::Input> + 'static,
+        ES: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -55,7 +55,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a training metric.
     pub(crate) fn register_agent_metric<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
     where
-        ES::ItemSync: Adaptor<Me::Input> + 'static,
+        ES: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -65,7 +65,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a training metric.
     pub(crate) fn register_text_metric_train<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        TS::ItemSync: Adaptor<Me::Input> + 'static,
+        TS: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -75,7 +75,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a training metric.
     pub(crate) fn register_metric_train<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
     where
-        TS::ItemSync: Adaptor<Me::Input> + 'static,
+        TS: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -85,7 +85,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a validation env-step metric.
     pub(crate) fn register_text_metric_agent_valid<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        ES::ItemSync: Adaptor<Me::Input> + 'static,
+        ES: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -95,7 +95,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a validation env-step numeric metric.
     pub(crate) fn register_agent_metric_valid<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
     where
-        ES::ItemSync: Adaptor<Me::Input> + 'static,
+        ES: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -159,7 +159,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the training information from the training item.
     pub(crate) fn update_train_step(
         &mut self,
-        item: &EvaluationItem<TS::ItemSync>,
+        item: &EvaluationItem<TS>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.train_step.len());
@@ -181,7 +181,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the env-step metrics from an environment step item.
     pub(crate) fn update_env_step(
         &mut self,
-        item: &EvaluationItem<ES::ItemSync>,
+        item: &EvaluationItem<ES>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.env_step.len());
@@ -203,7 +203,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the env-step metrics for validation from an environment step item.
     pub(crate) fn update_env_step_valid(
         &mut self,
-        item: &EvaluationItem<ES::ItemSync>,
+        item: &EvaluationItem<ES>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.env_step_valid.len());

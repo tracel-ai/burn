@@ -1,4 +1,3 @@
-use crate::backend::Backend;
 use crate::check::TensorCheck;
 use crate::{Tensor, check, linalg};
 use burn_std::{DType, FloatDType};
@@ -46,9 +45,9 @@ use num_traits::float::Float;
 /// use burn::tensor::Tensor;
 /// use burn::tensor::linalg;
 ///
-/// fn example<B: Backend>() {
+/// fn example() {
 ///     let device = Default::default();
-///     let tensor = Tensor::<B, 3>::from_data([[[4.0, 3.0], [6.0, 3.0]]], &device);
+///     let tensor = Tensor::< 3>::from_data([[[4.0, 3.0], [6.0, 3.0]]], &device);
 ///
 ///     // Compute determinant
 ///     let result = linalg::det::<B, 3, 2, 1>(tensor);
@@ -57,9 +56,9 @@ use num_traits::float::Float;
 ///     // result: [-6.0]
 /// }
 ///
-/// fn example2<B: Backend>() {
+/// fn example2() {
 ///     let device = Default::default();
-///     let tensor = Tensor::<B, 3>::from_data(
+///     let tensor = Tensor::< 3>::from_data(
 ///         [
 ///             [[1.0, 2.0], [3.0, 4.0]],   // det = -2
 ///             [[2.0, 0.0], [0.0, 3.0]],   // det = 6
@@ -75,9 +74,7 @@ use num_traits::float::Float;
 ///     // result: [-2.0, 6.0, -2.0]
 /// }
 /// ```
-pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
-    mut tensor: Tensor<B, D>,
-) -> Tensor<B, D2> {
+pub fn det<const D: usize, const D1: usize, const D2: usize>(mut tensor: Tensor<D>) -> Tensor<D2> {
     // Check whether input tensor has valid shape to compute determinant
     let dims = tensor.dims();
     let original_dtype = tensor.dtype();
@@ -134,12 +131,12 @@ pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
     // Compute determinant for general case
     // det(A) = det(P) * det(L) * det(U)
     // det(A) = det(P) * 1 * det(U)
-    let (lu, pivots) = linalg::compute_lu_decomposition::<B, D, D1>(tensor.clone());
+    let (lu, pivots) = linalg::compute_lu_decomposition::<D, D1>(tensor.clone());
 
     // Compute the determinant of P
     let squeezed_pivots = pivots.squeeze_dim::<D1>(D - 1);
     let n_pivots = squeezed_pivots.dims()[D1 - 1] as i64;
-    let range_1d: Tensor<B, 1> =
+    let range_1d: Tensor<1> =
         Tensor::arange(0..n_pivots, &tensor.device()).cast(working_float_dtype);
     let mut reshape_dims = [1; D1];
     reshape_dims[D1 - 1] = n_pivots;
@@ -158,7 +155,7 @@ pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
         .squeeze_dim(D1 - 1);
 
     // Compute the determinant of U
-    let u_diag = linalg::diag::<B, D, D1, _>(lu);
+    let u_diag = linalg::diag::<D, D1, _>(lu);
     let mut u_det = u_diag.clone().prod_dim(D1 - 1).squeeze_dim(D1 - 1);
     let eps = tensor
         .dtype()

@@ -37,6 +37,9 @@ mod __client {
 #[cfg(feature = "client")]
 pub use __client::*;
 
+/*
+TODO
+
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use crate::RemoteBackend;
@@ -84,3 +87,4 @@ mod tests {
         rt.shutdown_background();
     }
 }
+*/

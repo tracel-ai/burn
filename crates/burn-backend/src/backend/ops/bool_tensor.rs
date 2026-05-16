@@ -1,7 +1,7 @@
 use super::{
     argwhere::argwhere_data, cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign,
 };
-use crate::tensor::{Bool, BoolTensor, Device, FloatTensor, IntTensor};
+use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, TensorData, TensorMetadata, get_device_settings};
 use crate::{ExecutionError, Scalar};
 use alloc::vec::Vec;
@@ -271,7 +271,15 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the dimension repeated.
     fn bool_repeat_dim(tensor: BoolTensor<B>, dim: usize, times: usize) -> BoolTensor<B> {
-        repeat_with_slice_assign::<B, Bool>(tensor, dim, times)
+        let device = B::bool_device(&tensor);
+        repeat_with_slice_assign::<B, _, _, _>(
+            tensor,
+            dim,
+            times,
+            device,
+            |shape, device, dtype| B::bool_empty(shape, device, dtype.into()),
+            B::bool_slice_assign,
+        )
     }
 
     /// Concatenates the tensors along the given dimension.
@@ -291,7 +299,15 @@ pub trait BoolTensorOps<B: Backend> {
     /// high-level tensor API and will not be passed to this method. Backend implementations do
     /// not need to handle empty tensors.
     fn bool_cat(tensors: Vec<BoolTensor<B>>, dim: usize) -> BoolTensor<B> {
-        cat_with_slice_assign::<B, Bool>(tensors, dim)
+        let first_tensor = tensors.first().expect("Tensors should not be empty");
+        let device = B::bool_device(first_tensor);
+        cat_with_slice_assign::<B, _, _, _>(
+            tensors,
+            dim,
+            device,
+            |shape, device, dtype| B::bool_empty(shape, device, dtype.into()),
+            B::bool_slice_assign,
+        )
     }
 
     /// Equates the two tensors.

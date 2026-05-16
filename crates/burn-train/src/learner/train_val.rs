@@ -1,6 +1,5 @@
 use crate::{ItemLazy, renderer::MetricsRenderer};
-use burn_core::module::AutodiffModule;
-use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::{module::AutodiffModule, tensor::Gradients};
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 
 /// A training output.
@@ -24,11 +23,7 @@ impl<TO> TrainOutput<TO> {
     /// # Returns
     ///
     /// A new training output.
-    pub fn new<B: AutodiffBackend, M: AutodiffModule<B>>(
-        module: &M,
-        grads: B::Gradients,
-        item: TO,
-    ) -> Self {
+    pub fn new<M: AutodiffModule>(module: &M, grads: Gradients, item: TO) -> Self {
         let grads = GradientsParams::from_grads(grads, module);
         Self { grads, item }
     }
@@ -73,11 +68,10 @@ pub trait TrainStep {
     /// # Returns
     ///
     /// The updated model.
-    fn optimize<B, O>(self, optim: &mut O, lr: f64, grads: GradientsParams) -> Self
+    fn optimize<O>(self, optim: &mut O, lr: f64, grads: GradientsParams) -> Self
     where
-        B: AutodiffBackend,
-        O: Optimizer<Self, B>,
-        Self: AutodiffModule<B>,
+        O: Optimizer<Self>,
+        Self: AutodiffModule,
     {
         optim.step(lr, self, grads)
     }
@@ -92,11 +86,10 @@ pub trait TrainStep {
     /// # Returns
     ///
     /// The updated model.
-    fn optimize_multi<B, O>(self, optim: &mut O, lr: f64, grads: MultiGradientsParams) -> Self
+    fn optimize_multi<O>(self, optim: &mut O, lr: f64, grads: MultiGradientsParams) -> Self
     where
-        B: AutodiffBackend,
-        O: Optimizer<Self, B>,
-        Self: AutodiffModule<B>,
+        O: Optimizer<Self>,
+        Self: AutodiffModule,
     {
         optim.step_multi(lr, self, grads)
     }

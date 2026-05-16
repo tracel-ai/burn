@@ -3,11 +3,7 @@ use crate::metric::{
     SerializedEntry,
     state::{FormatOptions, NumericMetricState},
 };
-use burn_core::{
-    prelude::{Backend, Tensor},
-    tensor::ElementConversion,
-};
-use core::marker::PhantomData;
+use burn_core::{prelude::Tensor, tensor::ElementConversion};
 use std::f64::consts::LN_10;
 
 /// Input type for the [PsnrMetric].
@@ -17,14 +13,14 @@ use std::f64::consts::LN_10;
 /// - `C`: Number of channels (1 for grayscale, 3 for RGB, etc.)
 /// - `H`: Height
 /// - `W`: Width
-pub struct PsnrInput<B: Backend> {
+pub struct PsnrInput {
     /// Model output (predictions/reconstructions) images with shape `[N, C, H, W]`.
-    outputs: Tensor<B, 4>,
+    outputs: Tensor<4>,
     /// Ground truth images with shape `[N, C, H, W]`.
-    targets: Tensor<B, 4>,
+    targets: Tensor<4>,
 }
 
-impl<B: Backend> PsnrInput<B> {
+impl PsnrInput {
     /// Creates a new PsnrInput with the given outputs and targets.
     ///
     /// Inputs are expected to have the dimensions `[N, C, H, W]`
@@ -40,7 +36,7 @@ impl<B: Backend> PsnrInput<B> {
     ///
     /// # Panics
     /// - If `outputs` and `targets` do not have the same shape.
-    pub fn new(outputs: Tensor<B, 4>, targets: Tensor<B, 4>) -> Self {
+    pub fn new(outputs: Tensor<4>, targets: Tensor<4>) -> Self {
         assert!(
             outputs.dims() == targets.dims(),
             "Shape mismatch: outputs {:?}, targets {:?}",
@@ -112,30 +108,27 @@ impl PsnrMetricConfig {
 /// - For perfect reconstruction (MSE = 0), the MSE is clamped to `epsilon` to avoid division by zero,
 ///   yielding a maximum PSNR of `10 * log10(MAX^2 / epsilon)` dB.
 #[derive(Clone)]
-pub struct PsnrMetric<B: Backend> {
+pub struct PsnrMetric {
     name: MetricName,
     /// Internal state for numeric metric aggregation.
     state: NumericMetricState,
-    /// Marker for backend type.
-    _b: PhantomData<B>,
     /// Configuration for the metric.
     config: PsnrMetricConfig,
 }
 
-impl<B: Backend> PsnrMetric<B> {
+impl PsnrMetric {
     /// Creates a new PSNR metric with the given configuration.
     ///
     /// # Example
     /// ```ignore
     /// let config = PsnrMetricConfig::new(1.0);
-    /// let metric = PsnrMetric::<B>::new(config);
+    /// let metric = PsnrMetric::new(config);
     /// ```
     pub fn new(config: PsnrMetricConfig) -> Self {
         Self {
             name: MetricName::new(format!("PSNR@{}", config.max_pixel_val)),
             state: NumericMetricState::default(),
             config,
-            _b: PhantomData,
         }
     }
 
@@ -152,8 +145,8 @@ impl<B: Backend> PsnrMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for PsnrMetric<B> {
-    type Input = PsnrInput<B>;
+impl Metric for PsnrMetric {
+    type Input = PsnrInput;
 
     fn name(&self) -> MetricName {
         self.name.clone()
@@ -207,7 +200,7 @@ impl<B: Backend> Metric for PsnrMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for PsnrMetric<B> {
+impl Numeric for PsnrMetric {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
@@ -220,7 +213,7 @@ impl<B: Backend> Numeric for PsnrMetric<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TestBackend, metric::Numeric};
+    use crate::metric::Numeric;
     use burn_core::tensor::TensorData;
 
     #[test]
@@ -228,14 +221,14 @@ mod tests {
         // When outputs exactly match targets, PSNR should be very high
         // (limited by epsilon clamping to ~100 dB with default epsilon=1e-10)
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::from_data(
+        let outputs = Tensor::<4>::from_data(
             TensorData::from([[[[1.0_f32, 0.5], [0.25, 0.75]]]]),
             &device,
         );
         let targets = outputs.clone();
 
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -254,17 +247,13 @@ mod tests {
         // Constant error of 0.1 across all pixels
         // MSE = 0.01, PSNR = 10 * log10(1.0 / 0.01) = 20 dB
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]),
-            &device,
-        );
-        let targets = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]),
-            &device,
-        );
+        let outputs =
+            Tensor::<4>::from_data(TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]), &device);
+        let targets =
+            Tensor::<4>::from_data(TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]), &device);
 
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -281,17 +270,13 @@ mod tests {
         // Errors: 0.1, 0.2, 0.3, 0.4 → squared: 0.01, 0.04, 0.09, 0.16
         // MSE = 0.075, PSNR = 10 * log10(1.0 / 0.075) ≈ 11.249 dB
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.1_f32, 0.2], [0.3, 0.4]]]]),
-            &device,
-        );
-        let targets = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]),
-            &device,
-        );
+        let outputs =
+            Tensor::<4>::from_data(TensorData::from([[[[0.1_f32, 0.2], [0.3, 0.4]]]]), &device);
+        let targets =
+            Tensor::<4>::from_data(TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]), &device);
 
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -311,17 +296,15 @@ mod tests {
         // Error = 10 everywhere, MSE = 100
         // PSNR = 10 * log10(255^2 / 100) ≈ 28.13 dB
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::from_data(
+        let outputs = Tensor::<4>::from_data(
             TensorData::from([[[[10.0_f32, 10.0], [10.0, 10.0]]]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]),
-            &device,
-        );
+        let targets =
+            Tensor::<4>::from_data(TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]), &device);
 
         let config = PsnrMetricConfig::new(255.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -342,14 +325,14 @@ mod tests {
         // Image 2: error 0.01 → MSE = 0.0001 → PSNR = 40 dB
         // Average PSNR = 30 dB
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::from_data(
+        let outputs = Tensor::<4>::from_data(
             TensorData::from([
                 [[[0.1_f32, 0.1], [0.1, 0.1]]],
                 [[[0.01_f32, 0.01], [0.01, 0.01]]],
             ]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 4>::from_data(
+        let targets = Tensor::<4>::from_data(
             TensorData::from([
                 [[[0.0_f32, 0.0], [0.0, 0.0]]],
                 [[[0.0_f32, 0.0], [0.0, 0.0]]],
@@ -358,7 +341,7 @@ mod tests {
         );
 
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -377,7 +360,7 @@ mod tests {
         // Test with 3 channels (RGB-like)
         // All channels have constant error 0.1 → MSE = 0.01 → PSNR = 20 dB
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::from_data(
+        let outputs = Tensor::<4>::from_data(
             TensorData::from([[
                 [[0.1_f32, 0.1], [0.1, 0.1]],
                 [[0.1_f32, 0.1], [0.1, 0.1]],
@@ -385,10 +368,10 @@ mod tests {
             ]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 4>::zeros([1, 3, 2, 2], &device);
+        let targets = Tensor::<4>::zeros([1, 3, 2, 2], &device);
 
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -407,14 +390,12 @@ mod tests {
         // Test running average across multiple updates
         let device = Default::default();
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
 
         // First update: error 0.1 → MSE = 0.01 → PSNR = 20 dB
-        let outputs1 = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]),
-            &device,
-        );
-        let targets1 = Tensor::<TestBackend, 4>::zeros([1, 1, 2, 2], &device);
+        let outputs1 =
+            Tensor::<4>::from_data(TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]), &device);
+        let targets1 = Tensor::<4>::zeros([1, 1, 2, 2], &device);
         let input1 = PsnrInput::new(outputs1, targets1);
         let _entry = metric.update(&input1, &MetricMetadata::fake());
 
@@ -428,11 +409,11 @@ mod tests {
         );
 
         // Second update: error 0.01 → MSE = 0.0001 → PSNR = 40 dB
-        let outputs2 = Tensor::<TestBackend, 4>::from_data(
+        let outputs2 = Tensor::<4>::from_data(
             TensorData::from([[[[0.01_f32, 0.01], [0.01, 0.01]]]]),
             &device,
         );
-        let targets2 = Tensor::<TestBackend, 4>::zeros([1, 1, 2, 2], &device);
+        let targets2 = Tensor::<4>::zeros([1, 1, 2, 2], &device);
         let input2 = PsnrInput::new(outputs2, targets2);
         let _entry = metric.update(&input2, &MetricMetadata::fake());
 
@@ -452,13 +433,11 @@ mod tests {
         // Error 0.1 → MSE = 0.01 → PSNR = 20 dB
         let device = Default::default();
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
 
-        let outputs = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]),
-            &device,
-        );
-        let targets = Tensor::<TestBackend, 4>::zeros([1, 1, 2, 2], &device);
+        let outputs =
+            Tensor::<4>::from_data(TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]), &device);
+        let targets = Tensor::<4>::zeros([1, 1, 2, 2], &device);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -480,7 +459,7 @@ mod tests {
     #[test]
     fn test_psnr_custom_name() {
         let config = PsnrMetricConfig::new(1.0);
-        let metric = PsnrMetric::<TestBackend>::new(config).with_name("CustomPSNR");
+        let metric = PsnrMetric::new(config).with_name("CustomPSNR");
 
         assert_eq!(metric.name().to_string(), "CustomPSNR");
     }
@@ -490,12 +469,10 @@ mod tests {
         let device = Default::default();
         // With a larger epsilon, perfect reconstruction gives lower PSNR
         let config = PsnrMetricConfig::new(1.0).with_epsilon(0.01);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
 
-        let outputs = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.5_f32, 0.5], [0.5, 0.5]]]]),
-            &device,
-        );
+        let outputs =
+            Tensor::<4>::from_data(TensorData::from([[[[0.5_f32, 0.5], [0.5, 0.5]]]]), &device);
         let targets = outputs.clone();
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
@@ -515,17 +492,13 @@ mod tests {
     fn test_psnr_negative_errors() {
         // Test that negative differences (target > output) work correctly
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]),
-            &device,
-        );
-        let targets = Tensor::<TestBackend, 4>::from_data(
-            TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]),
-            &device,
-        );
+        let outputs =
+            Tensor::<4>::from_data(TensorData::from([[[[0.0_f32, 0.0], [0.0, 0.0]]]]), &device);
+        let targets =
+            Tensor::<4>::from_data(TensorData::from([[[[0.1_f32, 0.1], [0.1, 0.1]]]]), &device);
 
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -547,11 +520,11 @@ mod tests {
         let batch_size = 8;
 
         // All images have constant error 0.1 → MSE = 0.01 → PSNR = 20 dB
-        let outputs = Tensor::<TestBackend, 4>::full([batch_size, 3, 4, 4], 0.1, &device);
-        let targets = Tensor::<TestBackend, 4>::zeros([batch_size, 3, 4, 4], &device);
+        let outputs = Tensor::<4>::full([batch_size, 3, 4, 4], 0.1, &device);
+        let targets = Tensor::<4>::zeros([batch_size, 3, 4, 4], &device);
 
         let config = PsnrMetricConfig::new(1.0);
-        let mut metric = PsnrMetric::<TestBackend>::new(config);
+        let mut metric = PsnrMetric::new(config);
         let input = PsnrInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
@@ -568,7 +541,7 @@ mod tests {
     #[test]
     fn test_psnr_attributes() {
         let config = PsnrMetricConfig::new(1.0);
-        let metric = PsnrMetric::<TestBackend>::new(config);
+        let metric = PsnrMetric::new(config);
         let attrs = metric.attributes();
 
         match attrs {
@@ -584,8 +557,8 @@ mod tests {
     #[should_panic(expected = "Shape mismatch")]
     fn test_psnr_shape_mismatch() {
         let device = Default::default();
-        let outputs = Tensor::<TestBackend, 4>::zeros([1, 1, 2, 2], &device);
-        let targets = Tensor::<TestBackend, 4>::zeros([1, 1, 3, 3], &device);
+        let outputs = Tensor::<4>::zeros([1, 1, 2, 2], &device);
+        let targets = Tensor::<4>::zeros([1, 1, 3, 3], &device);
 
         let _ = PsnrInput::new(outputs, targets);
     }

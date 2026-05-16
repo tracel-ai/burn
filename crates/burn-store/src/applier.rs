@@ -8,14 +8,14 @@ use alloc::vec::Vec;
 use hashbrown::{HashMap, HashSet};
 
 use burn_core::module::{ModuleMapper, Param};
-use burn_tensor::{Bool, Int, Shape, Tensor, backend::Backend};
+use burn_core::tensor::{Bool, Device, Int, Shape, Tensor};
 
 use crate::apply_result::{ApplyError, ApplyResult};
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 
 /// Applier that applies tensor snapshots to module parameters
 /// with proper adapter support using container type information
-pub struct Applier<B: Backend> {
+pub struct Applier {
     /// Map of tensor paths to their snapshots
     snapshots: HashMap<String, TensorSnapshot>,
     /// Current path in the module hierarchy
@@ -37,11 +37,9 @@ pub struct Applier<B: Backend> {
     /// Skip enum variant names when matching paths
     /// When true, "feature.BaseConv.weight" will also try to match "feature.weight"
     skip_enum_variants: bool,
-    /// Phantom data for backend type
-    _backend: core::marker::PhantomData<B>,
 }
 
-impl<B: Backend> Applier<B> {
+impl Applier {
     /// Create a new applier with snapshots, optional filter, and optional adapter
     ///
     /// # Arguments
@@ -73,7 +71,6 @@ impl<B: Backend> Applier<B> {
             errors: Vec::new(),
             visited_paths: HashMap::new(),
             skip_enum_variants,
-            _backend: core::marker::PhantomData,
         }
     }
 
@@ -154,12 +151,11 @@ impl<B: Backend> Applier<B> {
     /// Returns None if snapshot not found, filtered, or validation fails
     fn apply_tensor<const D: usize, K>(
         &mut self,
-        target_device: &B::Device,
+        target_device: &Device,
         target_shape: Shape,
-    ) -> Option<Tensor<B, D, K>>
+    ) -> Option<Tensor<D, K>>
     where
-        K: burn_tensor::TensorKind<B>,
-        K: burn_tensor::BasicOps<B>,
+        K: burn_core::tensor::kind::Basic,
     {
         let path = self.current_path();
         let container_stack_str = self.container_stack.join(".");
@@ -241,7 +237,7 @@ impl<B: Backend> Applier<B> {
     }
 }
 
-impl<B: Backend> ModuleMapper<B> for Applier<B> {
+impl ModuleMapper for Applier {
     fn enter_module(&mut self, name: &str, container_type: &str) {
         // Always track the container type for proper module type detection
         self.container_stack.push(container_type.to_string());
@@ -262,7 +258,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         }
     }
 
-    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
@@ -280,10 +276,7 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
         }
     }
 
-    fn map_int<const D: usize>(
-        &mut self,
-        param: Param<Tensor<B, D, Int>>,
-    ) -> Param<Tensor<B, D, Int>> {
+    fn map_int<const D: usize>(&mut self, param: Param<Tensor<D, Int>>) -> Param<Tensor<D, Int>> {
         let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
@@ -303,8 +296,8 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
 
     fn map_bool<const D: usize>(
         &mut self,
-        param: Param<Tensor<B, D, Bool>>,
-    ) -> Param<Tensor<B, D, Bool>> {
+        param: Param<Tensor<D, Bool>>,
+    ) -> Param<Tensor<D, Bool>> {
         let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
@@ -327,17 +320,15 @@ impl<B: Backend> ModuleMapper<B> for Applier<B> {
 mod tests {
     use super::*;
     use burn_core::module::{ModuleMapper, Param, ParamId};
-    use burn_tensor::{DType, Tensor, TensorData};
-
-    type TestBackend = burn_flex::Flex;
+    use burn_core::tensor::{DType, Tensor, TensorData};
 
     #[test]
     fn root_level_parameters() {
         let device = Default::default();
 
         // Create root-level parameters (not inside any module)
-        let weight = Param::<Tensor<TestBackend, 2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
-        let bias = Param::<Tensor<TestBackend, 1>>::from_data([5.0, 6.0], &device);
+        let weight = Param::<Tensor<2>>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let bias = Param::<Tensor<1>>::from_data([5.0, 6.0], &device);
 
         // Create snapshots with root-level paths (single-element path, no nested modules)
         let weight_snapshot = crate::TensorSnapshot::from_data(
@@ -355,18 +346,11 @@ mod tests {
         );
 
         // Create applier with root-level snapshots
-        let mut applier =
-            Applier::<TestBackend>::new(vec![weight_snapshot, bias_snapshot], None, None, false);
+        let mut applier = Applier::new(vec![weight_snapshot, bias_snapshot], None, None, false);
 
         // Create new params to load into
-        let weight_target = Param::initialized(
-            ParamId::new(),
-            Tensor::<TestBackend, 2>::zeros([2, 2], &device),
-        );
-        let bias_target = Param::initialized(
-            ParamId::new(),
-            Tensor::<TestBackend, 1>::zeros([2], &device),
-        );
+        let weight_target = Param::initialized(ParamId::new(), Tensor::<2>::zeros([2, 2], &device));
+        let bias_target = Param::initialized(ParamId::new(), Tensor::<1>::zeros([2], &device));
 
         // Apply using the ModuleMapper interface - simulate module traversal
         // Enter "weight" path (as if we're visiting a field named "weight")
@@ -418,12 +402,12 @@ mod tests {
         );
 
         // Create applier with the F64 snapshot
-        let mut applier = Applier::<TestBackend>::new(vec![snapshot], None, None, false);
+        let mut applier = Applier::new(vec![snapshot], None, None, false);
 
         // Create target parameter
         let target = Param::initialized(
             ParamId::new(),
-            Tensor::<TestBackend, 2>::zeros([2, 2], (&device, DType::F64)),
+            Tensor::<2>::zeros([2, 2], (&device, DType::F64)),
         );
 
         // Apply the snapshot
@@ -468,13 +452,10 @@ mod tests {
         assert_eq!(snapshot.dtype, DType::F32);
 
         // Create applier with the F32 snapshot
-        let mut applier = Applier::<TestBackend>::new(vec![snapshot], None, None, false);
+        let mut applier = Applier::new(vec![snapshot], None, None, false);
 
         // Create target parameter
-        let target = Param::initialized(
-            ParamId::new(),
-            Tensor::<TestBackend, 2>::zeros([2, 2], &device),
-        );
+        let target = Param::initialized(ParamId::new(), Tensor::<2>::zeros([2, 2], &device));
 
         // Apply the snapshot
         applier.enter_module("weight", "");

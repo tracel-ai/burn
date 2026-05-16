@@ -16,16 +16,14 @@ burn-core = { workspace = true, features = [
     "dataset",
     "std",
 ] }
-burn-optim = { workspace = true, features = [
-    "std",
-] }
 
 derive-new.workspace = true
 log = { workspace = true }
 rand.workspace = true
 
 [dev-dependencies]
-burn-flex = { workspace = true, features = ["default"] }
+# Test backend
+burn-core = { workspace = true, features = ["default", "flex"]}
 
 [lints]
 workspace = true

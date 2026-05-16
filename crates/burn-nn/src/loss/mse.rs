@@ -3,10 +3,10 @@ use burn_core as burn;
 use crate::loss::reduction::Reduction;
 
 use burn::module::Module;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::Tensor;
 
 /// Calculate the mean squared error loss from the input logits and the targets.
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 pub struct MseLoss;
 
 impl Default for MseLoss {
@@ -27,12 +27,12 @@ impl MseLoss {
     ///
     /// - logits: [batch_size, num_targets]
     /// - targets: [batch_size, num_targets]
-    pub fn forward<const D: usize, B: Backend>(
+    pub fn forward<const D: usize>(
         &self,
-        logits: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        logits: Tensor<D>,
+        targets: Tensor<D>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let tensor = self.forward_no_reduction(logits, targets);
         match reduction {
             Reduction::Mean | Reduction::Auto => tensor.mean(),
@@ -42,11 +42,11 @@ impl MseLoss {
     }
 
     /// Compute the criterion on the input tensor without reducing.
-    pub fn forward_no_reduction<const D: usize, B: Backend>(
+    pub fn forward_no_reduction<const D: usize>(
         &self,
-        logits: Tensor<B, D>,
-        targets: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        logits: Tensor<D>,
+        targets: Tensor<D>,
+    ) -> Tensor<D> {
         logits.sub(targets).square()
     }
 }
@@ -54,21 +54,14 @@ impl MseLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
 
     #[test]
     fn test_mse_loss() {
         let device = Default::default();
-        let logits = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
+        let logits = Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
 
-        let targets = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[2.0, 1.0], [3.0, 2.0]]),
-            &device,
-        );
+        let targets = Tensor::<2>::from_data(TensorData::from([[2.0, 1.0], [3.0, 2.0]]), &device);
 
         let mse = MseLoss::new();
         let loss_no_reduction = mse.forward_no_reduction(logits.clone(), targets.clone());

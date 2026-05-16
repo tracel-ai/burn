@@ -1,10 +1,12 @@
-use crate::{ElementConversion, Tensor, check, check::TensorCheck};
+use crate::{
+    Device, ElementConversion, Tensor,
+    bridge::{Bool, Float, Int},
+    check,
+    check::TensorCheck,
+};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::{
-    Backend, Slice,
-    tensor::{Bool, Float, IndexingUpdateOp, Int},
-};
+use burn_backend::{Slice, tensor::IndexingUpdateOp};
 use burn_std::{DType, FloatDType};
 
 /// Computes the LU decomposition of a square or rectangular matrix with partial pivoting.
@@ -50,12 +52,12 @@ use burn_std::{DType, FloatDType};
 /// use burn::backend::Flex;
 /// use burn::tensor::linalg;
 ///
-/// fn example<B: Backend>() {
+/// fn example() {
 ///     let device = Default::default();
-///     let tensor = Tensor::<B, 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
+///     let tensor = Tensor::< 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
 ///
 ///     // Compute P, L, U
-///     let (p, l, u) = linalg::lu::<B, 2, 1>(tensor);
+///     let (p, l, u) = linalg::lu::< 2, 1>(tensor);
 ///
 ///     // Expected Output:
 ///     // p: [[0.0, 1.0],
@@ -68,9 +70,9 @@ use burn_std::{DType, FloatDType};
 ///     //     [0.0, 1.0]]
 /// }
 /// ```
-pub fn lu<B: Backend, const D: usize, const D1: usize>(
-    mut tensor: Tensor<B, D>,
-) -> (Tensor<B, D>, Tensor<B, D>, Tensor<B, D>) {
+pub fn lu<const D: usize, const D1: usize>(
+    mut tensor: Tensor<D>,
+) -> (Tensor<D>, Tensor<D>, Tensor<D>) {
     let dims = tensor.dims();
     let original_dtype = tensor.dtype();
     check!(TensorCheck::lu_generic_param::<D, D1>("linalg::lu"));
@@ -90,7 +92,7 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
         tensor = tensor.cast(FloatDType::F32)
     }
 
-    let (lu_tensor, p_compact) = compute_lu_decomposition::<B, D, D1>(tensor);
+    let (lu_tensor, p_compact) = compute_lu_decomposition::<D, D1>(tensor);
 
     let u;
     let temp_l;
@@ -101,7 +103,7 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
         temp_l = lu_tensor.clone().tril(0);
         u = lu_tensor.slice_dim(D - 2, 0..n_cols).triu(0);
     }
-    let mask = Tensor::<B, D, Bool>::diag_mask(temp_l.shape(), 0, &device).bool_not();
+    let mask = Tensor::<D, Bool>::diag_mask(temp_l.shape(), 0, &device).bool_not();
     let l = temp_l.mask_fill(mask, 1.0);
     let p = construct_full_permutation_tensor(p_compact, n_rows, &device).transpose();
 
@@ -118,35 +120,35 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 
 /// Dispatches the LU decomposition to either the block or standard algorithm based on
 /// the size of the matrix.
-pub(super) fn compute_lu_decomposition<B: Backend, const D: usize, const D1: usize>(
-    tensor: Tensor<B, D>,
-) -> (Tensor<B, D>, Tensor<B, D>) {
+pub(super) fn compute_lu_decomposition<const D: usize, const D1: usize>(
+    tensor: Tensor<D>,
+) -> (Tensor<D>, Tensor<D>) {
     let device = tensor.device();
     let dims = tensor.dims();
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
     let size = n_rows.min(n_cols);
     if size < 256 {
-        return standard_lu_with_partial_piv::<B, D, D1>(tensor, &device);
+        return standard_lu_with_partial_piv::<D, D1>(tensor, &device);
     }
 
-    block_lu_with_partial_piv::<B, D, D1>(tensor)
+    block_lu_with_partial_piv::<D, D1>(tensor)
 }
 
 /// Performs block LU decomposition with partial pivoting.
 ///
 /// This algorithm divides the matrix into blocks to maximize matrix-matrix multiplications (GEMM),
 /// which are highly optimized on modern hardware, compared to vector-vector operations.
-fn block_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
-    mut tensor: Tensor<B, D>,
-) -> (Tensor<B, D>, Tensor<B, D>) {
+fn block_lu_with_partial_piv<const D: usize, const D1: usize>(
+    mut tensor: Tensor<D>,
+) -> (Tensor<D>, Tensor<D>) {
     let device = tensor.device();
     let dims = tensor.dims();
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
     let piv_nums = n_rows.min(n_cols);
     let dtype = tensor.dtype().into();
-    let mut global_piv = create_permutation_tensor::<B, D>(piv_nums, dims, dtype, &device);
+    let mut global_piv = create_permutation_tensor::<D>(piv_nums, dims, dtype, &device);
     let block_size = 128;
 
     // Computes the total number of blocks including incomplete blocks
@@ -167,8 +169,7 @@ fn block_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
             .clone()
             .slice_dim(D - 2, k_start..)
             .slice_dim(D - 1, k_start..k_end);
-        let (block_column, local_piv) =
-            standard_lu_with_partial_piv::<B, D, D1>(sub_tensor, &device);
+        let (block_column, local_piv) = standard_lu_with_partial_piv::<D, D1>(sub_tensor, &device);
         slices[D - 2] = Slice::from(k_start..);
         slices[D - 1] = Slice::from(k_start..k_end);
         tensor = tensor.slice_assign(&slices, block_column);
@@ -247,16 +248,16 @@ fn block_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
 /// Performs standard LU decomposition (outer product LU) with partial pivoting.
 ///
 /// This is an iterative, unblocked algorithm that processes the matrix column by column.
-fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
-    mut tensor: Tensor<B, D>,
-    device: &B::Device,
-) -> (Tensor<B, D>, Tensor<B, D>) {
+fn standard_lu_with_partial_piv<const D: usize, const D1: usize>(
+    mut tensor: Tensor<D>,
+    device: &Device,
+) -> (Tensor<D>, Tensor<D>) {
     let dims = tensor.dims();
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
     let piv_nums = n_rows.min(n_cols);
     let dtype = tensor.dtype().into();
-    let mut permutations = create_permutation_tensor::<B, D>(piv_nums, dims, dtype, device);
+    let mut permutations = create_permutation_tensor::<D>(piv_nums, dims, dtype, device);
 
     for k in 0..piv_nums {
         // Find the index of the maximum absolute value in the k-th column (from row k downwards)
@@ -281,7 +282,7 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
 
             // If there still exists columns to right of the k-th pivot
             if k < piv_nums - 1 {
-                tensor = update_trailing_submatrix::<B, D, D1>(tensor, k);
+                tensor = update_trailing_submatrix::<D, D1>(tensor, k);
             }
         }
     }
@@ -290,13 +291,13 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
 }
 
 /// Constructs a full square permutation matrix \( P \) from a compact pivot tensor.
-fn construct_full_permutation_tensor<B: Backend, const D: usize>(
-    piv: Tensor<B, D>,
+fn construct_full_permutation_tensor<const D: usize>(
+    piv: Tensor<D>,
     n_rows: usize,
-    device: &B::Device,
-) -> Tensor<B, D> {
+    device: &Device,
+) -> Tensor<D> {
     let dims = piv.dims();
-    let identity_2d_uncasted: Tensor<B, 2, Float> = Tensor::eye(n_rows, device);
+    let identity_2d_uncasted: Tensor<2, Float> = Tensor::eye(n_rows, device);
     let identity_2d = identity_2d_uncasted.cast(piv.dtype());
 
     // Reshape the `identity` tensor from 2 dims to D dims
@@ -317,12 +318,12 @@ fn construct_full_permutation_tensor<B: Backend, const D: usize>(
 }
 
 /// Initializes a permutation tensor representing the identity permutation `[0, 1, 2, ..., piv_nums - 1]`.
-fn create_permutation_tensor<B: Backend, const D: usize>(
+fn create_permutation_tensor<const D: usize>(
     piv_nums: usize,
     dims: [usize; D],
     dtype: FloatDType,
-    device: &B::Device,
-) -> Tensor<B, D> {
+    device: &Device,
+) -> Tensor<D> {
     let piv = Tensor::arange(0..piv_nums as i64, device).cast(dtype);
 
     // Reshape the piv tensor from 1 dim to D dims
@@ -339,11 +340,11 @@ fn create_permutation_tensor<B: Backend, const D: usize>(
 }
 
 /// Swaps the `k`-th row with the rows specified in `swap_target_row_tensor`.
-fn swap_tensor_rows<B: Backend, const D: usize>(
-    tensor: Tensor<B, D>,
-    mut swap_target_row_tensor: Tensor<B, D, Int>,
+fn swap_tensor_rows<const D: usize>(
+    tensor: Tensor<D>,
+    mut swap_target_row_tensor: Tensor<D, Int>,
     k: usize,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     let mut expand_dims = tensor.dims();
     expand_dims[D - 2] = 1;
     swap_target_row_tensor = swap_target_row_tensor.expand(expand_dims);
@@ -365,12 +366,12 @@ fn swap_tensor_rows<B: Backend, const D: usize>(
 }
 
 /// Updates the permutation tensor by recording the swap at step `k`.
-fn update_permutations<B: Backend, const D: usize>(
-    mut permutations: Tensor<B, D>,
-    max_row_index_tensor: Tensor<B, D, Int>,
+fn update_permutations<const D: usize>(
+    mut permutations: Tensor<D>,
+    max_row_index_tensor: Tensor<D, Int>,
     k: usize,
     dtype: FloatDType,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     // Store the max row index in the k-th index of the permutations vector/tensor
     let mut slices = vec![Slice::full(); D];
     slices[D - 2] = Slice::from(k);
@@ -381,7 +382,7 @@ fn update_permutations<B: Backend, const D: usize>(
 }
 
 /// Scales the `k`-th column below the diagonal by the pivot element A_{kk}.
-fn update_kth_column<B: Backend, const D: usize>(tensor: Tensor<B, D>, k: usize) -> Tensor<B, D> {
+fn update_kth_column<const D: usize>(tensor: Tensor<D>, k: usize) -> Tensor<D> {
     let a_kk = tensor.clone().slice_dim(D - 2, k).slice_dim(D - 1, k);
     let a_rho_k = tensor.clone().slice_dim(D - 2, k + 1..).slice_dim(D - 1, k);
 
@@ -400,10 +401,10 @@ fn update_kth_column<B: Backend, const D: usize>(tensor: Tensor<B, D>, k: usize)
 }
 
 /// Updates the trailing submatrix: A_{k+1:, k+1:} -= A_{k+1:, k} * A_{k, k+1:}.
-fn update_trailing_submatrix<B: Backend, const D: usize, const D1: usize>(
-    tensor: Tensor<B, D>,
+fn update_trailing_submatrix<const D: usize, const D1: usize>(
+    tensor: Tensor<D>,
     k: usize,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     let a_rho_k = tensor.clone().slice_dim(D - 2, k + 1..).slice_dim(D - 1, k);
     let a_k_rho = tensor.clone().slice_dim(D - 2, k).slice_dim(D - 1, k + 1..);
     let outer_product = a_rho_k.matmul(a_k_rho);
@@ -421,11 +422,11 @@ fn update_trailing_submatrix<B: Backend, const D: usize, const D1: usize>(
 }
 
 /// Shifts local pivot indices from a block factorization to global indices.
-fn update_permutations_to_global_idx<B: Backend, const D: usize>(
-    global_piv: Tensor<B, D>,
-    local_piv: Tensor<B, D>,
+fn update_permutations_to_global_idx<const D: usize>(
+    global_piv: Tensor<D>,
+    local_piv: Tensor<D>,
     k_start: usize,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     let n = local_piv.dims()[D - 2];
     let mut slices = vec![Slice::full(); D];
     slices[D - 2] = Slice::from(k_start..(n + k_start));
@@ -436,11 +437,11 @@ fn update_permutations_to_global_idx<B: Backend, const D: usize>(
 }
 
 /// Applies the permutations to the entire width of the tensor.
-fn apply_permutations_to_tensor<B: Backend, const D: usize>(
-    tensor: Tensor<B, D>,
-    piv: Tensor<B, D>,
-    device: &B::Device,
-) -> Tensor<B, D> {
+fn apply_permutations_to_tensor<const D: usize>(
+    tensor: Tensor<D>,
+    piv: Tensor<D>,
+    device: &Device,
+) -> Tensor<D> {
     let tensor_dims = tensor.dims();
     let n_rows = tensor_dims[D - 2];
     let n_pivots = piv.dims()[D - 2];
@@ -455,7 +456,7 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
             let j = piv_val.elem::<u32>() as usize;
             perm.swap(i, j);
         }
-        let perm_tensor = Tensor::<B, 1, Int>::from_data(&perm[..], device);
+        let perm_tensor = Tensor::<1, Int>::from_data(&perm[..], device);
         return tensor.select(D - 2, perm_tensor);
     }
 
@@ -463,9 +464,9 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
     // iterate, then reshape back.
     // Reshape tensor: [b1, b2, ..., bN, rows, cols] -> [B, rows, cols]
     let n_cols = tensor_dims[D - 1];
-    let flat_tensor: Tensor<B, 3> = tensor.reshape([batch_size, n_rows, n_cols]);
+    let flat_tensor: Tensor<3> = tensor.reshape([batch_size, n_rows, n_cols]);
     // Reshape pivot: [b1, b2, ..., bN, n_pivots, 1] -> [B * n_pivots]
-    let mut results: Vec<Tensor<B, 3>> = Vec::with_capacity(batch_size);
+    let mut results: Vec<Tensor<3>> = Vec::with_capacity(batch_size);
     for b in 0..batch_size {
         // Build permutation for this batch element
         let mut perm: Vec<i64> = (0..n_rows as i64).collect();
@@ -474,7 +475,7 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
             let j = piv_data[offset + i].elem::<u32>() as usize;
             perm.swap(i, j);
         }
-        let perm_tensor = Tensor::<B, 1, Int>::from_data(&perm[..], device);
+        let perm_tensor = Tensor::<1, Int>::from_data(&perm[..], device);
 
         // Extract this batch element [1, rows, cols], select rows, collect
         let batch_elem = flat_tensor.clone().slice_dim(0, b); // [1, rows, cols]  
@@ -483,7 +484,7 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
     }
 
     // Concatenate along batch dim and reshape back to original shape
-    let concatenated: Tensor<B, 3> = Tensor::cat(results, 0); // [B, rows, cols]  
+    let concatenated: Tensor<3> = Tensor::cat(results, 0); // [B, rows, cols]  
     concatenated.reshape(tensor_dims)
 }
 
@@ -495,11 +496,11 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
 /// - `diagonal_l_block`: The L block L_{k, k}, [k_start..k_end, k_start..k_end]
 /// - `row_blocks`: The row blocks A_{k, k+1}, ..., A_{k, N}, [k_start..k_end, k_end..]
 /// - `block_size`: The size of the current block
-fn solve_for_u_blocks<B: Backend, const D: usize>(
-    diagonal_l_block: Tensor<B, D>,
-    mut a_row_blocks: Tensor<B, D>,
+fn solve_for_u_blocks<const D: usize>(
+    diagonal_l_block: Tensor<D>,
+    mut a_row_blocks: Tensor<D>,
     block_size: usize,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     // The first row requires no computation since the first row of
     // diagonal_l_block is [1, 0, 0, ..., 0]
     let mut slices = vec![Slice::full(); D];

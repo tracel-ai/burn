@@ -1,7 +1,5 @@
-use std::marker::PhantomData;
-
+use burn_core::Tensor;
 use burn_core::data::dataloader::Progress;
-use burn_core::{Tensor, prelude::Backend};
 use burn_rl::Policy;
 use burn_rl::Transition;
 use burn_rl::{Environment, EnvironmentInit};
@@ -15,18 +13,18 @@ use crate::{Interrupter, RLComponentsTypes};
 
 /// A trajectory, i.e. a list of ordered [TimeStep](TimeStep).
 #[derive(Clone, new)]
-pub struct Trajectory<B: Backend, S, A, C> {
+pub struct Trajectory<S, A, C> {
     /// A list of ordered [TimeStep](TimeStep)s.
-    pub timesteps: Vec<TimeStep<B, S, A, C>>,
+    pub timesteps: Vec<TimeStep<S, A, C>>,
 }
 
 /// A timestep debscribing an iteration of the state/decision process.
 #[derive(Clone)]
-pub struct TimeStep<B: Backend, S, A, C> {
+pub struct TimeStep<S, A, C> {
     /// The environment id.
     pub env_id: usize,
     /// The [burn_rl::Transition](burn_rl::Transition).
-    pub transition: Transition<B, S, A>,
+    pub transition: Transition<S, A>,
     /// True if the environment reaches a terminal state.
     pub done: bool,
     /// The running length of the current episode.
@@ -37,22 +35,20 @@ pub struct TimeStep<B: Backend, S, A, C> {
     pub action_context: C,
 }
 
-pub(crate) type RLTimeStep<B, RLC> = TimeStep<
-    B,
+pub(crate) type RLTimeStep<RLC> = TimeStep<
     <RLC as RLComponentsTypes>::State,
     <RLC as RLComponentsTypes>::Action,
     <RLC as RLComponentsTypes>::ActionContext,
 >;
 
-pub(crate) type RLTrajectory<B, RLC> = Trajectory<
-    B,
+pub(crate) type RLTrajectory<RLC> = Trajectory<
     <RLC as RLComponentsTypes>::State,
     <RLC as RLComponentsTypes>::Action,
     <RLC as RLComponentsTypes>::ActionContext,
 >;
 
 /// Trait for a structure that implements an agent/environement interface.
-pub trait AgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
+pub trait AgentEnvLoop<RLC: RLComponentsTypes> {
     /// Run a certain number of timesteps.
     ///
     /// # Arguments
@@ -72,7 +68,7 @@ pub trait AgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<RLTimeStep<BT, RLC>>;
+    ) -> Vec<RLTimeStep<RLC>>;
     /// Run a certain number of episodes.
     ///
     /// # Arguments
@@ -91,7 +87,7 @@ pub trait AgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<RLTrajectory<BT, RLC>>;
+    ) -> Vec<RLTrajectory<RLC>>;
     /// Update the runner's agent.
     fn update_policy(&mut self, update: RLC::PolicyState);
     /// Get the state of the runner's agent.
@@ -99,7 +95,7 @@ pub trait AgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
 }
 
 /// A simple, synchronized agent/environement interface.
-pub struct AgentEnvBaseLoop<B: Backend, RLC: RLComponentsTypes> {
+pub struct AgentEnvBaseLoop<RLC: RLComponentsTypes> {
     env: RLC::Env,
     eval: bool,
     agent: RLC::Policy,
@@ -107,10 +103,9 @@ pub struct AgentEnvBaseLoop<B: Backend, RLC: RLComponentsTypes> {
     current_reward: f64,
     run_num: usize,
     step_num: usize,
-    _backend: PhantomData<B>,
 }
 
-impl<B: Backend, RLC: RLComponentsTypes> AgentEnvBaseLoop<B, RLC> {
+impl<RLC: RLComponentsTypes> AgentEnvBaseLoop<RLC> {
     /// Create a new base runner.
     pub fn new(
         env_init: RLC::EnvInit,
@@ -129,14 +124,12 @@ impl<B: Backend, RLC: RLComponentsTypes> AgentEnvBaseLoop<B, RLC> {
             current_reward: 0.0,
             run_num: 0,
             step_num: 0,
-            _backend: PhantomData,
         }
     }
 }
 
-impl<BT, RLC> AgentEnvLoop<BT, RLC> for AgentEnvBaseLoop<BT, RLC>
+impl<RLC> AgentEnvLoop<RLC> for AgentEnvBaseLoop<RLC>
 where
-    BT: Backend,
     RLC: RLComponentsTypes,
 {
     fn run_steps(
@@ -145,7 +138,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<RLTimeStep<BT, RLC>> {
+    ) -> Vec<RLTimeStep<RLC>> {
         let mut items = vec![];
         let device = Default::default();
         for _ in 0..num_steps {
@@ -220,7 +213,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<RLTrajectory<BT, RLC>> {
+    ) -> Vec<RLTrajectory<RLC>> {
         self.env.reset();
 
         let mut items = vec![];
@@ -272,7 +265,7 @@ where
 #[cfg(test)]
 #[allow(clippy::needless_range_loop)]
 mod tests {
-    use crate::{AsyncProcessorTraining, TestBackend};
+    use crate::AsyncProcessorTraining;
 
     use crate::learner::tests::{
         MockEnvInit, MockPolicy, MockPolicyState, MockProcessor, MockRLComponents,
@@ -280,14 +273,10 @@ mod tests {
 
     use super::*;
 
-    fn setup(
-        state: usize,
-        eval: bool,
-        deterministic: bool,
-    ) -> AgentEnvBaseLoop<TestBackend, MockRLComponents> {
+    fn setup(state: usize, eval: bool, deterministic: bool) -> AgentEnvBaseLoop<MockRLComponents> {
         let env_init = MockEnvInit;
         let agent = MockPolicy(state);
-        AgentEnvBaseLoop::<TestBackend, MockRLComponents>::new(env_init, agent, eval, deterministic)
+        AgentEnvBaseLoop::<MockRLComponents>::new(env_init, agent, eval, deterministic)
     }
 
     #[test]

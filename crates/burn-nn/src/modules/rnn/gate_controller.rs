@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use crate::{Linear, LinearConfig, LinearLayout};
 use burn::module::{Initializer, Module};
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::{Device, Tensor};
 
 /// A GateController represents a gate in an LSTM cell. An
 /// LSTM cell generally contains three gates: an input gate,
@@ -13,21 +13,21 @@ use burn::tensor::{Tensor, backend::Backend};
 /// The results of these transformations are used to calculate
 /// the gate's output.
 #[derive(Module, Debug)]
-pub struct GateController<B: Backend> {
+pub struct GateController {
     /// Represents the affine transformation applied to input vector
-    pub input_transform: Linear<B>,
+    pub input_transform: Linear,
     /// Represents the affine transformation applied to the hidden state
-    pub hidden_transform: Linear<B>,
+    pub hidden_transform: Linear,
 }
 
-impl<B: Backend> GateController<B> {
+impl GateController {
     /// Initialize a new [gate_controller](GateController) module.
     pub fn new(
         d_input: usize,
         d_output: usize,
         bias: bool,
         initializer: Initializer,
-        device: &B::Device,
+        device: &Device,
     ) -> Self {
         Self {
             input_transform: LinearConfig {
@@ -58,7 +58,7 @@ impl<B: Backend> GateController<B> {
     ///     X = input vector
     ///     H = hidden state
     ///     b = bias terms
-    pub fn gate_product(&self, input: Tensor<B, 2>, hidden: Tensor<B, 2>) -> Tensor<B, 2> {
+    pub fn gate_product(&self, input: Tensor<2>, hidden: Tensor<2>) -> Tensor<2> {
         self.input_transform.forward(input) + self.hidden_transform.forward(hidden)
     }
 
@@ -71,8 +71,8 @@ impl<B: Backend> GateController<B> {
         d_output: usize,
         bias: bool,
         initializer: Initializer,
-        input_record: crate::LinearRecord<B>,
-        hidden_record: crate::LinearRecord<B>,
+        input_record: crate::LinearRecord,
+        hidden_record: crate::LinearRecord,
     ) -> Self {
         let l1 = LinearConfig {
             d_input,

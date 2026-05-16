@@ -15,19 +15,17 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "burn-dispatch/default"]
 doc = ["default"]
 std = [
     "num-traits/std",
     "burn-std/std",
     "burn-backend/std",
+    "burn-dispatch/std",
     "colored",
 ]
-tracing = [
-    "burn-std/tracing",
-    "burn-backend/tracing",
-]
-distributed = ["std", "burn-backend/distributed"]
+tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-dispatch/tracing"]
+distributed = ["std", "burn-backend/distributed", "burn-dispatch/distributed"]
 
 cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]
@@ -35,9 +33,34 @@ cubecl-hip = ["burn-backend/cubecl-hip"]
 cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
 cubecl-cpu = ["burn-backend/cubecl-cpu"]
 
+# Backends
+cuda = ["burn-dispatch/cuda"]
+rocm = ["burn-dispatch/rocm"]
+flex = ["burn-dispatch/flex"]
+ndarray = ["burn-dispatch/ndarray"]
+tch = ["burn-dispatch/tch"]
+vulkan = ["burn-dispatch/vulkan"]
+webgpu = ["burn-dispatch/webgpu"]
+wgpu = ["burn-dispatch/wgpu"]
+metal = ["burn-dispatch/metal"]
+cpu = ["burn-dispatch/cpu"]
+autodiff = ["burn-dispatch/autodiff"]
+
+# For backend extensions
+extension = ["burn-backend-extension"]
+
+# TODO: re-export devices if we have feature flags to enable the backends
+
+# Backend features
+autotune = ["burn-dispatch/autotune"]
+autotune-checks = ["burn-dispatch/autotune-checks"]
+fusion = ["burn-dispatch/fusion"]
+
 [dependencies]
 burn-std = { workspace = true }
 burn-backend = { workspace = true }
+burn-dispatch = { workspace = true }
+burn-backend-extension = { workspace = true, optional = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
@@ -45,8 +68,8 @@ num-traits = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
+enumset = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]
-

@@ -8,12 +8,7 @@ pub(crate) trait RecordItemCodegen {
     where
         Self: Sized;
     /// Generate the record item type.
-    fn gen_item_type(
-        &self,
-        item_name: &Ident,
-        generics: &Generics,
-        has_backend: bool,
-    ) -> TokenStream;
+    fn gen_item_type(&self, item_name: &Ident, generics: &Generics) -> TokenStream;
     /// Generate the into_item function.
     fn gen_into_item(&self, item_name: &Ident) -> TokenStream;
     /// Generate the from item function.

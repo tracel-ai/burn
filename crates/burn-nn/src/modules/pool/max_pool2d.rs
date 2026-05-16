@@ -5,7 +5,6 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::ops::PadMode;
 
 use burn::tensor::module::max_pool2d;
@@ -35,7 +34,7 @@ pub struct MaxPool2dConfig {
 /// Applies a 2D max pooling over input tensors.
 ///
 /// Should be created with [MaxPool2dConfig](MaxPool2dConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct MaxPool2d {
     /// The strides.
@@ -43,6 +42,7 @@ pub struct MaxPool2d {
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The padding configuration.
+    #[module(skip)]
     pub padding: PaddingConfig2d,
     /// The dilation.
     pub dilation: [usize; 2],
@@ -90,7 +90,7 @@ impl MaxPool2d {
     ///
     /// - input: `[batch_size, channels, height_in, width_in]`
     /// - output: `[batch_size, channels, height_out, width_out]`
-    pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
 
         // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
@@ -137,7 +137,6 @@ impl MaxPool2d {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use rstest::rstest;
 
     #[test]
@@ -149,7 +148,7 @@ mod tests {
         let pool = config.init();
 
         // Input: [batch=1, channels=2, height=5, width=5]
-        let input = Tensor::<TestBackend, 4>::ones([1, 2, 5, 5], &device);
+        let input = Tensor::<4>::ones([1, 2, 5, 5], &device);
         let output = pool.forward(input);
 
         // Same padding should preserve spatial dimensions
@@ -191,7 +190,7 @@ mod tests {
         let pool = config.init();
 
         // Input: [batch=1, channels=2, height=4, width=5]
-        let input = Tensor::<TestBackend, 4>::ones([1, 2, 4, 5], &device);
+        let input = Tensor::<4>::ones([1, 2, 4, 5], &device);
         let output = pool.forward(input);
 
         // Height: 4 + 1 + 3 = 8, output = (8 - 3) / 1 + 1 = 6
@@ -209,7 +208,7 @@ mod tests {
         let pool = config.init();
 
         // Input: [batch=1, channels=2, height=4, width=5]
-        let input = Tensor::<TestBackend, 4>::ones([1, 2, 4, 5], &device);
+        let input = Tensor::<4>::ones([1, 2, 4, 5], &device);
         let output = pool.forward(input);
 
         // Height: 4 + 2 + 2 = 8, output = (8 - 3) / 1 + 1 = 6

@@ -1,7 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::ops::{ConvOptions, ModuleOps};
-use burn_tensor::{Distribution, TensorPrimitive, module};
+use burn_tensor::ops::ConvOptions;
+use burn_tensor::{Distribution, module};
 
 #[test]
 fn conv2d_should_match_reference_backend() {
@@ -94,26 +94,23 @@ fn conv2d_weight_backward_should_run() {
     let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
 
     // Input shape [672, 1] and strides [672, 672] should be valid
-    let output = TestBackend::conv2d_weight_backward(
-        x.permute([0, 3, 1, 2]).into_primitive().tensor(),
-        weight.into_primitive().tensor(),
-        output_grad.into_primitive().tensor(),
+    let output = module::conv2d_weight_backward(
+        x.permute([0, 3, 1, 2]),
+        weight,
+        output_grad,
         options.clone(),
     );
 
     // Input shape [672, 1] and strides [672, 672] should be valid
-    let output_ref = TestBackend::conv2d_weight_backward(
-        x_ref.permute([0, 3, 1, 2]).into_primitive().tensor(),
-        weight_ref.into_primitive().tensor(),
-        output_grad_ref.into_primitive().tensor(),
+    let output_ref = module::conv2d_weight_backward(
+        x_ref.permute([0, 3, 1, 2]),
+        weight_ref,
+        output_grad_ref,
         options,
     );
 
     let tolerance = Tolerance::default();
-    TestTensor::<4>::from_primitive(TensorPrimitive::Float(output))
+    output
         .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &TestTensor::<4>::from_primitive(TensorPrimitive::Float(output_ref)).into_data(),
-            tolerance,
-        );
+        .assert_approx_eq::<FloatElem>(&output_ref.into_data(), tolerance);
 }

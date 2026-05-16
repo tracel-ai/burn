@@ -7,9 +7,9 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
-#[cfg(feature = "complex")]
-use burn_backend::Complex;
 use burn_backend::{DType, Element};
+#[cfg(feature = "complex")]
+use burn_std::Complex;
 use burn_std::{Bytes, Shape, bf16, f16};
 #[cfg(feature = "complex")]
 use num_traits::Zero;
@@ -72,9 +72,9 @@ pub fn sum(tensor: FlexTensor) -> FlexTensor {
         DType::U32 => sum_impl_widening::<u32>(&tensor),
         DType::U64 => sum_impl::<u64>(&tensor),
         #[cfg(feature = "complex")]
-        DType::Complex32 => sum_impl::<burn_backend::Complex<f32>>(&tensor),
+        DType::Complex32 => sum_impl::<burn_std::Complex<f32>>(&tensor),
         #[cfg(feature = "complex")]
-        DType::Complex64 => sum_impl::<burn_backend::Complex<f64>>(&tensor),
+        DType::Complex64 => sum_impl::<burn_std::Complex<f64>>(&tensor),
         _ => panic!("sum: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -279,17 +279,17 @@ pub fn sum_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::U32 => reduce_dim_widening::<u32, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 0, |acc, x| acc + x),
         #[cfg(feature = "complex")]
-        DType::Complex32 => reduce_dim_impl::<burn_backend::Complex<f32>, _>(
+        DType::Complex32 => reduce_dim_impl::<burn_std::Complex<f32>, _>(
             &tensor,
             dim,
-            burn_backend::Complex::zero(),
+            burn_std::Complex::zero(),
             |acc, x| acc + x,
         ),
         #[cfg(feature = "complex")]
-        DType::Complex64 => reduce_dim_impl::<burn_backend::Complex<f64>, _>(
+        DType::Complex64 => reduce_dim_impl::<burn_std::Complex<f64>, _>(
             &tensor,
             dim,
-            burn_backend::Complex::zero(),
+            burn_std::Complex::zero(),
             |acc, x| acc + x,
         ),
         _ => panic!("sum_dim: unsupported dtype {:?}", tensor.dtype()),
@@ -360,14 +360,14 @@ pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::U32 => scalar_div::<u32>(sum_result, dim_size as u32),
         DType::U64 => scalar_div::<u64>(sum_result, dim_size as u64),
         #[cfg(feature = "complex")]
-        DType::Complex32 => scalar_div::<burn_backend::Complex<f32>>(
+        DType::Complex32 => scalar_div::<burn_std::Complex<f32>>(
             sum_result,
-            burn_backend::Complex::new(dim_size as f32, 0.0),
+            burn_std::Complex::new(dim_size as f32, 0.0),
         ),
         #[cfg(feature = "complex")]
-        DType::Complex64 => scalar_div::<burn_backend::Complex<f64>>(
+        DType::Complex64 => scalar_div::<burn_std::Complex<f64>>(
             sum_result,
-            burn_backend::Complex::new(dim_size as f64, 0.0),
+            burn_std::Complex::new(dim_size as f64, 0.0),
         ),
         _ => panic!("mean_dim: unsupported dtype {:?}", dtype),
     }
@@ -389,9 +389,9 @@ pub fn prod(tensor: FlexTensor) -> FlexTensor {
         DType::U32 => prod_impl_widening::<u32>(&tensor),
         DType::U64 => prod_impl::<u64>(&tensor),
         #[cfg(feature = "complex")]
-        DType::Complex32 => prod_impl::<burn_backend::Complex<f32>>(&tensor),
+        DType::Complex32 => prod_impl::<burn_std::Complex<f32>>(&tensor),
         #[cfg(feature = "complex")]
-        DType::Complex64 => prod_impl::<burn_backend::Complex<f64>>(&tensor),
+        DType::Complex64 => prod_impl::<burn_std::Complex<f64>>(&tensor),
         _ => panic!("prod: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -450,17 +450,17 @@ pub fn prod_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::U32 => reduce_dim_widening::<u32, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 1, |acc, x| acc * x),
         #[cfg(feature = "complex")]
-        DType::Complex32 => reduce_dim_impl::<burn_backend::Complex<f32>, _>(
+        DType::Complex32 => reduce_dim_impl::<burn_std::Complex<f32>, _>(
             &tensor,
             dim,
-            <burn_backend::Complex<f32> as num_traits::One>::one(),
+            <burn_std::Complex<f32> as num_traits::One>::one(),
             |acc, x| acc * x,
         ),
         #[cfg(feature = "complex")]
-        DType::Complex64 => reduce_dim_impl::<burn_backend::Complex<f64>, _>(
+        DType::Complex64 => reduce_dim_impl::<burn_std::Complex<f64>, _>(
             &tensor,
             dim,
-            <burn_backend::Complex<f64> as num_traits::One>::one(),
+            <burn_std::Complex<f64> as num_traits::One>::one(),
             |acc, x| acc * x,
         ),
         _ => panic!("prod_dim: unsupported dtype {:?}", tensor.dtype()),
@@ -1501,11 +1501,11 @@ pub fn mean(tensor: FlexTensor) -> FlexTensor {
         DType::F64 => scalar_div::<f64>(sum_result, n as f64),
         #[cfg(feature = "complex")]
         DType::Complex32 => {
-            scalar_div::<burn_backend::Complex<f32>>(sum_result, Complex::from_real(n as f32))
+            scalar_div::<burn_std::Complex<f32>>(sum_result, Complex::from_real(n as f32))
         }
         #[cfg(feature = "complex")]
         DType::Complex64 => {
-            scalar_div::<burn_backend::Complex<f64>>(sum_result, Complex::from_real(n as f64))
+            scalar_div::<burn_std::Complex<f64>>(sum_result, Complex::from_real(n as f64))
         }
         _ => panic!("mean: unsupported dtype {:?}", dtype),
     }

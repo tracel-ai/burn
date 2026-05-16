@@ -1,25 +1,19 @@
 use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_nn::LinearConfig;
 
-type TestBackend = burn_flex::Flex;
-
 #[test]
 fn shape_mismatch_errors() {
     let device = Default::default();
 
     // Create a module
-    let module = LinearConfig::new(2, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let module = LinearConfig::new(2, 2).with_bias(true).init(&device);
 
     // Save module
     let mut save_store = SafetensorsStore::from_bytes(None);
     module.save_into(&mut save_store).unwrap();
 
     // Try to load into incompatible module (different dimensions)
-    let mut incompatible_module = LinearConfig::new(3, 3)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let mut incompatible_module = LinearConfig::new(3, 3).with_bias(true).init(&device);
 
     // Load without validation - should return errors in the result
     let mut load_store = SafetensorsStore::from_bytes(None).validate(false); // Disable validation to get errors in result

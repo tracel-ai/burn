@@ -1,13 +1,13 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, backend::Backend, module};
+use burn_tensor::{Device, Distribution, module};
 
 #[test]
 fn conv_transpose2d_should_match_reference_backend() {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let height = 8;
     let width = 8;
@@ -18,12 +18,12 @@ fn conv_transpose2d_should_match_reference_backend() {
     let kernel_size_1 = 3;
     let options = burn_tensor::ops::ConvTransposeOptions::new([1, 1], [1, 1], [0, 0], [1, 1], 1);
 
-    let input = Tensor::<TestBackend, 4>::random(
+    let input = Tensor::<4>::random(
         [batch_size, in_channels, height, width],
         Distribution::Default,
         &device,
     );
-    let weight = Tensor::<TestBackend, 4>::random(
+    let weight = Tensor::<4>::random(
         [
             in_channels,
             out_channels / options.groups,

@@ -1,4 +1,4 @@
-//! Benchmarks for rfft / irfft on TestBackend.
+//! Benchmarks for rfft / irfft.
 //!
 //! Run with:
 //! ```bash
@@ -7,7 +7,7 @@
 
 #[path = "common/mod.rs"]
 mod common;
-use common::{BencherExt, TestBackend};
+use common::BencherExt;
 
 use burn_tensor::{
     Tensor, TensorData,
@@ -25,14 +25,12 @@ fn main() {
     common::report_failures();
 }
 
-type B = TestBackend;
-
-fn make_signal_1d(n: usize) -> Tensor<B, 1> {
+fn make_signal_1d(n: usize) -> Tensor<1> {
     let data: Vec<f32> = (0..n).map(|i| (i as f32 * 0.1).sin()).collect();
     Tensor::from_data(TensorData::new(data, [n]), &Default::default())
 }
 
-fn make_signal_2d(batch: usize, n: usize) -> Tensor<B, 2> {
+fn make_signal_2d(batch: usize, n: usize) -> Tensor<2> {
     let data: Vec<f32> = (0..batch * n).map(|i| (i as f32 * 0.1).sin()).collect();
     Tensor::from_data(TensorData::new(data, [batch, n]), &Default::default())
 }

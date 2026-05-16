@@ -1,8 +1,5 @@
 //! Pretrained weights loading for LPIPS.
 
-use burn_core as burn;
-
-use burn::tensor::backend::Backend;
 use burn_std::network::downloader::download_file_as_bytes;
 use burn_store::{ModuleSnapshot, PytorchStore};
 use std::fs::{File, create_dir_all};
@@ -83,7 +80,7 @@ fn download_if_needed(url: &str, cache_path: &PathBuf, message: &str) {
 /// # Returns
 ///
 /// The LPIPS module with loaded pretrained weights.
-pub fn load_pretrained_weights<B: Backend>(mut lpips: Lpips<B>, net: LpipsNet) -> Lpips<B> {
+pub fn load_pretrained_weights(mut lpips: Lpips, net: LpipsNet) -> Lpips {
     let cache_dir = get_cache_dir();
 
     // Step 1: Load backbone ImageNet weights
@@ -116,7 +113,7 @@ pub fn load_pretrained_weights<B: Backend>(mut lpips: Lpips<B>, net: LpipsNet) -
 }
 
 /// Load ImageNet pretrained backbone weights.
-fn load_backbone_weights<B: Backend>(lpips: Lpips<B>, cache_path: &PathBuf) -> Lpips<B> {
+fn load_backbone_weights(lpips: Lpips, cache_path: &PathBuf) -> Lpips {
     // Load directly into the inner struct to avoid enum variant issues
     match lpips {
         Lpips::Vgg(mut inner) => {
@@ -180,7 +177,7 @@ fn load_backbone_weights<B: Backend>(lpips: Lpips<B>, cache_path: &PathBuf) -> L
 }
 
 /// Load LPIPS trained linear layer weights.
-fn load_lpips_weights<B: Backend>(lpips: Lpips<B>, cache_path: &PathBuf) -> Lpips<B> {
+fn load_lpips_weights(lpips: Lpips, cache_path: &PathBuf) -> Lpips {
     // Load directly into the inner struct to avoid enum variant issues
     match lpips {
         Lpips::Vgg(mut inner) => {

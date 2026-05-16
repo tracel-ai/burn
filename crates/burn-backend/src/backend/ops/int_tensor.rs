@@ -1,10 +1,11 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
-use crate::tensor::{BoolTensor, Device, FloatTensor, Int, IntElem, IntTensor};
+use crate::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata, element::ElementConversion};
 use crate::{ExecutionError, Scalar, get_device_settings};
 use alloc::vec::Vec;
+use burn_std::reader::try_read_sync;
 use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
 use core::ops::Range;
 
@@ -247,7 +248,15 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The tensor with the given dimension repeated the given number of times.
     fn int_repeat_dim(tensor: IntTensor<B>, dim: usize, times: usize) -> IntTensor<B> {
-        repeat_with_slice_assign::<B, Int>(tensor, dim, times)
+        let device = B::int_device(&tensor);
+        repeat_with_slice_assign::<B, _, _, _>(
+            tensor,
+            dim,
+            times,
+            device,
+            |shape, device, dtype| B::int_empty(shape, device, dtype.into()),
+            B::int_slice_assign,
+        )
     }
 
     /// Concatenates the given tensors along the given dimension.
@@ -267,7 +276,15 @@ pub trait IntTensorOps<B: Backend> {
     /// high-level tensor API and will not be passed to this method. Backend implementations do
     /// not need to handle empty tensors.
     fn int_cat(tensors: Vec<IntTensor<B>>, dim: usize) -> IntTensor<B> {
-        cat_with_slice_assign::<B, Int>(tensors, dim)
+        let first_tensor = tensors.first().expect("Tensors should not be empty");
+        let device = B::int_device(first_tensor);
+        cat_with_slice_assign::<B, _, _, _>(
+            tensors,
+            dim,
+            device,
+            |shape, device, dtype| B::int_empty(shape, device, dtype.into()),
+            B::int_slice_assign,
+        )
     }
 
     /// Element-wise equality comparison.
@@ -1314,7 +1331,20 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
     fn int_sort(tensor: IntTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
-        sort::<B, Int>(tensor, dim, descending)
+        let device = B::int_device(&tensor);
+        sort::<B, _, _, _>(
+            tensor,
+            dim,
+            descending,
+            device,
+            |tensor| {
+                let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+                try_read_sync(B::int_into_data(tensor))
+                    .expect(msg)
+                    .expect(msg)
+            },
+            |data, device, _dtype| B::int_from_data(data, device),
+        )
     }
 
     /// Sort the elements of the input `tensor` by value along a given dimension.
@@ -1336,7 +1366,21 @@ pub trait IntTensorOps<B: Backend> {
         descending: bool,
     ) -> (IntTensor<B>, IntTensor<B>) {
         let dtype = tensor.dtype();
-        sort_with_indices::<B, Int>(tensor, dim, descending, dtype.into())
+        let device = B::int_device(&tensor);
+        sort_with_indices::<B, _, _, _>(
+            tensor,
+            dim,
+            descending,
+            dtype.into(),
+            device,
+            |tensor| {
+                let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+                try_read_sync(B::int_into_data(tensor))
+                    .expect(msg)
+                    .expect(msg)
+            },
+            |data, device, _dtype| B::int_from_data(data, device),
+        )
     }
 
     /// Returns the indices that sort the elements of the input `tensor` by value
@@ -1355,7 +1399,13 @@ pub trait IntTensorOps<B: Backend> {
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
     fn int_argsort(tensor: IntTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
         let dtype = tensor.dtype();
-        argsort::<B, Int>(tensor, dim, descending, dtype.into())
+        let device = B::int_device(&tensor);
+        argsort::<B, _, _>(tensor, dim, descending, dtype.into(), device, |tensor| {
+            let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+            try_read_sync(B::int_into_data(tensor))
+                .expect(msg)
+                .expect(msg)
+        })
     }
 
     /// Bitwise AND operation for Int Tensors

@@ -4,7 +4,14 @@ use crate::{
     graph::Parent,
     tensor::NodeRefCount,
 };
-use alloc::{borrow::ToOwned, sync::Arc, vec, vec::Vec};
+use alloc::{borrow::ToOwned, vec, vec::Vec};
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
+
 use core::mem;
 
 #[derive(Default, Debug)]

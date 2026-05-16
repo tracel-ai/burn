@@ -1,5 +1,6 @@
 use alloc::vec;
-use burn_backend::Backend;
+use burn_backend::ops::ModuleOps;
+use burn_dispatch::Dispatch;
 
 use crate::Tensor;
 use crate::TensorPrimitive;
@@ -43,20 +44,19 @@ where $N$ is the size of the signal along the specified dimension.
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
 /// use burn_tensor::Tensor;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let signal = Tensor::<B, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+/// fn example() {
+///     let device = Default::default();
+///     let signal = Tensor::< 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
 ///     let (real, imag) = burn_tensor::signal::rfft(signal, 0, None);
 /// }
 /// ```
-pub fn rfft<B: Backend, const D: usize>(
-    signal: Tensor<B, D>,
+pub fn rfft<const D: usize>(
+    signal: Tensor<D>,
     dim: usize,
     n: Option<usize>,
-) -> (Tensor<B, D>, Tensor<B, D>) {
+) -> (Tensor<D>, Tensor<D>) {
     check!(TensorCheck::check_dim::<D>(dim));
 
     match n {
@@ -74,7 +74,7 @@ pub fn rfft<B: Backend, const D: usize>(
         }
     }
 
-    let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim, n);
+    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.tensor(), dim, n);
     (
         Tensor::new(TensorPrimitive::Float(spectrum_re)),
         Tensor::new(TensorPrimitive::Float(spectrum_im)),
@@ -115,22 +115,21 @@ where $N$ is the size of the reconstructed signal.
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
 /// use burn_tensor::Tensor;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let real = Tensor::<B, 1>::from_floats([10.0, -2.0, 2.0], &device);
-///     let imag = Tensor::<B, 1>::from_floats([0.0, 2.0, 0.0], &device);
+/// fn example() {
+///     let device = Default::default();
+///     let real = Tensor::< 1>::from_floats([10.0, -2.0, 2.0], &device);
+///     let imag = Tensor::< 1>::from_floats([0.0, 2.0, 0.0], &device);
 ///     let signal = burn_tensor::signal::irfft(real, imag, 0, None);
 /// }
 /// ```
-pub fn irfft<B: Backend, const D: usize>(
-    spectrum_re: Tensor<B, D>,
-    spectrum_im: Tensor<B, D>,
+pub fn irfft<const D: usize>(
+    spectrum_re: Tensor<D>,
+    spectrum_im: Tensor<D>,
     dim: usize,
     n: Option<usize>,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     check!(TensorCheck::check_dim::<D>(dim));
 
     if let Some(n) = n {
@@ -142,7 +141,7 @@ pub fn irfft<B: Backend, const D: usize>(
         );
     }
 
-    let signal = B::irfft(
+    let signal = Dispatch::irfft(
         spectrum_re.primitive.tensor(),
         spectrum_im.primitive.tensor(),
         dim,
@@ -190,22 +189,21 @@ Since $x_{re}\[n\]$ and $x_{im}\[n\]$ are purely real, their transforms can be c
 /// # Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
 /// use burn_tensor::Tensor;
 ///
-/// fn example<B: Backend>() {
-///     let device = B::Device::default();
-///     let re = Tensor::<B, 1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
-///     let im = Tensor::<B, 1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
+/// fn example() {
+///     let device = Default::default();
+///     let re = Tensor::< 1>::from_floats([1.0, 0.0, -1.0, 0.0], &device);
+///     let im = Tensor::< 1>::from_floats([0.0, 1.0, 0.0, -1.0], &device);
 ///     let (spec_re, spec_im) = burn_tensor::signal::cfft(re, im, 0, None);
 /// }
 /// ```
-pub fn cfft<B: Backend, const D: usize>(
-    signal_re: Tensor<B, D>,
-    signal_im: Tensor<B, D>,
+pub fn cfft<const D: usize>(
+    signal_re: Tensor<D>,
+    signal_im: Tensor<D>,
     dim: usize,
     n: Option<usize>,
-) -> (Tensor<B, D>, Tensor<B, D>) {
+) -> (Tensor<D>, Tensor<D>) {
     assert!(
         signal_re.shape() == signal_im.shape(),
         "cfft: signal_re and signal_im must have the same shape, \
@@ -233,12 +231,12 @@ pub fn cfft<B: Backend, const D: usize>(
 
 /// Extend a half-spectrum from [`rfft`] (`N/2 + 1` bins) to the full `N`-bin
 /// spectrum using Hermitian symmetry: `X[k] = conj(X[N-k])` for `k > N/2`.
-pub(super) fn hermitian_extend<B: Backend, const D: usize>(
-    half_re: Tensor<B, D>,
-    half_im: Tensor<B, D>,
+pub(super) fn hermitian_extend<const D: usize>(
+    half_re: Tensor<D>,
+    half_im: Tensor<D>,
     dim: usize,
     full_len: usize,
-) -> (Tensor<B, D>, Tensor<B, D>) {
+) -> (Tensor<D>, Tensor<D>) {
     let half_len = half_re.dims()[dim]; // N/2 + 1
 
     // For N <= 2, the half-spectrum already covers all bins

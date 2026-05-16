@@ -357,7 +357,7 @@ struct DeformConv2dTestCase {
 }
 
 impl DeformConv2dTestCase {
-    fn assert_output(self, y: Tensor<TestBackend, 4>) {
+    fn assert_output(self, y: Tensor<4>) {
         let out_height =
             (self.height + 2 * self.padding_1 - self.dilation_1 * (self.kernel_size_1 - 1) - 1)
                 / self.stride_1

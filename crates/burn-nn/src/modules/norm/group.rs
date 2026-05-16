@@ -5,8 +5,8 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// Configuration to create a [GroupNorm](GroupNorm) layer using the [init function](GroupNormConfig::init).
 #[derive(Debug, Config)]
@@ -38,11 +38,11 @@ pub struct GroupNormConfig {
 /// Should be created using [GroupNormConfig](GroupNormConfig).
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct GroupNorm<B: Backend> {
+pub struct GroupNorm {
     /// The learnable weight
-    pub gamma: Option<Param<Tensor<B, 1>>>,
+    pub gamma: Option<Param<Tensor<1>>>,
     /// The learnable bias
-    pub beta: Option<Param<Tensor<B, 1>>>,
+    pub beta: Option<Param<Tensor<1>>>,
     /// The number of groups to separate the channels into
     pub num_groups: usize,
     /// The number of channels expected in the input
@@ -53,7 +53,7 @@ pub struct GroupNorm<B: Backend> {
     pub affine: bool,
 }
 
-impl<B: Backend> ModuleDisplay for GroupNorm<B> {
+impl ModuleDisplay for GroupNorm {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -72,7 +72,7 @@ impl<B: Backend> ModuleDisplay for GroupNorm<B> {
 
 impl GroupNormConfig {
     /// Initialize a new [group norm](GroupNorm) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> GroupNorm<B> {
+    pub fn init(&self, device: &Device) -> GroupNorm {
         assert_eq!(
             self.num_channels % self.num_groups,
             0,
@@ -99,7 +99,7 @@ impl GroupNormConfig {
     }
 }
 
-impl<B: Backend> GroupNorm<B> {
+impl GroupNorm {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [GroupNorm](GroupNorm) for more information.
@@ -108,7 +108,7 @@ impl<B: Backend> GroupNorm<B> {
     ///
     /// - input: `[batch_size, num_channels, *]`
     /// - output: `[batch_size, num_channels, *]`
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         if input.shape()[1] != self.num_channels {
             panic!(
                 "The number of channels in the input tensor should be equal to the number of channels in the GroupNorm module. Expected {}, got {}",
@@ -141,14 +141,14 @@ impl<B: Backend> GroupNorm<B> {
 /// - `γ` is the learnable weight
 /// - `β` is the learnable bias
 ///
-pub(crate) fn group_norm<B: Backend, const D: usize>(
-    input: Tensor<B, D>,
-    gamma: Option<Tensor<B, 1>>,
-    beta: Option<Tensor<B, 1>>,
+pub(crate) fn group_norm<const D: usize>(
+    input: Tensor<D>,
+    gamma: Option<Tensor<1>>,
+    beta: Option<Tensor<1>>,
     num_groups: usize,
     epsilon: f64,
     affine: bool,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     if (beta.is_none() || gamma.is_none()) && affine {
         panic!("Affine is set to true, but gamma or beta is None");
     }
@@ -189,23 +189,20 @@ pub(crate) fn group_norm<B: Backend, const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use alloc::format;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn group_norm_forward_affine_false() {
         let device = Default::default();
-        let module = GroupNormConfig::new(2, 6)
-            .with_affine(false)
-            .init::<TestBackend>(&device);
+        let module = GroupNormConfig::new(2, 6).with_affine(false).init(&device);
 
         assert!(module.gamma.is_none());
         assert!(module.beta.is_none());
 
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
@@ -255,9 +252,7 @@ mod tests {
     #[test]
     fn group_norm_forward_affine_true() {
         let device = Default::default();
-        let module = GroupNormConfig::new(3, 6)
-            .with_affine(true)
-            .init::<TestBackend>(&device);
+        let module = GroupNormConfig::new(3, 6).with_affine(true).init(&device);
 
         let tolerance = Tolerance::permissive();
         module
@@ -276,7 +271,7 @@ mod tests {
             .to_data()
             .assert_approx_eq::<FT>(&TensorData::zeros::<f32, _>([6]), tolerance);
 
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],
@@ -326,7 +321,7 @@ mod tests {
     #[test]
     fn display() {
         let config = GroupNormConfig::new(3, 6);
-        let group_norm = config.init::<TestBackend>(&Default::default());
+        let group_norm = config.init(&Default::default());
 
         assert_eq!(
             format!("{group_norm}"),

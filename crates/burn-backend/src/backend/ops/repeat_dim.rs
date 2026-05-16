@@ -1,23 +1,28 @@
-use crate::{
-    Backend, TensorMetadata,
-    tensor::{BasicOps, TensorKind},
-};
+use crate::{Backend, TensorMetadata, tensor::Device};
 use alloc::vec::Vec;
-use burn_std::Slice;
+use burn_std::{DType, Shape, Slice};
 
-pub(crate) fn repeat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
-    tensor: K::Primitive,
+pub(crate) fn repeat_with_slice_assign<B, T, E, SA>(
+    tensor: T,
     dim: usize,
     times: usize,
-) -> K::Primitive {
+    device: Device<B>,
+    empty: E,
+    slice_assign: SA,
+) -> T
+where
+    T: TensorMetadata,
+    B: Backend,
+    E: Fn(Shape, &Device<B>, DType) -> T,
+    SA: Fn(T, &[Slice], T) -> T,
+{
     let shape = tensor.shape();
-    let device = K::device(&tensor);
     let dtype = tensor.dtype();
 
     let original_dim_length = shape[dim];
     let shape = shape.repeat(dim, times).unwrap();
 
-    let mut tensor_output = K::empty(shape.clone(), &device, dtype);
+    let mut tensor_output = empty(shape.clone(), &device, dtype);
 
     let indices_select_all = shape.iter().map(|d| 0..*d).collect::<Vec<_>>();
 
@@ -32,7 +37,7 @@ pub(crate) fn repeat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B
             .iter()
             .map(|r| Slice::new(r.start as isize, Some(r.end as isize), 1))
             .collect();
-        tensor_output = K::slice_assign(tensor_output, &slices, tensor.clone());
+        tensor_output = slice_assign(tensor_output, &slices, tensor.clone());
     }
 
     tensor_output

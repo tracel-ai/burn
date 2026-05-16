@@ -8,7 +8,7 @@ use burn::{
         grads::Gradients,
         ops::{Backward, Ops, OpsKind, broadcast_shape},
     },
-    tensor::{Shape, TensorMetadata},
+    tensor::{Shape, backend::TensorMetadata},
 };
 use burn_cubecl::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 

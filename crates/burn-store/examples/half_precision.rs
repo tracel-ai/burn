@@ -7,23 +7,21 @@
 //! Usage:
 //!   cargo run -p burn-store --example half_precision
 
-use burn_core as burn;
 use burn_core::module::Module;
-use burn_flex::Flex;
+use burn_core::{self as burn, tensor::Device};
 use burn_nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
 use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot};
-use burn_tensor::backend::Backend;
 
 // A model with mixed layer types to show selective conversion
 #[derive(Module, Debug)]
-struct DemoModel<B: Backend> {
-    linear1: Linear<B>,
-    norm: LayerNorm<B>,
-    linear2: Linear<B>,
+struct DemoModel {
+    linear1: Linear,
+    norm: LayerNorm,
+    linear2: Linear,
 }
 
-impl<B: Backend> DemoModel<B> {
-    fn new(device: &B::Device) -> Self {
+impl DemoModel {
+    fn new(device: &Device) -> Self {
         Self {
             linear1: LinearConfig::new(128, 64).init(device),
             norm: LayerNormConfig::new(64).init(device),
@@ -33,9 +31,8 @@ impl<B: Backend> DemoModel<B> {
 }
 
 fn main() {
-    type B = Flex;
     let device = Default::default();
-    let model = DemoModel::<B>::new(&device);
+    let model = DemoModel::new(&device);
 
     // 1) Save at full F32 precision (baseline)
     let dir = tempfile::tempdir().expect("Failed to create temp dir");
@@ -80,7 +77,7 @@ fn main() {
     // 4) Round-trip: load the F16 file back to F32 with the same adapter
     let mut load_store =
         BurnpackStore::from_file(path_f16.to_str().unwrap()).with_from_adapter(adapter);
-    let mut model2 = DemoModel::<B>::new(&device);
+    let mut model2 = DemoModel::new(&device);
     let result = model2.load_from(&mut load_store).expect("Failed to load");
     println!(
         "\nRound-trip loaded {} tensors successfully",

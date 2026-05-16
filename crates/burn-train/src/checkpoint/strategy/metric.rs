@@ -65,7 +65,7 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
 #[cfg(test)]
 mod tests {
     use crate::{
-        EventProcessorTraining, TestBackend,
+        EventProcessorTraining,
         logger::InMemoryMetricLogger,
         metric::{
             LossMetric,
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn always_keep_the_best_epoch() {
-        let loss = LossMetric::<TestBackend>::new();
+        let loss = LossMetric::new();
         let mut store = LogEventStore::default();
         let mut strategy = MetricCheckpointingStrategy::new(
             &loss,

@@ -2,11 +2,10 @@ use burn_core as burn;
 
 use burn::module::Module;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// Applies the Scaled Exponential Linear Unit function element-wise.
 /// See also [selu](burn::tensor::activation::selu)
-#[derive(Module, Clone, Debug, Default)]
+#[derive(Module, Debug, Default)]
 pub struct Selu;
 
 impl Selu {
@@ -20,7 +19,7 @@ impl Selu {
     ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         burn::tensor::activation::selu(input)
     }
 }

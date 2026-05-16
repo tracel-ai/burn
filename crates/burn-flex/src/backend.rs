@@ -15,7 +15,7 @@ pub type FlexRng = StdRng;
 
 /// Global seed storage for reproducible random number generation.
 /// Uses Mutex for thread-safe RNG state management.
-pub(crate) static SEED: Mutex<Option<FlexRng>> = Mutex::new(None);
+pub static SEED: Mutex<Option<FlexRng>> = Mutex::new(None);
 
 /// Fallback RNG when `SEED` is empty (consumed or never set).
 ///
@@ -23,7 +23,7 @@ pub(crate) static SEED: Mutex<Option<FlexRng>> = Mutex::new(None);
 /// ops (`float_random`, `int_random`) call `SEED.lock().take()`, consuming it for
 /// that op and falling back to this function for subsequent calls. This function
 /// delegates to burn_std's own entropy source.
-pub(crate) fn get_seeded_rng() -> FlexRng {
+pub fn get_seeded_rng() -> FlexRng {
     burn_std::rand::get_seeded_rng()
 }
 

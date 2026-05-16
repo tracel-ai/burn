@@ -1,11 +1,9 @@
 use crate::{LearningComponentsTypes, TrainingModel};
-use crate::{TrainOutput, TrainStep, TrainingBackend, TrainingModelInput, TrainingModelOutput};
+use crate::{TrainOutput, TrainStep, TrainingModelInput, TrainingModelOutput};
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
 use burn_core::module::Module;
-use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::DeviceId;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
@@ -22,9 +20,10 @@ struct Message<M, TI> {
 
 struct Worker<LC: LearningComponentsTypes> {
     // Not that complex. Extracting into another type would only make it more confusing.
-    #[allow(clippy::type_complexity)]
+    // #[allow(clippy::type_complexity)]
     sender_input: Sender<Message<TrainingModel<LC>, TrainingModelInput<LC>>>,
-    device: Device<TrainingBackend<LC>>,
+    device: Device,
+    device_id: usize,
 }
 
 impl<LC: LearningComponentsTypes> Worker<LC> {
@@ -37,13 +36,14 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
     }
 
     // Not that complex. Extracting into another type would only make it more confusing.
-    #[allow(clippy::type_complexity)]
+    // #[allow(clippy::type_complexity)]
     fn start(
         &self,
         sender_output: Sender<MultiTrainOutput<TrainingModelOutput<LC>>>,
         receiver_input: Receiver<Message<TrainingModel<LC>, TrainingModelInput<LC>>>,
     ) {
         let device = self.device.clone();
+        let device_id = self.device_id;
 
         spawn(move || {
             loop {
@@ -51,10 +51,7 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
                     Ok(item) => {
                         let model = item.model.fork(&device);
                         let output = model.step(item.item);
-                        let item = MultiTrainOutput {
-                            output,
-                            device: device.to_id(),
-                        };
+                        let item = MultiTrainOutput { output, device_id };
 
                         sender_output.send(item).unwrap();
                     }
@@ -72,8 +69,8 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
 pub struct MultiTrainOutput<TO> {
     /// The training output.
     pub output: TrainOutput<TO>,
-    /// The device on which the computing happened.
-    pub device: DeviceId,
+    /// The worker/device on which the computing happened.
+    pub(crate) device_id: usize,
 }
 
 impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
@@ -86,15 +83,17 @@ impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
     /// # Returns
     ///
     /// MultiDevicesTrainStep instance.
-    pub fn new(devices: &[Device<TrainingBackend<LC>>]) -> Self {
+    pub fn new(devices: &[Device]) -> Self {
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
         let workers = devices
             .iter()
-            .map(|device| {
+            .enumerate()
+            .map(|(device_id, device)| {
                 let (sender_input, receiver_input) = std::sync::mpsc::channel();
                 let worker = Worker {
                     sender_input,
                     device: device.clone(),
+                    device_id,
                 };
 
                 worker.start(sender_output.clone(), receiver_input);

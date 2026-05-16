@@ -15,15 +15,15 @@ f16 = []
 
 [dependencies]
 # Burn
-burn = {workspace = true, features=["default", "train", "tch"] }
+burn = { workspace = true, features = ["default", "train", "tch"] }
 
 # Tokenizer
-tokenizers = {version = "0.22.2", default-features = false, features = [
+tokenizers = { version = "0.22.2", default-features = false, features = [
   "onig",
   "http",
-]}
+] }
 
 # Utils
-derive-new = {workspace = true}
-log = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"] }
+derive-new = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }

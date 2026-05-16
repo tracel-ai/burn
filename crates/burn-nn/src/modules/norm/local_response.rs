@@ -2,9 +2,7 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn::tensor::Shape;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::module::avg_pool1d;
 use burn::tensor::ops::PadMode;
 
@@ -55,7 +53,7 @@ impl LocalResponseNormConfig {
 /// channel plus one extra channel on the positive side.
 ///
 /// Should be created using [LocalResponseNormConfig](LocalResponseNormConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct LocalResponseNorm {
     /// Number of channels in the sliding window.
@@ -79,7 +77,7 @@ impl LocalResponseNorm {
     /// # Panics
     ///
     /// Panics if the input tensor rank is less than 3.
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         assert!(
             D >= 3,
             "LocalResponseNorm requires input rank >= 3, got {D}"
@@ -94,13 +92,13 @@ impl LocalResponseNorm {
         let squared = input.clone().square();
 
         // Flatten spatial dims: [N, C, D1..Dk] -> [N, C, D_flat]
-        let flat: Tensor<B, 3> = squared.reshape(Shape::new([n, c, d_flat]));
+        let flat: Tensor<3> = squared.reshape([n, c, d_flat]);
 
         // Move channel to last dim: [N, D_flat, C]
         let transposed = flat.swap_dims(1, 2);
 
         // Batch all spatial positions: [N*D_flat, 1, C]
-        let batched: Tensor<B, 3> = transposed.reshape(Shape::new([n * d_flat, 1, c]));
+        let batched: Tensor<3> = transposed.reshape([n * d_flat, 1, c]);
 
         let pad_left = (self.size - 1) / 2;
         let pad_right = self.size / 2;
@@ -112,9 +110,9 @@ impl LocalResponseNorm {
         };
 
         // Restore shape: [N*D_flat, 1, C] -> [N, D_flat, C] -> [N, C, D_flat] -> original
-        let unbatched: Tensor<B, 3> = square_avg.reshape(Shape::new([n, d_flat, c]));
+        let unbatched: Tensor<3> = square_avg.reshape([n, d_flat, c]);
         let untransposed = unbatched.swap_dims(1, 2);
-        let square_avg_restored: Tensor<B, D> = untransposed.reshape(Shape::new(shape));
+        let square_avg_restored: Tensor<D> = untransposed.reshape(shape);
 
         // Apply LRN formula: output = input / (k + alpha * avg(x^2))^beta
         input
@@ -147,23 +145,18 @@ mod tests {
     use super::*;
     use alloc::format;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::Tolerance;
 
-    #[cfg(feature = "std")]
-    use crate::{TestAutodiffBackend, TestBackend};
-
-    #[cfg(not(feature = "std"))]
-    use crate::TestBackend;
+    type FT = f32;
 
     // --- Correctness tests (values from PyTorch, torch.manual_seed(42)) ---
 
     #[test]
     fn forward_default_params() {
         // size=5, alpha=0.0001, beta=0.75, k=1.0, input [1,3,4,4]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(5).init();
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::from([[
                 [
                     [1.9269, 1.4873, 0.9007, -2.1055],
@@ -217,14 +210,13 @@ mod tests {
     #[test]
     fn forward_custom_params() {
         // size=3, alpha=0.001, beta=0.5, k=2.0, input [1,4,3,3]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(3)
             .with_alpha(0.001)
             .with_beta(0.5)
             .with_k(2.0)
             .init();
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::from([[
                 [
                     [1.9269, 1.4873, 0.9007],
@@ -282,10 +274,9 @@ mod tests {
     #[test]
     fn forward_even_size() {
         // size=2, alpha=0.0001, beta=0.75, k=1.0, input [1,3,2,2]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(2).init();
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::from([[
                 [[0.3367, 0.1288], [0.2345, 0.2303]],
                 [[-1.1229, -0.1863], [2.2082, -0.6380]],
@@ -308,15 +299,13 @@ mod tests {
 
     #[test]
     fn forward_even_size_uses_asymmetric_positive_side_window() {
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(2)
             .with_alpha(1.0)
             .with_beta(1.0)
             .with_k(0.0)
             .init();
-        let input =
-            Tensor::<TestBackend, 3>::from_data(TensorData::from([[[1.0], [2.0], [4.0]]]), &device);
+        let input = Tensor::<3>::from_data(TensorData::from([[[1.0], [2.0], [4.0]]]), &device);
 
         let output = module.forward(input);
 
@@ -333,10 +322,9 @@ mod tests {
     #[test]
     fn forward_3d() {
         // size=3, input [1,4,6]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(3).init();
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([[
                 [1.9269, 1.4873, 0.9007, -2.1055, 0.6784, -1.2345],
                 [-0.0431, -1.6047, 0.3559, -0.6866, -0.4934, 0.2415],
@@ -362,10 +350,9 @@ mod tests {
     #[test]
     fn forward_5d() {
         // size=3, input [1,3,2,2,2]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(3).init();
-        let input = Tensor::<TestBackend, 5>::from_data(
+        let input = Tensor::<5>::from_data(
             TensorData::from([[
                 [
                     [[1.9269, 1.4873], [0.9007, -2.1055]],
@@ -409,10 +396,9 @@ mod tests {
     #[test]
     fn forward_size_1() {
         // size=1: window covers only self-channel, input [1,3,3,3]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(1).init();
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::from([[
                 [
                     [1.9269, 1.4873, 0.9007],
@@ -460,10 +446,9 @@ mod tests {
     #[test]
     fn forward_c_less_than_size() {
         // C=2 < size=5, input [1,2,3,3]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(5).init();
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::from([[
                 [
                     [1.9269, 1.4873, -0.4974],
@@ -501,10 +486,9 @@ mod tests {
     #[test]
     fn forward_multi_batch() {
         // N=2, size=5, input [2,3,4,4]
-        type FT = FloatElem<TestBackend>;
         let device = Default::default();
         let module = LocalResponseNormConfig::new(5).init();
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::from([
                 [
                     [
@@ -611,7 +595,7 @@ mod tests {
     #[should_panic(expected = "LocalResponseNorm requires input rank >= 3")]
     fn forward_rank_2_panics() {
         let module = LocalResponseNormConfig::new(3).init();
-        let input = Tensor::<TestBackend, 2>::zeros([2, 4], &Default::default());
+        let input = Tensor::<2>::zeros([2, 4], &Default::default());
         module.forward(input);
     }
 
@@ -620,10 +604,11 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn backward() {
-        type FT = FloatElem<TestAutodiffBackend>;
-        let device = Default::default();
+        use burn_core::tensor::Device;
+
+        let device = Device::default().autodiff();
         let module = LocalResponseNormConfig::new(5).init();
-        let input = Tensor::<TestAutodiffBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::from([[
                 [
                     [1.9269, 1.4873, 0.9007, -2.1055],

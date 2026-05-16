@@ -3,7 +3,6 @@ use burn_core as burn;
 use super::{LrScheduler, String};
 use crate::LearningRate;
 use burn::config::Config;
-use burn::tensor::backend::Backend;
 
 /// The configuration for creating an [exponential learning rate scheduler](ExponentialLrScheduler).
 ///
@@ -56,18 +55,18 @@ pub struct ExponentialLrScheduler {
 }
 
 impl LrScheduler for ExponentialLrScheduler {
-    type Record<B: Backend> = LearningRate;
+    type Record = LearningRate;
 
     fn step(&mut self) -> LearningRate {
         self.previous_lr *= self.gamma;
         self.previous_lr
     }
 
-    fn to_record<B: Backend>(&self) -> Self::Record<B> {
+    fn to_record(&self) -> Self::Record {
         self.previous_lr
     }
 
-    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+    fn load_record(mut self, record: Self::Record) -> Self {
         self.previous_lr = record;
         self
     }

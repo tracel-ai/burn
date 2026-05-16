@@ -1,32 +1,29 @@
 use crate::metric::processor::ItemLazy;
 use crate::metric::{Adaptor, LossInput};
-use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Tensor, Transaction};
-use burn_flex::Flex;
+use burn_core::tensor::{Device, Tensor, Transaction};
+use burn_flex::FlexDevice;
 
 /// Regression output adapted for the loss metric.
 #[derive(new)]
-pub struct RegressionOutput<B: Backend> {
+pub struct RegressionOutput {
     /// The loss.
-    pub loss: Tensor<B, 1>,
+    pub loss: Tensor<1>,
 
     /// The predicted values. Shape: \[batch_size, num_targets\].
-    pub output: Tensor<B, 2>,
+    pub output: Tensor<2>,
 
     /// The ground truth values. Shape: \[batch_size, num_targets\].
-    pub targets: Tensor<B, 2>,
+    pub targets: Tensor<2>,
 }
 
-impl<B: Backend> Adaptor<LossInput<B>> for RegressionOutput<B> {
-    fn adapt(&self) -> LossInput<B> {
+impl Adaptor<LossInput> for RegressionOutput {
+    fn adapt(&self) -> LossInput {
         LossInput::new(self.loss.clone())
     }
 }
 
-impl<B: Backend> ItemLazy for RegressionOutput<B> {
-    type ItemSync = RegressionOutput<Flex>;
-
-    fn sync(self) -> Self::ItemSync {
+impl ItemLazy for RegressionOutput {
+    fn sync(self) -> Self {
         let [output, loss, targets] = Transaction::default()
             .register(self.output)
             .register(self.loss)
@@ -35,12 +32,12 @@ impl<B: Backend> ItemLazy for RegressionOutput<B> {
             .try_into()
             .expect("Correct amount of tensor data");
 
-        let device = &Default::default();
+        let device: Device = FlexDevice.into();
 
         RegressionOutput {
-            output: Tensor::from_data(output, device),
-            loss: Tensor::from_data(loss, device),
-            targets: Tensor::from_data(targets, device),
+            output: Tensor::from_data(output, &device),
+            loss: Tensor::from_data(loss, &device),
+            targets: Tensor::from_data(targets, &device),
         }
     }
 }

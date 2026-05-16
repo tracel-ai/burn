@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::record::Record;
-use burn::tensor::backend::Backend;
+use burn::tensor::Device;
 use burn::tensor::{ElementConversion, Tensor};
 
 /// Configuration to create [momentum](Momentum).
@@ -22,19 +22,19 @@ pub struct MomentumConfig {
 
 /// State of [momentum](Momentum).
 #[derive(Record, Clone, new)]
-pub struct MomentumState<B: Backend, const D: usize> {
-    velocity: Tensor<B, D>,
+pub struct MomentumState<const D: usize> {
+    velocity: Tensor<D>,
 }
 
 /// Momentum implementation that transforms gradients.
 #[derive(Clone)]
-pub struct Momentum<B: Backend> {
-    momentum: B::FloatElem,
+pub struct Momentum {
+    momentum: f32,
     dampening: f64,
     nesterov: bool,
 }
 
-impl<B: Backend> Momentum<B> {
+impl Momentum {
     /// Creates a new [momentum](Momentum) from a [config](MomentumConfig).
     pub fn new(config: &MomentumConfig) -> Self {
         Self {
@@ -57,9 +57,9 @@ impl<B: Backend> Momentum<B> {
     /// * `state` - State of the optimizer.
     pub fn transform<const D: usize>(
         &self,
-        grad: Tensor<B, D>,
-        state: Option<MomentumState<B, D>>,
-    ) -> (Tensor<B, D>, MomentumState<B, D>) {
+        grad: Tensor<D>,
+        state: Option<MomentumState<D>>,
+    ) -> (Tensor<D>, MomentumState<D>) {
         let velocity = if let Some(state) = state {
             grad.clone()
                 .mul_scalar(1.0 - self.dampening)
@@ -77,7 +77,7 @@ impl<B: Backend> Momentum<B> {
     }
 }
 
-impl<B: Backend, const D: usize> MomentumState<B, D> {
+impl<const D: usize> MomentumState<D> {
     /// Moves the state to a device.
     ///
     /// # Arguments
@@ -87,7 +87,7 @@ impl<B: Backend, const D: usize> MomentumState<B, D> {
     /// # Returns
     ///
     /// * `self` - Moved state.
-    pub fn to_device(mut self, device: &B::Device) -> Self {
+    pub fn to_device(mut self, device: &Device) -> Self {
         self.velocity = self.velocity.to_device(device);
         self
     }

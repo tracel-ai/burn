@@ -1,5 +1,8 @@
 [package]
-authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>", "Ankitects Pty Ltd"]
+authors = [
+    "nathanielsimard <nathaniel.simard.42@gmail.com>",
+    "Ankitects Pty Ltd",
+]
 edition.workspace = true
 license.workspace = true
 name = "custom-renderer"
@@ -11,13 +14,13 @@ version.workspace = true
 workspace = true
 
 [dependencies]
-burn = {workspace = true, features=["autodiff", "wgpu", "train", "dataset", "vision"] }
-guide = {path = "../guide", default-features=false}
+burn = { workspace = true, features = [
+    "autodiff",
+    "wgpu",
+    "train",
+    "dataset",
+    "vision",
+] }
+guide = { path = "../guide", default-features = false }
 
-# Serialization
-log = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"] }
-
-# Wgpu internal dependencies
-derive-new = { workspace = true }
-bytemuck = { workspace = true }
+log = { workspace = true }

@@ -4,8 +4,7 @@ use alloc::vec;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Int;
-use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
+use burn::tensor::{Device, Tensor};
 use core::ops::Range;
 
 #[cfg(not(feature = "std"))]
@@ -33,7 +32,7 @@ impl RotaryEncodingConfig {
     ///
     /// Panics if the size of input embedding dimension is not even.
     /// Panics if the theta parameter is not positive.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> RotaryEncoding<B> {
+    pub fn init(&self, device: &Device) -> RotaryEncoding {
         self.initialize(|x| x, device)
     }
 
@@ -44,11 +43,11 @@ impl RotaryEncodingConfig {
     ///
     /// Panics if the size of input embedding dimension is not even.
     /// Panics if the theta parameter is not positive.
-    pub fn init_with_frequency_scaling<B: Backend>(
+    pub fn init_with_frequency_scaling(
         &self,
-        scaling: impl Fn(Tensor<B, 1>) -> Tensor<B, 1>,
-        device: &B::Device,
-    ) -> RotaryEncoding<B> {
+        scaling: impl Fn(Tensor<1>) -> Tensor<1>,
+        device: &Device,
+    ) -> RotaryEncoding {
         self.initialize(scaling, device)
     }
 
@@ -58,11 +57,11 @@ impl RotaryEncodingConfig {
     ///
     /// Panics if the size of input embedding dimension is not even.
     /// Panics if the theta parameter is not positive.
-    fn initialize<B: Backend>(
+    fn initialize(
         &self,
-        scaling: impl Fn(Tensor<B, 1>) -> Tensor<B, 1>,
-        device: &B::Device,
-    ) -> RotaryEncoding<B> {
+        scaling: impl Fn(Tensor<1>) -> Tensor<1>,
+        device: &Device,
+    ) -> RotaryEncoding {
         assert_eq!(
             self.d_model % 2,
             0,
@@ -75,7 +74,7 @@ impl RotaryEncodingConfig {
 
         // Calculate the rotation frequencies for positional embeddings based on the formula
         // `theta = 1 / (theta ^ (2i / d_model)) for i in [0..d_model/2]`
-        let exponent = Tensor::<B, 1, Int>::arange_step(0..self.d_model as i64, 2, device)
+        let exponent = Tensor::<1, Int>::arange_step(0..self.d_model as i64, 2, device)
             .float()
             .div_scalar(self.d_model as f32);
 
@@ -106,16 +105,16 @@ impl RotaryEncodingConfig {
 /// Should be created using [RotaryEncodingConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct RotaryEncoding<B: Backend> {
+pub struct RotaryEncoding {
     /// Complex frequency tensor of shape (max_sequence_length, d_model, 2) with real and imaginary components
     // Essentially a cache of pre-computed RoPE values.
-    pub freq_complex: Tensor<B, 3>,
+    pub freq_complex: Tensor<3>,
     /// Frequency vector used to compute/apply the complex rotations.
-    pub theta: Tensor<B, 1>,
+    pub theta: Tensor<1>,
     start_offset: usize,
 }
 
-impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
+impl ModuleDisplay for RotaryEncoding {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -132,7 +131,7 @@ impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
 }
 
 #[allow(clippy::single_range_in_vec_init)]
-impl<B: Backend> RotaryEncoding<B> {
+impl RotaryEncoding {
     /// Applies rotary positional encoding to a tensor of dimensions (..., seq_len, d_model)
     ///
     /// # Arguments:
@@ -145,7 +144,7 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// # Panics
     /// If the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
-    pub fn forward<const D: usize>(&self, x: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, x: Tensor<D>) -> Tensor<D> {
         self.apply(x, 0)
     }
 
@@ -162,7 +161,7 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// # Panics
     /// If the input tensor does not have at least 2 dimensions for sequence length and hidden dimension.
-    pub fn apply<const D: usize>(&self, x: Tensor<B, D>, start: usize) -> Tensor<B, D> {
+    pub fn apply<const D: usize>(&self, x: Tensor<D>, start: usize) -> Tensor<D> {
         assert!(
             D >= 2,
             "Input tensor must have at least 2 dimensions for sequence length and hidden dimension"
@@ -179,10 +178,10 @@ impl<B: Backend> RotaryEncoding<B> {
         // Create a dummy tensor with signed ones based on the 2D rotation matrix
         // [[cos, -sin], [sin, cos]]
         let sign_tensor =
-            Tensor::<B, 2>::from_floats([[1.0, 0.0, 0.0, 1.0], [0.0, -1.0, 1.0, 0.0]], &device);
+            Tensor::<2>::from_floats([[1.0, 0.0, 0.0, 1.0], [0.0, -1.0, 1.0, 0.0]], &device);
 
         // Rotate input using the frequency tensor. Slice the frequencies till input sequence length
-        let out: Tensor<B, 4> = x
+        let out: Tensor<4> = x
             .reshape([dummy_dim_size, seq_len, d_model / 2, 2])
             .matmul(sign_tensor.unsqueeze())
             .reshape([dummy_dim_size, seq_len, d_model, 2])
@@ -241,13 +240,13 @@ impl<B: Backend> RotaryEncoding<B> {
     ///
     /// # Returns
     /// Tensor of shape `(range.len(), d_model, 2)` containing `[cos, sin]` pairs for each position and frequency.
-    fn compute_rotary_frequencies(range: Range<usize>, theta: Tensor<B, 1>) -> Tensor<B, 3> {
+    fn compute_rotary_frequencies(range: Range<usize>, theta: Tensor<1>) -> Tensor<3> {
         let d_model = theta.dims()[0] * 2;
         let num_positions = range.end - range.start;
 
         // Generate frequency values for positional embeddings
-        let frequencies: Tensor<B, 2> =
-            Tensor::<B, 1, Int>::arange(range.start as i64..range.end as i64, &theta.device())
+        let frequencies: Tensor<2> =
+            Tensor::<1, Int>::arange(range.start as i64..range.end as i64, &theta.device())
                 .float()
                 .unsqueeze()
                 .transpose()
@@ -270,16 +269,15 @@ impl<B: Backend> RotaryEncoding<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_rotary_encoding_forward() {
         let device = Default::default();
-        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
 
-        let input = Tensor::<TestBackend, 3>::from_floats(
+        let input = Tensor::<3>::from_floats(
             [
                 [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
                 [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
@@ -291,7 +289,7 @@ mod tests {
         let input = input.unsqueeze::<4>();
 
         let output = rotary_encoding.forward(input);
-        let expected_output = Tensor::<TestBackend, 3>::from_floats(
+        let expected_output = Tensor::<3>::from_floats(
             [
                 [
                     [1.0000, 2.0000, 3.0000, 4.0000],
@@ -314,9 +312,9 @@ mod tests {
     #[test]
     fn test_rotary_encoding_3d() {
         let device = Default::default();
-        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
 
-        let input = Tensor::<TestBackend, 3>::from_floats(
+        let input = Tensor::<3>::from_floats(
             [
                 [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
                 [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
@@ -328,7 +326,7 @@ mod tests {
         // let input = input.unsqueeze::<4>();
 
         let output = rotary_encoding.forward(input);
-        let expected_output = Tensor::<TestBackend, 3>::from_floats(
+        let expected_output = Tensor::<3>::from_floats(
             [
                 [
                     [1.0000, 2.0000, 3.0000, 4.0000],
@@ -350,13 +348,13 @@ mod tests {
     #[test]
     fn test_zero_input_rotary_encoding_forward() {
         let device = Default::default();
-        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
 
         // Use a tensor of exact zeros as input. The output rotary embedding should be zeros as well
-        let input = Tensor::<TestBackend, 4>::zeros([1, 2, 2, 4], &device);
+        let input = Tensor::<4>::zeros([1, 2, 2, 4], &device);
 
         let output = rotary_encoding.forward(input);
-        let expected_output = Tensor::<TestBackend, 3>::from_floats(
+        let expected_output = Tensor::<3>::from_floats(
             [
                 [
                     [0.0000, 0.0000, 0.0000, 0.0000],
@@ -383,17 +381,17 @@ mod tests {
         // for rotation
         let d_model = 15;
         let device = Default::default();
-        let pe = RotaryEncodingConfig::new(10, d_model).init::<TestBackend>(&device);
-        let input = Tensor::<TestBackend, 3>::zeros([1, 5, d_model], &device);
+        let pe = RotaryEncodingConfig::new(10, d_model).init(&device);
+        let input = Tensor::<3>::zeros([1, 5, d_model], &device);
         let _output = pe.forward(input);
     }
 
     #[test]
     fn test_rotary_encoding_frequencies() {
         let device = Default::default();
-        let rotary_encoding = RotaryEncodingConfig::new(2, 8).init::<TestBackend>(&device);
+        let rotary_encoding = RotaryEncodingConfig::new(2, 8).init(&device);
 
-        let expected_freqs = Tensor::<TestBackend, 3>::from_floats(
+        let expected_freqs = Tensor::<3>::from_floats(
             [
                 [
                     [1.0000, 0.0000],
@@ -420,7 +418,7 @@ mod tests {
             .assert_approx_eq::<FT>(&expected_freqs.to_data(), Tolerance::default());
     }
 
-    fn apply_freq_scaling_by_parts<B: Backend>(freqs: Tensor<B, 1>) -> Tensor<B, 1> {
+    fn apply_freq_scaling_by_parts(freqs: Tensor<1>) -> Tensor<1> {
         // Adapted from: https://github.com/meta-llama/llama-models/blob/main/models/llama3/reference_impl/model.py#L45
         let scale_factor = 8.;
         let low_freq_factor = 1.;
@@ -462,9 +460,9 @@ mod tests {
     fn test_rotary_encoding_with_frequency_scaling() {
         let device = Default::default();
         let rotary_encoding = RotaryEncodingConfig::new(2, 8)
-            .init_with_frequency_scaling::<TestBackend>(apply_freq_scaling_by_parts, &device);
+            .init_with_frequency_scaling(apply_freq_scaling_by_parts, &device);
 
-        let expected_freqs = Tensor::<TestBackend, 3>::from_floats(
+        let expected_freqs = Tensor::<3>::from_floats(
             [
                 [
                     [1.0000, 0.0000],
@@ -494,10 +492,10 @@ mod tests {
     #[test]
     fn test_rotary_encoding_shift_full() {
         let device = Default::default();
-        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
 
         // Input = [Batch size, Num of heads, Seq_len, d_model]
-        let input = Tensor::<TestBackend, 3>::from_floats(
+        let input = Tensor::<3>::from_floats(
             [
                 [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
                 [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
@@ -511,7 +509,7 @@ mod tests {
         // initial position
         let expected_output = rotary_encoding.apply(input.clone(), 6);
 
-        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
         rotary_encoding.shift(6); // start > 4 will perform a full re-compute
 
         let output = rotary_encoding.apply(input, 0);
@@ -524,10 +522,10 @@ mod tests {
     #[test]
     fn test_rotary_encoding_shift() {
         let device = Default::default();
-        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
 
         // Input = [Batch size, Num of heads, Seq_len, d_model]
-        let input = Tensor::<TestBackend, 3>::from_floats(
+        let input = Tensor::<3>::from_floats(
             [
                 [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
                 [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
@@ -541,7 +539,7 @@ mod tests {
         // initial position
         let expected_output = rotary_encoding.apply(input.clone(), 2);
 
-        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
         rotary_encoding.shift(2); // start < 4 will shift the (current_end - start) freqs and compute the rest
 
         let output = rotary_encoding.apply(input, 0);
@@ -554,7 +552,7 @@ mod tests {
     #[test]
     fn test_rotary_encoding_shift_multiple() {
         let device = Default::default();
-        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
         rotary_encoding.shift(2);
         rotary_encoding.shift(5);
     }
@@ -563,7 +561,7 @@ mod tests {
     #[should_panic = "Shift start position must be monotonically increasing"]
     fn test_rotary_encoding_shift_should_increase() {
         let device = Default::default();
-        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init::<TestBackend>(&device);
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
         rotary_encoding.shift(6);
         rotary_encoding.shift(4); // should be monotonically increasing
     }
@@ -571,7 +569,7 @@ mod tests {
     #[test]
     fn display() {
         let config = RotaryEncodingConfig::new(10, 4);
-        let pe = config.init::<TestBackend>(&Default::default());
+        let pe = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{pe}"),

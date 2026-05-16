@@ -5,7 +5,7 @@ use super::weights::load_vgg19_weights;
 use crate::loss::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::{Device, Tensor};
 
 /// Configuration for the [Gram Matrix Loss](GramMatrixLoss) module.
 ///
@@ -61,7 +61,7 @@ impl GramMatrixLossConfig {
     /// let gram_loss = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0])
     ///     .init::<B>(&device);
     /// ```
-    pub fn init<B: Backend>(&self, device: &B::Device) -> GramMatrixLoss<B> {
+    pub fn init(&self, device: &Device) -> GramMatrixLoss<B> {
         self.assertions();
 
         let vgg19 = Vgg19::new(self.use_avg_pool, device);
@@ -111,7 +111,7 @@ impl GramMatrixLossConfig {
 /// [Image Style Transfer Using Convolutional Neural Networks](https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Gatys_Image_Style_Transfer_CVPR_2016_paper.pdf)
 #[cfg_attr(docsrs, doc(cfg(feature = "pretrained")))]
 #[derive(Module, Debug)]
-pub struct GramMatrixLoss<B: Backend> {
+pub struct GramMatrixLoss {
     /// The weights of the layer contributing to the total loss.
     /// Should have a length of 5 since Gram Matrix Loss uses 5 layers.
     pub layer_weights: Vec<f32>,
@@ -119,7 +119,7 @@ pub struct GramMatrixLoss<B: Backend> {
     pub feat_extractor: Vgg19<B>,
 }
 
-impl<B: Backend> GramMatrixLoss<B> {
+impl GramMatrixLoss<B> {
     /// Computes the Gram Matrix Loss with reduction.
     ///
     /// # Arguments
@@ -162,10 +162,10 @@ impl<B: Backend> GramMatrixLoss<B> {
     /// ```
     pub fn forward(
         &self,
-        predictions: Tensor<B, 4>,
-        targets: Tensor<B, 4>,
+        predictions: Tensor<4>,
+        targets: Tensor<4>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let unreduced_loss = self.forward_no_reduction(predictions, targets);
 
         match reduction {
@@ -210,11 +210,7 @@ impl<B: Backend> GramMatrixLoss<B> {
     /// // Returns a tensor of shape [N] containing the loss for each sample
     /// let unreduced_loss = loss_fn.forward_no_reduction(predictions, targets);
     /// ```
-    pub fn forward_no_reduction(
-        &self,
-        predictions: Tensor<B, 4>,
-        targets: Tensor<B, 4>,
-    ) -> Tensor<B, 1> {
+    pub fn forward_no_reduction(&self, predictions: Tensor<4>, targets: Tensor<4>) -> Tensor<1> {
         let pred_processed = self.preprocess_input(predictions);
         let target_processed = self.preprocess_input(targets);
 
@@ -254,7 +250,7 @@ impl<B: Backend> GramMatrixLoss<B> {
         }
 
         // Sum each layer's loss in the vector of loss tensors
-        let scaled_loss_tensors: Vec<Tensor<B, 1>> = loss_tensors
+        let scaled_loss_tensors: Vec<Tensor<1>> = loss_tensors
             .into_iter()
             .zip(pred_normalization_factors)
             .zip(self.layer_weights.clone())
@@ -275,7 +271,7 @@ impl<B: Backend> GramMatrixLoss<B> {
     /// # Panics
     ///
     /// - If the input tensor does not have exactly 3 channels.
-    fn preprocess_input(&self, tensor: Tensor<B, 4>) -> Tensor<B, 4> {
+    fn preprocess_input(&self, tensor: Tensor<4>) -> Tensor<4> {
         let device = &tensor.device();
         let channels = tensor.dims()[1];
         assert!(
@@ -285,8 +281,8 @@ impl<B: Backend> GramMatrixLoss<B> {
         );
 
         // ImageNet normalization constants
-        let mean = Tensor::<B, 1>::from_floats([0.485, 0.456, 0.406], device).reshape([1, 3, 1, 1]);
-        let std = Tensor::<B, 1>::from_floats([0.229, 0.224, 0.225], device).reshape([1, 3, 1, 1]);
+        let mean = Tensor::<1>::from_floats([0.485, 0.456, 0.406], device).reshape([1, 3, 1, 1]);
+        let std = Tensor::<1>::from_floats([0.229, 0.224, 0.225], device).reshape([1, 3, 1, 1]);
 
         (tensor - mean) / std
     }
@@ -295,21 +291,20 @@ impl<B: Backend> GramMatrixLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::Distribution;
 
     #[test]
     #[should_panic(expected = "The layer_weights vector must contain exactly 5 elements")]
     fn test_gram_matrix_loss_config_invalid_length() {
         let device = Default::default();
-        GramMatrixLossConfig::new(vec![1.0, 1.0]).init::<TestBackend>(&device);
+        GramMatrixLossConfig::new(vec![1.0, 1.0]).init(&device);
     }
 
     #[test]
     #[should_panic(expected = "All layer weights must be non-negative")]
     fn test_gram_matrix_loss_config_negative_weights() {
         let device = Default::default();
-        GramMatrixLossConfig::new(vec![1.0, -1.0, 1.0, 1.0, 1.0]).init::<TestBackend>(&device);
+        GramMatrixLossConfig::new(vec![1.0, -1.0, 1.0, 1.0, 1.0]).init(&device);
     }
 
     #[test]
@@ -319,7 +314,7 @@ mod tests {
     fn test_gram_matrix_loss_config_valid_weights() {
         let device = Default::default();
         let layer_weights = vec![0.0, 0.2, 0.2, 0.25, 0.4];
-        let loss_fn = GramMatrixLossConfig::new(layer_weights.clone()).init::<TestBackend>(&device);
+        let loss_fn = GramMatrixLossConfig::new(layer_weights.clone()).init(&device);
         assert_eq!(
             loss_fn.layer_weights, layer_weights,
             "Expected layer weights vector {:?}, got {:?}",
@@ -337,8 +332,7 @@ mod tests {
         };
 
         // 1 channel (Grayscale) should panic
-        let tensor1: Tensor<TestBackend, 4> =
-            Tensor::random([2, 1, 16, 16], Distribution::Default, &device);
+        let tensor1: Tensor<4> = Tensor::random([2, 1, 16, 16], Distribution::Default, &device);
         let tensor2 = tensor1.clone();
 
         let _ = loss_fn.forward(tensor1, tensor2, Reduction::Mean);
@@ -354,8 +348,7 @@ mod tests {
         };
 
         // 4 channels (e.g., RGBA) should panic
-        let tensor1: Tensor<TestBackend, 4> =
-            Tensor::random([2, 4, 16, 16], Distribution::Default, &device);
+        let tensor1: Tensor<4> = Tensor::random([2, 4, 16, 16], Distribution::Default, &device);
         let tensor2 = tensor1.clone();
 
         let _ = loss_fn.forward(tensor1, tensor2, Reduction::Mean);
@@ -371,8 +364,7 @@ mod tests {
             feat_extractor: Vgg19::new(false, &device),
         };
 
-        let tensor1: Tensor<TestBackend, 4> =
-            Tensor::random([2, 3, 16, 16], Distribution::Default, &device);
+        let tensor1: Tensor<4> = Tensor::random([2, 3, 16, 16], Distribution::Default, &device);
         let tensor2 = tensor1.clone();
 
         let loss = loss_fn.forward(tensor1, tensor2, Reduction::Mean);
@@ -393,8 +385,8 @@ mod tests {
             feat_extractor: Vgg19::new(false, &device),
         };
 
-        let tensor1: Tensor<TestBackend, 4> = Tensor::ones([2, 3, 16, 16], &device);
-        let tensor2: Tensor<TestBackend, 4> = Tensor::zeros([2, 3, 16, 16], &device);
+        let tensor1: Tensor<4> = Tensor::ones([2, 3, 16, 16], &device);
+        let tensor2: Tensor<4> = Tensor::zeros([2, 3, 16, 16], &device);
 
         let loss = loss_fn.forward(tensor1, tensor2, Reduction::Mean);
         let loss_val: f32 = loss.into_scalar();
@@ -414,9 +406,9 @@ mod tests {
         };
 
         let batch_size = 4;
-        let tensor1: Tensor<TestBackend, 4> =
+        let tensor1: Tensor<4> =
             Tensor::random([batch_size, 3, 16, 16], Distribution::Default, &device);
-        let tensor2: Tensor<TestBackend, 4> =
+        let tensor2: Tensor<4> =
             Tensor::random([batch_size, 3, 16, 16], Distribution::Default, &device);
 
         let unreduced_loss = loss_fn.forward_no_reduction(tensor1, tensor2);
@@ -434,9 +426,9 @@ mod tests {
         };
 
         let batch_size = 4;
-        let tensor1: Tensor<TestBackend, 4> =
+        let tensor1: Tensor<4> =
             Tensor::random([batch_size, 3, 16, 16], Distribution::Default, &device);
-        let tensor2: Tensor<TestBackend, 4> =
+        let tensor2: Tensor<4> =
             Tensor::random([batch_size, 3, 16, 16], Distribution::Default, &device);
 
         let loss_mean: f32 = loss_fn
@@ -466,8 +458,8 @@ mod tests {
         };
 
         let batch_size = 4;
-        let tensor1: Tensor<TestBackend, 4> = Tensor::ones([batch_size, 3, 16, 16], &device);
-        let tensor2: Tensor<TestBackend, 4> = Tensor::zeros([batch_size, 3, 16, 16], &device);
+        let tensor1: Tensor<4> = Tensor::ones([batch_size, 3, 16, 16], &device);
+        let tensor2: Tensor<4> = Tensor::zeros([batch_size, 3, 16, 16], &device);
 
         let loss = loss_fn.forward(tensor1, tensor2, Reduction::Mean);
         let loss_val: f32 = loss.into_scalar();
@@ -480,20 +472,17 @@ mod tests {
 
     #[test]
     fn test_gram_matrix_loss_autodiff() {
-        use crate::TestAutodiffBackend;
-
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let loss_fn = GramMatrixLoss {
             layer_weights: vec![1.0, 1.0, 1.0, 1.0, 1.0],
-            feat_extractor: Vgg19::<TestAutodiffBackend>::new(false, &device).no_grad(),
+            feat_extractor: Vgg19::new(false, &device).no_grad(),
         };
 
         // The prediction tensor requires gradients
-        let predictions: Tensor<TestAutodiffBackend, 4> =
-            Tensor::ones([2, 3, 16, 16], &device).require_grad();
+        let predictions: Tensor<4> = Tensor::ones([2, 3, 16, 16], &device).require_grad();
 
         // The target tensor does not require gradients
-        let targets: Tensor<TestAutodiffBackend, 4> = Tensor::zeros([2, 3, 16, 16], &device);
+        let targets: Tensor<4> = Tensor::zeros([2, 3, 16, 16], &device);
 
         let loss = loss_fn.forward(predictions.clone(), targets, Reduction::Mean);
         let grads = loss.backward();
@@ -517,11 +506,9 @@ mod tests {
     #[ignore = "downloads pre-trained weights"]
     fn test_gram_matrix_loss_pretrained_weights_identical_inputs() {
         let device = Default::default();
-        let loss_fn =
-            GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init::<TestBackend>(&device);
+        let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init(&device);
 
-        let tensor1: Tensor<TestBackend, 4> =
-            Tensor::random([2, 3, 16, 16], Distribution::Default, &device);
+        let tensor1: Tensor<4> = Tensor::random([2, 3, 16, 16], Distribution::Default, &device);
         let tensor2 = tensor1.clone();
 
         let loss = loss_fn.forward(tensor1, tensor2, Reduction::Mean);
@@ -538,11 +525,10 @@ mod tests {
     #[ignore = "downloads pre-trained weights"]
     fn test_gram_matrix_loss_pretrained_weights_different_inputs() {
         let device = Default::default();
-        let loss_fn =
-            GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init::<TestBackend>(&device);
+        let loss_fn = GramMatrixLossConfig::new(vec![1.0, 1.0, 1.0, 1.0, 1.0]).init(&device);
 
-        let tensor1: Tensor<TestBackend, 4> = Tensor::ones([2, 3, 16, 16], &device);
-        let tensor2: Tensor<TestBackend, 4> = Tensor::zeros([2, 3, 16, 16], &device);
+        let tensor1: Tensor<4> = Tensor::ones([2, 3, 16, 16], &device);
+        let tensor2: Tensor<4> = Tensor::zeros([2, 3, 16, 16], &device);
 
         let loss = loss_fn.forward(tensor1, tensor2, Reduction::Mean);
         let loss_val: f32 = loss.into_scalar();

@@ -1,13 +1,12 @@
-use alloc::boxed::Box;
+use crate::backends::*;
 
 use burn_backend::{
     Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
 };
 
-#[cfg(feature = "autodiff")]
 use crate::CheckpointingStrategy;
-use crate::backends::*;
-
+#[cfg(feature = "autodiff")]
+use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_backend::tensor::FloatTensor;
 
@@ -32,7 +31,7 @@ pub enum BackendTensor<B: Backend> {
 
 impl<B: Backend> BackendTensor<B> {
     /// Returns the inner float tensor primitive.
-    pub(crate) fn float(self) -> B::FloatTensorPrimitive {
+    pub fn float(self) -> B::FloatTensorPrimitive {
         match self {
             BackendTensor::Float(tensor) => tensor,
             BackendTensor::Int(_) => panic!("Should be float, got int"),
@@ -43,7 +42,7 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
     /// Returns the inner float tensor primitive.
-    pub(crate) fn as_float(&self) -> &B::FloatTensorPrimitive {
+    pub fn as_float(&self) -> &B::FloatTensorPrimitive {
         match self {
             BackendTensor::Float(tensor) => tensor,
             BackendTensor::Int(_) => panic!("Should be float, got int"),
@@ -55,7 +54,7 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner int tensor primitive.
-    pub(crate) fn int(self) -> B::IntTensorPrimitive {
+    pub fn int(self) -> B::IntTensorPrimitive {
         match self {
             BackendTensor::Int(tensor) => tensor,
             BackendTensor::Float(_) => panic!("Should be int, got float"),
@@ -67,7 +66,7 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner bool tensor primitive.
-    pub(crate) fn bool(self) -> B::BoolTensorPrimitive {
+    pub fn bool(self) -> B::BoolTensorPrimitive {
         match self {
             BackendTensor::Bool(tensor) => tensor,
             BackendTensor::Float(_) => panic!("Should be bool, got float"),
@@ -79,7 +78,7 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner quantized tensor primitive.
-    pub(crate) fn quantized(self) -> B::QuantizedTensorPrimitive {
+    pub fn quantized(self) -> B::QuantizedTensorPrimitive {
         match self {
             BackendTensor::Quantized(tensor) => tensor,
             _ => unreachable!(),
@@ -88,7 +87,7 @@ impl<B: Backend> BackendTensor<B> {
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub(crate) fn autodiff(self) -> FloatTensor<Autodiff<B>> {
+    pub fn autodiff(self) -> FloatTensor<Autodiff<B>> {
         match self {
             BackendTensor::Autodiff(tensor) => tensor,
             // NOTE: this is the panicking code reached in tensor.rs:74:18:
@@ -98,7 +97,7 @@ impl<B: Backend> BackendTensor<B> {
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub(crate) fn as_autodiff(&self) -> &FloatTensor<Autodiff<B>> {
+    pub fn as_autodiff(&self) -> &FloatTensor<Autodiff<B>> {
         match self {
             BackendTensor::Autodiff(tensor) => tensor,
             _ => unreachable!(),
@@ -107,7 +106,7 @@ impl<B: Backend> BackendTensor<B> {
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub(crate) fn autodiff_inner(self) -> B::FloatTensorPrimitive {
+    pub fn autodiff_inner(self) -> B::FloatTensorPrimitive {
         match self {
             BackendTensor::Autodiff(tensor) => tensor.primitive,
             _ => unreachable!(),
@@ -171,10 +170,22 @@ impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
 #[derive(Clone, Debug)]
 pub struct DispatchTensor {
     /// Tensor kind primitive.
-    pub(crate) kind: DispatchTensorKind,
+    pub kind: DispatchTensorKind,
     // Technically more of a device property, but device is not a dispatch tensor field.
-    #[cfg(feature = "autodiff")]
-    pub(crate) checkpointing: CheckpointingStrategy,
+    // Right now this is the easiest way to preserve the checkpointing strategy because primitives are not consolidated.
+    // Once float/int/bool primitives are consolidated into a single associative type, we could hold that
+    // property for all autodiff tensors.
+    /// Holds the autodiff checkpointing strategy.
+    /// - `None`: tensor is not tracked by autodiff
+    /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
+    pub checkpointing: Option<CheckpointingStrategy>,
+}
+
+impl DispatchTensor {
+    /// Returns the tensor kind primitive.
+    pub fn into_primitive(self) -> DispatchTensorKind {
+        self.kind
+    }
 }
 
 /// Internal representation of a [`DispatchTensor`].
@@ -215,7 +226,7 @@ pub enum DispatchTensorKind {
     Flex(BackendTensor<Flex>),
 
     /// The [NdArray backend](NdArray) tensor.
-    #[cfg(feature = "ndarray")]
+    #[cfg(any(feature = "ndarray", default_backend))]
     NdArray(BackendTensor<NdArray>),
 
     /// The [LibTorch backend](LibTorch) tensor.
@@ -244,7 +255,7 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.dtype(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.dtype(),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             Self::NdArray(tensor) => tensor.dtype(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.dtype(),
@@ -269,7 +280,7 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.shape(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.shape(),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             Self::NdArray(tensor) => tensor.shape(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.shape(),
@@ -296,7 +307,7 @@ impl QTensorPrimitive for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.scheme(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.scheme(),
-            #[cfg(feature = "ndarray")]
+            #[cfg(any(feature = "ndarray", default_backend))]
             Self::NdArray(tensor) => tensor.scheme(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.scheme(),

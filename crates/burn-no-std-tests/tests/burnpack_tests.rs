@@ -2,11 +2,9 @@ extern crate alloc;
 
 #[test]
 fn test_burnpack_no_std() {
-    use burn_flex::Flex;
     use burn_no_std_tests::burnpack;
-    type Backend = Flex;
     let device = Default::default();
 
     // Run all Burnpack tests
-    burnpack::run_all_tests::<Backend>(&device);
+    burnpack::run_all_tests(&device);
 }

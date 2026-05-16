@@ -1,6 +1,6 @@
-use crate::backend::Backend;
+use crate::kind::Basic;
+use crate::tensor::Tensor;
 use crate::tensor::grid::{GridIndexing, GridOptions, GridSparsity, IndexPos};
-use crate::tensor::{BasicOps, Tensor};
 use alloc::vec::Vec;
 
 /// Return a collection of coordinate matrices for coordinate vectors.
@@ -28,12 +28,9 @@ use alloc::vec::Vec;
 /// # Returns
 ///
 /// A vector of N N-dimensional tensors representing the grid coordinates.
-pub fn meshgrid<B: Backend, const N: usize, K, O>(
-    tensors: &[Tensor<B, 1, K>; N],
-    options: O,
-) -> [Tensor<B, N, K>; N]
+pub fn meshgrid<const N: usize, K, O>(tensors: &[Tensor<1, K>; N], options: O) -> [Tensor<N, K>; N]
 where
-    K: BasicOps<B>,
+    K: Basic,
     O: Into<GridOptions>,
 {
     let options = options.into();
@@ -85,16 +82,16 @@ where
 ///
 /// A tensor of either ``(N, ..., |T[i]|, ...)`` or ``(..., |T[i]|, ..., N)``,
 /// of coordinates, indexed on the first or last dimension.
-pub fn meshgrid_stack<B: Backend, const D: usize, const D2: usize, K>(
-    tensors: &[Tensor<B, 1, K>; D],
+pub fn meshgrid_stack<const D: usize, const D2: usize, K>(
+    tensors: &[Tensor<1, K>; D],
     index_pos: IndexPos,
-) -> Tensor<B, D2, K>
+) -> Tensor<D2, K>
 where
-    K: BasicOps<B>,
+    K: Basic,
 {
     assert_eq!(D2, D + 1, "D2 ({D2}) != D ({D}) + 1");
 
-    let xs: Vec<Tensor<B, D, K>> = meshgrid(tensors, GridOptions::default())
+    let xs: Vec<Tensor<D, K>> = meshgrid(tensors, GridOptions::default())
         .into_iter()
         .collect();
 

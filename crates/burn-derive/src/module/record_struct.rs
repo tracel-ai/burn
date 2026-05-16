@@ -27,7 +27,7 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
             if field.field_type.is_persistent_module() || field.field_type.maybe_generic_module() {
                 fields.extend(quote! {
                     /// The module record associative type.
-                    #vis #name: <#ty as burn::module::Module<B>>::Record,
+                    #vis #name: <#ty as burn::module::Module>::Record,
                 });
 
                 used_generics.extend(&field.field_type.generic_idents);
@@ -51,7 +51,6 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
             .params
             .iter()
             .filter(|param| match param {
-                syn::GenericParam::Type(ty) if ty.ident == "B" => true,
                 syn::GenericParam::Type(ty) => used_generics.contains(&ty.ident),
                 _ => true,
             })
@@ -69,7 +68,7 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
                             if let syn::Type::Path(p) = &ty.bounded_ty
                                 && let Some(ident) = p.path.get_ident()
                             {
-                                return ident == "B" || used_generics.contains(ident);
+                                return used_generics.contains(ident);
                             }
                             true
                         }

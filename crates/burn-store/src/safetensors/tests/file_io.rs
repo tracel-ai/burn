@@ -2,23 +2,20 @@ use burn_core as burn;
 
 use crate::{ModuleSnapshot, ModuleStore, SafetensorsStore};
 use burn_core::module::{Module, Param};
+use burn_core::tensor::{Device, Tensor};
 use burn_nn::{Initializer, LinearConfig};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
 
 use tempfile::tempdir;
 
-type TestBackend = burn_flex::Flex;
-
 // Define a test model with forward pass
 #[derive(Module, Debug)]
-struct ForwardTestModel<B: burn_tensor::backend::Backend> {
-    linear1: burn_nn::Linear<B>,
-    linear2: burn_nn::Linear<B>,
+struct ForwardTestModel {
+    linear1: burn_nn::Linear,
+    linear2: burn_nn::Linear,
 }
 
-impl<B: burn_tensor::backend::Backend> ForwardTestModel<B> {
-    fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+impl ForwardTestModel {
+    fn forward(&self, input: Tensor<2>) -> Tensor<2> {
         let x = self.linear1.forward(input);
         let x = burn::tensor::activation::gelu(x);
         self.linear2.forward(x)
@@ -34,7 +31,7 @@ struct ForwardTestModelConfig {
 }
 
 impl ForwardTestModelConfig {
-    fn init<B: burn_tensor::backend::Backend>(&self, device: &B::Device) -> ForwardTestModel<B> {
+    fn init(&self, device: &Device) -> ForwardTestModel {
         ForwardTestModel {
             linear1: LinearConfig::new(self.input_size, self.hidden_size)
                 .with_bias(true)
@@ -47,12 +44,12 @@ impl ForwardTestModelConfig {
 }
 
 #[derive(Module, Debug)]
-pub struct ModuleBasic<B: Backend> {
-    weight_basic: Param<Tensor<B, 2>>,
+pub struct ModuleBasic {
+    weight_basic: Param<Tensor<2>>,
 }
 
-impl<B: Backend> ModuleBasic<B> {
-    fn new(device: &B::Device) -> Self {
+impl ModuleBasic {
+    fn new(device: &Device) -> Self {
         Self {
             weight_basic: Initializer::Normal {
                 std: 1.0,
@@ -64,14 +61,14 @@ impl<B: Backend> ModuleBasic<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct ModuleComposed<B: Backend> {
-    weight: Param<Tensor<B, 2>>,
-    basic: ModuleBasic<B>,
-    tuple: (ModuleBasic<B>, ModuleBasic<B>),
+pub struct ModuleComposed {
+    weight: Param<Tensor<2>>,
+    basic: ModuleBasic,
+    tuple: (ModuleBasic, ModuleBasic),
 }
 
-impl<B: Backend> ModuleComposed<B> {
-    fn new(device: &B::Device) -> Self {
+impl ModuleComposed {
+    fn new(device: &Device) -> Self {
         let weight = Initializer::Normal {
             std: 1.0,
             mean: 0.0,
@@ -91,9 +88,7 @@ fn file_based_loading() {
     use std::fs;
 
     let device = Default::default();
-    let module = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let module = LinearConfig::new(4, 2).with_bias(true).init(&device);
 
     // Create temp file path
     let temp_dir = std::env::temp_dir();
@@ -110,9 +105,7 @@ fn file_based_loading() {
     // Load from file (will use memory-mapped loading if available)
     let mut load_store = SafetensorsStore::from_file(&file_path);
 
-    let mut loaded_module = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let mut loaded_module = LinearConfig::new(4, 2).with_bias(true).init(&device);
 
     let result = loaded_module.load_from(&mut load_store).unwrap();
 
@@ -128,9 +121,7 @@ fn test_store_overwrite_protection() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let module = LinearConfig::new(4, 2).with_bias(true).init(&device);
 
     // Create temp directory and file path (file doesn't exist yet)
     let temp_dir = tempdir().unwrap();
@@ -158,9 +149,7 @@ fn test_store_overwrite_protection() {
 
     // Verify file still exists and is valid
     let mut load_store = SafetensorsStore::from_file(&path);
-    let mut module2 = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let mut module2 = LinearConfig::new(4, 2).with_bias(true).init(&device);
     let result = load_store.apply_to(&mut module2).unwrap();
     assert!(result.is_success());
 }
@@ -170,9 +159,7 @@ fn test_store_overwrite_with_metadata() {
     use tempfile::tempdir;
 
     let device = Default::default();
-    let module = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let module = LinearConfig::new(4, 2).with_bias(true).init(&device);
 
     // Create temp directory and file path
     let temp_dir = tempdir().unwrap();
@@ -193,9 +180,7 @@ fn test_store_overwrite_with_metadata() {
     // Load and verify the metadata was updated to v2
     let mut load_store = SafetensorsStore::from_file(&path);
     // Since we can't easily access metadata after loading, we just verify the file loads successfully
-    let mut module2 = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let mut module2 = LinearConfig::new(4, 2).with_bias(true).init(&device);
     let result = module2.load_from(&mut load_store).unwrap();
     assert!(result.is_success());
 }
@@ -212,12 +197,12 @@ fn test_forward_pass_preservation_after_save_load() {
     };
 
     // Initialize model1 with random weights
-    let model1 = config.init::<TestBackend>(&device);
+    let model1 = config.init(&device);
 
     // Create random input
-    let input = Tensor::<TestBackend, 2>::random(
+    let input = Tensor::<2>::random(
         [1, 4],
-        burn_tensor::Distribution::Uniform(-1.0, 1.0),
+        burn_core::tensor::Distribution::Uniform(-1.0, 1.0),
         &device,
     );
 
@@ -231,7 +216,7 @@ fn test_forward_pass_preservation_after_save_load() {
     save_store.collect_from(&model1).unwrap();
 
     // Initialize model2 with different random weights
-    let mut model2 = config.init::<TestBackend>(&device);
+    let mut model2 = config.init(&device);
 
     // Forward pass with model2 -> output2 (should differ from output1)
     let output2 = model2.forward(input.clone());
@@ -262,9 +247,9 @@ fn test_forward_pass_preservation_after_save_load() {
 
 #[test]
 fn should_save_load_compose() {
-    let device = Default::default();
-    let module_1 = ModuleComposed::<TestBackend>::new(&device);
-    let mut module_2 = ModuleComposed::<TestBackend>::new(&device);
+    let device = Device::default();
+    let module_1 = ModuleComposed::new(&device);
+    let mut module_2 = ModuleComposed::new(&device);
     assert_ne!(module_1.weight.to_data(), module_2.weight.to_data());
     assert_ne!(
         module_1.basic.weight_basic.to_data(),

@@ -9,7 +9,7 @@ use burn::{
     config::Config,
     module::Module,
     nn,
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 #[derive(Config, Debug)]
@@ -27,16 +27,16 @@ pub struct MnistConfig {
 }
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend> {
-    mlp: Mlp<B>,
-    conv: ConvBlock<B>,
-    input: nn::Linear<B>,
-    output: nn::Linear<B>,
+pub struct Model {
+    mlp: Mlp,
+    conv: ConvBlock,
+    input: nn::Linear,
+    output: nn::Linear,
     num_classes: usize,
 }
 
-impl<B: Backend> Model<B> {
-    pub fn new(config: &MnistConfig, device: &B::Device) -> Self {
+impl Model {
+    pub fn new(config: &MnistConfig, device: &Device) -> Self {
         let mlp = Mlp::new(&config.mlp, device);
         let input = nn::LinearConfig::new(config.input_size, config.mlp.d_model).init(device);
         let output = nn::LinearConfig::new(config.mlp.d_model, config.output_size).init(device);
@@ -51,7 +51,7 @@ impl<B: Backend> Model<B> {
         }
     }
 
-    pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<2> {
         let [batch_size, height, width] = input.dims();
 
         let x = input.reshape([batch_size, 1, height, width]).detach();

@@ -3,9 +3,9 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 
@@ -15,23 +15,23 @@ use burn_nn::conv::{Conv2d, Conv2dConfig};
 /// - Squeeze layer: 1x1 conv to reduce channels
 /// - Expand layers: parallel 1x1 and 3x3 convs, concatenated
 #[derive(Module, Debug)]
-pub struct FireModule<B: Backend> {
+pub struct FireModule {
     /// Squeeze layer: 1x1 conv
-    squeeze: Conv2d<B>,
+    squeeze: Conv2d,
     /// Expand 1x1 conv
-    expand1x1: Conv2d<B>,
+    expand1x1: Conv2d,
     /// Expand 3x3 conv
-    expand3x3: Conv2d<B>,
+    expand3x3: Conv2d,
 }
 
-impl<B: Backend> FireModule<B> {
+impl FireModule {
     /// Create a new Fire module.
     pub fn new(
         in_channels: usize,
         squeeze_channels: usize,
         expand1x1_channels: usize,
         expand3x3_channels: usize,
-        device: &B::Device,
+        device: &Device,
     ) -> Self {
         Self {
             squeeze: Conv2dConfig::new([in_channels, squeeze_channels], [1, 1])
@@ -48,7 +48,7 @@ impl<B: Backend> FireModule<B> {
     }
 
     /// Forward pass through fire module.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let squeezed = relu(self.squeeze.forward(x));
         let e1 = relu(self.expand1x1.forward(squeezed.clone()));
         let e3 = relu(self.expand3x3.forward(squeezed));
@@ -68,30 +68,30 @@ impl<B: Backend> FireModule<B> {
 /// - After fire7: 512 channels
 /// - After fire8: 512 channels
 #[derive(Module, Debug)]
-pub struct SqueezeFeatureExtractor<B: Backend> {
+pub struct SqueezeFeatureExtractor {
     /// Conv1: 3 -> 64, kernel 3x3, stride 2
-    conv1: Conv2d<B>,
+    conv1: Conv2d,
     /// Fire1: 64 -> 128 (squeeze=16, expand=64+64)
-    fire1: FireModule<B>,
+    fire1: FireModule,
     /// Fire2: 128 -> 128 (squeeze=16, expand=64+64)
-    fire2: FireModule<B>,
+    fire2: FireModule,
     /// Fire3: 128 -> 256 (squeeze=32, expand=128+128)
-    fire3: FireModule<B>,
+    fire3: FireModule,
     /// Fire4: 256 -> 256 (squeeze=32, expand=128+128)
-    fire4: FireModule<B>,
+    fire4: FireModule,
     /// Fire5: 256 -> 384 (squeeze=48, expand=192+192)
-    fire5: FireModule<B>,
+    fire5: FireModule,
     /// Fire6: 384 -> 384 (squeeze=48, expand=192+192)
-    fire6: FireModule<B>,
+    fire6: FireModule,
     /// Fire7: 384 -> 512 (squeeze=64, expand=256+256)
-    fire7: FireModule<B>,
+    fire7: FireModule,
     /// Fire8: 512 -> 512 (squeeze=64, expand=256+256)
-    fire8: FireModule<B>,
+    fire8: FireModule,
 }
 
-impl<B: Backend> SqueezeFeatureExtractor<B> {
+impl SqueezeFeatureExtractor {
     /// Create a new SqueezeNet feature extractor.
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         Self {
             // Conv1: 3 -> 64, 3x3, stride 2
             conv1: Conv2dConfig::new([3, 64], [3, 3])
@@ -111,7 +111,7 @@ impl<B: Backend> SqueezeFeatureExtractor<B> {
     }
 
     /// Extract features from 7 SqueezeNet layers.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 4>> {
+    pub fn forward(&self, x: Tensor<4>) -> Vec<Tensor<4>> {
         let mut features = Vec::with_capacity(7);
 
         // Slice 1: Conv1 + ReLU (64 channels)
@@ -152,6 +152,6 @@ impl<B: Backend> SqueezeFeatureExtractor<B> {
 }
 
 /// 3x3 max pooling with stride 2, ceil mode (for SqueezeNet).
-fn max_pool2d_squeeze<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+fn max_pool2d_squeeze(x: Tensor<4>) -> Tensor<4> {
     burn_core::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], true)
 }

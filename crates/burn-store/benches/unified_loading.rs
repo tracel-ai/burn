@@ -38,28 +38,25 @@ use std::path::{Path, PathBuf};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 // Backend type aliases
-type FlexBackend = burn_flex::Flex;
+use burn_core::tensor::FlexDevice;
 
-#[cfg(feature = "wgpu")]
-type WgpuBackend = burn_wgpu::Wgpu;
+#[cfg(any(feature = "wgpu", feature = "metal"))]
+use burn_core::tensor::WgpuDevice;
 
 #[cfg(feature = "cuda")]
-type CudaBackend = burn_cuda::Cuda<f32, i32>;
+use burn_core::tensor::CudaDevice;
 
 #[cfg(feature = "tch")]
-type TchBackend = burn_tch::LibTorch<f32>;
-
-#[cfg(feature = "metal")]
-type MetalBackend = burn_wgpu::Metal;
+use burn_core::tensor::LibTorchDevice;
 
 // Use the same LargeModel as other benchmarks for fair comparison
 #[derive(Module, Debug)]
-struct LargeModel<B: Backend> {
-    layers: Vec<nn::Linear<B>>,
+struct LargeModel {
+    layers: Vec<nn::Linear>,
 }
 
-impl<B: Backend> LargeModel<B> {
-    fn new(device: &B::Device) -> Self {
+impl LargeModel {
+    fn new(device: &Device) -> Self {
         let mut layers = Vec::new();
         // Create a model with 20 layers - same as safetensor_loading benchmark
         for i in 0..20 {
@@ -77,11 +74,10 @@ fn get_model_dir() -> PathBuf {
 
 /// Generate Burnpack and NamedMpk files from existing SafeTensors file
 fn generate_burn_formats(st_path: &Path, bp_path: &Path, mpk_path: &Path) {
-    type TestBackend = FlexBackend;
-    let device = Default::default();
+    let device = FlexDevice.into();
 
     // Load the model from SafeTensors
-    let mut model = LargeModel::<TestBackend>::new(&device);
+    let mut model = LargeModel::new(&device);
     let mut store = SafetensorsStore::from_file(st_path).with_from_adapter(PyTorchToBurnAdapter);
     model
         .load_from(&mut store)
@@ -206,13 +202,10 @@ fn main() {
 
 // Macro to generate benchmarks for each backend
 macro_rules! bench_backend {
-    ($backend:ty, $mod_name:ident, $backend_name:literal) => {
+    ($device:expr, $mod_name:ident, $backend_name:literal) => {
         #[divan::bench_group(name = $backend_name, sample_count = 10)]
         mod $mod_name {
             use super::*;
-
-            type TestBackend = $backend;
-            type TestDevice = Device<TestBackend>;
 
             #[divan::bench]
             fn burnpack_store(bencher: Bencher) {
@@ -222,8 +215,8 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: TestDevice = Default::default();
-                        let mut model = LargeModel::<TestBackend>::new(&device);
+                        let device: Device = $device.into();
+                        let mut model = LargeModel::new(&device);
                         let mut store = BurnpackStore::from_file(bp_path.clone());
                         model.load_from(&mut store).expect("Failed to load");
                     });
@@ -237,12 +230,12 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: TestDevice = Default::default();
+                        let device: Device = $device.into();
                         let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
                         let record = recorder
                             .load(mpk_path.clone().into(), &device)
                             .expect("Failed to load");
-                        let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
+                        let _model = LargeModel::new(&device).load_record(record);
                     });
             }
 
@@ -254,8 +247,8 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: TestDevice = Default::default();
-                        let mut model = LargeModel::<TestBackend>::new(&device);
+                        let device: Device = $device.into();
+                        let mut model = LargeModel::new(&device);
                         let mut store = SafetensorsStore::from_file(st_path.clone())
                             .with_from_adapter(PyTorchToBurnAdapter);
                         model.load_from(&mut store).expect("Failed to load");
@@ -270,12 +263,12 @@ macro_rules! bench_backend {
             //     bencher
             //         .counter(divan::counter::BytesCount::new(file_size))
             //         .bench(|| {
-            //             let device: TestDevice = Default::default();
+            //             let device: Device = $device.into();
             //             let recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
             //             let record = recorder
             //                 .load(st_path.clone().into(), &device)
             //                 .expect("Failed to load");
-            //             let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
+            //             let _model = LargeModel::new(&device).load_record(record);
             //         });
             // }
 
@@ -287,8 +280,8 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: TestDevice = Default::default();
-                        let mut model = LargeModel::<TestBackend>::new(&device);
+                        let device: Device = $device.into();
+                        let mut model = LargeModel::new(&device);
                         let mut store = PytorchStore::from_file(pt_path.clone())
                             .with_top_level_key("model_state_dict")
                             .allow_partial(true);
@@ -304,12 +297,12 @@ macro_rules! bench_backend {
             //     bencher
             //         .counter(divan::counter::BytesCount::new(file_size))
             //         .bench(|| {
-            //             let device: TestDevice = Default::default();
+            //             let device: Device = $device.into();
             //             let recorder = PyTorchFileRecorder::<FullPrecisionSettings>::default();
             //             let load_args =
             //                 LoadArgs::new(pt_path.clone()).with_top_level_key("model_state_dict");
             //             let record = recorder.load(load_args, &device).expect("Failed to load");
-            //             let _model = LargeModel::<TestBackend>::new(&device).load_record(record);
+            //             let _model = LargeModel::new(&device).load_record(record);
             //         });
             // }
         }
@@ -317,16 +310,24 @@ macro_rules! bench_backend {
 }
 
 // Generate benchmarks for each backend
-bench_backend!(FlexBackend, flex_backend, "Flex Backend (CPU)");
+bench_backend!(FlexDevice, ndarray_backend, "NdArray Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
-bench_backend!(WgpuBackend, wgpu_backend, "WGPU Backend (GPU)");
+bench_backend!(WgpuDevice::default(), wgpu_backend, "WGPU Backend (GPU)");
 
 #[cfg(feature = "cuda")]
-bench_backend!(CudaBackend, cuda_backend, "CUDA Backend (NVIDIA GPU)");
+bench_backend!(
+    CudaDevice::default(),
+    cuda_backend,
+    "CUDA Backend (NVIDIA GPU)"
+);
 
 #[cfg(feature = "tch")]
-bench_backend!(TchBackend, tch_backend, "LibTorch Backend");
+bench_backend!(LibTorchDevice::default(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
-bench_backend!(MetalBackend, metal_backend, "Metal Backend (Apple GPU)");
+bench_backend!(
+    WgpuDevice::default(),
+    metal_backend,
+    "Metal Backend (Apple GPU)"
+);

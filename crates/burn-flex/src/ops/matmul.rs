@@ -49,15 +49,15 @@ impl GemmScalar for f16 {
 }
 
 #[cfg(feature = "complex")]
-impl GemmScalar for burn_backend::Complex<f32> {
+impl GemmScalar for burn_std::Complex<f32> {
     fn zero() -> Self {
-        burn_backend::Complex {
+        burn_std::Complex {
             real: 0.0,
             imag: 0.0,
         }
     }
     fn one() -> Self {
-        burn_backend::Complex {
+        burn_std::Complex {
             real: 1.0,
             imag: 0.0,
         }
@@ -140,9 +140,9 @@ pub fn matmul(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
         DType::F16 => matmul_gemm::<f16>(lhs, rhs),
         DType::BF16 => matmul_bf16(lhs, rhs),
         #[cfg(feature = "complex")]
-        DType::Complex32 => matmul_gemm_complex::<burn_backend::Complex<f32>, c32>(lhs, rhs),
+        DType::Complex32 => matmul_gemm_complex::<burn_std::Complex<f32>, c32>(lhs, rhs),
         #[cfg(feature = "complex")]
-        DType::Complex64 => matmul_gemm_complex::<burn_backend::Complex<f64>, c64>(lhs, rhs),
+        DType::Complex64 => matmul_gemm_complex::<burn_std::Complex<f64>, c64>(lhs, rhs),
         _ => panic!("matmul: unsupported dtype {:?}", lhs.dtype()),
     }
 }
@@ -286,7 +286,7 @@ fn matmul_gemm<T: GemmScalar + Element>(lhs: FlexTensor, rhs: FlexTensor) -> Fle
 }
 
 #[cfg(feature = "complex")]
-fn matmul_gemm_complex<T: burn_backend::ComplexElement + bytemuck::Pod, G: GemmScalar>(
+fn matmul_gemm_complex<T: burn_std::ComplexElement + bytemuck::Pod, G: GemmScalar>(
     lhs: FlexTensor,
     rhs: FlexTensor,
 ) -> FlexTensor {

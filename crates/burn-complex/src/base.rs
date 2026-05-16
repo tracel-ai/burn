@@ -1,18 +1,24 @@
-use burn_std::ComplexDType;
+use burn_backend::{
+    Backend, BackendTypes, ExecutionError, TensorMetadata,
+    ops::IntTensorOps,
+    tensor::{Device, FloatTensor, IntTensor},
+};
+use burn_std::{
+    Bytes, ComplexDType, ComplexElement, DType, Distribution, FloatDType, IndexingUpdateOp, Scalar,
+    Shape, TensorData,
+};
 /*
 The base implementation for complex tensors, contains everything that would be in burn-tensor.
 May get split into separate files at some point, but for now it's easier to keep all the base
 definitions in one spot.
 */
-use burn_tensor::{
-    Bytes, ComplexElement, DType, Device, Distribution, FloatDType, IndexingUpdateOp, Scalar,
-    Shape, TensorData, TensorMetadata,
-    backend::{Backend, BackendTypes, ExecutionError},
-    ops::{FloatTensor, IntTensor, IntTensorOps},
-};
+
 use serde::{Deserialize, Serialize};
 
-pub trait CBT: BackendTypes {
+pub trait CBT<L: Layout = InterleavedLayout>: BackendTypes {
+    /// a complex element in interleaved layout
+    type ComplexScalar: ComplexElement;
+
     type ComplexTensorPrimitive: TensorMetadata + 'static;
 }
 
@@ -21,13 +27,15 @@ pub trait CBT: BackendTypes {
 pub trait Layout {
     // /// The complex Tensor primitive type for this layout. For interleaved, this will be
     // /// a tensor of Complex\<E\>,for split this will be a tuple tensor Complex\<FloatTensorPrimitive\<E\>, FloatTensorPrimitive\<E\>\>.
-    // type ComplexTensorPrimitive: TensorMetadata + 'static;
+    //type ComplexTensorPrimitive: TensorMetadata + 'static;
 }
 
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <B as CBT>::ComplexTensorPrimitive;
 
-pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized + CBT {
+pub trait ComplexTensorBackend<L: Layout = InterleavedLayout>:
+    ComplexTensorOps<Self, L> + Sized + CBT<L>
+{
     /// The inner backend type.
     ///
     /// Must share all primitive types and device with `Self` so that operations
@@ -45,11 +53,8 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized + CBT {
     ///// Tensor primitive to be used for all complex operations.
     //type ComplexTensorPrimitive: TensorMetadata + 'static;
 
-    /// a complex element in interleaved layout
-    type ComplexScalar: ComplexElement;
-
-    /// The underlying layout for the complex elements
-    type Layout: Layout + DefaultComplexOps<Self>;
+    // /// The underlying layout for the complex elements
+    // type Layout: Layout + DefaultComplexOps<Self>;
 
     /// Creates a complex tensor from real-valued data, padding the imaginary part with zeros.
     ///
@@ -187,7 +192,7 @@ pub trait DefaultComplexOps<B: ComplexTensorBackend> {
 
 impl<B> DefaultComplexOps<B> for InterleavedLayout
 where
-    B: ComplexTensorBackend<Layout = InterleavedLayout>,
+    B: ComplexTensorBackend + CBT<Self>,
 {
     type OutTensorData = TensorData;
 
@@ -210,10 +215,9 @@ where
     }
 }
 
-type OutTensorData<B> =
-    <<B as ComplexTensorBackend>::Layout as DefaultComplexOps<B>>::OutTensorData;
+pub(crate) type OutTensorData<L, B> = <L as DefaultComplexOps<B>>::OutTensorData;
 /// Operations on complex tensors.
-pub trait ComplexTensorOps<B: ComplexTensorBackend> {
+pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// Converts the tensor's real component to a data structure.
     ///
     /// # Arguments
@@ -403,9 +407,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The data structure with the tensor's data.
     fn complex_into_data(
         tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<OutTensorData<B>, ExecutionError>> + Send {
-        B::Layout::complex_into_data(tensor)
-    }
+    ) -> impl Future<Output = Result<OutTensorData<L, B>, ExecutionError>> + Send;
 
     /// Reshapes the tensor.
     ///

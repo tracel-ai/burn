@@ -8,18 +8,18 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend> {
-    conv1: Conv2d<B>,
-    conv2: Conv2d<B>,
-    conv3: Conv2d<B>,
-    norm1: BatchNorm<B>,
-    fc1: Linear<B>,
-    fc2: Linear<B>,
-    norm2: BatchNorm<B>,
+pub struct Model {
+    conv1: Conv2d,
+    conv2: Conv2d,
+    conv3: Conv2d,
+    norm1: BatchNorm,
+    fc1: Linear,
+    fc2: Linear,
+    norm2: BatchNorm,
 }
 
-impl<B: Backend> Model<B> {
-    pub fn init(device: &B::Device) -> Self {
+impl Model {
+    pub fn init(device: &Device) -> Self {
         let conv1 = Conv2dConfig::new([1, 8], [3, 3]).init(device);
         let conv2 = Conv2dConfig::new([8, 16], [3, 3]).init(device);
         let conv3 = Conv2dConfig::new([16, 24], [3, 3]).init(device);
@@ -39,7 +39,7 @@ impl<B: Backend> Model<B> {
         }
     }
 
-    pub fn forward(&self, input1: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, input1: Tensor<4>) -> Tensor<2> {
         let conv1_out1 = self.conv1.forward(input1);
         let relu1_out1 = relu(conv1_out1);
         let conv2_out1 = self.conv2.forward(relu1_out1);

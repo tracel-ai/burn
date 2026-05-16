@@ -1,43 +1,43 @@
 use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig},
-    tensor::{Int, Tensor, backend::Backend},
+    tensor::{Device, Int, Tensor},
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    embed: Embedding<B>,
+pub struct Net {
+    embed: Embedding,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let embed = EmbeddingConfig::new(10, 3).init(device);
         Self { embed }
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 2, Int>) -> Tensor<B, 3> {
+    pub fn forward(&self, x: Tensor<2, Int>) -> Tensor<3> {
         self.embed.forward(x)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
+
     use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
 
-    fn embedding(model: Net<TestBackend>, precision: f32) {
+    fn embedding(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
+        let input = Tensor::<2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 3>::from_data(
+        let expected = Tensor::<3>::from_data(
             [
                 [
                     [-1.609_484_9, -0.10016718, -0.609_188_9],
@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn embedding_full_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/embedding/embedding.pt");
         model
             .load_from(&mut store)
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn embedding_half_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/embedding/embedding.pt");
         model
             .load_from(&mut store)

@@ -1,13 +1,12 @@
 use std::{f32::consts::FRAC_PI_4, fmt::Display};
 
 use burn::{
-    backend::Flex,
+    backend::flex::FlexDevice,
     data::{
         dataloader::batcher::Batcher,
         dataset::{transform::Mapper, vision::MnistItem},
     },
     prelude::*,
-    tensor::ops::IntElem,
     vision::Transform2D,
 };
 use rand::RngExt;
@@ -16,21 +15,21 @@ use rand::RngExt;
 pub struct MnistBatcher {}
 
 #[derive(Clone, Debug)]
-pub struct MnistBatch<B: Backend> {
-    pub images: Tensor<B, 3>,
-    pub targets: Tensor<B, 1, Int>,
+pub struct MnistBatch {
+    pub images: Tensor<3>,
+    pub targets: Tensor<1, Int>,
 }
 
-impl<B: Backend> Batcher<B, MnistItemPrepared, MnistBatch<B>> for MnistBatcher {
-    fn batch(&self, items: Vec<MnistItemPrepared>, device: &B::Device) -> MnistBatch<B> {
+impl Batcher<MnistItemPrepared, MnistBatch> for MnistBatcher {
+    fn batch(&self, items: Vec<MnistItemPrepared>, device: &Device) -> MnistBatch {
         let images = items.iter().map(|item| item.image.clone()).collect();
 
         let targets = items
             .iter()
             .map(|item| {
-                Tensor::<Flex, 1, Int>::from_data(
-                    TensorData::from([(item.label as i64).elem::<IntElem<Flex>>()]),
-                    &Default::default(),
+                Tensor::<1, Int>::from_data(
+                    TensorData::from([item.label as i64]),
+                    &FlexDevice.into(),
                 )
             })
             .collect();
@@ -102,13 +101,13 @@ impl Mapper<MnistItem, MnistItemPrepared> for MnistMapper {
 
 #[derive(Clone, Debug)]
 pub struct MnistItemPrepared {
-    image: Tensor<Flex, 3>,
+    image: Tensor<3>,
     label: u8,
 }
 
 fn prepare_image(transforms: &[Transform], item: MnistItem) -> MnistItemPrepared {
     let data = TensorData::from(item.image);
-    let tensor = Tensor::<Flex, 2>::from_data(data.convert::<f32>(), &Default::default());
+    let tensor = Tensor::<2>::from_data(data.convert::<f32>(), &FlexDevice.into());
     let tensor = tensor.reshape([1, 28, 28]);
 
     // normalize: make between [0,1] and make the mean =  0 and std = 1
@@ -134,7 +133,7 @@ fn prepare_image(transforms: &[Transform], item: MnistItem) -> MnistItemPrepared
 /// ## Return
 ///
 /// The transformed images tensor with shape [batch size, height, width]
-fn mangle_image_batch<B: Backend>(transforms: &[Transform], images: Tensor<B, 3>) -> Tensor<B, 3> {
+fn mangle_image_batch(transforms: &[Transform], images: Tensor<3>) -> Tensor<3> {
     let mut rng = rand::rng();
 
     let transforms = transforms.iter().map(|transform| match transform {

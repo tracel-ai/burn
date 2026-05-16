@@ -1,5 +1,5 @@
-use burn_std::DType;
 pub use burn_std::backtrace::BackTrace;
+use burn_std::{DType, ElementComparison};
 
 use alloc::string::String;
 use enumset::{EnumSet, EnumSetType};
@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::element::Element;
+use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use crate::{ElementComparison, ops::*};
 use crate::{QTensorPrimitive, TensorData, TensorMetadata};
 
 #[cfg(feature = "distributed")]

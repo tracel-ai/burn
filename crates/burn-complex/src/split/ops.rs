@@ -1,16 +1,16 @@
 mod numeric;
 use alloc::vec::Vec;
-use burn_std::{AsIndex, DType, Shape, SliceArg};
+use burn_backend::{Backend, BackendTypes, ExecutionError, TensorMetadata, get_device_settings};
+use burn_std::{
+    AsIndex, Complex, DType, Distribution, Element, ElementConversion, IndexingUpdateOp, Scalar,
+    Shape, SliceArg, TensorData,
+};
 use burn_tensor::{
-    Bool, BroadcastArgs, Complex, Device, Distribution, Element, ElementConversion, Float,
-    IndexingUpdateOp, Int, ReshapeArgs, Scalar, Tensor, TensorCreationOptions, TensorData,
-    TensorMetadata,
-    backend::{Backend, BackendTypes, ExecutionError},
-    get_device_settings, try_read_sync,
+    Bool, BroadcastArgs, Float, Int, ReshapeArgs, Tensor, TensorCreationOptions, try_read_sync,
 };
 
 use crate::{
-    base::{ComplexTensorBackend, ComplexTensorOps},
+    base::{CBT, ComplexTensorBackend, ComplexTensorOps},
     split::{SplitBackend, SplitComplexTensor},
 };
 
@@ -26,12 +26,12 @@ where
     ///
     /// * `shape` - The shape of the tensor.
     /// * `options` - Options to control creation, including device and dtype.
-    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_dtype::<Float>();
         //check!(TensorCheck::creation_ops::<D>("Empty", &shape));
-        SplitBackend::<B, D>::complex_zeros(shape, &opt.device, dtype.into())
+        SplitBackend::<B, D>::complex_zeros(shape, &opt.device.into(), dtype.into())
     }
 
     /// Returns a complex tensor containing the elements selected from the given slices.
@@ -61,7 +61,8 @@ where
 
         // Return empty tensor if any dimension is 0 (empty slice)
         if output_dims.contains(&0) {
-            return Self::empty(output_dims, &self.device());
+            return Self::empty(output_dims, &self.device().into());
+            d
         }
         SplitBackend::<B, D>::complex_slice(self, &slices)
     }
@@ -72,14 +73,14 @@ where
     ///
     /// * `shape` - The shape of the tensor.
     /// * `options` - Options to control creation, including device and dtype.
-    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let options = options.into();
         let shape = shape.into();
         let device = &options.device;
         let dtype = crate::utils::real_to_complex_dtype(options.resolve_dtype::<Float>());
         match dtype {
             DType::Complex32 | DType::Complex64 => {
-                SplitBackend::<B, D>::complex_zeros(shape, device, dtype.into())
+                SplitBackend::<B, D>::complex_zeros(shape, device.into(), dtype.into())
             }
             _ => panic!("Unsupported complex dtype"),
         }
@@ -91,14 +92,14 @@ where
     ///
     /// * `shape` - The shape of the tensor.
     /// * `options` - Options to control creation, including device and dtype.
-    pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+    pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let options = options.into();
         let shape = shape.into();
         let device = &options.device;
         let dtype = crate::utils::real_to_complex_dtype(options.resolve_dtype::<Float>());
         match dtype {
             DType::Complex32 | DType::Complex64 => {
-                SplitBackend::<B, D>::complex_ones(shape, device, dtype.into())
+                SplitBackend::<B, D>::complex_ones(shape, device.into(), dtype.into())
             }
             _ => panic!("Unsupported complex dtype"),
         }
@@ -117,17 +118,17 @@ where
     ///
     /// * `dim` - The dimension to select from.
     /// * `indices` - The indices of the elements to select.
-    pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
+    pub fn select(self, dim: usize, indices: Tensor<1, Int>) -> Self {
         // Uses your existing `select` name.
-        SplitBackend::<B, D>::complex_select(self, dim, indices.into_primitive())
+        SplitBackend::<B, D>::complex_select(self, dim, indices.tensor())
     }
 
     /// Returns the dimensions of the current tensor.
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
+    /// use burn_std::backend::Backend;
+    /// use burn_std::Tensor;
     ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
@@ -144,8 +145,8 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
+    /// use burn_std::backend::Backend;
+    /// use burn_std::Tensor;
     ///
     /// fn example<B: Backend>() {
     ///    let device = Default::default();
@@ -174,17 +175,14 @@ where
     pub fn select_assign(
         self,
         dim: usize,
-        indices: Tensor<B, 1, Int>,
+        indices: Tensor<1, Int>,
         values: Self,
         update: IndexingUpdateOp,
     ) -> Self {
         match update {
-            IndexingUpdateOp::Add => SplitBackend::<B, D>::complex_select_add(
-                self,
-                dim,
-                indices.into_primitive(),
-                values,
-            ),
+            IndexingUpdateOp::Add => {
+                SplitBackend::<B, D>::complex_select_add(self, dim, indices.tensor(), values)
+            }
             _ => unimplemented!(),
         }
     }
@@ -244,7 +242,7 @@ where
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_tensor::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub async fn into_data_async(self) -> Result<TensorData, ExecutionError> {
@@ -257,15 +255,15 @@ where
     ///
     /// * `data` - The interleaved complex data (alternating real and imaginary values).
     /// * `options` - Options to control creation, including device and dtype.
-    pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions<B>>) -> Self
+    pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions>) -> Self
     where
         T: Into<TensorData>,
     {
         let data = data.into();
         let opt = options.into();
         SplitBackend::<B, D>::complex_from_interleaved_data(
-            data.convert::<<SplitBackend<B, D> as ComplexTensorBackend>::ComplexScalar>(),
-            &opt.device,
+            data.convert::<<SplitBackend<B, D> as CBT>::ComplexScalar>(),
+            &opt.device.into(),
         )
     }
 
@@ -556,8 +554,8 @@ where
     ///
     /// * `mask` - A boolean tensor with the same shape as the input tensor.
     /// * `source` - The complex tensor to use for replacement where the mask is true.
-    pub fn mask_where(self, mask: Tensor<B, D, Bool>, source: Self) -> Self {
-        SplitBackend::<B, D>::complex_mask_where(self, mask.into_primitive(), source)
+    pub fn mask_where(self, mask: Tensor<D, Bool>, source: Self) -> Self {
+        SplitBackend::<B, D>::complex_mask_where(self, mask.tensor(), source)
     }
 
     /// Update the complex tensor with the scalar value where the mask is true.
@@ -569,8 +567,8 @@ where
     ///
     /// * `mask` - A boolean tensor with the same shape as the input tensor.
     /// * `value` - The scalar value to assign where the mask is true.
-    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
-        SplitBackend::<B, D>::complex_mask_fill(self, mask.into_primitive(), value.elem())
+    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<D, Bool>, value: E) -> Self {
+        SplitBackend::<B, D>::complex_mask_fill(self, mask.tensor(), value.elem())
     }
 
     /// Gather complex tensor elements corresponding to the given indices from the specified dimension.
@@ -585,13 +583,13 @@ where
     ///
     /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
+    pub fn gather(self, dim: usize, indices: Tensor<D, Int>) -> Self {
         // check!(TensorCheck::gather::<D>(
         //     dim,
         //     &self.shape(),
         //     &indices.shape()
         // ));
-        SplitBackend::<B, D>::complex_gather(dim, self, indices.into_primitive())
+        SplitBackend::<B, D>::complex_gather(dim, self, indices.tensor())
     }
 
     /// Assign the gathered elements corresponding to the given indices along the specified dimension
@@ -615,17 +613,14 @@ where
     pub fn scatter(
         self,
         dim: usize,
-        indices: Tensor<B, D, Int>,
+        indices: Tensor<D, Int>,
         values: Self,
-        update: burn_tensor::IndexingUpdateOp,
+        update: burn_std::IndexingUpdateOp,
     ) -> Self {
         match update {
-            IndexingUpdateOp::Add => SplitBackend::<B, D>::complex_scatter_add(
-                dim,
-                self,
-                indices.into_primitive(),
-                values,
-            ),
+            IndexingUpdateOp::Add => {
+                SplitBackend::<B, D>::complex_scatter_add(dim, self, indices.tensor(), values)
+            }
             _ => unimplemented!(),
         }
     }
@@ -635,7 +630,7 @@ where
     /// # Arguments
     ///
     /// * `other` - The element to compare each complex element against.
-    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
         let out_dtype =
             get_device_settings::<B>(&SplitBackend::<B, D>::complex_device(&self)).bool_dtype;
         Tensor::<B, D, Bool>::new(SplitBackend::<B, D>::complex_equal_elem(
@@ -650,7 +645,7 @@ where
     /// # Arguments
     ///
     /// * `other` - The element to compare each complex element against.
-    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
         let out_dtype =
             get_device_settings::<B>(&SplitBackend::<B, D>::complex_device(&self)).bool_dtype;
         Tensor::<B, D, Bool>::new(SplitBackend::<B, D>::complex_not_equal_elem(
@@ -670,18 +665,18 @@ where
     pub fn full<S: Into<Shape>, E: ElementConversion>(
         shape: S,
         fill_value: E,
-        options: impl Into<TensorCreationOptions<B>>,
+        options: impl Into<TensorCreationOptions>,
     ) -> Self {
         let opt = options.into();
         let shape = shape.into();
 
         let e = E::elem::<Complex<f64>>(fill_value);
 
-        let device: &Device<B> = &opt.device;
+        let device = &opt.device;
         //TODO: figure out how to map dtype so that it doesn't just assume Complex<f64>
         SplitComplexTensor::new(
-            B::float_from_data(TensorData::full(&shape, e.real()), device),
-            B::float_from_data(TensorData::full(shape, e.imag()), device),
+            B::float_from_data(TensorData::full(&shape, e.real()), device.into()),
+            B::float_from_data(TensorData::full(&shape, e.imag()), device.into()),
         )
     }
 
@@ -704,7 +699,7 @@ where
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd<const M: usize, const DV: usize>(
         self,
-        indices: Tensor<B, M, Int>,
+        indices: Tensor<M, Int>,
         values: SplitComplexTensor<B, DV>,
         update: IndexingUpdateOp,
     ) -> Self {
@@ -713,7 +708,7 @@ where
         //     &indices.shape(),
         //     &values.shape()
         // ));
-        let indices = indices.into_primitive();
+        let indices = indices.tensor();
         let SplitComplexTensor::<B, D> { real, imag, .. } = self;
         let SplitComplexTensor::<B, DV> {
             real: real_values,
@@ -739,9 +734,9 @@ where
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather_nd<const M: usize, const DV: usize>(
         self,
-        indices: Tensor<B, M, Int>,
+        indices: Tensor<M, Int>,
     ) -> SplitComplexTensor<B, DV> {
-        let indices = indices.into_primitive();
+        let indices = indices.tensor();
         let SplitComplexTensor::<B, D> { real, imag, .. } = self;
         //check!(TensorCheck::gather_nd::<D, M, DV>(&indices.shape()));
         SplitComplexTensor::new(
@@ -775,7 +770,7 @@ where
     /// # Arguments
     ///
     /// * `rhs` - The complex scalar to add, element-wise.
-    pub fn add_scalar(self, rhs: burn_tensor::Scalar) -> Self {
+    pub fn add_scalar(self, rhs: burn_std::Scalar) -> Self {
         let device = SplitBackend::<B, D>::complex_device(&self);
         let shape = SplitBackend::<B, D>::complex_shape(&self);
         let scalar_complex = rhs.elem();
@@ -802,7 +797,7 @@ where
     /// # Arguments
     ///
     /// * `rhs` - The complex scalar to subtract, element-wise.
-    pub fn sub_scalar(self, rhs: burn_tensor::Scalar) -> Self {
+    pub fn sub_scalar(self, rhs: burn_std::Scalar) -> Self {
         let device = SplitBackend::<B, D>::complex_device(&self);
         let shape = SplitBackend::<B, D>::complex_shape(&self);
         let scalar_complex = rhs.elem();
@@ -829,7 +824,7 @@ where
     /// # Arguments
     ///
     /// * `rhs` - The complex scalar to divide by, element-wise.
-    pub fn div_scalar(self, rhs: burn_tensor::Scalar) -> Self {
+    pub fn div_scalar(self, rhs: burn_std::Scalar) -> Self {
         let device = SplitBackend::<B, D>::complex_device(&self);
         let shape = SplitBackend::<B, D>::complex_shape(&self);
         let scalar_complex = rhs.elem();
@@ -855,7 +850,7 @@ where
     /// # Arguments
     ///
     /// * `rhs` - The complex scalar to compute the remainder with, element-wise.
-    pub fn remainder_scalar(self, rhs: burn_tensor::Scalar) -> Self {
+    pub fn remainder_scalar(self, rhs: burn_std::Scalar) -> Self {
         SplitBackend::<B, D>::complex_remainder_scalar(self, rhs.elem())
     }
 
@@ -878,7 +873,7 @@ where
     /// # Arguments
     ///
     /// * `rhs` - The complex scalar to multiply, element-wise.
-    pub fn mul_scalar(self, rhs: burn_tensor::Scalar) -> Self {
+    pub fn mul_scalar(self, rhs: burn_std::Scalar) -> Self {
         let device = SplitBackend::<B, D>::complex_device(&self);
         let shape = SplitBackend::<B, D>::complex_shape(&self);
         let scalar_complex = rhs.elem();
@@ -966,8 +961,8 @@ where
     /// # Arguments
     ///
     /// * `other` - The integer tensor to apply the power operation with.
-    pub fn powi(self, other: Tensor<B, D, Int>) -> Self {
-        SplitBackend::<B, D>::complex_powi(self, other.into_primitive())
+    pub fn powi(self, other: Tensor<D, Int>) -> Self {
+        SplitBackend::<B, D>::complex_powi(self, other.tensor())
     }
 
     /// Applies element-wise power operation with an integer scalar.
@@ -991,19 +986,24 @@ where
     pub fn random<S: Into<Shape>>(
         shape: S,
         distribution: Distribution,
-        options: impl Into<TensorCreationOptions<B>>,
+        options: impl Into<TensorCreationOptions>,
     ) -> Self {
         // Use the given dtype when provided, otherwise default device dtype
         let opt = options.into();
         let dtype = opt.resolve_dtype::<Float>();
-        SplitBackend::<B, D>::complex_random(shape.into(), distribution, &opt.device, dtype.into())
+        SplitBackend::<B, D>::complex_random(
+            shape.into(),
+            distribution,
+            &opt.device.into(),
+            dtype.into(),
+        )
     }
 
     /// Converts the data of the current tensor.
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_tensor::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
@@ -1016,7 +1016,7 @@ where
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_tensor::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
@@ -1031,7 +1031,7 @@ where
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_tensor::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn to_data(&self) -> TensorData {

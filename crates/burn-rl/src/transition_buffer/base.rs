@@ -1,11 +1,11 @@
-use burn_core::{Tensor, prelude::Backend, tensor::Distribution};
+use burn_core::{Tensor, prelude::Device, tensor::Distribution};
 use derive_new::new;
 
 use super::SliceAccess;
 
 /// A state transition in an environment.
 #[derive(Clone, new)]
-pub struct Transition<B: Backend, S, A> {
+pub struct Transition<S, A> {
     /// The initial state.
     pub state: S,
     /// The state after the step was taken.
@@ -13,13 +13,13 @@ pub struct Transition<B: Backend, S, A> {
     /// The action taken in the step.
     pub action: A,
     /// The reward.
-    pub reward: Tensor<B, 1>,
+    pub reward: Tensor<1>,
     /// If the environment has reached a terminal state.
-    pub done: Tensor<B, 1>,
+    pub done: Tensor<1>,
 }
 
 /// A batch of transitions.
-pub struct TransitionBatch<B: Backend, SB, AB> {
+pub struct TransitionBatch<SB, AB> {
     /// Batched initial states.
     pub states: SB,
     /// Batched resulting states.
@@ -27,9 +27,9 @@ pub struct TransitionBatch<B: Backend, SB, AB> {
     /// Batched actions.
     pub actions: AB,
     /// Batched rewards.
-    pub rewards: Tensor<B, 2>,
+    pub rewards: Tensor<2>,
     /// Batched flags for terminal states.
-    pub dones: Tensor<B, 2>,
+    pub dones: Tensor<2>,
 }
 
 /// A tensor-backed circular buffer for transitions.
@@ -37,21 +37,21 @@ pub struct TransitionBatch<B: Backend, SB, AB> {
 /// Uses [`SliceAccess`] to store state and action batches in contiguous
 /// tensor storage, enabling efficient random sampling via `select`.
 /// The buffer lazily initializes its storage on the first `push` call.
-pub struct TransitionBuffer<B: Backend, SB: SliceAccess<B>, AB: SliceAccess<B>> {
+pub struct TransitionBuffer<SB: SliceAccess, AB: SliceAccess> {
     states: Option<SB>,
     next_states: Option<SB>,
     actions: Option<AB>,
-    rewards: Option<Tensor<B, 2>>,
-    dones: Option<Tensor<B, 2>>,
+    rewards: Option<Tensor<2>>,
+    dones: Option<Tensor<2>>,
     capacity: usize,
     write_head: usize,
     len: usize,
-    device: B::Device,
+    device: Device,
 }
 
-impl<B: Backend, SB: SliceAccess<B>, AB: SliceAccess<B>> TransitionBuffer<B, SB, AB> {
+impl<SB: SliceAccess, AB: SliceAccess> TransitionBuffer<SB, AB> {
     /// Creates a new buffer. Storage is lazily allocated on the first `push`.
-    pub fn new(capacity: usize, device: &B::Device) -> Self {
+    pub fn new(capacity: usize, device: &Device) -> Self {
         Self {
             states: None,
             next_states: None,
@@ -114,10 +114,10 @@ impl<B: Backend, SB: SliceAccess<B>, AB: SliceAccess<B>> TransitionBuffer<B, SB,
     }
 
     /// Sample a random batch of transitions.
-    pub fn sample(&self, batch_size: usize) -> TransitionBatch<B, SB, AB> {
+    pub fn sample(&self, batch_size: usize) -> TransitionBatch<SB, AB> {
         assert!(batch_size <= self.len, "batch_size exceeds buffer length");
 
-        let indices = Tensor::<B, 1>::random(
+        let indices = Tensor::<1>::random(
             [batch_size],
             Distribution::Uniform(0.0, self.len as f64),
             &self.device,
@@ -171,28 +171,21 @@ impl<B: Backend, SB: SliceAccess<B>, AB: SliceAccess<B>> TransitionBuffer<B, SB,
 
 #[cfg(test)]
 mod tests {
-    use burn_core::tensor::Device;
-
     use super::*;
-    use crate::TestBackend;
 
-    type TB = Tensor<TestBackend, 2>;
+    type TB = Tensor<2>;
 
-    fn push_transition(
-        buffer: &mut TransitionBuffer<TestBackend, TB, TB>,
-        device: &Device<TestBackend>,
-        val: f32,
-    ) {
-        let state = Tensor::<TestBackend, 2>::from_data([[val, val]], device);
-        let next_state = Tensor::<TestBackend, 2>::from_data([[val + 1.0, val + 1.0]], device);
-        let action = Tensor::<TestBackend, 2>::from_data([[val]], device);
+    fn push_transition(buffer: &mut TransitionBuffer<TB, TB>, device: &Device, val: f32) {
+        let state = Tensor::<2>::from_data([[val, val]], device);
+        let next_state = Tensor::<2>::from_data([[val + 1.0, val + 1.0]], device);
+        let action = Tensor::<2>::from_data([[val]], device);
         buffer.push(state, next_state, action, val, false);
     }
 
     #[test]
     fn push_increment_len() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(5, &device);
+        let mut buffer = TransitionBuffer::<TB, TB>::new(5, &device);
 
         assert_eq!(buffer.len(), 0);
         assert!(buffer.is_empty());
@@ -207,7 +200,7 @@ mod tests {
     #[test]
     fn push_overwrites_when_full() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(3, &device);
+        let mut buffer = TransitionBuffer::<TB, TB>::new(3, &device);
 
         for i in 0..5 {
             push_transition(&mut buffer, &device, i as f32);
@@ -220,7 +213,7 @@ mod tests {
     #[test]
     fn sample_returns_correct_shapes() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(10, &device);
+        let mut buffer = TransitionBuffer::<TB, TB>::new(10, &device);
 
         for i in 0..5 {
             push_transition(&mut buffer, &device, i as f32);
@@ -238,7 +231,7 @@ mod tests {
     #[should_panic(expected = "batch_size exceeds buffer length")]
     fn sample_panics_when_batch_too_large() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(5, &device);
+        let mut buffer = TransitionBuffer::<TB, TB>::new(5, &device);
 
         push_transition(&mut buffer, &device, 1.0);
         buffer.sample(5);

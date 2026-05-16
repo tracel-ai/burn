@@ -1,8 +1,5 @@
 //! Pretrained weights loading for DISTS.
 
-use burn_core as burn;
-
-use burn::tensor::backend::Backend;
 use burn_std::network::downloader::download_file_as_bytes;
 use burn_store::{ModuleSnapshot, PytorchStore};
 use std::fs::{File, create_dir_all};
@@ -57,7 +54,7 @@ fn download_if_needed(url: &str, cache_path: &PathBuf, message: &str) {
 /// # Returns
 ///
 /// The DISTS module with loaded pretrained weights.
-pub fn load_pretrained_weights<B: Backend>(mut dists: Dists<B>) -> Dists<B> {
+pub fn load_pretrained_weights(mut dists: Dists) -> Dists {
     let cache_dir = get_cache_dir();
 
     // Step 1: Download and load VGG16 ImageNet backbone weights
@@ -86,7 +83,7 @@ pub fn load_pretrained_weights<B: Backend>(mut dists: Dists<B>) -> Dists<B> {
 }
 
 /// Load VGG16 ImageNet pretrained backbone weights.
-fn load_vgg16_backbone_weights<B: Backend>(mut dists: Dists<B>, cache_path: &PathBuf) -> Dists<B> {
+fn load_vgg16_backbone_weights(mut dists: Dists, cache_path: &PathBuf) -> Dists {
     let mut store = PytorchStore::from_file(cache_path)
         .allow_partial(true)
         .skip_enum_variants(true)
@@ -114,7 +111,7 @@ fn load_vgg16_backbone_weights<B: Backend>(mut dists: Dists<B>, cache_path: &Pat
 }
 
 /// Load DISTS trained alpha/beta weights.
-fn load_dists_weights<B: Backend>(mut dists: Dists<B>, cache_path: &PathBuf) -> Dists<B> {
+fn load_dists_weights(mut dists: Dists, cache_path: &PathBuf) -> Dists {
     let mut store = PytorchStore::from_file(cache_path)
         .allow_partial(true)
         .skip_enum_variants(true);

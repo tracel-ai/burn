@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, TensorPrimitive, module, ops::ModuleOps};
+use burn_tensor::{Distribution, module};
 
 #[test]
 pub fn max_pool2d_with_indices_backward_should_match_reference_backend() {
@@ -33,33 +33,27 @@ pub fn max_pool2d_with_indices_backward_should_match_reference_backend() {
         dilation,
         false,
     );
-    let grad = TestBackend::max_pool2d_with_indices_backward(
-        tensor.into_primitive().tensor(),
+    let grad = module::max_pool2d_with_indices_backward(
+        tensor,
         kernel_size,
         stride,
         padding,
         dilation,
         false,
-        grad_output.into_primitive().tensor(),
-        indices.into_primitive(),
-    )
-    .x_grad;
-    let grad_ref = TestBackend::max_pool2d_with_indices_backward(
-        tensor_ref.into_primitive().tensor(),
+        grad_output,
+        indices,
+    );
+    let grad_ref = module::max_pool2d_with_indices_backward(
+        tensor_ref,
         kernel_size,
         stride,
         padding,
         dilation,
         false,
-        grad_output_ref.into_primitive().tensor(),
-        indices_ref.into_primitive(),
-    )
-    .x_grad;
+        grad_output_ref,
+        indices_ref,
+    );
 
-    TestTensor::<4>::from_primitive(TensorPrimitive::Float(grad))
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &TestTensor::<4>::from_primitive(TensorPrimitive::Float(grad_ref)).into_data(),
-            Tolerance::default(),
-        );
+    grad.into_data()
+        .assert_approx_eq::<FloatElem>(&grad_ref.into_data(), Tolerance::default());
 }

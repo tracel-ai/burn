@@ -10,8 +10,8 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::loss::Reduction;
 
@@ -85,7 +85,7 @@ impl LpipsConfig {
     ///     .with_net(LpipsNet::Vgg)
     ///     .init_pretrained(&device);
     /// ```
-    pub fn init_pretrained<B: Backend>(&self, device: &B::Device) -> Lpips<B> {
+    pub fn init_pretrained(&self, device: &Device) -> Lpips {
         let lpips = self.init(device);
         super::weights::load_pretrained_weights(lpips, self.net)
     }
@@ -99,7 +99,7 @@ impl LpipsConfig {
     /// # Returns
     ///
     /// A new LPIPS module with random weights. Use `init_pretrained` for accurate results.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Lpips<B> {
+    pub fn init(&self, device: &Device) -> Lpips {
         match self.net {
             LpipsNet::Vgg => {
                 // Channel sizes for VGG16: [64, 128, 256, 512, 512]
@@ -190,8 +190,8 @@ impl LpipsConfig {
 /// let device = Default::default();
 /// let lpips = LpipsConfig::new().init(&device);
 ///
-/// let img1: Tensor<B, 4> = /* [batch, 3, H, W] */;
-/// let img2: Tensor<B, 4> = /* [batch, 3, H, W] */;
+/// let img1: Tensor<4> = /* [batch, 3, H, W] */;
+/// let img2: Tensor<4> = /* [batch, 3, H, W] */;
 ///
 /// // Compute LPIPS distance
 /// let distance = lpips.forward(img1, img2, Reduction::Mean);
@@ -199,65 +199,65 @@ impl LpipsConfig {
 #[derive(Module, Debug)]
 #[allow(clippy::large_enum_variant)]
 #[module(custom_display)]
-pub enum Lpips<B: Backend> {
+pub enum Lpips {
     /// VGG16 backbone (5 feature layers)
-    Vgg(LpipsVgg<B>),
+    Vgg(LpipsVgg),
     /// AlexNet backbone (5 feature layers)
-    Alex(LpipsAlex<B>),
+    Alex(LpipsAlex),
     /// SqueezeNet backbone (7 feature layers)
-    Squeeze(LpipsSqueeze<B>),
+    Squeeze(LpipsSqueeze),
 }
 
 /// LPIPS with VGG16 backbone.
 #[derive(Module, Debug)]
-pub struct LpipsVgg<B: Backend> {
+pub struct LpipsVgg {
     /// VGG feature extractor
-    pub(crate) extractor: VggFeatureExtractor<B>,
+    pub(crate) extractor: VggFeatureExtractor,
     /// Linear layers for each feature level
-    pub(crate) lin0: Conv2d<B>,
-    pub(crate) lin1: Conv2d<B>,
-    pub(crate) lin2: Conv2d<B>,
-    pub(crate) lin3: Conv2d<B>,
-    pub(crate) lin4: Conv2d<B>,
+    pub(crate) lin0: Conv2d,
+    pub(crate) lin1: Conv2d,
+    pub(crate) lin2: Conv2d,
+    pub(crate) lin3: Conv2d,
+    pub(crate) lin4: Conv2d,
     /// Whether to normalize input
     pub(crate) normalize: bool,
 }
 
 /// LPIPS with AlexNet backbone.
 #[derive(Module, Debug)]
-pub struct LpipsAlex<B: Backend> {
+pub struct LpipsAlex {
     /// AlexNet feature extractor
-    pub(crate) extractor: AlexFeatureExtractor<B>,
+    pub(crate) extractor: AlexFeatureExtractor,
     /// Linear layers for each feature level
-    pub(crate) lin0: Conv2d<B>,
-    pub(crate) lin1: Conv2d<B>,
-    pub(crate) lin2: Conv2d<B>,
-    pub(crate) lin3: Conv2d<B>,
-    pub(crate) lin4: Conv2d<B>,
+    pub(crate) lin0: Conv2d,
+    pub(crate) lin1: Conv2d,
+    pub(crate) lin2: Conv2d,
+    pub(crate) lin3: Conv2d,
+    pub(crate) lin4: Conv2d,
     /// Whether to normalize input
     pub(crate) normalize: bool,
 }
 
 /// LPIPS with SqueezeNet backbone.
 #[derive(Module, Debug)]
-pub struct LpipsSqueeze<B: Backend> {
+pub struct LpipsSqueeze {
     /// SqueezeNet feature extractor
-    pub(crate) extractor: SqueezeFeatureExtractor<B>,
+    pub(crate) extractor: SqueezeFeatureExtractor,
     /// Linear layers for each feature level
-    pub(crate) lin0: Conv2d<B>,
-    pub(crate) lin1: Conv2d<B>,
-    pub(crate) lin2: Conv2d<B>,
-    pub(crate) lin3: Conv2d<B>,
-    pub(crate) lin4: Conv2d<B>,
-    pub(crate) lin5: Conv2d<B>,
-    pub(crate) lin6: Conv2d<B>,
+    pub(crate) lin0: Conv2d,
+    pub(crate) lin1: Conv2d,
+    pub(crate) lin2: Conv2d,
+    pub(crate) lin3: Conv2d,
+    pub(crate) lin4: Conv2d,
+    pub(crate) lin5: Conv2d,
+    pub(crate) lin6: Conv2d,
     /// Whether to normalize input
     pub(crate) normalize: bool,
 }
 
-impl<B: Backend> LpipsVgg<B> {
+impl LpipsVgg {
     /// Compute LPIPS distance without reduction using VGG backbone.
-    pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
+    pub fn forward_no_reduction(&self, input: Tensor<4>, target: Tensor<4>) -> Tensor<1> {
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
 
@@ -266,7 +266,7 @@ impl<B: Backend> LpipsVgg<B> {
         let feats1 = self.extractor.forward(target);
 
         // Compute distance for each layer using stack + sum
-        let layer_distances: Vec<Tensor<B, 2>> = vec![
+        let layer_distances: Vec<Tensor<2>> = vec![
             compute_layer_distance(&feats0[0], &feats1[0], &self.lin0).unsqueeze_dim(1),
             compute_layer_distance(&feats0[1], &feats1[1], &self.lin1).unsqueeze_dim(1),
             compute_layer_distance(&feats0[2], &feats1[2], &self.lin2).unsqueeze_dim(1),
@@ -280,9 +280,9 @@ impl<B: Backend> LpipsVgg<B> {
     }
 }
 
-impl<B: Backend> LpipsAlex<B> {
+impl LpipsAlex {
     /// Compute LPIPS distance without reduction using AlexNet backbone.
-    pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
+    pub fn forward_no_reduction(&self, input: Tensor<4>, target: Tensor<4>) -> Tensor<1> {
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
 
@@ -291,7 +291,7 @@ impl<B: Backend> LpipsAlex<B> {
         let feats1 = self.extractor.forward(target);
 
         // Compute distance for each layer using stack + sum
-        let layer_distances: Vec<Tensor<B, 2>> = vec![
+        let layer_distances: Vec<Tensor<2>> = vec![
             compute_layer_distance(&feats0[0], &feats1[0], &self.lin0).unsqueeze_dim(1),
             compute_layer_distance(&feats0[1], &feats1[1], &self.lin1).unsqueeze_dim(1),
             compute_layer_distance(&feats0[2], &feats1[2], &self.lin2).unsqueeze_dim(1),
@@ -305,9 +305,9 @@ impl<B: Backend> LpipsAlex<B> {
     }
 }
 
-impl<B: Backend> LpipsSqueeze<B> {
+impl LpipsSqueeze {
     /// Compute LPIPS distance without reduction using SqueezeNet backbone.
-    pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
+    pub fn forward_no_reduction(&self, input: Tensor<4>, target: Tensor<4>) -> Tensor<1> {
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
 
@@ -316,7 +316,7 @@ impl<B: Backend> LpipsSqueeze<B> {
         let feats1 = self.extractor.forward(target);
 
         // Compute distance for each layer using stack + sum (7 layers for SqueezeNet)
-        let layer_distances: Vec<Tensor<B, 2>> = vec![
+        let layer_distances: Vec<Tensor<2>> = vec![
             compute_layer_distance(&feats0[0], &feats1[0], &self.lin0).unsqueeze_dim(1),
             compute_layer_distance(&feats0[1], &feats1[1], &self.lin1).unsqueeze_dim(1),
             compute_layer_distance(&feats0[2], &feats1[2], &self.lin2).unsqueeze_dim(1),
@@ -332,7 +332,7 @@ impl<B: Backend> LpipsSqueeze<B> {
     }
 }
 
-impl<B: Backend> ModuleDisplay for Lpips<B> {
+impl ModuleDisplay for Lpips {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -352,7 +352,7 @@ impl<B: Backend> ModuleDisplay for Lpips<B> {
     }
 }
 
-impl<B: Backend> Lpips<B> {
+impl Lpips {
     /// Compute LPIPS distance with reduction.
     ///
     /// # Arguments
@@ -370,12 +370,7 @@ impl<B: Backend> Lpips<B> {
     /// - input: `[batch, 3, H, W]`
     /// - target: `[batch, 3, H, W]`
     /// - output: `[1]`
-    pub fn forward(
-        &self,
-        input: Tensor<B, 4>,
-        target: Tensor<B, 4>,
-        reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    pub fn forward(&self, input: Tensor<4>, target: Tensor<4>, reduction: Reduction) -> Tensor<1> {
         let distance = self.forward_no_reduction(input, target);
 
         match reduction {
@@ -400,7 +395,7 @@ impl<B: Backend> Lpips<B> {
     /// - input: `[batch, 3, H, W]`
     /// - target: `[batch, 3, H, W]`
     /// - output: `[batch]`
-    pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
+    pub fn forward_no_reduction(&self, input: Tensor<4>, target: Tensor<4>) -> Tensor<1> {
         match self {
             Lpips::Vgg(inner) => inner.forward_no_reduction(input, target),
             Lpips::Alex(inner) => inner.forward_no_reduction(input, target),
@@ -414,7 +409,7 @@ impl<B: Backend> Lpips<B> {
 // =============================================================================
 
 /// Normalize tensor to unit norm along channel dimension.
-fn normalize_tensor<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+fn normalize_tensor(x: Tensor<4>) -> Tensor<4> {
     let norm = x.clone().mul(x.clone()).sum_dim(1).sqrt().clamp_min(1e-10);
     x.div(norm)
 }
@@ -422,15 +417,15 @@ fn normalize_tensor<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
 /// Apply ImageNet normalization used by PyTorch lpips.
 /// shift = [-.030, -.088, -.188], scale = [.458, .448, .450]
 /// output = (input - shift) / scale
-fn scaling_layer<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+fn scaling_layer(x: Tensor<4>) -> Tensor<4> {
     let device = x.device();
     let [batch, _, h, w] = x.dims();
 
     // Create shift and scale tensors [1, 3, 1, 1] and broadcast
-    let shift = Tensor::<B, 2>::from_floats([[-0.030], [-0.088], [-0.188]], &device)
+    let shift = Tensor::<2>::from_floats([[-0.030], [-0.088], [-0.188]], &device)
         .reshape([1, 3, 1, 1])
         .expand([batch, 3, h, w]);
-    let scale = Tensor::<B, 2>::from_floats([[0.458], [0.448], [0.450]], &device)
+    let scale = Tensor::<2>::from_floats([[0.458], [0.448], [0.450]], &device)
         .reshape([1, 3, 1, 1])
         .expand([batch, 3, h, w]);
 
@@ -438,11 +433,7 @@ fn scaling_layer<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
 }
 
 /// Compute normalized L2 distance for a single layer.
-fn compute_layer_distance<B: Backend>(
-    feat0: &Tensor<B, 4>,
-    feat1: &Tensor<B, 4>,
-    lin: &Conv2d<B>,
-) -> Tensor<B, 1> {
+fn compute_layer_distance(feat0: &Tensor<4>, feat1: &Tensor<4>, lin: &Conv2d) -> Tensor<1> {
     // Normalize features (unit norm along channel dimension)
     let feat0_norm = normalize_tensor(feat0.clone());
     let feat1_norm = normalize_tensor(feat1.clone());
@@ -467,11 +458,11 @@ fn compute_layer_distance<B: Backend>(
 }
 
 /// Preprocess input images for LPIPS computation.
-fn preprocess_inputs<B: Backend>(
-    input: Tensor<B, 4>,
-    target: Tensor<B, 4>,
+fn preprocess_inputs(
+    input: Tensor<4>,
+    target: Tensor<4>,
     normalize: bool,
-) -> (Tensor<B, 4>, Tensor<B, 4>) {
+) -> (Tensor<4>, Tensor<4>) {
     // Normalize to [-1, 1] if needed
     let (input, target) = if normalize {
         (
@@ -493,12 +484,9 @@ fn preprocess_inputs<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core::tensor::{TensorData, Tolerance, ops::FloatElem};
-    use burn_flex::Flex;
+    use burn_core::tensor::{TensorData, Tolerance};
 
-    type TestBackend = Flex;
-    type FT = FloatElem<TestBackend>;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    type FT = f32;
 
     // =========================================================================
     // Basic Functionality Tests
@@ -508,9 +496,9 @@ mod tests {
     #[test]
     fn test_lpips_identical_images_zero_distance() {
         let device = Default::default();
-        let image = TestTensor::<4>::ones([1, 3, 32, 32], &device);
+        let image = Tensor::<4>::ones([1, 3, 32, 32], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
+        let lpips = LpipsConfig::new().init(&device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
 
         // Identical images → distance = 0
@@ -527,10 +515,10 @@ mod tests {
     fn test_lpips_different_images_nonzero_distance() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([1, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 32, 32], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 32, 32], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 32, 32], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
+        let lpips = LpipsConfig::new().init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
@@ -545,10 +533,10 @@ mod tests {
     fn test_lpips_symmetry() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([1, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 32, 32], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 32, 32], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 32, 32], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
+        let lpips = LpipsConfig::new().init(&device);
         let distance_forward = lpips.forward(image1.clone(), image2.clone(), Reduction::Mean);
         let distance_reverse = lpips.forward(image2, image1, Reduction::Mean);
 
@@ -565,10 +553,10 @@ mod tests {
     fn test_lpips_forward_mean_reduction() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([2, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([2, 3, 32, 32], &device);
+        let image1 = Tensor::<4>::zeros([2, 3, 32, 32], &device);
+        let image2 = Tensor::<4>::ones([2, 3, 32, 32], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
+        let lpips = LpipsConfig::new().init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         assert_eq!(distance.dims(), [1]);
@@ -579,10 +567,10 @@ mod tests {
         let device = Default::default();
 
         let batch_size = 4;
-        let image1 = TestTensor::<4>::zeros([batch_size, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([batch_size, 3, 32, 32], &device);
+        let image1 = Tensor::<4>::zeros([batch_size, 3, 32, 32], &device);
+        let image2 = Tensor::<4>::ones([batch_size, 3, 32, 32], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
+        let lpips = LpipsConfig::new().init(&device);
         let distance = lpips.forward_no_reduction(image1, image2);
 
         assert_eq!(distance.dims(), [batch_size]);
@@ -596,9 +584,9 @@ mod tests {
     #[test]
     fn test_lpips_alex_identical_images_zero_distance() {
         let device = Default::default();
-        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
+        let lpips = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
 
         let expected = TensorData::from([0.0]);
@@ -612,10 +600,10 @@ mod tests {
     fn test_lpips_alex_different_images_nonzero_distance() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
+        let lpips = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
@@ -635,10 +623,9 @@ mod tests {
     #[test]
     fn test_lpips_squeeze_identical_images_zero_distance() {
         let device = Default::default();
-        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> =
-            LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
+        let lpips = LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
 
         let expected = TensorData::from([0.0]);
@@ -652,11 +639,10 @@ mod tests {
     fn test_lpips_squeeze_different_images_nonzero_distance() {
         let device = Default::default();
 
-        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> =
-            LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
+        let lpips = LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
@@ -675,7 +661,7 @@ mod tests {
     #[test]
     fn display_vgg() {
         let device = Default::default();
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
+        let lpips = LpipsConfig::new().init(&device);
 
         let display_str = format!("{lpips}");
         assert!(display_str.contains("Lpips"));
@@ -685,7 +671,7 @@ mod tests {
     #[test]
     fn display_alex() {
         let device = Default::default();
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
+        let lpips = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
 
         let display_str = format!("{lpips}");
         assert!(display_str.contains("Lpips"));
@@ -695,8 +681,7 @@ mod tests {
     #[test]
     fn display_squeeze() {
         let device = Default::default();
-        let lpips: Lpips<TestBackend> =
-            LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
+        let lpips = LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
 
         let display_str = format!("{lpips}");
         assert!(display_str.contains("Lpips"));
@@ -714,12 +699,12 @@ mod tests {
         let device = Default::default();
 
         // This will download ~60MB of weights
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+        let lpips = LpipsConfig::new()
             .with_net(LpipsNet::Vgg)
             .init_pretrained(&device);
 
         // Test with identical images - should be 0
-        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
@@ -729,8 +714,8 @@ mod tests {
         );
 
         // Test with different images - should be positive
-        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
@@ -746,12 +731,12 @@ mod tests {
     fn test_lpips_pretrained_alex() {
         let device = Default::default();
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+        let lpips = LpipsConfig::new()
             .with_net(LpipsNet::Alex)
             .init_pretrained(&device);
 
         // Test with identical images
-        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
@@ -761,8 +746,8 @@ mod tests {
         );
 
         // Test with different images
-        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
@@ -777,12 +762,12 @@ mod tests {
     fn test_lpips_pretrained_squeeze() {
         let device = Default::default();
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+        let lpips = LpipsConfig::new()
             .with_net(LpipsNet::Squeeze)
             .init_pretrained(&device);
 
         // Test with identical images
-        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
@@ -792,8 +777,8 @@ mod tests {
         );
 
         // Test with different images
-        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image1 = Tensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = Tensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(

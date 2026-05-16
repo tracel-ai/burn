@@ -3,7 +3,7 @@ use alloc::format;
 use burn_core as burn;
 
 use crate::{PaddingConfig1d, conv::checks};
-use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::PaddedConvOptions};
+use burn::tensor::{Device, Tensor, module::conv1d, ops::PaddedConvOptions};
 use burn::{
     config::Config,
     module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param},
@@ -48,11 +48,11 @@ pub struct Conv1dConfig {
 /// Should be created with [Conv1dConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Conv1d<B: Backend> {
+pub struct Conv1d {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size]`
-    pub weight: Param<Tensor<B, 3>>,
+    pub weight: Param<Tensor<3>>,
     /// Tensor of shape `[channels_out]`
-    pub bias: Option<Param<Tensor<B, 1>>>,
+    pub bias: Option<Param<Tensor<1>>>,
     /// Stride of the convolution.
     pub stride: usize,
     /// Size of the kernel.
@@ -62,10 +62,11 @@ pub struct Conv1d<B: Backend> {
     /// Controls the connections between input and output channels.
     pub groups: usize,
     /// Padding configuration.
+    #[module(skip)]
     pub padding: PaddingConfig1d,
 }
 
-impl<B: Backend> ModuleDisplay for Conv1d<B> {
+impl ModuleDisplay for Conv1d {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -97,7 +98,7 @@ impl<B: Backend> ModuleDisplay for Conv1d<B> {
 }
 impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Conv1d<B> {
+    pub fn init(&self, device: &Device) -> Conv1d {
         checks::checks_channels_div_groups(self.channels_in, self.channels_out, self.groups);
 
         let shape = [
@@ -132,7 +133,7 @@ impl Conv1dConfig {
     }
 }
 
-impl<B: Backend> Conv1d<B> {
+impl Conv1d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [conv1d](burn::tensor::module::conv1d) for more information.
@@ -141,7 +142,7 @@ impl<B: Backend> Conv1d<B> {
     ///
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
-    pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         let length = input.dims()[2];
 
         // Calculate padding as pair - handles Same, Valid, and Explicit uniformly
@@ -168,33 +169,32 @@ impl<B: Backend> Conv1d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::{ElementConversion, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::ElementConversion;
+    type FT = f32;
 
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
 
     #[test]
     fn initializer_default() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
         let k = (config.groups as f64 / k).sqrt().elem::<FT>();
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
 
     #[test]
     fn initializer_zeros() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = Conv1dConfig::new(5, 5, 5).with_initializer(Initializer::Zeros);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight
@@ -209,10 +209,10 @@ mod tests {
             .with_padding(PaddingConfig1d::Same)
             .with_initializer(Initializer::Constant { value: 1.0 })
             .with_bias(false);
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         // Input: [batch=1, channels=4, length=5]
-        let input = Tensor::<TestBackend, 3>::ones([1, 4, 5], &device);
+        let input = Tensor::<3>::ones([1, 4, 5], &device);
         let output = conv.forward(input);
 
         // Same padding should preserve spatial dimensions
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn display() {
         let config = Conv1dConfig::new(5, 5, 5);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{conv}"),
@@ -234,9 +234,9 @@ mod tests {
     #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
     fn input_channels_mismatch() {
         let config = Conv1dConfig::new(5, 3, 3);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
-        let input = Tensor::<TestBackend, 3>::zeros([1, 4, 10], &Default::default());
+        let input = Tensor::<3>::zeros([1, 4, 10], &Default::default());
         let _ = conv.forward(input);
     }
 
@@ -248,10 +248,10 @@ mod tests {
             .with_padding(PaddingConfig1d::Explicit(1, 2))
             .with_initializer(Initializer::Constant { value: 1.0 })
             .with_bias(false);
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         // Input: [batch=1, channels=2, length=4]
-        let input = Tensor::<TestBackend, 3>::ones([1, 2, 4], &device);
+        let input = Tensor::<3>::ones([1, 2, 4], &device);
         let output = conv.forward(input);
 
         // With asymmetric padding (1, 2), input length 4 becomes 4+1+2=7
@@ -267,10 +267,10 @@ mod tests {
             .with_padding(PaddingConfig1d::Explicit(2, 2))
             .with_initializer(Initializer::Constant { value: 1.0 })
             .with_bias(false);
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         // Input: [batch=1, channels=2, length=4]
-        let input = Tensor::<TestBackend, 3>::ones([1, 2, 4], &device);
+        let input = Tensor::<3>::ones([1, 2, 4], &device);
         let output = conv.forward(input);
 
         // With symmetric padding (2, 2), input length 4 becomes 4+2+2=8

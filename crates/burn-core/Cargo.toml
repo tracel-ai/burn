@@ -30,11 +30,7 @@ doc = [
     "burn-dataset/doc",
     "burn-tensor/doc",
 ]
-tracing = [
-    "burn-std/tracing",
-    "burn-tensor/tracing",
-    "burn-dataset?/tracing",
-]
+tracing = ["burn-std/tracing", "burn-tensor/tracing", "burn-dataset?/tracing"]
 
 
 dataset = ["burn-dataset"]
@@ -57,39 +53,31 @@ std = [
 ]
 vision = ["burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
-distributed = ["std",
-    "burn-tensor/distributed",
-    "burn-autodiff/distributed",
-    "burn-cuda?/distributed",
-    "burn-router/distributed",
-]
+distributed = ["std", "burn-tensor/distributed"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror"]
 
-test-cuda = [
-    "burn-cuda/default",
-] # To use cuda during testing, default uses flex.
-test-rocm = [
-    "burn-rocm/default",
-] # To use hip during testing, default uses flex.
-test-tch = [
-    "burn-tch/default",
-] # To use tch during testing, default uses flex.
-test-wgpu = [
-    "burn-wgpu/default",
-] # To use wgpu during testing, default uses flex.
-test-vulkan = [
-    "test-wgpu",
-    "burn-wgpu/vulkan",
-] # To use wgpu-spirv during testing, default uses flex.
-test-metal = [
-    "test-wgpu",
-    "burn-wgpu/metal",
-] # To use wgpu-spirv during testing, default uses flex.
+# Backends
+cuda = ["burn-tensor/cuda"]
+rocm = ["burn-tensor/rocm"]
+flex = ["burn-tensor/flex"]
+ndarray = ["burn-tensor/ndarray"]
+tch = ["burn-tensor/tch"]
+vulkan = ["burn-tensor/vulkan"]
+webgpu = ["burn-tensor/webgpu"]
+wgpu = ["burn-tensor/wgpu"]
+metal = ["burn-tensor/metal"]
+cpu = ["burn-tensor/cpu"]
+autodiff = ["burn-tensor/autodiff"]
 
-# Memory checks are disabled by default
-test-memory-checks = ["burn-fusion/memory-checks"]
+# Backend features
+autotune = ["burn-tensor/autotune"]
+autotune-checks = ["burn-tensor/autotune-checks"]
+fusion = ["burn-tensor/fusion"]
+
+# Backend extensions
+extension = ["burn-tensor/extension"]
 
 [dependencies]
 
@@ -126,28 +114,17 @@ thiserror = { workspace = true, optional = true }
 [target.'cfg(target_has_atomic = "ptr")'.dependencies]
 regex = { workspace = true }
 
-# FOR TESTING
-burn-cuda = { workspace = true, optional = true }
-burn-rocm = { workspace = true, optional = true }
-burn-remote = { workspace = true, optional = true }
-burn-router = { workspace = true, optional = true }
-burn-tch = { workspace = true, optional = true, features = ["default"] }
-burn-wgpu = { workspace = true, optional = true }
-burn-fusion = { workspace = true, optional = true, features = ["default"] }
-
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
 portable-atomic = { workspace = true }
 
 [dev-dependencies]
-burn-flex = { workspace = true, features = ["default"] }
-burn-autodiff = { workspace = true, features = ["default"] }
-burn-dataset = { workspace = true, features = [
-    "default",
-    "fake",
-] }
+burn-dataset = { workspace = true, features = ["fake"] }
 rstest = { workspace = true }
 serial_test = { workspace = true }
+
+# Default device for tests
+burn-tensor = { workspace = true, features = ["ndarray"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

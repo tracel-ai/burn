@@ -4,15 +4,15 @@ use serial_test::serial;
 
 use core::f32;
 
-use burn_tensor::{Distribution, Shape, backend::Backend};
+use burn_tensor::{Device, Distribution, Shape};
 
 use cubek::random::{assert_number_of_1_proportional_to_prob, assert_wald_wolfowitz_runs_test};
 
 #[test]
 #[serial]
 fn number_of_1_proportional_to_prob() {
-    let device = Default::default();
-    TestBackend::seed(&device, 0);
+    let device = Device::default();
+    device.seed(0);
 
     let shape: Shape = [40, 40].into();
     let prob = 0.7;
@@ -28,11 +28,11 @@ fn number_of_1_proportional_to_prob() {
 #[test]
 #[serial]
 fn wald_wolfowitz_runs_test() {
-    let device = Default::default();
-    TestBackend::seed(&device, 0);
+    let device = Device::default();
+    device.seed(0);
 
     let shape = Shape::new([512, 512]);
-    let device = Default::default();
+    let device = Device::default();
     let tensor = TestTensor::<2>::random(shape, Distribution::Bernoulli(0.5), &device);
 
     let data = tensor.into_data();

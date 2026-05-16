@@ -1,6 +1,5 @@
-use crate::ElementConversion;
-use crate::FloatDType;
-use crate::backend::Backend;
+use burn_std::FloatDType;
+
 use crate::tensor::Tensor;
 
 use super::l2_norm;
@@ -21,19 +20,17 @@ use super::l2_norm;
 /// # Returns
 ///
 /// Tensor containing the cosine similarity between x1 and x2
-pub fn cosine_similarity<B: Backend, const D: usize>(
-    x1: Tensor<B, D>,
-    x2: Tensor<B, D>,
+pub fn cosine_similarity<const D: usize>(
+    x1: Tensor<D>,
+    x2: Tensor<D>,
     dim: i32,
-    eps: Option<B::FloatElem>,
-) -> Tensor<B, D> {
+    eps: Option<f64>,
+) -> Tensor<D> {
     let eps = eps.unwrap_or_else(|| {
-        let min_positive = x1
-            .dtype()
+        x1.dtype()
             .finfo()
             .unwrap_or(FloatDType::F32.finfo())
-            .min_positive;
-        B::FloatElem::from_elem(min_positive)
+            .min_positive
     });
 
     // Convert negative dimension to positive

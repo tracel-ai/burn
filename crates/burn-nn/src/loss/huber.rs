@@ -2,7 +2,6 @@ use burn_core as burn;
 
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::{config::Config, module::Module};
 
 use super::Reduction;
@@ -48,7 +47,7 @@ impl HuberLossConfig {
 /// This loss function is less sensitive to outliers than the mean squared error loss.
 ///
 /// See also: <https://en.wikipedia.org/wiki/Huber_loss>
-#[derive(Module, Debug, Clone)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct HuberLoss {
     /// The bound where the Huber loss function changes from quadratic to linear behaviour.
@@ -83,12 +82,12 @@ impl HuberLoss {
     /// - predictions: \[...dims\]
     /// - targets: \[...dims\]
     /// - output: \[1\]
-    pub fn forward<const D: usize, B: Backend>(
+    pub fn forward<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let loss = self.forward_no_reduction(predictions, targets);
         match reduction {
             Reduction::Mean | Reduction::Auto => loss.mean(),
@@ -103,11 +102,11 @@ impl HuberLoss {
     /// - predictions: [...dims]
     /// - targets: [...dims]
     /// - output: [...dims]
-    pub fn forward_no_reduction<const D: usize, B: Backend>(
+    pub fn forward_no_reduction<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
+    ) -> Tensor<D> {
         let residuals = targets - predictions;
         self.forward_residuals(residuals)
     }
@@ -117,10 +116,7 @@ impl HuberLoss {
     ///
     /// - residuals: [...dims]
     /// - output: [...dims]
-    pub fn forward_residuals<const D: usize, B: Backend>(
-        &self,
-        residuals: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+    pub fn forward_residuals<const D: usize>(&self, residuals: Tensor<D>) -> Tensor<D> {
         let is_large = residuals.clone().abs().greater_elem(self.delta);
         // We are interested in `sign(r)` when `abs(r) > self.delta`. Note that the
         // `sign()` function, in general, suffers from a jump at 0.
@@ -141,11 +137,9 @@ impl HuberLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_huber_loss() {
@@ -154,8 +148,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predict = TestTensor::<1>::from_data(predict, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predict = Tensor::<1>::from_data(predict, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let huber = HuberLossConfig::new(0.5).init();
 
@@ -181,14 +175,13 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn test_huber_ad_loss() {
-        type TestAutodiffTensor = Tensor<crate::TestAutodiffBackend, 1>;
-
+        use burn::tensor::Device;
+        let device = Device::default().autodiff();
         let predict = TensorData::from([-2., -0.5, 0., 0.3, 1.]);
         let targets = TensorData::from([0., 0., 0., 0., 0.]);
 
-        let device = Default::default();
-        let predict = TestAutodiffTensor::from_data(predict, &device).require_grad();
-        let targets = TestAutodiffTensor::from_data(targets, &device);
+        let predict = Tensor::<1>::from_data(predict, &device).require_grad();
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let loss = HuberLossConfig::new(0.5).init();
         let loss = loss.forward_no_reduction(predict.clone(), targets);

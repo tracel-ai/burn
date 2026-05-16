@@ -16,7 +16,7 @@ use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_tensor::{BoolStore, DType, TensorData};
+use burn_core::tensor::{BoolStore, DType, TensorData};
 use byteorder::{LittleEndian, ReadBytesExt};
 use half::{bf16, f16};
 use std::collections::HashMap;

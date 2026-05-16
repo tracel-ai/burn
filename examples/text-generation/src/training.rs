@@ -12,7 +12,6 @@ use burn::{
     optim::AdamConfig,
     prelude::*,
     record::{CompactRecorder, DefaultRecorder, Recorder},
-    tensor::backend::AutodiffBackend,
     train::{
         Learner, SupervisedTraining,
         metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric, PerplexityMetric},
@@ -32,8 +31,8 @@ pub struct ExperimentConfig {
     num_epochs: usize,
 }
 
-pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
-    device: B::Device,
+pub fn train<D: Dataset<TextGenerationItem> + 'static>(
+    device: Device,
     dataset_train: D,
     dataset_test: D,
     config: ExperimentConfig,
@@ -41,6 +40,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
 ) {
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
+    let device = device.autodiff();
 
     let model = TextGenerationModelConfig::new(
         config.transformer.clone(),
@@ -48,7 +48,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         tokenizer.pad_token(),
         config.max_seq_length,
     )
-    .init::<B>(&device);
+    .init(&device);
 
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)

@@ -1,7 +1,7 @@
 use super::{codegen::ModuleCodegen, record_enum::EnumModuleRecordCodegen};
-use crate::{
-    module::generics::{ModuleGenerics, parse_module_generics},
-    shared::enum_variant::{EnumVariant, parse_variants},
+use crate::module::{
+    codegen_struct::{ModuleFieldType, parse_module_field_type},
+    generics::{ModuleGenerics, parse_module_generics},
 };
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
@@ -20,7 +20,7 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_num_params(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|_| {
             quote! {
-                burn::module::Module::<B>::num_params(module)
+                burn::module::Module::num_params(module)
             }
         });
 
@@ -46,7 +46,7 @@ impl ModuleCodegen for EnumModuleCodegen {
         });
 
         quote! {
-            fn visit<Visitor: burn::module::ModuleVisitor<B>>(&self, visitor: &mut Visitor) {
+            fn visit<Visitor: burn::module::ModuleVisitor>(&self, visitor: &mut Visitor) {
                 #match_body
             }
         }
@@ -55,15 +55,15 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_collect_devices(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|_| {
             quote! {
-                burn::module::Module::<B>::collect_devices(module, devices)
+                burn::module::Module::collect_devices(module, devices)
             }
         });
 
         quote! {
             fn collect_devices(
                 &self,
-                devices: burn::module::Devices<B>
-            ) -> burn::module::Devices<B> {
+                devices: burn::module::Devices
+            ) -> burn::module::Devices {
                 #match_body
             }
         }
@@ -72,12 +72,12 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_to_device(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {
-                Self::#variant(burn::module::Module::<B>::to_device(module, device))
+                Self::#variant(burn::module::Module::to_device(module, device))
             }
         });
 
         quote! {
-            fn to_device(self, device: &B::Device) -> Self {
+            fn to_device(self, device: &burn::tensor::Device) -> Self {
                 #match_body
             }
         }
@@ -86,12 +86,12 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_fork(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {
-                Self::#variant(burn::module::Module::<B>::fork(module, device))
+                Self::#variant(burn::module::Module::fork(module, device))
             }
         });
 
         quote! {
-            fn fork(self, device: &B::Device) -> Self {
+            fn fork(self, device: &burn::tensor::Device) -> Self {
                 #match_body
             }
         }
@@ -105,7 +105,7 @@ impl ModuleCodegen for EnumModuleCodegen {
             quote! {
                 {
                     mapper.enter_module(#variant_str, #container_type);
-                    let result = burn::module::Module::<B>::map(module, mapper);
+                    let result = burn::module::Module::map(module, mapper);
                     mapper.exit_module(#variant_str, #container_type);
                     Self::#variant(result)
                 }
@@ -113,7 +113,7 @@ impl ModuleCodegen for EnumModuleCodegen {
         });
 
         quote! {
-            fn map<Mapper: burn::module::ModuleMapper<B>>(self, mapper: &mut Mapper) -> Self {
+            fn map<Mapper: burn::module::ModuleMapper>(self, mapper: &mut Mapper) -> Self {
                 #match_body
             }
         }
@@ -122,27 +122,26 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_valid(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {
-                Self::InnerModule::#variant(burn::module::AutodiffModule::<B>::valid(module))
+                Self::#variant(burn::module::AutodiffModule::valid(module))
             }
         });
 
         quote! {
-            fn valid(&self) -> Self::InnerModule {
+            fn valid(&self) -> Self {
                 #match_body
             }
         }
     }
 
     fn gen_from_inner(&self) -> TokenStream {
-        let match_body =
-            self.gen_variants_match_fn_param("module", "Self::InnerModule::", |variant| {
-                quote! {
-                    Self::#variant(burn::module::AutodiffModule::<B>::from_inner(module))
-                }
-            });
+        let match_body = self.gen_variants_match_fn_param("module", "Self::", |variant| {
+            quote! {
+                Self::#variant(burn::module::AutodiffModule::from_inner(module))
+            }
+        });
 
         quote! {
-            fn from_inner(module: Self::InnerModule) -> Self {
+            fn from_inner(module: Self) -> Self {
                 #match_body
             }
         }
@@ -151,7 +150,7 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn gen_into_record(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {
-                Self::Record::#variant(burn::module::Module::<B>::into_record(module))
+                Self::Record::#variant(burn::module::Module::into_record(module))
             }
         });
 
@@ -167,7 +166,7 @@ impl ModuleCodegen for EnumModuleCodegen {
             quote! {
                 {
                     let Self::Record::#variant(r) = record else {panic!("Can't parse record from a different variant");};
-                    Self::#variant(burn::module::Module::<B>::load_record(module, r))
+                    Self::#variant(burn::module::Module::load_record(module, r))
                 }
             }
         });
@@ -231,11 +230,12 @@ impl ModuleCodegen for EnumModuleCodegen {
 
 impl EnumModuleCodegen {
     pub fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self> {
+        let mut generics = parse_module_generics(&ast.generics);
         Ok(Self {
             name: ast.ident.clone(),
-            variants: parse_variants(ast)?,
+            variants: parse_variants(ast, &mut generics)?,
             vis: ast.vis.clone(),
-            generics: parse_module_generics(&ast.generics),
+            generics,
         })
     }
 
@@ -248,7 +248,7 @@ impl EnumModuleCodegen {
     }
 
     /// Generate a match expression over the given argument (e.g., `self`)
-    /// and using the provided prefix for variants (e.g., `Self::` or `Self::InnerModule::`)
+    /// and using the provided prefix for variants (e.g., `Self::`)
     fn gen_variants_match_fn_param<F>(&self, arg: &str, prefix: &str, func: F) -> TokenStream
     where
         F: Fn(Ident) -> TokenStream,
@@ -269,4 +269,77 @@ impl EnumModuleCodegen {
             }
         }
     }
+
+    /// Returns true if any field in any variant is considered a module.
+    pub fn has_module_fields(&self) -> bool {
+        self.variants
+            .iter()
+            .any(|variant| variant.field_type.is_module)
+    }
+}
+
+/// Module enum variant
+pub(crate) struct EnumVariant {
+    pub ident: syn::Ident,
+    pub ty: syn::Type,
+    pub field_type: ModuleFieldType,
+}
+
+pub(crate) fn parse_variants(
+    ast: &syn::DeriveInput,
+    generics: &mut ModuleGenerics,
+) -> syn::Result<Vec<EnumVariant>> {
+    let enum_data = match &ast.data {
+        syn::Data::Enum(data) => data,
+        _ => return Err(syn::Error::new_spanned(ast, "Only enums are supported")),
+    };
+
+    let mut variants = Vec::new();
+
+    for variant in enum_data.variants.iter() {
+        for attr in &variant.attrs {
+            if attr.path().is_ident("module") {
+                Err(syn::Error::new_spanned(
+                    variant,
+                    "Module attributes are not supported for enum variants.",
+                ))?;
+            }
+        }
+
+        match &variant.fields {
+            syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                let field = &fields.unnamed[0];
+
+                // USE THE SAME PARSER AS STRUCTS
+                // This gives us the is_module, is_param, etc. logic
+                let field_type = parse_module_field_type(field, generics)?;
+
+                variants.push(EnumVariant {
+                    ident: variant.ident.clone(),
+                    ty: field.ty.clone(),
+                    field_type,
+                });
+            }
+            syn::Fields::Unnamed(_) => {
+                return Err(syn::Error::new_spanned(
+                    variant,
+                    "Module derive only supports tuple enum variants with exactly one field.",
+                ));
+            }
+            syn::Fields::Named(_) => {
+                return Err(syn::Error::new_spanned(
+                    variant,
+                    "Module derive does not support struct enum variants.",
+                ));
+            }
+            syn::Fields::Unit => {
+                return Err(syn::Error::new_spanned(
+                    variant,
+                    "Module derive does not support unit enum variants.",
+                ));
+            }
+        }
+    }
+
+    Ok(variants)
 }

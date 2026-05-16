@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::{Distribution, backend::Backend};
-use burn_tensor::{IndexingUpdateOp, Tolerance};
+use burn_tensor::Distribution;
+use burn_tensor::{Device, IndexingUpdateOp, Tolerance};
 
 #[test]
 fn select_add_should_work_with_multiple_workgroups_2d_dim0() {
@@ -28,10 +28,10 @@ fn select_add_should_work_with_multiple_workgroups_3d_dim2() {
 }
 
 fn select_add_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
-    let device = Default::default();
+    let device = Device::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let tensor = TestTensor::<D>::random(shape, Distribution::Default, &device);
     let value = TestTensor::<D>::random(shape, Distribution::Default, &device);

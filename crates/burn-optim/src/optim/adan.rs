@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::tensor::{Tensor, backend::AutodiffBackend};
-use burn::tensor::{backend::Backend, ops::Device};
+use burn::tensor::Device;
+use burn::tensor::Tensor;
 use burn::{module::AutodiffModule, record::Record};
 
 use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
@@ -55,21 +55,21 @@ pub struct Adan {
 
 /// Adan state.
 #[derive(Record, Clone, new)]
-pub struct AdanState<B: Backend, const D: usize> {
+pub struct AdanState<const D: usize> {
     /// The current adaptive Nesterov momentum state.
-    pub momentum: AdaptiveNesterovMomentumState<B, D>,
+    pub momentum: AdaptiveNesterovMomentumState<D>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for Adan {
-    type State<const D: usize> = AdanState<B, D>;
+impl SimpleOptimizer for Adan {
+    type State<const D: usize> = AdanState<D>;
 
     fn step<const D: usize>(
         &self,
         lr: LearningRate,
-        tensor: Tensor<B, D>,
-        grad: Tensor<B, D>,
+        tensor: Tensor<D>,
+        grad: Tensor<D>,
         state: Option<Self::State<D>>,
-    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
+    ) -> (Tensor<D>, Option<Self::State<D>>) {
         let (raw_delta, momentum_state) = self.momentum.transform(grad, state.map(|s| s.momentum));
 
         let decay_rate = lr * (self.weight_decay as f64);
@@ -93,7 +93,7 @@ impl<B: Backend> SimpleOptimizer<B> for Adan {
         (tensor_updated, Some(AdanState::new(momentum_state)))
     }
 
-    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
+    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device) -> Self::State<D> {
         state.momentum = state.momentum.to_device(device);
         state
     }
@@ -119,7 +119,7 @@ impl AdanConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<Adan, M, B> {
+    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Adan, M> {
         let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
@@ -130,17 +130,17 @@ impl AdanConfig {
 
 /// Adaptive Nesterov momentum state.
 #[derive(Record, Clone, new)]
-pub struct AdaptiveNesterovMomentumState<B: Backend, const D: usize> {
+pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,
     /// The first order momentum.
-    pub exp_avg: Tensor<B, D>,
+    pub exp_avg: Tensor<D>,
     /// The gradient-difference weighted second order momentum.
-    pub exp_avg_sq: Tensor<B, D>,
+    pub exp_avg_sq: Tensor<D>,
     /// The gradient-difference momentum.
-    pub exp_avg_diff: Tensor<B, D>,
+    pub exp_avg_diff: Tensor<D>,
     /// The negated previous gradient.
-    pub neg_pre_grad: Tensor<B, D>,
+    pub neg_pre_grad: Tensor<D>,
 }
 
 #[derive(Clone)]
@@ -152,11 +152,11 @@ struct AdaptiveNesterovMomentum {
 }
 
 impl AdaptiveNesterovMomentum {
-    pub fn transform<B: Backend, const D: usize>(
+    pub fn transform<const D: usize>(
         &self,
-        grad: Tensor<B, D>,
-        state: Option<AdaptiveNesterovMomentumState<B, D>>,
-    ) -> (Tensor<B, D>, AdaptiveNesterovMomentumState<B, D>) {
+        grad: Tensor<D>,
+        state: Option<AdaptiveNesterovMomentumState<D>>,
+    ) -> (Tensor<D>, AdaptiveNesterovMomentumState<D>) {
         let state = if let Some(mut state) = state {
             let grad_diff = state.neg_pre_grad.clone().add(grad.clone());
             let grad_diff_sq = grad_diff
@@ -215,9 +215,9 @@ impl AdaptiveNesterovMomentum {
     }
 }
 
-impl<B: Backend, const D: usize> AdaptiveNesterovMomentumState<B, D> {
+impl<const D: usize> AdaptiveNesterovMomentumState<D> {
     #[allow(clippy::wrong_self_convention)]
-    fn to_device(mut self, device: &B::Device) -> Self {
+    fn to_device(mut self, device: &Device) -> Self {
         self.exp_avg = self.exp_avg.to_device(device);
         self.exp_avg_sq = self.exp_avg_sq.to_device(device);
         self.exp_avg_diff = self.exp_avg_diff.to_device(device);
@@ -229,22 +229,21 @@ impl<B: Backend, const D: usize> AdaptiveNesterovMomentumState<B, D> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestAutodiffBackend;
     use crate::{GradientsParams, Optimizer};
     use burn::module::{Module, Param};
+    use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Tensor, TensorData};
-    use burn::tensor::{Tolerance, ops::FloatElem};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
 
-    type FT = FloatElem<TestAutodiffBackend>;
+    type FT = f32;
 
     const LEARNING_RATE: LearningRate = 0.01;
 
     #[test]
     fn test_adan_optimizer_save_load_state() {
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let linear = LinearConfig::new(6, 6).init(&device);
-        let x = Tensor::<TestAutodiffBackend, 2>::random([2, 6], Distribution::Default, &device);
+        let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
         let mut optimizer = create_adan();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
@@ -282,6 +281,7 @@ mod tests {
 
     #[test]
     fn test_adan_optimizer_with_numbers() {
+        let device = Device::default().autodiff();
         let linear = given_linear_layer(
             TensorData::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
@@ -292,9 +292,9 @@ mod tests {
                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
             ]),
             TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+            &device,
         );
-        let device = Default::default();
-        let x_1 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+        let x_1 = Tensor::<2>::from_floats(
             [
                 [0.6294, 0.0940, 0.8176, 0.8824, 0.5228, 0.4310],
                 [0.7152, 0.9559, 0.7893, 0.5684, 0.5939, 0.8883],
@@ -302,7 +302,7 @@ mod tests {
             &device,
         )
         .require_grad();
-        let x_2 = Tensor::<TestAutodiffBackend, 2>::from_floats(
+        let x_2 = Tensor::<2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
@@ -399,6 +399,7 @@ mod tests {
 
     #[test]
     fn test_adan_optimizer_no_nan() {
+        let device = Device::default().autodiff();
         let linear = given_linear_layer(
             TensorData::from([
                 [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
@@ -409,14 +410,15 @@ mod tests {
                 [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
             ]),
             TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+            &device,
         );
 
-        let x = Tensor::<TestAutodiffBackend, 2>::from_floats(
+        let x = Tensor::<2>::from_floats(
             [
                 [0.8491, 0.2108, 0.8939, 0.4433, 0.5527, 0.2528],
                 [0.3270, 0.0412, 0.5538, 0.9605, 0.3195, 0.9085],
             ],
-            &Default::default(),
+            &device,
         )
         .require_grad();
 
@@ -437,17 +439,16 @@ mod tests {
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
-    fn given_linear_layer(weight: TensorData, bias: TensorData) -> Linear<TestAutodiffBackend> {
-        let device = Default::default();
+    fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
         let record = LinearRecord {
-            weight: Param::from_data(weight, &device),
-            bias: Some(Param::from_data(bias, &device)),
+            weight: Param::from_data(weight, device),
+            bias: Some(Param::from_data(bias, device)),
         };
 
-        LinearConfig::new(6, 6).init(&device).load_record(record)
+        LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    fn create_adan() -> OptimizerAdaptor<Adan, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
+    fn create_adan() -> OptimizerAdaptor<Adan, Linear> {
         let config = AdanConfig::new();
         Adan {
             momentum: AdaptiveNesterovMomentum {

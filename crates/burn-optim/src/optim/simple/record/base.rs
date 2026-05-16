@@ -3,39 +3,33 @@ use burn_core as burn;
 use super::{AdaptorRecordItemV1, AdaptorRecordV1};
 use crate::optim::SimpleOptimizer;
 use burn::record::{PrecisionSettings, Record};
-use burn::tensor::backend::AutodiffBackend;
+use burn::tensor::Device;
 use serde::{Deserialize, Serialize};
 
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record.
 ///
 /// Records are versioned for backward compatibility, so old records can be loaded.
-pub enum AdaptorRecord<O, B>
+pub enum AdaptorRecord<O>
 where
-    O: SimpleOptimizer<B::InnerBackend>,
-    B: AutodiffBackend,
+    O: SimpleOptimizer,
 {
     /// Version 1.
-    V1(AdaptorRecordV1<O, B::InnerBackend>),
+    V1(AdaptorRecordV1<O>),
 }
 
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
-pub enum AdaptorRecordItem<
-    O: SimpleOptimizer<B::InnerBackend>,
-    B: AutodiffBackend,
-    S: PrecisionSettings,
-> {
+pub enum AdaptorRecordItem<O: SimpleOptimizer, S: PrecisionSettings> {
     /// Version 1.
-    V1(AdaptorRecordItemV1<O, B::InnerBackend, S>),
+    V1(AdaptorRecordItemV1<O, S>),
 }
 
-impl<O, B> Record<B> for AdaptorRecord<O, B>
+impl<O> Record for AdaptorRecord<O>
 where
-    O: SimpleOptimizer<B::InnerBackend>,
-    B: AutodiffBackend,
+    O: SimpleOptimizer,
 {
-    type Item<S: PrecisionSettings> = AdaptorRecordItem<O, B, S>;
+    type Item<S: PrecisionSettings> = AdaptorRecordItem<O, S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         match self {
@@ -43,17 +37,16 @@ where
         }
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         match item {
             AdaptorRecordItem::V1(item) => Self::V1(AdaptorRecordV1::from_item(item, device)),
         }
     }
 }
 
-impl<O, B> Clone for AdaptorRecord<O, B>
+impl<O> Clone for AdaptorRecord<O>
 where
-    O: SimpleOptimizer<B::InnerBackend>,
-    B: AutodiffBackend,
+    O: SimpleOptimizer,
 {
     fn clone(&self) -> Self {
         match self {
@@ -62,10 +55,9 @@ where
     }
 }
 
-impl<O, B> AdaptorRecord<O, B>
+impl<O> AdaptorRecord<O>
 where
-    O: SimpleOptimizer<B::InnerBackend>,
-    B: AutodiffBackend,
+    O: SimpleOptimizer,
 {
     /// Converts the record into the optimizer state.
     ///

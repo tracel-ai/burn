@@ -1,6 +1,8 @@
-use burn_tensor::cast::ToElement;
-use burn_tensor::{Complex, Element, TensorMetadata};
-use burn_tensor::{Float, Tensor, backend::Backend};
+use burn_backend::Backend;
+use burn_std::Scalar;
+use burn_std::cast::ToElement;
+use burn_std::{Complex, Element};
+use burn_tensor::{Float, Tensor};
 
 use crate::split::SplitComplexTensor;
 
@@ -13,18 +15,14 @@ impl<B: Backend, const D: usize> core::ops::Add<Self> for SplitComplexTensor<B, 
     }
 }
 
-// SplitComplexTensor + Tensor<B, D, Float> — adds real tensor to the real part
-impl<B: Backend, const D: usize> core::ops::Add<Tensor<B, D, Float>> for SplitComplexTensor<B, D> {
+// SplitComplexTensor + Tensor<D, Float> — adds real tensor to the real part
+impl<B: Backend, const D: usize> core::ops::Add<Tensor<D>> for SplitComplexTensor<B, D> {
     type Output = Self;
 
-    fn add(self, rhs: Tensor<B, D, Float>) -> Self::Output {
-        let prim = rhs.into_primitive().tensor();
-        let device = B::float_device(&prim);
-        let shape = prim.shape();
-        let dtype = prim.dtype().into();
-        let zeros = B::float_zeros(shape, &device, dtype);
-        let complex_rhs = SplitComplexTensor::new(prim, zeros);
-        Self::add(self, complex_rhs)
+    fn add(self, rhs: Tensor<D>) -> Self::Output {
+        let prim = rhs.tensor();
+        let (real, imag) = self.into_parts();
+        SplitComplexTensor::new(real + prim, imag)
     }
 }
 
@@ -36,7 +34,7 @@ macro_rules! impl_complex_tensor_add_scalar {
                 type Output = Self;
 
                 fn add(self, rhs: $t) -> Self::Output {
-                    Self::add_scalar(self, burn_tensor::Scalar::Float(rhs as f64))
+                    Self::add_scalar(self, burn_std::Scalar::Float(rhs as f64))
                 }
             }
         )*
@@ -50,7 +48,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Add<Complex<E>>
     type Output = Self;
 
     fn add(self, rhs: Complex<E>) -> Self::Output {
-        Self::add_scalar(self, burn_tensor::Scalar::Complex(rhs.to_complex64()))
+        Self::add_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
     }
 }
 // Tensor - tensor
@@ -62,18 +60,15 @@ impl<B: Backend, const D: usize> core::ops::Sub<Self> for SplitComplexTensor<B, 
     }
 }
 
-// SplitComplexTensor - Tensor<B, D, Float>
-impl<B: Backend, const D: usize> core::ops::Sub<Tensor<B, D, Float>> for SplitComplexTensor<B, D> {
+// SplitComplexTensor - Tensor<D, Float>
+impl<B: Backend, const D: usize> core::ops::Sub<Tensor<D, Float>> for SplitComplexTensor<B, D> {
     type Output = Self;
 
-    fn sub(self, rhs: Tensor<B, D, Float>) -> Self::Output {
-        let prim = rhs.into_primitive().tensor();
-        let device = B::float_device(&prim);
-        let shape = prim.shape();
-        let dtype = prim.dtype().into();
-        let zeros = B::float_zeros(shape, &device, dtype);
-        let complex_rhs = SplitComplexTensor::new(prim, zeros);
-        Self::sub(self, complex_rhs)
+    fn sub(self, rhs: Tensor<D, Float>) -> Self::Output {
+        let prim = rhs.tensor();
+
+        let (real, imag) = self.into_parts();
+        SplitComplexTensor::new(real - prim, imag)
     }
 }
 
@@ -85,7 +80,7 @@ macro_rules! impl_complex_tensor_sub_scalar {
                 type Output = Self;
 
                 fn sub(self, rhs: $t) -> Self::Output {
-                    Self::sub_scalar(self, burn_tensor::Scalar::Float(rhs as f64))
+                    Self::sub_scalar(self, burn_std::Scalar::Float(rhs as f64))
                 }
             }
         )*
@@ -99,7 +94,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Sub<Complex<E>>
     type Output = Self;
 
     fn sub(self, rhs: Complex<E>) -> Self::Output {
-        Self::sub_scalar(self, burn_tensor::Scalar::Complex(rhs.to_complex64()))
+        Self::sub_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
     }
 }
 
@@ -112,18 +107,14 @@ impl<B: Backend, const D: usize> core::ops::Mul<Self> for SplitComplexTensor<B, 
     }
 }
 
-// SplitComplexTensor * Tensor<B, D, Float>
-impl<B: Backend, const D: usize> core::ops::Mul<Tensor<B, D, Float>> for SplitComplexTensor<B, D> {
+// SplitComplexTensor * Tensor<D, Float>
+impl<B: Backend, const D: usize> core::ops::Mul<Tensor<D, Float>> for SplitComplexTensor<B, D> {
     type Output = Self;
 
-    fn mul(self, rhs: Tensor<B, D, Float>) -> Self::Output {
-        let prim = rhs.into_primitive().tensor();
-        let device = B::float_device(&prim);
-        let shape = prim.shape();
-        let dtype = prim.dtype().into();
-        let zeros = B::float_zeros(shape, &device, dtype);
-        let complex_rhs = SplitComplexTensor::new(prim, zeros);
-        Self::mul(self, complex_rhs)
+    fn mul(self, rhs: Tensor<D, Float>) -> Self::Output {
+        let prim = rhs.tensor();
+        let (real, imag) = self.into_parts();
+        SplitComplexTensor::new(real * prim, imag * prim)
     }
 }
 
@@ -135,7 +126,7 @@ macro_rules! impl_complex_tensor_mul_scalar {
                 type Output = Self;
 
                 fn mul(self, rhs: $t) -> Self::Output {
-                    Self::mul_scalar(self, burn_tensor::Scalar::Float(rhs as f64))
+                    Self::mul_scalar(self, burn_std::Scalar::Float(rhs as f64))
                 }
             }
         )*
@@ -149,7 +140,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Mul<Complex<E>>
     type Output = Self;
 
     fn mul(self, rhs: Complex<E>) -> Self::Output {
-        Self::mul_scalar(self, burn_tensor::Scalar::Complex(rhs.to_complex64()))
+        Self::mul_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
     }
 }
 
@@ -162,18 +153,14 @@ impl<B: Backend, const D: usize> core::ops::Div<Self> for SplitComplexTensor<B, 
     }
 }
 
-// SplitComplexTensor / Tensor<B, D, Float>
-impl<B: Backend, const D: usize> core::ops::Div<Tensor<B, D, Float>> for SplitComplexTensor<B, D> {
+// SplitComplexTensor / Tensor<D, Float>
+impl<B: Backend, const D: usize> core::ops::Div<Tensor<D, Float>> for SplitComplexTensor<B, D> {
     type Output = Self;
 
-    fn div(self, rhs: Tensor<B, D, Float>) -> Self::Output {
-        let prim = rhs.into_primitive().tensor();
-        let device = B::float_device(&prim);
-        let shape = prim.shape();
-        let dtype = prim.dtype().into();
-        let zeros = B::float_zeros(shape, &device, dtype);
-        let complex_rhs = SplitComplexTensor::new(prim, zeros);
-        Self::div(self, complex_rhs)
+    fn div(self, rhs: Tensor<D, Float>) -> Self::Output {
+        let prim = rhs.tensor();
+        let (real, imag) = self.into_parts();
+        SplitComplexTensor::new(real / prim, imag / prim)
     }
 }
 
@@ -185,7 +172,7 @@ macro_rules! impl_complex_tensor_div_scalar {
                 type Output = Self;
 
                 fn div(self, rhs: $t) -> Self::Output {
-                    Self::div_scalar(self, burn_tensor::Scalar::Float(rhs as f64))
+                    Self::div_scalar(self, burn_std::Scalar::Float(rhs as f64))
                 }
             }
         )*
@@ -199,7 +186,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Div<Complex<E>>
     type Output = Self;
 
     fn div(self, rhs: Complex<E>) -> Self::Output {
-        Self::div_scalar(self, burn_tensor::Scalar::Complex(rhs.to_complex64()))
+        Self::div_scalar(self, Scalar::Complex(rhs.to_complex64()))
     }
 }
 
@@ -212,18 +199,14 @@ impl<B: Backend, const D: usize> core::ops::Rem<Self> for SplitComplexTensor<B, 
     }
 }
 
-// SplitComplexTensor % Tensor<B, D, Float>
-impl<B: Backend, const D: usize> core::ops::Rem<Tensor<B, D, Float>> for SplitComplexTensor<B, D> {
+// SplitComplexTensor % Tensor<D, Float>
+impl<B: Backend, const D: usize> core::ops::Rem<Tensor<D, Float>> for SplitComplexTensor<B, D> {
     type Output = Self;
 
-    fn rem(self, rhs: Tensor<B, D, Float>) -> Self::Output {
-        let prim = rhs.into_primitive().tensor();
-        let device = B::float_device(&prim);
-        let shape = prim.shape();
-        let dtype = prim.dtype().into();
-        let zeros = B::float_zeros(shape, &device, dtype);
-        let complex_rhs = SplitComplexTensor::new(prim, zeros);
-        Self::remainder(self, complex_rhs)
+    fn rem(self, rhs: Tensor<D, Float>) -> Self::Output {
+        let prim = rhs.tensor();
+        let (real, imag) = self.into_parts();
+        SplitComplexTensor::new(real % prim, imag % prim)
     }
 }
 
@@ -235,7 +218,7 @@ macro_rules! impl_complex_tensor_rem_scalar {
                 type Output = Self;
 
                 fn rem(self, rhs: $t) -> Self::Output {
-                    Self::remainder_scalar(self, burn_tensor::Scalar::Float(rhs as f64))
+                    Self::remainder_scalar(self, burn_std::Scalar::Float(rhs as f64))
                 }
             }
         )*
@@ -249,7 +232,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Rem<Complex<E>>
     type Output = Self;
 
     fn rem(self, rhs: Complex<E>) -> Self::Output {
-        Self::remainder_scalar(self, burn_tensor::Scalar::Complex(rhs.to_complex64()))
+        Self::remainder_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
     }
 }
 

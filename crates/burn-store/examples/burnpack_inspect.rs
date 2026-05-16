@@ -13,25 +13,23 @@
 //!   hexdump -C sample.bpk | head -100
 //!   xxd sample.bpk | head -100
 //!   hexyl sample.bpk
-use burn_core as burn;
+use burn_core::{self as burn, tensor::Device};
 
 use burn_core::module::Module;
-use burn_flex::Flex;
 use burn_nn::{Linear, LinearConfig};
 use burn_store::{BurnpackStore, ModuleSnapshot};
-use burn_tensor::backend::Backend;
 use std::env;
 
 // Simple model with a few layers
 #[derive(Module, Debug)]
-struct SampleModel<B: Backend> {
-    linear1: Linear<B>,
-    linear2: Linear<B>,
-    linear3: Linear<B>,
+struct SampleModel {
+    linear1: Linear,
+    linear2: Linear,
+    linear3: Linear,
 }
 
-impl<B: Backend> SampleModel<B> {
-    fn new(device: &B::Device) -> Self {
+impl SampleModel {
+    fn new(device: &Device) -> Self {
         Self {
             linear1: LinearConfig::new(128, 64).init(device),
             linear2: LinearConfig::new(64, 32).init(device),
@@ -41,8 +39,6 @@ impl<B: Backend> SampleModel<B> {
 }
 
 fn main() {
-    type Backend = Flex;
-
     // Get output path from command line or use default
     let output_path = env::args()
         .nth(1)
@@ -53,7 +49,7 @@ fn main() {
 
     // Create a simple model
     let device = Default::default();
-    let model = SampleModel::<Backend>::new(&device);
+    let model = SampleModel::new(&device);
 
     // Save to Burnpack format with metadata
     let mut store = BurnpackStore::from_file(&output_path)

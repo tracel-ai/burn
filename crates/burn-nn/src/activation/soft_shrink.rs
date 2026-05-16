@@ -5,7 +5,6 @@ use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::activation::soft_shrink;
-use burn::tensor::backend::Backend;
 
 /// Soft Shrink layer.
 ///
@@ -13,7 +12,7 @@ use burn::tensor::backend::Backend;
 /// `soft_shrink(x) = x - lambda if x > lambda, x + lambda if x < -lambda, 0 otherwise`
 ///
 /// Should be created with [SoftShrinkConfig](SoftShrinkConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct SoftShrink {
     /// The lambda value for the Soft Shrink formulation.
@@ -57,7 +56,7 @@ impl SoftShrink {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         soft_shrink(input, self.lambda)
     }
 }
@@ -65,15 +64,13 @@ impl SoftShrink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
 
     #[test]
     fn test_soft_shrink_forward() {
         let device = Default::default();
-        let model: SoftShrink = SoftShrinkConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
+        let model = SoftShrinkConfig::new().init();
+        let input = Tensor::<2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -0.5], [7.5, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
@@ -82,9 +79,8 @@ mod tests {
     #[test]
     fn test_soft_shrink_with_lambda() {
         let device = Default::default();
-        let model: SoftShrink = SoftShrinkConfig::new().with_lambda(0.25).init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data([[0.125, -0.125, -0.5], [0.75, 0.1, 0.0]], &device);
+        let model = SoftShrinkConfig::new().with_lambda(0.25).init();
+        let input = Tensor::<2>::from_data([[0.125, -0.125, -0.5], [0.75, 0.1, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -0.25], [0.5, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);

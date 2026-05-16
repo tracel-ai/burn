@@ -3,9 +3,9 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 
@@ -18,30 +18,30 @@ use burn_nn::conv::{Conv2d, Conv2dConfig};
 /// - conv4_3: 512 channels
 /// - conv5_3: 512 channels
 #[derive(Module, Debug)]
-pub struct VggFeatureExtractor<B: Backend> {
+pub struct VggFeatureExtractor {
     // Block 1
-    conv1_1: Conv2d<B>,
-    conv1_2: Conv2d<B>,
+    conv1_1: Conv2d,
+    conv1_2: Conv2d,
     // Block 2
-    conv2_1: Conv2d<B>,
-    conv2_2: Conv2d<B>,
+    conv2_1: Conv2d,
+    conv2_2: Conv2d,
     // Block 3
-    conv3_1: Conv2d<B>,
-    conv3_2: Conv2d<B>,
-    conv3_3: Conv2d<B>,
+    conv3_1: Conv2d,
+    conv3_2: Conv2d,
+    conv3_3: Conv2d,
     // Block 4
-    conv4_1: Conv2d<B>,
-    conv4_2: Conv2d<B>,
-    conv4_3: Conv2d<B>,
+    conv4_1: Conv2d,
+    conv4_2: Conv2d,
+    conv4_3: Conv2d,
     // Block 5
-    conv5_1: Conv2d<B>,
-    conv5_2: Conv2d<B>,
-    conv5_3: Conv2d<B>,
+    conv5_1: Conv2d,
+    conv5_2: Conv2d,
+    conv5_3: Conv2d,
 }
 
-impl<B: Backend> VggFeatureExtractor<B> {
+impl VggFeatureExtractor {
     /// Create a new VGG16 feature extractor.
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         let conv_config = |in_ch, out_ch| {
             Conv2dConfig::new([in_ch, out_ch], [3, 3])
                 .with_padding(PaddingConfig2d::Same)
@@ -71,7 +71,7 @@ impl<B: Backend> VggFeatureExtractor<B> {
     }
 
     /// Extract features from 5 VGG layers.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 4>> {
+    pub fn forward(&self, x: Tensor<4>) -> Vec<Tensor<4>> {
         let mut features = Vec::with_capacity(5);
 
         // Block 1
@@ -111,6 +111,6 @@ impl<B: Backend> VggFeatureExtractor<B> {
 }
 
 /// 2x2 max pooling with stride 2.
-fn max_pool2d<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+fn max_pool2d(x: Tensor<4>) -> Tensor<4> {
     burn_core::tensor::module::max_pool2d(x, [2, 2], [2, 2], [0, 0], [1, 1], false)
 }

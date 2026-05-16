@@ -44,13 +44,13 @@ pub(crate) mod shared;
 ///
 /// ```ignore
 /// #[derive(Module, Debug)]
-/// pub struct MyModule<B: Backend, M, N: NonModuleTrait> {
+/// pub struct MyModule<M, N: NonModuleTrait> {
 ///     /// A normal parameter.
-///     weights: Param<Tensor<B, 2>>,
+///     weights: Param<Tensor<2>>,
 ///     /// A field configured at runtime.
 ///     dropout_prob: f64,
 ///     /// A field that is recomputed at runtime.
-///     cached_mask: Option<Tensor<B, 2>>,
+///     cached_mask: Option<Tensor<2>>,
 ///     /// A field that contains some debug state.
 ///     debug_state: String,
 ///     /// Treated as a module (default for generics).

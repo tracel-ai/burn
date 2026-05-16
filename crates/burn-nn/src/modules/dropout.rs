@@ -2,7 +2,6 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [Dropout](Dropout) layer using the [init function](DropoutConfig::init).
@@ -20,7 +19,7 @@ pub struct DropoutConfig {
 /// The input is also scaled during training to `1 / (1 - prob_keep)`.
 ///
 /// Should be created with [DropoutConfig].
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Dropout {
     /// The probability of randomly zeroes some elements of the input tensor during training.
@@ -49,8 +48,8 @@ impl Dropout {
     ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        if !B::ad_enabled(&input.device()) || self.prob == 0.0 {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+        if !input.device().is_autodiff() || self.prob == 0.0 {
             return input;
         }
 
@@ -80,16 +79,11 @@ mod tests {
     use burn::tensor::Shape;
 
     #[cfg(feature = "std")]
-    use crate::{TestAutodiffBackend, TestBackend};
-
-    #[cfg(not(feature = "std"))]
-    use crate::TestBackend;
-
-    #[cfg(feature = "std")]
     #[test]
     fn with_ad_backend_should_mark_input() {
-        let tensor =
-            Tensor::<TestAutodiffBackend, 2>::ones(Shape::new([100, 100]), &Default::default());
+        use burn::tensor::Device;
+        let device = Device::default().autodiff();
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
         let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());
@@ -99,7 +93,7 @@ mod tests {
 
     #[test]
     fn without_ad_backend_should_not_change_input() {
-        let tensor = Tensor::<TestBackend, 2>::ones(Shape::new([100, 100]), &Default::default());
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &Default::default());
         let dropout = DropoutConfig::new(0.5).init();
 
         let output = dropout.forward(tensor.clone());

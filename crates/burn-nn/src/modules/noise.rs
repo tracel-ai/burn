@@ -2,7 +2,6 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn::tensor::backend::Backend;
 use burn::tensor::{Distribution, Tensor};
 
 /// Configuration to create a [GaussianNoise](GaussianNoise) layer using the [init function](GaussianNoiseConfig::init).
@@ -19,7 +18,7 @@ pub struct GaussianNoiseConfig {
 /// distortion.
 ///
 /// Should be created with [GaussianNoiseConfig].
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct GaussianNoise {
     /// Standard deviation of the normal noise distribution.
@@ -48,8 +47,8 @@ impl GaussianNoise {
     ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        if B::ad_enabled(&input.device()) && self.std != 0.0 {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+        if input.device().is_autodiff() && self.std != 0.0 {
             let noise = Tensor::random(
                 input.shape(),
                 Distribution::Normal(0.0, self.std),
@@ -77,19 +76,13 @@ impl ModuleDisplay for GaussianNoise {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::Shape;
-
-    #[cfg(feature = "std")]
-    use crate::{TestAutodiffBackend, TestBackend};
-
-    #[cfg(not(feature = "std"))]
-    use crate::TestBackend;
+    use burn::tensor::{Device, Shape};
 
     #[cfg(feature = "std")]
     #[test]
     fn with_ad_backend_should_mark_input() {
-        let tensor =
-            Tensor::<TestAutodiffBackend, 2>::ones(Shape::new([100, 100]), &Default::default());
+        let device = Device::default().autodiff();
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &device);
         let noise = GaussianNoiseConfig::new(0.5).init();
 
         let output = noise.forward(tensor.clone());
@@ -99,7 +92,7 @@ mod tests {
 
     #[test]
     fn without_ad_backend_should_not_change_input() {
-        let tensor = Tensor::<TestBackend, 2>::ones(Shape::new([100, 100]), &Default::default());
+        let tensor = Tensor::<2>::ones(Shape::new([100, 100]), &Default::default());
         let noise = GaussianNoiseConfig::new(0.5).init();
 
         let output = noise.forward(tensor.clone());

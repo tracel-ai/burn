@@ -1,18 +1,18 @@
 use burn::{
     module::Module,
     nn::conv::{Conv2d, Conv2dConfig},
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: Conv2d<B>,
-    conv2: Conv2d<B>,
+pub struct Net {
+    conv1: Conv2d,
+    conv2: Conv2d,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let conv1 = Conv2dConfig::new([2, 2], [2, 2]).init(device);
         let conv2 = Conv2dConfig::new([2, 2], [2, 2])
             .with_bias(false)
@@ -21,7 +21,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let x = self.conv1.forward(x);
 
         self.conv2.forward(x)
@@ -30,18 +30,17 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
 
-    use burn::tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     use super::*;
 
     #[test]
     fn key_remap() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/key_remap/key_remap.pt")
             .with_key_remapping("conv\\.(.*)", "$1"); // Remove "conv" prefix, e.g. "conv.conv1" -> "conv1"
 
@@ -49,7 +48,7 @@ mod tests {
             .load_from(&mut store)
             .expect("Should decode state successfully");
 
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             [[
                 [
                     [
@@ -95,7 +94,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 4>::from_data(
+        let expected = Tensor::<4>::from_data(
             [[
                 [
                     [-0.02502128, 0.00250649, 0.04841233],

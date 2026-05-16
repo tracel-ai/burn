@@ -8,8 +8,8 @@ use crate::activation::{
 };
 use burn::config::Config;
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// [`Activation`] Configuration.
 #[derive(Config, Debug)]
@@ -141,7 +141,7 @@ impl From<ShrinkConfig> for ActivationConfig {
 
 impl ActivationConfig {
     /// Initialize a wrapped activation layer.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Activation<B> {
+    pub fn init(&self, device: &Device) -> Activation {
         match self {
             ActivationConfig::Relu => Relu.into(),
             ActivationConfig::LeakyRelu(conf) => conf.init().into(),
@@ -172,12 +172,12 @@ impl ActivationConfig {
 #[derive(Module, Debug)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
-pub enum Activation<B: Backend> {
+pub enum Activation {
     /// [`Gelu`] activation layer.
     Gelu(Gelu),
 
     /// [`PRelu`] activation layer.
-    PRelu(PRelu<B>),
+    PRelu(PRelu),
 
     /// [`Relu`] activation layer.
     Relu(Relu),
@@ -186,7 +186,7 @@ pub enum Activation<B: Backend> {
     LeakyRelu(LeakyRelu),
 
     /// [`SwiGlu`] activation layer.
-    SwiGlu(SwiGlu<B>),
+    SwiGlu(SwiGlu),
 
     /// [`Selu`] activation layer.
     Selu(Selu),
@@ -228,117 +228,117 @@ pub enum Activation<B: Backend> {
     Shrink(Shrink),
 }
 
-impl<B: Backend> From<Gelu> for Activation<B> {
+impl From<Gelu> for Activation {
     fn from(layer: Gelu) -> Self {
         Self::Gelu(layer)
     }
 }
 
-impl<B: Backend> From<PRelu<B>> for Activation<B> {
-    fn from(layer: PRelu<B>) -> Self {
+impl From<PRelu> for Activation {
+    fn from(layer: PRelu) -> Self {
         Self::PRelu(layer)
     }
 }
 
-impl<B: Backend> From<Relu> for Activation<B> {
+impl From<Relu> for Activation {
     fn from(layer: Relu) -> Self {
         Self::Relu(layer)
     }
 }
 
-impl<B: Backend> From<LeakyRelu> for Activation<B> {
+impl From<LeakyRelu> for Activation {
     fn from(layer: LeakyRelu) -> Self {
         Self::LeakyRelu(layer)
     }
 }
 
-impl<B: Backend> From<SwiGlu<B>> for Activation<B> {
-    fn from(layer: SwiGlu<B>) -> Self {
+impl From<SwiGlu> for Activation {
+    fn from(layer: SwiGlu) -> Self {
         Self::SwiGlu(layer)
     }
 }
 
-impl<B: Backend> From<Selu> for Activation<B> {
+impl From<Selu> for Activation {
     fn from(layer: Selu) -> Self {
         Self::Selu(layer)
     }
 }
 
-impl<B: Backend> From<Sigmoid> for Activation<B> {
+impl From<Sigmoid> for Activation {
     fn from(layer: Sigmoid) -> Self {
         Self::Sigmoid(layer)
     }
 }
 
-impl<B: Backend> From<Tanh> for Activation<B> {
+impl From<Tanh> for Activation {
     fn from(layer: Tanh) -> Self {
         Self::Tanh(layer)
     }
 }
 
-impl<B: Backend> From<HardSigmoid> for Activation<B> {
+impl From<HardSigmoid> for Activation {
     fn from(layer: HardSigmoid) -> Self {
         Self::HardSigmoid(layer)
     }
 }
 
-impl<B: Backend> From<HardSwish> for Activation<B> {
+impl From<HardSwish> for Activation {
     fn from(layer: HardSwish) -> Self {
         Self::HardSwish(layer)
     }
 }
 
-impl<B: Backend> From<Softplus> for Activation<B> {
+impl From<Softplus> for Activation {
     fn from(layer: Softplus) -> Self {
         Self::Softplus(layer)
     }
 }
 
-impl<B: Backend> From<Softsign> for Activation<B> {
+impl From<Softsign> for Activation {
     fn from(layer: Softsign) -> Self {
         Self::Softsign(layer)
     }
 }
 
-impl<B: Backend> From<Elu> for Activation<B> {
+impl From<Elu> for Activation {
     fn from(layer: Elu) -> Self {
         Self::Elu(layer)
     }
 }
 
-impl<B: Backend> From<Celu> for Activation<B> {
+impl From<Celu> for Activation {
     fn from(layer: Celu) -> Self {
         Self::Celu(layer)
     }
 }
 
-impl<B: Backend> From<ThresholdedRelu> for Activation<B> {
+impl From<ThresholdedRelu> for Activation {
     fn from(layer: ThresholdedRelu) -> Self {
         Self::ThresholdedRelu(layer)
     }
 }
 
-impl<B: Backend> From<HardShrink> for Activation<B> {
+impl From<HardShrink> for Activation {
     fn from(layer: HardShrink) -> Self {
         Self::HardShrink(layer)
     }
 }
 
-impl<B: Backend> From<SoftShrink> for Activation<B> {
+impl From<SoftShrink> for Activation {
     fn from(layer: SoftShrink) -> Self {
         Self::SoftShrink(layer)
     }
 }
 
-impl<B: Backend> From<Shrink> for Activation<B> {
+impl From<Shrink> for Activation {
     fn from(layer: Shrink) -> Self {
         Self::Shrink(layer)
     }
 }
 
-impl<B: Backend> Activation<B> {
+impl Activation {
     /// Forward pass.
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         match self {
             Activation::Relu(layer) => layer.forward(input),
             Activation::LeakyRelu(layer) => layer.forward(input),
@@ -365,22 +365,21 @@ impl<B: Backend> Activation<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::module::Module;
 
-    fn make_input<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
+    fn make_input(device: &Device) -> Tensor<2> {
         Tensor::from_data([[-1.0, -0.5, 0.0], [1.0, 0.5, 0.0]], device)
     }
 
-    fn expect_tensor<B: Backend, const D: usize>(actual: Tensor<B, D>, expected: Tensor<B, D>) {
+    fn expect_tensor<const D: usize>(actual: Tensor<D>, expected: Tensor<D>) {
         actual.to_data().assert_eq(&expected.to_data(), true);
     }
 
-    fn check_stateless_config_output<B: Backend, const D: usize>(
+    fn check_stateless_config_output<const D: usize>(
         config: ActivationConfig,
-        input: Tensor<B, D>,
-        expected: Tensor<B, D>,
-        device: &B::Device,
+        input: Tensor<D>,
+        expected: Tensor<D>,
+        device: &Device,
     ) {
         let act = config.init(device);
         let output = act.forward(input);
@@ -390,7 +389,7 @@ mod tests {
     #[test]
     fn test_gelu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let expected = Gelu::new().forward(input.clone());
 
@@ -400,7 +399,7 @@ mod tests {
     #[test]
     fn test_gelu_approximate() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let expected = Gelu::new_approximate().forward(input.clone());
 
@@ -410,7 +409,7 @@ mod tests {
     #[test]
     fn test_prelu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = PReluConfig::new();
         let expected = inner_config.init(&device).forward(input.clone());
@@ -421,7 +420,7 @@ mod tests {
     #[test]
     fn test_relu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let expected = Relu.forward(input.clone());
 
@@ -431,7 +430,7 @@ mod tests {
     #[test]
     fn test_leaky_relu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = LeakyReluConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -442,13 +441,13 @@ mod tests {
     #[test]
     fn test_swi_glu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let d_input = input.shape()[1];
         let d_output = 2 * d_input;
 
         let inner_config = SwiGluConfig::new(d_input, d_output);
-        let mut reference: SwiGlu<TestBackend> = inner_config.init(&device);
+        let mut reference = inner_config.init(&device);
 
         let config: ActivationConfig = inner_config.into();
         let layer = config.init(&device);
@@ -470,7 +469,7 @@ mod tests {
     #[test]
     fn test_selu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let expected = Selu.forward(input.clone());
 
@@ -480,7 +479,7 @@ mod tests {
     #[test]
     fn test_sigmoid() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let expected = Sigmoid.forward(input.clone());
 
@@ -490,7 +489,7 @@ mod tests {
     #[test]
     fn test_tanh() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let expected = Tanh.forward(input.clone());
 
@@ -500,7 +499,7 @@ mod tests {
     #[test]
     fn test_hard_sigmoid() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = HardSigmoidConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -511,7 +510,7 @@ mod tests {
     #[test]
     fn test_softsign() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let expected = Softsign.forward(input.clone());
 
@@ -521,7 +520,7 @@ mod tests {
     #[test]
     fn test_elu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = EluConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -532,7 +531,7 @@ mod tests {
     #[test]
     fn test_softplus() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = SoftplusConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -543,7 +542,7 @@ mod tests {
     #[test]
     fn test_celu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = CeluConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -554,7 +553,7 @@ mod tests {
     #[test]
     fn test_thresholded_relu() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = ThresholdedReluConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -565,7 +564,7 @@ mod tests {
     #[test]
     fn test_hard_shrink() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = HardShrinkConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -576,7 +575,7 @@ mod tests {
     #[test]
     fn test_soft_shrink() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = SoftShrinkConfig::new();
         let expected = inner_config.init().forward(input.clone());
@@ -587,7 +586,7 @@ mod tests {
     #[test]
     fn test_shrink() {
         let device = Default::default();
-        let input = make_input::<TestBackend>(&device);
+        let input = make_input(&device);
 
         let inner_config = ShrinkConfig::new();
         let expected = inner_config.init().forward(input.clone());

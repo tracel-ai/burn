@@ -1,7 +1,7 @@
 use super::{Param, ParamId};
 use crate::module::{Module, ModuleVisitor};
 use alloc::vec::Vec;
-use burn_tensor::{Bool, Int, Tensor, backend::Backend};
+use burn_tensor::{Bool, Int, Tensor};
 use core::marker::PhantomData;
 
 struct ParamIdCollector<'a, M> {
@@ -9,24 +9,23 @@ struct ParamIdCollector<'a, M> {
     phantom: PhantomData<M>,
 }
 
-impl<B, M> ModuleVisitor<B> for ParamIdCollector<'_, M>
+impl<M> ModuleVisitor for ParamIdCollector<'_, M>
 where
-    B: Backend,
-    M: Module<B>,
+    M: Module,
 {
-    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
         self.param_ids.push(param.id);
     }
-    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<B, D, Int>>) {
+    fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
         self.param_ids.push(param.id);
     }
-    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<B, D, Bool>>) {
+    fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
         self.param_ids.push(param.id);
     }
 }
 
 /// List all the parameter ids in a module.
-pub fn list_param_ids<M: Module<B>, B: Backend>(module: &M) -> Vec<ParamId> {
+pub fn list_param_ids<M: Module>(module: &M) -> Vec<ParamId> {
     let mut params_ids = Vec::new();
     let mut visitor = ParamIdCollector {
         param_ids: &mut params_ids,

@@ -1,47 +1,47 @@
 use super::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule};
 use burn_core::{
-    prelude::{Backend, Bool, Int, Tensor},
+    prelude::{Bool, Int, Tensor},
     tensor::IndexingUpdateOp,
 };
 use std::fmt::{self, Debug};
 
 /// Input for confusion statistics error types.
 #[derive(new, Debug, Clone)]
-pub struct ConfusionStatsInput<B: Backend> {
+pub struct ConfusionStatsInput {
     /// Sample x Class Non thresholded normalized predictions.
-    pub predictions: Tensor<B, 2>,
+    pub predictions: Tensor<2>,
     /// Sample x Class one-hot encoded target.
-    pub targets: Tensor<B, 2, Bool>,
+    pub targets: Tensor<2, Bool>,
 }
 
-impl<B: Backend> From<ConfusionStatsInput<B>> for (Tensor<B, 2>, Tensor<B, 2, Bool>) {
-    fn from(input: ConfusionStatsInput<B>) -> Self {
+impl From<ConfusionStatsInput> for (Tensor<2>, Tensor<2, Bool>) {
+    fn from(input: ConfusionStatsInput) -> Self {
         (input.predictions, input.targets)
     }
 }
 
-impl<B: Backend> From<(Tensor<B, 2>, Tensor<B, 2, Bool>)> for ConfusionStatsInput<B> {
-    fn from(value: (Tensor<B, 2>, Tensor<B, 2, Bool>)) -> Self {
+impl From<(Tensor<2>, Tensor<2, Bool>)> for ConfusionStatsInput {
+    fn from(value: (Tensor<2>, Tensor<2, Bool>)) -> Self {
         Self::new(value.0, value.1)
     }
 }
 
 #[derive(Clone)]
-pub struct ConfusionStats<B: Backend> {
-    confusion_classes: Tensor<B, 2, Int>,
+pub struct ConfusionStats {
+    confusion_classes: Tensor<2, Int>,
     class_reduction: ClassReduction,
 }
 
-impl<B: Backend> Debug for ConfusionStats<B> {
+impl Debug for ConfusionStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let to_vec = |tensor_data: Tensor<B, 1>| {
+        let to_vec = |tensor_data: Tensor<1>| {
             tensor_data
                 .to_data()
                 .to_vec::<f32>()
                 .expect("A vector representation of the input Tensor is expected")
         };
         let ratio_of_support_vec =
-            |metric: Tensor<B, 1>| to_vec(self.clone().ratio_of_support(metric));
+            |metric: Tensor<1>| to_vec(self.clone().ratio_of_support(metric));
         f.debug_struct("ConfusionStats")
             .field("tp", &ratio_of_support_vec(self.clone().true_positive()))
             .field("fp", &ratio_of_support_vec(self.clone().false_positive()))
@@ -52,9 +52,9 @@ impl<B: Backend> Debug for ConfusionStats<B> {
     }
 }
 
-impl<B: Backend> ConfusionStats<B> {
+impl ConfusionStats {
     /// Expects `predictions` to be normalized.
-    pub fn new(input: &ConfusionStatsInput<B>, config: &ClassificationMetricConfig) -> Self {
+    pub fn new(input: &ConfusionStatsInput, config: &ClassificationMetricConfig) -> Self {
         let prediction_mask = match config.decision_rule {
             DecisionRule::Threshold(threshold) => input.predictions.clone().greater_elem(threshold),
             DecisionRule::TopK(top_k) => {
@@ -77,10 +77,7 @@ impl<B: Backend> ConfusionStats<B> {
     }
 
     /// sum over samples
-    fn aggregate(
-        sample_class_mask: Tensor<B, 2, Bool>,
-        class_reduction: ClassReduction,
-    ) -> Tensor<B, 1> {
+    fn aggregate(sample_class_mask: Tensor<2, Bool>, class_reduction: ClassReduction) -> Tensor<1> {
         use ClassReduction::{Macro, Micro};
         match class_reduction {
             Micro => sample_class_mask.float().sum(),
@@ -88,39 +85,39 @@ impl<B: Backend> ConfusionStats<B> {
         }
     }
 
-    pub fn true_positive(self) -> Tensor<B, 1> {
+    pub fn true_positive(self) -> Tensor<1> {
         Self::aggregate(self.confusion_classes.equal_elem(3), self.class_reduction)
     }
 
-    pub fn true_negative(self) -> Tensor<B, 1> {
+    pub fn true_negative(self) -> Tensor<1> {
         Self::aggregate(self.confusion_classes.equal_elem(0), self.class_reduction)
     }
 
-    pub fn false_positive(self) -> Tensor<B, 1> {
+    pub fn false_positive(self) -> Tensor<1> {
         Self::aggregate(self.confusion_classes.equal_elem(1), self.class_reduction)
     }
 
-    pub fn false_negative(self) -> Tensor<B, 1> {
+    pub fn false_negative(self) -> Tensor<1> {
         Self::aggregate(self.confusion_classes.equal_elem(2), self.class_reduction)
     }
 
-    pub fn positive(self) -> Tensor<B, 1> {
+    pub fn positive(self) -> Tensor<1> {
         self.clone().true_positive() + self.false_negative()
     }
 
-    pub fn negative(self) -> Tensor<B, 1> {
+    pub fn negative(self) -> Tensor<1> {
         self.clone().true_negative() + self.false_positive()
     }
 
-    pub fn predicted_positive(self) -> Tensor<B, 1> {
+    pub fn predicted_positive(self) -> Tensor<1> {
         self.clone().true_positive() + self.false_positive()
     }
 
-    pub fn support(self) -> Tensor<B, 1> {
+    pub fn support(self) -> Tensor<1> {
         self.clone().positive() + self.negative()
     }
 
-    pub fn ratio_of_support(self, metric: Tensor<B, 1>) -> Tensor<B, 1> {
+    pub fn ratio_of_support(self, metric: Tensor<1>) -> Tensor<1> {
         metric / self.clone().support()
     }
 }
@@ -129,7 +126,6 @@ impl<B: Backend> ConfusionStats<B> {
 mod tests {
     use super::{ConfusionStats, ConfusionStatsInput};
     use crate::{
-        TestBackend,
         metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
         tests::{ClassificationType, THRESHOLD, dummy_classification_input},
     };
@@ -202,13 +198,12 @@ mod tests {
         #[case] config: ClassificationMetricConfig,
         #[case] expected: Vec<i32>,
     ) {
-        let input: ConfusionStatsInput<TestBackend> =
-            dummy_classification_input(&classification_type).into();
+        let input: ConfusionStatsInput = dummy_classification_input(&classification_type).into();
         ConfusionStats::new(&input, &config)
             .true_positive()
             .int()
             .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+            .assert_eq(&TensorData::from(expected.as_slice()), false);
     }
 
     #[rstest]
@@ -225,13 +220,12 @@ mod tests {
         #[case] config: ClassificationMetricConfig,
         #[case] expected: Vec<i32>,
     ) {
-        let input: ConfusionStatsInput<TestBackend> =
-            dummy_classification_input(&classification_type).into();
+        let input: ConfusionStatsInput = dummy_classification_input(&classification_type).into();
         ConfusionStats::new(&input, &config)
             .true_negative()
             .int()
             .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+            .assert_eq(&TensorData::from(expected.as_slice()), false);
     }
 
     #[rstest]
@@ -248,13 +242,12 @@ mod tests {
         #[case] config: ClassificationMetricConfig,
         #[case] expected: Vec<i32>,
     ) {
-        let input: ConfusionStatsInput<TestBackend> =
-            dummy_classification_input(&classification_type).into();
+        let input: ConfusionStatsInput = dummy_classification_input(&classification_type).into();
         ConfusionStats::new(&input, &config)
             .false_positive()
             .int()
             .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+            .assert_eq(&TensorData::from(expected.as_slice()), false);
     }
 
     #[rstest]
@@ -271,13 +264,12 @@ mod tests {
         #[case] config: ClassificationMetricConfig,
         #[case] expected: Vec<i32>,
     ) {
-        let input: ConfusionStatsInput<TestBackend> =
-            dummy_classification_input(&classification_type).into();
+        let input: ConfusionStatsInput = dummy_classification_input(&classification_type).into();
         ConfusionStats::new(&input, &config)
             .false_negative()
             .int()
             .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+            .assert_eq(&TensorData::from(expected.as_slice()), false);
     }
 
     #[rstest]
@@ -294,13 +286,12 @@ mod tests {
         #[case] config: ClassificationMetricConfig,
         #[case] expected: Vec<i32>,
     ) {
-        let input: ConfusionStatsInput<TestBackend> =
-            dummy_classification_input(&classification_type).into();
+        let input: ConfusionStatsInput = dummy_classification_input(&classification_type).into();
         ConfusionStats::new(&input, &config)
             .positive()
             .int()
             .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+            .assert_eq(&TensorData::from(expected.as_slice()), false);
     }
 
     #[rstest]
@@ -317,13 +308,12 @@ mod tests {
         #[case] config: ClassificationMetricConfig,
         #[case] expected: Vec<i32>,
     ) {
-        let input: ConfusionStatsInput<TestBackend> =
-            dummy_classification_input(&classification_type).into();
+        let input: ConfusionStatsInput = dummy_classification_input(&classification_type).into();
         ConfusionStats::new(&input, &config)
             .negative()
             .int()
             .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+            .assert_eq(&TensorData::from(expected.as_slice()), false);
     }
 
     #[rstest]
@@ -340,12 +330,11 @@ mod tests {
         #[case] config: ClassificationMetricConfig,
         #[case] expected: Vec<i32>,
     ) {
-        let input: ConfusionStatsInput<TestBackend> =
-            dummy_classification_input(&classification_type).into();
+        let input: ConfusionStatsInput = dummy_classification_input(&classification_type).into();
         ConfusionStats::new(&input, &config)
             .predicted_positive()
             .int()
             .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+            .assert_eq(&TensorData::from(expected.as_slice()), false);
     }
 }

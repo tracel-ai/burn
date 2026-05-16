@@ -5,7 +5,7 @@ use crate::burnpack::{
     writer::BurnpackWriter,
 };
 use burn_core::module::ParamId;
-use burn_tensor::{BoolStore, DType, TensorData, shape};
+use burn_core::tensor::{BoolStore, DType, TensorData, shape};
 
 #[test]
 fn test_maximum_metadata_size() {

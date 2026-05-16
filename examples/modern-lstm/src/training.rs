@@ -1,7 +1,7 @@
 use crate::dataset::{
     NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
 };
-use crate::model::{LstmNetwork, LstmNetworkConfig};
+use crate::model::LstmNetworkConfig;
 use burn::{
     data::dataloader::DataLoaderBuilder,
     module::AutodiffModule,
@@ -9,7 +9,6 @@ use burn::{
     optim::{AdamConfig, GradientsParams, Optimizer},
     prelude::*,
     record::CompactRecorder,
-    tensor::backend::AutodiffBackend,
 };
 
 #[derive(Config, Debug)]
@@ -34,18 +33,21 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Device>) {
     create_artifact_dir(artifact_dir);
 
     // Save training config
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
-    B::seed(&device, RANDOM_SEED);
+
+    let device = device.into();
+    device.seed(RANDOM_SEED);
+    let autodiff_device = device.clone().autodiff();
 
     // Create the model and optimizer
-    let mut model = config.model.init::<B>(&device);
-    let mut optim = config.optimizer.init::<B, LstmNetwork<B>>();
+    let mut model = config.model.init(&autodiff_device);
+    let mut optim = config.optimizer.init();
 
     // Create the batcher
     let batcher = SequenceBatcher::default();
@@ -55,6 +57,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .batch_size(config.batch_size)
         .shuffle(RANDOM_SEED)
         .num_workers(config.num_workers)
+        .set_device(autodiff_device)
         .build(SequenceDataset::new(NUM_SEQUENCES, SEQ_LENGTH, NOISE_LEVEL));
 
     let dataloader_valid = DataLoaderBuilder::new(batcher)

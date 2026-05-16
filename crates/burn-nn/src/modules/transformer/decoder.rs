@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
-use burn::tensor::{Bool, Tensor, backend::Backend};
+use burn::tensor::{Bool, Device, Tensor};
 
 use crate::activation::ActivationConfig;
 use crate::cache::TensorCache;
@@ -62,9 +62,9 @@ pub struct TransformerDecoderConfig {
 /// Should be created using [TransformerDecoderConfig]
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct TransformerDecoder<B: Backend> {
+pub struct TransformerDecoder {
     /// Transformer decoder layers.
-    pub layers: Vec<TransformerDecoderLayer<B>>,
+    pub layers: Vec<TransformerDecoderLayer>,
 
     /// The size of the model.
     pub d_model: usize,
@@ -88,7 +88,7 @@ pub struct TransformerDecoder<B: Backend> {
     pub quiet_softmax: bool,
 }
 
-impl<B: Backend> ModuleDisplay for TransformerDecoder<B> {
+impl ModuleDisplay for TransformerDecoder {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -110,7 +110,7 @@ impl<B: Backend> ModuleDisplay for TransformerDecoder<B> {
 
 impl TransformerDecoderConfig {
     /// Initialize a new [Transformer Decoder](TransformerDecoder) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> TransformerDecoder<B> {
+    pub fn init(&self, device: &Device) -> TransformerDecoder {
         let layers = (0..self.n_layers)
             .map(|_| TransformerDecoderLayer::new(self, device))
             .collect::<Vec<_>>();
@@ -130,18 +130,18 @@ impl TransformerDecoderConfig {
 
 /// [Transformer Decoder](TransformerDecoder) forward pass input argument.
 #[derive(Debug)]
-pub struct TransformerDecoderInput<B: Backend> {
-    target: Tensor<B, 3>,
-    target_mask_pad: Option<Tensor<B, 2, Bool>>,
-    target_mask_attn: Option<Tensor<B, 3, Bool>>,
-    memory: Tensor<B, 3>,
-    memory_mask_pad: Option<Tensor<B, 2, Bool>>,
-    memory_mask_attn: Option<Tensor<B, 3, Bool>>,
+pub struct TransformerDecoderInput {
+    target: Tensor<3>,
+    target_mask_pad: Option<Tensor<2, Bool>>,
+    target_mask_attn: Option<Tensor<3, Bool>>,
+    memory: Tensor<3>,
+    memory_mask_pad: Option<Tensor<2, Bool>>,
+    memory_mask_attn: Option<Tensor<3, Bool>>,
 }
 
-impl<B: Backend> TransformerDecoderInput<B> {
+impl TransformerDecoderInput {
     /// Create a [transformer decoder](TransformerDecoder) input argument.
-    pub fn new(target: Tensor<B, 3>, memory: Tensor<B, 3>) -> Self {
+    pub fn new(target: Tensor<3>, memory: Tensor<3>) -> Self {
         Self {
             target,
             target_mask_pad: None,
@@ -153,25 +153,25 @@ impl<B: Backend> TransformerDecoderInput<B> {
     }
 
     /// Register the memory padding mask.
-    pub fn memory_mask_pad(mut self, mask_pad: Tensor<B, 2, Bool>) -> Self {
+    pub fn memory_mask_pad(mut self, mask_pad: Tensor<2, Bool>) -> Self {
         self.memory_mask_pad = Some(mask_pad);
         self
     }
 
     /// Register the memory attention mask.
-    pub fn memory_mask_attn(mut self, mask_attn: Tensor<B, 3, Bool>) -> Self {
+    pub fn memory_mask_attn(mut self, mask_attn: Tensor<3, Bool>) -> Self {
         self.memory_mask_attn = Some(mask_attn);
         self
     }
 
     /// Register the target padding mask.
-    pub fn target_mask_pad(mut self, mask_pad: Tensor<B, 2, Bool>) -> Self {
+    pub fn target_mask_pad(mut self, mask_pad: Tensor<2, Bool>) -> Self {
         self.target_mask_pad = Some(mask_pad);
         self
     }
 
     /// Register the target attention mask.
-    pub fn target_mask_attn(mut self, mask_attn: Tensor<B, 3, Bool>) -> Self {
+    pub fn target_mask_attn(mut self, mask_attn: Tensor<3, Bool>) -> Self {
         self.target_mask_attn = Some(mask_attn);
         self
     }
@@ -179,19 +179,19 @@ impl<B: Backend> TransformerDecoderInput<B> {
 
 /// [Transformer Decoder](TransformerDecoder) layer module.
 #[derive(Module, Debug)]
-pub struct TransformerDecoderLayer<B: Backend> {
+pub struct TransformerDecoderLayer {
     /// Cross-attention module.
-    pub cross_attn: MultiHeadAttention<B>,
+    pub cross_attn: MultiHeadAttention,
     /// Self-attention module.
-    pub self_attn: MultiHeadAttention<B>,
+    pub self_attn: MultiHeadAttention,
     /// Position-wise feed-forward module.
-    pub pwff: PositionWiseFeedForward<B>,
+    pub pwff: PositionWiseFeedForward,
     /// First layer norm.
-    pub norm_1: LayerNorm<B>,
+    pub norm_1: LayerNorm,
     /// Second layer norm.
-    pub norm_2: LayerNorm<B>,
+    pub norm_2: LayerNorm,
     /// Third layer norm.
-    pub norm_3: LayerNorm<B>,
+    pub norm_3: LayerNorm,
     /// Dropout.
     pub dropout: Dropout,
     /// Whether to apply norm first.
@@ -199,22 +199,22 @@ pub struct TransformerDecoderLayer<B: Backend> {
 }
 
 /// Autoregressive cache for a single [Transformer Decoder Layer](TransformerDecoderLayer).
-pub struct TransformerDecoderLayerAutoregressiveCache<B: Backend> {
+pub struct TransformerDecoderLayerAutoregressiveCache {
     /// Cross-attention cache.
-    pub cross_attn: MhaCache<B>,
+    pub cross_attn: MhaCache,
     /// Self-attention cache.
-    pub self_attn: MhaCache<B>,
+    pub self_attn: MhaCache,
     /// Position-wise feed-forward cache.
-    pub pwff: TensorCache<B, 3>,
+    pub pwff: TensorCache<3>,
     /// First layer norm cache.
-    pub norm_1: TensorCache<B, 3>,
+    pub norm_1: TensorCache<3>,
     /// Second layer norm cache.
-    pub norm_2: TensorCache<B, 3>,
+    pub norm_2: TensorCache<3>,
     /// Third layer norm cache.
-    pub norm_3: TensorCache<B, 3>,
+    pub norm_3: TensorCache<3>,
 }
 
-impl<B: Backend> TransformerDecoderLayerAutoregressiveCache<B> {
+impl TransformerDecoderLayerAutoregressiveCache {
     /// Create an empty cache.
     pub fn empty() -> Self {
         Self {
@@ -231,11 +231,11 @@ impl<B: Backend> TransformerDecoderLayerAutoregressiveCache<B> {
 /// Autoregressive cache for the [Transformer Decoder](TransformerDecoder) layer.
 ///
 /// To be used during inference when decoding tokens.
-pub struct TransformerDecoderAutoregressiveCache<B: Backend> {
-    layers: Vec<TransformerDecoderLayerAutoregressiveCache<B>>,
+pub struct TransformerDecoderAutoregressiveCache {
+    layers: Vec<TransformerDecoderLayerAutoregressiveCache>,
 }
 
-impl<B: Backend> TransformerDecoderAutoregressiveCache<B> {
+impl TransformerDecoderAutoregressiveCache {
     fn empty(num_layers: usize) -> Self {
         Self {
             layers: (0..num_layers)
@@ -245,9 +245,9 @@ impl<B: Backend> TransformerDecoderAutoregressiveCache<B> {
     }
 }
 
-impl<B: Backend> TransformerDecoderLayer<B> {
+impl TransformerDecoderLayer {
     /// Create a new [TransformerDecoderLayer](TransformerDecoderLayer).
-    pub fn new(config: &TransformerDecoderConfig, device: &B::Device) -> Self {
+    pub fn new(config: &TransformerDecoderConfig, device: &Device) -> Self {
         let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
@@ -288,7 +288,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
     }
 
     /// Applies the TransformerDecoder forward pass to the input tensor.
-    pub fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
+    pub fn forward(&self, mut input: TransformerDecoderInput) -> TransformerDecoderInput {
         // Self attention residual path.
         let x = input.target;
         let mut residual_path = x.clone();
@@ -360,9 +360,9 @@ impl<B: Backend> TransformerDecoderLayer<B> {
     /// Applies the forward pass using an autoregressive cache.
     pub fn forward_autoregressive_inference(
         &self,
-        mut input: TransformerDecoderInput<B>,
-        cache: &mut TransformerDecoderLayerAutoregressiveCache<B>,
-    ) -> TransformerDecoderInput<B> {
+        mut input: TransformerDecoderInput,
+        cache: &mut TransformerDecoderLayerAutoregressiveCache,
+    ) -> TransformerDecoderInput {
         // Self attention residual path.
         let x = input.target;
         let mut residual_path = x.clone();
@@ -452,9 +452,9 @@ impl<B: Backend> TransformerDecoderLayer<B> {
     }
 }
 
-impl<B: Backend> TransformerDecoder<B> {
+impl TransformerDecoder {
     /// Applies the forward pass.
-    pub fn forward(&self, mut input: TransformerDecoderInput<B>) -> Tensor<B, 3> {
+    pub fn forward(&self, mut input: TransformerDecoderInput) -> Tensor<3> {
         for layer in self.layers.iter() {
             input = layer.forward(input);
         }
@@ -465,9 +465,9 @@ impl<B: Backend> TransformerDecoder<B> {
     /// Applies the forward pass on the input using autoregressive cache.
     pub fn forward_autoregressive_inference(
         &self,
-        mut input: TransformerDecoderInput<B>,
-        cache: &mut TransformerDecoderAutoregressiveCache<B>,
-    ) -> Tensor<B, 3> {
+        mut input: TransformerDecoderInput,
+        cache: &mut TransformerDecoderAutoregressiveCache,
+    ) -> Tensor<3> {
         for i in 0..self.layers.len() {
             let layer = self.layers.get(i).unwrap();
             let cache = cache.layers.get_mut(i).unwrap();
@@ -478,26 +478,24 @@ impl<B: Backend> TransformerDecoder<B> {
         input.target
     }
     /// Create an empty autoregressive cache.
-    pub fn new_autoregressive_cache(&self) -> TransformerDecoderAutoregressiveCache<B> {
+    pub fn new_autoregressive_cache(&self) -> TransformerDecoderAutoregressiveCache {
         TransformerDecoderAutoregressiveCache::empty(self.layers.len())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Device;
-
     use super::*;
-    use crate::{TestBackend, attention::generate_autoregressive_mask};
+    use crate::attention::generate_autoregressive_mask;
 
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_autoregressive_norm_last() {
         let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         test_autoregressive(
             TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers)
@@ -508,8 +506,8 @@ mod tests {
     #[test]
     fn test_autoregressive_norm_first() {
         let [d_model, d_ff, n_heads, num_layers] = [12, 24, 2, 3];
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         test_autoregressive(
             TransformerDecoderConfig::new(d_model, d_ff, n_heads, num_layers).with_norm_first(true),
@@ -517,9 +515,9 @@ mod tests {
     }
 
     fn test_autoregressive(config: TransformerDecoderConfig) {
-        let device: Device<TestBackend> = Default::default();
+        let device = Default::default();
         let [batch_size, seq_length, d_model] = [3, 4, config.d_model];
-        let transformer = config.init::<TestBackend>(&device);
+        let transformer = config.init(&device);
 
         let memory = Tensor::arange(0..(batch_size * seq_length * d_model) as i64, &device)
             .float()
@@ -562,7 +560,7 @@ mod tests {
     #[test]
     fn display() {
         let config = TransformerDecoderConfig::new(2, 4, 2, 3);
-        let transformer = config.init::<TestBackend>(&Default::default());
+        let transformer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{transformer}"),

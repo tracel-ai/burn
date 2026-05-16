@@ -5,7 +5,6 @@ use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::activation::celu;
-use burn::tensor::backend::Backend;
 
 /// CELU (Continuously Differentiable Exponential Linear Unit) layer.
 ///
@@ -13,7 +12,7 @@ use burn::tensor::backend::Backend;
 /// `celu(x) = max(0, x) + min(0, alpha * (exp(x / alpha) - 1))`
 ///
 /// Should be created with [CeluConfig](CeluConfig).
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Celu {
     /// The alpha value for the CELU formulation.
@@ -55,7 +54,7 @@ impl Celu {
     /// # Shapes
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         celu(input, self.alpha)
     }
 }
@@ -63,17 +62,15 @@ impl Celu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_celu_forward() {
         let device = Default::default();
-        let model: Celu = CeluConfig::new().init();
-        let input =
-            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.5, -0.5, -1.0]]), &device);
+        let model = CeluConfig::new().init();
+        let input = Tensor::<2>::from_data(TensorData::from([[0.5, -0.5, -1.0]]), &device);
         let out = model.forward(input);
         // celu(0.5, 1) = 0.5
         // celu(-0.5, 1) = 1 * (exp(-0.5) - 1) = -0.393469
@@ -86,8 +83,8 @@ mod tests {
     #[test]
     fn test_celu_with_alpha() {
         let device = Default::default();
-        let model: Celu = CeluConfig::new().with_alpha(2.0).init();
-        let input = Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0, -2.0]]), &device);
+        let model = CeluConfig::new().with_alpha(2.0).init();
+        let input = Tensor::<2>::from_data(TensorData::from([[0.0, -2.0]]), &device);
         let out = model.forward(input);
         // celu(0, 2) = 0
         // celu(-2, 2) = 2 * (exp(-1) - 1) = -1.264241

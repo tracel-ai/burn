@@ -5,10 +5,9 @@ use super::de::Deserializer;
 use super::error::Error;
 use super::ser::Serializer;
 use crate::record::{PrecisionSettings, Record};
-use crate::tensor::backend::Backend;
 
 use alloc::fmt;
-use burn_tensor::Bytes;
+use burn_tensor::{Bytes, Device};
 use num_traits::cast::ToPrimitive;
 use regex::Regex;
 use serde::Deserialize;
@@ -198,10 +197,9 @@ impl NestedValue {
     }
 
     /// Deserialize a nested value into a record type.
-    pub fn try_into_record<T, PS, A, B>(self, device: &B::Device) -> Result<T, Error>
+    pub fn try_into_record<T, PS, A>(self, device: &Device) -> Result<T, Error>
     where
-        B: Backend,
-        T: Record<B>,
+        T: Record,
         PS: PrecisionSettings,
         A: BurnModuleAdapter,
     {

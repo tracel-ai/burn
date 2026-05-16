@@ -20,12 +20,6 @@ default = []
 # atomic CAS (e.g. thumbv6m-none-eabi). See burn-flex Cargo.toml for details.
 critical-section = ["burn-flex/critical-section"]
 
-tracing = [
-    "burn/tracing",
-    "burn-flex/tracing",
-    "burn-store/tracing",
-]
-
 [dependencies]
 
 # ** Please make sure all dependencies support no_std **

@@ -1,11 +1,15 @@
 use crate::base::{CBT, ComplexTensor, ComplexTensorBackend};
 use alloc::vec::Vec;
-use burn_std::{DType, FloatDType, Shape, Slice};
+use burn_backend::{
+    Backend, BackendTypes, ExecutionError, get_device_settings,
+    tensor::{Device, IntTensor},
+};
+use burn_std::{
+    DType, Distribution, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice, TensorData,
+};
 use burn_tensor::{
-    BasicOps, Device, Distribution, FloatMathOps, IndexingUpdateOp, Int, Numeric, Scalar, Tensor,
-    TensorData, TensorKind, TensorMetadata,
-    backend::{Backend, BackendTypes, ExecutionError},
-    get_device_settings,
+    Int, Tensor, TensorKind,
+    backend::{BasicOps, FloatMathOps, Numeric},
 };
 
 /// A type-level representation of the kind of a complex tensor.
@@ -162,7 +166,7 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
     fn mask_fill(
         tensor: Self::Primitive,
         mask: C::BoolTensorPrimitive,
-        value: burn_tensor::Scalar,
+        value: burn_std::Scalar,
     ) -> Self::Primitive {
         C::complex_mask_fill(tensor, mask, value.elem())
     }
@@ -180,7 +184,7 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
         tensor: Self::Primitive,
         indices: C::IntTensorPrimitive,
         values: Self::Primitive,
-        update: burn_tensor::IndexingUpdateOp,
+        update: burn_std::IndexingUpdateOp,
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => C::complex_scatter_add(dim, tensor, indices, values),
@@ -190,7 +194,7 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
 
     fn equal_elem(
         lhs: Self::Primitive,
-        rhs: burn_tensor::Scalar,
+        rhs: burn_std::Scalar,
     ) -> <C as BackendTypes>::BoolTensorPrimitive {
         let out_dtype = get_device_settings::<C>(&C::complex_device(&lhs)).bool_dtype;
         C::complex_equal_elem(lhs, rhs.elem(), out_dtype)
@@ -198,7 +202,7 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
 
     fn not_equal_elem(
         lhs: Self::Primitive,
-        rhs: burn_tensor::Scalar,
+        rhs: burn_std::Scalar,
     ) -> <C as BackendTypes>::BoolTensorPrimitive {
         let out_dtype = get_device_settings::<C>(&C::complex_device(&lhs)).bool_dtype;
         C::complex_not_equal_elem(lhs, rhs.elem(), out_dtype)
@@ -206,7 +210,7 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
 
     fn full(
         shape: Shape,
-        fill_value: burn_tensor::Scalar,
+        fill_value: burn_std::Scalar,
         device: &<C as BackendTypes>::Device,
         dtype: DType,
     ) -> Self::Primitive {
@@ -220,17 +224,14 @@ impl<C: ComplexTensorBackend> BasicOps<C> for ComplexKind {
 
     fn scatter_nd(
         data: Self::Primitive,
-        indices: burn_tensor::ops::IntTensor<C>,
+        indices: IntTensor<C>,
         values: Self::Primitive,
         reduction: IndexingUpdateOp,
     ) -> Self::Primitive {
         C::complex_scatter_nd(data, indices, values, reduction)
     }
 
-    fn gather_nd(
-        data: Self::Primitive,
-        indices: burn_tensor::ops::IntTensor<C>,
-    ) -> Self::Primitive {
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<C>) -> Self::Primitive {
         C::complex_gather_nd(data, indices)
     }
 }
@@ -333,7 +334,7 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
 }
 
 impl<C: ComplexTensorBackend + Backend, const D: usize> ComplexOnlyOps<C>
-    for Tensor<C, D, ComplexKind>
+    for Tensor<D, ComplexKind>
 {
     fn conj(self) -> C::ComplexTensorPrimitive {
         C::conj(self.into_primitive())
@@ -342,10 +343,7 @@ impl<C: ComplexTensorBackend + Backend, const D: usize> ComplexOnlyOps<C>
         C::phase(self.into_primitive())
     }
 
-    fn from_interleaved_data(
-        data: TensorData,
-        device: &C::Device,
-    ) -> burn_tensor::Tensor<C, D, ComplexKind> {
+    fn from_interleaved_data(data: TensorData, device: &C::Device) -> Tensor<D, ComplexKind> {
         Tensor::from_primitive(C::complex_from_interleaved_data(data, device))
     }
 
@@ -493,7 +491,7 @@ where
         C::complex_sign(tensor)
     }
 
-    fn add_scalar(lhs: Self::Primitive, rhs: burn_tensor::Scalar) -> Self::Primitive {
+    fn add_scalar(lhs: Self::Primitive, rhs: burn_std::Scalar) -> Self::Primitive {
         let device = C::complex_device(&lhs);
         let shape = C::complex_shape(&lhs);
         let scalar_complex: C::ComplexScalar = rhs.elem();
@@ -502,7 +500,7 @@ where
     }
 }
 
-impl<C: ComplexTensorBackend> FloatMathOps<C> for ComplexKind
+impl<C: ComplexTensorBackend + Backend> FloatMathOps<C> for ComplexKind
 where
     C: CBT + core::fmt::Debug + Clone,
     ComplexTensor<C>: Clone,

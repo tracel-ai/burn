@@ -1,6 +1,6 @@
 use text_classification::DbPediaDataset;
 
-use burn::tensor::backend::Backend;
+use burn::tensor::{DType, Device, Element};
 
 #[cfg(not(feature = "f16"))]
 #[allow(dead_code)]
@@ -8,8 +8,13 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
-pub fn launch<B: Backend>(device: B::Device) {
-    text_classification::inference::infer::<B, DbPediaDataset>(
+pub fn launch(device: impl Into<Device>) {
+    let mut device = device.into();
+    device
+        .set_default_dtypes(ElemType::dtype(), DType::I32)
+        .unwrap();
+
+    text_classification::inference::infer::<DbPediaDataset>(
         device,
         "/tmp/text-classification-db-pedia",
         // Samples from the test dataset, but you are free to test with your own text.
@@ -29,20 +34,16 @@ pub fn launch<B: Backend>(device: B::Device) {
 
 #[cfg(feature = "flex")]
 mod flex {
-    use burn::backend::Flex;
-
-    use crate::launch;
+    use burn::backend::flex::FlexDevice;
 
     pub fn run() {
-        launch::<Flex>(Default::default());
+        crate::launch(FlexDevice);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-
-    use crate::{ElemType, launch};
+    use burn::backend::libtorch::LibTorchDevice;
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -50,29 +51,43 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        launch::<LibTorch<ElemType>>(device);
+        crate::launch(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::tch::{LibTorch, LibTorchDevice};
-
-    use crate::{ElemType, launch};
+    use burn::backend::libtorch::LibTorchDevice;
 
     pub fn run() {
-        launch::<LibTorch<ElemType>>(LibTorchDevice::Cpu);
+        crate::launch(LibTorchDevice::Cpu);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::{Wgpu, WgpuDevice};
-
-    use crate::{ElemType, launch};
+    use burn::backend::wgpu::WgpuDevice;
 
     pub fn run() {
-        launch::<Wgpu<ElemType, i32>>(WgpuDevice::default());
+        crate::launch(WgpuDevice::default());
+    }
+}
+
+#[cfg(feature = "metal")]
+mod metal {
+    use burn::backend::wgpu::WgpuDevice;
+
+    pub fn run() {
+        crate::launch(WgpuDevice::default());
+    }
+}
+
+#[cfg(feature = "cuda")]
+mod cuda {
+    use burn::backend::cuda::CudaDevice;
+
+    pub fn run() {
+        crate::launch(CudaDevice::default());
     }
 }
 
@@ -85,4 +100,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
 }

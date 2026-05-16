@@ -4,18 +4,18 @@ use crate::GateController;
 use crate::activation::{Activation, ActivationConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// A RnnState is used to store hidden state in RNN.
-pub struct RnnState<B: Backend, const D: usize> {
+pub struct RnnState<const D: usize> {
     /// The hidden state.
-    pub hidden: Tensor<B, D>,
+    pub hidden: Tensor<D>,
 }
 
-impl<B: Backend, const D: usize> RnnState<B, D> {
+impl<const D: usize> RnnState<D> {
     /// Initialize a new [RNN State](RnnState).
-    pub fn new(hidden: Tensor<B, D>) -> Self {
+    pub fn new(hidden: Tensor<D>) -> Self {
         Self { hidden }
     }
 }
@@ -54,9 +54,9 @@ pub struct RnnConfig {
 /// Should be created with [RnnConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Rnn<B: Backend> {
+pub struct Rnn {
     /// gate controller for Rnn (has single gate).
-    pub gate: GateController<B>,
+    pub gate: GateController,
     /// The hidden state of the Rnn.
     pub d_hidden: usize,
     /// If true, input is `[batch_size, seq_length, input_size]`.
@@ -67,10 +67,10 @@ pub struct Rnn<B: Backend> {
     /// Optional hidden state clip threshold.
     pub clip: Option<f64>,
     /// Activation function for hidden output.
-    pub hidden_activation: Activation<B>,
+    pub hidden_activation: Activation,
 }
 
-impl<B: Backend> ModuleDisplay for Rnn<B> {
+impl ModuleDisplay for Rnn {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -91,7 +91,7 @@ impl<B: Backend> ModuleDisplay for Rnn<B> {
 
 impl RnnConfig {
     /// Initialize a new [Rnn](Rnn) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Rnn<B> {
+    pub fn init(&self, device: &Device) -> Rnn {
         let d_output = self.d_hidden;
 
         let new_gate = || {
@@ -115,7 +115,7 @@ impl RnnConfig {
     }
 }
 
-impl<B: Backend> Rnn<B> {
+impl Rnn {
     /// Applies the forward pass on the input tensor. This RNN implementation
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
@@ -135,9 +135,9 @@ impl<B: Backend> Rnn<B> {
     ///   `[batch_size, hidden_size]`.
     pub fn forward(
         &self,
-        batched_input: Tensor<B, 3>,
-        state: Option<RnnState<B, 2>>,
-    ) -> (Tensor<B, 3>, RnnState<B, 2>) {
+        batched_input: Tensor<3>,
+        state: Option<RnnState<2>>,
+    ) -> (Tensor<3>, RnnState<2>) {
         // Convert to batch-first layout internally if needed
         let batched_input = if self.batch_first {
             batched_input
@@ -177,14 +177,14 @@ impl<B: Backend> Rnn<B> {
         (output, state)
     }
 
-    fn forward_iter<I: Iterator<Item = (Tensor<B, 3>, usize)>>(
+    fn forward_iter<I: Iterator<Item = (Tensor<3>, usize)>>(
         &self,
         input_timestep_iter: I,
-        state: Option<RnnState<B, 2>>,
+        state: Option<RnnState<2>>,
         batch_size: usize,
         seq_length: usize,
-        device: &B::Device,
-    ) -> (Tensor<B, 3>, RnnState<B, 2>) {
+        device: &Device,
+    ) -> (Tensor<3>, RnnState<2>) {
         let mut batched_hidden_state =
             Tensor::empty([batch_size, seq_length, self.d_hidden], device);
 
@@ -251,11 +251,11 @@ pub struct BiRnnConfig {
 /// Should be created with [BiRnnConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct BiRnn<B: Backend> {
+pub struct BiRnn {
     /// RNN for the forward direction.
-    pub forward: Rnn<B>,
+    pub forward: Rnn,
     /// RNN for the reverse direction.
-    pub reverse: Rnn<B>,
+    pub reverse: Rnn,
     /// The size of the hidden state.
     pub d_hidden: usize,
     /// If true, input is `[batch_size, seq_length, input_size]`.
@@ -263,7 +263,7 @@ pub struct BiRnn<B: Backend> {
     pub batch_first: bool,
 }
 
-impl<B: Backend> ModuleDisplay for BiRnn<B> {
+impl ModuleDisplay for BiRnn {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -284,7 +284,7 @@ impl<B: Backend> ModuleDisplay for BiRnn<B> {
 
 impl BiRnnConfig {
     /// Initialize a new [Bidirectional RNN](BiRnn) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> BiRnn<B> {
+    pub fn init(&self, device: &Device) -> BiRnn {
         // Internal RNNs always use batch_first=true; BiRnn handles layout conversion
         let base_config = RnnConfig::new(self.d_input, self.d_hidden, self.bias)
             .with_initializer(self.initializer.clone())
@@ -301,7 +301,7 @@ impl BiRnnConfig {
     }
 }
 
-impl<B: Backend> BiRnn<B> {
+impl BiRnn {
     /// Applies the forward pass on the input tensor. This Bidirectional RNN implementation
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
@@ -321,9 +321,9 @@ impl<B: Backend> BiRnn<B> {
     ///   The `state.hidden` have the shape `[2, batch_size, hidden_size]`.
     pub fn forward(
         &self,
-        batched_input: Tensor<B, 3>,
-        state: Option<RnnState<B, 3>>,
-    ) -> (Tensor<B, 3>, RnnState<B, 3>) {
+        batched_input: Tensor<3>,
+        state: Option<RnnState<3>>,
+    ) -> (Tensor<3>, RnnState<3>) {
         // Convert to batch-first layout internally if needed
         let batched_input = if self.batch_first {
             batched_input
@@ -392,14 +392,11 @@ impl<B: Backend> BiRnn<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LinearRecord, TestBackend};
+    use crate::LinearRecord;
     use burn::module::Param;
-    use burn::tensor::{Device, Distribution, TensorData};
-    use burn::tensor::{ElementConversion, Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
-
-    #[cfg(feature = "std")]
-    use crate::TestAutodiffBackend;
+    use burn::tensor::{Distribution, TensorData};
+    use burn::tensor::{ElementConversion, Tolerance};
+    type FT = f32;
 
     fn create_single_feature_gate_controller(
         weights: f32,
@@ -408,8 +405,8 @@ mod tests {
         d_output: usize,
         bias: bool,
         initializer: Initializer,
-        device: &Device<TestBackend>,
-    ) -> GateController<TestBackend> {
+        device: &Device,
+    ) -> GateController {
         let record_1 = LinearRecord {
             weight: Param::from_data(TensorData::from([[weights]]), device),
             bias: Some(Param::from_data(TensorData::from([biases]), device)),
@@ -430,15 +427,14 @@ mod tests {
 
     #[test]
     fn test_with_uniform_initializer() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = RnnConfig::new(5, 5, false)
             .with_initializer(Initializer::Uniform { min: 0.0, max: 1.0 });
-        let rnn = config.init::<TestBackend>(&Default::default());
+        let rnn = config.init(&device);
 
-        let gate_to_data =
-            |gate: GateController<TestBackend>| gate.input_transform.weight.val().to_data();
+        let gate_to_data = |gate: GateController| gate.input_transform.weight.val().to_data();
 
         gate_to_data(rnn.gate).assert_within_range::<FT>(0.elem()..1.elem());
     }
@@ -450,12 +446,12 @@ mod tests {
     /// h_t = tanh(0.5*0.1 + 0.5*0) = tanh(0.05) = 0.04995
     #[test]
     fn test_forward_single_input_single_feature() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = RnnConfig::new(1, 1, false);
         let device = Default::default();
-        let mut rnn = config.init::<TestBackend>(&device);
+        let mut rnn = config.init(&device);
 
         rnn.gate = create_single_feature_gate_controller(
             0.5,
@@ -468,7 +464,7 @@ mod tests {
         );
 
         // single timestep with single feature
-        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
+        let input = Tensor::<3>::from_data(TensorData::from([[[0.1]]]), &device);
 
         let (output, state) = rnn.forward(input, None);
 
@@ -490,8 +486,7 @@ mod tests {
     fn test_batched_forward_pass_batch_of_one() {
         let device = Default::default();
         let rnn = RnnConfig::new(64, 1024, true).init(&device);
-        let batched_input =
-            Tensor::<TestBackend, 3>::random([1, 2, 64], Distribution::Default, &device);
+        let batched_input = Tensor::<3>::random([1, 2, 64], Distribution::Default, &device);
 
         let (output, state) = rnn.forward(batched_input, None);
         assert_eq!(output.dims(), [1, 2, 1024]);
@@ -502,11 +497,10 @@ mod tests {
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
         use burn::tensor::Shape;
-        let device = Default::default();
+        let device = Device::default().autodiff();
         let rnn = RnnConfig::new(64, 32, true).init(&device);
         let shape: Shape = [8, 10, 64].into();
-        let batched_input =
-            Tensor::<TestAutodiffBackend, 3>::random(shape, Distribution::Default, &device);
+        let batched_input = Tensor::<3>::random(shape, Distribution::Default, &device);
 
         let (output, _) = rnn.forward(batched_input.clone(), None);
         let fake_loss = output;
@@ -528,8 +522,8 @@ mod tests {
 
     #[test]
     fn test_bidirectional() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = BiRnnConfig::new(2, 3, true);
         let mut rnn = config.init(&device);
@@ -539,8 +533,8 @@ mod tests {
             input_biases: [f32; D1],
             hidden_weights: [[f32; D1]; D1],
             hidden_biases: [f32; D1],
-            device: &Device<TestBackend>,
-        ) -> GateController<TestBackend> {
+            device: &Device,
+        ) -> GateController {
             let d_input = input_weights[0].len();
             let d_output = input_weights.len();
 
@@ -563,7 +557,7 @@ mod tests {
         }
 
         // [batch_size=1, seq_length=4, input_size=2]
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([[
                 [0.949, -0.861],
                 [0.892, 0.927],
@@ -574,7 +568,7 @@ mod tests {
         );
 
         // [2, batch_size=1, hidden_size=3]
-        let h0 = Tensor::<TestBackend, 3>::from_data(
+        let h0 = Tensor::<3>::from_data(
             TensorData::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
             &device,
         );
@@ -653,7 +647,7 @@ mod tests {
     fn display_rnn() {
         let config = RnnConfig::new(2, 3, true);
 
-        let layer = config.init::<TestBackend>(&Default::default());
+        let layer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{layer}"),
@@ -665,7 +659,7 @@ mod tests {
     fn display_birnn() {
         let config = BiRnnConfig::new(2, 3, true);
 
-        let layer = config.init::<TestBackend>(&Default::default());
+        let layer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{layer}"),
@@ -680,9 +674,9 @@ mod tests {
         // Create Rnn with clipping enabled
         let clip_value = 0.3;
         let config = RnnConfig::new(4, 8, true).with_clip(Some(clip_value));
-        let rnn = config.init::<TestBackend>(&device);
+        let rnn = config.init(&device);
 
-        let input = Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+        let input = Tensor::<3>::random([2, 5, 4], Distribution::Default, &device);
         let (_, state) = rnn.forward(input, None);
 
         // Verify output values are within the clip range
@@ -700,12 +694,12 @@ mod tests {
 
     #[test]
     fn test_forward_reverse_sequence() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         // Create RNN with reverse=true to process sequence in reverse order
         let config = RnnConfig::new(1, 1, false).with_reverse(true);
-        let mut rnn = config.init::<TestBackend>(&device);
+        let mut rnn = config.init(&device);
 
         rnn.gate = create_single_feature_gate_controller(
             0.5,
@@ -719,8 +713,7 @@ mod tests {
 
         // Create input with 3 timesteps: [0.1, 0.2, 0.3]
         // Shape: [batch_size=1, seq_length=3, input_features=1]
-        let input =
-            Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1], [0.2], [0.3]]]), &device);
+        let input = Tensor::<3>::from_data(TensorData::from([[[0.1], [0.2], [0.3]]]), &device);
 
         let (output, state) = rnn.forward(input, None);
 

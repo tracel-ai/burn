@@ -1,4 +1,5 @@
-use burn_backend::{Element, ElementComparison, bf16, f16};
+use burn_backend::{Element, bf16, f16};
+use burn_std::ElementComparison;
 use cubecl::{
     CubeElement as CubeElem, flex32,
     prelude::{Float, Int, Numeric},

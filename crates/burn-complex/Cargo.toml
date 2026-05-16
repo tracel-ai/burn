@@ -7,17 +7,19 @@ version.workspace = true
 
 
 [features]
+flex = [ "burn-flex"]
 #no_std is a problem for later
 #std = ["burn-tensor/std", "num-complex/std", "num-traits/std"]
 
-
+    
 
 [dependencies]
-burn-tensor = { workspace = true}
+burn-backend = { workspace = true }
+burn-flex = { workspace = true, optional = true, features = ["complex"] }
 burn-std = { workspace = true }
-
+burn-tensor = { workspace = true}
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
-cubecl = { workspace = true, optional = true }
+#cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }
 rand = { workspace = true, default-features = false }

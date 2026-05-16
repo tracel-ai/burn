@@ -5,7 +5,6 @@ use burn::tensor::cast::ToElement;
 
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::{config::Config, module::Module};
 
 use super::Reduction;
@@ -84,7 +83,7 @@ impl PoissonNllLossConfig {
 ///
 /// For more details, see:
 /// <https://en.wikipedia.org/wiki/Poisson_regression#Maximum_likelihood-based_parameter_estimation>
-#[derive(Module, Debug, Clone)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct PoissonNllLoss {
     /// If `true`, the predictions are expected to be in log-space.
@@ -129,12 +128,12 @@ impl PoissonNllLoss {
     /// - Panics if the shapes of `predictions` and `targets` do not match.
     /// - Panics if any target value is negative.
     /// - Panics if `log_input` is `false` and any prediction value is negative.
-    pub fn forward<const D: usize, B: Backend>(
+    pub fn forward<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let loss = self.forward_no_reduction(predictions, targets);
         match reduction {
             Reduction::Mean | Reduction::Auto => loss.mean(),
@@ -158,11 +157,11 @@ impl PoissonNllLoss {
     /// - Panics if the shapes of `predictions` and `targets` do not match.
     /// - Panics if any target value is negative.
     /// - Panics if `log_input` is `false` and any prediction value is negative.
-    pub fn forward_no_reduction<const D: usize, B: Backend>(
+    pub fn forward_no_reduction<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
+    ) -> Tensor<D> {
         self.assertions(&predictions, &targets);
         let mut loss;
         if self.log_input {
@@ -186,11 +185,7 @@ impl PoissonNllLoss {
     /// - Panics if the shapes of `predictions` and `targets` do not match.
     /// - Panics if any target value is negative.
     /// - Panics if `log_input` is `false` and any prediction value is negative.
-    fn assertions<const D: usize, B: Backend>(
-        &self,
-        predictions: &Tensor<B, D>,
-        targets: &Tensor<B, D>,
-    ) {
+    fn assertions<const D: usize>(&self, predictions: &Tensor<D>, targets: &Tensor<D>) {
         let predictions_dims = predictions.dims();
         let targets_dims = targets.dims();
         assert!(
@@ -225,11 +220,9 @@ mod tests {
     #![allow(clippy::approx_constant)]
 
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_poisson_nll_loss() {
@@ -238,8 +231,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().init();
 
@@ -269,8 +262,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().with_log_input(false).init();
 
@@ -289,8 +282,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().with_full(true).init();
 
@@ -316,16 +309,15 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn test_poisson_nll_loss_gradients() {
-        type TestAutodiffTensor = Tensor<crate::TestAutodiffBackend, 1>;
+        use burn::tensor::Device;
+        let device = Device::default().autodiff();
 
         let predictions = TensorData::from([0., 0., -40., 1., 2., 3.]);
         let targets = TensorData::from([1., 4.5, 2.5, 0., 0., 2.]);
 
-        let device = Default::default();
-
-        let predictions1 = TestAutodiffTensor::from_data(predictions, &device).require_grad();
+        let predictions1 = Tensor::<1>::from_data(predictions, &device).require_grad();
         let predictions2 = predictions1.clone();
-        let targets = TestAutodiffTensor::from_data(targets, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().with_full(false).init();
         let poisson_full = PoissonNllLossConfig::new().with_full(true).init();
@@ -364,8 +356,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().init();
 
@@ -380,8 +372,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().init();
 
@@ -396,8 +388,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().with_log_input(false).init();
 

@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use super::vgg19::Vgg19;
-use burn::tensor::backend::Backend;
-use burn_std::network::downloader::download_file_as_bytes;
+use burn::tensor::Device;
+use burn_core::network::downloader::download_file_as_bytes;
 use burn_store::{ModuleSnapshot, PytorchStore};
 use std::fs::{File, create_dir_all, rename};
 use std::io::Write;
@@ -66,7 +66,7 @@ fn download_weights_if_not_saved(cache_path: &PathBuf) {
 /// # Returns
 ///
 /// The VGG19 module with pretrained ImageNet weights loaded.
-pub fn load_vgg19_weights<B: Backend>(mut vgg19: Vgg19<B>) -> Vgg19<B> {
+pub fn load_vgg19_weights(mut vgg19: Vgg19) -> Vgg19 {
     let cache_dir = get_cache_dir();
     let cache_path = cache_dir.join("vgg19.pth");
     download_weights_if_not_saved(&cache_path);

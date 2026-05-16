@@ -8,7 +8,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::Bytes;
+use burn_core::tensor::Bytes;
 
 #[cfg(feature = "std")]
 use std::fs::File;

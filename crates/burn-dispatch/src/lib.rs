@@ -35,21 +35,8 @@
 //! - `vulkan`
 //! - `webgpu`
 //!
-//! If multiple WGPU features are enabled, the build script will emit a warning and **disable all WGPU
-//! backends** to prevent unintended behavior.
-
-#[cfg(not(any(
-    feature = "cpu",
-    feature = "cuda",
-    wgpu_metal,
-    feature = "rocm",
-    wgpu_vulkan,
-    wgpu_webgpu,
-    feature = "flex",
-    feature = "ndarray",
-    feature = "tch",
-)))]
-compile_error!("At least one backend feature must be enabled.");
+//! If multiple WGPU features are enabled, the build script will emit a warning and enable `webgpu` only
+//! to prevent unintended behavior.
 
 #[macro_use]
 mod macros;
@@ -71,24 +58,45 @@ pub(crate) mod backends {
     pub use burn_autodiff::Autodiff;
 
     #[cfg(feature = "cpu")]
-    pub use burn_cpu::{Cpu, CpuDevice};
+    pub use burn_cpu::Cpu;
     #[cfg(feature = "cuda")]
-    pub use burn_cuda::{Cuda, CudaDevice};
+    pub use burn_cuda::Cuda;
     #[cfg(feature = "rocm")]
-    pub use burn_rocm::{Rocm, RocmDevice};
+    pub use burn_rocm::Rocm;
     #[cfg(wgpu_metal)]
     pub use burn_wgpu::Metal;
     #[cfg(wgpu_vulkan)]
     pub use burn_wgpu::Vulkan;
     #[cfg(wgpu_webgpu)]
     pub use burn_wgpu::Wgpu;
+
+    #[cfg(feature = "flex")]
+    pub use burn_flex::Flex;
+    #[cfg(any(feature = "ndarray", default_backend))]
+    pub use burn_ndarray::NdArray;
+    #[cfg(feature = "tch")]
+    pub use burn_tch::LibTorch;
+
+    pub use super::devices::*;
+}
+
+// Re-export devices
+
+/// Backend devices.
+pub mod devices {
+    #[cfg(feature = "cpu")]
+    pub use burn_cpu::CpuDevice;
+    #[cfg(feature = "cuda")]
+    pub use burn_cuda::CudaDevice;
+    #[cfg(feature = "rocm")]
+    pub use burn_rocm::RocmDevice;
     #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
     pub use burn_wgpu::WgpuDevice;
 
     #[cfg(feature = "flex")]
-    pub use burn_flex::{Flex, FlexDevice};
-    #[cfg(feature = "ndarray")]
-    pub use burn_ndarray::{NdArray, NdArrayDevice};
+    pub use burn_flex::FlexDevice;
+    #[cfg(any(feature = "ndarray", default_backend))]
+    pub use burn_ndarray::NdArrayDevice;
     #[cfg(feature = "tch")]
-    pub use burn_tch::{LibTorch, LibTorchDevice};
+    pub use burn_tch::LibTorchDevice;
 }

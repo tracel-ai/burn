@@ -8,7 +8,6 @@ pub use base::*;
 pub(crate) mod tests {
     use burn_rl::{Batchable, Environment, EnvironmentInit, Policy, PolicyState};
 
-    use crate::tests::TestAutodiffBackend;
     use crate::{
         AgentEvaluationEvent, EventProcessorTraining, ItemLazy, RLComponentsTypes, RLEvent,
     };
@@ -25,7 +24,7 @@ pub(crate) mod tests {
     #[derive(Clone)]
     pub(crate) struct MockPolicy(pub usize);
 
-    impl Policy<TestAutodiffBackend> for MockPolicy {
+    impl Policy for MockPolicy {
         type Observation = MockObservation;
         type ActionDistribution = MockActionDistribution;
         type Action = MockPolicyAction;
@@ -68,10 +67,7 @@ pub(crate) mod tests {
             MockPolicyState(self.0)
         }
 
-        fn load_record(
-            self,
-            _record: <Self::PolicyState as PolicyState<TestAutodiffBackend>>::Record,
-        ) -> Self {
+        fn load_record(self, _record: <Self::PolicyState as PolicyState>::Record) -> Self {
             self
         }
     }
@@ -95,7 +91,7 @@ pub(crate) mod tests {
     #[derive(Clone)]
     pub(crate) struct MockPolicyState(pub usize);
 
-    impl PolicyState<TestAutodiffBackend> for MockPolicyState {
+    impl PolicyState for MockPolicyState {
         type Record = ();
 
         fn into_record(self) -> Self::Record {}
@@ -174,9 +170,7 @@ pub(crate) mod tests {
     }
 
     impl ItemLazy for MockActionContext {
-        type ItemSync = MockActionContext;
-
-        fn sync(self) -> Self::ItemSync {
+        fn sync(self) -> Self {
             self
         }
     }
@@ -227,7 +221,6 @@ pub(crate) mod tests {
     pub(crate) struct MockRLComponents;
 
     impl RLComponentsTypes for MockRLComponents {
-        type Backend = TestAutodiffBackend;
         type Env = MockEnv;
         type EnvInit = MockEnvInit;
         type State = MockState;
@@ -246,18 +239,15 @@ pub(crate) mod tests {
     #[derive(Clone)]
     pub(crate) struct MockLearningAgent;
 
-    impl PolicyLearner<TestAutodiffBackend> for MockLearningAgent {
+    impl PolicyLearner for MockLearningAgent {
         type InnerPolicy = MockPolicy;
         type TrainContext = ();
         type Record = ();
 
         fn train(
             &mut self,
-            _input: LearnerTransitionBatch<TestAutodiffBackend, Self::InnerPolicy>,
-        ) -> RLTrainOutput<
-            Self::TrainContext,
-            <Self::InnerPolicy as Policy<TestAutodiffBackend>>::PolicyState,
-        > {
+            _input: LearnerTransitionBatch<Self::InnerPolicy>,
+        ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy>::PolicyState> {
             unimplemented!()
         }
 

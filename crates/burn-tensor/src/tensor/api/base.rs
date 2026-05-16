@@ -1,9 +1,8 @@
 #![allow(clippy::single_range_in_vec_init)]
-use crate::backend::ExecutionError;
+use crate::ExecutionError;
 use crate::check::unwrap_shape_reshape;
 
 use burn_backend::Scalar;
-pub use burn_backend::tensor::BasicOps;
 
 use alloc::vec::Vec;
 
@@ -11,22 +10,26 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
+use burn_dispatch::Dispatch;
+use burn_std::Complex;
 use burn_std::{SliceOps, stub::RwLock};
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
 
-use crate::{AsIndex, Slice, SliceArg, wrap_index};
+use crate::{AsIndex, Device, Slice, SliceArg, kind::Basic, wrap_index};
 use crate::{
-    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, TensorMetadata,
-    backend::Backend, check,
+    Bool, ElementConversion, Float, Int, Shape, TensorData, TensorKind, TensorMetadata, check,
 };
 use crate::{DType, Element};
 use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
 use serde::{Serialize, Serializer};
 
-/// A tensor with a given backend, shape and data type.
+/// A tensor with a given shape and data type, backed by a runtime-selected device.
+///
+/// Tensors are not statically tied to a backend. The backend is determined based on which device
+/// the tensor was created on.
 ///
 /// # Indexing
 /// Indexing a tensor can be done using [`slice`](Tensor::slice) for all tensor types
@@ -35,14 +38,13 @@ use serde::{Serialize, Serializer};
 /// ## Example
 ///
 /// ```rust
-/// use burn_tensor::backend::Backend;
 /// use burn_tensor::Tensor;
 /// use burn_tensor::Int;
 ///
-/// fn example<B: Backend>() {
+/// fn example() {
 ///     let device = Default::default();
 ///
-///     let tensor = Tensor::<B, 2>::from_data(
+///     let tensor = Tensor::< 2>::from_data(
 ///         [
 ///             [3.0, 4.9, 2.0],
 ///             [2.0, 1.9, 3.0],
@@ -67,24 +69,23 @@ use serde::{Serialize, Serializer};
 ///     // Index the tensor along the dimension 1 to get the elements 0 and 2:
 ///     // [[3.0, 2.0], [2.0, 3.0], [6.0, 7.0], [3.0, 9.0]]
 ///     // The resulting tensor will have dimensions [4, 2]
-///     let indices = Tensor::<B, 1, Int>::from_data([0, 2], &device);
+///     let indices = Tensor::< 1, Int>::from_data([0, 2], &device);
 ///     let indexed = tensor.select(1, indices);
 ///     println!("{indexed}");
 /// }
 /// ```
 #[derive(new, Clone, Debug)]
-pub struct Tensor<B, const D: usize, K = Float>
+pub struct Tensor<const D: usize, K = Float>
 where
-    B: Backend,
-    K: TensorKind<B>,
+    K: Basic,
 {
-    pub(crate) primitive: K::Primitive,
+    // TODO: float tensor primitive no longer needs to be a wrapped enum?
+    pub(crate) primitive: <K as TensorKind<Dispatch>>::Primitive,
 }
 
-impl<B, const D: usize, K, T> From<T> for Tensor<B, D, K>
+impl<const D: usize, K, T> From<T> for Tensor<D, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
+    K: Basic,
     T: Into<TensorData>,
 {
     fn from(value: T) -> Self {
@@ -92,10 +93,9 @@ where
     }
 }
 
-impl<B, const D: usize, K> Tensor<B, D, K>
+impl<const D: usize, K> Tensor<D, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
+    K: Basic,
     K::Elem: Element,
 {
     /// Executes an operation on the tensor and modifies its value.
@@ -149,21 +149,20 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///    let device = Default::default();
     ///    // Create an empty tensor with dimensions [2, 3, 4].
-    ///    let tensor = Tensor::<B, 3>::empty([2, 3, 4], &device);
+    ///    let tensor = Tensor::< 3>::empty([2, 3, 4], &device);
     /// }
     /// ```
-    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape));
-        Self::new(K::empty(shape, &opt.device, dtype))
+        Self::new(K::empty(shape, &opt.device.dispatch, dtype))
     }
 
     /// Create a tensor of the given shape where each element is zero.
@@ -171,22 +170,21 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::zeros(Shape::new([2, 3]), &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::zeros(Shape::new([2, 3]), &device);
     ///    println!("{tensor}");
     ///    // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
     /// ```
-    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape));
-        Self::new(K::zeros(shape, &opt.device, dtype))
+        Self::new(K::zeros(shape, &opt.device.dispatch, dtype))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
@@ -194,19 +192,22 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.zeros_like();
     ///   println!("{tensor}");
     ///   // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
     /// ```
     pub fn zeros_like(&self) -> Self {
-        Self::new(K::zeros(self.shape(), &self.device(), self.dtype()))
+        Self::new(K::zeros(
+            self.shape(),
+            &self.device().dispatch,
+            self.dtype(),
+        ))
     }
 
     /// Create a tensor of the given shape where each element is one.
@@ -214,22 +215,21 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::ones(Shape::new([2, 3]), &device);
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::< 2>::ones(Shape::new([2, 3]), &device);
     ///   println!("{tensor}");
     ///   // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
-    pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
+    pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape));
-        Self::new(K::ones(shape, &opt.device, dtype))
+        Self::new(K::ones(shape, &opt.device.dispatch, dtype))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
@@ -237,19 +237,18 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.ones_like();
     ///    println!("{tensor}");
     ///    // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
     pub fn ones_like(&self) -> Self {
-        Self::new(K::ones(self.shape(), &self.device(), self.dtype()))
+        Self::new(K::ones(self.shape(), &self.device().dispatch, self.dtype()))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -257,12 +256,11 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::full(Shape::new([2, 3]), 5.0, &device);
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::< 2>::full(Shape::new([2, 3]), 5.0, &device);
     ///   println!("{tensor}");
     ///   // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
     /// }
@@ -270,7 +268,7 @@ where
     pub fn full<S: Into<Shape>, E: ElementConversion>(
         shape: S,
         fill_value: E,
-        options: impl Into<TensorCreationOptions<B>>,
+        options: impl Into<TensorCreationOptions>,
     ) -> Self {
         let opt = options.into();
         let shape = shape.into();
@@ -279,7 +277,7 @@ where
         Self::new(K::full(
             shape,
             Scalar::new(fill_value, &dtype),
-            &opt.device,
+            &opt.device.dispatch,
             dtype,
         ))
     }
@@ -290,12 +288,11 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.full_like(5.0);
     ///    println!("{tensor}");
     ///    // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
@@ -306,7 +303,7 @@ where
         Self::new(K::full(
             self.shape(),
             Scalar::new(fill_value, &dtype),
-            &self.device(),
+            &self.device().dispatch,
             dtype,
         ))
     }
@@ -315,12 +312,11 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
+    ///   let tensor = Tensor::< 3>::ones([2, 3, 4], &device);
     ///   let dims = tensor.dims(); // [2, 3, 4]
     ///   println!("{dims:?}");
     /// }
@@ -333,12 +329,11 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
+    ///    let tensor = Tensor::< 3>::ones([2, 3, 4], &device);
     ///    // Shape { dims: [2, 3, 4] }
     ///    let shape = tensor.shape();
     /// }
@@ -371,19 +366,18 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///    let device = Default::default();
     ///    // Create a tensor with dimensions [2, 3, 4]
-    ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
+    ///    let tensor = Tensor::< 3>::ones([2, 3, 4], &device);
     ///    // Reshape it to [2, 12], where 12 is inferred from the number of elements.
     ///    let reshaped = tensor.reshape([2, -1]);
     ///    println!("{reshaped}");
     /// }
     /// ```
-    pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
+    pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<D2, K> {
         // Convert reshape args to shape
         let shape = shape.into_shape::<D2>(self.shape());
         Tensor::new(K::reshape(self.primitive, shape))
@@ -408,13 +402,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor of shape [2, 3]
-    ///     let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///     let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///
     ///     // Transpose the tensor:
     ///     // [[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]]
@@ -423,13 +416,13 @@ where
     ///     println!("{transposed}");
     /// }
     /// ```
-    pub fn transpose(self) -> Tensor<B, D, K> {
+    pub fn transpose(self) -> Tensor<D, K> {
         Tensor::new(K::transpose(self.primitive))
     }
 
     /// Alias for `transpose`.
     #[inline(always)]
-    pub fn t(self) -> Tensor<B, D, K> {
+    pub fn t(self) -> Tensor<D, K> {
         self.transpose()
     }
 
@@ -454,13 +447,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor of shape [2, 3]
-    ///     let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///     let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///
     ///     // Swap the dimensions 0 and -1 (equivalent to `tensor.transpose()`):
     ///     // [[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]]
@@ -469,7 +461,7 @@ where
     ///     println!("{swapped}");
     /// }
     /// ```
-    pub fn swap_dims<Dim1, Dim2>(self, dim1: Dim1, dim2: Dim2) -> Tensor<B, D, K>
+    pub fn swap_dims<Dim1, Dim2>(self, dim1: Dim1, dim2: Dim2) -> Tensor<D, K>
     where
         Dim1: AsIndex,
         Dim2: AsIndex,
@@ -502,13 +494,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor of shape [3, 2]
-    ///     let tensor = Tensor::<B, 2>::from_data([[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]], &device);
+    ///     let tensor = Tensor::< 2>::from_data([[1.0, 5.0], [-2.0, 9.0], [3.0, 6.0]], &device);
     ///
     ///     // Permute the dimensions 1 and 0:
     ///     // [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]]
@@ -517,7 +508,7 @@ where
     ///     println!("{permuted}");
     /// }
     /// ```
-    pub fn permute<Dim>(self, axes: [Dim; D]) -> Tensor<B, D, K>
+    pub fn permute<Dim>(self, axes: [Dim; D]) -> Tensor<D, K>
     where
         Dim: AsIndex,
     {
@@ -562,13 +553,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor of shape [3, 2, 1]
-    ///     let tensor = Tensor::<B, 3>::from_data([[[1.0], [5.0]], [[-2.0], [9.0]], [[3.0], [6.0]]], &device);
+    ///     let tensor = Tensor::< 3>::from_data([[[1.0], [5.0]], [[-2.0], [9.0]], [[3.0], [6.0]]], &device);
     ///
     ///     // Move the dimensions 0 and 1:
     ///     // [[[1.0], [-2.0], [3.0]], [[5.0], [9.0], [6.0]]]
@@ -582,7 +572,7 @@ where
     ///
     /// This is a syntactic sugar for `permute`. It is used widely enough, so we define a separate Op
     /// for it
-    pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
+    pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<D, K> {
         let source_dims = src.into_dim_vec::<D>();
         let destination_dims = dst.into_dim_vec::<D>();
 
@@ -627,13 +617,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [4, 3]
-    ///     let tensor = Tensor::<B, 2>::from_data(
+    ///     let tensor = Tensor::< 2>::from_data(
     ///         [
     ///             [3.0, 4.9, 2.0],
     ///             [2.0, 1.9, 3.0],
@@ -653,7 +642,7 @@ where
     ///     println!("{flipped}");
     /// }
     /// ```
-    pub fn flip<const N: usize>(self, axes: [isize; N]) -> Tensor<B, D, K> {
+    pub fn flip<const N: usize>(self, axes: [isize; N]) -> Tensor<D, K> {
         // Convert the axes to usize and handle negative values without using vector
         let mut transformed_axes: [usize; N] = [0; N];
         for (i, &x) in axes.iter().enumerate() {
@@ -688,23 +677,22 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D2, K>` instance with the specified range of dimensions flattened.
+    /// A new `Tensor<D2, K>` instance with the specified range of dimensions flattened.
     ///
     /// # Example
     ///
     /// ```rust
     ///
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor with dimensions [2, 3, 4]
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 4]), &device);
+    ///     let tensor = Tensor::< 3>::ones(Shape::new([2, 3, 4]), &device);
     ///
     ///     // Flatten the tensor from dimensions 1 to 2 (inclusive).
     ///     // The resulting tensor will have dimensions [2, 12]
-    ///     let flattened: Tensor<B, 2> = tensor.flatten(1, 2);
+    ///     let flattened: Tensor<2> = tensor.flatten(1, 2);
     ///     println!("{flattened}");
     /// }
     /// ```
@@ -712,7 +700,7 @@ where
         self,
         start_dim: impl AsIndex,
         end_dim: impl AsIndex,
-    ) -> Tensor<B, D2, K> {
+    ) -> Tensor<D2, K> {
         let start_dim = start_dim.expect_dim_index(D);
         let end_dim = end_dim.expect_dim_index(D);
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
@@ -730,19 +718,18 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D2, K>` instance with the specified dimension removed.
+    /// A new `Tensor<D2, K>` instance with the specified dimension removed.
     ///
     /// # Example
     ///
     /// ```rust
     ///
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 4D tensor with dimensions [1, 3, 1, 3]
-    ///     let tensor = Tensor::<B, 4>::from_data(
+    ///     let tensor = Tensor::< 4>::from_data(
     ///         [[[[3.0, 4.9, 2.0]], [[2.0, 1.9, 3.0]], [[4.0, 5.9, 8.0]]]],
     ///         &device,
     ///     );
@@ -753,7 +740,7 @@ where
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze<const D2: usize>(self) -> Tensor<B, D2, K> {
+    pub fn squeeze<const D2: usize>(self) -> Tensor<D2, K> {
         let new_dims = self
             .shape()
             .iter()
@@ -781,19 +768,18 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D2, K>` instance with the specified dimension removed.
+    /// A new `Tensor<D2, K>` instance with the specified dimension removed.
     ///
     /// # Example
     ///
     /// ```rust
     ///
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor with dimensions [3, 1, 3]
-    ///     let tensor = Tensor::<B, 3>::from_data(
+    ///     let tensor = Tensor::< 3>::from_data(
     ///         [[[3.0, 4.9, 2.0]], [[2.0, 1.9, 3.0]], [[4.0, 5.9, 8.0]]],
     ///         &device,
     ///     );
@@ -804,7 +790,7 @@ where
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+    pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> Tensor<D2, K> {
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape()));
 
         let current_dims = self.shape();
@@ -834,27 +820,26 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D2, K>` instance with the specified dimensions removed.
+    /// A new `Tensor<D2, K>` instance with the specified dimensions removed.
     ///
     /// # Example
     ///
     /// ```rust
     ///
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 4D tensor with dimensions [2, 1, 4, 1]
-    ///     let tensor = Tensor::<B, 4>::ones(Shape::new([2, 1, 4, 1]), &device);
+    ///     let tensor = Tensor::< 4>::ones(Shape::new([2, 1, 4, 1]), &device);
     ///
     ///     // Squeeze the dimensions 1 and 3.
     ///     // The resulting tensor will have dimensions [2, 4].
-    ///     let squeezed: Tensor<B, 2> = tensor.squeeze_dims(&[1, 3]);
+    ///     let squeezed: Tensor<2> = tensor.squeeze_dims(&[1, 3]);
     ///     println!("{squeezed}");
     /// }
     /// ```
-    pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
+    pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<D2, K> {
         let current_dims = self.shape();
         let mut dim_indices: Vec<usize>;
 
@@ -918,25 +903,24 @@ where
     ///
     /// # Returns
     ///
-    /// A new `Tensor<B, D2, K>` instance with the specified dimensions added.
+    /// A new `Tensor<D2, K>` instance with the specified dimensions added.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 3]
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]), &device);
+    ///     let tensor = Tensor::< 2>::ones(Shape::new([3, 3]), &device);
     ///     // Unsqueeze the tensor up to 4 dimensions.
     ///     // The resulting tensor will have dimensions [1, 1, 3, 3].
     ///     let unsqueezed = tensor.unsqueeze::<4>();
     ///     println!("{unsqueezed}");
     /// }
     /// ```
-    pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2, K> {
+    pub fn unsqueeze<const D2: usize>(self) -> Tensor<D2, K> {
         check!(TensorCheck::unsqueeze::<D, D2>());
 
         let mut dims = [1; D2];
@@ -954,20 +938,19 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 3]
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([3, 3]), &device);
+    ///     let tensor = Tensor::< 2>::ones(Shape::new([3, 3]), &device);
     ///     // Unsqueeze the dimension 1.
     ///     // The resulting tensor will have dimensions [3, 1, 3].
-    ///     let unsqueezed: Tensor<B, 3> = tensor.unsqueeze_dim(1);
+    ///     let unsqueezed: Tensor<3> = tensor.unsqueeze_dim(1);
     ///     println!("{unsqueezed}");
     /// }
     /// ```
-    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<D2, K> {
         check!(TensorCheck::unsqueeze_dim::<D, D2>(dim));
 
         let mut dims = [1; D2];
@@ -993,20 +976,19 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 3D tensor with dimensions [3, 4, 5]
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([3, 4, 5]), &device);
+    ///     let tensor = Tensor::< 3>::ones(Shape::new([3, 4, 5]), &device);
     ///     // Unsqueeze the leading dimension (0) once and the trailing dimension (-1) twice.
     ///     // The resulting tensor will have dimensions [1, 3, 4, 5, 1, 1].
-    ///     let unsqueezed: Tensor<B, 6> = tensor.unsqueeze_dims(&[0, -1, -1]);
+    ///     let unsqueezed: Tensor<6> = tensor.unsqueeze_dims(&[0, -1, -1]);
     ///     println!("{unsqueezed}");
     /// }
     /// ```
-    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[impl AsIndex]) -> Tensor<B, D2, K> {
+    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[impl AsIndex]) -> Tensor<D2, K> {
         let mut new_dims = [1; D2];
         let old_dims = self.shape();
         //for checking if the dimension is in the acceptable range
@@ -1299,14 +1281,13 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape, s};
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
+    /// fn example() {
+    ///     let device = Default::default();
     ///
     ///     // Single dimension slicing - no brackets needed!
-    ///     let tensor = Tensor::<B, 1, burn_tensor::Int>::arange(0..10, &device);
+    ///     let tensor = Tensor::< 1, burn_tensor::Int>::arange(0..10, &device);
     ///     let slice = tensor.clone().slice(2..8);  // Simple range
     ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
     ///
@@ -1319,7 +1300,7 @@ where
     ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
     ///
     ///     // Multi-dimensional slicing
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([4, 6]), &device);
+    ///     let tensor = Tensor::< 2>::ones(Shape::new([4, 6]), &device);
     ///
     ///     // Array syntax for simple ranges
     ///     let slice = tensor.clone().slice([1..3, 2..5]);
@@ -1330,12 +1311,12 @@ where
     ///     assert_eq!(slice.dims(), [2, 6]);
     ///
     ///     // Complex 3D example with mixed slice types
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([4, 6, 8]), &device);
+    ///     let tensor = Tensor::< 3>::ones(Shape::new([4, 6, 8]), &device);
     ///     let slice = tensor.slice(s![1..3, ..;2, -3..]);  // Rows 1-2, every 2nd col, last 3 depth
     ///     assert_eq!(slice.dims(), [2, 3, 3]);
     ///
     ///     // Using negative indices
-    ///     let tensor = Tensor::<B, 2>::ones(Shape::new([4, 6]), &device);
+    ///     let tensor = Tensor::< 2>::ones(Shape::new([4, 6]), &device);
     ///     let slice = tensor.slice(s![-2.., ..-1]);  // Last 2 rows, all but last column
     ///     assert_eq!(slice.dims(), [2, 5]);
     /// }
@@ -1392,39 +1373,38 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, s};
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
+    /// fn example() {
+    ///     let device = Default::default();
     ///
     ///     // Simple assignment to a sub-region
-    ///     let mut tensor = Tensor::<B, 2>::zeros([4, 6], &device);
-    ///     let values = Tensor::<B, 2>::ones([2, 3], &device);
+    ///     let mut tensor = Tensor::< 2>::zeros([4, 6], &device);
+    ///     let values = Tensor::< 2>::ones([2, 3], &device);
     ///     tensor = tensor.slice_assign([1..3, 2..5], values);
     ///     // Now tensor[1..3, 2..5] contains ones
     ///
     ///     // Single dimension assignment with step
-    ///     let mut tensor = Tensor::<B, 1>::zeros([10], &device);
-    ///     let values = Tensor::<B, 1>::ones([5], &device);
+    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
+    ///     let values = Tensor::< 1>::ones([5], &device);
     ///     tensor = tensor.slice_assign(s![0..10;2], values);
     ///     // Now every 2nd element is 1: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
     ///
     ///     // Reverse assignment with negative step
-    ///     let mut tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
-    ///     let values = Tensor::<B, 1>::from_data([10.0, 11.0, 12.0, 13.0, 14.0], &device);
+    ///     let mut tensor = Tensor::< 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     let values = Tensor::< 1>::from_data([10.0, 11.0, 12.0, 13.0, 14.0], &device);
     ///     tensor = tensor.slice_assign(s![..;-1], values);
     ///     // Assigns in reverse: [14, 13, 12, 11, 10]
     ///
     ///     // Complex multi-dimensional assignment
-    ///     let mut tensor = Tensor::<B, 3>::zeros([4, 6, 8], &device);
-    ///     let values = Tensor::<B, 3>::ones([2, 3, 3], &device);
+    ///     let mut tensor = Tensor::< 3>::zeros([4, 6, 8], &device);
+    ///     let values = Tensor::< 3>::ones([2, 3, 3], &device);
     ///     tensor = tensor.slice_assign(s![0..4;2, ..;2, -3..], values);
     ///     // Assigns to every 2nd row, every 2nd column, last 3 in depth
     ///
     ///     // Mixed syntax example
-    ///     let mut tensor = Tensor::<B, 2>::zeros([8, 8], &device);
-    ///     let pattern = Tensor::<B, 2>::ones([4, 4], &device);
+    ///     let mut tensor = Tensor::< 2>::zeros([8, 8], &device);
+    ///     let pattern = Tensor::< 2>::ones([4, 4], &device);
     ///     tensor = tensor.slice_assign(s![..;2, ..;2], pattern);
     ///     // Creates a checkerboard pattern with ones
     /// }
@@ -1483,34 +1463,33 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, s};
     ///
-    /// fn example<B: Backend>() {
-    ///     let device = B::Device::default();
+    /// fn example() {
+    ///     let device = Default::default();
     ///
     ///     // Simple fill for a single dimension
-    ///     let mut tensor = Tensor::<B, 1>::zeros([10], &device);
+    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
     ///     tensor = tensor.slice_fill(2..5, 1.0);
     ///     // Now tensor is [0, 0, 1, 1, 1, 0, 0, 0, 0, 0]
     ///
     ///     // Multi-dimensional fill
-    ///     let mut tensor = Tensor::<B, 2>::zeros([4, 6], &device);
+    ///     let mut tensor = Tensor::< 2>::zeros([4, 6], &device);
     ///     tensor = tensor.slice_fill([1..3, 2..5], -1.0);
     ///     // Fills the rectangle at rows 1-2, columns 2-4 with -1
     ///
     ///     // Using negative indices
-    ///     let mut tensor = Tensor::<B, 1>::zeros([10], &device);
+    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
     ///     tensor = tensor.slice_fill(-3.., 2.0);
     ///     // Fills the last 3 elements with 2.0
     ///
     ///     // Complex multi-dimensional example
-    ///     let mut tensor = Tensor::<B, 3>::ones([4, 6, 8], &device);
+    ///     let mut tensor = Tensor::< 3>::ones([4, 6, 8], &device);
     ///     tensor = tensor.slice_fill(s![1..3, .., -2..], 0.0);
     ///     // Sets rows 1-2, all columns, last 2 in depth to 0
     ///
     ///     // Stepped slicing is supported
-    ///     let mut tensor = Tensor::<B, 1>::zeros([10], &device);
+    ///     let mut tensor = Tensor::< 1>::zeros([10], &device);
     ///     tensor = tensor.slice_fill(s![0..10;2], 1.0);
     ///     // Now every 2nd element is 1: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
     /// }
@@ -1534,7 +1513,7 @@ where
 
         let slice_shape = shape.slice(&slices).unwrap();
         let value =
-            Tensor::<B, 1, K>::from_data([value.elem::<K::Elem>()], (&self.device(), self.dtype()));
+            Tensor::<1, K>::from_data([value.elem::<K::Elem>()], (&self.device(), self.dtype()));
         let value = value.expand(slice_shape);
         self.slice_assign(&slices, value)
     }
@@ -1559,11 +1538,10 @@ where
     ///
     /// ```rust
     /// # use burn_tensor::{Tensor, s};
-    /// # use burn_tensor::backend::Backend;
     /// #
-    /// # fn example<B: Backend>() {
-    /// #     let device = B::Device::default();
-    ///     let tensor = Tensor::<B, 3>::zeros([3, 4, 5], &device);
+    /// # fn example() {
+    /// #     let device = Default::default();
+    ///     let tensor = Tensor::< 3>::zeros([3, 4, 5], &device);
     ///
     ///     // Simple range slicing
     ///     let sliced = tensor.clone().slice_dim(1, 1..3);
@@ -1607,13 +1585,13 @@ where
     }
 
     /// Returns the device of the current tensor.
-    pub fn device(&self) -> B::Device {
-        K::device(&self.primitive)
+    pub fn device(&self) -> Device {
+        Device::new(K::device(&self.primitive))
     }
 
     /// Move the tensor to the given device.
-    pub fn to_device(self, device: &B::Device) -> Self {
-        Self::new(K::to_device(self.primitive, device))
+    pub fn to_device(self, device: &Device) -> Self {
+        Self::new(K::to_device(self.primitive, &device.dispatch))
     }
 
     /// Select tensor elements along the given dimension corresponding to the given indices.
@@ -1626,19 +1604,18 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Int};
     ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-    ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    ///   let indices = Tensor::< 1, Int>::from_data([0], &device);
     ///   let tensor = tensor.select(0, indices);
     ///   println!("{tensor}");
     ///   //  [[1.0, -2.0, 3.0]]
     /// }
     /// ```
-    pub fn select(self, dim: impl AsIndex, indices: Tensor<B, 1, Int>) -> Self {
+    pub fn select(self, dim: impl AsIndex, indices: Tensor<1, Int>) -> Self {
         let dim = dim.expect_dim_index(D);
         check!(TensorCheck::select::<D>(dim));
         Self::new(K::select(self.primitive, dim, indices.primitive))
@@ -1673,8 +1650,8 @@ where
     pub fn select_assign(
         self,
         dim: impl AsIndex,
-        indices: Tensor<B, 1, Int>,
-        values: Tensor<B, D, K>,
+        indices: Tensor<1, Int>,
+        values: Tensor<D, K>,
         update: IndexingUpdateOp,
     ) -> Self {
         let dim = dim.expect_dim_index(D);
@@ -1701,20 +1678,19 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape, Bool};
     ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
-    ///   let value = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let mask = Tensor::< 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let value = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor.mask_where(mask, value);
     ///   println!("{tensor}");
     ///   // [[2.0, -2.0, 4.0], [5.0, 2.0, 6.0]]
     /// }
     /// ```
-    pub fn mask_where(self, mask: Tensor<B, D, Bool>, value: Self) -> Self {
+    pub fn mask_where(self, mask: Tensor<D, Bool>, value: Self) -> Self {
         Self::new(K::mask_where(
             self.primitive,
             mask.primitive,
@@ -1730,19 +1706,18 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape, Bool};
     ///
-    /// fn example<B: Backend>() {
-    ///   let device = B::Device::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let mask = Tensor::< 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
     ///   let tensor = tensor.mask_fill(mask, 3.0);
     ///   println!("{tensor}");
     ///   // [[3.0, -2.0, 3.0], [5.0, 3.0, 6.0]]
     /// }
     /// ```
-    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
+    pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<D, Bool>, value: E) -> Self {
         let value = Scalar::new(value, &self.dtype());
         Self::new(K::mask_fill(self.primitive, mask.primitive, value))
     }
@@ -1763,7 +1738,7 @@ where
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
+    pub fn gather(self, dim: usize, indices: Tensor<D, Int>) -> Self {
         check!(TensorCheck::gather::<D>(
             dim,
             &self.shape(),
@@ -1804,7 +1779,7 @@ where
     pub fn scatter(
         self,
         dim: usize,
-        indices: Tensor<B, D, Int>,
+        indices: Tensor<D, Int>,
         values: Self,
         update: IndexingUpdateOp,
     ) -> Self {
@@ -1852,8 +1827,8 @@ where
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd<const M: usize, const DV: usize>(
         self,
-        indices: Tensor<B, M, Int>,
-        values: Tensor<B, DV, K>,
+        indices: Tensor<M, Int>,
+        values: Tensor<DV, K>,
         update: IndexingUpdateOp,
     ) -> Self {
         check!(TensorCheck::scatter_nd::<D, M, DV>(
@@ -1882,8 +1857,8 @@ where
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather_nd<const M: usize, const DV: usize>(
         self,
-        indices: Tensor<B, M, Int>,
-    ) -> Tensor<B, DV, K> {
+        indices: Tensor<M, Int>,
+    ) -> Tensor<DV, K> {
         check!(TensorCheck::gather_nd::<D, M, DV>(&indices.shape()));
         Tensor::new(K::gather_nd(self.primitive, indices.primitive))
     }
@@ -1939,7 +1914,7 @@ where
     }
 
     /// Create a tensor from the given data on the given device.
-    pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions<B>>) -> Self
+    pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions>) -> Self
     where
         T: Into<TensorData>,
     {
@@ -1952,7 +1927,7 @@ where
         // Use the given dtype when provided, otherwise default device dtype
         let opt = options.into();
         let dtype = opt.resolve_dtype::<K>();
-        Self::new(K::from_data(data, &opt.device, dtype))
+        Self::new(K::from_data(data, &opt.device.dispatch, dtype))
     }
 
     /// Repeat the tensor along the given dimension.
@@ -1970,13 +1945,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 2]
-    ///     let tensor = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let tensor = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///
     ///     // Repeat the tensor along the dimension 0 twice.
     ///     // [[3.0, 4.9], [2.0, 1.9], [4.0, 5.9], [3.0, 4.9], [2.0, 1.9], [4.0, 5.9]]
@@ -2010,13 +1984,12 @@ where
     ///
     /// ```rust
     ///
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 2]
-    ///     let tensor = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let tensor = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///
     ///     // Repeat the tensor along the dimension 0 twice and the dimension 0 once.
     ///     // [[3.0, 4.9], [2.0, 1.9], [4.0, 5.9], [3.0, 4.9], [2.0, 1.9], [4.0, 5.9]]
@@ -2055,20 +2028,19 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::<B, 2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
-    ///     let t2 = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t1 = Tensor::< 2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t2 = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///     // Compare the elements of the two 2D tensors with dimensions [3, 2].
     ///     // [[false, true], [true, true], [true, true]]
     ///     let equal = t1.equal(t2);
     ///     println!("{equal}");
     /// }
     /// ```
-    pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
+    pub fn equal(self, other: Self) -> Tensor<D, Bool> {
         check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         Tensor::new(K::equal(self.primitive, other.primitive))
     }
@@ -2085,20 +2057,19 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::<B, 2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
-    ///     let t2 = Tensor::<B, 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t1 = Tensor::< 2>::from_data([[2.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
+    ///     let t2 = Tensor::< 2>::from_data([[3.0, 4.9], [2.0, 1.9], [4.0, 5.9]], &device);
     ///     // Compare the elements of the two 2D tensors for inequality.
     ///     // [[true, false], [false, false], [false, false]]
     ///     let not_equal = t1.not_equal(t2);
     ///     println!("{not_equal}");
     /// }
     /// ```
-    pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool> {
+    pub fn not_equal(self, other: Self) -> Tensor<D, Bool> {
         check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
         Tensor::new(K::not_equal(self.primitive, other.primitive))
     }
@@ -2112,18 +2083,17 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.equal_elem(3.0);
     ///    println!("{tensor}");
     ///    // [[false, false, true], [false, false, false]]
     /// }
     /// ```
-    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+    pub fn equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
         Tensor::new(K::equal_elem(self.primitive, other))
     }
@@ -2137,18 +2107,17 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.not_equal_elem(3.0);
     ///    println!("{tensor}");
     ///    // [[true, true, false], [true, true, true]]
     /// }
     /// ```
-    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
+    pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
         let other = Scalar::new(other, &self.dtype());
         Tensor::new(K::not_equal_elem(self.primitive, other))
     }
@@ -2164,13 +2133,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::<B, 2>::from_data([[3.0, 4.9, 2.0, 1.0], [2.0, 1.9, 3.0, 1.0]], &device);
-    ///     let t2 = Tensor::<B, 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
+    ///     let t1 = Tensor::< 2>::from_data([[3.0, 4.9, 2.0, 1.0], [2.0, 1.9, 3.0, 1.0]], &device);
+    ///     let t2 = Tensor::< 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
     ///
     ///     // Concatenate the two tensors with shapes [2, 4] and [2, 3] along the dimension 1.
     ///     // [[3.0, 4.9, 2.0, 1.0, 4.0, 5.9, 8.0], [2.0, 1.9, 3.0, 1.0, 1.4, 5.8, 6.0]]
@@ -2215,14 +2183,13 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
-    ///     let t1 = Tensor::<B, 2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
-    ///     let t2 = Tensor::<B, 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
-    ///     let t3 = Tensor::<B, 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
+    ///     let t1 = Tensor::< 2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
+    ///     let t2 = Tensor::< 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
+    ///     let t3 = Tensor::< 2>::from_data([[4.0, 5.9, 8.0], [1.4, 5.8, 6.0]], &device);
     ///
     ///     // Concatenate the three tensors with shape [2, 3] along a new dimension, 0.
     ///     // [[[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]],
@@ -2233,10 +2200,10 @@ where
     ///     println!("{stacked}");
     /// }
     /// ```
-    pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
-        check!(TensorCheck::stack::<B, D, K, D2>(&tensors, dim));
+    pub fn stack<const D2: usize>(tensors: Vec<Tensor<D, K>>, dim: usize) -> Tensor<D2, K> {
+        check!(TensorCheck::stack::<D, K, D2>(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
-        Tensor::<B, D2, K>::cat(tensors, dim)
+        Tensor::<D2, K>::cat(tensors, dim)
     }
 
     /// Iterate over slices of tensors alongside a given dimension.
@@ -2252,11 +2219,10 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::<B,2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]], &device);
     ///   // Given a 2D tensor with dimensions [2, 3], iterate over slices of tensors along the dimension 0.
     ///   let iter = tensor.iter_dim(0);
     ///   for (i,tensor) in iter.enumerate() {
@@ -2266,7 +2232,7 @@ where
     ///  }
     /// }
     /// ```
-    pub fn iter_dim(self, dim: usize) -> DimIter<B, D, K> {
+    pub fn iter_dim(self, dim: usize) -> DimIter<D, K> {
         check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
         DimIter::new(self, dim)
     }
@@ -2285,13 +2251,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [4, 3]
-    ///     let tensor = Tensor::<B, 2>::from_data(
+    ///     let tensor = Tensor::< 2>::from_data(
     ///         [
     ///             [3.0, 4.9, 2.0],
     ///             [2.0, 1.9, 3.0],
@@ -2345,13 +2310,12 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [4, 3]
-    ///     let tensor = Tensor::<B, 2>::from_data(
+    ///     let tensor = Tensor::< 2>::from_data(
     ///         [
     ///             [3.0, 4.9, 2.0],
     ///             [2.0, 1.9, 3.0],
@@ -2415,13 +2379,12 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 1D tensor with 5 elements
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
     ///     // Split the tensor into chunks of size 2 along dimension 0
     ///     let chunks = tensor.split(2, 0);
     ///     // The result is a vector of tensors:
@@ -2461,13 +2424,12 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 1D tensor with 5 elements
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     let tensor = Tensor::< 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
     ///     // Split the tensor into chunks with sizes [2, 3] along dimension 0
     ///     let chunks = tensor.split_with_sizes(vec![2, 3], 0);
     ///     // The result is a vector of tensors:
@@ -2503,19 +2465,18 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, 1, Bool>` containing a single element, True if any element in the input tensor
+    /// A boolean tensor `Tensor<1, Bool>` containing a single element, True if any element in the input tensor
     /// evaluates to True, False otherwise.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::<B,2, Bool>::from_data([[true,false,true],[false,true,false]], &device);
-    ///   let tensor_two = Tensor::<B,2, Bool>::from_data([[false,false,false],[false,false,false]], &device);
+    ///   let tensor = Tensor::<2, Bool>::from_data([[true,false,true],[false,true,false]], &device);
+    ///   let tensor_two = Tensor::<2, Bool>::from_data([[false,false,false],[false,false,false]], &device);
     ///
     ///   // Given a 2D tensor with dimensions [2, 3], test if any element in the tensor evaluates to True.
     ///   let any_tensor = tensor.any();
@@ -2528,7 +2489,7 @@ where
     ///   // Tensor { data: [false], ... }
     /// }
     /// ```
-    pub fn any(self) -> Tensor<B, 1, Bool> {
+    pub fn any(self) -> Tensor<1, Bool> {
         Tensor::new(K::any(self.primitive))
     }
 
@@ -2541,27 +2502,26 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     let tensor =
-    ///         Tensor::<B, 2, Bool>::from_data([[true, false, false], [false, true, false]], &device);
+    ///         Tensor::< 2, Bool>::from_data([[true, false, false], [false, true, false]], &device);
     ///     // Check if any element in the tensor evaluates to True along the dimension 1.
     ///     // [[true], [true]],
     ///     let any_dim = tensor.clone().any_dim(1);
     ///     println!("{any_dim}");
     /// }
     /// ```
-    pub fn any_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+    pub fn any_dim(self, dim: usize) -> Tensor<D, Bool> {
         Tensor::new(K::any_dim(self.primitive, dim))
     }
 
@@ -2573,26 +2533,25 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
+    /// A boolean tensor `Tensor<1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     let tensor =
-    ///         Tensor::<B, 2, Bool>::from_data([[true, false, true], [true, true, true]], &device);
+    ///         Tensor::< 2, Bool>::from_data([[true, false, true], [true, true, true]], &device);
     ///     // Check if all elements in the tensor evaluate to True (which is not the case).
     ///     // [false]
     ///     let all = tensor.all();
     ///     println!("{all}");
     /// }
     /// ```
-    pub fn all(self) -> Tensor<B, 1, Bool> {
+    pub fn all(self) -> Tensor<1, Bool> {
         Tensor::new(K::all(self.primitive))
     }
 
@@ -2605,27 +2564,26 @@ where
     ///
     /// # Returns
     ///
-    /// A boolean tensor `Tensor<B, D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
+    /// A boolean tensor `Tensor<D, Bool>` with the same shape as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     let tensor =
-    ///         Tensor::<B, 2, Bool>::from_data([[true, true, false], [true, true, true]], &device);
+    ///         Tensor::< 2, Bool>::from_data([[true, true, false], [true, true, true]], &device);
     ///     // Check if all elements in the tensor evaluate to True along the dimension 1.
     ///     // [[true, true, false]]
     ///     let all_dim = tensor.clone().all_dim(0);
     ///     println!("{all_dim}");
     /// }
     /// ```
-    pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+    pub fn all_dim(self, dim: usize) -> Tensor<D, Bool> {
         Tensor::new(K::all_dim(self.primitive, dim))
     }
 
@@ -2643,12 +2601,11 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::<B, 2>::from_data([[3.0]], &device);
+    ///     let tensor = Tensor::< 2>::from_data([[3.0]], &device);
     ///     // Convert the tensor with a single element into a scalar.
     ///     let scalar = tensor.into_scalar();
     ///     println!("{scalar}");
@@ -2715,20 +2672,19 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///     // Create a 2D tensor with dimensions [3, 1]
-    ///     let tensor = Tensor::<B, 2>::from_data([[1.], [2.], [3.]], &device);
+    ///     let tensor = Tensor::< 2>::from_data([[1.], [2.], [3.]], &device);
     ///     // Expand the tensor to a new shape [3, 4]
     ///     // [[1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 3.0]]
     ///     let expanded = tensor.expand([3, 4]);
     ///     println!("{}", expanded);
     /// }
     /// ```
-    pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<B, D2, K> {
+    pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<D2, K> {
         let shape = shape.into_shape(&self.shape());
         check!(TensorCheck::expand::<D, D2>(
             "expand",
@@ -2736,7 +2692,7 @@ where
             &shape,
         ));
 
-        Tensor::<B, D2, K>::new(K::expand(self.primitive, shape))
+        Tensor::<D2, K>::new(K::expand(self.primitive, shape))
     }
 
     /// Unfold windows along a dimension.
@@ -2769,7 +2725,7 @@ where
         dim: I,
         size: usize,
         step: usize,
-    ) -> Tensor<B, D2, K> {
+    ) -> Tensor<D2, K> {
         let dim = dim.expect_dim_index(D);
         check!(TensorCheck::unfold::<D, D2>(
             "unfold",
@@ -2778,25 +2734,24 @@ where
             size,
             step,
         ));
-        Tensor::<B, D2, K>::new(K::unfold(self.primitive, dim, size, step))
+        Tensor::<D2, K>::new(K::unfold(self.primitive, dim, size, step))
     }
 }
 
 /// Iterator given by (Tensor::iter_dim).
-pub struct DimIter<B, const D: usize, K>
+pub struct DimIter<const D: usize, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
+    K: Basic,
 {
     start: usize,
     end: usize,
     dim: usize,
     ranges: [Range<usize>; D],
-    tensor: Tensor<B, D, K>,
+    tensor: Tensor<D, K>,
 }
 
-impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
-    type Item = Tensor<B, D, K>;
+impl<const D: usize, K: Basic> Iterator for DimIter<D, K> {
+    type Item = Tensor<D, K>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start >= self.end {
@@ -2813,7 +2768,7 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
     }
 }
 
-impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter<B, D, K> {
+impl<const D: usize, K: Basic> DoubleEndedIterator for DimIter<D, K> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start >= self.end {
             return None;
@@ -2829,8 +2784,8 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter
     }
 }
 
-impl<B: Backend, const D: usize, K: BasicOps<B>> DimIter<B, D, K> {
-    fn new(tensor: Tensor<B, D, K>, dim: usize) -> Self {
+impl<const D: usize, K: Basic> DimIter<D, K> {
+    fn new(tensor: Tensor<D, K>, dim: usize) -> Self {
         let dims = tensor.dims();
         let ranges = dims
             .iter()
@@ -2847,11 +2802,57 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DimIter<B, D, K> {
     }
 }
 
-impl<B, const D: usize, K> Tensor<B, D, K>
+struct DataIterFmt {
+    data: TensorData,
+    precision: Option<usize>,
+}
+
+fn fmt_float<E: Element>(elem: E, precision: Option<usize>) -> String {
+    match precision {
+        Some(p) => format!("{elem:.p$}"),
+        None => fmt_elem(elem),
+    }
+}
+
+fn fmt_elem<E: Element>(elem: E) -> String {
+    format!("{elem:?}")
+}
+
+// TODO: refactor display
+impl DataIterFmt {
+    fn next(&self) -> String {
+        match self.data.dtype {
+            DType::F64 => fmt_float(self.next_elem::<f64>(), self.precision),
+            DType::F32 | DType::Flex32 => fmt_float(self.next_elem::<f32>(), self.precision),
+            DType::F16 => fmt_float(self.next_elem::<burn_std::f16>(), self.precision),
+            DType::BF16 => fmt_float(self.next_elem::<burn_std::bf16>(), self.precision),
+            DType::I64 => fmt_elem(self.next_elem::<i64>()),
+            DType::I32 => fmt_elem(self.next_elem::<i32>()),
+            DType::I16 => fmt_elem(self.next_elem::<i16>()),
+            DType::I8 => fmt_elem(self.next_elem::<i8>()),
+            DType::U64 => fmt_elem(self.next_elem::<u64>()),
+            DType::U32 => fmt_elem(self.next_elem::<u32>()),
+            DType::U16 => fmt_elem(self.next_elem::<u16>()),
+            DType::U8 => fmt_elem(self.next_elem::<u8>()),
+            DType::Bool(store) => match store {
+                burn_std::BoolStore::Native => fmt_elem(self.next_elem::<bool>()),
+                burn_std::BoolStore::U8 => fmt_elem(self.next_elem::<u8>().to_bool()),
+                burn_std::BoolStore::U32 => fmt_elem(self.next_elem::<u32>().to_bool()),
+            },
+            DType::QFloat(_) => todo!(), // unreachable but we should fix that
+            DType::Complex64 => fmt_elem(self.next_elem::<Complex<f64>>()),
+            DType::Complex32 => fmt_elem(self.next_elem::<Complex<f32>>()),
+        }
+    }
+
+    fn next_elem<E: Element>(&self) -> E {
+        self.data.iter::<E>().next().unwrap()
+    }
+}
+
+impl<const D: usize, K> Tensor<D, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
-    <K as BasicOps<B>>::Elem: Debug,
+    K: Basic,
 {
     #[inline]
     fn push_newline_indent(acc: &mut String, indent: usize) {
@@ -2880,12 +2881,8 @@ where
             let data = burn_std::reader::try_read_sync(self.clone().slice(range).into_data_async());
 
             if let Some(Ok(data)) = data {
-                let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
-                match (precision, K::name()) {
-                    (Some(p), "Float") => acc.push_str(&format!("{elem:.p$}")),
-                    (_, "Bool") => acc.push_str(&format!("{}", elem.to_bool())),
-                    _ => acc.push_str(&format!("{elem:?}")),
-                }
+                let elem = DataIterFmt { data, precision }.next();
+                acc.push_str(&elem);
             } else {
                 acc.push_str("<Tensor data not available>");
             }
@@ -3052,12 +3049,9 @@ pub fn set_print_options(options: PrintOptions) {
 }
 
 /// Pretty print tensors
-impl<B, const D: usize, K> core::fmt::Display for Tensor<B, D, K>
+impl<const D: usize, K> core::fmt::Display for Tensor<D, K>
 where
-    B: Backend,
-    B::IntElem: core::fmt::Display,
-    K: BasicOps<B>,
-    <K as BasicOps<B>>::Elem: Debug,
+    K: Basic,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "Tensor {{")?;
@@ -3085,7 +3079,6 @@ where
 
         writeln!(f, "  shape:  {:?},", self.dims())?;
         writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  backend:  {:?},", B::name(&self.device()))?;
         writeln!(f, "  kind:  {:?},", K::name())?;
 
         let dtype = self.primitive.dtype();
@@ -3221,10 +3214,9 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
     }
 }
 
-impl<B, const D: usize, K> Serialize for Tensor<B, D, K>
+impl<const D: usize, K> Serialize for Tensor<D, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
+    K: Basic,
     K::Elem: Debug + Copy + Serialize,
 {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -3233,17 +3225,13 @@ where
     }
 }
 
-impl<'de, B, const D: usize, K> Deserialize<'de> for Tensor<B, D, K>
+impl<'de, const D: usize, K> Deserialize<'de> for Tensor<D, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
+    K: Basic,
     K::Elem: Debug + Copy + Deserialize<'de>,
 {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
-        let tensor = Tensor::from_data(
-            TensorData::deserialize(deserializer)?,
-            &<B::Device as Default>::default(),
-        );
+        let tensor = Tensor::from_data(TensorData::deserialize(deserializer)?, &Device::default());
         Ok(tensor)
     }
 }

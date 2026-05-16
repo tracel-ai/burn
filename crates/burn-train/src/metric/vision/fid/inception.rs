@@ -5,22 +5,22 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
 use burn::tensor::ops::{InterpolateMode, InterpolateOptions};
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::{BatchNorm, BatchNormConfig, PaddingConfig2d};
 
 /// Conv2d + BatchNorm + ReLU building block.
 #[derive(Module, Debug)]
-pub struct BasicConv2d<B: Backend> {
-    conv: Conv2d<B>,
-    bn: BatchNorm<B>,
+pub struct BasicConv2d {
+    conv: Conv2d,
+    bn: BatchNorm,
 }
 
-impl<B: Backend> BasicConv2d<B> {
-    pub fn new(conv_config: Conv2dConfig, device: &B::Device) -> Self {
+impl BasicConv2d {
+    pub fn new(conv_config: Conv2dConfig, device: &Device) -> Self {
         let out_channels = conv_config.channels[1];
         Self {
             conv: conv_config.with_bias(false).init(device),
@@ -30,24 +30,24 @@ impl<B: Backend> BasicConv2d<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         relu(self.bn.forward(self.conv.forward(x)))
     }
 }
 
 #[derive(Module, Debug)]
-pub struct InceptionA<B: Backend> {
-    branch1x1: BasicConv2d<B>,
-    branch5x5_1: BasicConv2d<B>,
-    branch5x5_2: BasicConv2d<B>,
-    branch3x3dbl_1: BasicConv2d<B>,
-    branch3x3dbl_2: BasicConv2d<B>,
-    branch3x3dbl_3: BasicConv2d<B>,
-    branch_pool: BasicConv2d<B>,
+pub struct InceptionA {
+    branch1x1: BasicConv2d,
+    branch5x5_1: BasicConv2d,
+    branch5x5_2: BasicConv2d,
+    branch3x3dbl_1: BasicConv2d,
+    branch3x3dbl_2: BasicConv2d,
+    branch3x3dbl_3: BasicConv2d,
+    branch_pool: BasicConv2d,
 }
 
-impl<B: Backend> InceptionA<B> {
-    pub fn new(in_channels: usize, pool_features: usize, device: &B::Device) -> Self {
+impl InceptionA {
+    pub fn new(in_channels: usize, pool_features: usize, device: &Device) -> Self {
         Self {
             branch1x1: BasicConv2d::new(Conv2dConfig::new([in_channels, 64], [1, 1]), device),
             branch5x5_1: BasicConv2d::new(Conv2dConfig::new([in_channels, 48], [1, 1]), device),
@@ -74,7 +74,7 @@ impl<B: Backend> InceptionA<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let branch1x1 = self.branch1x1.forward(x.clone());
 
         let branch5x5 = self.branch5x5_1.forward(x.clone());
@@ -93,15 +93,15 @@ impl<B: Backend> InceptionA<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct InceptionB<B: Backend> {
-    branch3x3: BasicConv2d<B>,
-    branch3x3dbl_1: BasicConv2d<B>,
-    branch3x3dbl_2: BasicConv2d<B>,
-    branch3x3dbl_3: BasicConv2d<B>,
+pub struct InceptionB {
+    branch3x3: BasicConv2d,
+    branch3x3dbl_1: BasicConv2d,
+    branch3x3dbl_2: BasicConv2d,
+    branch3x3dbl_3: BasicConv2d,
 }
 
-impl<B: Backend> InceptionB<B> {
-    pub fn new(in_channels: usize, device: &B::Device) -> Self {
+impl InceptionB {
+    pub fn new(in_channels: usize, device: &Device) -> Self {
         Self {
             branch3x3: BasicConv2d::new(
                 Conv2dConfig::new([in_channels, 384], [3, 3]).with_stride([2, 2]),
@@ -120,7 +120,7 @@ impl<B: Backend> InceptionB<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let branch3x3 = self.branch3x3.forward(x.clone());
 
         let branch3x3dbl = self.branch3x3dbl_1.forward(x.clone());
@@ -135,21 +135,21 @@ impl<B: Backend> InceptionB<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct InceptionC<B: Backend> {
-    branch1x1: BasicConv2d<B>,
-    branch7x7_1: BasicConv2d<B>,
-    branch7x7_2: BasicConv2d<B>,
-    branch7x7_3: BasicConv2d<B>,
-    branch7x7dbl_1: BasicConv2d<B>,
-    branch7x7dbl_2: BasicConv2d<B>,
-    branch7x7dbl_3: BasicConv2d<B>,
-    branch7x7dbl_4: BasicConv2d<B>,
-    branch7x7dbl_5: BasicConv2d<B>,
-    branch_pool: BasicConv2d<B>,
+pub struct InceptionC {
+    branch1x1: BasicConv2d,
+    branch7x7_1: BasicConv2d,
+    branch7x7_2: BasicConv2d,
+    branch7x7_3: BasicConv2d,
+    branch7x7dbl_1: BasicConv2d,
+    branch7x7dbl_2: BasicConv2d,
+    branch7x7dbl_3: BasicConv2d,
+    branch7x7dbl_4: BasicConv2d,
+    branch7x7dbl_5: BasicConv2d,
+    branch_pool: BasicConv2d,
 }
 
-impl<B: Backend> InceptionC<B> {
-    pub fn new(in_channels: usize, channels_7x7: usize, device: &B::Device) -> Self {
+impl InceptionC {
+    pub fn new(in_channels: usize, channels_7x7: usize, device: &Device) -> Self {
         let c7 = channels_7x7;
         Self {
             branch1x1: BasicConv2d::new(Conv2dConfig::new([in_channels, 192], [1, 1]), device),
@@ -189,7 +189,7 @@ impl<B: Backend> InceptionC<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let branch1x1 = self.branch1x1.forward(x.clone());
 
         let branch7x7 = self.branch7x7_1.forward(x.clone());
@@ -211,17 +211,17 @@ impl<B: Backend> InceptionC<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct InceptionD<B: Backend> {
-    branch3x3_1: BasicConv2d<B>,
-    branch3x3_2: BasicConv2d<B>,
-    branch7x7x3_1: BasicConv2d<B>,
-    branch7x7x3_2: BasicConv2d<B>,
-    branch7x7x3_3: BasicConv2d<B>,
-    branch7x7x3_4: BasicConv2d<B>,
+pub struct InceptionD {
+    branch3x3_1: BasicConv2d,
+    branch3x3_2: BasicConv2d,
+    branch7x7x3_1: BasicConv2d,
+    branch7x7x3_2: BasicConv2d,
+    branch7x7x3_3: BasicConv2d,
+    branch7x7x3_4: BasicConv2d,
 }
 
-impl<B: Backend> InceptionD<B> {
-    pub fn new(in_channels: usize, device: &B::Device) -> Self {
+impl InceptionD {
+    pub fn new(in_channels: usize, device: &Device) -> Self {
         Self {
             branch3x3_1: BasicConv2d::new(Conv2dConfig::new([in_channels, 192], [1, 1]), device),
             branch3x3_2: BasicConv2d::new(
@@ -246,7 +246,7 @@ impl<B: Backend> InceptionD<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let branch3x3 = self.branch3x3_1.forward(x.clone());
         let branch3x3 = self.branch3x3_2.forward(branch3x3);
 
@@ -263,22 +263,22 @@ impl<B: Backend> InceptionD<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct InceptionE<B: Backend> {
-    branch1x1: BasicConv2d<B>,
-    branch3x3_1: BasicConv2d<B>,
-    branch3x3_2a: BasicConv2d<B>,
-    branch3x3_2b: BasicConv2d<B>,
-    branch3x3dbl_1: BasicConv2d<B>,
-    branch3x3dbl_2: BasicConv2d<B>,
-    branch3x3dbl_3a: BasicConv2d<B>,
-    branch3x3dbl_3b: BasicConv2d<B>,
-    branch_pool: BasicConv2d<B>,
+pub struct InceptionE {
+    branch1x1: BasicConv2d,
+    branch3x3_1: BasicConv2d,
+    branch3x3_2a: BasicConv2d,
+    branch3x3_2b: BasicConv2d,
+    branch3x3dbl_1: BasicConv2d,
+    branch3x3dbl_2: BasicConv2d,
+    branch3x3dbl_3a: BasicConv2d,
+    branch3x3dbl_3b: BasicConv2d,
+    branch_pool: BasicConv2d,
     #[module(skip)]
     use_max_pool: bool,
 }
 
-impl<B: Backend> InceptionE<B> {
-    pub fn new(in_channels: usize, use_max_pool: bool, device: &B::Device) -> Self {
+impl InceptionE {
+    pub fn new(in_channels: usize, use_max_pool: bool, device: &Device) -> Self {
         Self {
             branch1x1: BasicConv2d::new(Conv2dConfig::new([in_channels, 320], [1, 1]), device),
             branch3x3_1: BasicConv2d::new(Conv2dConfig::new([in_channels, 384], [1, 1]), device),
@@ -313,7 +313,7 @@ impl<B: Backend> InceptionE<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let branch1x1 = self.branch1x1.forward(x.clone());
 
         let branch3x3 = self.branch3x3_1.forward(x.clone());
@@ -343,30 +343,30 @@ impl<B: Backend> InceptionE<B> {
 /// Outputs a 2048-dimensional feature vector per image, matching the
 /// pytorch-fid variant (TF-ported weights).
 #[derive(Module, Debug)]
-pub struct InceptionV3FeatureExtractor<B: Backend> {
+pub struct InceptionV3FeatureExtractor {
     // Stem
-    conv2d_1a: BasicConv2d<B>,
-    conv2d_2a: BasicConv2d<B>,
-    conv2d_2b: BasicConv2d<B>,
-    conv2d_3b: BasicConv2d<B>,
-    conv2d_4a: BasicConv2d<B>,
+    conv2d_1a: BasicConv2d,
+    conv2d_2a: BasicConv2d,
+    conv2d_2b: BasicConv2d,
+    conv2d_3b: BasicConv2d,
+    conv2d_4a: BasicConv2d,
     // Inception blocks
-    mixed_5b: InceptionA<B>,
-    mixed_5c: InceptionA<B>,
-    mixed_5d: InceptionA<B>,
-    mixed_6a: InceptionB<B>,
-    mixed_6b: InceptionC<B>,
-    mixed_6c: InceptionC<B>,
-    mixed_6d: InceptionC<B>,
-    mixed_6e: InceptionC<B>,
-    mixed_7a: InceptionD<B>,
-    mixed_7b: InceptionE<B>,
-    mixed_7c: InceptionE<B>,
+    mixed_5b: InceptionA,
+    mixed_5c: InceptionA,
+    mixed_5d: InceptionA,
+    mixed_6a: InceptionB,
+    mixed_6b: InceptionC,
+    mixed_6c: InceptionC,
+    mixed_6d: InceptionC,
+    mixed_6e: InceptionC,
+    mixed_7a: InceptionD,
+    mixed_7b: InceptionE,
+    mixed_7c: InceptionE,
 }
 
-impl<B: Backend> InceptionV3FeatureExtractor<B> {
+impl InceptionV3FeatureExtractor {
     /// Creates a new feature extractor with random weights.
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         Self {
             // Stem: 3 -> 32 -> 32 -> 64 -> 80 -> 192
             conv2d_1a: BasicConv2d::new(
@@ -397,7 +397,7 @@ impl<B: Backend> InceptionV3FeatureExtractor<B> {
 
     /// Extract 2048-dim features. Input is resized to 299x299 via bilinear
     /// interpolation to match the pytorch-fid reference.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let [batch, _, h, w] = x.dims();
 
         let x = if h != 299 || w != 299 {

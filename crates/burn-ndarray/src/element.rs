@@ -1,4 +1,5 @@
-use burn_backend::{Element, ElementComparison};
+use burn_backend::Element;
+use burn_std::ElementComparison;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]

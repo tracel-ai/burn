@@ -1,7 +1,6 @@
 use burn_core as burn;
 
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 pub(crate) enum CacheState<T> {
     Value(T),
@@ -9,11 +8,11 @@ pub(crate) enum CacheState<T> {
 }
 
 /// A cache for a tensor.
-pub struct TensorCache<B: Backend, const D: usize> {
-    pub(crate) state: CacheState<Tensor<B, D>>,
+pub struct TensorCache<const D: usize> {
+    pub(crate) state: CacheState<Tensor<D>>,
 }
 
-impl<B: Backend, const D: usize> TensorCache<B, D> {
+impl<const D: usize> TensorCache<D> {
     /// Creates a new empty cache.
     ///
     /// # Returns

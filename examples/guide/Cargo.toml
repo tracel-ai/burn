@@ -16,7 +16,7 @@ vulkan = ["burn/vulkan"]
 
 [dependencies]
 burn = { workspace = true, features = [
-    "webgpu",
+    "wgpu",
     "train",
     "vision",
 ] }
@@ -24,6 +24,4 @@ burn = { workspace = true, features = [
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 burn = { workspace = true, features = ["default", "vulkan"] }
 
-# Serialization
 log = { workspace = true }
-serde = { workspace = true, features = ["std", "derive"] }

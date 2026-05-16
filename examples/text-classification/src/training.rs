@@ -18,7 +18,6 @@ use burn::{
     optim::AdamConfig,
     prelude::*,
     record::{CompactRecorder, Recorder},
-    tensor::backend::AutodiffBackend,
     train::metric::{
         AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
     },
@@ -45,8 +44,8 @@ fn create_artifact_dir(artifact_dir: &str) {
 }
 
 // Define train function
-pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
-    strategy: ExecutionStrategy<B>,
+pub fn train<D: TextClassificationDataset + 'static>(
+    strategy: ExecutionStrategy,
     dataset_train: D,         // Training dataset
     dataset_test: D,          // Testing dataset
     config: ExperimentConfig, // Experiment configuration
@@ -67,7 +66,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.seq_length,
     )
-    .init::<B>(strategy.main_device());
+    .init(&strategy.main_device().clone().autodiff());
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())

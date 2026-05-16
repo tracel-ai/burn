@@ -4,21 +4,18 @@ use crate::{
     BurnToPyTorchAdapter, ModuleSnapshot, ModuleStore, PyTorchToBurnAdapter, SafetensorsStore,
 };
 use burn_core::module::{Module, Param};
+use burn_core::tensor::{Device, Tensor};
 use burn_nn::{Linear, LinearConfig};
-use burn_tensor::Tensor;
-use burn_tensor::backend::Backend;
-
-type TestBackend = burn_flex::Flex;
 
 #[derive(Module, Debug)]
-struct TestModel<B: Backend> {
-    linear: Linear<B>,
-    norm_weight: Param<Tensor<B, 1>>,
-    norm_bias: Param<Tensor<B, 1>>,
+struct TestModel {
+    linear: Linear,
+    norm_weight: Param<Tensor<1>>,
+    norm_bias: Param<Tensor<1>>,
 }
 
-impl<B: Backend> TestModel<B> {
-    fn new(device: &B::Device) -> Self {
+impl TestModel {
+    fn new(device: &Device) -> Self {
         Self {
             linear: LinearConfig::new(4, 2).with_bias(true).init(device),
             norm_weight: Param::from_data([1.0, 1.0], device),
@@ -30,7 +27,7 @@ impl<B: Backend> TestModel<B> {
 #[test]
 fn pytorch_to_burn_adapter_linear_transpose() {
     let device = Default::default();
-    let model = TestModel::<TestBackend>::new(&device);
+    let model = TestModel::new(&device);
 
     // Save with BurnToPyTorch adapter (will transpose linear weights)
     let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
@@ -44,7 +41,7 @@ fn pytorch_to_burn_adapter_linear_transpose() {
         p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
-    let mut model2 = TestModel::<TestBackend>::new(&device);
+    let mut model2 = TestModel::new(&device);
     let result = model2.load_from(&mut load_store).unwrap();
 
     // Should successfully load all tensors
@@ -72,13 +69,13 @@ fn pytorch_to_burn_adapter_norm_rename() {
 
     // Create a model with norm-like naming
     #[derive(Module, Debug)]
-    struct NormModel<B: Backend> {
-        norm_gamma: Param<Tensor<B, 1>>,
-        norm_beta: Param<Tensor<B, 1>>,
+    struct NormModel {
+        norm_gamma: Param<Tensor<1>>,
+        norm_beta: Param<Tensor<1>>,
     }
 
-    impl<B: Backend> NormModel<B> {
-        fn new(device: &B::Device) -> Self {
+    impl NormModel {
+        fn new(device: &Device) -> Self {
             Self {
                 norm_gamma: Param::from_data([1.0, 2.0, 3.0], device),
                 norm_beta: Param::from_data([0.1, 0.2, 0.3], device),
@@ -86,7 +83,7 @@ fn pytorch_to_burn_adapter_norm_rename() {
         }
     }
 
-    let model = NormModel::<TestBackend>::new(&device);
+    let model = NormModel::new(&device);
 
     // Save with BurnToPyTorch adapter (will rename gamma->weight, beta->bias)
     let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(BurnToPyTorchAdapter);
@@ -103,7 +100,7 @@ fn pytorch_to_burn_adapter_norm_rename() {
         p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
-    let mut model2 = NormModel::<TestBackend>::new(&device);
+    let mut model2 = NormModel::new(&device);
     let result = model2.load_from(&mut load_store).unwrap();
 
     // Should load successfully
@@ -122,7 +119,7 @@ fn pytorch_to_burn_adapter_norm_rename() {
 #[test]
 fn no_adapter_preserves_original() {
     let device = Default::default();
-    let model = TestModel::<TestBackend>::new(&device);
+    let model = TestModel::new(&device);
 
     // Save without adapter
     let mut save_store = SafetensorsStore::from_bytes(None);
@@ -136,7 +133,7 @@ fn no_adapter_preserves_original() {
         p.set_data(p_save.data().unwrap().as_ref().clone());
     }
 
-    let mut model2 = TestModel::<TestBackend>::new(&device);
+    let mut model2 = TestModel::new(&device);
     let result = model2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
@@ -168,12 +165,12 @@ fn adapter_with_pytorch_import() {
 
     // Simple test model that matches some of the PyTorch structure
     #[derive(Module, Debug)]
-    struct SimpleNet<B: Backend> {
-        fc1: Linear<B>,
+    struct SimpleNet {
+        fc1: Linear,
     }
 
-    impl<B: Backend> SimpleNet<B> {
-        fn new(device: &B::Device) -> Self {
+    impl SimpleNet {
+        fn new(device: &Device) -> Self {
             Self {
                 fc1: LinearConfig::new(4 * 8 * 8, 16).init(device),
             }
@@ -186,7 +183,7 @@ fn adapter_with_pytorch_import() {
         .validate(false)
         .allow_partial(true);
 
-    let mut model = SimpleNet::<TestBackend>::new(&device);
+    let mut model = SimpleNet::new(&device);
     let result = model.load_from(&mut store).unwrap();
 
     // Should load some tensors (fc1 if it exists in the file)
@@ -197,10 +194,10 @@ fn adapter_with_pytorch_import() {
 #[test]
 fn half_precision_adapter_round_trip() {
     use crate::HalfPrecisionAdapter;
-    use burn_tensor::DType;
+    use burn_core::tensor::DType;
 
     let device = Default::default();
-    let model = TestModel::<TestBackend>::new(&device);
+    let model = TestModel::new(&device);
 
     // Save with HalfPrecisionAdapter (F32 -> F16)
     let adapter = HalfPrecisionAdapter::new();
@@ -235,7 +232,7 @@ fn half_precision_adapter_round_trip() {
     // Load back with same adapter (F16 -> F32)
     let mut load_store = SafetensorsStore::from_bytes(Some(save_bytes)).with_from_adapter(adapter);
 
-    let mut model2 = TestModel::<TestBackend>::new(&device);
+    let mut model2 = TestModel::new(&device);
     let result = model2.load_from(&mut load_store).unwrap();
 
     assert!(!result.applied.is_empty());
@@ -262,17 +259,17 @@ fn half_precision_adapter_round_trip() {
 #[test]
 fn half_precision_adapter_without_module() {
     use crate::HalfPrecisionAdapter;
+    use burn_core::tensor::DType;
     use burn_nn::{LayerNorm, LayerNormConfig};
-    use burn_tensor::DType;
 
     #[derive(Module, Debug)]
-    struct MixedModel<B: Backend> {
-        linear: Linear<B>,
-        norm: LayerNorm<B>,
+    struct MixedModel {
+        linear: Linear,
+        norm: LayerNorm,
     }
 
     let device = Default::default();
-    let model = MixedModel::<TestBackend> {
+    let model = MixedModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
         norm: LayerNormConfig::new(2).init(&device),
     };
@@ -311,17 +308,17 @@ fn half_precision_adapter_without_module() {
 #[test]
 fn half_precision_adapter_default_converts_layer_norm() {
     use crate::HalfPrecisionAdapter;
+    use burn_core::tensor::DType;
     use burn_nn::{LayerNorm, LayerNormConfig};
-    use burn_tensor::DType;
 
     #[derive(Module, Debug)]
-    struct NormModel<B: Backend> {
-        linear: Linear<B>,
-        norm: LayerNorm<B>,
+    struct NormModel {
+        linear: Linear,
+        norm: LayerNorm,
     }
 
     let device = Default::default();
-    let model = NormModel::<TestBackend> {
+    let model = NormModel {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
         norm: LayerNormConfig::new(2).init(&device),
     };

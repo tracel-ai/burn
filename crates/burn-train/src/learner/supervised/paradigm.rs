@@ -7,7 +7,7 @@ use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::processor::{
-    AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
+    AsyncProcessorTraining, FullEventProcessorTraining, MetricsTraining,
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
@@ -16,17 +16,16 @@ use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDeviceTrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, ExecutionStrategy,
-    FileApplicationLoggerInstaller, InferenceBackend, InferenceModel, InferenceModelInput,
-    InferenceStep, LearnerEvent, LearnerModelRecord, LearnerOptimizerRecord,
-    LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer, LearningComponentsMarker,
-    LearningComponentsTypes, LearningResult, TrainStep, TrainingBackend, TrainingComponents,
-    TrainingModelInput, TrainingStrategy,
+    FileApplicationLoggerInstaller, InferenceModel, InferenceModelInput, InferenceStep,
+    LearnerEvent, LearnerModelRecord, LearnerOptimizerRecord, LearnerSchedulerRecord,
+    LearnerSummaryConfig, LearningCheckpointer, LearningComponentsMarker, LearningComponentsTypes,
+    LearningResult, TrainStep, TrainingComponents, TrainingModelInput, TrainingStrategy,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::record::FileRecorder;
-use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::tensor::Device;
 use burn_optim::Optimizer;
 use burn_optim::lr_scheduler::LrScheduler;
 use std::collections::BTreeSet;
@@ -34,9 +33,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// A reference to the training split [DataLoader](DataLoader).
-pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainingBackend<LC>, TrainingModelInput<LC>>>;
+pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainingModelInput<LC>>>;
 /// A reference to the validation split [DataLoader](DataLoader).
-pub type ValidLoader<LC> = Arc<dyn DataLoader<InferenceBackend<LC>, InferenceModelInput<LC>>>;
+pub type ValidLoader<LC> = Arc<dyn DataLoader<InferenceModelInput<LC>>>;
 /// The event processor type for supervised learning.
 pub type SupervisedTrainingEventProcessor<LC> = AsyncProcessorTraining<
     LearnerEvent<TrainingModelOutput<LC>>,
@@ -51,14 +50,15 @@ where
     // Not that complex. Extracting into another type would only make it more confusing.
     #[allow(clippy::type_complexity)]
     checkpointers: Option<(
-        AsyncCheckpointer<LearnerModelRecord<LC>, TrainingBackend<LC>>,
-        AsyncCheckpointer<LearnerOptimizerRecord<LC>, TrainingBackend<LC>>,
-        AsyncCheckpointer<LearnerSchedulerRecord<LC>, TrainingBackend<LC>>,
+        AsyncCheckpointer<LearnerModelRecord<LC>>,
+        AsyncCheckpointer<LearnerOptimizerRecord<LC>>,
+        AsyncCheckpointer<LearnerSchedulerRecord<LC>>,
     )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
+    grad_checkpointing: bool,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: MetricsTraining<TrainingModelOutput<LC>, InferenceModelOutput<LC>>,
     event_store: LogEventStore,
@@ -74,13 +74,11 @@ where
     summary: bool,
 }
 
-impl<B, LR, M, O> SupervisedTraining<LearningComponentsMarker<B, LR, M, O>>
+impl<LR, M, O> SupervisedTraining<LearningComponentsMarker<LR, M, O>>
 where
-    B: AutodiffBackend,
     LR: LrScheduler + 'static,
-    M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
-    M::InnerModule: InferenceStep,
-    O: Optimizer<M, B> + 'static,
+    M: TrainStep + InferenceStep + AutodiffModule + core::fmt::Display + 'static,
+    O: Optimizer<M> + 'static,
 {
     /// Creates a new runner for a supervised training.
     ///
@@ -91,10 +89,8 @@ where
     /// * `dataloader_valid` - The dataloader for the validation split.
     pub fn new(
         directory: impl AsRef<Path>,
-        dataloader_train: Arc<dyn DataLoader<B, M::Input>>,
-        dataloader_valid: Arc<
-            dyn DataLoader<B::InnerBackend, <M::InnerModule as InferenceStep>::Input>,
-        >,
+        dataloader_train: Arc<dyn DataLoader<<M as TrainStep>::Input>>,
+        dataloader_valid: Arc<dyn DataLoader<<M as InferenceStep>::Input>>,
     ) -> Self {
         let directory = directory.as_ref().to_path_buf();
         let experiment_log_file = directory.join("experiment.log");
@@ -104,6 +100,7 @@ where
             checkpointers: None,
             directory,
             grad_accumulation: None,
+            grad_checkpointing: false,
             metrics: MetricsTraining::default(),
             event_store: LogEventStore::default(),
             renderer: None,
@@ -115,7 +112,7 @@ where
                 ComposedCheckpointingStrategy::builder()
                     .add(KeepLastNCheckpoints::new(2))
                     .add(MetricCheckpointingStrategy::new(
-                        &LossMetric::<B>::new(), // default to valid loss
+                        &LossMetric::new(), // default to valid loss
                         Aggregate::Mean,
                         Direction::Lowest,
                         Split::Valid,
@@ -191,7 +188,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        TrainingModelOutput<LC>: Adaptor<Me::Input>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -200,7 +197,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        InferenceModelOutput<LC>: Adaptor<Me::Input>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -221,11 +218,23 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         self
     }
 
+    /// Enables autodiff checkpointing.
+    ///
+    /// # Notes
+    /// Gradient checkpointing recomputes activations during backpropagation for operations
+    /// marked as memory-bound, while compute-bound operations still cache their
+    /// output. This reduces peak memory usage at the cost of additional computation
+    /// for memory-bound ops.
+    pub fn gradient_checkpointing(mut self) -> Self {
+        self.grad_checkpointing = true;
+        self
+    }
+
     /// Register a [numeric](crate::metric::Numeric) training [metric](Metric).
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        <TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        TrainingModelOutput<LC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_metric_numeric(metric);
@@ -235,7 +244,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
     pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
-        <InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        InferenceModelOutput<LC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_valid_metric_numeric(metric);
@@ -290,10 +299,8 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
-        FR: FileRecorder<<LC as LearningComponentsTypes>::Backend> + 'static,
-        FR: FileRecorder<
-                <<LC as LearningComponentsTypes>::Backend as AutodiffBackend>::InnerBackend,
-            > + 'static,
+        FR: FileRecorder + 'static,
+        FR: FileRecorder + 'static,
     {
         let checkpoint_dir = self.directory.join("checkpoint");
         let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
@@ -379,7 +386,10 @@ where
 
         // Default to single device based on model
         let training_strategy = self.training_strategy.unwrap_or(TrainingStrategy::Default(
-            ExecutionStrategy::SingleDevice(learner.model.devices()[0].clone()),
+            ExecutionStrategy::SingleDevice(autodiff_device(
+                learner.model.devices()[0].clone(),
+                self.grad_checkpointing,
+            )),
         ));
 
         match training_strategy {
@@ -391,8 +401,10 @@ where
             ),
             TrainingStrategy::Default(strategy) => match strategy {
                 ExecutionStrategy::SingleDevice(device) => {
-                    let single_device: SingleDeviceTrainingStrategy<LC> =
-                        SingleDeviceTrainingStrategy::new(device);
+                    let single_device = SingleDeviceTrainingStrategy::new(autodiff_device(
+                        device,
+                        self.grad_checkpointing,
+                    ));
                     single_device.train(
                         learner,
                         self.dataloader_train,
@@ -403,9 +415,15 @@ where
                 ExecutionStrategy::MultiDevice(devices, multi_device_optim) => {
                     let strategy: Box<dyn SupervisedLearningStrategy<LC>> = match devices.len() == 1
                     {
-                        true => Box::new(SingleDeviceTrainingStrategy::new(devices[0].clone())),
+                        true => Box::new(SingleDeviceTrainingStrategy::new(autodiff_device(
+                            devices[0].clone(),
+                            self.grad_checkpointing,
+                        ))),
                         false => Box::new(MultiDeviceLearningStrategy::new(
-                            devices,
+                            devices
+                                .into_iter()
+                                .map(|d| autodiff_device(d, self.grad_checkpointing))
+                                .collect(),
                             multi_device_optim,
                         )),
                     };
@@ -420,7 +438,13 @@ where
                 ExecutionStrategy::DistributedDataParallel { devices, runtime } => {
                     use crate::ddp::DdpTrainingStrategy;
 
-                    let ddp = DdpTrainingStrategy::new(devices, runtime);
+                    let ddp = DdpTrainingStrategy::new(
+                        devices
+                            .into_iter()
+                            .map(|d| autodiff_device(d, self.grad_checkpointing))
+                            .collect(),
+                        runtime,
+                    );
                     ddp.train(
                         learner,
                         self.dataloader_train,
@@ -431,6 +455,19 @@ where
             },
         }
     }
+}
+
+// Validate the autodiff device property and enable grad checkpointing.
+fn autodiff_device(mut device: Device, grad_checkpointing: bool) -> Device {
+    if !device.is_autodiff() {
+        device = device.autodiff();
+    }
+
+    if grad_checkpointing {
+        device = device.gradient_checkpointing();
+    }
+
+    device
 }
 
 /// Trait to fake variadic generics.
@@ -449,8 +486,8 @@ macro_rules! gen_tuple {
     ($($M:ident),*) => {
         impl<$($M,)* LC: LearningComponentsTypes> TextMetricRegistration<LC> for ($($M,)*)
         where
-            $(<TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(TrainingModelOutput<LC>: Adaptor<$M::Input>,)*
+            $(InferenceModelOutput<LC>: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
@@ -467,8 +504,8 @@ macro_rules! gen_tuple {
 
         impl<$($M,)* LC: LearningComponentsTypes> MetricRegistration<LC> for ($($M,)*)
         where
-            $(<TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(TrainingModelOutput<LC>: Adaptor<$M::Input>,)*
+            $(InferenceModelOutput<LC>: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]

@@ -4,12 +4,12 @@ mod hardware_accelerated;
 /// to really use it in a general case. Needs more work to use as a normal tensor method.
 mod prefix_sum;
 
+use burn_core::tensor::Shape;
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
     ops::numeric::{full_client, zeros_client},
     tensor::CubeTensor,
 };
-use burn_tensor::Shape;
 pub use hardware_accelerated::*;
 
 use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive};
@@ -45,19 +45,19 @@ where
             l.dtype,
         )
     };
-    ConnectedStatsPrimitive {
-        area: (opts != ConnectedStatsOptions::none())
+    (
+        (opts != ConnectedStatsOptions::none())
             .then(zeros)
             .unwrap_or_else(dummy),
-        left: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
-        top: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
-        right: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        bottom: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        max_label: zeros_client::<R>(
+        opts.bounds_enabled.then(max).unwrap_or_else(dummy),
+        opts.bounds_enabled.then(max).unwrap_or_else(dummy),
+        opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
+        opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
+        zeros_client::<R>(
             l.client.clone(),
             l.device.clone(),
             Shape::new([1]),
             I::dtype(),
         ),
-    }
+    )
 }

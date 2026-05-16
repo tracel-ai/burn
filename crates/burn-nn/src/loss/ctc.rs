@@ -3,7 +3,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Int, Tensor, backend::Backend};
+use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 
 /// Configuration for the [CTC Loss](CTCLoss) module.
@@ -60,21 +60,21 @@ impl CTCLossConfig {
 ///
 /// // Prepare inputs (Logits shape: [Time, Batch, Class])
 /// // In your actual code, the logits would be the output of your model
-/// let logits = Tensor::<B, 3>::ones([10, 2, 5], &device);
+/// let logits = Tensor::<3>::ones([10, 2, 5], &device);
 /// let log_probs = log_softmax(logits, 2);
 ///
 /// // Targets shape: [Batch, Max_Target_Len]
 /// // Note: Targets should not contain the blank index (1).
-/// let targets = Tensor::<B, 2, Int>::from_data([[0, 2], [3, 4]], &device);
+/// let targets = Tensor::<2, Int>::from_data([[0, 2], [3, 4]], &device);
 ///
 /// // Lengths shape: [Batch]
-/// let input_lengths = Tensor::<B, 1, Int>::from_data([10, 8], &device);
-/// let target_lengths = Tensor::<B, 1, Int>::from_data([2, 2], &device);
+/// let input_lengths = Tensor::<1, Int>::from_data([10, 8], &device);
+/// let target_lengths = Tensor::<1, Int>::from_data([2, 2], &device);
 ///
 /// // Compute loss
 /// let loss = ctc_loss.forward(log_probs, targets, input_lengths, target_lengths);
 /// ```
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 pub struct CTCLoss {
     blank: usize,
     zero_infinity: bool,
@@ -104,13 +104,13 @@ impl CTCLoss {
     /// - `targets`: `[batch_size, max_target_length]`
     /// - `input_lengths`: `[batch_size]`
     /// - `target_lengths`: `[batch_size]`
-    pub fn forward<B: Backend>(
+    pub fn forward(
         &self,
-        log_probs: Tensor<B, 3>,
-        targets: Tensor<B, 2, Int>,
-        input_lengths: Tensor<B, 1, Int>,
-        target_lengths: Tensor<B, 1, Int>,
-    ) -> Tensor<B, 1> {
+        log_probs: Tensor<3>,
+        targets: Tensor<2, Int>,
+        input_lengths: Tensor<1, Int>,
+        target_lengths: Tensor<1, Int>,
+    ) -> Tensor<1> {
         let [max_input_length, batch_size, num_classes] = log_probs.dims();
         let max_target_len = targets.dims()[1];
         let input_lengths_len = input_lengths.dims()[0];
@@ -176,14 +176,14 @@ impl CTCLoss {
     /// - If `reduction` is not one of `Reduction::Auto`, `Reduction::Mean`, and `Reduction::Sum`.
     /// - If `blank` index is greater than or equal to `num_classes`.
     /// - If the batch dimension of `log_probs`, `targets`, `input_lengths`, and `target_lengths` do not match.
-    pub fn forward_with_reduction<B: Backend>(
+    pub fn forward_with_reduction(
         &self,
-        log_probs: Tensor<B, 3>,
-        targets: Tensor<B, 2, Int>,
-        input_lengths: Tensor<B, 1, Int>,
-        target_lengths: Tensor<B, 1, Int>,
+        log_probs: Tensor<3>,
+        targets: Tensor<2, Int>,
+        input_lengths: Tensor<1, Int>,
+        target_lengths: Tensor<1, Int>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let ctc_loss_tensor =
             self.forward(log_probs, targets, input_lengths, target_lengths.clone());
 
@@ -210,10 +210,10 @@ impl CTCLoss {
     /// - `input_lengths[i] >= target_lengths[i]`
     /// - `input_lengths[i] <= max_input_length`
     #[allow(unused_variables)]
-    fn length_assertions<B: Backend>(
+    fn length_assertions(
         &self,
-        input_lengths: Tensor<B, 1, Int>,
-        target_lengths: Tensor<B, 1, Int>,
+        input_lengths: Tensor<1, Int>,
+        target_lengths: Tensor<1, Int>,
         max_target_len: usize,
         max_input_length: usize,
     ) {
@@ -243,11 +243,11 @@ impl CTCLoss {
         }
     }
 
-    fn assertions<B: Backend>(
+    fn assertions(
         &self,
         batch_size: usize,
         num_classes: usize,
-        targets: Tensor<B, 2, Int>,
+        targets: Tensor<2, Int>,
         input_lengths_len: usize,
         target_lengths_len: usize,
     ) {
@@ -279,30 +279,9 @@ impl CTCLoss {
 
 #[cfg(test)]
 mod tests {
+    use burn::tensor::{TensorData, Tolerance};
+
     use super::*;
-    use burn_flex::{Flex, FlexDevice};
-
-    type TestBackend = Flex;
-
-    fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
-        assert_eq!(
-            actual.len(),
-            expected.len(),
-            "Length mismatch: actual {} vs expected {}",
-            actual.len(),
-            expected.len()
-        );
-        for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
-            assert!(
-                (a - e).abs() < tol,
-                "Mismatch at index {}: expected {:.6}, got {:.6} (diff: {:.6})",
-                i,
-                e,
-                a,
-                (a - e).abs()
-            );
-        }
-    }
 
     // ---------------------------------------------------------------
     // Assertions
@@ -311,14 +290,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "blank index")]
     fn test_ctc_loss_panics_invalid_blank_index() {
-        let device = FlexDevice;
+        let device = Default::default();
         // blank=5 is out of bounds for num_classes=3
         let ctc = CTCLossConfig::new().with_blank(5).init();
 
-        let log_probs = Tensor::<TestBackend, 3>::zeros([2, 1, 3], &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([1], &device);
+        let log_probs = Tensor::<3>::zeros([2, 1, 3], &device);
+        let targets = Tensor::<2, Int>::from_data([[1]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([2], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([1], &device);
 
         ctc.forward(log_probs, targets, input_lengths, target_lengths);
     }
@@ -326,15 +305,15 @@ mod tests {
     #[test]
     #[should_panic(expected = "must equal batch_size")]
     fn test_ctc_loss_panics_mismatched_batch_size() {
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().init();
 
         // Logits batch size = 2
-        let log_probs = Tensor::<TestBackend, 3>::zeros([2, 2, 3], &device);
+        let log_probs = Tensor::<3>::zeros([2, 2, 3], &device);
         // Targets batch size = 1 (Mismatch)
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2, 2], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([1, 1], &device);
+        let targets = Tensor::<2, Int>::from_data([[1]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([2, 2], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([1, 1], &device);
 
         ctc.forward(log_probs, targets, input_lengths, target_lengths);
     }
@@ -342,16 +321,16 @@ mod tests {
     #[test]
     #[should_panic(expected = "input_lengths length")]
     fn test_ctc_loss_panics_input_lengths_mismatch() {
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().init();
 
         // Logits batch size = 2
-        let log_probs = Tensor::<TestBackend, 3>::zeros([2, 2, 3], &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1], [2]], &device);
+        let log_probs = Tensor::<3>::zeros([2, 2, 3], &device);
+        let targets = Tensor::<2, Int>::from_data([[1], [2]], &device);
 
         // Input lengths size = 1 (Mismatch)
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([1, 1], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([2], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([1, 1], &device);
 
         ctc.forward(log_probs, targets, input_lengths, target_lengths);
     }
@@ -359,16 +338,16 @@ mod tests {
     #[test]
     #[should_panic(expected = "target_lengths length")]
     fn test_ctc_loss_panics_target_lengths_mismatch() {
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().init();
 
         // Logits batch size = 2
-        let log_probs = Tensor::<TestBackend, 3>::zeros([2, 2, 3], &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1], [2]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2, 2], &device);
+        let log_probs = Tensor::<3>::zeros([2, 2, 3], &device);
+        let targets = Tensor::<2, Int>::from_data([[1], [2]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([2, 2], &device);
 
         // Target lengths size = 1 (Mismatch)
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([1], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([1], &device);
 
         ctc.forward(log_probs, targets, input_lengths, target_lengths);
     }
@@ -384,18 +363,19 @@ mod tests {
         // The minimum T for target [1, 1] is 3: the only valid path is (1, 0, 1).
         // prob = (1/2)^3 = 1/8
         // Loss = -ln(1/8) = 3 * ln(2)
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().init();
 
-        let log_probs = Tensor::<TestBackend, 3>::full([3, 1, 2], 0.5_f32.ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([3_i32], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
+        let log_probs = Tensor::<3>::full([3, 1, 2], 0.5_f32.ln(), &device);
+        let targets = Tensor::<2, Int>::from_data([[1_i32, 1]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([3_i32], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
-        let loss_data = loss.into_data().to_vec::<f32>().unwrap();
-        let expected = 3.0 * 2.0_f32.ln();
-        assert_approx_equal(&loss_data, &[expected], 1e-3);
+        loss.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([3.0 * 2.0_f32.ln()]),
+            Tolerance::rel_abs(1e-3, 1e-3),
+        );
     }
 
     #[test]
@@ -406,18 +386,20 @@ mod tests {
         // blank=2 instead of 0.
         // 5 valid paths → total = 5/27
         // Loss = -ln(5/27)
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().with_blank(2).init();
 
-        let log_probs = Tensor::<TestBackend, 3>::full([3, 1, 3], (1.0_f32 / 3.0).ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[0_i32, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([3_i32], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
+        let log_probs = Tensor::<3>::full([3, 1, 3], (1.0_f32 / 3.0).ln(), &device);
+        let targets = Tensor::<2, Int>::from_data([[0_i32, 1]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([3_i32], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
-        let loss_data = loss.into_data().to_vec::<f32>().unwrap();
-        let expected = -(5.0_f32 / 27.0).ln();
-        assert_approx_equal(&loss_data, &[expected], 1e-3);
+
+        loss.into_data().assert_approx_eq::<f32>(
+            &TensorData::from([-(5.0_f32 / 27.0).ln()]),
+            Tolerance::default(),
+        );
     }
 
     // ---------------------------------------------------------------
@@ -428,13 +410,13 @@ mod tests {
     fn test_ctc_loss_zero_infinity_produces_inf_when_disabled() {
         // T=2, N=1, C=3, blank=0, target=[1, 1], input_length=2
         // Target [1, 1] requires at least 3 time steps → no valid paths → loss = +inf
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().with_zero_infinity(false).init();
 
-        let log_probs = Tensor::<TestBackend, 3>::full([2, 1, 3], (1.0_f32 / 3.0).ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
+        let log_probs = Tensor::<3>::full([2, 1, 3], (1.0_f32 / 3.0).ln(), &device);
+        let targets = Tensor::<2, Int>::from_data([[1_i32, 1]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
@@ -448,34 +430,35 @@ mod tests {
     #[test]
     fn test_ctc_loss_zero_infinity_masks_inf_when_enabled() {
         // Same inputs as above, but zero_infinity=true → loss should be 0.0
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().with_zero_infinity(true).init();
 
-        let log_probs = Tensor::<TestBackend, 3>::full([2, 1, 3], (1.0_f32 / 3.0).ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
+        let log_probs = Tensor::<3>::full([2, 1, 3], (1.0_f32 / 3.0).ln(), &device);
+        let targets = Tensor::<2, Int>::from_data([[1_i32, 1]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
-        let loss_data = loss.into_data().to_vec::<f32>().unwrap();
-        assert_approx_equal(&loss_data, &[0.0], 1e-6);
+
+        loss.into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([0.0]), Tolerance::default());
     }
 
     #[test]
     fn test_ctc_loss_zero_infinity_does_not_affect_finite_loss() {
         // Verify that zero_infinity=true does not change a finite loss value.
-        let device = FlexDevice;
+        let device = Default::default();
         let ctc = CTCLossConfig::new().with_zero_infinity(true).init();
 
-        let log_probs = Tensor::<TestBackend, 3>::full([2, 1, 2], 0.5_f32.ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([1_i32], &device);
+        let log_probs = Tensor::<3>::full([2, 1, 2], 0.5_f32.ln(), &device);
+        let targets = Tensor::<2, Int>::from_data([[1_i32]], &device);
+        let input_lengths = Tensor::<1, Int>::from_data([2_i32], &device);
+        let target_lengths = Tensor::<1, Int>::from_data([1_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
-        let loss_data = loss.into_data().to_vec::<f32>().unwrap();
-        let expected = -(0.75_f32).ln();
-        assert_approx_equal(&loss_data, &[expected], 1e-3);
+
+        loss.into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([-(0.75_f32).ln()]), Tolerance::default());
     }
 }
 
@@ -483,40 +466,10 @@ mod tests {
 mod pytorch_comparison_tests {
     use super::*;
     use burn::tensor::activation::log_softmax;
-    use burn_autodiff::Autodiff;
-    use burn_core::tensor::TensorData;
-    use burn_flex::{Flex, FlexDevice};
-
-    type InnerBackend = Flex;
-    type TestBackend = Autodiff<InnerBackend>;
-
-    fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
-        assert_eq!(
-            actual.len(),
-            expected.len(),
-            "Length mismatch: actual {} vs expected {}",
-            actual.len(),
-            expected.len()
-        );
-        for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
-            assert!(
-                (a - e).abs() < tol,
-                "Mismatch at index {}: expected {:.6}, got {:.6} (diff: {:.6})",
-                i,
-                e,
-                a,
-                (a - e).abs()
-            );
-        }
-    }
+    use burn_core::tensor::{Device, TensorData, Tolerance};
 
     /// Deterministic logits: sin((t*7 + n*13 + c*3) * 0.1).
-    fn generate_logits(
-        t_size: usize,
-        n_size: usize,
-        c_size: usize,
-        device: &FlexDevice,
-    ) -> Tensor<TestBackend, 3> {
+    fn generate_logits(t_size: usize, n_size: usize, c_size: usize, device: &Device) -> Tensor<3> {
         let mut data = Vec::with_capacity(t_size * n_size * c_size);
         for t in 0..t_size {
             for n in 0..n_size {
@@ -525,7 +478,7 @@ mod pytorch_comparison_tests {
                 }
             }
         }
-        Tensor::<TestBackend, 3>::from_data(TensorData::new(data, [t_size, n_size, c_size]), device)
+        Tensor::<3>::from_data(TensorData::new(data, [t_size, n_size, c_size]), device)
     }
 
     /// Runs a CTC forward + backward test and asserts against expected values from PyTorch.
@@ -554,40 +507,37 @@ mod pytorch_comparison_tests {
         blank: usize,
         expected_losses: &[f32],
         expected_grad_flat: &[f32],
-        loss_tol: f32,
-        grad_tol: f32,
     ) {
-        let device = FlexDevice;
+        let device = Device::default().autodiff();
         let ctc = CTCLossConfig::new().with_blank(blank).init();
 
         let logits = generate_logits(t_size, n_size, c_size, &device).require_grad();
         let log_probs = log_softmax(logits.clone(), 2);
 
-        let targets = Tensor::<TestBackend, 2, Int>::from_data(
-            TensorData::new(targets_flat, target_shape),
-            &device,
-        );
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data(
-            TensorData::new(input_lengths, [n_size]),
-            &device,
-        );
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data(
-            TensorData::new(target_lengths, [n_size]),
-            &device,
-        );
+        let targets =
+            Tensor::<2, Int>::from_data(TensorData::new(targets_flat, target_shape), &device);
+        let input_lengths =
+            Tensor::<1, Int>::from_data(TensorData::new(input_lengths, [n_size]), &device);
+        let target_lengths =
+            Tensor::<1, Int>::from_data(TensorData::new(target_lengths, [n_size]), &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
-        let loss_data = loss.clone().into_data().to_vec::<f32>().unwrap();
 
         println!("=== {} ===", label);
-        println!("  Loss: {:?}", loss_data);
-        assert_approx_equal(&loss_data, expected_losses, loss_tol);
+        println!("  Loss: {loss}");
+
+        let tolerance = Tolerance::rel_abs(1e-3, 1e-3);
+        loss.to_data()
+            .assert_approx_eq::<f32>(&TensorData::from(expected_losses), tolerance);
 
         let loss_sum = loss.sum();
         let grads = loss_sum.backward();
         let logits_grad = logits.grad(&grads).unwrap();
-        let grad_data = logits_grad.into_data().to_vec::<f32>().unwrap();
-        assert_approx_equal(&grad_data, expected_grad_flat, grad_tol);
+
+        logits_grad
+            .reshape::<1, _>([-1])
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from(expected_grad_flat), tolerance);
     }
 
     #[test]
@@ -669,8 +619,6 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-3,
-            1e-3,
         );
     }
 
@@ -890,8 +838,6 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-3,
-            1e-3,
         );
     }
 
@@ -1074,8 +1020,6 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-3,
-            1e-3,
         );
     }
 
@@ -1278,35 +1222,32 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-3,
-            1e-3,
         );
     }
 
     #[test]
     fn test_ctc_loss_sum_reduction() {
         // Same inputs as comparison_uniform_input_lengths, sum reduction
-        let device = FlexDevice;
+        let device = Device::default().autodiff();
         let ctc = CTCLossConfig::new().init();
 
         let logits = generate_logits(5, 3, 4, &device).require_grad();
         let log_probs = log_softmax(logits.clone(), 2);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data(
+        let targets = Tensor::<2, Int>::from_data(
             TensorData::new(vec![1_i32, 2, 0, 1, 0, 0, 3, 2, 1], [3, 3]),
             &device,
         );
-        let il = Tensor::<TestBackend, 1, Int>::from_data([5_i32, 5, 5], &device);
-        let tl = Tensor::<TestBackend, 1, Int>::from_data([2_i32, 1, 3], &device);
+        let il = Tensor::<1, Int>::from_data([5_i32, 5, 5], &device);
+        let tl = Tensor::<1, Int>::from_data([2_i32, 1, 3], &device);
 
         let loss = ctc.forward_with_reduction(log_probs, targets, il, tl, Reduction::Sum);
-        let loss_data = loss.clone().into_data().to_vec::<f32>().unwrap();
 
         let expected_sum = 11.2816486359_f32; // Expected value from PyTorch
-        assert_approx_equal(&loss_data, &[expected_sum], 1e-3);
+        loss.to_data()
+            .assert_approx_eq::<f32>(&TensorData::from([expected_sum]), Tolerance::default());
 
         let grads = loss.backward();
         let logits_grad = logits.grad(&grads).unwrap();
-        let grad_data = logits_grad.into_data().to_vec::<f32>().unwrap();
         // Expected gradient from PyTorch
         let expected_grad = [
             -0.1679008007_f32,
@@ -1370,32 +1311,41 @@ mod pytorch_comparison_tests {
             0.2689785957,
             0.3617166877,
         ];
-        assert_approx_equal(&grad_data, &expected_grad, 1e-3);
+        logits_grad
+            .reshape::<1, _>([-1])
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from(expected_grad), Tolerance::default());
     }
 
     #[test]
     fn test_ctc_loss_mean_reduction() {
-        let device = FlexDevice;
+        let device = Device::default().autodiff();
         let ctc = CTCLossConfig::new().init();
 
         let logits = generate_logits(5, 3, 4, &device).require_grad();
         let log_probs = log_softmax(logits.clone(), 2);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data(
+        let targets = Tensor::<2, Int>::from_data(
             TensorData::new(vec![1_i32, 2, 0, 1, 0, 0, 3, 2, 1], [3, 3]),
             &device,
         );
-        let il = Tensor::<TestBackend, 1, Int>::from_data([5_i32, 5, 5], &device);
-        let tl = Tensor::<TestBackend, 1, Int>::from_data([2_i32, 1, 3], &device);
+        let il = Tensor::<1, Int>::from_data([5_i32, 5, 5], &device);
+        let tl = Tensor::<1, Int>::from_data([2_i32, 1, 3], &device);
 
+        println!(
+            "{:?} {:?} {:?} {:?}",
+            log_probs.device(),
+            targets.device(),
+            il.device(),
+            tl.device()
+        );
         let loss = ctc.forward_with_reduction(log_probs, targets, il, tl, Reduction::Mean);
-        let loss_data = loss.clone().into_data().to_vec::<f32>().unwrap();
 
         let expected_mean = 2.2260115147_f32; // Expected value from PyTorch
-        assert_approx_equal(&loss_data, &[expected_mean], 1e-3);
+        loss.to_data()
+            .assert_approx_eq::<f32>(&TensorData::from([expected_mean]), Tolerance::default());
 
         let grads = loss.backward();
         let logits_grad = logits.grad(&grads).unwrap();
-        let grad_data = logits_grad.into_data().to_vec::<f32>().unwrap();
         // Expected gradient from PyTorch
         let expected_grad = [
             -0.0279834662_f32,
@@ -1459,6 +1409,9 @@ mod pytorch_comparison_tests {
             0.0298865121,
             0.0401907414,
         ];
-        assert_approx_equal(&grad_data, &expected_grad, 1e-3);
+        logits_grad
+            .reshape::<1, _>([-1])
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from(expected_grad), Tolerance::default());
     }
 }

@@ -3,17 +3,16 @@ use burn_core as burn;
 
 use super::{CacheState, TensorCache};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
-impl<B: Backend, const D: usize> TensorCache<B, D> {
+impl<const D: usize> TensorCache<D> {
     pub(crate) fn forward_autoregressive<F>(
         &mut self,
-        tensor: Tensor<B, 3>,
+        tensor: Tensor<3>,
         dim_cat: usize,
         func: F,
-    ) -> Tensor<B, D>
+    ) -> Tensor<D>
     where
-        F: Fn(Tensor<B, 3>) -> Tensor<B, D>,
+        F: Fn(Tensor<3>) -> Tensor<D>,
     {
         let mut tensor_old = CacheState::Empty;
         core::mem::swap(&mut self.state, &mut tensor_old);
@@ -34,9 +33,9 @@ impl<B: Backend, const D: usize> TensorCache<B, D> {
         tensor_new
     }
 
-    pub(crate) fn forward_full<F>(&mut self, tensor: Tensor<B, 3>, func: F) -> Tensor<B, D>
+    pub(crate) fn forward_full<F>(&mut self, tensor: Tensor<3>, func: F) -> Tensor<D>
     where
-        F: Fn(Tensor<B, 3>) -> Tensor<B, D>,
+        F: Fn(Tensor<3>) -> Tensor<D>,
     {
         let mut tensor_old = CacheState::Empty;
         core::mem::swap(&mut self.state, &mut tensor_old);

@@ -6,19 +6,18 @@ use burn::{
         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig},
     },
     prelude::*,
-    tensor::backend::AutodiffBackend,
     train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 use guide::data::MnistBatch;
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend> {
-    conv1: Conv2d<B>,
-    conv2: Conv2d<B>,
+pub struct Model {
+    conv1: Conv2d,
+    conv2: Conv2d,
     pool: AdaptiveAvgPool2d,
     dropout: Dropout,
-    linear1: Linear<B>,
-    linear2: Linear<B>,
+    linear1: Linear,
+    linear2: Linear,
     activation: Relu,
 }
 
@@ -32,7 +31,7 @@ pub struct ModelConfig {
 
 impl ModelConfig {
     /// Returns the initialized model.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Model<B> {
+    pub fn init(&self, device: &Device) -> Model {
         Model {
             conv1: Conv2dConfig::new([1, 8], [3, 3]).init(device),
             conv2: Conv2dConfig::new([8, 16], [3, 3]).init(device),
@@ -45,11 +44,11 @@ impl ModelConfig {
     }
 }
 
-impl<B: Backend> Model<B> {
+impl Model {
     /// # Shapes
     ///   - Images [batch_size, height, width]
     ///   - Output [batch_size, class_prob]
-    pub fn forward(&self, images: Tensor<B, 3>) -> Tensor<B, 2> {
+    pub fn forward(&self, images: Tensor<3>) -> Tensor<2> {
         let [batch_size, height, width] = images.dims();
 
         // Create a channel.
@@ -70,7 +69,7 @@ impl<B: Backend> Model<B> {
         self.linear2.forward(x) // [batch_size, num_classes]
     }
 
-    pub fn forward_classification(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
+    pub fn forward_classification(&self, item: MnistBatch) -> ClassificationOutput {
         let targets = item.targets;
         let output = self.forward(item.images);
         let loss = CrossEntropyLossConfig::new()
@@ -85,20 +84,20 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for Model<B> {
-    type Input = MnistBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl TrainStep for Model {
+    type Input = MnistBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, item: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+    fn step(&self, item: MnistBatch) -> TrainOutput<ClassificationOutput> {
         let item = self.forward_classification(item);
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> InferenceStep for Model<B> {
-    type Input = MnistBatch<B>;
-    type Output = ClassificationOutput<B>;
-    fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
+impl InferenceStep for Model {
+    type Input = MnistBatch;
+    type Output = ClassificationOutput;
+    fn step(&self, batch: MnistBatch) -> ClassificationOutput {
         self.forward_classification(batch)
     }
 }

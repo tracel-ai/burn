@@ -1,11 +1,12 @@
 use alloc::{string::String, vec, vec::Vec};
+use burn_tensor::Device;
 use core::{fmt, marker::PhantomData};
 
 use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{Bool, Int, Tensor, backend::Backend};
+use burn_tensor::{Bool, Int, Tensor};
 
 use hashbrown::HashMap;
 use serde::{
@@ -14,21 +15,17 @@ use serde::{
     ser::SerializeTuple,
 };
 
-impl<B> Record<B> for ()
-where
-    B: Backend,
-{
+impl Record for () {
     type Item<S: PrecisionSettings> = ();
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {}
 
-    fn from_item<S: PrecisionSettings>(_item: Self::Item<S>, _device: &B::Device) -> Self {}
+    fn from_item<S: PrecisionSettings>(_item: Self::Item<S>, _device: &Device) -> Self {}
 }
 
-impl<T, B> Record<B> for Vec<T>
+impl<T> Record for Vec<T>
 where
-    T: Record<B>,
-    B: Backend,
+    T: Record,
 {
     type Item<S: PrecisionSettings> = Vec<T::Item<S>>;
 
@@ -36,17 +33,16 @@ where
         self.into_iter().map(Record::into_item).collect()
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         item.into_iter()
             .map(|i| Record::from_item(i, device))
             .collect()
     }
 }
 
-impl<T, B> Record<B> for Option<T>
+impl<T> Record for Option<T>
 where
-    T: Record<B>,
-    B: Backend,
+    T: Record,
 {
     type Item<S: PrecisionSettings> = Option<T::Item<S>>;
 
@@ -54,15 +50,14 @@ where
         self.map(Record::into_item)
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         item.map(|i| Record::from_item(i, device))
     }
 }
 
-impl<const N: usize, T, B> Record<B> for [T; N]
+impl<const N: usize, T> Record for [T; N]
 where
-    T: Record<B>,
-    B: Backend,
+    T: Record,
 {
     /// The record item is an array of the record item of the elements.
     /// The reason why we wrap the array in a struct is because serde does not support
@@ -75,7 +70,7 @@ where
         Array(self.map(Record::into_item))
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         item.0.map(|i| Record::from_item(i, device))
     }
 }
@@ -89,10 +84,9 @@ macro_rules! impl_record_tuple {
     // `$r` represents the generic records.
     // `$i` represents the indices of the records in the tuple.
     ([$($r:ident),*][$($i:tt),*]) => {
-        impl<B, $($r,)*> Record<B> for ($($r,)*)
+        impl<$($r,)*> Record for ($($r,)*)
         where
-            B: Backend,
-            $($r: Record<B>),*
+            $($r: Record),*
         {
             type Item<S: PrecisionSettings> = ($($r::Item<S>,)*);
 
@@ -100,7 +94,7 @@ macro_rules! impl_record_tuple {
                 ($(self.$i.into_item(),)*)
             }
 
-            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
                 ($(Record::from_item(item.$i, device),)*)
             }
         }
@@ -118,10 +112,9 @@ impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7][0, 1, 2, 3, 4, 5, 6, 7]);
 impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
 impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8, R9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-impl<T, B> Record<B> for HashMap<ParamId, T>
+impl<T> Record for HashMap<ParamId, T>
 where
-    T: Record<B>,
-    B: Backend,
+    T: Record,
 {
     type Item<S: PrecisionSettings> = HashMap<String, T::Item<S>>;
 
@@ -133,7 +126,7 @@ where
         items
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         let mut record = HashMap::with_capacity(item.len());
         item.into_iter().for_each(|(id, item)| {
             record.insert(ParamId::deserialize(&id), T::from_item(item, device));
@@ -149,10 +142,7 @@ pub struct ParamSerde<T> {
     param: T,
 }
 
-impl<B, const D: usize> Record<B> for Param<Tensor<B, D>>
-where
-    B: Backend,
-{
+impl<const D: usize> Record for Param<Tensor<D>> {
     type Item<S: PrecisionSettings> = ParamSerde<FloatTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -161,8 +151,8 @@ where
         ParamSerde::new(id.serialize(), tensor.into_item())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        B::memory_persistent_allocations(device, item, |item| {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
+        device.memory_persistent_allocations(item, |item| {
             Param::initialized(
                 ParamId::deserialize(&item.id),
                 Tensor::from_item(item.param, device).require_grad(), // Same behavior as when we create a new
@@ -172,10 +162,7 @@ where
     }
 }
 
-impl<B, const D: usize> Record<B> for Param<Tensor<B, D, Int>>
-where
-    B: Backend,
-{
+impl<const D: usize> Record for Param<Tensor<D, Int>> {
     type Item<S: PrecisionSettings> = ParamSerde<IntTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -184,8 +171,8 @@ where
         ParamSerde::new(id.serialize(), tensor.into_item())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        B::memory_persistent_allocations(device, item, |item| {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
+        device.memory_persistent_allocations(item, |item| {
             Param::initialized(
                 ParamId::deserialize(&item.id),
                 Tensor::from_item(item.param, device),
@@ -194,10 +181,7 @@ where
     }
 }
 
-impl<B, const D: usize> Record<B> for Param<Tensor<B, D, Bool>>
-where
-    B: Backend,
-{
+impl<const D: usize> Record for Param<Tensor<D, Bool>> {
     type Item<S: PrecisionSettings> = ParamSerde<BoolTensorSerde>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -206,8 +190,8 @@ where
         ParamSerde::new(id.serialize(), tensor.into_item::<S>())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        B::memory_persistent_allocations(device, item, |item| {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
+        device.memory_persistent_allocations(item, |item| {
             Param::initialized(
                 ParamId::deserialize(&item.id),
                 Tensor::from_item::<S>(item.param, device),
@@ -219,14 +203,14 @@ where
 // Type that can be serialized as is without any conversion.
 macro_rules! primitive {
     ($type:ty) => {
-        impl<B: Backend> Record<B> for $type {
+        impl Record for $type {
             type Item<S: PrecisionSettings> = $type;
 
             fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
                 self
             }
 
-            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
+            fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &Device) -> Self {
                 item
             }
         }

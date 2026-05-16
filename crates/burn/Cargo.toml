@@ -4,7 +4,13 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
 documentation = "https://docs.rs/burn"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "autodiff"]
+keywords = [
+    "deep-learning",
+    "machine-learning",
+    "tensor",
+    "pytorch",
+    "autodiff",
+]
 license.workspace = true
 name = "burn"
 readme.workspace = true
@@ -18,84 +24,36 @@ workspace = true
 [features]
 default = [
     "std",
+    "optim",
     "burn-core/default",
     "burn-train?/default",
-    "burn-collective?/default",
-    # Backends
-    "burn-candle?/default",
-    "burn-cpu?/default",
-    "burn-flex?/default",
-    "burn-ndarray?/default",
-    "burn-tch?/default",
-    "burn-wgpu?/default",
-    "burn-router?/default",
-    "burn-remote?/default",
-    "burn-cuda?/default",
-    "burn-autodiff?/default",
-    "burn-rocm?/default",
     "burn-nn/default",
-    "burn-optim/default",
-    "burn-dispatch?/default",
+    "burn-optim?/default",
+    "burn-autodiff?/default",
 ]
 doc = [
     "default",
     "train",
     "burn-core/doc",
     "burn-train/doc",
-    "burn-collective/doc",
     "burn-store?/std",
-    # Backends
-    "burn-candle/doc",
-    "burn-cpu?/doc",
-    "burn-flex?/doc",
-    "burn-ndarray/doc",
-    "burn-tch/doc",
-    "burn-wgpu/doc",
-    "burn-router/doc",
-    "burn-cuda/doc",
-    "burn-autodiff?/std",
-    "burn-rocm/doc",
     "burn-nn/doc",
-    "burn-optim/doc",
-    "burn-dispatch?/doc",
+    "burn-optim?/doc",
+    "burn-autodiff?/std",
 ]
 std = [
     "burn-core/std",
-    # Backends
-    "burn-candle?/std",
-    "burn-cpu?/std",
-    "burn-flex?/std",
-    "burn-ndarray?/std",
-    "burn-wgpu?/std",
-    "burn-router?/std",
-    "burn-cuda?/std",
-    "burn-autodiff?/std",
-    "burn-rocm?/std",
     "burn-store?/std",
-    "burn-tch?/std",
     "burn-nn/std",
-    "burn-optim/std",
-    "burn-dispatch?/std",
+    "burn-optim?/std",
+    "burn-autodiff?/std",
 ]
 tracing = [
     "cubecl?/tracing",
     "burn-core/tracing",
-    # Backends
-    "burn-candle?/tracing",
-    "burn-cpu?/tracing",
-    "burn-flex?/tracing",
-    "burn-ndarray?/tracing",
-    "burn-wgpu?/tracing",
-    "burn-router?/tracing",
-    "burn-cuda?/tracing",
-    "burn-autodiff?/tracing",
-    "burn-rocm?/tracing",
-    "burn-tch?/tracing",
-    "burn-store?/tracing",
-    "burn-nn/tracing",
-    "burn-optim/tracing",
-    "burn-dispatch?/tracing",
     "burn-vision?/tracing",
+    "burn-nn/tracing",
+    "burn-optim?/tracing",
 ]
 
 
@@ -129,71 +87,55 @@ audio = ["burn-core/audio"]
 vision = ["burn-core/vision", "burn-vision"]
 rl = ["dep:burn-rl", "burn-train?/rl"]
 
+# Optimizer
+optim = ["burn-optim", "autodiff"]
+
 # Backend
 ir = ["burn-ir"]
-autodiff = ["burn-autodiff", "burn-dispatch?/autodiff"]
-fusion = [
-    "ir",
-    "burn-wgpu?/fusion",
-    "burn-cuda?/fusion",
-    "burn-rocm?/fusion",
-    "burn-cpu?/fusion",
-    "burn-vision?/fusion",
-]
+autodiff = ["burn-core/autodiff", "burn-autodiff"]
+fusion = ["ir", "burn-core/fusion", "burn-vision?/fusion"]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
-autotune = [
-    "burn-wgpu?/autotune",
-    "burn-cuda?/autotune",
-    "burn-rocm?/autotune",
-    "burn-cpu?/autotune",
-]
-autotune-checks = [
-    "burn-wgpu?/autotune-checks",
-    "burn-cuda?/autotune-checks",
-    "burn-rocm?/autotune-checks",
-    "burn-cpu?/autotune-checks",
-]
+autotune = ["burn-core/autotune"]
+autotune-checks = ["burn-core/autotune-checks"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
-remote = ["burn-remote/client", "ir"]
-router = ["burn-router", "ir"]
-server = ["burn-remote/server"]
 simd = ["burn-ndarray?/simd", "burn-flex?/simd"]
 
 # burn-flex opt-in CPU codegen paths.
 x86-v4 = ["burn-flex?/x86-v4"]
 apple-amx = ["burn-flex?/apple-amx"]
+
 template = ["burn-wgpu?/template"]
-collective = ["burn-collective", "burn-optim/collective"]
-distributed = ["std",
+distributed = [
+    "std",
     "burn-core/distributed",
     "burn-optim/distributed",
     "burn-train?/ddp",
-    "burn-cuda?/distributed",
-    "burn-autodiff?/distributed",
-    "burn-dispatch?/distributed",
-    "burn-router?/distributed",
 ]
+# TODO: add to burn dispatch
+remote = ["burn-remote/client", "ir"]
+router = ["burn-router", "ir"]
+server = ["burn-remote/server"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda", "burn-dispatch?/cuda", "burn-vision?/cubecl-backend"]
-flex = ["burn-flex", "burn-dispatch?/flex", "burn-vision?/flex"]
-rocm = ["burn-rocm", "burn-dispatch?/rocm", "burn-vision?/cubecl-backend"]
-ndarray = ["burn-ndarray", "burn-dispatch?/ndarray"]
-tch = ["burn-tch", "burn-vision?/tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan", "burn-dispatch?/vulkan"]
-webgpu = ["wgpu", "burn-wgpu/webgpu", "burn-dispatch?/webgpu"]
-metal = ["wgpu", "burn-wgpu/metal", "burn-dispatch?/metal"]
-wgpu = ["burn-wgpu", "burn-dispatch?/wgpu", "burn-vision?/cubecl-backend"]
-cpu = ["burn-cpu", "burn-dispatch?/cpu", "burn-vision?/cubecl-backend"]
+cuda = ["burn-cuda", "burn-core/cuda", "burn-vision?/cubecl-backend"]
+rocm = ["burn-rocm", "burn-core/rocm", "burn-vision?/cubecl-backend"]
+flex = ["burn-flex", "burn-core/flex", "burn-vision?/flex"]
+ndarray = ["burn-ndarray", "burn-core/ndarray"]
+tch = ["burn-tch", "burn-core/tch"]
+vulkan = ["wgpu", "burn-core/vulkan"]
+webgpu = ["wgpu", "burn-core/webgpu"]
+metal = ["wgpu", "burn-core/metal"]
+wgpu = ["burn-wgpu", "burn-core/wgpu", "burn-vision?/cubecl-backend"]
+cpu = ["burn-cpu", "burn-core/cpu", "burn-vision?/cubecl-backend"]
 
-# Backend dispatch
-dispatch = ["burn-dispatch"]
+# Backend extensions
+extension = ["burn-core/extension"]
 
 [dependencies]
 
@@ -201,27 +143,26 @@ dispatch = ["burn-dispatch"]
 
 burn-core = { workspace = true }
 burn-train = { workspace = true, optional = true }
-burn-collective = { workspace = true, optional = true }
 burn-store = { workspace = true, optional = true }
 burn-nn = { workspace = true }
-burn-optim = { workspace = true }
+burn-optim = { workspace = true, optional = true }
 burn-rl = { workspace = true, optional = true }
 burn-vision = { workspace = true, optional = true }
 burn-std = { workspace = true }
 
 # Backends
-burn-autodiff = { workspace = true, optional = true }
 burn-candle = { workspace = true, optional = true, features = ["default"] }
 burn-cuda = { workspace = true, optional = true }
 burn-cpu = { workspace = true, optional = true }
-burn-flex = { workspace = true, optional = true }
 burn-rocm = { workspace = true, optional = true }
+burn-flex = { workspace = true, optional = true }
 burn-ndarray = { workspace = true, optional = true }
 burn-remote = { workspace = true, optional = true }
 burn-router = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
 burn-wgpu = { workspace = true, optional = true }
 burn-ir = { workspace = true, optional = true }
+burn-autodiff = { workspace = true, optional = true }
 burn-dispatch = { workspace = true, optional = true }
 
-cubecl = { workspace = true, default-features = false, optional = true }
+cubecl = { workspace = true, optional = true }

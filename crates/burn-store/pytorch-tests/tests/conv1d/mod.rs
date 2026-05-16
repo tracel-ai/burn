@@ -1,18 +1,18 @@
 use burn::{
     module::Module,
     nn::conv::{Conv1d, Conv1dConfig},
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: Conv1d<B>,
-    conv2: Conv1d<B>,
+pub struct Net {
+    conv1: Conv1d,
+    conv2: Conv1d,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model from the given record.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let conv1 = Conv1dConfig::new(2, 2, 2).init(device);
         let conv2 = Conv1dConfig::new(2, 2, 2).with_bias(false).init(device);
 
@@ -20,7 +20,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub fn forward(&self, x: Tensor<3>) -> Tensor<3> {
         let x = self.conv1.forward(x);
 
         self.conv2.forward(x)
@@ -29,17 +29,17 @@ impl<B: Backend> Net<B> {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
-    use burn::tensor::{Tolerance, ops::FloatElem};
+
+    use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     use super::*;
 
-    fn conv1d(model: Net<TestBackend>, precision: f32) {
+    fn conv1d(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             [[
                 [
                     0.93708336, 0.65559506, 0.31379688, 0.19801933, 0.41619217, 0.28432965,
@@ -58,7 +58,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 3>::from_data(
+        let expected = Tensor::<3>::from_data(
             [[
                 [0.02987457, 0.03134188, 0.04234261, -0.02437721],
                 [-0.03788019, -0.02972012, -0.00806090, -0.01981254],
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn conv1d_full_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/conv1d/conv1d.pt");
         model
             .load_from(&mut store)
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn conv1d_half_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/conv1d/conv1d.pt");
         model
             .load_from(&mut store)

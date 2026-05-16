@@ -1,7 +1,5 @@
 use alloc::vec;
 
-use burn_backend::Backend;
-
 use crate::Tensor;
 use crate::ops::PadMode;
 
@@ -86,11 +84,7 @@ impl Default for StftOptions {
 ///
 /// A tensor of shape `[batch, n_frames, n_freqs, 2]` where the last dimension holds
 /// `[real, imaginary]`.
-pub fn stft<B: Backend>(
-    signal: Tensor<B, 2>,
-    window: Option<Tensor<B, 1>>,
-    options: StftOptions,
-) -> Tensor<B, 4> {
+pub fn stft(signal: Tensor<2>, window: Option<Tensor<1>>, options: StftOptions) -> Tensor<4> {
     options.assert_valid("stft");
     let n_fft = options.n_fft;
     let hop_length = options.hop_length;
@@ -140,14 +134,14 @@ pub fn stft<B: Backend>(
     let n_frames = 1 + (sig_len - n_fft) / hop_length;
 
     // Extract overlapping frames: [batch, n_frames, n_fft]
-    let frames: Tensor<B, 3> = signal.unfold(1, n_fft, hop_length);
+    let frames: Tensor<3> = signal.unfold(1, n_fft, hop_length);
 
     // Apply window (broadcast over batch and n_frames)
-    let window_3d: Tensor<B, 3> = window.reshape([1, 1, n_fft]);
+    let window_3d: Tensor<3> = window.reshape([1, 1, n_fft]);
     let windowed = frames.mul(window_3d);
 
     // Flatten to [batch * n_frames, n_fft] for rfft
-    let flat: Tensor<B, 2> = windowed.reshape([batch * n_frames, n_fft]);
+    let flat: Tensor<2> = windowed.reshape([batch * n_frames, n_fft]);
 
     // rfft returns n_fft/2 + 1 bins along dim=1 (n_fft is pow2).
     let (re, im) = rfft(flat, 1, Some(n_fft));
@@ -160,18 +154,14 @@ pub fn stft<B: Backend>(
     };
 
     // Reshape to [batch, n_frames, n_freqs] then stack real/imag
-    let re: Tensor<B, 3> = re.reshape([batch, n_frames, n_freqs]);
-    let im: Tensor<B, 3> = im.reshape([batch, n_frames, n_freqs]);
+    let re: Tensor<3> = re.reshape([batch, n_frames, n_freqs]);
+    let im: Tensor<3> = im.reshape([batch, n_frames, n_freqs]);
 
     Tensor::stack::<4>(vec![re, im], 3)
 }
 
 /// Center-pad window from `win_len` to `n_fft` with zeros.
-fn pad_window_to_n_fft<B: Backend>(
-    window: Tensor<B, 1>,
-    win_len: usize,
-    n_fft: usize,
-) -> Tensor<B, 1> {
+fn pad_window_to_n_fft(window: Tensor<1>, win_len: usize, n_fft: usize) -> Tensor<1> {
     if win_len < n_fft {
         let pad_left = (n_fft - win_len) / 2;
         let pad_right = n_fft - win_len - pad_left;
@@ -195,12 +185,12 @@ fn pad_window_to_n_fft<B: Backend>(
 /// # Returns
 ///
 /// A real-valued tensor of shape `[batch, signal_length]`.
-pub fn istft<B: Backend>(
-    stft_matrix: Tensor<B, 4>,
-    window: Option<Tensor<B, 1>>,
+pub fn istft(
+    stft_matrix: Tensor<4>,
+    window: Option<Tensor<1>>,
     length: Option<usize>,
     options: StftOptions,
-) -> Tensor<B, 2> {
+) -> Tensor<2> {
     options.assert_valid("istft");
     let n_fft = options.n_fft;
     let hop_length = options.hop_length;
@@ -240,11 +230,11 @@ pub fn istft<B: Backend>(
     let window = pad_window_to_n_fft(window, win_len, n_fft);
 
     // Split real and imaginary: each [batch, n_frames, n_freqs]
-    let re: Tensor<B, 3> = stft_matrix.clone().narrow(3, 0, 1).squeeze_dim(3);
-    let im: Tensor<B, 3> = stft_matrix.narrow(3, 1, 1).squeeze_dim(3);
+    let re: Tensor<3> = stft_matrix.clone().narrow(3, 0, 1).squeeze_dim(3);
+    let im: Tensor<3> = stft_matrix.narrow(3, 1, 1).squeeze_dim(3);
 
-    let re: Tensor<B, 2> = re.reshape([batch * n_frames, n_freqs_in]);
-    let im: Tensor<B, 2> = im.reshape([batch * n_frames, n_freqs_in]);
+    let re: Tensor<2> = re.reshape([batch * n_frames, n_freqs_in]);
+    let im: Tensor<2> = im.reshape([batch * n_frames, n_freqs_in]);
 
     // Extract onesided spectrum for irfft
     let (re_half, im_half) = if onesided {
@@ -257,30 +247,30 @@ pub fn istft<B: Backend>(
     let frames = irfft(re_half, im_half, 1, Some(n_fft));
 
     // Reshape to [batch, n_frames, n_fft]
-    let frames: Tensor<B, 3> = frames.reshape([batch, n_frames, n_fft]);
+    let frames: Tensor<3> = frames.reshape([batch, n_frames, n_fft]);
 
     // Apply window to each frame
-    let window_3d: Tensor<B, 3> = window.reshape([1, 1, n_fft]);
+    let window_3d: Tensor<3> = window.reshape([1, 1, n_fft]);
     let windowed = frames.mul(window_3d.clone());
 
     let expected_len = n_fft + (n_frames - 1) * hop_length;
-    let mut output = Tensor::<B, 2>::zeros([batch, expected_len], &device);
-    let mut window_sum = Tensor::<B, 2>::zeros([batch, expected_len], &device);
+    let mut output = Tensor::<2>::zeros([batch, expected_len], &device);
+    let mut window_sum = Tensor::<2>::zeros([batch, expected_len], &device);
 
-    let window_1d: Tensor<B, 1> = window_3d.clone().reshape([n_fft]);
-    let window_sq_1d: Tensor<B, 1> = window_1d.clone().mul(window_1d);
+    let window_1d: Tensor<1> = window_3d.clone().reshape([n_fft]);
+    let window_sq_1d: Tensor<1> = window_1d.clone().mul(window_1d);
 
     for f in 0..n_frames {
         let start = f * hop_length;
         let right_pad = expected_len - n_fft - start;
-        let frame: Tensor<B, 2> = windowed.clone().narrow(1, f, 1).squeeze_dim(1);
+        let frame: Tensor<2> = windowed.clone().narrow(1, f, 1).squeeze_dim(1);
         let frame_full = frame.pad([(0, 0), (start, right_pad)], PadMode::Constant(0.0));
         output = output.add(frame_full);
 
-        let win_full: Tensor<B, 1> = window_sq_1d
+        let win_full: Tensor<1> = window_sq_1d
             .clone()
             .pad([(start, right_pad)], PadMode::Constant(0.0));
-        let win_full: Tensor<B, 2> = win_full.unsqueeze_dim(0);
+        let win_full: Tensor<2> = win_full.unsqueeze_dim(0);
         window_sum = window_sum.add(win_full);
     }
 

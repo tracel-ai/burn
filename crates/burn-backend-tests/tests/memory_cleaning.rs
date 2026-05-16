@@ -39,7 +39,7 @@ mod fusion {
 
     use super::*;
     use burn_fusion::inspect::FusionInspector;
-    use burn_tensor::{Device, StreamId, backend::Backend};
+    use burn_tensor::{Device, StreamId};
     use serial_test::serial;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -53,19 +53,19 @@ mod fusion {
 
     /// Drain both the main stream and `peer` stream so the post-sync handle snapshot
     /// reflects the full quiescent state.
-    fn sync_all(device: &Device<TestBackend>, peer: StreamId) {
-        TestBackend::sync(device).unwrap();
-        peer.executes(|| TestBackend::sync(device).unwrap());
-        TestBackend::sync(device).unwrap();
+    fn sync_all(device: &Device, peer: StreamId) {
+        device.sync().unwrap();
+        peer.executes(|| device.sync().unwrap());
+        device.sync().unwrap();
     }
 
     /// Drive the inspector into a known state, then freeze that state as the baseline.
     /// After this returns, [`FusionInspector::new_handles_since_baseline`] only reports
     /// handles born during the test body — handles from other parallel tests that were
     /// already live are excluded.
-    fn install_and_baseline(device: &Device<TestBackend>, stream: StreamId) -> FusionInspector {
+    fn install_and_baseline(device: &Device, stream: StreamId) -> FusionInspector {
         let inspector = FusionInspector::install(stream);
-        TestBackend::sync(device).unwrap();
+        device.sync().unwrap();
         inspector.set_baseline();
         inspector
     }
@@ -96,7 +96,7 @@ mod fusion {
                 let b = TestTensor::<2>::ones([4, 4], &device);
                 let _ = (a + b).into_data();
             }
-            TestBackend::sync(&device).unwrap();
+            device.sync().unwrap();
 
             assert_no_leaked_handles(&inspector, "single-stream drop + sync");
         });
@@ -114,7 +114,7 @@ mod fusion {
 
             let a = TestTensor::<2>::ones([4, 4], &device);
             let _ = a.into_data();
-            TestBackend::sync(&device).unwrap();
+            device.sync().unwrap();
 
             assert_no_leaked_handles(&inspector, "into_data + sync");
         });
@@ -132,11 +132,11 @@ mod fusion {
 
             let a = TestTensor::<2>::ones([4, 4], &device);
             let b = a.clone();
-            TestBackend::sync(&device).unwrap();
+            device.sync().unwrap();
 
             drop(a);
             drop(b);
-            TestBackend::sync(&device).unwrap();
+            device.sync().unwrap();
 
             assert_no_leaked_handles(&inspector, "clone + drop + sync");
         });
@@ -158,7 +158,7 @@ mod fusion {
             // Materialize `a` so its `Ones` init op doesn't get rolled into the cross-stream
             // analysis we're trying to observe.
             let a = TestTensor::<2>::ones([4, 4], &device);
-            TestBackend::sync(&device).unwrap();
+            device.sync().unwrap();
 
             // Performing an op on `a` from peer stream is what flags `a` as shared inside
             // `SharedTensors::analyse` (its creation stream is main, current is peer).
@@ -191,7 +191,7 @@ mod fusion {
             let inspector = install_and_baseline(&device, stream);
 
             let a = TestTensor::<2>::ones([4, 4], &device);
-            TestBackend::sync(&device).unwrap();
+            device.sync().unwrap();
 
             // Queue work on the peer stream that depends on `a`, but do not drain yet so the
             // peer keeps a pending reference.
@@ -229,7 +229,7 @@ mod fusion {
             let inspector = install_and_baseline(&device, stream);
 
             let a = TestTensor::<2>::ones([4, 4], &device);
-            TestBackend::sync(&device).unwrap();
+            device.sync().unwrap();
 
             let a_for_peer = a.clone();
             peer.executes(|| {
@@ -264,7 +264,7 @@ mod fusion {
 
             for i in 0..REPS {
                 let a = TestTensor::<2>::ones([4, 4], &device) * (i as f32);
-                TestBackend::sync(&device).unwrap();
+                device.sync().unwrap();
 
                 let a_for_peer = a.clone();
                 peer.executes(|| {

@@ -2,7 +2,7 @@ use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor:
 use burn_backend::{
     Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
 };
-use burn_std::DType;
+use burn_std::{BoolStore, DType};
 use cubecl::{
     features::{MmaConfig, TypeUsage},
     server::ComputeServer,
@@ -44,6 +44,12 @@ where
     type QuantizedTensorPrimitive = CubeTensor<R>;
 
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        // Right now no cubecl backend actually works with native bool, even if
+        // the `TypeUsage` might indicate otherwise.
+        if let DType::Bool(BoolStore::Native) = dtype {
+            return false;
+        }
+
         let client = R::client(device);
 
         let type_usage = client.properties().type_usage(dtype.into());
@@ -57,6 +63,12 @@ where
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet {
+        // Right now no cubecl backend actually works with native bool, even if
+        // the `TypeUsage` might indicate otherwise.
+        if let DType::Bool(BoolStore::Native) = dtype {
+            return DTypeUsageSet::empty();
+        }
+
         let client = R::client(device);
 
         let props = client.properties();

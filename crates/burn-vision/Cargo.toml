@@ -19,46 +19,47 @@ workspace = true
 
 
 [features]
-default = ["flex", "cubecl-backend", "fusion", "std"]
-std = ["aligned-vec/std", "burn-store?/std", "burn-std?/std"]
+default = ["burn-core/default", "flex", "cubecl-backend", "fusion", "std"]
+std = ["aligned-vec/std", "burn-core/std", "burn-store?/std"]
 tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
     "burn-ir/tracing",
     "burn-tch?/tracing",
-    "burn-tensor/tracing",
+    "burn-core/tracing",
     "cubecl/tracing",
 ]
 
 cubecl-backend = ["cubecl", "burn-cubecl"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
-flex = ["burn-flex"]
-tch = ["burn-tch"]
+
+# TODO: should remove backend crate deps and use re-exported types from burn-core
+cuda = ["cubecl-backend", "burn-core/cuda", "burn-cuda"]
+rocm = ["cubecl-backend", "burn-core/rocm", "burn-rocm"]
+wgpu = ["cubecl-backend", "burn-core/wgpu", "burn-wgpu"]
+vulkan = ["wgpu", "burn-core/vulkan", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-core/webgpu", "burn-wgpu/webgpu"]
+metal = ["wgpu", "burn-core/metal", "burn-wgpu/metal"]
+cpu = ["cubecl-backend", "burn-core/cpu", "burn-cpu"]
+flex = ["burn-core/flex", "burn-flex"]
+tch = ["burn-core/tch", "burn-tch"]
 
 # TODO: move somewhere else
-loss = ["std", "burn-store/pytorch", "burn-std/network", "dirs"]
-
-# Test features
-test-cpu = []
-test-cuda = ["cubecl-backend", ]
-test-wgpu = ["cubecl-backend", ]
-test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
-test-metal = ["burn-wgpu/metal", "test-wgpu"]
+loss = ["std", "burn-store/pytorch", "burn-core/network", "dirs"]
 
 [dependencies]
-aligned-vec = { workspace = true }
+burn-cubecl = { workspace = true, optional = true, features = ["default"]}
+burn-fusion = { workspace = true, optional = true, features = ["default"]}
+burn-ir = { workspace = true, features = ["default"]}
+burn-core = { workspace = true, features = [
+    "extension",
+] }
+
+aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
-burn-cubecl = { workspace = true, optional = true, features = ["default"] }
-burn-fusion = { workspace = true, optional = true, features = ["default"] }
-burn-flex = { workspace = true, optional = true, features = ["default"] }
-burn-ir = { workspace = true, features = ["default"] }
-burn-tch = { workspace = true, optional = true, features = ["default"] }
-burn-tensor = { workspace = true, features = ["default"] }
-burn-tensor-testgen = { workspace = true, optional = true }
 
 # For loss functions requiring pretrained models (e.g., Gram Matrix Loss)
 burn-store = { workspace = true, optional = true }
-burn-std = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
 
 bytemuck = { workspace = true }
@@ -72,8 +73,10 @@ num-traits = { workspace = true }
 paste = { workspace = true }
 serde = { workspace = true }
 
-[dev-dependencies]
-burn-cuda = { workspace = true }
-burn-flex = { workspace = true, features = ["default"] }
-burn-wgpu = { workspace = true }
-cubecl = { workspace = true }
+# Backends
+burn-cpu = { workspace = true, optional = true }
+burn-cuda = { workspace = true, optional = true }
+burn-wgpu = { workspace = true, optional = true }
+burn-rocm = { workspace = true, optional = true }
+burn-flex = { workspace = true, optional = true, features = ["default"]}
+burn-tch = { workspace = true, optional = true, features = ["default"]}

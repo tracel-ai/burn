@@ -1,8 +1,6 @@
 use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_nn::LinearConfig;
 
-type TestBackend = burn_flex::Flex;
-
 #[test]
 fn default_metadata_included() {
     // Verify that default metadata is automatically included
@@ -21,9 +19,7 @@ fn default_metadata_included() {
 #[test]
 fn metadata_preservation() {
     let device = Default::default();
-    let module = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let module = LinearConfig::new(4, 2).with_bias(true).init(&device);
 
     // Write with metadata - note that format, producer and version are automatically added
     let mut save_store = SafetensorsStore::from_bytes(None)
@@ -43,9 +39,7 @@ fn metadata_preservation() {
         p.set_data(data_arc.as_ref().clone());
     }
 
-    let mut module2 = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let mut module2 = LinearConfig::new(4, 2).with_bias(true).init(&device);
     let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
@@ -54,9 +48,7 @@ fn metadata_preservation() {
 #[test]
 fn clear_metadata_removes_all() {
     let device = Default::default();
-    let module = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let module = LinearConfig::new(4, 2).with_bias(true).init(&device);
 
     // Create store with custom metadata, then clear all
     let mut save_store = SafetensorsStore::from_bytes(None)
@@ -75,9 +67,7 @@ fn clear_metadata_removes_all() {
         p.set_data(data_arc.as_ref().clone());
     }
 
-    let mut module2 = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let mut module2 = LinearConfig::new(4, 2).with_bias(true).init(&device);
     let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
@@ -86,9 +76,7 @@ fn clear_metadata_removes_all() {
 #[test]
 fn clear_then_add_custom_metadata() {
     let device = Default::default();
-    let module = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let module = LinearConfig::new(4, 2).with_bias(true).init(&device);
 
     // Clear all metadata, then add only custom ones
     let mut save_store = SafetensorsStore::from_bytes(None)
@@ -106,9 +94,7 @@ fn clear_then_add_custom_metadata() {
         p.set_data(data_arc.as_ref().clone());
     }
 
-    let mut module2 = LinearConfig::new(4, 2)
-        .with_bias(true)
-        .init::<TestBackend>(&device);
+    let mut module2 = LinearConfig::new(4, 2).with_bias(true).init(&device);
     let result = module2.load_from(&mut load_store).unwrap();
 
     assert!(result.is_success());
