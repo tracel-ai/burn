@@ -2004,7 +2004,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
                     let grad = B::irfft(grad_re, grad_im, dim, n);
                     let grad = B::float_mul_scalar(grad, (n_fft as f64).into());
-                    
+
                     pad_to_length::<B>(grad, dim, input_len)
                 });
             }
@@ -2030,7 +2030,14 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             slices
         };
         let spectrum = B::float_cat(vec![re, im], 0);
-        let state = (dim, n, input_len, n_fft, slices_re.clone(), slices_im.clone());
+        let state = (
+            dim,
+            n,
+            input_len,
+            n_fft,
+            slices_re.clone(),
+            slices_im.clone(),
+        );
 
         let spectrum = match Rfft
             .prepare::<C>([signal.node.clone()])
@@ -2075,7 +2082,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
                 let grad_re = mul_interior::<B>(grad_re, dim, n_fft, 2.0);
                 let grad_im = mul_interior::<B>(grad_im, dim, n_fft, 2.0);
-                
+
                 let grad_re = pad_to_length::<B>(grad_re, dim, input_len);
                 let grad_im = pad_to_length::<B>(grad_im, dim, input_len);
 
@@ -2104,12 +2111,8 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     }
 }
 
-// adapted from: burn_cubecl::kernel::fft::pad_to_length
-fn pad_to_length<B: Backend>(
-    tensor: FloatTensor<B>,
-    dim: usize,
-    target: usize,
-) -> FloatTensor<B> {
+// adapted from: burn_cubecl::kernel::fft::base::pad_to_length
+fn pad_to_length<B: Backend>(tensor: FloatTensor<B>, dim: usize, target: usize) -> FloatTensor<B> {
     let shape = tensor.shape();
     let current = shape[dim];
     if current == target {
@@ -2125,7 +2128,11 @@ fn pad_to_length<B: Backend>(
     }
     let mut padded_shape = shape.clone();
     padded_shape[dim] = target;
-    let padded = B::float_zeros(padded_shape, &B::float_device(&tensor), tensor.dtype().into());
+    let padded = B::float_zeros(
+        padded_shape,
+        &B::float_device(&tensor),
+        tensor.dtype().into(),
+    );
     let slices: Vec<Slice> = shape.iter().map(|&s| Slice::from(0..s)).collect();
     B::float_slice_assign(padded, &slices, tensor)
 }
