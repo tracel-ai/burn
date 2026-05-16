@@ -1985,7 +1985,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct Rfft;
 
         impl<B: Backend> Backward<B, 1> for Rfft {
-            type State = (usize, Option<usize>, usize, Vec<Slice>, Vec<Slice>);
+            type State = (usize, Option<usize>, usize, usize, Vec<Slice>, Vec<Slice>);
 
             fn backward(
                 self,
@@ -1994,7 +1994,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 _checkpointer: &mut Checkpointer,
             ) {
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    let (dim, n, n_fft, slices_re, slices_im) = ops.state;
+                    let (dim, n, input_len, n_fft, slices_re, slices_im) = ops.state;
 
                     let grad_re = B::float_slice(grad.clone(), &slices_re);
                     let grad_im = B::float_slice(grad.clone(), &slices_im);
@@ -2003,13 +2003,15 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     let grad_im = mul_interior::<B>(grad_im, dim, n_fft, 0.5);
 
                     let grad = B::irfft(grad_re, grad_im, dim, n);
-
-                    B::float_mul_scalar(grad, (n_fft as f64).into())
+                    let grad = B::float_mul_scalar(grad, (n_fft as f64).into());
+                    
+                    pad_to_length::<B>(grad, dim, input_len)
                 });
             }
         }
 
-        let n_fft = n.unwrap_or(signal.shape()[dim]);
+        let input_len = signal.shape()[dim];
+        let n_fft = n.unwrap_or(input_len);
         let (re, im) = B::rfft(signal.primitive, dim, n);
 
         // In order to perform only a single irfft in the backward pass, we have to temporarily
@@ -2028,7 +2030,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             slices
         };
         let spectrum = B::float_cat(vec![re, im], 0);
-        let state = (dim, n, n_fft, slices_re.clone(), slices_im.clone());
+        let state = (dim, n, input_len, n_fft, slices_re.clone(), slices_im.clone());
 
         let spectrum = match Rfft
             .prepare::<C>([signal.node.clone()])
@@ -2055,7 +2057,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         struct Irfft;
 
         impl<B: Backend> Backward<B, 2> for Irfft {
-            type State = (usize, Option<usize>, usize);
+            type State = (usize, Option<usize>, usize, usize);
 
             fn backward(
                 self,
@@ -2063,7 +2065,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let (dim, n, n_fft) = ops.state;
+                let (dim, n, input_len, n_fft) = ops.state;
                 let [node_re, node_im] = ops.parents;
                 let grad = grads.consume::<B>(&ops.node);
 
@@ -2073,6 +2075,9 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
 
                 let grad_re = mul_interior::<B>(grad_re, dim, n_fft, 2.0);
                 let grad_im = mul_interior::<B>(grad_im, dim, n_fft, 2.0);
+                
+                let grad_re = pad_to_length::<B>(grad_re, dim, input_len);
+                let grad_im = pad_to_length::<B>(grad_im, dim, input_len);
 
                 if let Some(node) = node_re {
                     grads.register::<B>(node.id, grad_re);
@@ -2083,9 +2088,10 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             }
         }
 
+        let input_len = spectrum_re.shape()[dim];
         let signal = B::irfft(spectrum_re.primitive, spectrum_im.primitive, dim, n);
         let n_fft = n.unwrap_or(signal.shape()[dim]);
-        let state = (dim, n, n_fft);
+        let state = (dim, n, input_len, n_fft);
 
         match Irfft
             .prepare::<C>([spectrum_re.node.clone(), spectrum_im.node.clone()])
@@ -2096,6 +2102,32 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
             OpsKind::UnTracked(prep) => prep.finish(signal),
         }
     }
+}
+
+// adapted from: burn_cubecl::kernel::fft::pad_to_length
+fn pad_to_length<B: Backend>(
+    tensor: FloatTensor<B>,
+    dim: usize,
+    target: usize,
+) -> FloatTensor<B> {
+    let shape = tensor.shape();
+    let current = shape[dim];
+    if current == target {
+        return tensor;
+    }
+    if current > target {
+        let slices: Vec<_> = shape
+            .iter()
+            .enumerate()
+            .map(|(i, &s)| Slice::from(if i == dim { 0..target } else { 0..s }))
+            .collect();
+        return B::float_slice(tensor, &slices);
+    }
+    let mut padded_shape = shape.clone();
+    padded_shape[dim] = target;
+    let padded = B::float_zeros(padded_shape, &B::float_device(&tensor), tensor.dtype().into());
+    let slices: Vec<Slice> = shape.iter().map(|&s| Slice::from(0..s)).collect();
+    B::float_slice_assign(padded, &slices, tensor)
 }
 
 fn mul_interior<B: Backend>(
