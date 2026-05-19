@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::{
@@ -105,7 +106,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
             value.into_tensor_arg(),
             shape_divmod(&tensor),
             dim,
-            [tensor_dtype.into(), indices_dtype.into()],
+            [dtype_to_storage_type(tensor_dtype), dtype_to_storage_type(indices_dtype)],
         )
     }
     tensor

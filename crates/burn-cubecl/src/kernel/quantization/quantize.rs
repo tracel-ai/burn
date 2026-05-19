@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_elem_type;
 use crate::CubeRuntime;
 use crate::{ops::empty_qtensor_optimized, tensor::CubeTensor};
 use burn_backend::{TensorMetadata, quantization::QuantScheme};
@@ -22,7 +23,7 @@ where
         scale.binding(),
         out_params.binding(),
         scheme,
-        dtype.into(),
+        dtype_to_elem_type(dtype),
     )
     .expect("Kernel to never fail");
 

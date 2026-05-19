@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
@@ -82,7 +83,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             shape_divmod(&output),
             shape_arg,
             dim,
-            output.dtype.into(),
+            dtype_to_storage_type(output.dtype),
         )
     };
 

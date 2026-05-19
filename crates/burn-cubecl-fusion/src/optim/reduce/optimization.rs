@@ -1,3 +1,4 @@
+use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
 };
@@ -363,8 +364,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             reduce_count,
             axis: self.reduce.axis,
             dtypes: ReduceDtypes {
-                input: self.reduce.op.input.dtype.into(),
-                output: self.reduce.op.out.dtype.into(),
+                input: dtype_to_storage_type(self.reduce.op.input.dtype),
+                output: dtype_to_storage_type(self.reduce.op.out.dtype),
                 accumulation: self.reduce.acc.into_elem().into(),
             },
             address_type,
@@ -409,7 +410,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             self.reduce.inst,
             self.reduce.op.input.dtype,
             self.reduce.op.out.dtype,
-            DType::from(self.reduce.acc.into_elem()),
+            elem_type_to_dtype(self.reduce.acc.into_elem()),
         );
 
         match result {
@@ -474,9 +475,9 @@ fn launch_reduce<Run: Runtime>(
             kwargs.out_vec_axis,
             kwargs.blueprint,
             inst,
-            dtype_input.into(),
-            dtype_output.into(),
-            dtype_acc.into(),
+            dtype_to_storage_type(dtype_input),
+            dtype_to_storage_type(dtype_output),
+            dtype_to_storage_type(dtype_acc),
         )
     };
 

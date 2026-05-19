@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
@@ -131,19 +132,19 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
 
     let bias = bias.map(|bias| {
         let dtype = bias.dtype;
-        InputBinding::Normal(bias.binding(), dtype.into())
+        InputBinding::Normal(bias.binding(), dtype_to_storage_type(dtype))
     });
 
     let client = input.client.clone();
     let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
-        lhs: input.dtype.into(),
-        rhs: weight.dtype.into(),
-        out: out_dtype.into(),
+        lhs: dtype_to_storage_type(input.dtype),
+        rhs: dtype_to_storage_type(weight.dtype),
+        out: dtype_to_storage_type(out_dtype),
     });
     let input_dtype = input.dtype;
     let weight_dtype = weight.dtype;
-    let input = InputBinding::new(input.binding(), input_dtype.into());
-    let weight = InputBinding::new(weight.binding(), weight_dtype.into());
+    let input = InputBinding::new(input.binding(), dtype_to_storage_type(input_dtype));
+    let weight = InputBinding::new(weight.binding(), dtype_to_storage_type(weight_dtype));
 
     launch_ref::<R, N>(
         strategy,

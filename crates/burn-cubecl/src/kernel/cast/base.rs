@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::address_type,
@@ -63,7 +64,7 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         vector_size,
         input.into_linear_view(),
         output.clone().into_linear_view(),
-        [dtype_input.into(), dtype_output.into()],
+        [dtype_to_storage_type(dtype_input), dtype_to_storage_type(dtype_output)],
     );
 
     output

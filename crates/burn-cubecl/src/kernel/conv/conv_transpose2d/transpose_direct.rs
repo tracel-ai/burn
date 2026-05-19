@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, decompose_linear, shape_divmod},
@@ -179,7 +180,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
             options.padding[1],
             options.groups,
         ),
-        dtype.into(),
+        dtype_to_storage_type(dtype),
     );
 
     Ok(output)

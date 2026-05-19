@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
@@ -72,7 +73,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
     for i in 0..ndims {
         indices_sequence.push({
             let val = indices.contains(&i) as u8;
-            InputScalar::new(val, dtype_bool)
+            InputScalar::new(val, dtype_to_storage_type(dtype_bool))
         });
     }
 
@@ -91,7 +92,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             output.clone().into_linear_view(),
             shape,
             indices_sequence,
-            [dtype_input.into(), dtype_bool.into()],
+            [dtype_to_storage_type(dtype_input), dtype_to_storage_type(dtype_bool)],
         )
     }
 

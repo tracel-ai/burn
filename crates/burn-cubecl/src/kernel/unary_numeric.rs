@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::address_type,
@@ -61,7 +62,7 @@ where
                 tensor.clone().into_linear_view(),
                 tensor.as_linear_view_alias(0),
                 args(&()),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             tensor
@@ -82,7 +83,7 @@ where
                 tensor.into_linear_view(),
                 output.clone().into_linear_view(),
                 args(&()),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             output

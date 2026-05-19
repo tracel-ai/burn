@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::into_contiguous_aligned,
@@ -55,7 +56,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
         x.clone().binding(),
         output.clone().binding(),
         mode,
-        output.dtype.into(),
+        dtype_to_storage_type(output.dtype),
     )
     .unwrap_or_else(|e| pool_panic("max_pool2d", &x, e));
 
@@ -115,7 +116,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
         output.clone().binding(),
         indices.clone().binding(),
         mode,
-        output.dtype.into(),
+        dtype_to_storage_type(output.dtype),
     )
     .unwrap_or_else(|e| pool_panic("max_pool2d_with_indices", &x, e));
 
@@ -163,8 +164,8 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
         indices.clone().binding(),
         output.clone().binding(),
         mode,
-        output.dtype.into(),
-        indices.dtype.into(),
+        dtype_to_storage_type(output.dtype),
+        dtype_to_storage_type(indices.dtype),
     )
     .unwrap_or_else(|e| pool_panic("max_pool2d_with_indices_backward", &input, e));
 
@@ -217,7 +218,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
         x.clone().binding(),
         output.clone().binding(),
         mode,
-        output.dtype.into(),
+        dtype_to_storage_type(output.dtype),
     )
     .unwrap_or_else(|e| pool_panic("avg_pool2d", &x, e));
 
@@ -259,7 +260,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
         grad.clone().binding(),
         output.clone().binding(),
         mode,
-        output.dtype.into(),
+        dtype_to_storage_type(output.dtype),
     )
     .unwrap_or_else(|e| pool_panic("avg_pool2d_backward", &input, e));
 
@@ -288,7 +289,7 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
         input.clone().binding(),
         output.clone().binding(),
         mode,
-        output.dtype.into(),
+        dtype_to_storage_type(output.dtype),
     )
     .unwrap_or_else(|e| pool_panic("adaptive_avg_pool2d", &input, e));
 
@@ -320,7 +321,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
         out_grad.clone().binding(),
         output.clone().binding(),
         mode,
-        output.dtype.into(),
+        dtype_to_storage_type(output.dtype),
     )
     .unwrap_or_else(|e| pool_panic("adaptive_avg_pool2d_backward", &input, e));
 

@@ -25,7 +25,7 @@ tracing = ["burn-std/tracing", "cubecl/tracing"]
 # For DTypeUsage de/serialization
 serde = ["enumset/serde"]
 
-cubecl = ["dep:cubecl", "burn-std/cubecl"]
+cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]

@@ -1,3 +1,4 @@
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use crate::CubeRuntime;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_backend::quantization::QuantScheme;
@@ -37,7 +38,7 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
             val.handle.clone(),
             val.meta.shape().clone(),
             val.meta.strides().clone(),
-            val.dtype,
+            dtype_to_storage_type(val.dtype),
         )
     }
 }
@@ -182,7 +183,7 @@ where
         );
         let handle = self
             .client
-            .to_client_tensor(desc, &client, self.dtype.into());
+            .to_client_tensor(desc, &client, dtype_to_elem_type(self.dtype));
 
         Self {
             client,

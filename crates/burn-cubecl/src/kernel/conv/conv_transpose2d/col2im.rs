@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::{
@@ -217,7 +218,7 @@ fn col2im<R: CubeRuntime>(
                 options.stride[0],
                 options.stride[1],
             ),
-            dtype.into(),
+            dtype_to_storage_type(dtype),
         )
     };
 

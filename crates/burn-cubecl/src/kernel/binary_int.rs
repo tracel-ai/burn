@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
@@ -136,7 +137,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 lhs.clone().into_linear_view(),
                 rhs.into_linear_view_like(&lhs),
                 lhs.as_linear_view_alias(0),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             lhs
@@ -150,7 +151,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 lhs.into_linear_view_like(&rhs),
                 rhs.clone().into_linear_view(),
                 rhs.as_linear_view_alias(1),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             rhs
@@ -167,7 +168,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 lhs.into_linear_view_like(&output),
                 rhs.into_linear_view_like(&output),
                 output.clone().into_linear_view(),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             output
@@ -198,7 +199,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 tensor.clone().into_linear_view(),
                 scalar,
                 tensor.as_linear_view_alias(0),
-                tensor.dtype.into(),
+                dtype_to_storage_type(tensor.dtype),
             );
 
             tensor
@@ -219,7 +220,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 tensor.into_linear_view(),
                 scalar,
                 output.clone().into_linear_view(),
-                output.dtype.into(),
+                dtype_to_storage_type(output.dtype),
             );
 
             output

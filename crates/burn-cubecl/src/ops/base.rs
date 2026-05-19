@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{CubeRuntime, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{
     DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
@@ -300,7 +301,7 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
         &out.client,
         tensor.binding(),
         out.clone().binding(),
-        out.dtype.into(),
+        dtype_to_storage_type(out.dtype),
     );
 
     out

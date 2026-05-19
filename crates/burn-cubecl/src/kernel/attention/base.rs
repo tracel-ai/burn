@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeBackend, CubeRuntime, kernel::attention::attention_autotune,
     ops::numeric::empty_device_dtype, tensor::CubeTensor,
@@ -100,11 +101,11 @@ pub fn flash_attention<R: CubeRuntime>(
     let out = init_attention_output(&query, &value);
 
     let dtypes = AttentionGlobalTypes {
-        query: query.dtype.into(),
-        key: key.dtype.into(),
-        value: value.dtype.into(),
-        mask: mask.as_ref().map(|m| m.dtype).unwrap_or(DType::U8).into(),
-        out: out.dtype.into(),
+        query: dtype_to_storage_type(query.dtype),
+        key: dtype_to_storage_type(key.dtype),
+        value: dtype_to_storage_type(value.dtype),
+        mask: dtype_to_storage_type(mask.as_ref().map(|m| m.dtype).unwrap_or(DType::U8)),
+        out: dtype_to_storage_type(out.dtype),
     };
 
     cubek::attention::launch::launch_ref::<R>(

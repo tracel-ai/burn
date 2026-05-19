@@ -1122,7 +1122,6 @@ version = "0.22.0-pre.1"
 dependencies = [
  "bytemuck",
  "bytes",
- "cubecl",
  "cubecl-common",
  "cubecl-zspace",
  "dashmap",

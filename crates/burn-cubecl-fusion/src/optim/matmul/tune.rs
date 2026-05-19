@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use super::optimization::MatmulOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
@@ -270,9 +271,9 @@ pub(crate) fn create_key<R: Runtime>(
         &rhs.shape,
         &lhs_strides,
         &rhs_strides,
-        lhs.dtype.into(),
-        rhs.dtype.into(),
-        out.dtype.into(),
+        dtype_to_storage_type(lhs.dtype),
+        dtype_to_storage_type(rhs.dtype),
+        dtype_to_storage_type(out.dtype),
         opt.info.matmul.lhs.scheme(),
         opt.info.matmul.rhs.scheme(),
     );

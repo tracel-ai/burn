@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_elem_type;
 use super::{
     codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, UnaryFuseArgs},
     settings::FuseSettings,
@@ -341,7 +342,7 @@ impl TraceOperationFuser {
                     return false;
                 }
 
-                let elem: ElemType = desc.out.dtype.into();
+                let elem: ElemType = dtype_to_elem_type(desc.out.dtype);
                 let precision = elem.into();
                 let input = FuseArg::Literal(1, precision);
 
@@ -358,7 +359,7 @@ impl TraceOperationFuser {
                     return false;
                 }
 
-                let elem: ElemType = desc.out.dtype.into();
+                let elem: ElemType = dtype_to_elem_type(desc.out.dtype);
                 let precision = elem.into();
                 let input = FuseArg::Literal(0, precision);
 

@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_elem_type;
 use crate::{
     CubeRuntime, CubeTuneId,
     kernel::attention::{AttentionStrategy, attention},
@@ -134,10 +135,10 @@ fn create_key<R: CubeRuntime>(
     let val_dim = value.meta.shape[3];
 
     AttentionAutotuneKey::generate(
-        query.dtype.into(),
-        key.dtype.into(),
-        value.dtype.into(),
-        query.dtype.into(),
+        dtype_to_elem_type(query.dtype),
+        dtype_to_elem_type(key.dtype),
+        dtype_to_elem_type(value.dtype),
+        dtype_to_elem_type(query.dtype),
         total_batches,
         seq_q,
         head_dim,

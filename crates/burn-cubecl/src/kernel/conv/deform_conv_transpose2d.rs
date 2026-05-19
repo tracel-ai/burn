@@ -1,3 +1,4 @@
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use super::{bilinear_interpolate, deform_im2col, index};
 use crate::{
     CubeRuntime,
@@ -248,7 +249,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&image.client, num_elements_offset);
     let cube_count = calculate_cube_count_elemwise(&image.client, num_elements_offset, cube_dim);
 
-    let dtype: StorageType = image.dtype.into();
+    let dtype: StorageType = dtype_to_storage_type(image.dtype);
     unsafe {
         deform_col2img_coord_kernel::launch_unchecked(
             &grad_offset.client,
@@ -483,7 +484,7 @@ fn compute_input_grad<R: CubeRuntime>(
         .contains(AtomicUsage::Add);
     let supports_same_type = client
         .properties()
-        .atomic_type_usage(Type::new(StorageType::Atomic(columns.dtype.into())))
+        .atomic_type_usage(Type::new(StorageType::Atomic(dtype_to_elem_type(columns.dtype))))
         .contains(AtomicUsage::Add);
 
     let [batches, in_channels, height, width] = input_shape.dims();
@@ -512,8 +513,8 @@ fn compute_input_grad<R: CubeRuntime>(
     };
     let dtype = offset.dtype;
     let dtypes: [StorageType; 2] = match supports_same_type {
-        true => [dtype.into(), dtype.into()],
-        false => [dtype.into(), DType::F32.into()],
+        true => [dtype_to_storage_type(dtype), dtype_to_storage_type(dtype)],
+        false => [dtype_to_storage_type(dtype), dtype_to_storage_type(DType::F32)],
     };
 
     unsafe {

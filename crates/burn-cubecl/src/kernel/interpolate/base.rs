@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::into_contiguous,
@@ -37,7 +38,7 @@ pub fn interpolate<R: CubeRuntime>(
         input.clone().binding(),
         output.clone().binding(),
         map_options(options.clone()),
-        input.dtype.into(),
+        dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {
         panic!(
@@ -75,7 +76,7 @@ pub fn interpolate_backward<R: CubeRuntime>(
         out_grad.binding(),
         output.clone().binding(),
         map_options(options.clone()),
-        input.dtype.into(),
+        dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {
         panic!(

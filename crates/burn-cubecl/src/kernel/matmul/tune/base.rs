@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime, CubeTuneId,
     kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
@@ -461,9 +462,9 @@ fn create_key<R: CubeRuntime>(
         rhs.meta.shape(),
         lhs.meta.strides(),
         rhs.meta.strides(),
-        lhs.dtype.into(),
-        rhs.dtype.into(),
-        out.dtype.into(),
+        dtype_to_storage_type(lhs.dtype),
+        dtype_to_storage_type(rhs.dtype),
+        dtype_to_storage_type(out.dtype),
         lhs.try_scheme(),
         rhs.try_scheme(),
     )

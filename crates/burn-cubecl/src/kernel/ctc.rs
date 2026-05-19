@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::prelude::*;
 
 use crate::{
@@ -341,7 +342,7 @@ pub fn ctc_loss<R: CubeRuntime>(
         output.clone().into_tensor_arg(),
         blank as u32,
         max_l_prime as u32,
-        [f_dtype.into(), i_dtype.into()],
+        [dtype_to_storage_type(f_dtype), dtype_to_storage_type(i_dtype)],
     );
 
     output
@@ -622,7 +623,7 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
     // (s >= 2U+1, or t outside the valid range for an individual batch
     // element) are not read as stale zeros by the gradient composition.
     let shape_abt = Shape::new([max_input_length, batch_size, max_l_prime]);
-    let neg_inf = InputScalar::new(f32::NEG_INFINITY, f_dtype);
+    let neg_inf = InputScalar::new(f32::NEG_INFINITY, dtype_to_storage_type(f_dtype));
     let alpha_out = crate::ops::numeric::full_device_dtype::<R>(
         client.clone(),
         shape_abt.clone(),
@@ -656,7 +657,7 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
         nll_out.clone().into_tensor_arg(),
         blank as u32,
         max_l_prime as u32,
-        [f_dtype.into(), i_dtype.into()],
+        [dtype_to_storage_type(f_dtype), dtype_to_storage_type(i_dtype)],
     );
 
     (alpha_out, beta_out, nll_out)

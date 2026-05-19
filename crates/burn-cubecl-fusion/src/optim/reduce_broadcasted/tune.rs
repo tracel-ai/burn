@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_elem_type;
 use super::optimization::ReduceBroadcastedOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
@@ -128,8 +129,8 @@ fn generate_reduce_autotune_key<R: Runtime>(
     let acc = info.reduce.acc.into_elem();
 
     ReduceAutotuneKey::generate(
-        input.dtype.into(),
-        out.dtype.into(),
+        dtype_to_elem_type(input.dtype),
+        dtype_to_elem_type(out.dtype),
         acc,
         &input.shape,
         info.reduce.axis == input.shape.rank() - 1, // Is it the last dimension?

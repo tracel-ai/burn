@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
@@ -116,7 +117,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             output.clone().into_linear_view(),
             shape_divmod(&output),
             indices_sequence,
-            dtype.into(),
+            dtype_to_storage_type(dtype),
         )
     };
 
@@ -233,7 +234,7 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
             starts,
             ends,
             steps,
-            dtype.into(),
+            dtype_to_storage_type(dtype),
         );
     }
 

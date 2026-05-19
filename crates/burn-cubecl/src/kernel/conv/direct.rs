@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::{into_contiguous_aligned, utils::address_type},
@@ -312,7 +313,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             shape_out,
             shape_out_c,
             options.padding.iter().any(|it| *it != 0),
-            out_dtype.into(),
+            dtype_to_storage_type(out_dtype),
         )
     };
 

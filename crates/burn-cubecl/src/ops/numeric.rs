@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
@@ -38,7 +39,7 @@ pub fn full_client<R: CubeRuntime, E: CubeElement>(
     value: E,
 ) -> CubeTensor<R> {
     let dtype = E::dtype();
-    full_device_dtype(client, shape, device, InputScalar::new(value, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(value, dtype_to_storage_type(dtype)), dtype)
 }
 
 /// Creates a tensor filled with `value`
@@ -80,7 +81,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             vector_size,
             empty.clone().into_linear_view(),
             value,
-            empty.dtype.into(),
+            dtype_to_storage_type(empty.dtype),
         );
     }
 
@@ -90,13 +91,13 @@ pub fn full_device_dtype<R: CubeRuntime>(
 /// Creates a tensor filled with zeros
 pub fn zeros<R: CubeRuntime>(device: R::Device, shape: Shape, dtype: DType) -> CubeTensor<R> {
     let client = R::client(&device);
-    full_device_dtype(client, shape, device, InputScalar::new(0u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(0u32, dtype_to_storage_type(dtype)), dtype)
 }
 
 /// Creates a tensor filled with ones
 pub fn ones<R: CubeRuntime>(device: R::Device, shape: Shape, dtype: DType) -> CubeTensor<R> {
     let client = R::client(&device);
-    full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype_to_storage_type(dtype)), dtype)
 }
 
 /// Creates a tensor filled with zeros
@@ -106,7 +107,7 @@ pub fn zeros_client<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    full_device_dtype(client, shape, device, InputScalar::new(0u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(0u32, dtype_to_storage_type(dtype)), dtype)
 }
 
 /// Creates a tensor filled with ones
@@ -116,7 +117,7 @@ pub fn ones_client<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype), dtype)
+    full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype_to_storage_type(dtype)), dtype)
 }
 
 /// Create a tensor with uninitialized memory
@@ -434,7 +435,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             output.clone().into_linear_view(),
             shape,
             dim,
-            output.dtype.into(),
+            dtype_to_storage_type(output.dtype),
         );
     }
 

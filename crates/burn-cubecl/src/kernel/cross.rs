@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::{
@@ -99,7 +100,7 @@ pub(crate) fn cross<R: CubeRuntime>(
             lhs.into_linear_view_like(&output),
             rhs.into_linear_view_like(&output),
             output.clone().into_linear_view(),
-            dtype.into(),
+            dtype_to_storage_type(dtype),
         );
     };
 
