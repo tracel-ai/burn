@@ -1,4 +1,3 @@
-pub use burn_dispatch::devices::*;
 pub use burn_std::{
     DeviceError, DeviceSettings, ExecutionError, backtrace::BackTrace, device::DeviceId,
 };
@@ -31,18 +30,24 @@ use enumset::EnumSetType;
 ///
 /// # Backend selection
 ///
-/// Enable the desired backend via Cargo feature flags, then construct the corresponding
-/// backend device. You can use [`Device::new`], the [`From`]/[`Into`] trait,
-/// or [`Device::default()`] for the active backend's default device:
+/// Enable the desired backend via Cargo feature flags, then call the
+/// corresponding factory method:
 ///
 /// ```rust,ignore
-/// let device = Device::new(CudaDevice::default());
+/// // Requires the `cuda` feature.
+/// let device = Device::cuda();
 ///
-/// let device: Device = CudaDevice::default().into();
+/// // Pick a specific CUDA hardware index.
+/// let device = Device::cuda_at(0);
 ///
-/// // Default device for whichever backend is enabled
+/// // Default device for whichever backend is enabled.
 /// let device = Default::default();
 /// ```
+///
+/// Available factory methods (each gated by its matching Cargo feature):
+/// `Device::cpu`, `Device::cuda`, `Device::cuda_at`, `Device::rocm`,
+/// `Device::wgpu`, `Device::flex`, `Device::ndarray`, `Device::libtorch`,
+/// `Device::libtorch_cuda`.
 ///
 /// # Autodiff
 ///
@@ -90,24 +95,83 @@ impl PartialEq for Device {
 
 impl Eq for Device {}
 
-impl<D: Into<DispatchDevice>> From<D> for Device {
-    fn from(device: D) -> Self {
-        Self::new(device)
+impl Device {
+    /// Crate-internal helper for wrapping a [`DispatchDevice`] without going
+    /// through the public factory methods. Used by burn-tensor's bridge ops
+    /// when they receive a dispatch-level device from the dispatch layer.
+    pub(crate) fn from_dispatch(dispatch: DispatchDevice) -> Self {
+        Self { dispatch }
     }
 }
 
 impl Device {
-    /// Creates a new [`Device`] from a supported backend device.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let device = Device::new(CudaDevice::default());
-    /// ```
-    pub fn new(device: impl Into<DispatchDevice>) -> Self {
+    /// Internal constructor used by the backend-specific factory methods below.
+    /// Kept private so backend-specific device types never appear in the public
+    /// API surface: callers use [`Device::cpu`], [`Device::cuda`] etc.
+    fn new(device: impl Into<DispatchDevice>) -> Self {
         Self {
             dispatch: device.into(),
         }
+    }
+
+    /// Default CPU device backed by CubeCL's CPU backend.
+    #[cfg(feature = "cpu")]
+    pub fn cpu() -> Self {
+        Self::new(burn_dispatch::devices::CpuDevice::default())
+    }
+
+    /// Default CUDA device (device index `0`).
+    #[cfg(feature = "cuda")]
+    pub fn cuda() -> Self {
+        Self::new(burn_dispatch::devices::CudaDevice::default())
+    }
+
+    /// CUDA device at the given hardware index.
+    #[cfg(feature = "cuda")]
+    pub fn cuda_at(index: usize) -> Self {
+        Self::new(burn_dispatch::devices::CudaDevice::new(index))
+    }
+
+    /// Default ROCm/HIP device.
+    #[cfg(feature = "rocm")]
+    pub fn rocm() -> Self {
+        Self::new(burn_dispatch::devices::RocmDevice::default())
+    }
+
+    /// Flex backend device.
+    #[cfg(feature = "flex")]
+    pub fn flex() -> Self {
+        Self::new(burn_dispatch::devices::FlexDevice)
+    }
+
+    /// Default NdArray (CPU) device.
+    #[cfg(feature = "ndarray")]
+    pub fn ndarray() -> Self {
+        Self::new(burn_dispatch::devices::NdArrayDevice::default())
+    }
+
+    /// LibTorch CPU device.
+    #[cfg(feature = "tch")]
+    pub fn libtorch() -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Cpu)
+    }
+
+    /// LibTorch CUDA device at the given hardware index.
+    #[cfg(feature = "tch")]
+    pub fn libtorch_cuda(index: usize) -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(index))
+    }
+
+    /// WGPU device — lets `wgpu` auto-select an available adapter (Vulkan,
+    /// Metal, or WebGPU depending on which features are enabled).
+    #[cfg(any(
+        feature = "wgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "webgpu"
+    ))]
+    pub fn wgpu() -> Self {
+        Self::new(burn_dispatch::devices::WgpuDevice::DefaultDevice)
     }
 
     /// Enables autodiff on this device.
