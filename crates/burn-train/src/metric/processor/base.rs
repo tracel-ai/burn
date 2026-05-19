@@ -8,8 +8,11 @@ use crate::{
 
 /// Event happening during the training/validation process.
 pub enum LearnerEvent<T> {
-    /// Signal the start of the process (e.g., training start)
-    Start,
+    /// Signal the start of the process (e.g., training start).
+    Start {
+        /// The total number of training epochs.
+        total_epochs: usize,
+    },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),
     /// Signal the end of an epoch.

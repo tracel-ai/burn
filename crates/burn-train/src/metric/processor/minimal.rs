@@ -19,7 +19,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 {
     fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
-            LearnerEvent::Start => {
+            LearnerEvent::Start { .. } => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
@@ -48,7 +48,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
     fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
-            LearnerEvent::Start => {} // no-op for now
+            LearnerEvent::Start { .. } => {} // no-op
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = (&item).into();

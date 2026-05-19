@@ -1,13 +1,32 @@
 /// Trait for logging training progress at each step and end of epoch.
 ///
-/// TODO: document how the trait caller is expected to call these methods in a way that a single epoch and split are started and ended exactly once.
+/// # Call sequence
+///
+/// Implementors can expect the following sequence of calls for a complete training run:
+///
+/// ```text
+/// start(total_epochs, total_items)
+///   for each epoch:
+///     start_split("train", total_items_train)
+///       update_split(items_processed)  // called once per batch
+///       ...
+///     end_split()
+///     start_split("valid", total_items_valid)
+///       update_split(items_processed)  // called once per batch
+///       ...
+///     end_split()
+///     update_epoch(epoch)
+/// end()
+/// ```
+///
+/// `end()` is called whether training completes normally or is interrupted early.
 pub trait TrainingProgressLogger: Send {
     /// Called once at the start of training, providing the total number of epochs.
     ///
     /// The total number of items of the training can optionally be provided if it is known.
     fn start(&mut self, total_epochs: usize, total_items: Option<usize>);
 
-    /// Called at the end of each epoch, providing the epoch number.
+    /// Called at the end of each full epoch (after both train and valid splits complete).
     fn update_epoch(&mut self, epoch: usize);
 
     /// Called at the start of a training split, providing the split name and total number of items.
@@ -25,12 +44,26 @@ pub trait TrainingProgressLogger: Send {
 
 /// Trait for logging evaluation progress at each step and end of evaluation.
 ///
-/// TODO: document how the trait caller is expected to call these methods in a way that a single evaluation and test split are started and ended exactly once.
+/// # Call sequence
+///
+/// Implementors can expect the following sequence of calls for a complete evaluation run:
+///
+/// ```text
+/// start(total_tests)
+///   for each test split:
+///     start_test(name, total_items)
+///       update_test(items_processed)  // called once per batch
+///       ...
+///     end_test()
+/// end()
+/// ```
+///
+/// `end()` is called whether evaluation completes normally or is interrupted early.
 pub trait EvaluationProgressLogger: Send {
     /// Called once at the start of evaluation, providing the total number of test splits.
     fn start(&mut self, total_tests: usize);
 
-    /// Called at the start of a test split, providing the split name and total.
+    /// Called at the start of a test split, providing the split name and total number of items.
     fn start_test(&mut self, name: String, total_items: usize);
 
     /// Log the progress of the current test step.
