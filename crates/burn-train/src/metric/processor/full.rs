@@ -28,7 +28,6 @@ pub struct FullEventProcessorEvaluation<T: ItemLazy> {
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
     progress_logger: Option<Box<dyn EvaluationProgressLogger>>,
-    test_started: bool,
 }
 
 impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
@@ -86,7 +85,6 @@ impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
             renderer,
             store,
             progress_logger: None,
-            test_started: false,
         }
     }
 
@@ -134,6 +132,11 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     logger.start(EVALUATOR_TEST_SPLITS);
                 }
             }
+            EvaluatorEvent::StartTest(name, total_items) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start_test(name.as_str().to_string(), total_items);
+                }
+            }
             EvaluatorEvent::ProcessedItem(name, item) => {
                 let item = item.sync();
                 let progress: crate::renderer::EvaluationProgress = (&item).into();
@@ -166,21 +169,14 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    if !self.test_started {
-                        logger.start_test(name.as_str().to_string(), progress.progress.items_total);
-                        self.test_started = true;
-                    }
                     logger.update_test(progress.progress.items_processed);
                 }
                 self.renderer.render_test(progress, indicators);
             }
             EvaluatorEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    if self.test_started {
-                        logger.end_test();
-                    }
+                    logger.end_test();
                     logger.end();
-                    self.test_started = false;
                 }
                 self.renderer.on_test_end(summary).ok();
             }

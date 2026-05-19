@@ -36,10 +36,13 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         let dataloader = dataloader.to_device(self.model.devices().first().unwrap());
 
         let name = EvaluationName::new(name);
+        let total_items = dataloader.num_items();
         let mut iterator = dataloader.iter();
         let mut iteration = 0;
 
         self.event_processor.process_test(EvaluatorEvent::Start);
+        self.event_processor
+            .process_test(EvaluatorEvent::StartTest(name.clone(), total_items));
         while let Some(item) = iterator.next() {
             let progress = iterator.progress();
             iteration += 1;
