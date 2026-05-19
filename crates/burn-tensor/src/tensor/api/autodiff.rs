@@ -6,21 +6,73 @@ use crate::ops::BridgeTensor;
 use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
+#[cfg(feature = "autodiff")]
+use core::mem::MaybeUninit;
 
 #[cfg(feature = "autodiff")]
 type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
+#[cfg(feature = "autodiff")]
+type GradientsInner = MaybeUninit<AutodiffGradients>;
+
+/// Storage for [`Gradients`]. Holds the raw bytes of the dispatch-level
+/// gradients container.
+///
+/// Intentionally has no type-level alignment marker (e.g.
+/// `[GradientsInner; 0]`), since that would re-introduce a `burn_dispatch`
+/// dependency in the type itself and undermine the compile-time goal of this
+/// obfuscation. Alignment must therefore be handled at access sites
+/// (TODO: bring back proper alignment without leaking the type).
+#[cfg(feature = "autodiff")]
+struct GradientsBlob {
+    bytes: [u8; size_of::<GradientsInner>()],
+}
 
 /// Gradients container used during the backward pass.
 #[cfg(feature = "autodiff")]
 pub struct Gradients {
-    // Encapsulate the inner type to avoid leaking internals into the top-level API.
-    pub(crate) inner: AutodiffGradients,
+    blob: GradientsBlob,
+}
+
+#[cfg(feature = "autodiff")]
+impl Drop for Gradients {
+    fn drop(&mut self) {
+        unsafe {
+            let inner: &mut GradientsInner =
+                &mut *(self.blob.bytes.as_mut_ptr() as *mut GradientsInner);
+            inner.assume_init_drop();
+        }
+    }
 }
 
 #[cfg(feature = "autodiff")]
 impl Gradients {
-    fn new(inner: AutodiffGradients) -> Self {
-        Self { inner }
+    /// Crate-internal constructor wrapping the dispatch-level gradients.
+    pub(crate) fn from_inner(inner: AutodiffGradients) -> Self {
+        let mut blob = GradientsBlob {
+            bytes: [0u8; size_of::<GradientsInner>()],
+        };
+        unsafe {
+            let dst = blob.bytes.as_mut_ptr() as *mut GradientsInner;
+            dst.write(MaybeUninit::new(inner));
+        }
+        Self { blob }
+    }
+
+    /// Crate-internal borrow of the underlying gradients container.
+    pub(crate) fn as_inner(&self) -> &AutodiffGradients {
+        unsafe {
+            let inner: &GradientsInner = &*(self.blob.bytes.as_ptr() as *const GradientsInner);
+            inner.assume_init_ref()
+        }
+    }
+
+    /// Crate-internal mutable borrow of the underlying gradients container.
+    pub(crate) fn as_inner_mut(&mut self) -> &mut AutodiffGradients {
+        unsafe {
+            let inner: &mut GradientsInner =
+                &mut *(self.blob.bytes.as_mut_ptr() as *mut GradientsInner);
+            inner.assume_init_mut()
+        }
     }
 }
 
@@ -28,7 +80,7 @@ impl Gradients {
 impl<const D: usize> Tensor<D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> Gradients {
-        Gradients::new(Dispatch::backward(self.primitive.clone().into_float()))
+        Gradients::from_inner(Dispatch::backward(self.primitive.clone().into_float()))
     }
 
     /// Get the gradients of a tensor if it exist.
@@ -37,14 +89,14 @@ impl<const D: usize> Tensor<D> {
     /// be accessed multiple times. If you only need to get the gradients one time,
     /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D>> {
-        Dispatch::grad(self.primitive.as_float(), &grads.inner)
+        Dispatch::grad(self.primitive.as_float(), grads.as_inner())
             .map(BridgeTensor::float)
             .map(Tensor::new)
     }
 
     /// Remove the grad tensor from the [grads](AutodiffBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut Gradients) -> Option<Tensor<D>> {
-        Dispatch::grad_remove(self.primitive.as_float(), &mut grads.inner)
+        Dispatch::grad_remove(self.primitive.as_float(), grads.as_inner_mut())
             .map(BridgeTensor::float)
             .map(Tensor::new)
     }
@@ -54,7 +106,7 @@ impl<const D: usize> Tensor<D> {
     pub fn grad_replace(&self, grads: &mut Gradients, grad: Tensor<D>) {
         Dispatch::grad_replace(
             self.primitive.as_float(),
-            &mut grads.inner,
+            grads.as_inner_mut(),
             grad.primitive.into_float(),
         )
     }
