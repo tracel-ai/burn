@@ -1,3 +1,5 @@
+use std::mem::MaybeUninit;
+
 use alloc::vec::Vec;
 use burn_backend::{TensorMetadata, TensorPrimitive};
 use burn_dispatch::{Dispatch, DispatchTensor};
@@ -74,8 +76,54 @@ impl TensorKindId {
 /// the uniform [`DispatchTensor`] used by the underlying dispatch layer. This
 /// separation keeps tensor kind tracking out of the backends while avoiding
 /// exposure of backend-level primitives in the public API.
+#[derive(Debug)]
+pub struct BridgeTensor {
+    blob: Blob,
+}
+
+type InnerType = MaybeUninit<BridgeTensorVariant>;
+type Blob = [u8; size_of::<InnerType>()];
+
+impl Clone for BridgeTensor {
+    fn clone(&self) -> Self {
+        let inner = self.as_variant().clone();
+        Self::new(inner)
+    }
+}
+
+impl Drop for BridgeTensor {
+    fn drop(&mut self) {
+        unsafe {
+            let blob = core::ptr::read(&self.blob);
+            let mut inner: InnerType = core::mem::transmute(blob);
+            inner.assume_init_drop();
+        }
+    }
+}
+
+impl BridgeTensor {
+    pub fn as_variant(&self) -> &BridgeTensorVariant {
+        unsafe {
+            let tensor: &InnerType = core::mem::transmute(&self.blob);
+            tensor.assume_init_ref()
+        }
+    }
+    pub fn into_variant(self) -> BridgeTensorVariant {
+        unsafe {
+            let tensor: InnerType = core::mem::transmute(self.blob);
+            tensor.assume_init()
+        }
+    }
+    fn new(inner: BridgeTensorVariant) -> Self {
+        let inner: Blob = unsafe { core::mem::transmute(inner) };
+
+        Self { blob: inner }
+    }
+}
+
 #[derive(Clone, Debug)]
-pub enum BridgeTensor {
+/// Private type obfucated by Blob.
+enum BridgeTensorVariant {
     /// A boolean tensor.
     Bool(DispatchTensor),
     /// An integer tensor.
@@ -89,47 +137,47 @@ pub enum BridgeTensor {
 impl BridgeTensor {
     /// Returns the dtype of the tensor.
     pub fn dtype(&self) -> burn_std::DType {
-        match self {
-            Self::Bool(tensor) => tensor.dtype(),
-            Self::Int(tensor) => tensor.dtype(),
-            Self::Float(tensor) => tensor.dtype(),
-            Self::QFloat(tensor) => tensor.dtype(),
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.dtype(),
+            BridgeTensorVariant::Int(tensor) => tensor.dtype(),
+            BridgeTensorVariant::Float(tensor) => tensor.dtype(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.dtype(),
         }
     }
 
     /// Returns the shape of the tensor.
     pub fn shape(&self) -> burn_std::Shape {
-        match self {
-            Self::Bool(tensor) => tensor.shape(),
-            Self::Int(tensor) => tensor.shape(),
-            Self::Float(tensor) => tensor.shape(),
-            Self::QFloat(tensor) => tensor.shape(),
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.shape(),
+            BridgeTensorVariant::Int(tensor) => tensor.shape(),
+            BridgeTensorVariant::Float(tensor) => tensor.shape(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.shape(),
         }
     }
 
     /// Returns the number of dimensions of the tensor.
     pub fn rank(&self) -> usize {
-        match self {
-            Self::Bool(tensor) => tensor.rank(),
-            Self::Int(tensor) => tensor.rank(),
-            Self::Float(tensor) => tensor.rank(),
-            Self::QFloat(tensor) => tensor.rank(),
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.rank(),
+            BridgeTensorVariant::Int(tensor) => tensor.rank(),
+            BridgeTensorVariant::Float(tensor) => tensor.rank(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.rank(),
         }
     }
 
     pub(crate) fn as_dispatch(&self) -> &DispatchTensor {
-        match self {
-            BridgeTensor::Bool(tensor) => tensor,
-            BridgeTensor::Int(tensor) => tensor,
-            BridgeTensor::Float(tensor) => tensor,
-            BridgeTensor::QFloat(tensor) => tensor,
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor,
+            BridgeTensorVariant::Int(tensor) => tensor,
+            BridgeTensorVariant::Float(tensor) => tensor,
+            BridgeTensorVariant::QFloat(tensor) => tensor,
         }
     }
 
     #[cfg(feature = "autodiff")]
     pub(crate) fn as_float(&self) -> &DispatchTensor {
-        match self {
-            BridgeTensor::Float(tensor) => tensor,
+        match self.as_variant() {
+            BridgeTensorVariant::Float(tensor) => tensor,
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -139,10 +187,12 @@ impl BridgeTensor {
     }
 
     pub(crate) fn into_float(self) -> DispatchTensor {
-        match self {
-            BridgeTensor::Float(tensor) => tensor,
+        match self.into_variant() {
+            BridgeTensorVariant::Float(tensor) => tensor,
             // Returns the dequantized float tensor.
-            BridgeTensor::QFloat(tensor) => TensorPrimitive::<Dispatch>::QFloat(tensor).tensor(),
+            BridgeTensorVariant::QFloat(tensor) => {
+                TensorPrimitive::<Dispatch>::QFloat(tensor).tensor()
+            }
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -150,11 +200,11 @@ impl BridgeTensor {
 
 impl From<BridgeTensor> for DispatchTensor {
     fn from(value: BridgeTensor) -> Self {
-        match value {
-            BridgeTensor::Bool(tensor) => tensor,
-            BridgeTensor::Int(tensor) => tensor,
-            BridgeTensor::Float(tensor) => tensor,
-            BridgeTensor::QFloat(tensor) => tensor,
+        match value.into_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor,
+            BridgeTensorVariant::Int(tensor) => tensor,
+            BridgeTensorVariant::Float(tensor) => tensor,
+            BridgeTensorVariant::QFloat(tensor) => tensor,
         }
     }
 }
