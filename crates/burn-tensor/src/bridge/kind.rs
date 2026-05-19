@@ -76,13 +76,28 @@ impl TensorKindId {
 /// the uniform [`DispatchTensor`] used by the underlying dispatch layer. This
 /// separation keeps tensor kind tracking out of the backends while avoiding
 /// exposure of backend-level primitives in the public API.
-#[derive(Debug)]
 pub struct BridgeTensor {
     blob: Blob,
 }
 
+impl core::fmt::Debug for BridgeTensor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BridgeTensor")
+            .field("kind", &self.kind())
+            .finish()
+    }
+}
+
 type InnerType = MaybeUninit<BridgeTensorVariant>;
-type Blob = [u8; size_of::<InnerType>()];
+
+/// Storage for [`BridgeTensor`]. Holds the raw bytes of an [`InnerType`] while
+/// preserving its alignment via the zero-sized `_align` field, so the backing
+/// memory can be safely reinterpreted as an [`InnerType`] reference.
+#[repr(C)]
+struct Blob {
+    bytes: [u8; size_of::<InnerType>()],
+    _align: [InnerType; 0],
+}
 
 impl Clone for BridgeTensor {
     fn clone(&self) -> Self {
@@ -94,30 +109,37 @@ impl Clone for BridgeTensor {
 impl Drop for BridgeTensor {
     fn drop(&mut self) {
         unsafe {
-            let blob = core::ptr::read(&self.blob);
-            let mut inner: InnerType = core::mem::transmute(blob);
+            let inner: &mut InnerType = &mut *(self.blob.bytes.as_mut_ptr() as *mut InnerType);
             inner.assume_init_drop();
         }
     }
 }
 
 impl BridgeTensor {
-    pub fn as_variant(&self) -> &BridgeTensorVariant {
+    fn as_variant(&self) -> &BridgeTensorVariant {
         unsafe {
-            let tensor: &InnerType = core::mem::transmute(&self.blob);
+            let tensor: &InnerType = &*(self.blob.bytes.as_ptr() as *const InnerType);
             tensor.assume_init_ref()
         }
     }
-    pub fn into_variant(self) -> BridgeTensorVariant {
+    fn into_variant(mut self) -> BridgeTensorVariant {
         unsafe {
-            let tensor: InnerType = core::mem::transmute(self.blob);
-            tensor.assume_init()
+            let inner: InnerType =
+                core::ptr::read(self.blob.bytes.as_mut_ptr() as *const InnerType);
+            core::mem::forget(self);
+            inner.assume_init()
         }
     }
     fn new(inner: BridgeTensorVariant) -> Self {
-        let inner: Blob = unsafe { core::mem::transmute(inner) };
-
-        Self { blob: inner }
+        let mut blob = Blob {
+            bytes: [0u8; size_of::<InnerType>()],
+            _align: [],
+        };
+        unsafe {
+            let dst = blob.bytes.as_mut_ptr() as *mut InnerType;
+            dst.write(MaybeUninit::new(inner));
+        }
+        Self { blob }
     }
 }
 
@@ -134,7 +156,95 @@ enum BridgeTensorVariant {
     QFloat(DispatchTensor),
 }
 
+/// Runtime tag identifying which variant a [`BridgeTensor`] wraps.
+///
+/// Exposed so callers can dispatch on the variant without having to reach the
+/// private [`BridgeTensorVariant`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BridgeKind {
+    /// A boolean tensor.
+    Bool,
+    /// An integer tensor.
+    Int,
+    /// A floating-point tensor.
+    Float,
+    /// A quantized floating-point tensor.
+    QFloat,
+}
+
 impl BridgeTensor {
+    /// Builds a bridge tensor that wraps a floating-point dispatch tensor.
+    pub fn float(tensor: DispatchTensor) -> Self {
+        Self::new(BridgeTensorVariant::Float(tensor))
+    }
+
+    /// Builds a bridge tensor that wraps an integer dispatch tensor.
+    pub fn int(tensor: DispatchTensor) -> Self {
+        Self::new(BridgeTensorVariant::Int(tensor))
+    }
+
+    /// Builds a bridge tensor that wraps a boolean dispatch tensor.
+    pub fn bool(tensor: DispatchTensor) -> Self {
+        Self::new(BridgeTensorVariant::Bool(tensor))
+    }
+
+    /// Builds a bridge tensor that wraps a quantized floating-point dispatch tensor.
+    pub fn qfloat(tensor: DispatchTensor) -> Self {
+        Self::new(BridgeTensorVariant::QFloat(tensor))
+    }
+
+    /// Returns the runtime tag identifying which variant this tensor wraps.
+    pub fn kind(&self) -> BridgeKind {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(_) => BridgeKind::Bool,
+            BridgeTensorVariant::Int(_) => BridgeKind::Int,
+            BridgeTensorVariant::Float(_) => BridgeKind::Float,
+            BridgeTensorVariant::QFloat(_) => BridgeKind::QFloat,
+        }
+    }
+
+    /// Returns `true` if this tensor is the [`BridgeKind::Float`] variant.
+    pub fn is_float(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Float)
+    }
+
+    /// Returns `true` if this tensor is the [`BridgeKind::Int`] variant.
+    pub fn is_int(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Int)
+    }
+
+    /// Returns `true` if this tensor is the [`BridgeKind::Bool`] variant.
+    pub fn is_bool(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Bool)
+    }
+
+    /// Returns `true` if this tensor is the [`BridgeKind::QFloat`] variant.
+    pub fn is_qfloat(&self) -> bool {
+        matches!(self.kind(), BridgeKind::QFloat)
+    }
+
+    /// Consumes the bridge tensor and returns its variant tag together with
+    /// the underlying dispatch tensor.
+    pub fn into_parts(self) -> (BridgeKind, DispatchTensor) {
+        match self.into_variant() {
+            BridgeTensorVariant::Bool(t) => (BridgeKind::Bool, t),
+            BridgeTensorVariant::Int(t) => (BridgeKind::Int, t),
+            BridgeTensorVariant::Float(t) => (BridgeKind::Float, t),
+            BridgeTensorVariant::QFloat(t) => (BridgeKind::QFloat, t),
+        }
+    }
+
+    /// Borrows the bridge tensor as its variant tag together with a reference
+    /// to the underlying dispatch tensor.
+    pub fn as_parts(&self) -> (BridgeKind, &DispatchTensor) {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(t) => (BridgeKind::Bool, t),
+            BridgeTensorVariant::Int(t) => (BridgeKind::Int, t),
+            BridgeTensorVariant::Float(t) => (BridgeKind::Float, t),
+            BridgeTensorVariant::QFloat(t) => (BridgeKind::QFloat, t),
+        }
+    }
+
     /// Returns the dtype of the tensor.
     pub fn dtype(&self) -> burn_std::DType {
         match self.as_variant() {

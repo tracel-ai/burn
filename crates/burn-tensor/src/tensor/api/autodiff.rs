@@ -38,14 +38,14 @@ impl<const D: usize> Tensor<D> {
     /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D>> {
         Dispatch::grad(self.primitive.as_float(), &grads.inner)
-            .map(BridgeTensor::Float)
+            .map(BridgeTensor::float)
             .map(Tensor::new)
     }
 
     /// Remove the grad tensor from the [grads](AutodiffBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut Gradients) -> Option<Tensor<D>> {
         Dispatch::grad_remove(self.primitive.as_float(), &mut grads.inner)
-            .map(BridgeTensor::Float)
+            .map(BridgeTensor::float)
             .map(Tensor::new)
     }
 

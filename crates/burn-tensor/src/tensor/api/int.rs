@@ -18,7 +18,7 @@ impl Tensor<1, Int> {
     pub fn arange(range: Range<i64>, options: impl Into<TensorCreationOptions>) -> Self {
         let opt = options.into();
         let dtype = opt.resolve_dtype::<Int>();
-        Tensor::new(BridgeTensor::Int(Dispatch::int_arange(
+        Tensor::new(BridgeTensor::int(Dispatch::int_arange(
             range,
             &opt.device.dispatch,
             dtype.into(),
@@ -38,7 +38,7 @@ impl Tensor<1, Int> {
     ) -> Self {
         let opt = options.into();
         let dtype = opt.resolve_dtype::<Int>();
-        Tensor::new(BridgeTensor::Int(Dispatch::int_arange_step(
+        Tensor::new(BridgeTensor::int(Dispatch::int_arange_step(
             range,
             step,
             &opt.device.dispatch,
@@ -81,7 +81,7 @@ impl<const D: usize> Tensor<D, Int> {
     /// ```
     pub fn float(self) -> Tensor<D, Float> {
         let out_dtype = self.device().settings().float_dtype;
-        Tensor::new(BridgeTensor::Float(Dispatch::int_into_float(
+        Tensor::new(BridgeTensor::float(Dispatch::int_into_float(
             self.primitive.into(),
             out_dtype,
         )))
@@ -119,7 +119,7 @@ impl<const D: usize> Tensor<D, Int> {
 
     /// Applies the bitwise logical and operation with each bit representing the integer.
     pub fn bitwise_and(self, other: Self) -> Self {
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_and(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_and(
             self.primitive.into(),
             other.primitive.into(),
         )))
@@ -127,7 +127,7 @@ impl<const D: usize> Tensor<D, Int> {
 
     /// Applies the bitwise logical or operation with another tensor.
     pub fn bitwise_or(self, other: Self) -> Self {
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_or(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_or(
             self.primitive.into(),
             other.primitive.into(),
         )))
@@ -135,7 +135,7 @@ impl<const D: usize> Tensor<D, Int> {
 
     /// Applies the bitwise logical xor operation with another tensor.
     pub fn bitwise_xor(self, other: Self) -> Self {
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_xor(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_xor(
             self.primitive.into(),
             other.primitive.into(),
         )))
@@ -143,7 +143,7 @@ impl<const D: usize> Tensor<D, Int> {
 
     /// Applies the bitwise logical not operation.
     pub fn bitwise_not(self) -> Self {
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_not(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_not(
             self.primitive.into(),
         )))
     }
@@ -151,7 +151,7 @@ impl<const D: usize> Tensor<D, Int> {
     /// Applies the bitwise logical and operation with each bit in the scalar and the integers in the tensor.
     pub fn bitwise_and_scalar(self, other: impl ElementConversion) -> Self {
         let other = Scalar::new(other, &self.dtype());
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_and_scalar(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_and_scalar(
             self.primitive.into(),
             other,
         )))
@@ -160,7 +160,7 @@ impl<const D: usize> Tensor<D, Int> {
     /// Applies the bitwise logical or operation with each bit in the scalar and the integers in the tensor.
     pub fn bitwise_or_scalar(self, other: impl ElementConversion) -> Self {
         let other = Scalar::new(other, &self.dtype());
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_or_scalar(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_or_scalar(
             self.primitive.into(),
             other,
         )))
@@ -169,7 +169,7 @@ impl<const D: usize> Tensor<D, Int> {
     /// Applies bitwise logical xor operation with each bit in the scalar and the integers in the tensor.
     pub fn bitwise_xor_scalar(self, other: impl ElementConversion) -> Self {
         let other = Scalar::new(other, &self.dtype());
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_xor_scalar(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_xor_scalar(
             self.primitive.into(),
             other,
         )))
@@ -177,7 +177,7 @@ impl<const D: usize> Tensor<D, Int> {
 
     /// Applies the bitwise left shift operation with the integers in the tensor.
     pub fn bitwise_left_shift(self, other: Self) -> Self {
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_left_shift(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_left_shift(
             self.primitive.into(),
             other.primitive.into(),
         )))
@@ -185,7 +185,7 @@ impl<const D: usize> Tensor<D, Int> {
 
     /// Applies the bitwise right shift operation with the integers in the tensor.
     pub fn bitwise_right_shift(self, other: Self) -> Self {
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_right_shift(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_right_shift(
             self.primitive.into(),
             other.primitive.into(),
         )))
@@ -194,7 +194,7 @@ impl<const D: usize> Tensor<D, Int> {
     /// Applies the bitwise left shift operation with the scalar.
     pub fn bitwise_left_shift_scalar(self, other: impl ElementConversion) -> Self {
         let other = Scalar::new(other, &self.dtype());
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_left_shift_scalar(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_left_shift_scalar(
             self.primitive.into(),
             other,
         )))
@@ -203,7 +203,7 @@ impl<const D: usize> Tensor<D, Int> {
     /// Applies the bitwise right shift operation with the scalar.
     pub fn bitwise_right_shift_scalar(self, other: impl ElementConversion) -> Self {
         let other = Scalar::new(other, &self.dtype());
-        Self::new(BridgeTensor::Int(Dispatch::bitwise_right_shift_scalar(
+        Self::new(BridgeTensor::int(Dispatch::bitwise_right_shift_scalar(
             self.primitive.into(),
             other,
         )))

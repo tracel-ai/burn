@@ -64,7 +64,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
         let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(BridgeTensor::Int(Dispatch::bool_into_int(
+        Tensor::new(BridgeTensor::int(Dispatch::bool_into_int(
             self.primitive.into(),
             out_dtype,
         )))
@@ -90,7 +90,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```
     pub fn float(self) -> Tensor<D> {
         let out_dtype = self.device().settings().float_dtype;
-        Tensor::new(BridgeTensor::Float(Dispatch::bool_into_float(
+        Tensor::new(BridgeTensor::float(Dispatch::bool_into_float(
             self.primitive.into(),
             out_dtype,
         )))
@@ -137,7 +137,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_not(self) -> Self {
-        Tensor::new(BridgeTensor::Bool(Dispatch::bool_not(
+        Tensor::new(BridgeTensor::bool(Dispatch::bool_not(
             self.primitive.into(),
         )))
     }
@@ -166,7 +166,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_and(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(BridgeTensor::Bool(Dispatch::bool_and(
+        Tensor::new(BridgeTensor::bool(Dispatch::bool_and(
             self.primitive.into(),
             rhs.primitive.into(),
         )))
@@ -196,7 +196,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_or(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(BridgeTensor::Bool(Dispatch::bool_or(
+        Tensor::new(BridgeTensor::bool(Dispatch::bool_or(
             self.primitive.into(),
             rhs.primitive.into(),
         )))
@@ -227,7 +227,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_xor(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(BridgeTensor::Bool(Dispatch::bool_xor(
+        Tensor::new(BridgeTensor::bool(Dispatch::bool_xor(
             self.primitive.into(),
             rhs.primitive.into(),
         )))
@@ -318,7 +318,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// result contains the indices of a non-zero element.
     pub async fn argwhere_async(self) -> Tensor<2, Int> {
         let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(BridgeTensor::Int(
+        Tensor::new(BridgeTensor::int(
             Dispatch::bool_argwhere(self.primitive.into(), out_dtype).await,
         ))
     }

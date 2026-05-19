@@ -24,12 +24,12 @@ impl<const D: usize> Cast<D, Float> for FloatDType {
     type OutputKind = Float;
 
     fn cast(tensor: Tensor<D, Float>, dtype: Self) -> Tensor<D, Float> {
-        if let BridgeTensor::Float(_) = tensor.primitive {
+        if tensor.primitive.is_float() {
             let current: FloatDType = tensor.dtype().into();
             if current == dtype {
                 return tensor;
             }
-            Tensor::new(BridgeTensor::Float(Dispatch::float_cast(
+            Tensor::new(BridgeTensor::float(Dispatch::float_cast(
                 tensor.primitive.into_float(),
                 dtype,
             )))
@@ -43,7 +43,7 @@ impl<const D: usize> Cast<D, Float> for IntDType {
     type OutputKind = Int;
 
     fn cast(tensor: Tensor<D, Float>, dtype: Self) -> Tensor<D, Int> {
-        Tensor::new(BridgeTensor::Int(Dispatch::float_into_int(
+        Tensor::new(BridgeTensor::int(Dispatch::float_into_int(
             tensor.primitive.into_float(),
             dtype,
         )))
@@ -75,7 +75,7 @@ impl<const D: usize> Cast<D, Int> for IntDType {
         if current == dtype {
             return tensor;
         }
-        Tensor::new(BridgeTensor::Int(Dispatch::int_cast(
+        Tensor::new(BridgeTensor::int(Dispatch::int_cast(
             tensor.primitive.into(),
             dtype,
         )))
@@ -86,7 +86,7 @@ impl<const D: usize> Cast<D, Int> for FloatDType {
     type OutputKind = Float;
 
     fn cast(tensor: Tensor<D, Int>, dtype: Self) -> Tensor<D, Float> {
-        Tensor::new(BridgeTensor::Float(Dispatch::int_into_float(
+        Tensor::new(BridgeTensor::float(Dispatch::int_into_float(
             tensor.primitive.into(),
             dtype,
         )))
@@ -114,7 +114,7 @@ impl<const D: usize> Cast<D, Bool> for IntDType {
     type OutputKind = Int;
 
     fn cast(tensor: Tensor<D, Bool>, dtype: Self) -> Tensor<D, Int> {
-        Tensor::new(BridgeTensor::Bool(Dispatch::bool_into_int(
+        Tensor::new(BridgeTensor::bool(Dispatch::bool_into_int(
             tensor.primitive.into(),
             dtype,
         )))
@@ -125,7 +125,7 @@ impl<const D: usize> Cast<D, Bool> for FloatDType {
     type OutputKind = Float;
 
     fn cast(tensor: Tensor<D, Bool>, dtype: Self) -> Tensor<D, Float> {
-        Tensor::new(BridgeTensor::Float(Dispatch::bool_into_float(
+        Tensor::new(BridgeTensor::float(Dispatch::bool_into_float(
             tensor.primitive.into(),
             dtype,
         )))

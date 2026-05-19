@@ -76,8 +76,8 @@ pub fn rfft<const D: usize>(
 
     let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.into_float(), dim, n);
     (
-        Tensor::new(BridgeTensor::Float(spectrum_re)),
-        Tensor::new(BridgeTensor::Float(spectrum_im)),
+        Tensor::new(BridgeTensor::float(spectrum_re)),
+        Tensor::new(BridgeTensor::float(spectrum_im)),
     )
 }
 
@@ -147,7 +147,7 @@ pub fn irfft<const D: usize>(
         dim,
         n,
     );
-    Tensor::new(BridgeTensor::Float(signal))
+    Tensor::new(BridgeTensor::float(signal))
 }
 
 /// Computes the 1-dimensional discrete Fourier Transform of complex-valued input.
