@@ -1,6 +1,6 @@
 pub(crate) mod check;
 
-// #[cfg(feature = "autodiff")]
+#[cfg(feature = "autodiff")]
 mod autodiff;
 mod base;
 mod bool;
@@ -19,7 +19,7 @@ mod transaction;
 
 mod trunc;
 
-#[allow(unused)] // some types are feature-gated for autodiff
+#[cfg(feature = "autodiff")]
 pub use autodiff::*;
 pub use base::*;
 pub use cartesian_grid::cartesian_grid;
