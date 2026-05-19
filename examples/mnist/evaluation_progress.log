@@ -565,7 +565,7 @@
 [Evaluation] test_update  items_processed=8960
 [Evaluation] test_update  items_processed=9216
 [Evaluation] test_update  items_processed=9472
-[Evaluation] test_update  items_processed=9488
+[Evaluation] test_update  items_processed=9728
 [Evaluation] test_update  items_processed=9744
 [Evaluation] test_update  items_processed=10000
 [Evaluation] test_end

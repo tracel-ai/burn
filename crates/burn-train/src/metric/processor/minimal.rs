@@ -24,7 +24,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
             }
-
+            LearnerEvent::StartSplit(_) => {} // no-op: minimal processor does not log progress
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = (&item).into();
@@ -34,7 +34,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
             }
-            LearnerEvent::EndEpoch(epoch) => {
+            LearnerEvent::EndSplit(epoch) => {
                 self.metrics.end_epoch_train();
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
@@ -48,7 +48,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
     fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
-            LearnerEvent::Start { .. } => {} // no-op
+            LearnerEvent::Start { .. } => {}  // no-op
+            LearnerEvent::StartSplit(_) => {} // no-op: minimal processor does not log progress
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = (&item).into();
@@ -58,7 +59,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
             }
-            LearnerEvent::EndEpoch(epoch) => {
+            LearnerEvent::EndSplit(epoch) => {
                 self.metrics.end_epoch_valid();
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(

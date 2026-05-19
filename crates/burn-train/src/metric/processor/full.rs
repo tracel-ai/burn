@@ -18,8 +18,6 @@ pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
     progress_logger: Option<Box<dyn TrainingProgressLogger>>,
-    in_train_split: bool,
-    in_valid_split: bool,
 }
 
 /// An [event processor](EventProcessorEvaluation) that handles:
@@ -44,8 +42,6 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
             renderer,
             store,
             progress_logger: None,
-            in_train_split: false,
-            in_valid_split: false,
         }
     }
 
@@ -214,6 +210,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     logger.start(total_epochs, None);
                 }
             }
+            LearnerEvent::StartSplit(total_items) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start_split("train".to_string(), total_items);
+                }
+            }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let progress: TrainingProgress = (&item).into();
@@ -241,17 +242,12 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    if !self.in_train_split {
-                        let total = progress.progress.as_ref().map_or(0, |p| p.items_total);
-                        logger.start_split("train".to_string(), total);
-                        self.in_train_split = true;
-                    }
                     logger
                         .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
                 }
                 self.renderer.render_train(progress, indicators);
             }
-            LearnerEvent::EndEpoch(epoch) => {
+            LearnerEvent::EndSplit(epoch) => {
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
@@ -259,7 +255,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     )));
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_split();
-                    self.in_train_split = false;
                 }
                 self.metrics.end_epoch_train();
             }
@@ -275,6 +270,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
             LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
+            LearnerEvent::StartSplit(total_items) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start_split("valid".to_string(), total_items);
+                }
+            }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let progress: TrainingProgress = (&item).into();
@@ -302,25 +302,20 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    if !self.in_valid_split {
-                        let total = progress.progress.as_ref().map_or(0, |p| p.items_total);
-                        logger.start_split("valid".to_string(), total);
-                        self.in_valid_split = true;
-                    }
                     logger
                         .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
                 }
                 self.renderer.render_valid(progress, indicators);
             }
-            LearnerEvent::EndEpoch(epoch) => {
+            LearnerEvent::EndSplit(epoch) => {
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
                         Split::Valid,
                     )));
+                // EndSplit on the valid split marks the end of the full epoch.
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_split();
-                    self.in_valid_split = false;
                     logger.update_epoch(epoch);
                 }
                 self.metrics.end_epoch_valid();

@@ -186,9 +186,11 @@ pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
         let summary_config = training_components.summary.clone();
 
         // Event processor start training
-        training_components.event_processor.process_train(LearnerEvent::Start {
-            total_epochs: training_components.num_epochs,
-        });
+        training_components
+            .event_processor
+            .process_train(LearnerEvent::Start {
+                total_epochs: training_components.num_epochs,
+            });
         // Training loop
         let (model, mut event_processor) = self.fit(
             training_components,

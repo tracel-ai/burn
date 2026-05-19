@@ -184,7 +184,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                     break;
                 }
             }
-            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            event_processor.process_train(LearnerEvent::EndSplit(epoch));
 
             let model_valid = learner.model().valid();
 
@@ -206,7 +206,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
 
                 event_processor.process_valid(LearnerEvent::ProcessedItem(item));
             }
-            event_processor.process_valid(LearnerEvent::EndEpoch(epoch));
+            event_processor.process_valid(LearnerEvent::EndSplit(epoch));
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);

@@ -15,8 +15,12 @@ pub enum LearnerEvent<T> {
     },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),
-    /// Signal the end of an epoch.
-    EndEpoch(usize),
+    /// Signal the start of a split (train or valid), carrying the total number of items in that split.
+    StartSplit(usize),
+    /// Signal the end of a split (train or valid), carrying the current epoch number.
+    ///
+    /// When emitted on the valid split, this also marks the end of the epoch.
+    EndSplit(usize),
     /// Signal the end of the process (e.g., training end).
     End(Option<LearnerSummary>),
 }

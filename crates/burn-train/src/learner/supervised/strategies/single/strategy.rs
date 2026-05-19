@@ -1,6 +1,7 @@
 use crate::{
-    Learner, LearningComponentsTypes, SupervisedLearningStrategy, SupervisedTrainingEventProcessor,
-    TrainLoader, TrainingComponents, TrainingModel, ValidLoader,
+    EventProcessorTraining, Learner, LearnerEvent, LearningComponentsTypes,
+    SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
+    TrainingModel, ValidLoader,
     single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
 use burn_core::{data::dataloader::Progress, tensor::Device};
@@ -51,7 +52,9 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDevic
         starting_epoch: usize,
     ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
+        let train_total_items = dataloader_train.num_items();
         let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
+        let valid_total_items = dataloader_valid.num_items();
         learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
@@ -64,12 +67,15 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDevic
 
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
             let epoch = training_progress.items_processed;
+
+            event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
             epoch_train.run(
                 &mut learner,
                 &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );
+            event_processor.process_train(LearnerEvent::EndSplit(epoch));
 
             if training_components.interrupter.should_stop() {
                 let reason = training_components
@@ -80,12 +86,14 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDevic
                 break;
             }
 
+            event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
             epoch_valid.run(
                 &learner,
                 &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );
+            event_processor.process_valid(LearnerEvent::EndSplit(epoch));
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);
