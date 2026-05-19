@@ -23,20 +23,32 @@ impl BasicOps for Bool {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        BridgeTensor::bool(Dispatch::bool_empty(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::bool(Dispatch::bool_empty(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
 
     fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        BridgeTensor::bool(Dispatch::bool_zeros(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::bool(Dispatch::bool_zeros(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
     fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
         if !dtype.is_bool() {
             panic!("Expected bool data type, got {dtype:?}");
         }
-        BridgeTensor::bool(Dispatch::bool_ones(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::bool(Dispatch::bool_ones(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
 
     fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor {
@@ -44,9 +56,17 @@ impl BasicOps for Bool {
             panic!("Expected bool data type, got {dtype:?}");
         }
         if fill_value.elem() {
-            BridgeTensor::bool(Dispatch::bool_ones(shape, device.as_dispatch(), dtype.into()))
+            BridgeTensor::bool(Dispatch::bool_ones(
+                shape,
+                device.as_dispatch(),
+                dtype.into(),
+            ))
         } else {
-            BridgeTensor::bool(Dispatch::bool_zeros(shape, device.as_dispatch(), dtype.into()))
+            BridgeTensor::bool(Dispatch::bool_zeros(
+                shape,
+                device.as_dispatch(),
+                dtype.into(),
+            ))
         }
     }
 
@@ -148,7 +168,10 @@ impl BasicOps for Bool {
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
-        BridgeTensor::bool(Dispatch::bool_to_device(tensor.into(), device.as_dispatch()))
+        BridgeTensor::bool(Dispatch::bool_to_device(
+            tensor.into(),
+            device.as_dispatch(),
+        ))
     }
 
     async fn into_data_async(tensor: BridgeTensor) -> Result<TensorData, ExecutionError> {

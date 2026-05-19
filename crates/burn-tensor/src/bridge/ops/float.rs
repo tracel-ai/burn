@@ -50,14 +50,26 @@ impl TransactionOp for Float {
 
 impl BasicOps for Float {
     fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_empty(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::float(Dispatch::float_empty(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
 
     fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_zeros(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::float(Dispatch::float_zeros(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
     fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_ones(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::float(Dispatch::float_ones(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
 
     fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor {

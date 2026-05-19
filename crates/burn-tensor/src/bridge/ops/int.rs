@@ -19,14 +19,26 @@ impl TransactionOp for Int {
 }
 impl BasicOps for Int {
     fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_empty(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::int(Dispatch::int_empty(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
 
     fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_zeros(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::int(Dispatch::int_zeros(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
     fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_ones(shape, device.as_dispatch(), dtype.into()))
+        BridgeTensor::int(Dispatch::int_ones(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
 
     fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor {

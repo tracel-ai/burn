@@ -90,13 +90,15 @@ impl core::fmt::Debug for BridgeTensor {
 
 type InnerType = MaybeUninit<BridgeTensorVariant>;
 
-/// Storage for [`BridgeTensor`]. Holds the raw bytes of an [`InnerType`] while
-/// preserving its alignment via the zero-sized `_align` field, so the backing
-/// memory can be safely reinterpreted as an [`InnerType`] reference.
-#[repr(C)]
+/// Storage for [`BridgeTensor`]. Holds the raw bytes of an [`InnerType`].
+///
+/// The struct intentionally does **not** carry a type-level alignment marker
+/// (e.g. `_align: [InnerType; 0]`), because that would re-introduce a
+/// type-system dependency on `burn_dispatch` and undermine the compile-time
+/// goal of the blob obfuscation. Alignment must therefore be handled at the
+/// access sites (TODO: bring back proper alignment without leaking the type).
 struct Blob {
     bytes: [u8; size_of::<InnerType>()],
-    _align: [InnerType; 0],
 }
 
 impl Clone for BridgeTensor {
@@ -133,7 +135,6 @@ impl BridgeTensor {
     fn new(inner: BridgeTensorVariant) -> Self {
         let mut blob = Blob {
             bytes: [0u8; size_of::<InnerType>()],
-            _align: [],
         };
         unsafe {
             let dst = blob.bytes.as_mut_ptr() as *mut InnerType;

@@ -68,22 +68,21 @@ pub struct Device {
 
 type DeviceInner = MaybeUninit<DispatchDevice>;
 
-/// Storage for [`Device`]. Holds the raw bytes of a [`DispatchDevice`] while
-/// preserving the alignment requirement via the zero-sized `_align` field, so
-/// the backing memory can be safely reinterpreted as a `DispatchDevice`
-/// reference. This obfuscates the dispatch type at the field level so it
-/// doesn't appear in the public type signature.
-#[repr(C)]
+/// Storage for [`Device`]. Holds the raw bytes of a [`DispatchDevice`].
+///
+/// Intentionally has no type-level alignment marker (e.g. `[DeviceInner; 0]`),
+/// since that would re-introduce a `burn_dispatch` dependency in the type
+/// itself and undermine the compile-time goal of this obfuscation. Alignment
+/// must therefore be handled at access sites
+/// (TODO: bring back proper alignment without leaking the type).
 struct DeviceBlob {
     bytes: [u8; size_of::<DeviceInner>()],
-    _align: [DeviceInner; 0],
 }
 
 impl Drop for Device {
     fn drop(&mut self) {
         unsafe {
-            let inner: &mut DeviceInner =
-                &mut *(self.blob.bytes.as_mut_ptr() as *mut DeviceInner);
+            let inner: &mut DeviceInner = &mut *(self.blob.bytes.as_mut_ptr() as *mut DeviceInner);
             inner.assume_init_drop();
         }
     }
@@ -137,7 +136,6 @@ impl Device {
     pub(crate) fn from_dispatch(dispatch: DispatchDevice) -> Self {
         let mut blob = DeviceBlob {
             bytes: [0u8; size_of::<DeviceInner>()],
-            _align: [],
         };
         unsafe {
             let dst = blob.bytes.as_mut_ptr() as *mut DeviceInner;
