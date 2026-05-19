@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
+    file_progress::{FileEvaluationProgressLogger, FileTrainingProgressLogger},
     model::Model,
 };
 
@@ -35,7 +36,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
-    #[config(default = 5)]
+    #[config(default = 2)]
     pub num_epochs: usize,
 
     #[config(default = 256)]
@@ -104,8 +105,12 @@ pub fn run(device: Device) {
             Aggregate::Mean,
             Direction::Lowest,
             Split::Valid,
-            StoppingCondition::NoImprovementSince { n_epochs: 5 },
+            StoppingCondition::NoImprovementSince { n_epochs: 2 },
         ))
+        .with_progress_logger(
+            FileTrainingProgressLogger::new("./training_progress.log")
+                .expect("Failed to create training progress log"),
+        )
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -165,6 +170,10 @@ fn evaluate(
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
         .renderer(renderer)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .with_progress_logger(
+            FileEvaluationProgressLogger::new("./evaluation_progress.log")
+                .expect("Failed to create evaluation progress log"),
+        )
         .summary()
         .build(model);
 
