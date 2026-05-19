@@ -1,131 +1,44 @@
-use std::{
-    fs::{File, OpenOptions},
-    io::Write,
-    path::Path,
-};
-
-use crate::renderer::{EvaluationProgress, TrainingProgress};
-
 /// Trait for logging training progress at each step and end of epoch.
+///
+/// TODO: document how the trait caller is expected to call these methods in a way that a single epoch and split are started and ended exactly once.
 pub trait TrainingProgressLogger: Send {
+    /// Called once at the start of training, providing the total number of epochs.
+    ///
+    /// The total number of items of the training can optionally be provided if it is known.
+    fn start(&mut self, total_epochs: usize, total_items: Option<usize>);
+
+    /// Called at the end of each epoch, providing the epoch number.
+    fn update_epoch(&mut self, epoch: usize);
+
+    /// Called at the start of a training split, providing the split name and total number of items.
+    fn start_split(&mut self, split: String, total_items: usize);
+
     /// Log the progress of the current training step.
-    fn update_train(&mut self, progress: &TrainingProgress);
+    fn update_split(&mut self, items_processed: usize);
 
-    /// Log the progress of the current validation step.
-    fn update_valid(&mut self, progress: &TrainingProgress);
+    /// Called at the end of a training split.
+    fn end_split(&mut self);
 
-    /// Called at the end of an epoch evaluation.
-    fn end_epoch(&mut self, epoch: usize);
+    /// Called at the end of training, whether it completed successfully or was interrupted.
+    fn end(&mut self);
 }
 
 /// Trait for logging evaluation progress at each step and end of evaluation.
 ///
-/// # Example
-///
-/// ```no_run
-/// use burn_train::logger::{EvaluationProgressLogger, FileProgressLogger};
-/// use burn_train::renderer::EvaluationProgress;
-///
-/// struct MyEvalLogger;
-///
-/// impl EvaluationProgressLogger for MyEvalLogger {
-///     fn update_test(&mut self, progress: &EvaluationProgress) {
-///         println!("Step {}/{}", progress.progress.items_processed, progress.progress.items_total);
-///     }
-///
-///     fn end_eval(&mut self) {
-///         println!("Evaluation complete.");
-///     }
-/// }
-/// ```
+/// TODO: document how the trait caller is expected to call these methods in a way that a single evaluation and test split are started and ended exactly once.
 pub trait EvaluationProgressLogger: Send {
+    /// Called once at the start of evaluation, providing the total number of test splits.
+    fn start(&mut self, total_tests: usize);
+
+    /// Called at the start of a test split, providing the split name and total.
+    fn start_test(&mut self, name: String, total_items: usize);
+
     /// Log the progress of the current test step.
-    fn update_test(&mut self, progress: &EvaluationProgress);
+    fn update_test(&mut self, items_processed: usize);
 
-    /// Called at the end of the evaluation.
-    fn end_eval(&mut self);
-}
+    /// Called at the end of a test split.
+    fn end_test(&mut self);
 
-/// A simple file-based implementation of [TrainingProgressLogger] and [EvaluationProgressLogger] for debugging.
-pub struct FileProgressLogger {
-    file: File,
-}
-
-impl FileProgressLogger {
-    /// Create a new file progress logger writing to the given path.
-    ///
-    /// If the file already exists, new entries are appended to it.
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-            .expect("Should be able to create progress log file.");
-        Self { file }
-    }
-}
-
-impl TrainingProgressLogger for FileProgressLogger {
-    fn update_train(&mut self, progress: &TrainingProgress) {
-        let items = progress
-            .progress
-            .as_ref()
-            .map(|p| format!("{}/{}", p.items_processed, p.items_total))
-            .unwrap_or_else(|| "?".to_string());
-
-        writeln!(
-            self.file,
-            "[TRAIN] epoch: {}/{} | items: {} | iter: {}",
-            progress.global_progress.items_processed,
-            progress.global_progress.items_total,
-            items,
-            progress
-                .iteration
-                .map_or("?".to_string(), |i| i.to_string()),
-        )
-        .ok();
-    }
-
-    fn update_valid(&mut self, progress: &TrainingProgress) {
-        let items = progress
-            .progress
-            .as_ref()
-            .map(|p| format!("{}/{}", p.items_processed, p.items_total))
-            .unwrap_or_else(|| "?".to_string());
-
-        writeln!(
-            self.file,
-            "[VALID] epoch: {}/{} | items: {} | iter: {}",
-            progress.global_progress.items_processed,
-            progress.global_progress.items_total,
-            items,
-            progress
-                .iteration
-                .map_or("?".to_string(), |i| i.to_string()),
-        )
-        .ok();
-    }
-
-    fn end_epoch(&mut self, epoch: usize) {
-        writeln!(self.file, "[END_EPOCH] epoch: {}", epoch).ok();
-    }
-}
-
-impl EvaluationProgressLogger for FileProgressLogger {
-    fn update_test(&mut self, progress: &EvaluationProgress) {
-        writeln!(
-            self.file,
-            "[TEST] items: {}/{} | iter: {}",
-            progress.progress.items_processed,
-            progress.progress.items_total,
-            progress
-                .iteration
-                .map_or("?".to_string(), |i| i.to_string()),
-        )
-        .ok();
-    }
-
-    fn end_eval(&mut self) {
-        writeln!(self.file, "[END_EVAL]").ok();
-    }
+    /// Called at the end of evaluation.
+    fn end(&mut self);
 }

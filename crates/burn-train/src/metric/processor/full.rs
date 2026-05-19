@@ -158,13 +158,13 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_test(&progress);
+                    logger.update_test(progress.progress.items_processed);
                 }
                 self.renderer.render_test(progress, indicators);
             }
             EvaluatorEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.end_eval();
+                    logger.end();
                 }
                 self.renderer.on_test_end(summary).ok();
             }
@@ -218,7 +218,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_train(&progress);
+                    logger
+                        .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
                 }
                 self.renderer.render_train(progress, indicators);
             }
@@ -231,6 +232,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.metrics.end_epoch_train();
             }
             LearnerEvent::End(summary) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end();
+                }
                 self.renderer.on_train_end(summary).ok();
             }
         }
@@ -266,7 +270,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_valid(&progress);
+                    logger
+                        .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
                 }
                 self.renderer.render_valid(progress, indicators);
             }
@@ -277,7 +282,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                         Split::Valid,
                     )));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.end_epoch(epoch);
+                    logger.update_epoch(epoch);
                 }
                 self.metrics.end_epoch_valid();
             }

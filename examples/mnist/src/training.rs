@@ -22,7 +22,6 @@ use burn::{
     record::{CompactRecorder, NoStdTrainingRecorder},
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
-        logger::FileProgressLogger,
         metric::{
             AccuracyMetric, LearningRateMetric, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -108,7 +107,6 @@ pub fn run(device: Device) {
             StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
         .num_epochs(config.num_epochs)
-        .with_progress_logger(FileProgressLogger::new("./progress.log"))
         .summary();
 
     let result = training.launch(Learner::new(
@@ -167,7 +165,6 @@ fn evaluate(
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
         .renderer(renderer)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_progress_logger(FileProgressLogger::new("./eval_progress.log"))
         .summary()
         .build(model);
 
