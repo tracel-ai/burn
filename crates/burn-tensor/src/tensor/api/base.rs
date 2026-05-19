@@ -1851,9 +1851,7 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
-        self.try_into_data().expect(
-            "Error while reading data: use `try_into_data` instead to catch the error at runtime",
-        )
+        into_data_sync_impl(self.primitive, K::id())
     }
 
     /// Converts the data of the current tensor and returns any error that might have occurred since the
@@ -1865,11 +1863,7 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
-        crate::try_read_sync(self.into_data_async()).expect(
-            "Failed to read tensor data synchronously.
-        This can happen on platforms that don't support blocking futures like WASM.
-        If possible, try using into_data_async instead.",
-        )
+        try_into_data_sync_impl(self.primitive, K::id())
     }
 
     /// Converts the data of the current tensor.
@@ -1884,13 +1878,17 @@ where
     }
 
     /// Returns the data of the current tensor.
-    pub async fn into_data_async(self) -> Result<TensorData, ExecutionError> {
-        K::into_data_async(self.primitive).await
+    pub fn into_data_async(
+        self,
+    ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
+        into_data_async_impl(self.primitive, K::id())
     }
 
     /// Returns the data of the current tensor.
-    pub async fn to_data_async(&self) -> Result<TensorData, ExecutionError> {
-        self.clone().into_data_async().await
+    pub fn to_data_async(
+        &self,
+    ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
+        into_data_async_impl(self.primitive.clone(), K::id())
     }
 
     /// Create a tensor from the given data on the given device.
@@ -2828,165 +2826,13 @@ impl DataIterFmt {
     }
 }
 
-impl<const D: usize, K> Tensor<D, K>
-where
-    K: Basic,
-{
-    #[inline]
-    fn push_newline_indent(acc: &mut String, indent: usize) {
-        acc.push('\n');
-        for _ in 0..indent {
-            acc.push(' ');
-        }
-    }
-    fn fmt_inner_tensor(
-        &self,
-        acc: &mut String,
-        depth: usize,
-        multi_index: &mut [usize],
-        range: (usize, usize),
-        precision: Option<usize>,
-    ) {
-        let (start, end) = range;
-        for i in start..end {
-            if i > 0 {
-                acc.push_str(", ");
-            }
-            multi_index[depth] = i;
-            let range: [Range<usize>; D] =
-                core::array::from_fn(|i| multi_index[i]..multi_index[i] + 1);
-
-            let data = burn_std::reader::try_read_sync(self.clone().slice(range).into_data_async());
-
-            if let Some(Ok(data)) = data {
-                let elem = DataIterFmt { data, precision }.next();
-                acc.push_str(&elem);
-            } else {
-                acc.push_str("<Tensor data not available>");
-            }
-        }
-    }
-
-    fn fmt_outer_tensor(
-        &self,
-        acc: &mut String,
-        depth: usize,
-        multi_index: &mut [usize],
-        print_options: &PrintOptions,
-        summarize: bool,
-        range: (usize, usize),
-    ) {
-        let (start, end) = range;
-        for i in start..end {
-            if i > start {
-                acc.push(',');
-                Self::push_newline_indent(acc, depth + 1);
-            }
-            acc.push('[');
-            multi_index[depth] = i;
-            self.display_recursive(acc, depth + 1, multi_index, print_options, summarize);
-            acc.push(']');
-        }
-    }
-
-    /// Recursively formats the tensor data for display and appends it to the provided accumulator string.
-    ///
-    /// This function is designed to work with tensors of any dimensionality.
-    /// It traverses the tensor dimensions recursively, converting the elements
-    /// to strings and appending them to the accumulator string with the
-    /// appropriate formatting.
-    ///
-    /// # Arguments
-    ///
-    /// * `acc` - A mutable reference to a `String` used as an accumulator for the formatted output.
-    /// * `depth` - The current depth of the tensor dimensions being processed.
-    /// * `multi_index` - A mutable slice of `usize` representing the current indices in each dimension.
-    fn display_recursive(
-        &self,
-        acc: &mut String,
-        depth: usize,
-        multi_index: &mut [usize],
-        print_options: &PrintOptions,
-        summarize: bool,
-    ) {
-        let edge_items = print_options.edge_items;
-
-        if depth == 0 {
-            acc.push('[');
-        }
-
-        if depth == self.dims().len() - 1 {
-            // if we are at the innermost dimension, just push its elements into the accumulator
-            if summarize && self.dims()[depth] > 2 * edge_items {
-                // print the starting `edge_items` elements
-                self.fmt_inner_tensor(
-                    acc,
-                    depth,
-                    multi_index,
-                    (0, edge_items),
-                    print_options.precision,
-                );
-                acc.push_str(", ...");
-                // print the last `edge_items` elements
-                self.fmt_inner_tensor(
-                    acc,
-                    depth,
-                    multi_index,
-                    (self.dims()[depth] - edge_items, self.dims()[depth]),
-                    print_options.precision,
-                );
-            } else {
-                // print all the elements
-                self.fmt_inner_tensor(
-                    acc,
-                    depth,
-                    multi_index,
-                    (0, self.dims()[depth]),
-                    print_options.precision,
-                );
-            }
-        } else {
-            // otherwise, iterate through the current dimension and recursively display the inner tensors
-            if summarize && self.dims()[depth] > 2 * edge_items {
-                self.fmt_outer_tensor(
-                    acc,
-                    depth,
-                    multi_index,
-                    print_options,
-                    summarize,
-                    (0, edge_items),
-                );
-
-                acc.push(',');
-                Self::push_newline_indent(acc, depth + 1);
-                acc.push_str("...");
-                Self::push_newline_indent(acc, depth + 1);
-
-                self.fmt_outer_tensor(
-                    acc,
-                    depth,
-                    multi_index,
-                    print_options,
-                    summarize,
-                    (self.dims()[depth] - edge_items, self.dims()[depth]),
-                );
-            } else {
-                self.fmt_outer_tensor(
-                    acc,
-                    depth,
-                    multi_index,
-                    print_options,
-                    summarize,
-                    (0, self.dims()[depth]),
-                );
-            }
-        }
-
-        if depth == 0 {
-            acc.push(']');
-        }
-    }
-}
+// The Display-formatting recursion used to live as generic methods on
+// `Tensor<D, K>` here. It has been outlined to non-generic free functions
+// (`display_fmt_*`, `slice_bridge_by_kind`, `push_newline_indent_impl`) below,
+// so it is compiled exactly once inside `burn-tensor` instead of being
+// re-monomorphized for every `(D, K)` in downstream crates. That outlining is
+// the difference between a ~7s and a ~0.5s incremental release rebuild for a
+// program that just calls `println!("{tensor}")`.
 
 #[derive(Clone, Debug)]
 /// Options for Tensor pretty printing
@@ -3032,37 +2878,7 @@ where
     K: Basic,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        writeln!(f, "Tensor {{")?;
-
-        {
-            // Do not lock the mutex for the whole function
-            let mut po = { PRINT_OPTS.read().unwrap().clone() };
-
-            // Override the precision if it is set from the formatter
-            // This will be possible when the tensor is printed using the `{:.*}` syntax
-            if let Some(precision) = f.precision() {
-                po.precision = Some(precision);
-            }
-
-            let mut acc = String::new();
-            let mut multi_index = vec![0; D];
-            let summarize = self.shape().num_elements() > po.threshold;
-
-            self.display_recursive(&mut acc, 0, &mut multi_index, &po, summarize);
-
-            writeln!(f, "  data:")?;
-            write!(f, "{acc}")?;
-            writeln!(f, ",")?;
-        }
-
-        writeln!(f, "  shape:  {:?},", self.dims())?;
-        writeln!(f, "  device:  {:?},", self.device())?;
-        writeln!(f, "  kind:  {:?},", K::name())?;
-
-        let dtype = self.primitive.dtype();
-
-        writeln!(f, "  dtype:  {:?},", dtype.name())?;
-        write!(f, "}}")
+        display_fmt_impl(&self.primitive, K::id(), K::name(), f)
     }
 }
 
@@ -3210,6 +3026,264 @@ where
         let tensor = Tensor::from_data(TensorData::deserialize(deserializer)?, &Device::default());
         Ok(tensor)
     }
+}
+
+/// Non-generic outline of `into_data_async`. The public method just calls this
+/// helper, so its monomorphization (per `D`/`K`) is trivial — the heavy async
+/// state-machine code lives here, compiled once inside `burn-tensor`.
+async fn into_data_async_impl(
+    primitive: BridgeTensor,
+    kind: crate::ops::TensorKindId,
+) -> Result<TensorData, ExecutionError> {
+    use crate::ops::{BasicOps, TensorKindId};
+    match kind {
+        TensorKindId::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
+        TensorKindId::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
+        TensorKindId::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
+    }
+}
+
+fn slice_bridge_by_kind(
+    p: BridgeTensor,
+    slices: &[Slice],
+    kind: crate::ops::TensorKindId,
+) -> BridgeTensor {
+    use crate::ops::{BasicOps, TensorKindId};
+    match kind {
+        TensorKindId::Float => <crate::Float as BasicOps>::slice(p, slices),
+        TensorKindId::Int => <crate::Int as BasicOps>::slice(p, slices),
+        TensorKindId::Bool => <crate::Bool as BasicOps>::slice(p, slices),
+    }
+}
+
+fn display_fmt_inner(
+    primitive: &BridgeTensor,
+    kind: crate::ops::TensorKindId,
+    acc: &mut String,
+    depth: usize,
+    multi_index: &mut [usize],
+    range: (usize, usize),
+    precision: Option<usize>,
+    dims: &[usize],
+) {
+    let (start, end) = range;
+    let rank = dims.len();
+    for i in start..end {
+        if i > 0 {
+            acc.push_str(", ");
+        }
+        multi_index[depth] = i;
+        let slices: Vec<Slice> = (0..rank)
+            .map(|d| Slice::from((multi_index[d] as i64)..((multi_index[d] + 1) as i64)))
+            .collect();
+        let sliced = slice_bridge_by_kind(primitive.clone(), &slices, kind);
+        let data = burn_std::reader::try_read_sync(into_data_async_impl(sliced, kind));
+        if let Some(Ok(data)) = data {
+            let elem = DataIterFmt { data, precision }.next();
+            acc.push_str(&elem);
+        } else {
+            acc.push_str("<Tensor data not available>");
+        }
+    }
+}
+
+fn push_newline_indent_impl(acc: &mut String, indent: usize) {
+    acc.push('\n');
+    for _ in 0..indent {
+        acc.push(' ');
+    }
+}
+
+fn display_fmt_outer(
+    primitive: &BridgeTensor,
+    kind: crate::ops::TensorKindId,
+    acc: &mut String,
+    depth: usize,
+    multi_index: &mut [usize],
+    print_options: &PrintOptions,
+    summarize: bool,
+    range: (usize, usize),
+    dims: &[usize],
+) {
+    let (start, end) = range;
+    for i in start..end {
+        if i > start {
+            acc.push(',');
+            push_newline_indent_impl(acc, depth + 1);
+        }
+        acc.push('[');
+        multi_index[depth] = i;
+        display_fmt_recursive(
+            primitive,
+            kind,
+            acc,
+            depth + 1,
+            multi_index,
+            print_options,
+            summarize,
+            dims,
+        );
+        acc.push(']');
+    }
+}
+
+fn display_fmt_recursive(
+    primitive: &BridgeTensor,
+    kind: crate::ops::TensorKindId,
+    acc: &mut String,
+    depth: usize,
+    multi_index: &mut [usize],
+    print_options: &PrintOptions,
+    summarize: bool,
+    dims: &[usize],
+) {
+    let edge_items = print_options.edge_items;
+
+    if depth == 0 {
+        acc.push('[');
+    }
+
+    if depth == dims.len() - 1 {
+        if summarize && dims[depth] > 2 * edge_items {
+            display_fmt_inner(
+                primitive,
+                kind,
+                acc,
+                depth,
+                multi_index,
+                (0, edge_items),
+                print_options.precision,
+                dims,
+            );
+            acc.push_str(", ...");
+            display_fmt_inner(
+                primitive,
+                kind,
+                acc,
+                depth,
+                multi_index,
+                (dims[depth] - edge_items, dims[depth]),
+                print_options.precision,
+                dims,
+            );
+        } else {
+            display_fmt_inner(
+                primitive,
+                kind,
+                acc,
+                depth,
+                multi_index,
+                (0, dims[depth]),
+                print_options.precision,
+                dims,
+            );
+        }
+    } else if summarize && dims[depth] > 2 * edge_items {
+        display_fmt_outer(
+            primitive,
+            kind,
+            acc,
+            depth,
+            multi_index,
+            print_options,
+            summarize,
+            (0, edge_items),
+            dims,
+        );
+        acc.push(',');
+        push_newline_indent_impl(acc, depth + 1);
+        acc.push_str("...");
+        push_newline_indent_impl(acc, depth + 1);
+        display_fmt_outer(
+            primitive,
+            kind,
+            acc,
+            depth,
+            multi_index,
+            print_options,
+            summarize,
+            (dims[depth] - edge_items, dims[depth]),
+            dims,
+        );
+    } else {
+        display_fmt_outer(
+            primitive,
+            kind,
+            acc,
+            depth,
+            multi_index,
+            print_options,
+            summarize,
+            (0, dims[depth]),
+            dims,
+        );
+    }
+
+    if depth == 0 {
+        acc.push(']');
+    }
+}
+
+fn display_fmt_impl(
+    primitive: &BridgeTensor,
+    kind: crate::ops::TensorKindId,
+    kind_name: &str,
+    f: &mut core::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    writeln!(f, "Tensor {{")?;
+    {
+        let mut po = { PRINT_OPTS.read().unwrap().clone() };
+        if let Some(precision) = f.precision() {
+            po.precision = Some(precision);
+        }
+        let shape = primitive.shape();
+        let dims: Vec<usize> = shape.iter().copied().collect();
+        let mut acc = String::new();
+        let mut multi_index = vec![0; dims.len()];
+        let num_elements: usize = dims.iter().product();
+        let summarize = num_elements > po.threshold;
+        display_fmt_recursive(
+            primitive,
+            kind,
+            &mut acc,
+            0,
+            &mut multi_index,
+            &po,
+            summarize,
+            &dims,
+        );
+        writeln!(f, "  data:")?;
+        write!(f, "{acc}")?;
+        writeln!(f, ",")?;
+    }
+    writeln!(f, "  shape:  {:?},", primitive.shape())?;
+    let device = match kind {
+        crate::ops::TensorKindId::Float => <crate::Float as crate::ops::BasicOps>::device(primitive),
+        crate::ops::TensorKindId::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
+        crate::ops::TensorKindId::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
+    };
+    writeln!(f, "  device:  {:?},", device)?;
+    writeln!(f, "  kind:  {:?},", kind_name)?;
+    let dtype = primitive.dtype();
+    writeln!(f, "  dtype:  {:?},", dtype.name())?;
+    write!(f, "}}")
+}
+
+fn try_into_data_sync_impl(
+    primitive: BridgeTensor,
+    kind: crate::ops::TensorKindId,
+) -> Result<TensorData, ExecutionError> {
+    crate::try_read_sync(into_data_async_impl(primitive, kind)).expect(
+        "Failed to read tensor data synchronously.
+        This can happen on platforms that don't support blocking futures like WASM.
+        If possible, try using into_data_async instead.",
+    )
+}
+
+fn into_data_sync_impl(primitive: BridgeTensor, kind: crate::ops::TensorKindId) -> TensorData {
+    try_into_data_sync_impl(primitive, kind).expect(
+        "Error while reading data: use `try_into_data` instead to catch the error at runtime",
+    )
 }
 
 #[cfg(test)]
