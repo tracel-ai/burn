@@ -80,8 +80,8 @@ pub mod prelude {
         config::Config,
         module::Module,
         tensor::{
-            Bool, Device, ElementConversion, Float, Int, Shape, SliceArg, Tensor, TensorData,
-            cast::ToElement, s,
+            Bool, Device, DeviceIndex, DeviceKind, ElementConversion, Float, Int, Shape, SliceArg,
+            Tensor, TensorData, cast::ToElement, s,
         },
     };
     pub use burn_std::device::Device as DeviceOps;
