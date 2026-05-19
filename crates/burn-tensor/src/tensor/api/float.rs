@@ -354,7 +354,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The quantized tensor.
     pub fn quantize(self, scheme: &QuantScheme, qparams: QuantizationParameters) -> Tensor<D> {
-        Tensor::new(quantize_impl(self.primitive, scheme, qparams.scales.primitive))
+        Tensor::new(quantize_impl(
+            self.primitive,
+            scheme,
+            qparams.scales.primitive,
+        ))
     }
 
     /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
@@ -1159,11 +1163,7 @@ fn relu_impl(p: BridgeTensor) -> BridgeTensor {
     BridgeTensor::float(Dispatch::relu(p.into_float()))
 }
 
-fn quantize_impl(
-    p: BridgeTensor,
-    scheme: &QuantScheme,
-    scales: BridgeTensor,
-) -> BridgeTensor {
+fn quantize_impl(p: BridgeTensor, scheme: &QuantScheme, scales: BridgeTensor) -> BridgeTensor {
     BridgeTensor::qfloat(Dispatch::quantize(
         p.into_float(),
         scheme,
@@ -1182,12 +1182,16 @@ fn dequantize_impl(p: BridgeTensor) -> BridgeTensor {
 }
 
 fn is_nan_impl(p: BridgeTensor) -> BridgeTensor {
-    let out_dtype = Dispatch::float_device(p.as_dispatch()).settings().bool_dtype;
+    let out_dtype = Dispatch::float_device(p.as_dispatch())
+        .settings()
+        .bool_dtype;
     BridgeTensor::bool(Dispatch::float_is_nan(p.into_float(), out_dtype))
 }
 
 fn is_inf_impl(p: BridgeTensor) -> BridgeTensor {
-    let out_dtype = Dispatch::float_device(p.as_dispatch()).settings().bool_dtype;
+    let out_dtype = Dispatch::float_device(p.as_dispatch())
+        .settings()
+        .bool_dtype;
     BridgeTensor::bool(Dispatch::float_is_inf(p.into_float(), out_dtype))
 }
 

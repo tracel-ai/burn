@@ -20,7 +20,7 @@ use burn_std::{
     Strides,
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action},
 };
-use cubecl::{Runtime, client::ComputeClient, ir::StorageType};
+use cubecl::{Runtime, client::ComputeClient};
 
 /// Create or reuse handles for the outputs.
 ///

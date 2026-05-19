@@ -3258,7 +3258,9 @@ fn display_fmt_impl(
     }
     writeln!(f, "  shape:  {:?},", primitive.shape())?;
     let device = match kind {
-        crate::ops::TensorKindId::Float => <crate::Float as crate::ops::BasicOps>::device(primitive),
+        crate::ops::TensorKindId::Float => {
+            <crate::Float as crate::ops::BasicOps>::device(primitive)
+        }
         crate::ops::TensorKindId::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
         crate::ops::TensorKindId::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
     };

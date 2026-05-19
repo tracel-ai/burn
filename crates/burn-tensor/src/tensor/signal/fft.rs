@@ -78,11 +78,7 @@ pub fn rfft<const D: usize>(
     (Tensor::new(re), Tensor::new(im))
 }
 
-fn rfft_impl(
-    signal: BridgeTensor,
-    dim: usize,
-    n: Option<usize>,
-) -> (BridgeTensor, BridgeTensor) {
+fn rfft_impl(signal: BridgeTensor, dim: usize, n: Option<usize>) -> (BridgeTensor, BridgeTensor) {
     let (re, im) = Dispatch::rfft(signal.into_float(), dim, n);
     (BridgeTensor::float(re), BridgeTensor::float(im))
 }
@@ -147,7 +143,12 @@ pub fn irfft<const D: usize>(
         );
     }
 
-    Tensor::new(irfft_impl(spectrum_re.primitive, spectrum_im.primitive, dim, n))
+    Tensor::new(irfft_impl(
+        spectrum_re.primitive,
+        spectrum_im.primitive,
+        dim,
+        n,
+    ))
 }
 
 fn irfft_impl(
