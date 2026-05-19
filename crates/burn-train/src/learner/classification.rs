@@ -3,7 +3,6 @@ use crate::metric::{
     PerplexityInput, TopKAccuracyInput, processor::ItemLazy,
 };
 use burn_core::tensor::{Device, Int, Tensor, Transaction};
-use burn_flex::FlexDevice;
 
 /// Simple classification output adapted for multiple metrics.
 ///
@@ -38,7 +37,7 @@ impl ItemLazy for ClassificationOutput {
             .try_into()
             .expect("Correct amount of tensor data");
 
-        let device: Device = FlexDevice.into();
+        let device: Device = Device::flex();
 
         ClassificationOutput {
             output: Tensor::from_data(output, &device),
@@ -125,7 +124,7 @@ impl ItemLazy for MultiLabelClassificationOutput {
             .try_into()
             .expect("Correct amount of tensor data");
 
-        let device: Device = FlexDevice.into();
+        let device: Device = Device::flex();
 
         MultiLabelClassificationOutput {
             output: Tensor::from_data(output, &device),

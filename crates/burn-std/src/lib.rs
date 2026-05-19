@@ -48,7 +48,30 @@ pub use cubecl_zspace::errors::{self, *};
 #[cfg(feature = "network")]
 pub mod network;
 
-pub struct CommunicationId;
+/// An ID unique to any unordered combination of devices, used by collective /
+/// communication primitives (distributed training etc.).
+///
+/// Mirrors `cubecl_runtime::server::CommunicationId` so that the
+/// `burn_fusion::FusionUtilities::initialized_comms` set (and other consumers)
+/// can be reused without depending on cubecl directly.
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct CommunicationId {
+    /// Stable hash of the (sorted) set of device ids that participate.
+    pub id: u64,
+}
+
+impl From<alloc::vec::Vec<cubecl_common::device::DeviceId>> for CommunicationId {
+    fn from(mut value: alloc::vec::Vec<cubecl_common::device::DeviceId>) -> Self {
+        use core::hash::{Hash, Hasher};
+        // Sort so any permutation of the same devices yields the same id.
+        value.sort();
+        let mut hasher = ahash::AHasher::default();
+        value.hash(&mut hasher);
+        CommunicationId {
+            id: hasher.finish(),
+        }
+    }
+}
 
 pub use cubecl_common::bytes::*;
 pub use cubecl_common::device_handle::DeviceHandle;

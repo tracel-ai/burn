@@ -35,20 +35,24 @@ use enumset::EnumSetType;
 /// corresponding factory method:
 ///
 /// ```rust,ignore
-/// // Requires the `cuda` feature.
-/// let device = Device::cuda();
+/// // Default CUDA device (requires the `cuda` feature).
+/// let device = Device::cuda(DeviceIndex::Default);
 ///
-/// // Pick a specific CUDA hardware index.
-/// let device = Device::cuda_at(0);
+/// // CUDA device at hardware index 1.
+/// let device = Device::cuda(DeviceIndex::new(1));
+///
+/// // WGPU with explicit selector (requires `wgpu`/`vulkan`/`metal`/`webgpu`).
+/// let device = Device::wgpu(DeviceKind::DiscreteGpu(0));
 ///
 /// // Default device for whichever backend is enabled.
 /// let device = Default::default();
 /// ```
 ///
 /// Available factory methods (each gated by its matching Cargo feature):
-/// `Device::cpu`, `Device::cuda`, `Device::cuda_at`, `Device::rocm`,
-/// `Device::wgpu`, `Device::flex`, `Device::ndarray`, `Device::libtorch`,
-/// `Device::libtorch_cuda`.
+/// `Device::cpu`, `Device::cuda` (takes a [`DeviceIndex`]), `Device::rocm`
+/// (takes a [`DeviceIndex`]), `Device::wgpu` (takes a [`DeviceKind`]),
+/// `Device::vulkan`, `Device::metal`, `Device::webgpu`, `Device::flex`,
+/// `Device::ndarray`, `Device::libtorch`, `Device::libtorch_cuda`.
 ///
 /// # Autodiff
 ///
@@ -163,6 +167,79 @@ impl Device {
     }
 }
 
+/// Selector for the hardware index of a backend whose devices are simply
+/// indexed (e.g. CUDA, ROCm).
+///
+/// Use [`DeviceIndex::Default`] to let the backend pick its default device, or
+/// [`DeviceIndex::Specified`] / [`DeviceIndex::new`] to target a particular
+/// hardware index.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
+pub enum DeviceIndex {
+    /// Target a specific device by its hardware index.
+    Specified(usize),
+    /// Use whatever device the backend considers its default
+    /// (typically index `0`).
+    #[default]
+    Default,
+}
+
+impl DeviceIndex {
+    /// Convenience constructor for [`DeviceIndex::Specified`].
+    pub fn new(index: impl Into<usize>) -> Self {
+        Self::Specified(index.into())
+    }
+
+    /// Resolve to a concrete hardware index, defaulting to `0` for
+    /// [`DeviceIndex::Default`]. Used by backend factory methods that need a
+    /// plain `usize`.
+    fn resolve(self) -> usize {
+        match self {
+            DeviceIndex::Specified(i) => i,
+            DeviceIndex::Default => 0,
+        }
+    }
+}
+
+/// Selector for the more flexible backends whose device handle is a tagged
+/// enum (e.g. WGPU, which can target a discrete/integrated/virtual GPU, a CPU
+/// adapter, an externally-created wgpu setup, or just "best available").
+///
+/// The variants mirror `WgpuDevice` from cubecl so the mapping is direct, but
+/// it is kept as a burn-owned enum so callers don't have to depend on cubecl.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
+pub enum DeviceKind {
+    /// Discrete GPU with the given index. The index is the index of the discrete GPU in the list
+    /// of all discrete GPUs found on the system.
+    DiscreteGpu(usize),
+
+    /// Integrated GPU with the given index. The index is the index of the integrated GPU in the
+    /// list of all integrated GPUs found on the system.
+    IntegratedGpu(usize),
+
+    /// Virtual GPU with the given index. The index is the index of the virtual GPU in the list of
+    /// all virtual GPUs found on the system.
+    VirtualGpu(usize),
+
+    /// CPU.
+    Cpu,
+
+    /// The best available device found with the current [graphics API](crate::GraphicsApi).
+    ///
+    /// This will prioritize GPUs wgpu recognizes as "high power". Additionally, you can override this using
+    /// the `CUBECL_WGPU_DEFAULT_DEVICE` environment variable. This variable is spelled as if i was a `WgpuDevice`,
+    /// so for example `CUBECL_WGPU_DEFAULT_DEVICE=IntegratedGpu(1)` or `CUBECL_WGPU_DEFAULT_DEVICE=Cpu`
+    #[default]
+    DefaultDevice,
+
+    /// Use an externally created, existing, wgpu setup. This is helpful when using `CubeCL` in conjunction
+    /// with some existing wgpu setup (eg. egui or bevy), as resources can be transferred in & out of `CubeCL`.
+    ///
+    /// # Notes
+    ///
+    /// This can be initialized with [`init_device`](crate::runtime::init_device).
+    Existing(u32),
+}
+
 impl Device {
     /// Internal constructor used by the backend-specific factory methods below.
     /// Kept private so backend-specific device types never appear in the public
@@ -177,22 +254,29 @@ impl Device {
         Self::new(burn_dispatch::devices::CpuDevice::default())
     }
 
-    /// Default CUDA device (device index `0`).
+    /// CUDA device.
+    ///
+    /// Pass [`DeviceIndex::Default`] (or `DeviceIndex::Default` via
+    /// `Default::default()`) for the default CUDA device, or
+    /// [`DeviceIndex::Specified(i)`](DeviceIndex::Specified) / [`DeviceIndex::new(i)`](DeviceIndex::new)
+    /// to target hardware index `i`.
     #[cfg(feature = "cuda")]
-    pub fn cuda() -> Self {
-        Self::new(burn_dispatch::devices::CudaDevice::default())
+    pub fn cuda(index: DeviceIndex) -> Self {
+        // `CudaDevice` is a plain `struct { index: usize }` with `Default`
+        // returning index `0`, so we just resolve our enum to a usize.
+        Self::new(burn_dispatch::devices::CudaDevice::new(index.resolve()))
     }
 
-    /// CUDA device at the given hardware index.
-    #[cfg(feature = "cuda")]
-    pub fn cuda_at(index: usize) -> Self {
-        Self::new(burn_dispatch::devices::CudaDevice::new(index))
-    }
-
-    /// Default ROCm/HIP device.
+    /// ROCm/HIP device.
+    ///
+    /// Same selector semantics as [`Device::cuda`]: pass [`DeviceIndex::Default`]
+    /// for the default device, or a [`DeviceIndex::Specified`] / [`DeviceIndex::new`]
+    /// hardware index.
     #[cfg(feature = "rocm")]
-    pub fn rocm() -> Self {
-        Self::new(burn_dispatch::devices::RocmDevice::default())
+    pub fn rocm(index: DeviceIndex) -> Self {
+        // `RocmDevice` (cubecl's `AmdDevice`) is also a plain
+        // `struct { index: usize }`.
+        Self::new(burn_dispatch::devices::RocmDevice::new(index.resolve()))
     }
 
     /// Flex backend device.
@@ -219,16 +303,64 @@ impl Device {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(index))
     }
 
-    /// WGPU device — lets `wgpu` auto-select an available adapter (Vulkan,
-    /// Metal, or WebGPU depending on which features are enabled).
+    /// WGPU device, selected via [`DeviceKind`].
+    ///
+    /// The actual wgpu adapter (Vulkan / Metal / WebGPU) is picked by the
+    /// enabled Cargo features and, for [`DeviceKind::DefaultDevice`], by
+    /// `wgpu`'s adapter-selection heuristics (high-power GPU preferred, or
+    /// whatever `CUBECL_WGPU_DEFAULT_DEVICE` overrides it to).
+    ///
+    /// For the typical "give me a reasonable device" case, pass
+    /// [`DeviceKind::DefaultDevice`] (or use [`DeviceKind::default()`]) — the
+    /// dedicated [`Device::vulkan`] / [`Device::metal`] / [`Device::webgpu`]
+    /// helpers are thin wrappers around exactly that.
     #[cfg(any(
         feature = "wgpu",
         feature = "vulkan",
         feature = "metal",
         feature = "webgpu"
     ))]
-    pub fn wgpu() -> Self {
-        Self::new(burn_dispatch::devices::WgpuDevice::DefaultDevice)
+    pub fn wgpu(device_kind: DeviceKind) -> Self {
+        // Direct one-to-one mapping onto cubecl's `WgpuDevice` enum.
+        use burn_dispatch::devices::WgpuDevice;
+        let device = match device_kind {
+            DeviceKind::DiscreteGpu(i) => WgpuDevice::DiscreteGpu(i),
+            DeviceKind::IntegratedGpu(i) => WgpuDevice::IntegratedGpu(i),
+            DeviceKind::VirtualGpu(i) => WgpuDevice::VirtualGpu(i),
+            DeviceKind::Cpu => WgpuDevice::Cpu,
+            DeviceKind::DefaultDevice => WgpuDevice::DefaultDevice,
+            DeviceKind::Existing(id) => WgpuDevice::Existing(id),
+        };
+        Self::new(device)
+    }
+
+    /// Vulkan-backed WGPU device, selecting [`DeviceKind::DefaultDevice`].
+    ///
+    /// Use [`Device::wgpu`] directly for finer control (e.g. picking a
+    /// specific discrete or integrated GPU). The chosen graphics API
+    /// (Vulkan / Metal / WebGPU) is still ultimately determined by enabled
+    /// Cargo features.
+    #[cfg(feature = "vulkan")]
+    pub fn vulkan() -> Self {
+        Self::wgpu(DeviceKind::DefaultDevice)
+    }
+
+    /// Metal-backed WGPU device, selecting [`DeviceKind::DefaultDevice`].
+    ///
+    /// See [`Device::vulkan`] for caveats. Use [`Device::wgpu`] directly for
+    /// finer control.
+    #[cfg(feature = "metal")]
+    pub fn metal() -> Self {
+        Self::wgpu(DeviceKind::DefaultDevice)
+    }
+
+    /// WebGPU-backed device, selecting [`DeviceKind::DefaultDevice`].
+    ///
+    /// See [`Device::vulkan`] for caveats. Use [`Device::wgpu`] directly for
+    /// finer control.
+    #[cfg(feature = "webgpu")]
+    pub fn webgpu() -> Self {
+        Self::wgpu(DeviceKind::DefaultDevice)
     }
 
     /// Enables autodiff on this device.
