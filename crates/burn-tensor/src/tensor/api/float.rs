@@ -152,7 +152,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Self::new(BridgeTensor::float(Dispatch::float_random(
             self.shape(),
             distribution,
-            &self.device().dispatch,
+            self.device().as_dispatch(),
             self.dtype().into(),
         )))
     }

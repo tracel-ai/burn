@@ -20,7 +20,7 @@ impl Tensor<1, Int> {
         let dtype = opt.resolve_dtype::<Int>();
         Tensor::new(BridgeTensor::int(Dispatch::int_arange(
             range,
-            &opt.device.dispatch,
+            opt.device.as_dispatch(),
             dtype.into(),
         )))
     }
@@ -41,7 +41,7 @@ impl Tensor<1, Int> {
         Tensor::new(BridgeTensor::int(Dispatch::int_arange_step(
             range,
             step,
-            &opt.device.dispatch,
+            opt.device.as_dispatch(),
             dtype.into(),
         )))
     }

@@ -11,6 +11,7 @@ use burn_std::IntDType;
 use burn_std::QuantScheme;
 
 use alloc::vec::Vec;
+use core::mem::MaybeUninit;
 use enumset::EnumSet;
 use enumset::EnumSetType;
 
@@ -61,14 +62,48 @@ use enumset::EnumSetType;
 /// // Tensors created on this device will track gradients
 /// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 /// ```
-#[derive(Clone, Default)]
 pub struct Device {
-    pub(crate) dispatch: DispatchDevice,
+    blob: DeviceBlob,
+}
+
+type DeviceInner = MaybeUninit<DispatchDevice>;
+
+/// Storage for [`Device`]. Holds the raw bytes of a [`DispatchDevice`] while
+/// preserving the alignment requirement via the zero-sized `_align` field, so
+/// the backing memory can be safely reinterpreted as a `DispatchDevice`
+/// reference. This obfuscates the dispatch type at the field level so it
+/// doesn't appear in the public type signature.
+#[repr(C)]
+struct DeviceBlob {
+    bytes: [u8; size_of::<DeviceInner>()],
+    _align: [DeviceInner; 0],
+}
+
+impl Drop for Device {
+    fn drop(&mut self) {
+        unsafe {
+            let inner: &mut DeviceInner =
+                &mut *(self.blob.bytes.as_mut_ptr() as *mut DeviceInner);
+            inner.assume_init_drop();
+        }
+    }
+}
+
+impl Clone for Device {
+    fn clone(&self) -> Self {
+        Self::from_dispatch(self.as_dispatch().clone())
+    }
+}
+
+impl Default for Device {
+    fn default() -> Self {
+        Self::from_dispatch(DispatchDevice::default())
+    }
 }
 
 impl core::fmt::Debug for Device {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Device<{:?}>", self.dispatch)
+        write!(f, "Device<{:?}>", self.as_dispatch())
     }
 }
 
@@ -81,7 +116,7 @@ impl PartialEq for Device {
     /// Note that this comparison ignores autodiff and checkpointing settings.
     /// To check if two devices have identical capabilities, check [`Device::is_autodiff`].
     fn eq(&self, other: &Self) -> bool {
-        self.dispatch == other.dispatch
+        self.as_dispatch() == other.as_dispatch()
     }
 
     /// Compares devices based on hardware identity.
@@ -100,7 +135,33 @@ impl Device {
     /// through the public factory methods. Used by burn-tensor's bridge ops
     /// when they receive a dispatch-level device from the dispatch layer.
     pub(crate) fn from_dispatch(dispatch: DispatchDevice) -> Self {
-        Self { dispatch }
+        let mut blob = DeviceBlob {
+            bytes: [0u8; size_of::<DeviceInner>()],
+            _align: [],
+        };
+        unsafe {
+            let dst = blob.bytes.as_mut_ptr() as *mut DeviceInner;
+            dst.write(MaybeUninit::new(dispatch));
+        }
+        Self { blob }
+    }
+
+    /// Crate-internal borrow of the underlying dispatch device.
+    pub(crate) fn as_dispatch(&self) -> &DispatchDevice {
+        unsafe {
+            let inner: &DeviceInner = &*(self.blob.bytes.as_ptr() as *const DeviceInner);
+            inner.assume_init_ref()
+        }
+    }
+
+    /// Crate-internal owning extraction of the underlying dispatch device.
+    pub(crate) fn into_dispatch(self) -> DispatchDevice {
+        unsafe {
+            let inner: DeviceInner =
+                core::ptr::read(self.blob.bytes.as_ptr() as *const DeviceInner);
+            core::mem::forget(self);
+            inner.assume_init()
+        }
     }
 }
 
@@ -109,9 +170,7 @@ impl Device {
     /// Kept private so backend-specific device types never appear in the public
     /// API surface: callers use [`Device::cpu`], [`Device::cuda`] etc.
     fn new(device: impl Into<DispatchDevice>) -> Self {
-        Self {
-            dispatch: device.into(),
-        }
+        Self::from_dispatch(device.into())
     }
 
     /// Default CPU device backed by CubeCL's CPU backend.
@@ -194,13 +253,11 @@ impl Device {
     ///
     /// Panics if autodiff is already enabled on this device.
     #[cfg(feature = "autodiff")]
-    pub fn autodiff(mut self) -> Self {
-        match self.dispatch {
+    pub fn autodiff(self) -> Self {
+        match self.into_dispatch() {
             DispatchDevice::Autodiff(_) => unimplemented!("Only first-order autodiff is supported"),
-            other => self.dispatch = DispatchDevice::autodiff(other),
+            other => Self::from_dispatch(DispatchDevice::autodiff(other)),
         }
-
-        self
     }
 
     /// Enables gradient checkpointing on the autodiff device.
@@ -220,20 +277,18 @@ impl Device {
     ///
     /// Panics if autodiff is not enabled on this device.
     #[cfg(feature = "autodiff")]
-    pub fn gradient_checkpointing(mut self) -> Self {
-        match self.dispatch {
+    pub fn gradient_checkpointing(self) -> Self {
+        match self.into_dispatch() {
             DispatchDevice::Autodiff(device) => {
                 use burn_dispatch::CheckpointingStrategy;
 
-                self.dispatch = DispatchDevice::autodiff_checkpointed(
+                Self::from_dispatch(DispatchDevice::autodiff_checkpointed(
                     device.inner(),
                     CheckpointingStrategy::Balanced,
-                )
+                ))
             }
             _ => panic!("Autodiff is not enabled on this device"),
         }
-
-        self
     }
 
     /// Returns the underlying device, removing the autodiff capability if present.
@@ -248,12 +303,12 @@ impl Device {
     ///
     /// assert!(!inner_device.is_autodiff());
     /// ```
-    pub fn inner(mut self) -> Self {
+    pub fn inner(self) -> Self {
         if self.is_autodiff() {
-            self.dispatch = self.dispatch.inner();
+            Self::from_dispatch(self.into_dispatch().inner())
+        } else {
+            self
         }
-
-        self
     }
 
     /// Synchronize the device, waiting for all pending operations to complete.
@@ -262,7 +317,7 @@ impl Device {
     ///
     /// Returns an [`ExecutionError`] if an operation failed to execute.
     pub fn sync(&self) -> Result<(), ExecutionError> {
-        Dispatch::sync(&self.dispatch)
+        Dispatch::sync(self.as_dispatch())
     }
 
     /// Seeds the random number generator for this device.
@@ -283,7 +338,7 @@ impl Device {
     /// let t = Tensor::<1>::random([8], Distribution::Default, &device);
     /// ```
     pub fn seed(&self, seed: u64) {
-        Dispatch::seed(&self.dispatch, seed)
+        Dispatch::seed(self.as_dispatch(), seed)
     }
 
     /// Returns `true` if autodiff (gradient tracking) is enabled on this device.
@@ -298,13 +353,13 @@ impl Device {
     /// assert!(ad_device.is_autodiff());
     /// ```
     pub fn is_autodiff(&self) -> bool {
-        Dispatch::ad_enabled(&self.dispatch)
+        Dispatch::ad_enabled(self.as_dispatch())
     }
 
     /// Returns the default [quantization scheme](QuantScheme) for this device.
     pub fn default_quant_scheme(&self) -> QuantScheme {
         // TODO: maybe in device settings?
-        Dispatch::default_quant_scheme(&self.dispatch)
+        Dispatch::default_quant_scheme(self.as_dispatch())
     }
 
     /// Sets the current allocation mode to persistent.
@@ -317,7 +372,7 @@ impl Device {
         input: Input,
         func: Func,
     ) -> Output {
-        Dispatch::memory_persistent_allocations(&self.dispatch, input, func)
+        Dispatch::memory_persistent_allocations(self.as_dispatch(), input, func)
     }
 
     /// Returns the [`DeviceSettings`] for this device.
@@ -327,7 +382,7 @@ impl Device {
     ///
     /// See [`set_default_dtypes`](Device::set_default_dtypes) to configure them.
     pub fn settings(&self) -> DeviceSettings {
-        burn_backend::get_device_settings::<Dispatch>(&self.dispatch)
+        burn_backend::get_device_settings::<Dispatch>(self.as_dispatch())
     }
 
     /// Sets the default float and integer data types for tensors created on this device.
@@ -363,7 +418,7 @@ impl Device {
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
     ) -> Result<(), DeviceError> {
-        burn_backend::set_default_dtypes::<Dispatch>(&self.dispatch, float_dtype, int_dtype)
+        burn_backend::set_default_dtypes::<Dispatch>(self.as_dispatch(), float_dtype, int_dtype)
     }
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.

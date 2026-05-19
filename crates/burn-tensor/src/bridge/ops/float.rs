@@ -50,21 +50,21 @@ impl TransactionOp for Float {
 
 impl BasicOps for Float {
     fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_empty(shape, &device.dispatch, dtype.into()))
+        BridgeTensor::float(Dispatch::float_empty(shape, device.as_dispatch(), dtype.into()))
     }
 
     fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_zeros(shape, &device.dispatch, dtype.into()))
+        BridgeTensor::float(Dispatch::float_zeros(shape, device.as_dispatch(), dtype.into()))
     }
     fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::float_ones(shape, &device.dispatch, dtype.into()))
+        BridgeTensor::float(Dispatch::float_ones(shape, device.as_dispatch(), dtype.into()))
     }
 
     fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor {
         BridgeTensor::float(Dispatch::float_full(
             shape,
             fill_value,
-            &device.dispatch,
+            device.as_dispatch(),
             dtype.into(),
         ))
     }
@@ -223,10 +223,10 @@ impl BasicOps for Float {
         let (kind, tensor) = tensor.into_parts();
         match kind {
             BridgeKind::Float => {
-                BridgeTensor::float(Dispatch::float_to_device(tensor, &device.dispatch))
+                BridgeTensor::float(Dispatch::float_to_device(tensor, device.as_dispatch()))
             }
             BridgeKind::QFloat => {
-                BridgeTensor::qfloat(Dispatch::q_to_device(tensor, &device.dispatch))
+                BridgeTensor::qfloat(Dispatch::q_to_device(tensor, device.as_dispatch()))
             }
             _ => panic!("Should be Float primitive kind"),
         }
@@ -244,11 +244,11 @@ impl BasicOps for Float {
     fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
         if matches!(data.dtype, DType::QFloat(_)) {
             // When the source is QFloat, there is no conversion path possible.
-            BridgeTensor::qfloat(Dispatch::q_from_data(data, &device.dispatch))
+            BridgeTensor::qfloat(Dispatch::q_from_data(data, device.as_dispatch()))
         } else if dtype.is_float() {
             BridgeTensor::float(Dispatch::float_from_data(
                 data.convert_dtype(dtype),
-                &device.dispatch,
+                device.as_dispatch(),
             ))
         } else {
             panic!("Expected float dtype, got {dtype:?}")
@@ -571,7 +571,7 @@ impl Numeric for Float {
         BridgeTensor::float(Dispatch::float_random(
             shape,
             distribution,
-            &device.dispatch,
+            device.as_dispatch(),
             dtype.into(),
         ))
     }

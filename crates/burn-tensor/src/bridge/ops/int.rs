@@ -19,21 +19,21 @@ impl TransactionOp for Int {
 }
 impl BasicOps for Int {
     fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_empty(shape, &device.dispatch, dtype.into()))
+        BridgeTensor::int(Dispatch::int_empty(shape, device.as_dispatch(), dtype.into()))
     }
 
     fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_zeros(shape, &device.dispatch, dtype.into()))
+        BridgeTensor::int(Dispatch::int_zeros(shape, device.as_dispatch(), dtype.into()))
     }
     fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_ones(shape, &device.dispatch, dtype.into()))
+        BridgeTensor::int(Dispatch::int_ones(shape, device.as_dispatch(), dtype.into()))
     }
 
     fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_full(
             shape,
             fill_value,
-            &device.dispatch,
+            device.as_dispatch(),
             dtype.into(),
         ))
     }
@@ -141,7 +141,7 @@ impl BasicOps for Int {
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
-        BridgeTensor::int(Dispatch::int_to_device(tensor.into(), &device.dispatch))
+        BridgeTensor::int(Dispatch::int_to_device(tensor.into(), device.as_dispatch()))
     }
 
     async fn into_data_async(tensor: BridgeTensor) -> Result<TensorData, ExecutionError> {
@@ -151,7 +151,7 @@ impl BasicOps for Int {
     fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_from_data(
             data.convert_dtype(dtype),
-            &device.dispatch,
+            device.as_dispatch(),
         ))
     }
 
@@ -324,7 +324,7 @@ impl Numeric for Int {
         BridgeTensor::int(Dispatch::int_random(
             shape,
             distribution,
-            &device.dispatch,
+            device.as_dispatch(),
             dtype.into(),
         ))
     }
