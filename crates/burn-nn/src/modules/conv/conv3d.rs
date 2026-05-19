@@ -218,7 +218,8 @@ mod tests {
             fan_out_only: true, // test that fan_out is passed to `init_with()`
         };
         let config = Conv3dConfig::new([5, 1], [5, 5, 5]).with_initializer(init.clone());
-        let _ = config.init(&device);
+        let c = config.init(&device);
+        let _ = c.weight.val(); // initializes param
 
         assert_eq!(config.initializer, init);
     }
