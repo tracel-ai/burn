@@ -61,13 +61,13 @@ impl MetricsRendererEvaluation for CustomRenderer {
     }
 }
 
-pub fn run(device: impl Into<Device>) {
+pub fn run(device: Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    let device = device.into().autodiff();
+    let device = device.autodiff();
     device.seed(config.seed);
 
     // Create the model and optimizer.

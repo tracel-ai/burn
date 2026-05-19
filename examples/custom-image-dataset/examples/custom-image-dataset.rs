@@ -27,12 +27,12 @@ fn main() {
 
     #[cfg(feature = "tch-gpu")]
     {
-        use burn::backend::libtorch::LibTorchDevice;
+        use burn::tensor::Device;
 
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(0);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
         train(config, device);
     }
@@ -41,7 +41,7 @@ fn main() {
     {
         // Note: Metal backend may have shader compilation issues on Intel Macs with AMD GPUs
         // If you encounter errors, use WGPU backend as an alternative
-        use burn::backend::wgpu::WgpuDevice;
-        train(config, WgpuDevice::default());
+        use burn::tensor::{Device, DeviceKind};
+        train(config, Device::wgpu(DeviceKind::DefaultDevice));
     }
 }

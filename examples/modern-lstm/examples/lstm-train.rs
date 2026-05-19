@@ -1,7 +1,7 @@
 use burn::{grad_clipping::GradientClippingConfig, optim::AdamConfig, tensor::Device};
 use modern_lstm::{model::LstmNetworkConfig, training::TrainingConfig};
 
-pub fn launch(device: impl Into<Device>) {
+pub fn launch(device: Device) {
     let config = TrainingConfig::new(
         LstmNetworkConfig::new(),
         // Gradient clipping via optimizer config
@@ -13,22 +13,22 @@ pub fn launch(device: impl Into<Device>) {
 
 #[cfg(feature = "flex")]
 mod flex {
-    use burn::backend::flex::FlexDevice;
+    use burn::tensor::Device;
 
     pub fn run() {
-        crate::launch(FlexDevice);
+        crate::launch(Device::flex());
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::Device;
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(0);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
         crate::launch(device);
     }
@@ -36,28 +36,28 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::Device;
 
     pub fn run() {
-        crate::launch(LibTorchDevice::Cpu);
+        crate::launch(Device::libtorch());
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::WgpuDevice;
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        crate::launch(WgpuDevice::default());
+        crate::launch(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use burn::backend::cuda::CudaDevice;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
-        crate::launch(CudaDevice::default());
+        crate::launch(Device::cuda(DeviceIndex::Default));
     }
 }
 

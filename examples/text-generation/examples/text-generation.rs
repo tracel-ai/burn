@@ -17,9 +17,9 @@ fn main() {
     );
 
     let mut device: Device = if cfg!(target_os = "macos") {
-        burn::backend::libtorch::LibTorchDevice::Mps.into()
+        Device::libtorch_mps()
     } else {
-        burn::backend::libtorch::LibTorchDevice::Cuda(0).into()
+        Device::libtorch_cuda(0)
     };
 
     device

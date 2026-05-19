@@ -52,7 +52,8 @@ use enumset::EnumSetType;
 /// `Device::cpu`, `Device::cuda` (takes a [`DeviceIndex`]), `Device::rocm`
 /// (takes a [`DeviceIndex`]), `Device::wgpu` (takes a [`DeviceKind`]),
 /// `Device::vulkan`, `Device::metal`, `Device::webgpu`, `Device::flex`,
-/// `Device::ndarray`, `Device::libtorch`, `Device::libtorch_cuda`.
+/// `Device::ndarray`, `Device::libtorch`, `Device::libtorch_cuda`,
+/// `Device::libtorch_mps`, `Device::libtorch_vulkan`.
 ///
 /// # Autodiff
 ///
@@ -301,6 +302,18 @@ impl Device {
     #[cfg(feature = "tch")]
     pub fn libtorch_cuda(index: usize) -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(index))
+    }
+
+    /// LibTorch Metal Performance Shaders (MPS) device.
+    #[cfg(feature = "tch")]
+    pub fn libtorch_mps() -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Mps)
+    }
+
+    /// LibTorch Vulkan device.
+    #[cfg(feature = "tch")]
+    pub fn libtorch_vulkan() -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }
 
     /// WGPU device, selected via [`DeviceKind`].
