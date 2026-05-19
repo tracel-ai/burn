@@ -26,10 +26,7 @@ impl Batcher<MnistItemPrepared, MnistBatch> for MnistBatcher {
         let targets = items
             .iter()
             .map(|item| {
-                Tensor::<1, Int>::from_data(
-                    TensorData::from([item.label as i64]),
-                    &Device::flex(),
-                )
+                Tensor::<1, Int>::from_data(TensorData::from([item.label as i64]), &Device::flex())
             })
             .collect();
 
