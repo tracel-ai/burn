@@ -214,7 +214,7 @@ where
         self.binding().into_tensor_arg()
     }
 
-    /// Return the reference to an array argument.
+    /// Return the reference to a buffer argument.
     pub fn into_buffer_arg(self) -> BufferArg<R> {
         self.into_tensor_arg().into_buffer_arg()
     }
