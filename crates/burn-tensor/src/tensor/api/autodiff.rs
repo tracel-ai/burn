@@ -80,7 +80,7 @@ impl Gradients {
 impl<const D: usize> Tensor<D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> Gradients {
-        Gradients::from_inner(Dispatch::backward(self.primitive.clone().into_float()))
+        backward_impl(&self.primitive)
     }
 
     /// Get the gradients of a tensor if it exist.
@@ -89,27 +89,39 @@ impl<const D: usize> Tensor<D> {
     /// be accessed multiple times. If you only need to get the gradients one time,
     /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D>> {
-        Dispatch::grad(self.primitive.as_float(), grads.as_inner())
-            .map(BridgeTensor::float)
-            .map(Tensor::new)
+        grad_impl(&self.primitive, grads).map(Tensor::new)
     }
 
     /// Remove the grad tensor from the [grads](AutodiffBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut Gradients) -> Option<Tensor<D>> {
-        Dispatch::grad_remove(self.primitive.as_float(), grads.as_inner_mut())
-            .map(BridgeTensor::float)
-            .map(Tensor::new)
+        grad_remove_impl(&self.primitive, grads).map(Tensor::new)
     }
 
     /// Replace the grad tensor from the [grads](AutodiffBackend::Gradients) struct with the provided
     /// gradient.
     pub fn grad_replace(&self, grads: &mut Gradients, grad: Tensor<D>) {
-        Dispatch::grad_replace(
-            self.primitive.as_float(),
-            grads.as_inner_mut(),
-            grad.primitive.into_float(),
-        )
+        grad_replace_impl(&self.primitive, grads, grad.primitive)
     }
+}
+
+#[cfg(feature = "autodiff")]
+fn backward_impl(p: &BridgeTensor) -> Gradients {
+    Gradients::from_inner(Dispatch::backward(p.clone().into_float()))
+}
+
+#[cfg(feature = "autodiff")]
+fn grad_impl(p: &BridgeTensor, grads: &Gradients) -> Option<BridgeTensor> {
+    Dispatch::grad(p.as_float(), grads.as_inner()).map(BridgeTensor::float)
+}
+
+#[cfg(feature = "autodiff")]
+fn grad_remove_impl(p: &BridgeTensor, grads: &mut Gradients) -> Option<BridgeTensor> {
+    Dispatch::grad_remove(p.as_float(), grads.as_inner_mut()).map(BridgeTensor::float)
+}
+
+#[cfg(feature = "autodiff")]
+fn grad_replace_impl(p: &BridgeTensor, grads: &mut Gradients, grad: BridgeTensor) {
+    Dispatch::grad_replace(p.as_float(), grads.as_inner_mut(), grad.into_float())
 }
 
 impl<const D: usize, K: Autodiff> Tensor<D, K> {

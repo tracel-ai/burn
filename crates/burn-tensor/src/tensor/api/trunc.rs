@@ -34,8 +34,10 @@ impl<const D: usize> Tensor<D, Float> {
     /// }
     /// ```
     pub fn trunc(self) -> Self {
-        Self::new(BridgeTensor::float(Dispatch::float_trunc(
-            self.primitive.into_float(),
-        )))
+        Self::new(trunc_impl(self.primitive))
     }
+}
+
+fn trunc_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_trunc(p.into_float()))
 }

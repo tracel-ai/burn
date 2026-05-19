@@ -455,11 +455,23 @@ pub fn linear<const D: usize>(
         return output.squeeze_dim(0);
     }
 
-    Tensor::new(BridgeTensor::float(Dispatch::linear(
-        input.primitive.into_float(),
-        weight.primitive.into_float(),
-        bias.map(|b| b.primitive.into_float()),
-    )))
+    Tensor::new(linear_impl(
+        input.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
+    ))
+}
+
+fn linear_impl(
+    input: BridgeTensor,
+    weight: BridgeTensor,
+    bias: Option<BridgeTensor>,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::linear(
+        input.into_float(),
+        weight.into_float(),
+        bias.map(|b| b.into_float()),
+    ))
 }
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
@@ -600,10 +612,24 @@ pub fn layer_norm<const D: usize>(
     beta: Option<Tensor<1>>,
     epsilon: f64,
 ) -> Tensor<D> {
-    Tensor::new(BridgeTensor::float(Dispatch::layer_norm(
-        input.primitive.into_float(),
-        gamma.primitive.into_float(),
-        beta.map(|b| b.primitive.into_float()),
+    Tensor::new(layer_norm_impl(
+        input.primitive,
+        gamma.primitive,
+        beta.map(|b| b.primitive),
         epsilon,
-    )))
+    ))
+}
+
+fn layer_norm_impl(
+    input: BridgeTensor,
+    gamma: BridgeTensor,
+    beta: Option<BridgeTensor>,
+    epsilon: f64,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::layer_norm(
+        input.into_float(),
+        gamma.into_float(),
+        beta.map(|b| b.into_float()),
+        epsilon,
+    ))
 }

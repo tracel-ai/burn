@@ -74,11 +74,17 @@ pub fn rfft<const D: usize>(
         }
     }
 
-    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.into_float(), dim, n);
-    (
-        Tensor::new(BridgeTensor::float(spectrum_re)),
-        Tensor::new(BridgeTensor::float(spectrum_im)),
-    )
+    let (re, im) = rfft_impl(signal.primitive, dim, n);
+    (Tensor::new(re), Tensor::new(im))
+}
+
+fn rfft_impl(
+    signal: BridgeTensor,
+    dim: usize,
+    n: Option<usize>,
+) -> (BridgeTensor, BridgeTensor) {
+    let (re, im) = Dispatch::rfft(signal.into_float(), dim, n);
+    (BridgeTensor::float(re), BridgeTensor::float(im))
 }
 
 /// Computes the 1-dimensional inverse discrete Fourier Transform for real-valued signals.
@@ -141,13 +147,21 @@ pub fn irfft<const D: usize>(
         );
     }
 
-    let signal = Dispatch::irfft(
-        spectrum_re.primitive.into_float(),
-        spectrum_im.primitive.into_float(),
+    Tensor::new(irfft_impl(spectrum_re.primitive, spectrum_im.primitive, dim, n))
+}
+
+fn irfft_impl(
+    spectrum_re: BridgeTensor,
+    spectrum_im: BridgeTensor,
+    dim: usize,
+    n: Option<usize>,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::irfft(
+        spectrum_re.into_float(),
+        spectrum_im.into_float(),
         dim,
         n,
-    );
-    Tensor::new(BridgeTensor::float(signal))
+    ))
 }
 
 /// Computes the 1-dimensional discrete Fourier Transform of complex-valued input.

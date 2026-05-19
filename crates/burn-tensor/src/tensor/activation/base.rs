@@ -39,10 +39,7 @@ $$
     doc = "`f(x) =`\n- `x for x >= 0`\n- `negative_slope * x if x < 0`"
 )]
 pub fn leaky_relu<const D: usize>(tensor: Tensor<D>, negative_slope: f64) -> Tensor<D> {
-    Tensor::new(BridgeTensor::float(Dispatch::leaky_relu(
-        tensor.primitive.into_float(),
-        negative_slope.into(),
-    )))
+    Tensor::new(leaky_relu_impl(tensor.primitive, negative_slope))
 }
 
 /// Applies the Gaussian Error Linear Units function as described in the paper
@@ -69,9 +66,7 @@ where `Φ(x)` is the cumulative distribution function for the Gaussian distribut
 "#
 )]
 pub fn gelu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::new(BridgeTensor::float(Dispatch::gelu(
-        tensor.primitive.into_float(),
-    )))
+    Tensor::new(gelu_impl(tensor.primitive))
 }
 
 /// Applies the tanh-based approximate GELU function element-wise.
@@ -144,10 +139,7 @@ pub fn prelu<const D: usize>(tensor: Tensor<D>, alpha: Tensor<1>) -> Tensor<D> {
         alpha.reshape(s)
     };
 
-    Tensor::new(BridgeTensor::float(Dispatch::prelu(
-        tensor.primitive.into_float(),
-        weight.primitive.into_float(),
-    )))
+    Tensor::new(prelu_impl(tensor.primitive, weight.primitive))
 }
 
 /// Applies the softmax function on the input tensor along the given dimension.
@@ -170,10 +162,7 @@ $$
 pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    Tensor::new(BridgeTensor::float(Dispatch::softmax(
-        tensor.primitive.into_float(),
-        dim,
-    )))
+    Tensor::new(softmax_impl(tensor.primitive, dim))
 }
 
 /// Applies the softmin function on the input tensor along the given dimension.
@@ -196,10 +185,7 @@ $$
 pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmin", dim));
 
-    Tensor::new(BridgeTensor::float(Dispatch::softmin(
-        tensor.primitive.into_float(),
-        dim,
-    )))
+    Tensor::new(softmin_impl(tensor.primitive, dim))
 }
 
 /// Applies the SoftPlus function element-wise.
@@ -280,10 +266,7 @@ $$
 pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("log softmax", dim));
 
-    Tensor::new(BridgeTensor::float(Dispatch::log_softmax(
-        tensor.primitive.into_float(),
-        dim,
-    )))
+    Tensor::new(log_softmax_impl(tensor.primitive, dim))
 }
 
 /// Applies the sigmoid function element-wise.
@@ -300,9 +283,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`sigmoid(x) = 1 / (1 + exp(-x))`")]
 pub fn sigmoid<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::new(BridgeTensor::float(Dispatch::sigmoid(
-        tensor.primitive.into_float(),
-    )))
+    Tensor::new(sigmoid_impl(tensor.primitive))
 }
 
 /// Applies the hard sigmoid function element-wise.
@@ -317,11 +298,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`hard_sigmoid(x) = max(0, min(1, alpha * x + beta))`")]
 pub fn hard_sigmoid<const D: usize>(tensor: Tensor<D>, alpha: f64, beta: f64) -> Tensor<D> {
-    Tensor::new(BridgeTensor::float(Dispatch::hard_sigmoid(
-        tensor.primitive.into_float(),
-        alpha.into(),
-        beta.into(),
-    )))
+    Tensor::new(hard_sigmoid_impl(tensor.primitive, alpha, beta))
 }
 
 /// Applies the log sigmoid function element-wise.
@@ -336,9 +313,7 @@ $$
 )]
 #[cfg_attr(not(doc), doc = "`log_sigmoid(x) = log(1 / (1 + exp(-x)))`")]
 pub fn log_sigmoid<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
-    Tensor::new(BridgeTensor::float(Dispatch::log_sigmoid(
-        tensor.primitive.into_float(),
-    )))
+    Tensor::new(log_sigmoid_impl(tensor.primitive))
 }
 
 /// Applies the SiLU function (also known as the swish function) element-wise.
@@ -635,4 +610,48 @@ pub fn shrink<const D: usize>(tensor: Tensor<D>, lambda: f64, bias: f64) -> Tens
     let shrunk = tensor.sub(sign.mul_scalar(bias));
     let mask = abs_tensor.lower_equal_elem(lambda);
     shrunk.mask_fill(mask, 0)
+}
+
+// =========================================================================
+// Non-generic implementation helpers (outlined from the generic API).
+// =========================================================================
+
+fn leaky_relu_impl(p: BridgeTensor, negative_slope: f64) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::leaky_relu(p.into_float(), negative_slope.into()))
+}
+
+fn gelu_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::gelu(p.into_float()))
+}
+
+fn prelu_impl(p: BridgeTensor, weight: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::prelu(p.into_float(), weight.into_float()))
+}
+
+fn softmax_impl(p: BridgeTensor, dim: usize) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::softmax(p.into_float(), dim))
+}
+
+fn softmin_impl(p: BridgeTensor, dim: usize) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::softmin(p.into_float(), dim))
+}
+
+fn log_softmax_impl(p: BridgeTensor, dim: usize) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::log_softmax(p.into_float(), dim))
+}
+
+fn sigmoid_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::sigmoid(p.into_float()))
+}
+
+fn hard_sigmoid_impl(p: BridgeTensor, alpha: f64, beta: f64) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::hard_sigmoid(
+        p.into_float(),
+        alpha.into(),
+        beta.into(),
+    ))
+}
+
+fn log_sigmoid_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::log_sigmoid(p.into_float()))
 }

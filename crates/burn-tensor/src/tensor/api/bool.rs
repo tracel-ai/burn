@@ -63,11 +63,8 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
-        let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(BridgeTensor::int(Dispatch::bool_into_int(
-            self.primitive.into(),
-            out_dtype,
-        )))
+        let device = self.device();
+        Tensor::new(bool_to_int_impl(self.primitive, device))
     }
 
     /// Convert the bool tensor into a float tensor.
@@ -89,11 +86,8 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn float(self) -> Tensor<D> {
-        let out_dtype = self.device().settings().float_dtype;
-        Tensor::new(BridgeTensor::float(Dispatch::bool_into_float(
-            self.primitive.into(),
-            out_dtype,
-        )))
+        let device = self.device();
+        Tensor::new(bool_to_float_impl(self.primitive, device))
     }
 
     /// Converts a bool tensor to the specified data type.
@@ -137,9 +131,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_not(self) -> Self {
-        Tensor::new(BridgeTensor::bool(Dispatch::bool_not(
-            self.primitive.into(),
-        )))
+        Tensor::new(bool_not_impl(self.primitive))
     }
 
     /// Performs logical and (`&&`) on two boolean tensors.
@@ -166,10 +158,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_and(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(BridgeTensor::bool(Dispatch::bool_and(
-            self.primitive.into(),
-            rhs.primitive.into(),
-        )))
+        Tensor::new(bool_and_impl(self.primitive, rhs.primitive))
     }
 
     /// Performs logical or (`||`) on two boolean tensors.
@@ -196,10 +185,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_or(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(BridgeTensor::bool(Dispatch::bool_or(
-            self.primitive.into(),
-            rhs.primitive.into(),
-        )))
+        Tensor::new(bool_or_impl(self.primitive, rhs.primitive))
     }
 
     /// Performs logical xor (`^`) on two boolean tensors.
@@ -227,10 +213,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     pub fn bool_xor(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(BridgeTensor::bool(Dispatch::bool_xor(
-            self.primitive.into(),
-            rhs.primitive.into(),
-        )))
+        Tensor::new(bool_xor_impl(self.primitive, rhs.primitive))
     }
 
     /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
@@ -318,9 +301,8 @@ impl<const D: usize> Tensor<D, Bool> {
     /// result contains the indices of a non-zero element.
     pub async fn argwhere_async(self) -> Tensor<2, Int> {
         let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(BridgeTensor::int(
-            Dispatch::bool_argwhere(self.primitive.into(), out_dtype).await,
-        ))
+        let inner = Dispatch::bool_argwhere(self.primitive.into(), out_dtype).await;
+        Tensor::new(BridgeTensor::int(inner))
     }
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to
@@ -492,4 +474,34 @@ impl<const D: usize> core::ops::BitXor for Tensor<D, Bool> {
     fn bitxor(self, tensor: Tensor<D, Bool>) -> Self::Output {
         self.bool_xor(tensor)
     }
+}
+
+// =========================================================================
+// Non-generic implementation helpers (outlined from the generic API).
+// =========================================================================
+
+fn bool_to_int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
+    let out_dtype = device.settings().int_dtype;
+    BridgeTensor::int(Dispatch::bool_into_int(p.into(), out_dtype))
+}
+
+fn bool_to_float_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
+    let out_dtype = device.settings().float_dtype;
+    BridgeTensor::float(Dispatch::bool_into_float(p.into(), out_dtype))
+}
+
+fn bool_not_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_not(p.into()))
+}
+
+fn bool_and_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_and(lhs.into(), rhs.into()))
+}
+
+fn bool_or_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_or(lhs.into(), rhs.into()))
+}
+
+fn bool_xor_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_xor(lhs.into(), rhs.into()))
 }
