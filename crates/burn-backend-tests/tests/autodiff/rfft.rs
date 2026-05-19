@@ -3,9 +3,17 @@ use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::signal;
 
+#[cfg(not(feature = "ndarray"))]
+use burn_tensor::{DType, Element};
+
 #[test]
-#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+#[cfg(not(feature = "ndarray"))]
 fn should_diff_rfft() {
+    // Lower precisions not supported
+    if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
+        return;
+    }
+
     let device = AutodiffDevice::new();
 
     let random1 = TensorData::from([0.26, 0.13, 0.36, 0.24, 0.40, 0.93, 0.12, 0.18]);
@@ -30,8 +38,12 @@ fn should_diff_rfft() {
 }
 
 #[test]
-#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+#[cfg(not(feature = "ndarray"))]
 fn round_trip() {
+    if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
+        return;
+    }
+
     let device = AutodiffDevice::new();
 
     let random = TensorData::from([
@@ -52,8 +64,12 @@ fn round_trip() {
 }
 
 #[test]
-#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_dim_nonzero() {
+    if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
+        return;
+    }
+
     let device = AutodiffDevice::new();
 
     let random = TensorData::from([
@@ -76,8 +92,12 @@ fn round_trip_with_dim_nonzero() {
 }
 
 #[test]
-#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_some_n_greater() {
+    if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
+        return;
+    }
+
     let device = AutodiffDevice::new();
 
     let random = TensorData::from([
@@ -98,8 +118,12 @@ fn round_trip_with_some_n_greater() {
 }
 
 #[test]
-#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+#[cfg(not(feature = "ndarray"))]
 fn round_trip_with_some_n_less() {
+    if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
+        return;
+    }
+
     let device = AutodiffDevice::new();
 
     let random = TensorData::from([
@@ -124,8 +148,12 @@ fn round_trip_with_some_n_less() {
 }
 
 #[test]
-#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+#[cfg(not(feature = "ndarray"))]
 fn round_trip_inverse_with_some_n_greater() {
+    if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
+        return;
+    }
+
     let device = AutodiffDevice::new();
 
     let random = TensorData::from([0.26, 0.13, 0.36, 0.24, 0.40, 0.93, 0.12]);
@@ -144,8 +172,12 @@ fn round_trip_inverse_with_some_n_greater() {
 }
 
 #[test]
-#[cfg(not(any(feature = "ndarray", feature = "candle")))]
+#[cfg(not(feature = "ndarray"))]
 fn round_trip_inverse_with_some_n_less() {
+    if !matches!(FloatElem::dtype(), DType::F32 | DType::F64) {
+        return;
+    }
+
     let device = AutodiffDevice::new();
 
     let random = TensorData::from([
