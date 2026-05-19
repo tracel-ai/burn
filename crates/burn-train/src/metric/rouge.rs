@@ -118,7 +118,6 @@ impl Metric for RougeLScore {
             }
 
             if ref_len == 0.0 || cand_len == 0.0 {
-                total_f1 += 0.0;
                 continue;
             }
 
