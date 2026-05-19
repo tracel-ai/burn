@@ -1,9 +1,9 @@
-use burn_backend::cubecl::dtype_to_elem_type;
 use crate::{
     CubeRuntime, CubeTuneId,
     kernel::attention::{AttentionStrategy, attention},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_elem_type;
 use burn_backend::ops::AttentionModuleOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
 use cubek::attention::{

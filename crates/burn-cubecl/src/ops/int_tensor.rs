@@ -1,5 +1,5 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use self::unary_basic_int::BasicIntUnaryKind;
+use burn_backend::cubecl::dtype_to_storage_type;
 
 use super::{expand, numeric, permute, unfold};
 use crate::kernel::{
@@ -117,7 +117,12 @@ where
     ) -> IntTensor<Self> {
         let dtype = tensor.dtype;
         let bool_dtype = mask.dtype;
-        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype_to_storage_type(dtype)), bool_dtype)
+        kernel::mask_fill_auto(
+            tensor,
+            mask,
+            InputScalar::new(value, dtype_to_storage_type(dtype)),
+            bool_dtype,
+        )
     }
 
     fn int_gather(
@@ -177,7 +182,11 @@ where
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_greater(
@@ -194,7 +203,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::greater_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_greater_equal(
@@ -211,7 +224,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::greater_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_lower(
@@ -224,7 +241,11 @@ where
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::lower_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_lower_equal(
@@ -241,7 +262,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::lower_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -593,7 +618,10 @@ where
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        launch_scalar_binop_int::<R, BitwiseShlOp>(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
+        launch_scalar_binop_int::<R, BitwiseShlOp>(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+        )
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -602,7 +630,10 @@ where
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        launch_scalar_binop_int::<R, BitwiseShrOp>(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
+        launch_scalar_binop_int::<R, BitwiseShrOp>(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+        )
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {

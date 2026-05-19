@@ -1,9 +1,9 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     ExecutionError, Slice,
     ops::BoolTensorOps,
@@ -184,7 +184,12 @@ where
         value: Scalar,
     ) -> BoolTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype_to_storage_type(dtype)), dtype)
+        kernel::mask_fill_auto(
+            tensor,
+            mask,
+            InputScalar::new(value, dtype_to_storage_type(dtype)),
+            dtype,
+        )
     }
 
     fn bool_gather(
@@ -206,6 +211,10 @@ where
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), dtype)
+        kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            dtype,
+        )
     }
 }

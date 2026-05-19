@@ -1,8 +1,8 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::kernel::utils::{shape_divmod, shape_divmod_range};
 use crate::{
     CubeRuntime, kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::prelude::*;
 use cubecl::std::FastDivmod;
 use cubecl::std::tensor::layout::linear::LinearView;
@@ -113,7 +113,10 @@ pub(crate) fn gather_nd<R: CubeRuntime>(
             slice_size,
             k,
             total_elem,
-            [dtype_to_storage_type(dtype), dtype_to_storage_type(indices_dtype)],
+            [
+                dtype_to_storage_type(dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     }
 

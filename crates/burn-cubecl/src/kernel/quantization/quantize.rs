@@ -1,6 +1,6 @@
-use burn_backend::cubecl::dtype_to_elem_type;
 use crate::CubeRuntime;
 use crate::{ops::empty_qtensor_optimized, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_elem_type;
 use burn_backend::{TensorMetadata, quantization::QuantScheme};
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.

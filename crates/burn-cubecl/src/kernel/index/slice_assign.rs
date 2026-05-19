@@ -1,9 +1,9 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,

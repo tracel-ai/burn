@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime, CubeTuneId,
     kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
     tensor::CubeTensor,
 };
 use burn_backend::DType;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},

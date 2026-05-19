@@ -1,4 +1,3 @@
-use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use super::{bilinear_interpolate, deform_im2col, index};
 use crate::{
     CubeRuntime,
@@ -15,6 +14,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::{DType, Shape, TensorMetadata, ops::DeformConvOptions};
 use cubecl::{
     CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube,
@@ -484,7 +484,9 @@ fn compute_input_grad<R: CubeRuntime>(
         .contains(AtomicUsage::Add);
     let supports_same_type = client
         .properties()
-        .atomic_type_usage(Type::new(StorageType::Atomic(dtype_to_elem_type(columns.dtype))))
+        .atomic_type_usage(Type::new(StorageType::Atomic(dtype_to_elem_type(
+            columns.dtype,
+        ))))
         .contains(AtomicUsage::Add);
 
     let [batches, in_channels, height, width] = input_shape.dims();
@@ -514,7 +516,10 @@ fn compute_input_grad<R: CubeRuntime>(
     let dtype = offset.dtype;
     let dtypes: [StorageType; 2] = match supports_same_type {
         true => [dtype_to_storage_type(dtype), dtype_to_storage_type(dtype)],
-        false => [dtype_to_storage_type(dtype), dtype_to_storage_type(DType::F32)],
+        false => [
+            dtype_to_storage_type(dtype),
+            dtype_to_storage_type(DType::F32),
+        ],
     };
 
     unsafe {

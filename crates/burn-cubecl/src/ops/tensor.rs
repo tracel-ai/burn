@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use super::{expand, numeric, permute, unfold};
 use crate::CubeBackend;
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
@@ -11,6 +10,7 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
@@ -269,7 +269,12 @@ where
     ) -> FloatTensor<Self> {
         let dtype = tensor.dtype;
         let bool_dtype = mask.dtype;
-        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype_to_storage_type(dtype)), bool_dtype)
+        kernel::mask_fill_auto(
+            tensor,
+            mask,
+            InputScalar::new(value, dtype_to_storage_type(dtype)),
+            bool_dtype,
+        )
     }
 
     fn float_equal(
@@ -286,7 +291,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_greater(
@@ -303,7 +312,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::greater_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_greater_equal(
@@ -320,7 +333,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::greater_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_lower(
@@ -337,7 +354,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::lower_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_lower_equal(
@@ -354,7 +375,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)), out_dtype.into())
+        kernel::lower_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -511,7 +536,9 @@ where
         }
 
         let dtype = lhs.dtype;
-        launch_unary_float::<R, Powf, _>(lhs, |_| InputScalar::new(rhs, dtype_to_storage_type(dtype)))
+        launch_unary_float::<R, Powf, _>(lhs, |_| {
+            InputScalar::new(rhs, dtype_to_storage_type(dtype))
+        })
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

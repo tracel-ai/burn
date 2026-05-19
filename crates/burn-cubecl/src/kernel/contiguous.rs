@@ -17,7 +17,11 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
 
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
 
-    let output = cubecl::std::tensor::into_contiguous(&client, tensor.binding(), dtype_to_storage_type(dtype));
+    let output = cubecl::std::tensor::into_contiguous(
+        &client,
+        tensor.binding(),
+        dtype_to_storage_type(dtype),
+    );
 
     CubeTensor::new(
         client.clone(),
@@ -45,8 +49,11 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
 
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
 
-    let output =
-        cubecl::std::tensor::into_contiguous_pitched(&client, tensor.binding(), dtype_to_storage_type(dtype));
+    let output = cubecl::std::tensor::into_contiguous_pitched(
+        &client,
+        tensor.binding(),
+        dtype_to_storage_type(dtype),
+    );
 
     CubeTensor::new(
         client.clone(),

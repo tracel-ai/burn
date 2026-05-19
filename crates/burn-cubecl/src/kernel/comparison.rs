@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
@@ -132,7 +132,10 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     let cube_dim = CubeDim::new(&lhs.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
 
-    let dtypes = [dtype_to_storage_type(lhs.dtype), dtype_to_storage_type(dtype_bool)];
+    let dtypes = [
+        dtype_to_storage_type(lhs.dtype),
+        dtype_to_storage_type(dtype_bool),
+    ];
     let same_tensor_type = dtypes[0] == dtypes[1];
     if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
         unsafe {
@@ -217,7 +220,10 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
-    let dtypes = [dtype_to_storage_type(tensor.dtype), dtype_to_storage_type(dtype_bool)];
+    let dtypes = [
+        dtype_to_storage_type(tensor.dtype),
+        dtype_to_storage_type(dtype_bool),
+    ];
     let same_tensor_type = dtypes[0] == dtypes[1];
 
     if same_tensor_type && tensor.can_mut() && tensor.is_nonoverlapping() {
@@ -406,7 +412,10 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
     let client = tensor.client.clone();
     let num_elems = tensor.meta.num_elements();
 
-    let dtypes = [dtype_to_storage_type(tensor.dtype), dtype_to_storage_type(dtype_bool)];
+    let dtypes = [
+        dtype_to_storage_type(tensor.dtype),
+        dtype_to_storage_type(dtype_bool),
+    ];
     let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);

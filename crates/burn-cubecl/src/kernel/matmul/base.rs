@@ -1,6 +1,6 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use super::init_matmul_output;
 use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, QTensorPrimitive};
 use burn_std::QuantLevel;
 use cubek::{

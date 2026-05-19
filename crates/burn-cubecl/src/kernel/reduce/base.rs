@@ -1,4 +1,3 @@
-use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
 use crate::{
@@ -6,6 +5,7 @@ use crate::{
     ops::numeric::{empty_device_contiguous_dtype, zeros_client},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::{

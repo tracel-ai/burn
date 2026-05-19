@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::address_type,
@@ -6,6 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait IntUnaryOpFamily: 'static + Send + Sync {

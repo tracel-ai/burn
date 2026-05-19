@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_elem_type;
 use super::optimization::ReduceOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
     tune::{FusionInputGen, TuneInput},
 };
+use burn_backend::cubecl::dtype_to_elem_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,

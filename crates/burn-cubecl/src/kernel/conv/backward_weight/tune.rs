@@ -128,7 +128,10 @@ fn create_key<R: CubeRuntime, const N: usize>(
     } = options.clone();
 
     let lhs_stride_align = if out_grad.meta.strides()[dim_c] == 1 {
-        stride_align(out_grad.meta.strides(), dtype_to_storage_type(out_grad.dtype))
+        stride_align(
+            out_grad.meta.strides(),
+            dtype_to_storage_type(out_grad.dtype),
+        )
     } else {
         0
     };

@@ -84,7 +84,10 @@ pub fn mask_fill<R: CubeRuntime>(
             mask,
             out_arg,
             value,
-            [dtype_to_storage_type(output.dtype), dtype_to_storage_type(dtype_bool)],
+            [
+                dtype_to_storage_type(output.dtype),
+                dtype_to_storage_type(dtype_bool),
+            ],
         );
     }
 

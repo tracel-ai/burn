@@ -1,6 +1,6 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::tensor::CubeTensor;
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 
 /// Convert the tensor back to a higher precision data type.

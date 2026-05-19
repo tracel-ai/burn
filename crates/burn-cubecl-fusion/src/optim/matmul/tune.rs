@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use super::optimization::MatmulOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
@@ -6,6 +5,7 @@ use crate::{
     optim::matmul::{AcceleratedTileKind, FusedMatmulSelector},
     tune::{FusionInputGen, TuneInput},
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,

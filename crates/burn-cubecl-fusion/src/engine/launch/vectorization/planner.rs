@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use super::{
     super::{BlockPlan, HandleOutput, LaunchPlan},
     Vect,
@@ -14,6 +13,7 @@ use crate::{
         trace::{FuseResources, TensorView, block::FuseBlock},
     },
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{

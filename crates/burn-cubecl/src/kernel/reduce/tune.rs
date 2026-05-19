@@ -1,8 +1,8 @@
 #![allow(missing_docs)]
 
-use burn_backend::cubecl::dtype_to_elem_type;
 use super::SumAutotuneKey;
 use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_elem_type;
 use cubecl::{
     client::ComputeClient,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},

@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, decompose_linear, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, ops::ConvTransposeOptions};
 use cubecl::{
     calculate_cube_count_elemwise,

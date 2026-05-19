@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::{
@@ -8,6 +7,7 @@ use crate::{
     ops::{numeric::empty_device_dtype, swap_dims},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 

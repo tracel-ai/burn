@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Slice, TensorMetadata};
 use burn_std::{Metadata, SliceOps};
 use cubecl::{

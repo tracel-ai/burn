@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
@@ -64,7 +64,10 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         vector_size,
         input.into_linear_view(),
         output.clone().into_linear_view(),
-        [dtype_to_storage_type(dtype_input), dtype_to_storage_type(dtype_output)],
+        [
+            dtype_to_storage_type(dtype_input),
+            dtype_to_storage_type(dtype_output),
+        ],
     );
 
     output

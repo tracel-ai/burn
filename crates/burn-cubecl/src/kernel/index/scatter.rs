@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::{
@@ -7,6 +6,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::{prelude::*, std::FastDivmod};
 
@@ -106,7 +106,10 @@ pub(crate) fn scatter<R: CubeRuntime>(
             value.into_tensor_arg(),
             shape_divmod(&tensor),
             dim,
-            [dtype_to_storage_type(tensor_dtype), dtype_to_storage_type(indices_dtype)],
+            [
+                dtype_to_storage_type(tensor_dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     }
     tensor

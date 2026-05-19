@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_elem_type;
 use super::{
     codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, UnaryFuseArgs},
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
 use crate::engine::{codegen::ir::QuantSchemeFuse, scoring::Scoring};
+use burn_backend::cubecl::dtype_to_elem_type;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,

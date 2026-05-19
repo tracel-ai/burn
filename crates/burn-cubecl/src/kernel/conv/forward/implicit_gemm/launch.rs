@@ -1,5 +1,5 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
     convolution::{

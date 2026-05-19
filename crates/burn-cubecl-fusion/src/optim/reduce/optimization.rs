@@ -1,4 +1,3 @@
-use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use super::args::{
     FusedReduceInput, FusedReduceInputLaunch, FusedReduceOutput, FusedReduceOutputLaunch,
 };
@@ -19,6 +18,7 @@ use crate::{
     },
     optim::{elemwise::ElemwiseRunner, reduce::args::FusedReduceArgs},
 };
+use burn_backend::cubecl::{dtype_to_storage_type, elem_type_to_dtype};
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;

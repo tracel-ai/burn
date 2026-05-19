@@ -1,6 +1,6 @@
-use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use crate::CubeRuntime;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};

@@ -342,7 +342,10 @@ pub fn ctc_loss<R: CubeRuntime>(
         output.clone().into_tensor_arg(),
         blank as u32,
         max_l_prime as u32,
-        [dtype_to_storage_type(f_dtype), dtype_to_storage_type(i_dtype)],
+        [
+            dtype_to_storage_type(f_dtype),
+            dtype_to_storage_type(i_dtype),
+        ],
     );
 
     output
@@ -657,7 +660,10 @@ pub fn ctc_alpha_beta<R: CubeRuntime>(
         nll_out.clone().into_tensor_arg(),
         blank as u32,
         max_l_prime as u32,
-        [dtype_to_storage_type(f_dtype), dtype_to_storage_type(i_dtype)],
+        [
+            dtype_to_storage_type(f_dtype),
+            dtype_to_storage_type(i_dtype),
+        ],
     );
 
     (alpha_out, beta_out, nll_out)

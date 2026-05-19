@@ -1,9 +1,9 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::kernel::{
     AddOp, BinaryOp, BinaryOpFamily, OrOp,
     utils::{address_type, shape_divmod},
 };
 use crate::{CubeRuntime, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};
 
@@ -94,7 +94,10 @@ pub(crate) fn select_assign<R: CubeRuntime>(
         shape,
         working_units,
         axis,
-        [dtype_to_storage_type(tensor_dtype), dtype_to_storage_type(indices_dtype)],
+        [
+            dtype_to_storage_type(tensor_dtype),
+            dtype_to_storage_type(indices_dtype),
+        ],
     );
 
     tensor

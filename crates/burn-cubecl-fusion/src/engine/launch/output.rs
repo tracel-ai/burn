@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use super::{
     super::codegen::ir::FuseType, BlockPlan, HandleOutput, InputReference, LaunchPlan,
     NormalHandleInput, ReferenceSelection,
@@ -13,6 +12,7 @@ use crate::{
     },
     strides_dyn_rank,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_std::Shape;
@@ -501,7 +501,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         let dtype = tensor_global.dtype;
-        let size = tensor_global.shape.iter().product::<usize>() * dtype_to_storage_type(dtype).size();
+        let size =
+            tensor_global.shape.iter().product::<usize>() * dtype_to_storage_type(dtype).size();
 
         let handle = CubeFusionHandle {
             client: client.clone(),

@@ -1,4 +1,3 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::{into_contiguous_aligned, utils::address_type},
@@ -6,6 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use crate::{kernel::utils::decompose_linear, ops::numeric::empty_device_dtype};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     TensorMetadata,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},

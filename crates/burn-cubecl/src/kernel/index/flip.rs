@@ -1,10 +1,10 @@
-use burn_backend::cubecl::dtype_to_storage_type;
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use cubecl::{
     calculate_cube_count_elemwise,
@@ -92,7 +92,10 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             output.clone().into_linear_view(),
             shape,
             indices_sequence,
-            [dtype_to_storage_type(dtype_input), dtype_to_storage_type(dtype_bool)],
+            [
+                dtype_to_storage_type(dtype_input),
+                dtype_to_storage_type(dtype_bool),
+            ],
         )
     }
 
