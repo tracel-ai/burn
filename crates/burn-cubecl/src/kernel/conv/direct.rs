@@ -11,7 +11,7 @@ use burn_backend::{
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
+    calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearViewMut,
     tensor_vector_size_parallel,
 };
 use cubecl::{num_traits::Zero, std::FastDivmod};
@@ -36,7 +36,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     input: &Tensor<Vector<E, NIn>>,
     weight: &Tensor<Vector<E, NIn>>,
     bias: ComptimeOption<&[Vector<E, NOut>]>,
-    output: &mut LinearView<Vector<E, NOut>, ReadWrite>,
+    mut output: LinearViewMut<'_, Vector<E, NOut>>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod<u32>>,
     shape_out_c: FastDivmod<u32>,

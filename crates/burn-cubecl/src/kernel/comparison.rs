@@ -6,7 +6,11 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 
 #[cube]
 pub(crate) trait ComparisonOpFamily: 'static + Send + Sync {
@@ -82,9 +86,9 @@ impl<T: Numeric, N: Size> ComparisonOp<T, N> for LowerOp {
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_scalar_cmp<T: Numeric, Bool: Numeric, N: Size, O: ComparisonOpFamily>(
-    input: &LinearView<Vector<T, N>>,
+    input: LinearView<'_, Vector<T, N>>,
     scalar: InputScalar,
-    output: &mut LinearView<Vector<Bool, N>, ReadWrite>,
+    mut output: LinearViewMut<'_, Vector<Bool, N>>,
     #[define(T, Bool)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -102,9 +106,9 @@ pub(crate) fn kernel_scalar_cmp<T: Numeric, Bool: Numeric, N: Size, O: Compariso
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_cmp<T: Numeric, Bool: Numeric, N: Size, O: ComparisonOpFamily>(
-    lhs: &LinearView<Vector<T, N>>,
-    rhs: &LinearView<Vector<T, N>>,
-    out: &mut LinearView<Vector<Bool, N>, ReadWrite>,
+    lhs: LinearView<'_, Vector<T, N>>,
+    rhs: LinearView<'_, Vector<T, N>>,
+    mut out: LinearViewMut<'_, Vector<Bool, N>>,
     #[define(T, Bool)] _dtype: [StorageType; 2],
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
@@ -398,8 +402,8 @@ impl<F: Float, N: Size> PredicateOp<F, N> for IsInfOp {
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_predicate<F: Float, Bool: Numeric, N: Size, O: PredicateOpFamily>(
-    input: &LinearView<Vector<F, N>>,
-    output: &mut LinearView<Vector<Bool, N>, ReadWrite>,
+    input: LinearView<'_, Vector<F, N>>,
+    mut output: LinearViewMut<'_, Vector<Bool, N>>,
     #[define(F, Bool)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
