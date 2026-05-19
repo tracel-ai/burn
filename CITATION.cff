@@ -15,8 +15,8 @@ authors:
     email: "lagrange.guillaume.1@gmail.com"
   - name: "Burn Framework Contributors"
 title: "Burn"
-version: 0.14.0
-date-released: 2024-08-27
+version: 0.21.0
+date-released: 2026-05-07
 url: "https://burn.dev/"
 repository-code: "https://github.com/tracel-ai/burn"
 license:
