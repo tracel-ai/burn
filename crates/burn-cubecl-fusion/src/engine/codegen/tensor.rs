@@ -1,4 +1,4 @@
-use crate::engine::codegen::{DynElem, DynSize};
+use crate::engine::codegen::{DynElem, DynSize, DynVector};
 
 use cubecl::{ir::Type, prelude::*};
 use std::hash::Hash;
@@ -13,7 +13,7 @@ use std::hash::Hash;
 #[expand(derive(Clone))]
 pub struct GlobalTensor {
     /// The global tensor type.
-    pub tensor: OwnedTensor<Vector<DynElem, DynSize>>,
+    pub tensor: OwnedTensor<DynVector>,
     /// The element type of the tensor.
     #[cube(comptime)]
     pub ty: Type,
@@ -33,7 +33,7 @@ pub struct GlobalTensorCompilationArg {
 
 #[derive(new, Debug)]
 pub struct GlobalTensorArg<R: Runtime> {
-    pub tensor: <OwnedTensor<Vector<DynElem, DynSize>> as LaunchArg>::RuntimeArg<R>,
+    pub tensor: <OwnedTensor<DynVector> as LaunchArg>::RuntimeArg<R>,
     pub ty: Type,
     pub broadcasted: bool,
     pub address_type: AddressType,
@@ -47,19 +47,8 @@ impl LaunchArg for GlobalTensor {
         arg: Self::RuntimeArg<R>,
         launcher: &mut KernelLauncher<R>,
     ) -> Self::CompilationArg {
-        let meta_arg = TensorMetaLaunch::new(arg.tensor.size(), arg.tensor.shape().len());
-        let inplace = match arg.tensor {
-            TensorArg::Handle { .. } => None,
-            TensorArg::Alias { input_pos, .. } => Some(input_pos as u32),
-        };
-        launcher.register_tensor(arg.tensor, arg.ty);
-        let meta = TensorMeta::register(meta_arg, launcher);
-
-        let tensor = TensorCompilationArg {
-            buffer: BufferCompilationArg { inplace },
-            meta,
-        };
-
+        launcher.with_scope(|scope| set_polyfill::expand::<DynElem, DynSize>(scope, arg.ty));
+        let tensor = OwnedTensor::<DynVector>::register(arg.tensor, launcher);
         GlobalTensorCompilationArg {
             tensor,
             ty: arg.ty,
@@ -68,6 +57,7 @@ impl LaunchArg for GlobalTensor {
     }
 
     fn expand(arg: &Self::CompilationArg, builder: &mut KernelBuilder) -> GlobalTensorExpand {
+        set_polyfill::expand::<DynElem, DynSize>(&builder.scope, arg.ty);
         let tensor = OwnedTensor::expand(&arg.tensor, builder);
         GlobalTensorExpand {
             tensor,

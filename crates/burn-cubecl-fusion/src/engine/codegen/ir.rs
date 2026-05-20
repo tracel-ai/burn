@@ -1,5 +1,5 @@
 use super::tensor::GlobalTensor;
-use crate::engine::codegen::{DynElem, DynSize};
+use crate::engine::codegen::{DynElem, DynSize, DynVector};
 use burn_std::{
     BoolStore, DType, Shape, Strides, bf16, f16,
     quantization::{QuantScheme, QuantStore, QuantValue},
@@ -350,7 +350,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 #[derive(CubeType, Default, Clone)]
 #[expand(derive(Clone))]
 pub struct MultiBlockVariables {
-    variables: Registry<usize, Registry<usize, RuntimeCell<Vector<DynElem, DynSize>>>>,
+    variables: Registry<usize, Registry<usize, RuntimeCell<DynVector>>>,
 }
 
 #[cube]
@@ -361,10 +361,11 @@ impl MultiBlockVariables {
     ///
     /// The type of [`NumericExpand<DYN_ELEM_ID>`] must be set before calling this function.
     pub fn init(&mut self, #[comptime] key: MultiBlockPos) {
-        let mut registers = Registry::<
-            usize,
-            Registry<usize, RuntimeCell<Vector<DynElem, DynSize>>>,
-        >::find_or_default::<usize>(&mut self.variables, key.block_pos);
+        let mut registers =
+            Registry::<usize, Registry<usize, RuntimeCell<DynVector>>>::find_or_default::<usize>(
+                &mut self.variables,
+                key.block_pos,
+            );
         let cell = RuntimeCell::new(Vector::empty());
         registers.insert(key.block_local_pos, cell);
     }
@@ -374,7 +375,7 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The variable must be initialized.
-    pub fn read(&self, #[comptime] key: MultiBlockPos) -> Vector<DynElem, DynSize> {
+    pub fn read(&self, #[comptime] key: MultiBlockPos) -> DynVector {
         let registers = self.variables.find(key.block_pos);
         let cell = registers.find(key.block_local_pos);
         cell.read()
@@ -385,7 +386,7 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The variable must be initialized.
-    pub fn write(&mut self, #[comptime] key: MultiBlockPos, value: Vector<DynElem, DynSize>) {
+    pub fn write(&mut self, #[comptime] key: MultiBlockPos, value: DynVector) {
         let registers = self.variables.find(key.block_pos);
         // Try find for local(visibility) registers.
         let cell = registers.find(key.block_local_pos);
