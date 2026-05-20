@@ -3259,7 +3259,7 @@ fn display_fmt_impl(
         write!(f, "{acc}")?;
         writeln!(f, ",")?;
     }
-    writeln!(f, "  shape:  {:?},", primitive.shape())?;
+    writeln!(f, "  shape:  {},", primitive.shape())?;
     let device = match kind {
         crate::ops::TensorKindId::Float => {
             <crate::Float as crate::ops::BasicOps>::device(primitive)
