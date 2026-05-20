@@ -15,7 +15,7 @@ type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
 // Aligned, type-erased storage for `AutodiffGradients`. See `crate::macros`
 // for why this indirection exists.
 #[cfg(feature = "autodiff")]
-obfuscate_type!(gradients_blob, AutodiffGradients);
+obfuscate_type!(gradients_blob, AutodiffGradients, Send);
 
 /// Gradients container used during the backward pass.
 #[cfg(feature = "autodiff")]

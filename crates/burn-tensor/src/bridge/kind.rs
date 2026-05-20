@@ -83,7 +83,7 @@ pub struct BridgeTensor {
 // Aligned, type-erased storage for `BridgeTensorVariant`. See `crate::macros`
 // for why this indirection exists (it keeps the dispatch type tree out of
 // downstream MIR).
-obfuscate_type!(bridge_blob, BridgeTensorVariant);
+obfuscate_type!(bridge_blob, BridgeTensorVariant, Send, Sync);
 
 impl core::fmt::Debug for BridgeTensor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

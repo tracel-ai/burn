@@ -7,21 +7,31 @@
 //! downstream crates to monomorphize and resolve the full cubecl-backed type
 //! tree just to use a `Device` or `Tensor`.
 //!
-//! The previous incarnation stored the bytes in a `[u8; size_of::<Inner>()]`
-//! field with no alignment marker, which is UB the moment the wrapper is
-//! placed in a context that doesn't happen to land at an
-//! `align_of::<Inner>()`-aligned address. This macro fixes that by giving the
-//! blob `#[repr(align(64))]` and verifying at compile time that the inner
-//! type's alignment requirement fits.
+//! The storage is inline — no heap allocation — and uses an array of
+//! pointer-sized cells (`*mut ()`) so that any pointers owned by the inner
+//! value keep their Miri/Tree-Borrows provenance through the round trip. A
+//! plain `[u8; size_of::<Inner>()]` would strip pointer provenance on read,
+//! which manifested as a "dangling pointer with no provenance" UB when the
+//! inner value owned an `Arc`/`Box`/etc.
 //!
-//! 64 is overkill for everything we currently store (max alignment is `usize`
-//! ⇒ 8 on 64-bit targets), but it's also the typical cache-line size and gives
-//! us a comfortable safety margin without measurable code-size impact. If a
-//! future inner type needs more, the static assert below fires at compile
-//! time so the choice is easy to revisit.
+//! Alignment is handled by `#[repr(C, align(64))]` on the blob struct. 64 is
+//! overkill for everything we currently store (max alignment is `usize` ⇒ 8
+//! on 64-bit targets), but it's also the typical cache-line size and gives
+//! us a comfortable safety margin. If a future inner type needs more, the
+//! static assert below fires at compile time so the choice is easy to
+//! revisit.
+//!
+//! Auto-traits are opt-in: the macro accepts a trailing list of `Send` /
+//! `Sync` tokens, and emits an impl only for each one requested. Earlier
+//! versions forwarded these from `$inner` via `where`-bounded `unsafe
+//! impl`s, but the bounds were evaluated eagerly on the concrete `$inner`
+//! and produced compile errors for types that are `!Sync` (e.g.
+//! `AutodiffGradients`, which transitively holds `Box<dyn Any + Send>`).
+//! Forcing the caller to opt in keeps the soundness decision visible at the
+//! use site.
 
 /// Define a private module that stores a value of `$inner` inside an
-/// alignment-correct, type-erased byte blob.
+/// alignment-correct, type-erased pointer-cell blob.
 ///
 /// The generated module exposes one public-to-the-parent type, `Blob`, with
 /// the following API:
@@ -38,7 +48,7 @@
 /// // Drop runs `$inner`'s destructor exactly once.
 /// ```
 ///
-/// The blob carries `#[repr(align(64))]`, and the macro emits a `const`
+/// The blob carries `#[repr(C, align(64))]`, and the macro emits a `const`
 /// assertion that `align_of::<$inner>() <= 64`. If the assertion fails the
 /// crate won't compile — bump both the `repr(align(...))` and the constant
 /// here together.
@@ -53,22 +63,31 @@
 /// # Example
 ///
 /// ```ignore
+/// // No auto-traits — Blob is !Send + !Sync, caller decides.
 /// obfuscate_type!(my_blob, MyInner);
-/// // …
-/// let b = my_blob::Blob::new(MyInner { … });
-/// let r: &MyInner = b.as_ref();
-/// let v: MyInner = b.into_inner();
+///
+/// // Opt in to Send + Sync on the generated `Blob`.
+/// obfuscate_type!(my_blob, MyInner, Send, Sync);
 /// ```
+///
+/// Only `Send` and `Sync` are recognised in the trailing list; any other
+/// identifier is a compile error. Both are emitted as `unsafe impl`s without
+/// a bound — opting in is an assertion by the caller that `$inner` actually
+/// satisfies the marker.
 macro_rules! obfuscate_type {
-    ($mod_name:ident, $inner:ty) => {
+    ($mod_name:ident, $inner:ty $(, $extra:ident)* $(,)?) => {
         mod $mod_name {
             // Bring the parent's items (incl. `$inner`'s path) into scope.
             #[allow(unused_imports)]
             use super::*;
 
-            type Inner = ::core::mem::MaybeUninit<$inner>;
+            const SIZE: usize = ::core::mem::size_of::<$inner>();
+            const SLOT: usize = ::core::mem::size_of::<*mut ()>();
 
-            const SIZE: usize = ::core::mem::size_of::<Inner>();
+            /// Number of pointer-sized cells needed to cover `$inner`. Round
+            /// up; the extra bytes past `SIZE` are never read as part of the
+            /// inner value.
+            const SLOTS: usize = SIZE.div_ceil(SLOT);
 
             /// The hard cap this module guarantees. Must match the literal in
             /// `#[repr(align(...))]` below — keep them in sync if you change one.
@@ -78,22 +97,38 @@ macro_rules! obfuscate_type {
             // Without this the casts in `as_ref`/`as_mut`/`Drop` would be UB
             // for inner types with alignment > MAX_ALIGN.
             const _: () = assert!(
-                ::core::mem::align_of::<Inner>() <= MAX_ALIGN,
+                ::core::mem::align_of::<$inner>() <= MAX_ALIGN,
                 "obfuscate_type: inner type's alignment exceeds blob alignment (64). \
                  Increase `MAX_ALIGN` and the matching `#[repr(align(...))]`.",
             );
 
             /// Aligned, opaque storage for one `$inner` value.
             ///
-            /// `#[repr(align(64))]` on the struct (which contains a single
-            /// `[u8; SIZE]` field at offset 0) guarantees the byte array is
+            /// `#[repr(C, align(64))]` guarantees the start of `data` is
             /// 64-byte aligned, which dominates `align_of::<$inner>()` per
             /// the static assertion above. That makes the
-            /// `*const _ as *const Inner` cast in the methods sound.
-            #[repr(align(64))]
+            /// `*const _ as *const $inner` cast in the methods sound.
+            ///
+            /// Cells are typed as pointer-sized `MaybeUninit<*mut ()>` cells
+            /// rather than `u8`: the `*mut ()` payload type lets pointers
+            /// owned by the inner value retain their provenance through
+            /// `ptr::write` → `ptr::read`, while `MaybeUninit` allows the
+            /// cells to legally hold uninitialised padding bytes (which
+            /// arise for enum types whose variants don't fill the whole
+            /// discriminant). Neither wrapper names `$inner`, so the
+            /// type-erasure goal is preserved.
+            #[repr(C, align(64))]
             pub(super) struct Blob {
-                bytes: [u8; SIZE],
+                data: [::core::mem::MaybeUninit<*mut ()>; SLOTS],
             }
+
+            // Opt-in trait impls. Each `$extra` token (one of `Send` or
+            // `Sync`) is dispatched to the helper macro below, which emits
+            // exactly that one impl. Unlisted traits are not implemented —
+            // `*mut ()` makes `Blob` `!Send + !Sync` by default.
+            $(
+                $crate::macros::obfuscate_type_impl!($extra);
+            )*
 
             // The macro exposes a uniform API (`new`/`as_ref`/`as_mut`/
             // `into_inner`) but not every use site needs every entry point —
@@ -104,56 +139,59 @@ macro_rules! obfuscate_type {
             impl Blob {
                 /// Wrap an `$inner` value in a fresh blob.
                 pub(super) fn new(inner: $inner) -> Self {
-                    let mut blob = Self { bytes: [0u8; SIZE] };
-                    // SAFETY: `bytes` is at offset 0 of a `#[repr(align(64))]`
-                    // struct, so its pointer is 64-byte aligned, which covers
-                    // any alignment `$inner` needs (checked by `MAX_ALIGN`
-                    // assert). The destination is exclusive (just allocated).
+                    let mut blob = Self {
+                        data: [::core::mem::MaybeUninit::uninit(); SLOTS],
+                    };
+                    // SAFETY: `data` is at a 64-byte-aligned offset of `Self`
+                    // (which itself has 64-byte alignment from `repr(align)`),
+                    // so the cast to `*mut $inner` is properly aligned. The
+                    // write covers exactly `SIZE` bytes, which is `<= SLOTS *
+                    // SLOT` bytes of valid, exclusive storage.
                     unsafe {
-                        (blob.bytes.as_mut_ptr() as *mut Inner)
-                            .write(::core::mem::MaybeUninit::new(inner));
+                        (blob.data.as_mut_ptr() as *mut $inner).write(inner);
                     }
                     blob
                 }
 
                 /// Borrow the wrapped value.
                 pub(super) fn as_ref(&self) -> &$inner {
-                    // SAFETY: alignment is guaranteed by the struct's
-                    // `repr(align(64))` + the MAX_ALIGN assertion. The bytes
-                    // were initialized in `new` and stay initialized until
-                    // `Drop`/`into_inner` consume them.
-                    let inner: &Inner = unsafe { &*(self.bytes.as_ptr() as *const Inner) };
-                    unsafe { inner.assume_init_ref() }
+                    // SAFETY: alignment is guaranteed by `repr(align(64))`
+                    // + the `MAX_ALIGN` assert. The bytes were initialized
+                    // in `new` and stay initialized until `Drop`/
+                    // `into_inner` consume them.
+                    unsafe { &*(self.data.as_ptr() as *const $inner) }
                 }
 
                 /// Mutably borrow the wrapped value.
                 pub(super) fn as_mut(&mut self) -> &mut $inner {
-                    // SAFETY: same as `as_ref`; `&mut self` gives exclusive access.
-                    let inner: &mut Inner =
-                        unsafe { &mut *(self.bytes.as_mut_ptr() as *mut Inner) };
-                    unsafe { inner.assume_init_mut() }
+                    // SAFETY: same as `as_ref`; `&mut self` gives exclusive
+                    // access.
+                    unsafe { &mut *(self.data.as_mut_ptr() as *mut $inner) }
                 }
 
                 /// Take ownership of the wrapped value, suppressing `Blob`'s
                 /// `Drop` so the inner value's destructor runs exactly once
                 /// (when the returned owner is dropped).
                 pub(super) fn into_inner(self) -> $inner {
-                    // SAFETY: read the bytes, then forget `self` to skip
-                    // our `Drop` (which would otherwise drop the value again).
-                    let inner: Inner =
-                        unsafe { ::core::ptr::read(self.bytes.as_ptr() as *const Inner) };
+                    // SAFETY: read the bytes through the correctly-typed
+                    // pointer, then forget `self` to skip our `Drop` (which
+                    // would otherwise drop the value again).
+                    let inner: $inner =
+                        unsafe { ::core::ptr::read(self.data.as_ptr() as *const $inner) };
                     ::core::mem::forget(self);
-                    unsafe { inner.assume_init() }
+                    inner
                 }
             }
 
-            impl Drop for Blob {
+            impl ::core::ops::Drop for Blob {
                 fn drop(&mut self) {
                     // SAFETY: see `as_ref`; running once per `Blob` since
                     // `into_inner` forgets `self` when it consumes the value.
-                    let inner: &mut Inner =
-                        unsafe { &mut *(self.bytes.as_mut_ptr() as *mut Inner) };
-                    unsafe { inner.assume_init_drop() };
+                    unsafe {
+                        ::core::ptr::drop_in_place(
+                            self.data.as_mut_ptr() as *mut $inner,
+                        );
+                    }
                 }
             }
         }
@@ -161,6 +199,28 @@ macro_rules! obfuscate_type {
 }
 
 pub(crate) use obfuscate_type;
+
+/// Dispatch a single trait token (one of `Send` or `Sync`) to its
+/// corresponding impl on the surrounding module's `Blob` type. Invoked
+/// indirectly by `obfuscate_type!` — not intended as a public entry point.
+///
+/// Unlisted trait names fail to match, which surfaces as a "no rules
+/// expected" macro error at the use site — exactly what we want for a typo
+/// like `Sned` or for an unsupported trait.
+macro_rules! obfuscate_type_impl {
+    (Send) => {
+        // SAFETY: caller of `obfuscate_type!` asserts that the inner type is
+        // safe to move across thread boundaries.
+        unsafe impl ::core::marker::Send for Blob {}
+    };
+    (Sync) => {
+        // SAFETY: caller of `obfuscate_type!` asserts that the inner type is
+        // safe to share across thread boundaries.
+        unsafe impl ::core::marker::Sync for Blob {}
+    };
+}
+
+pub(crate) use obfuscate_type_impl;
 
 #[cfg(test)]
 mod tests {

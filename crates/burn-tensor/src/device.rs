@@ -74,7 +74,7 @@ pub struct Device {
 // Aligned, type-erased storage for `DispatchDevice`. See `crate::macros` for
 // why this indirection exists (it keeps the dispatch type tree out of
 // downstream MIR).
-obfuscate_type!(device_blob, DispatchDevice);
+obfuscate_type!(device_blob, DispatchDevice, Send, Sync);
 
 impl Clone for Device {
     fn clone(&self) -> Self {
