@@ -25,8 +25,8 @@ impl ModuleMapper for Quantizer {
 
 #[cfg(all(test, not(feature = "tch")))]
 mod tests {
-    use crate::test_device;
     use crate::module::{Module, Quantizer};
+    use crate::test_device;
     use crate::test_utils::SimpleLinear;
     use burn_tensor::{
         Tolerance,

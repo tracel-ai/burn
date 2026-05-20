@@ -491,9 +491,9 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
 mod tests {
     use super::*;
     use crate::{
-        test_device,
         module::Module,
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
+        test_device,
     };
 
     #[test]

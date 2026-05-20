@@ -369,8 +369,8 @@ mod tests {
     #[test]
     fn tensor_load_record_setting() {
         use crate::{
-            test_device,
             record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
+            test_device,
         };
         use burn_tensor::Tensor;
 
