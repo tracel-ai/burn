@@ -232,7 +232,9 @@ impl Drop for TuiMetricsRendererWrapper {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             self.send_event(TuiRendererEvent::Close);
-            let _ = self.handle_join.take().unwrap().join();
+            if let Some(handle) = self.handle_join.take() {
+                let _ = handle.join();
+            }
         }
     }
 }

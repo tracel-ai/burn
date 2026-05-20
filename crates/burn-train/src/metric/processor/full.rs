@@ -254,6 +254,11 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 }
                 self.metrics.end_epoch_train();
             }
+            LearnerEvent::EndEpoch(epoch) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.update_epoch(epoch);
+                }
+            }
             LearnerEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end();
@@ -309,14 +314,13 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                         epoch,
                         Split::Valid,
                     )));
-                // EndSplit on the valid split marks the end of the full epoch.
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_split();
-                    logger.update_epoch(epoch);
                 }
                 self.metrics.end_epoch_valid();
             }
-            LearnerEvent::End(_) => {} // no-op
+            LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)
+            LearnerEvent::End(_) => {}      // no-op
         }
     }
     fn renderer(self) -> Box<dyn MetricsRenderer> {

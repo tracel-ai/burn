@@ -94,6 +94,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDevic
                 &training_components.interrupter,
             );
             event_processor.process_valid(LearnerEvent::EndSplit(epoch));
+            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);

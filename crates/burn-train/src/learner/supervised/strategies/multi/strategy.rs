@@ -1,6 +1,7 @@
 use crate::{
-    Learner, LearningComponentsTypes, MultiDeviceOptim, SupervisedLearningStrategy,
+    Learner, LearnerEvent, LearningComponentsTypes, MultiDeviceOptim, SupervisedLearningStrategy,
     SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, TrainingModel, ValidLoader,
+    metric::processor::EventProcessorTraining,
     multi::epoch::MultiDeviceTrainEpoch,
     single::{TrainingLoop, epoch::SingleDeviceValidEpoch},
 };
@@ -77,6 +78,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MultiDevice
                 &mut event_processor,
                 &training_components.interrupter,
             );
+            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);

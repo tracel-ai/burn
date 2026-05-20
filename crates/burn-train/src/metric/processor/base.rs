@@ -18,9 +18,9 @@ pub enum LearnerEvent<T> {
     /// Signal the start of a split (train or valid), carrying the total number of items in that split.
     StartSplit(usize),
     /// Signal the end of a split (train or valid), carrying the current epoch number.
-    ///
-    /// When emitted on the valid split, this also marks the end of the epoch.
     EndSplit(usize),
+    /// Signal the end of a full epoch (after both train and valid splits have completed).
+    EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
     End(Option<LearnerSummary>),
 }
