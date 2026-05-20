@@ -160,10 +160,9 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// # Example
     ///
     /// ```no_run
-    /// use burn_train::logger::FileProgressLogger;
-    ///
+    /// # struct MyTrainingProgressLogger;
     /// let learner = SupervisedTraining::new(...)
-    ///     .with_progress_logger(FileProgressLogger::new("progress.log"));
+    ///     .with_progress_logger(MyTrainingProgressLogger);
     /// ```
     pub fn with_progress_logger<PL>(mut self, logger: PL) -> Self
     where
