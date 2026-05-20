@@ -352,10 +352,15 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        // Must evaluate `into_ir()` on the frontend thread. If evaluated inside
+        // the closure (server thread), a cross-stream tensor will trigger `shared_view` ->
+        // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
+        let stream = tensor.stream;
+        let tensor = tensor.into_ir();
         self.server
             .submit_blocking(move |server| {
-                server.drain_stream(tensor.stream);
-                server.resolve_server_float::<B>(&tensor.into_ir())
+                server.drain_stream(stream);
+                server.resolve_server_float::<B>(&tensor)
             })
             .unwrap()
     }
@@ -365,10 +370,15 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        // Must evaluate `into_ir()` on the frontend thread. If evaluated inside
+        // the closure (server thread), a cross-stream tensor will trigger `shared_view` ->
+        // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
+        let stream = tensor.stream;
+        let tensor = tensor.into_ir();
         self.server
             .submit_blocking(move |server| {
-                server.drain_stream(tensor.stream);
-                server.resolve_server_int::<B>(&tensor.into_ir())
+                server.drain_stream(stream);
+                server.resolve_server_int::<B>(&tensor)
             })
             .unwrap()
     }
@@ -378,10 +388,15 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
+        // Must evaluate `into_ir()` on the frontend thread. If evaluated inside
+        // the closure (server thread), a cross-stream tensor will trigger `shared_view` ->
+        // `submit_blocking`, causing a fatal channel re-entrancy panic (`BorrowMutError`).
+        let stream = tensor.stream;
+        let tensor = tensor.into_ir();
         self.server
             .submit_blocking(move |server| {
-                server.drain_stream(tensor.stream);
-                server.resolve_server_bool::<B>(&tensor.into_ir())
+                server.drain_stream(stream);
+                server.resolve_server_bool::<B>(&tensor)
             })
             .unwrap()
     }
