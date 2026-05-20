@@ -36,8 +36,15 @@ impl FileTrainingProgressLogger {
     }
 
     fn write(&mut self, line: &str) {
-        let _ = writeln!(self.writer, "{line}");
-        let _ = self.writer.flush();
+        if let Err(e) = writeln!(self.writer, "{line}") {
+            log::warn!("FileTrainingProgressLogger write error: {e}");
+        }
+    }
+
+    fn flush(&mut self) {
+        if let Err(e) = self.writer.flush() {
+            log::warn!("FileTrainingProgressLogger flush error: {e}");
+        }
     }
 }
 
@@ -69,10 +76,12 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 
     fn end_split(&mut self) {
         self.write("[Training] split_end");
+        self.flush();
     }
 
     fn end(&mut self) {
         self.write("[Training] end");
+        self.flush();
     }
 }
 
@@ -106,8 +115,15 @@ impl FileEvaluationProgressLogger {
     }
 
     fn write(&mut self, line: &str) {
-        let _ = writeln!(self.writer, "{line}");
-        let _ = self.writer.flush();
+        if let Err(e) = writeln!(self.writer, "{line}") {
+            log::warn!("FileEvaluationProgressLogger write error: {e}");
+        }
+    }
+
+    fn flush(&mut self) {
+        if let Err(e) = self.writer.flush() {
+            log::warn!("FileEvaluationProgressLogger flush error: {e}");
+        }
     }
 }
 
@@ -130,9 +146,11 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
 
     fn end_test(&mut self) {
         self.write("[Evaluation] test_end");
+        self.flush();
     }
 
     fn end(&mut self) {
         self.write("[Evaluation] end");
+        self.flush();
     }
 }

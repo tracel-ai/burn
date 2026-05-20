@@ -125,12 +125,11 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
     /// Register a progress logger to track and store evaluation progress.
     ///
     /// # Example
-    ///
-    /// ```no_run
-    /// use burn_train::logger::FileProgressLogger;
-    ///
+    /// ```ignore
+    /// // `MyEvaluationProgressLogger` is a user-defined type that implements
+    /// // `burn_train::logger::EvaluationProgressLogger`.
     /// let evaluator = EvaluatorBuilder::new(...)
-    ///     .with_progress_logger(FileProgressLogger::new("eval_progress.log"));
+    ///     .with_progress_logger(MyEvaluationProgressLogger);
     /// ```
     pub fn with_progress_logger<PL>(mut self, logger: PL) -> Self
     where
