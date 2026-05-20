@@ -14,11 +14,17 @@ use burn::tensor::ops::InterpolateMode as OpsInterpolateMode;
 /// This enum defines different interpolation modes for resampling data.
 #[derive(Config, Debug)]
 pub enum InterpolateMode {
-    /// Nearest-neighbor interpolation
+    /// Nearest-neighbor floor interpolation
+    ///
+    /// This mode selects the value with floor mapping to a sample point for each output pixel.
+    /// It is applicable for both temporal and spatial data.
+    Nearest,
+
+    /// Nearest-neighbor exact interpolation
     ///
     /// This mode selects the value of the nearest sample point for each output pixel.
     /// It is applicable for both temporal and spatial data.
-    Nearest,
+    NearestExact,
 
     /// Linear interpolation
     ///
@@ -49,6 +55,7 @@ impl From<InterpolateMode> for OpsInterpolateMode {
     fn from(mode: InterpolateMode) -> Self {
         match mode {
             InterpolateMode::Nearest => OpsInterpolateMode::Nearest,
+            InterpolateMode::NearestExact => OpsInterpolateMode::NearestExact,
             InterpolateMode::Linear => OpsInterpolateMode::Bilinear,
             InterpolateMode::Cubic => OpsInterpolateMode::Bicubic,
             InterpolateMode::Lanczos => OpsInterpolateMode::Lanczos3,

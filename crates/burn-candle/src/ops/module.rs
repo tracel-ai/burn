@@ -294,6 +294,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
                 .tensor
                 .upsample_nearest2d(output_size[0], output_size[1])
                 .unwrap(),
+            InterpolateMode::NearestExact => {
+                panic!("nearest exact interpolation is not implemented in Candle backend")
+            }
             InterpolateMode::Bilinear => {
                 panic!("bilinear interpolation is not supported by Candle")
             }

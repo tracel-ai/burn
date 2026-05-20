@@ -203,12 +203,17 @@ impl UnfoldOptions {
     }
 }
 
-/// Algorithm used for upsampling.
+/// Algorithm used.
 #[derive(new, Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub enum InterpolateMode {
-    /// Nearest-neighbor interpolation.
+    /// Nearest-neighbor floor interpolation.
+    /// Matches the legacy behavior of OpenCV’s INTER_NEAREST. It results in a bottom-right shift when resizing.
     /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
     Nearest,
+
+    /// Nearest-neighbor exact interpolation.
+    /// <https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation>
+    NearestExact,
 
     /// Bilinear interpolation.
     /// <https://en.wikipedia.org/wiki/Bilinear_interpolation>
@@ -226,7 +231,7 @@ pub enum InterpolateMode {
 /// Interpolation options.
 #[derive(Debug, Clone)]
 pub struct InterpolateOptions {
-    /// Algorithm used for upsampling.
+    /// Algorithm used.
     pub mode: InterpolateMode,
     /// If `true`, the input and output tensors are aligned by their corner pixels.
     /// If `false`, half-pixel coordinate mapping is used instead.

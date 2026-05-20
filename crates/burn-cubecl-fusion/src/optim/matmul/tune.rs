@@ -139,7 +139,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
         for (selector, double_buf) in [
             (FusedMatmulSelector::SimpleVecMat, false),
             (FusedMatmulSelector::DoubleVecMat, true),
-            (FusedMatmulSelector::GemvPlaneParallel, false),
+            (FusedMatmulSelector::GemmNoStage, false),
             (FusedMatmulSelector::GemvUnitPerpendicular, false),
         ] {
             set = set.with(
