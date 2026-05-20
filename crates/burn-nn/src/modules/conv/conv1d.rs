@@ -108,9 +108,11 @@ impl Conv1dConfig {
         ];
 
         let fan_in: usize = self.channels_in / self.groups * self.kernel_size;
+        let fan_out = self.channels_out / self.groups * self.kernel_size;
+
         let weight = self
             .initializer
-            .init_with(shape, Some(fan_in), None, device);
+            .init_with(shape, Some(fan_in), Some(fan_out), device);
         let mut bias = None;
 
         if self.bias {
@@ -276,5 +278,18 @@ mod tests {
         // With symmetric padding (2, 2), input length 4 becomes 4+2+2=8
         // Output length = (8 - 3) / 1 + 1 = 6
         assert_eq!(output.dims(), [1, 3, 6]);
+    }
+
+    #[test]
+    fn initializer_fan_out() {
+        let device = Device::default();
+        device.seed(0);
+
+        let init = Initializer::XavierUniform { gain: 1.0 };
+
+        let config = Conv1dConfig::new(2, 2, 1).with_initializer(init.clone());
+        let c = config.init(&device);
+
+        let _ = c.weight.val();
     }
 }
