@@ -1,6 +1,6 @@
 use std::{
     fs::{File, OpenOptions},
-    io::{BufWriter, Write},
+    io::Write,
     path::Path,
 };
 
@@ -23,27 +23,19 @@ use burn::train::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 ///     );
 /// ```
 pub struct FileTrainingProgressLogger {
-    writer: BufWriter<File>,
+    writer: File,
 }
 
 impl FileTrainingProgressLogger {
     /// Opens (or creates) the file at `path` in append mode.
     pub fn new(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
-        Ok(Self {
-            writer: BufWriter::new(file),
-        })
+        Ok(Self { writer: file })
     }
 
     fn write(&mut self, line: &str) {
         if let Err(e) = writeln!(self.writer, "{line}") {
             log::warn!("FileTrainingProgressLogger write error: {e}");
-        }
-    }
-
-    fn flush(&mut self) {
-        if let Err(e) = self.writer.flush() {
-            log::warn!("FileTrainingProgressLogger flush error: {e}");
         }
     }
 }
@@ -62,7 +54,7 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
         self.write(&format!("[Training] epoch_complete  epoch={epoch}"));
     }
 
-    fn start_split(&mut self, split: String, total_items: usize) {
+    fn start_split(&mut self, split: &str, total_items: usize) {
         self.write(&format!(
             "[Training] split_start  split={split} total_items={total_items}"
         ));
@@ -76,12 +68,10 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 
     fn end_split(&mut self) {
         self.write("[Training] split_end");
-        self.flush();
     }
 
     fn end(&mut self) {
         self.write("[Training] end");
-        self.flush();
     }
 }
 
@@ -102,27 +92,19 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 ///     );
 /// ```
 pub struct FileEvaluationProgressLogger {
-    writer: BufWriter<File>,
+    writer: File,
 }
 
 impl FileEvaluationProgressLogger {
     /// Opens (or creates) the file at `path` in append mode.
     pub fn new(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
-        Ok(Self {
-            writer: BufWriter::new(file),
-        })
+        Ok(Self { writer: file })
     }
 
     fn write(&mut self, line: &str) {
         if let Err(e) = writeln!(self.writer, "{line}") {
             log::warn!("FileEvaluationProgressLogger write error: {e}");
-        }
-    }
-
-    fn flush(&mut self) {
-        if let Err(e) = self.writer.flush() {
-            log::warn!("FileEvaluationProgressLogger flush error: {e}");
         }
     }
 }
@@ -132,7 +114,7 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
         self.write(&format!("[Evaluation] start  total_tests={total_tests}"));
     }
 
-    fn start_test(&mut self, name: String, total_items: usize) {
+    fn start_test(&mut self, name: &str, total_items: usize) {
         self.write(&format!(
             "[Evaluation] test_start  name={name} total_items={total_items}"
         ));
@@ -146,11 +128,9 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
 
     fn end_test(&mut self) {
         self.write("[Evaluation] test_end");
-        self.flush();
     }
 
     fn end(&mut self) {
         self.write("[Evaluation] end");
-        self.flush();
     }
 }

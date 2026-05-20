@@ -47,7 +47,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::StartSplit(total_items) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("train".to_string(), total_items);
+                    logger.start_split("train", total_items);
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
@@ -91,7 +91,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             LearnerEvent::Start { .. } => {} // no-op
             LearnerEvent::StartSplit(total_items) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("valid".to_string(), total_items);
+                    logger.start_split("valid", total_items);
                 }
             }
             LearnerEvent::ProcessedItem(item) => {

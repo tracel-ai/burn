@@ -30,7 +30,7 @@ pub trait TrainingProgressLogger: Send {
     fn update_epoch(&mut self, epoch: usize);
 
     /// Called at the start of a training split, providing the split name and total number of items.
-    fn start_split(&mut self, split: String, total_items: usize);
+    fn start_split(&mut self, split: &str, total_items: usize);
 
     /// Log the progress of the current training step.
     fn update_split(&mut self, items_processed: usize);
@@ -64,7 +64,7 @@ pub trait EvaluationProgressLogger: Send {
     fn start(&mut self, total_tests: usize);
 
     /// Called at the start of a test split, providing the split name and total number of items.
-    fn start_test(&mut self, name: String, total_items: usize);
+    fn start_test(&mut self, name: &str, total_items: usize);
 
     /// Log the progress of the current test step.
     fn update_test(&mut self, items_processed: usize);

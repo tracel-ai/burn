@@ -134,7 +134,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
             }
             EvaluatorEvent::StartTest(name, total_items) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_test(name.as_str().to_string(), total_items);
+                    logger.start_test(name.as_str(), total_items);
                 }
             }
             EvaluatorEvent::ProcessedItem(name, item) => {
@@ -208,7 +208,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::StartSplit(total_items) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("train".to_string(), total_items);
+                    logger.start_split("train", total_items);
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
@@ -273,7 +273,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
             LearnerEvent::StartSplit(total_items) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("valid".to_string(), total_items);
+                    logger.start_split("valid", total_items);
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
