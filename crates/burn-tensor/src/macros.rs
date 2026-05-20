@@ -104,9 +104,7 @@ macro_rules! obfuscate_type {
             impl Blob {
                 /// Wrap an `$inner` value in a fresh blob.
                 pub(super) fn new(inner: $inner) -> Self {
-                    let mut blob = Self {
-                        bytes: [0u8; SIZE],
-                    };
+                    let mut blob = Self { bytes: [0u8; SIZE] };
                     // SAFETY: `bytes` is at offset 0 of a `#[repr(align(64))]`
                     // struct, so its pointer is 64-byte aligned, which covers
                     // any alignment `$inner` needs (checked by `MAX_ALIGN`
@@ -185,7 +183,10 @@ mod tests {
 
     #[test]
     fn pod_round_trip() {
-        let value = Pod { a: 0xDEAD_BEEF, b: 7 };
+        let value = Pod {
+            a: 0xDEAD_BEEF,
+            b: 7,
+        };
         let blob = pod_blob::Blob::new(value.clone());
         assert_eq!(blob.as_ref(), &value);
         assert_eq!(blob.into_inner(), value);
@@ -256,9 +257,7 @@ mod tests {
 
     #[test]
     fn high_alignment_inner_works() {
-        let value = HighAlign {
-            data: [1, 2, 3, 4],
-        };
+        let value = HighAlign { data: [1, 2, 3, 4] };
         let blob = high_align_blob::Blob::new(value.clone());
         // The wrapped reference must itself be properly aligned for
         // `HighAlign`, otherwise reading any of its fields is UB.
