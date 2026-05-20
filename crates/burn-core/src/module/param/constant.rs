@@ -372,7 +372,7 @@ mod tests {
             test_device,
             record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         };
-        use burn_tensor::{Device, Tensor};
+        use burn_tensor::Tensor;
 
         let device = &test_device().autodiff();
         let tensor = Tensor::<2>::ones([3, 3], device);

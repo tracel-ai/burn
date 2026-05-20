@@ -68,21 +68,18 @@ mod tests {
 
         #[cfg(all(test, not(feature = "tch"), not(feature = "cuda")))]
         // Only one device exists...
-        let (device1, device2) = (
-            Device::new(burn_tensor::FlexDevice),
-            Device::new(burn_tensor::FlexDevice),
-        );
+        let (device1, device2) = (Device::flex(), Device::flex());
 
         #[cfg(all(test, feature = "tch"))]
         let (device1, device2) = (
-            Device::new(burn_tensor::LibTorchDevice::Cuda(0)),
-            Device::new(burn_tensor::LibTorchDevice::Cuda(1)),
+            Device::libtorch_cuda(burn_tensor::DeviceIndex::new(0usize)),
+            Device::libtorch_cuda(burn_tensor::DeviceIndex::new(1usize)),
         );
 
         #[cfg(all(test, feature = "cuda"))]
         let (device1, device2) = (
-            Device::new(burn_tensor::CudaDevice::new(0)),
-            Device::new(burn_tensor::CudaDevice::new(1)),
+            Device::cuda(burn_tensor::DeviceIndex::new(0usize)),
+            Device::cuda(burn_tensor::DeviceIndex::new(1usize)),
         );
 
         let dataloaders = split_dataloader(dataloader.clone(), &[device1.clone(), device2.clone()]);
