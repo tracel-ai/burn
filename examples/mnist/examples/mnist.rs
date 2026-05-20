@@ -9,7 +9,7 @@ fn select_device() -> Device {
     return Device::flex();
 
     #[cfg(all(feature = "tch-gpu", not(target_os = "macos")))]
-    return Device::libtorch_cuda(0);
+    return Device::libtorch_cuda(burn::tensor::DeviceIndex::Default);
 
     #[cfg(all(feature = "tch-gpu", target_os = "macos"))]
     return Device::libtorch_mps();

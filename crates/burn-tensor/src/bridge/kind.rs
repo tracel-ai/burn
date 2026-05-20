@@ -1,8 +1,8 @@
-use std::mem::MaybeUninit;
-
 use alloc::vec::Vec;
 use burn_backend::{TensorMetadata, TensorPrimitive};
 use burn_dispatch::{Dispatch, DispatchTensor};
+
+use crate::macros::obfuscate_type;
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -77,8 +77,13 @@ impl TensorKindId {
 /// separation keeps tensor kind tracking out of the backends while avoiding
 /// exposure of backend-level primitives in the public API.
 pub struct BridgeTensor {
-    blob: Blob,
+    blob: bridge_blob::Blob,
 }
+
+// Aligned, type-erased storage for `BridgeTensorVariant`. See `crate::macros`
+// for why this indirection exists (it keeps the dispatch type tree out of
+// downstream MIR).
+obfuscate_type!(bridge_blob, BridgeTensorVariant);
 
 impl core::fmt::Debug for BridgeTensor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -88,59 +93,25 @@ impl core::fmt::Debug for BridgeTensor {
     }
 }
 
-type InnerType = MaybeUninit<BridgeTensorVariant>;
-
-/// Storage for [`BridgeTensor`]. Holds the raw bytes of an [`InnerType`].
-///
-/// The struct intentionally does **not** carry a type-level alignment marker
-/// (e.g. `_align: [InnerType; 0]`), because that would re-introduce a
-/// type-system dependency on `burn_dispatch` and undermine the compile-time
-/// goal of the blob obfuscation. Alignment must therefore be handled at the
-/// access sites (TODO: bring back proper alignment without leaking the type).
-struct Blob {
-    bytes: [u8; size_of::<InnerType>()],
-}
-
 impl Clone for BridgeTensor {
     fn clone(&self) -> Self {
-        let inner = self.as_variant().clone();
-        Self::new(inner)
-    }
-}
-
-impl Drop for BridgeTensor {
-    fn drop(&mut self) {
-        unsafe {
-            let inner: &mut InnerType = &mut *(self.blob.bytes.as_mut_ptr() as *mut InnerType);
-            inner.assume_init_drop();
-        }
+        Self::new(self.as_variant().clone())
     }
 }
 
 impl BridgeTensor {
     fn as_variant(&self) -> &BridgeTensorVariant {
-        unsafe {
-            let tensor: &InnerType = &*(self.blob.bytes.as_ptr() as *const InnerType);
-            tensor.assume_init_ref()
-        }
+        self.blob.as_ref()
     }
-    fn into_variant(mut self) -> BridgeTensorVariant {
-        unsafe {
-            let inner: InnerType =
-                core::ptr::read(self.blob.bytes.as_mut_ptr() as *const InnerType);
-            core::mem::forget(self);
-            inner.assume_init()
-        }
+
+    fn into_variant(self) -> BridgeTensorVariant {
+        self.blob.into_inner()
     }
+
     fn new(inner: BridgeTensorVariant) -> Self {
-        let mut blob = Blob {
-            bytes: [0u8; size_of::<InnerType>()],
-        };
-        unsafe {
-            let dst = blob.bytes.as_mut_ptr() as *mut InnerType;
-            dst.write(MaybeUninit::new(inner));
+        Self {
+            blob: bridge_blob::Blob::new(inner),
         }
-        Self { blob }
     }
 }
 

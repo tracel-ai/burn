@@ -164,7 +164,7 @@ impl BasicOps for Bool {
     }
 
     fn device(tensor: &BridgeTensor) -> Device {
-        Device::from_dispatch(Dispatch::bool_device(tensor.as_dispatch()))
+        Device::new(Dispatch::bool_device(tensor.as_dispatch()))
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {

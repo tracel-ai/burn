@@ -1,78 +1,45 @@
 use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
+use crate::macros::obfuscate_type;
+#[cfg(feature = "autodiff")]
 use crate::ops::BridgeTensor;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
-#[cfg(feature = "autodiff")]
-use core::mem::MaybeUninit;
 
 #[cfg(feature = "autodiff")]
 type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
-#[cfg(feature = "autodiff")]
-type GradientsInner = MaybeUninit<AutodiffGradients>;
 
-/// Storage for [`Gradients`]. Holds the raw bytes of the dispatch-level
-/// gradients container.
-///
-/// Intentionally has no type-level alignment marker (e.g.
-/// `[GradientsInner; 0]`), since that would re-introduce a `burn_dispatch`
-/// dependency in the type itself and undermine the compile-time goal of this
-/// obfuscation. Alignment must therefore be handled at access sites
-/// (TODO: bring back proper alignment without leaking the type).
+// Aligned, type-erased storage for `AutodiffGradients`. See `crate::macros`
+// for why this indirection exists.
 #[cfg(feature = "autodiff")]
-struct GradientsBlob {
-    bytes: [u8; size_of::<GradientsInner>()],
-}
+obfuscate_type!(gradients_blob, AutodiffGradients);
 
 /// Gradients container used during the backward pass.
 #[cfg(feature = "autodiff")]
 pub struct Gradients {
-    blob: GradientsBlob,
-}
-
-#[cfg(feature = "autodiff")]
-impl Drop for Gradients {
-    fn drop(&mut self) {
-        unsafe {
-            let inner: &mut GradientsInner =
-                &mut *(self.blob.bytes.as_mut_ptr() as *mut GradientsInner);
-            inner.assume_init_drop();
-        }
-    }
+    blob: gradients_blob::Blob,
 }
 
 #[cfg(feature = "autodiff")]
 impl Gradients {
     /// Crate-internal constructor wrapping the dispatch-level gradients.
     pub(crate) fn from_inner(inner: AutodiffGradients) -> Self {
-        let mut blob = GradientsBlob {
-            bytes: [0u8; size_of::<GradientsInner>()],
-        };
-        unsafe {
-            let dst = blob.bytes.as_mut_ptr() as *mut GradientsInner;
-            dst.write(MaybeUninit::new(inner));
+        Self {
+            blob: gradients_blob::Blob::new(inner),
         }
-        Self { blob }
     }
 
     /// Crate-internal borrow of the underlying gradients container.
     pub(crate) fn as_inner(&self) -> &AutodiffGradients {
-        unsafe {
-            let inner: &GradientsInner = &*(self.blob.bytes.as_ptr() as *const GradientsInner);
-            inner.assume_init_ref()
-        }
+        self.blob.as_ref()
     }
 
     /// Crate-internal mutable borrow of the underlying gradients container.
     pub(crate) fn as_inner_mut(&mut self) -> &mut AutodiffGradients {
-        unsafe {
-            let inner: &mut GradientsInner =
-                &mut *(self.blob.bytes.as_mut_ptr() as *mut GradientsInner);
-            inner.assume_init_mut()
-        }
+        self.blob.as_mut()
     }
 }
 

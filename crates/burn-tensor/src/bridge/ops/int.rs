@@ -149,7 +149,7 @@ impl BasicOps for Int {
     }
 
     fn device(tensor: &BridgeTensor) -> Device {
-        Device::from_dispatch(Dispatch::int_device(tensor.as_dispatch()))
+        Device::new(Dispatch::int_device(tensor.as_dispatch()))
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {

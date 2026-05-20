@@ -22,11 +22,11 @@ mod flex {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::tensor::Device;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = Device::libtorch_cuda(0);
+        let device = Device::libtorch_cuda(DeviceIndex::Default);
         #[cfg(target_os = "macos")]
         let device = Device::libtorch_mps();
 
