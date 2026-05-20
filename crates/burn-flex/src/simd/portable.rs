@@ -1283,7 +1283,7 @@ mod tests {
         // 9 elements for f64: 4 NEON iters + 1 tail (2 lanes), or 2 AVX2 iters + 1 tail (4 lanes)
         let n = 9;
         let tensor: Vec<f64> = (0..n).map(|i| i as f64).collect();
-        let value: Vec<f64> = (0..n).map(|i| (i as f64) * -1.0).collect();
+        let value: Vec<f64> = (0..n).map(|i| -(i as f64)).collect();
         let mask: Vec<u8> = (0..n).map(|i| (i % 2) as u8).collect();
         let mut out = vec![0.0f64; n];
         mask_where_f64(&tensor, &mask, &value, &mut out);

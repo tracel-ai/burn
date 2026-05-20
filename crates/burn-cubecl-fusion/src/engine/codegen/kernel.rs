@@ -78,7 +78,7 @@ pub fn fuse_on_read<E: Scalar, N: Size>(
     #[unroll]
     for i in 0..read_args.len() {
         let arg = comptime![read_args.index(i).clone()];
-        let value = read::<E, N>(inputs, outputs, locals, read_pos, arg, config);
+        let value = read::<E, N>(inputs, &*outputs, &*locals, read_pos, arg, config);
 
         output.push(value);
     }
@@ -100,8 +100,8 @@ pub fn init_locals(
     #[comptime] config: &FuseBlockConfig,
 ) -> LocalArgs {
     comment!("Init locals begin");
-    let mut ref_shape = Array::new(config.rank);
-    let mut ref_strides = Array::new(config.rank);
+    let mut ref_shape = Array::<usize>::new(config.rank);
+    let mut ref_strides = Array::<usize>::new(config.rank);
 
     let locals = match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
@@ -115,8 +115,8 @@ pub fn init_locals(
                 }
 
                 LocalArgs::new(
-                    ref_shape.to_slice(),
-                    ref_strides.to_slice(),
+                    ref_shape.as_slice(),
+                    ref_strides.as_slice(),
                     layout.tensor.vector_size(),
                 )
             }
@@ -130,8 +130,8 @@ pub fn init_locals(
                 }
 
                 LocalArgs::new(
-                    ref_shape.to_slice(),
-                    ref_strides.to_slice(),
+                    ref_shape.as_slice(),
+                    ref_strides.as_slice(),
                     layout.tensor.vector_size(),
                 )
             }
@@ -161,8 +161,8 @@ pub fn init_locals(
                 }
 
                 LocalArgs::new(
-                    ref_shape.to_slice(),
-                    ref_strides.to_slice(),
+                    ref_shape.as_slice(),
+                    ref_strides.as_slice(),
                     layout.tensor.vector_size(),
                 )
             }
@@ -186,7 +186,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), vector_size)
+                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
             VirtualLayout::Runtime { pos } => {
                 let start_shape = (pos * 2) * config.rank;
@@ -201,7 +201,7 @@ pub fn init_locals(
                     ref_strides[i] = *inputs.runtime_layouts.index(strides_index);
                 }
 
-                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), config.width)
+                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width)
             }
             VirtualLayout::Shape(original, vector_size) => {
                 let layout = match original.clone() {
@@ -223,7 +223,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), vector_size)
+                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
         },
     };
@@ -332,8 +332,8 @@ macro_rules! binary_op {
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let lhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.lhs, config);
-            let rhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.rhs, config);
+            let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+            let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
             let result = lhs $op rhs;
 
             write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -352,8 +352,8 @@ macro_rules! binary_func {
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let lhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.lhs, config);
-            let rhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.rhs, config);
+            let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+            let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
             let result = $func(lhs, rhs);
 
             write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -372,8 +372,8 @@ macro_rules! comparison_op {
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let lhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.lhs, config);
-            let rhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.rhs, config);
+            let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+            let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
             let result = Vector::new(lhs $op rhs);
 
             write::<bool, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -392,7 +392,7 @@ macro_rules! unary_func {
             #[comptime] op: UnaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let input = read::<C, N>(inputs, outputs, &locals, write_pos, op.input, config);
+            let input = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.input, config);
             let result = $func(input);
 
             write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -409,7 +409,7 @@ fn assign<C: Scalar, N: Size>(
     #[comptime] op: UnaryFuseArgs,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let input = read::<C, N>(inputs, outputs, locals, write_pos, op.input, config);
+    let input = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.input, config);
 
     write::<C, N>(inputs, outputs, locals, write_pos, input, op.out, config);
 }
@@ -449,8 +449,8 @@ fn gather<C: Numeric, N: Size>(
     if comptime![dim > 0] {
         let index_before = global_offset(
             inputs,
-            outputs,
-            locals,
+            &*outputs,
+            &*locals,
             write_pos,
             input.clone(),
             comptime![Some((0, dim))],
@@ -462,8 +462,8 @@ fn gather<C: Numeric, N: Size>(
     if comptime![dim + 1 < config.rank] {
         let index_after = global_offset(
             inputs,
-            outputs,
-            locals,
+            &*outputs,
+            &*locals,
             write_pos,
             input,
             comptime![Some((dim + 1, config.rank))],
@@ -474,8 +474,8 @@ fn gather<C: Numeric, N: Size>(
 
     let index_offset = global_offset(
         inputs,
-        outputs,
-        locals,
+        &*outputs,
+        &*locals,
         write_pos,
         indices,
         comptime![Some((0, config.rank))],
@@ -491,7 +491,7 @@ fn gather<C: Numeric, N: Size>(
         for i in 0..vector_size {
             let offset = read_input::<u32, Const<1>>(
                 inputs,
-                locals,
+                &*locals,
                 pos_indices,
                 index_offset + i * stride_indices_vector,
                 LayoutInfo::IsRef,
@@ -501,14 +501,14 @@ fn gather<C: Numeric, N: Size>(
 
             let input = read_input::<C, Const<1>>(
                 inputs,
-                locals,
+                &*locals,
                 pos_input,
-                index + (offset[0] as usize * stride_input_dim),
+                index + (offset.extract(0) as usize * stride_input_dim),
                 LayoutInfo::IsRef,
                 config,
                 None,
             );
-            result[i] = input[0];
+            result.insert(i, input.extract(0));
         }
     } else {
         let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
@@ -517,7 +517,7 @@ fn gather<C: Numeric, N: Size>(
         for i in 0..vector_size {
             let offset = read_input::<u32, Const<1>>(
                 inputs,
-                locals,
+                &*locals,
                 pos_indices,
                 index_offset + i * stride_indices_vector,
                 LayoutInfo::IsRef,
@@ -526,11 +526,11 @@ fn gather<C: Numeric, N: Size>(
             );
 
             let current_index =
-                index + (offset[0] as usize * stride_input_dim) + (i * stride_input_vector);
+                index + (offset.extract(0) as usize * stride_input_dim) + (i * stride_input_vector);
 
             let input = read_input::<C, Const<1>>(
                 inputs,
-                locals,
+                &*locals,
                 pos_input,
                 current_index,
                 LayoutInfo::IsRef,
@@ -538,7 +538,7 @@ fn gather<C: Numeric, N: Size>(
                 None,
             );
 
-            result[i] = input[0];
+            result.insert(i, input.extract(0));
         }
     }
 
@@ -587,8 +587,8 @@ fn select_indices<C: Numeric, N: Size>(
         if comptime![dim > 0] {
             let index_before = global_offset(
                 inputs,
-                outputs,
-                locals,
+                &*outputs,
+                &*locals,
                 write_pos,
                 input.clone(),
                 comptime![Some((0, dim))],
@@ -600,8 +600,8 @@ fn select_indices<C: Numeric, N: Size>(
         if comptime![dim + 1 < config.rank] {
             let index_after = global_offset(
                 inputs,
-                outputs,
-                locals,
+                &*outputs,
+                &*locals,
                 write_pos,
                 input.clone(),
                 comptime![Some((dim + 1, config.rank))],
@@ -615,7 +615,7 @@ fn select_indices<C: Numeric, N: Size>(
         let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
         let offset_dim = read_input::<u32, Const<1>>(
             inputs,
-            locals,
+            &*locals,
             pos_indices,
             coordinate_dim,
             LayoutInfo::IsRef,
@@ -623,20 +623,20 @@ fn select_indices<C: Numeric, N: Size>(
             None,
         );
 
-        index += offset_dim[0] as usize * stride_input_dim;
+        index += offset_dim.extract(0) as usize * stride_input_dim;
 
         #[unroll]
         for i in 0..vector_size_ref {
             let input = read_input::<C, Const<1>>(
                 inputs,
-                locals,
+                &*locals,
                 pos_input,
                 index + i * stride_input_vector,
                 LayoutInfo::IsRef,
                 config,
                 None,
             );
-            result[i] = input[0];
+            result.insert(i, input.extract(0));
         }
     } else {
         // In this scenario the select is actually performed on the last dimension we're working on.
@@ -647,8 +647,8 @@ fn select_indices<C: Numeric, N: Size>(
         if comptime![dim > 0] {
             let index_before = global_offset(
                 inputs,
-                outputs,
-                locals,
+                &*outputs,
+                &*locals,
                 write_pos,
                 input.clone(),
                 comptime![Some((0, dim))],
@@ -660,8 +660,8 @@ fn select_indices<C: Numeric, N: Size>(
         if comptime![dim + 1 < config.rank] {
             let index_after = global_offset(
                 inputs,
-                outputs,
-                locals,
+                &*outputs,
+                &*locals,
                 write_pos,
                 input,
                 comptime![Some((dim + 1, config.rank))],
@@ -677,7 +677,7 @@ fn select_indices<C: Numeric, N: Size>(
             let coordinate_dim = (write_pos_indices + i) / stride_dim_ref % shape_dim_ref;
             let offset_dim = read_input::<u32, Const<1>>(
                 inputs,
-                locals,
+                &*locals,
                 pos_indices,
                 coordinate_dim,
                 LayoutInfo::IsRef,
@@ -687,14 +687,14 @@ fn select_indices<C: Numeric, N: Size>(
 
             let input = read_input::<C, Const<1>>(
                 inputs,
-                locals,
+                &*locals,
                 pos_input,
-                index + (offset_dim[0] as usize * stride_input_dim),
+                index + (offset_dim.extract(0) as usize * stride_input_dim),
                 LayoutInfo::IsRef,
                 config,
                 None,
             );
-            result[i] = input[0];
+            result.insert(i, input.extract(0));
         }
     }
 
@@ -713,9 +713,9 @@ fn conditional_assign<C: Scalar, N: Size>(
     #[comptime] out: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let cond = read::<bool, N>(inputs, outputs, locals, write_pos, cond, config);
-    let lhs = read::<C, N>(inputs, outputs, locals, write_pos, lhs, config);
-    let rhs = read::<C, N>(inputs, outputs, locals, write_pos, rhs, config);
+    let cond = read::<bool, N>(inputs, &*outputs, &*locals, write_pos, cond, config);
+    let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, lhs, config);
+    let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, rhs, config);
     let result = select_many(cond, lhs, rhs);
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, out, config);
@@ -733,9 +733,9 @@ fn clamp<C: Numeric, N: Size>(
     #[comptime] out: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let input = read::<C, N>(inputs, outputs, locals, write_pos, input, config);
-    let min = read::<C, N>(inputs, outputs, locals, write_pos, min, config);
-    let max = read::<C, N>(inputs, outputs, locals, write_pos, max, config);
+    let input = read::<C, N>(inputs, &*outputs, &*locals, write_pos, input, config);
+    let min = read::<C, N>(inputs, &*outputs, &*locals, write_pos, min, config);
+    let max = read::<C, N>(inputs, &*outputs, &*locals, write_pos, max, config);
     let result = cubecl::prelude::clamp(input, min, max);
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, out, config);
@@ -808,8 +808,9 @@ fn dequantize<C: Float, N: Size>(
     let num_quants = scheme.num_quants();
 
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
-    let input =
-        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
+    let input = read_quantized::<QStoreType, QStoreSize>(
+        inputs, &*locals, write_pos, input, config, scheme,
+    );
 
     let scales =
         input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
@@ -831,7 +832,7 @@ fn dequantize<C: Float, N: Size>(
         #[unroll]
         for j in 0..num_quants {
             let index = i * num_quants + j;
-            vector[index] = value[j];
+            vector.insert(index, value.extract(j));
         }
     }
 
@@ -850,7 +851,7 @@ comparison_op!(lower, <);
 comparison_op!(lower_equal, <=);
 
 binary_func!(powf, Vector::<C, N>::powf, Float);
-binary_func!(rem, Vector::<C, N>::rem, Float);
+binary_func!(rem, Vector::<C, N>::mod_floor, Float);
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);

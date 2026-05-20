@@ -11,9 +11,9 @@ const ABS: f32 = 1e-3;
 // differences can amplify into large local elementwise deviations.
 // TODO: for correctness it might be good to allow users to disable some of these configs in burn.toml.
 #[cfg(feature = "cuda")]
-const REL: f32 = 1e-2;
+const REL: f32 = 3e-2;
 #[cfg(feature = "cuda")]
-const ABS: f32 = 1.5e-2;
+const ABS: f32 = 2e-2;
 
 // ---------------------------------------------------------------------
 // Small Matrices

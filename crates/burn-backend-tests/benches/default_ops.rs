@@ -8,6 +8,8 @@
 //! cargo bench --bench default_ops --features simd
 //! ```
 
+#![allow(clippy::approx_constant)]
+
 #[path = "common/mod.rs"]
 mod common;
 use common::BencherExt;

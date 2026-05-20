@@ -34,7 +34,7 @@ fn gather_nd_kernel<T: Numeric, I: Int>(
     let idx_base = index_idx * k;
     let mut base_offset = 0usize;
     for j in 0..k {
-        let idx_val = usize::cast_from(indices[idx_base + j]);
+        let idx_val = usize::cast_from(indices.read(idx_base + j));
         base_offset += idx_val * data.stride(j);
     }
 

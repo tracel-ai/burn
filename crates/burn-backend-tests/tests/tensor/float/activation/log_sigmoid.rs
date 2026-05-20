@@ -1,3 +1,5 @@
+#![allow(clippy::approx_constant)]
+
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{ElementConversion, TensorData, activation};

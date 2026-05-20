@@ -27,7 +27,7 @@ struct ConvArgs {
 fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &ComptimeOption<Tensor<E>>,
+    bias: ComptimeOption<&[E]>,
     output: &mut LinearView<E, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
@@ -71,7 +71,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     let idx_input_batch = batch * input.stride(0);
     let idx_weight_oc = out_c * weight.stride(1);
 
-    let bias: ComptimeOption<E> = bias.map(|bias| bias[oc_out]);
+    let bias: ComptimeOption<E> = bias.as_ref().map(|bias| bias[oc_out]);
     let mut sum = bias.unwrap_or_default();
 
     let numerator_h_base = out_y + args.padding_0;
@@ -116,7 +116,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
         }
     }
 
-    output[ABSOLUTE_POS] = sum;
+    output.write(ABSOLUTE_POS, sum);
 }
 
 /// Perform a 2D convolution transposition using the direct algorithm.
@@ -167,7 +167,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         address_type!(input, weight, bias, output),
         input.into_tensor_arg(),
         weight.into_tensor_arg(),
-        bias.map(|bias| bias.into_tensor_arg()).into(),
+        bias.map(|bias| bias.into_buffer_arg()).into(),
         output.clone().into_linear_view(),
         shape_divmod(&output),
         ConvArgsLaunch::new(
