@@ -1,5 +1,5 @@
 //! Conversion helpers between burn's [`DType`] and cubecl's
-//! [`ElemType`] / [`StorageType`].
+//! `ElemType` / `StorageType`.
 //!
 //! These are exposed as plain named functions (rather than `From`/`Into`
 //! trait impls in `burn-std`) so that `burn-std` doesn't need to depend on

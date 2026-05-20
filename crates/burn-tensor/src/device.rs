@@ -211,7 +211,7 @@ pub enum DeviceKind {
     /// CPU.
     Cpu,
 
-    /// The best available device found with the current [graphics API](crate::GraphicsApi).
+    /// The best available device found with the current graphics API.
     ///
     /// This will prioritize GPUs wgpu recognizes as "high power". Additionally, you can override this using
     /// the `CUBECL_WGPU_DEFAULT_DEVICE` environment variable. This variable is spelled as if i was a `WgpuDevice`,
@@ -224,7 +224,7 @@ pub enum DeviceKind {
     ///
     /// # Notes
     ///
-    /// This can be initialized with [`init_device`](crate::runtime::init_device).
+    /// This can be initialized with `init_device` from the wgpu runtime.
     Existing(u32),
 }
 
@@ -280,7 +280,7 @@ impl Device {
 
     /// LibTorch CUDA device.
     ///
-    /// Selector semantics match [`Device::cuda`]: pass [`DeviceIndex::Default`]
+    /// Selector semantics match `Device::cuda`: pass [`DeviceIndex::Default`]
     /// for the backend's default device, or [`DeviceIndex::Specified`] /
     /// [`DeviceIndex::new`] for a specific hardware index.
     #[cfg(feature = "tch")]
@@ -309,7 +309,7 @@ impl Device {
     /// `wgpu`'s adapter-selection heuristics (high-power GPU preferred, or
     /// whatever `CUBECL_WGPU_DEFAULT_DEVICE` overrides it to).
     ///
-    /// [`Device::vulkan`] / [`Device::metal`] / [`Device::webgpu`] are
+    /// `Device::vulkan` / `Device::metal` / `Device::webgpu` are
     /// equivalent calls (they exist only to make the intended backend
     /// explicit at the call site — the underlying adapter is still picked by
     /// enabled Cargo features).
