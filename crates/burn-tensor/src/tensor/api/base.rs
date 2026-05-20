@@ -3056,6 +3056,7 @@ fn slice_bridge_by_kind(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn display_fmt_inner(
     primitive: &BridgeTensor,
     kind: crate::ops::TensorKindId,
@@ -3094,6 +3095,7 @@ fn push_newline_indent_impl(acc: &mut String, indent: usize) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn display_fmt_outer(
     primitive: &BridgeTensor,
     kind: crate::ops::TensorKindId,
@@ -3127,6 +3129,7 @@ fn display_fmt_outer(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn display_fmt_recursive(
     primitive: &BridgeTensor,
     kind: crate::ops::TensorKindId,
