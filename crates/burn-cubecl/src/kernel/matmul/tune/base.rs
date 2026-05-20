@@ -14,8 +14,9 @@ use cubek::matmul::{
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
-        simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+        double_unit::DoubleUnitSelectionArgs, gemm::GemmStrategy,
+        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+        simple_unit::SimpleUnitSelectionArgs,
     },
 };
 
@@ -187,7 +188,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 false,
             ),
             (
-                Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(Default::default())),
+                Strategy::Gemm(BlueprintStrategy::Inferred(Default::default())),
                 false,
             ),
             (
@@ -238,6 +239,22 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 )
             }
         }
+
+        // Gemm no stage
+        // In unit because not accelerated
+        let gemm_no_stage_strategy = Strategy::Gemm(BlueprintStrategy::Inferred(GemmStrategy {
+            target_num_planes: None,
+        }));
+        set = set.with(
+            Tunable::new(
+                &gemm_no_stage_strategy.to_string(),
+                move |(lhs, rhs, out)| {
+                    launch_matmul::<R>(&gemm_no_stage_strategy, lhs, rhs, out)
+                        .map_err(|err| format!("{err:?}"))
+                },
+            )
+            .group(&unit, move |_key| PRIORITY_MAX),
+        );
 
         // Accelerated matmuls
         for (strategy, double_buf, group_extra, tile_group) in [

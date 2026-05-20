@@ -34,8 +34,8 @@ use cubek::{
             BlueprintStrategy, Routine,
             double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
             double_unit::DoubleUnitAlgorithm,
+            gemm::GemmRoutine,
             gemv_innerproduct::{DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm},
-            gemv_plane_parallel::GemvPlaneParallelRoutine,
             gemv_unit_perpendicular::GemvUnitPerpendicularRoutine,
             ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
             simple::{SimpleAlgorithm, SimpleArgs},
@@ -225,7 +225,7 @@ pub enum FusedMatmulSelector {
     },
     SimpleVecMat,
     DoubleVecMat,
-    GemvPlaneParallel,
+    GemmNoStage,
     GemvUnitPerpendicular,
     SimpleUnit,
     DoubleUnit,
@@ -254,7 +254,7 @@ impl FusedMatmulSelector {
             }
             FusedMatmulSelector::SimpleVecMat => "simple_vec_mat".into(),
             FusedMatmulSelector::DoubleVecMat => "double_buffering_vec_mat".into(),
-            FusedMatmulSelector::GemvPlaneParallel => "gemv_plane_parallel".into(),
+            FusedMatmulSelector::GemmNoStage => "gemm".into(),
             FusedMatmulSelector::GemvUnitPerpendicular => "gemv_unit_perpendicular".into(),
             FusedMatmulSelector::SimpleUnit => "simple_unit".into(),
             FusedMatmulSelector::DoubleUnit => "double_buffering_unit".into(),
@@ -639,8 +639,8 @@ impl FusedMatmulLaunch<'_> {
                 }
             }
 
-            FusedMatmulSelector::GemvPlaneParallel => {
-                match launch_inner_fix_dtype::<R, GemvPlaneParallelRoutine>(
+            FusedMatmulSelector::GemmNoStage => {
+                match launch_inner_fix_dtype::<R, GemmRoutine>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
