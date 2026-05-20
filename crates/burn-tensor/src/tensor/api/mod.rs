@@ -1,6 +1,5 @@
 pub(crate) mod check;
 
-#[cfg(feature = "autodiff")]
 mod autodiff;
 mod base;
 mod bool;
