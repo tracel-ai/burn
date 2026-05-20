@@ -119,7 +119,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
         match event {
-            EvaluatorEvent::Start => {
+            EvaluatorEvent::Start { total_tests } => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(
@@ -129,7 +129,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start(EVALUATOR_TEST_SPLITS);
+                    logger.start(total_tests);
                 }
             }
             EvaluatorEvent::StartTest(name, total_items) => {

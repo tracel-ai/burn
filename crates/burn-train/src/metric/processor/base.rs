@@ -28,7 +28,10 @@ pub enum LearnerEvent<T> {
 /// Event happening during the evaluation process.
 pub enum EvaluatorEvent<T> {
     /// Signal the start of the process (e.g., evaluation start)
-    Start,
+    Start {
+        /// The total number of items to evaluate.
+        total_tests: usize,
+    },
     /// Signal the start of a test split, carrying the split name and total number of items.
     StartTest(EvaluationName, usize),
     /// Signal that an item have been processed.

@@ -13,6 +13,9 @@ pub(crate) type TestOutput<EC> = <<EC as EvaluatorComponentTypes>::Model as Infe
 
 pub(crate) type TestLoader<EC> = Arc<dyn DataLoader<TestInput<EC>>>;
 
+// Each Evaluator::eval() call runs exactly one test split.
+const TOTAL_NUMBER_OF_TESTS: usize = 1;
+
 /// Evaluates a model on a specific dataset.
 pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) model: EC::Model,
@@ -40,7 +43,9 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
         let mut iterator = dataloader.iter();
         let mut iteration = 0;
 
-        self.event_processor.process_test(EvaluatorEvent::Start);
+        self.event_processor.process_test(EvaluatorEvent::Start {
+            total_tests: TOTAL_NUMBER_OF_TESTS,
+        });
         self.event_processor
             .process_test(EvaluatorEvent::StartTest(name.clone(), total_items));
         while let Some(item) = iterator.next() {
