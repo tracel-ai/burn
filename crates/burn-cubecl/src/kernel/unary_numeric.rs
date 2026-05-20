@@ -31,7 +31,10 @@ pub(crate) fn unary_numeric<T: Numeric, N: Size, O: NumericUnaryOpFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::Unary::<T, N>::execute(input[ABSOLUTE_POS], options);
+    output.write(
+        ABSOLUTE_POS,
+        O::Unary::<T, N>::execute(input.read(ABSOLUTE_POS), options),
+    );
 }
 
 pub(crate) fn launch_unary_numeric<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>

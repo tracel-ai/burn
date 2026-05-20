@@ -1,3 +1,5 @@
+#![allow(clippy::excessive_precision)]
+
 use super::*;
 use burn_tensor::{Device, TensorData, Tolerance, activation::log_softmax, module::ctc_loss};
 

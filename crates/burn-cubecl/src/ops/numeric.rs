@@ -68,7 +68,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             terminate!();
         }
 
-        tensor[ABSOLUTE_POS] = Vector::new(value.get::<C>());
+        tensor.write(ABSOLUTE_POS, Vector::new(value.get::<C>()));
     }
 
     let num_elems = empty.meta.num_elements();
@@ -416,7 +416,7 @@ fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
         let read_idx = offset + i * dim_stride;
         result = O::CumulativeOp::<C>::execute(result, input[read_idx]);
     }
-    output[ABSOLUTE_POS] = result;
+    output.write(ABSOLUTE_POS, result);
 }
 
 /// Compute the cumulative sum along a dimension

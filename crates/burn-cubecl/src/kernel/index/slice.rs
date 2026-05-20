@@ -86,7 +86,7 @@ fn slice_kernel<E: Numeric>(
         offset_input += offset_local * input.stride(dim);
     }
 
-    output[ABSOLUTE_POS] = input[offset_input];
+    output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
 pub(crate) fn slice_on_output<R: CubeRuntime>(
@@ -168,7 +168,7 @@ fn slice_with_steps_kernel<E: Numeric>(
         input_offset += input_idx * input.stride(dim);
     }
 
-    output[ABSOLUTE_POS] = input[input_offset];
+    output.write(ABSOLUTE_POS, input[input_offset]);
 }
 
 /// Slice a tensor with steps

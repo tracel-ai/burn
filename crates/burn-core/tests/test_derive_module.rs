@@ -51,6 +51,7 @@ enum ModuleEnumNested {
 }
 
 #[derive(Module, Debug)]
+#[allow(clippy::large_enum_variant)]
 enum ModuleEnumWithGenericModule<M: Module> {
     Basic(ModuleBasic),
     Generic(ModuleWithGenericModule<M>),
@@ -439,7 +440,7 @@ mod lazy_clone {
         let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
             move |d, _| Tensor::ones([4, 4], d),
-            device.clone(),
+            device,
             false,
             Shape::from([4, 4]),
         );

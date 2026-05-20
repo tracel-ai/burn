@@ -91,10 +91,13 @@ pub(crate) fn kernel_scalar_cmp<T: Numeric, Bool: Numeric, N: Size, O: Compariso
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Vector::cast_from(O::Operation::<T, N>::execute(
-        input[ABSOLUTE_POS],
-        Vector::new(scalar.get::<T>()),
-    ));
+    output.write(
+        ABSOLUTE_POS,
+        Vector::cast_from(O::Operation::<T, N>::execute(
+            input.read(ABSOLUTE_POS),
+            Vector::new(scalar.get::<T>()),
+        )),
+    );
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -108,10 +111,13 @@ pub(crate) fn kernel_cmp<T: Numeric, Bool: Numeric, N: Size, O: ComparisonOpFami
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = Vector::cast_from(O::Operation::<T, N>::execute(
-        lhs[ABSOLUTE_POS],
-        rhs[ABSOLUTE_POS],
-    ));
+    out.write(
+        ABSOLUTE_POS,
+        Vector::cast_from(O::Operation::<T, N>::execute(
+            lhs.read(ABSOLUTE_POS),
+            rhs.read(ABSOLUTE_POS),
+        )),
+    );
 }
 
 pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
@@ -400,7 +406,10 @@ pub(crate) fn kernel_predicate<F: Float, Bool: Numeric, N: Size, O: PredicateOpF
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Vector::cast_from(O::Operation::<F, N>::execute(input[ABSOLUTE_POS]));
+    output.write(
+        ABSOLUTE_POS,
+        Vector::cast_from(O::Operation::<F, N>::execute(input.read(ABSOLUTE_POS))),
+    );
 }
 
 pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(

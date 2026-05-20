@@ -51,7 +51,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
                 key.matmul_key.analysis.kind,
                 MatmulKind::MatVec | MatmulKind::VecMat
             ) {
-                PRIORITY_HIGH
+                PRIORITY_MAX
             } else {
                 PRIORITY_MEDIUM
             }

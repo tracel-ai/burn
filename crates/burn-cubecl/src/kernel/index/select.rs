@@ -26,19 +26,17 @@ fn select_kernel<T: Numeric, I: Numeric>(
     #[unroll]
     for i in 0..rank {
         let i = rank - i - 1;
-        let (rem, offset_local) = out_shape[i].div_mod(offset);
+        let (rem, mut offset_local) = out_shape[i].div_mod(offset);
         offset = rem;
 
-        let offset_local = cubecl::prelude::select(
-            i == dim,
-            usize::cast_from(indices[offset_local]),
-            offset_local,
-        );
+        if i == dim {
+            offset_local = usize::cast_from(indices.read(offset_local));
+        }
 
         offset_input += offset_local * input.stride(i);
     }
 
-    output[ABSOLUTE_POS] = input[offset_input];
+    output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
 pub(crate) fn select<R: CubeRuntime>(

@@ -90,8 +90,10 @@ pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] =
-        O::BinaryOp::<C, N>::execute(input[ABSOLUTE_POS], Vector::new(scalar.get::<C>()));
+    output.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(input.read(ABSOLUTE_POS), Vector::new(scalar.get::<C>())),
+    );
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -105,7 +107,10 @@ pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = O::BinaryOp::<C, N>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
+    out.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(lhs.read(ABSOLUTE_POS), rhs.read(ABSOLUTE_POS)),
+    );
 }
 
 pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(

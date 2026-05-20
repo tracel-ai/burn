@@ -32,9 +32,9 @@ fn gather_kernel<T: Numeric, I: Numeric>(
         input.vector_size(),
     );
 
-    offset += usize::cast_from(indices[ABSOLUTE_POS]) * input.stride(dim);
+    offset += usize::cast_from(indices.read(ABSOLUTE_POS)) * input.stride(dim);
 
-    output[ABSOLUTE_POS] = input[offset];
+    output.write(ABSOLUTE_POS, input[offset]);
 }
 
 pub(crate) fn gather<R: CubeRuntime>(

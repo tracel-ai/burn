@@ -35,7 +35,7 @@ struct Conv2dArgs {
 fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     input: &Tensor<Vector<E, NIn>>,
     weight: &Tensor<Vector<E, NIn>>,
-    bias: ComptimeOption<Tensor<Vector<E, NOut>>>,
+    bias: ComptimeOption<&[Vector<E, NOut>]>,
     output: &mut LinearView<Vector<E, NOut>, ReadWrite>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod<u32>>,
@@ -106,7 +106,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
         has_padding,
     );
 
-    output[ABSOLUTE_POS] = sum;
+    output.write(ABSOLUTE_POS, sum);
 }
 
 #[derive(CubeType, Clone)]
@@ -205,7 +205,7 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
 
                 #[unroll]
                 for i in 0..vector_size_in {
-                    sum[v] += val[i];
+                    sum.insert(v, sum.extract(v) + val.extract(i));
                 }
                 weight_pos += stride_oc;
             }
@@ -307,7 +307,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             vector_size_out,
             input.into_tensor_arg(),
             weight.into_tensor_arg(),
-            bias.map(|b| b.into_tensor_arg()).into(),
+            bias.map(|b| b.into_buffer_arg()).into(),
             output.clone().into_linear_view(),
             Conv2dArgsLaunch::new(conv_params, channels_per_group as u32),
             shape_out,

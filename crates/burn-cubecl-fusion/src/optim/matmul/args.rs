@@ -183,7 +183,7 @@ impl MatmulArgs for FusedMatmulArgs {
         batch: usize,
     ) -> usize {
         #[comptime]
-        match state.c_batch {
+        match &state.c_batch {
             ComptimeOption::Some(c_batch) => c_batch.to_source_pos(batch),
             ComptimeOption::None => batch,
         }
@@ -210,14 +210,14 @@ impl MatmulArgs for FusedMatmulArgs {
             1u32,
             state.out_layout_config,
         );
-        let mut buffer = FusedOutput::new(
+        let buffer = FusedOutput::new(
             &state.inputs,
             &mut state.outputs,
             &mut state.locals,
             comptime![state.out.clone()],
             comptime![state.config.clone()],
         );
-        View::new_mut::<FusedOutput, Coords1d>(&mut buffer, layout)
+        View::new_mut::<FusedOutput, Coords1d>(buffer, layout)
     }
 
     fn batch_out<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
@@ -288,7 +288,7 @@ fn global_view<E: CubePrimitive>(
     let data_buf = GlobalInput::new(inputs, locals, data, comptime![config.clone()], None);
 
     match comptime![arg.clone()] {
-        MatmulArg::Normal(_) => View::new::<GlobalInput, Coords1d>(&data_buf, data_layout),
+        MatmulArg::Normal(_) => View::new::<GlobalInput, Coords1d>(data_buf, data_layout),
         MatmulArg::Quantized { scales, scheme, .. } => {
             let scales_layout = match comptime![scheme.level] {
                 QuantLevel::Tensor => GlobalScaleLayout::new_PerTensor(shape),
@@ -402,7 +402,7 @@ fn global_layout(
 }
 
 struct CreateQuantView<'a, E: Numeric, N: Size> {
-    scope: &'a mut Scope,
+    scope: &'a Scope,
     data_buf: GlobalInputExpand,
     data_layout: GlobalLayoutExpand,
     scales_buf: GlobalInputExpand,
@@ -460,9 +460,9 @@ fn create_quant_view<E: Numeric, N: Size, Q: Scalar, S: Scalar>(
     let size!(NQ) = N::value().comptime() / scheme.num_quants();
 
     let data_view: View<Vector<Q, NQ>, BatchedCoords> =
-        View::new::<GlobalInput, Coords1d>(&data_buf, data_layout);
+        View::new::<GlobalInput, Coords1d>(data_buf, data_layout);
     let scales_view: View<S, BatchedCoords> =
-        View::new::<GlobalInput, Coords1d>(&scales_buf, scales_layout);
+        View::new::<GlobalInput, Coords1d>(scales_buf, scales_layout);
     QuantizedView::new(data_view, scales_view, scheme).view()
 }
 

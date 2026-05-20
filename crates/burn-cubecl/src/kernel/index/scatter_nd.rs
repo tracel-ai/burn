@@ -38,7 +38,7 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     let idx_base = update_idx * k;
     let mut base_offset = 0usize;
     for j in 0..k {
-        let idx_val = usize::cast_from(indices[idx_base + j]);
+        let idx_val = usize::cast_from(indices.read(idx_base + j));
         base_offset += idx_val * data.stride(j);
     }
 
@@ -71,7 +71,7 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
         Vector::cast_from(data[data_idx]),
         Vector::cast_from(values[val_offset]),
     );
-    data[data_idx] = result[0];
+    data[data_idx] = result.extract(0);
 }
 
 pub(crate) fn scatter_nd<R: CubeRuntime>(

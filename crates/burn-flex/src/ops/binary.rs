@@ -587,6 +587,7 @@ where
 // flex-internal dispatch; otherwise add them to
 // crates/burn-backend-tests/tests/tensor/float/ops/.
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)]
 mod tests {
     use super::*;
     use alloc::vec;

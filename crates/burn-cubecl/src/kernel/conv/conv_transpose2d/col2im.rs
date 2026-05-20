@@ -203,7 +203,7 @@ fn col2im<R: CubeRuntime>(
             cube_dim,
             address_type!(columns, bias, out),
             columns.into_tensor_arg(),
-            bias.map(|bias| bias.into_tensor_arg()).into(),
+            bias.map(|bias| bias.into_buffer_arg()).into(),
             out.into_linear_view(),
             shape,
             Col2ImArgsLaunch::new(
@@ -244,7 +244,7 @@ struct Col2ImArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
-    bias: &ComptimeOption<Tensor<E>>,
+    bias: ComptimeOption<&[E]>,
     image: &mut LinearView<E, ReadWrite>,
     image_shape: Sequence<FastDivmod<usize>>,
     args: &Col2ImArgs,
@@ -301,7 +301,7 @@ fn col2im_kernel<E: Numeric>(
 
     #[comptime]
     match bias {
-        ComptimeOption::Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
-        ComptimeOption::None => image[ABSOLUTE_POS] = val,
+        ComptimeOption::Some(bias) => image.write(ABSOLUTE_POS, val + bias[ch_im]),
+        ComptimeOption::None => image.write(ABSOLUTE_POS, val),
     }
 }

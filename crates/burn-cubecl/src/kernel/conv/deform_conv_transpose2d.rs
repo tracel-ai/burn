@@ -302,10 +302,10 @@ struct DeformConv2dCol2ImgCoordArgs {
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &ComptimeOption<Tensor<F>>,
+    mask: ComptimeOption<&Tensor<F>>,
     columns: &Tensor<F>,
     grad_offset: &mut LinearView<F, ReadWrite>,
-    grad_mask: &mut ComptimeOption<Tensor<F>>,
+    grad_mask: ComptimeOption<&mut Tensor<F>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
     #[define(F)] _dtype: StorageType,
@@ -396,7 +396,7 @@ fn deform_col2img_coord_kernel<F: Float>(
         image_base_idx += image.stride(1);
     }
 
-    grad_offset[ABSOLUTE_POS] = grad_offset_val;
+    grad_offset.write(ABSOLUTE_POS, grad_offset_val);
 
     #[comptime]
     if let ComptimeOption::Some(grad_mask) = grad_mask {
@@ -480,13 +480,11 @@ fn compute_input_grad<R: CubeRuntime>(
 
     let supports_fadd = client
         .properties()
-        .atomic_type_usage(Type::new(StorageType::Atomic(FloatKind::F32.into())))
+        .atomic_type_usage(Type::atomic(FloatKind::F32))
         .contains(AtomicUsage::Add);
     let supports_same_type = client
         .properties()
-        .atomic_type_usage(Type::new(StorageType::Atomic(dtype_to_elem_type(
-            columns.dtype,
-        ))))
+        .atomic_type_usage(Type::atomic(dtype_to_elem_type(columns.dtype)))
         .contains(AtomicUsage::Add);
 
     let [batches, in_channels, height, width] = input_shape.dims();
@@ -571,7 +569,7 @@ struct DeformConv2dCol2ImgArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
-    mask: &ComptimeOption<Tensor<F>>,
+    mask: ComptimeOption<&Tensor<F>>,
     columns: &LinearView<F>,
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
     pos_shape: Sequence<FastDivmod<usize>>,
@@ -650,7 +648,7 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
 
                 let weight = (F::new(1.0) - F::abs(y - yp)) * (F::new(1.0) - F::abs(x - xp));
 
-                let value = mask_value * F::cast_from(weight) * columns[ABSOLUTE_POS];
+                let value = mask_value * F::cast_from(weight) * columns.read(ABSOLUTE_POS);
 
                 FAdd::Op::<FP>::float_atomic_add::<F>(&mut grad_input[gradient_pos], value);
             }

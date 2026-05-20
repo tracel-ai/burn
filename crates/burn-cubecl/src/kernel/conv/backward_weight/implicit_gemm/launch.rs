@@ -19,18 +19,20 @@ pub(crate) fn wgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let strategy = match tile_kind {
-        AcceleratedTileKind::Cmma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleSyncCyclic,
-            tile_kind,
-        },
-        AcceleratedTileKind::Mma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleSyncStrided,
-            tile_kind,
-        },
+    let algorithm = match tile_kind {
+        AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleSyncCyclic,
+        AcceleratedTileKind::Mma => ConvAlgorithm::SimpleSyncStrided,
     };
-
-    launch_backwards_weight::<R, N>(&strategy, input, out_grad, weight_shape, options)
+    launch_backwards_weight::<R, N>(
+        &Strategy::Inferred {
+            algorithm,
+            tile_kind,
+        },
+        input,
+        out_grad,
+        weight_shape,
+        options,
+    )
 }
 
 pub(crate) fn wgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
@@ -40,18 +42,20 @@ pub(crate) fn wgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let strategy = match tile_kind {
-        AcceleratedTileKind::Cmma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleAsyncCyclic,
-            tile_kind,
-        },
-        AcceleratedTileKind::Mma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleAsyncStrided,
-            tile_kind,
-        },
+    let algorithm = match tile_kind {
+        AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleAsyncCyclic,
+        AcceleratedTileKind::Mma => ConvAlgorithm::SimpleAsyncStrided,
     };
-
-    launch_backwards_weight::<R, N>(&strategy, input, out_grad, weight_shape, options)
+    launch_backwards_weight::<R, N>(
+        &Strategy::Inferred {
+            algorithm,
+            tile_kind,
+        },
+        input,
+        out_grad,
+        weight_shape,
+        options,
+    )
 }
 
 pub(crate) fn wgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(

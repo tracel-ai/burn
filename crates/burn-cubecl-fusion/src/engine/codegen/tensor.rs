@@ -1,7 +1,6 @@
-use crate::engine::codegen::{DynElem, DynSize};
+use crate::engine::codegen::{DynElem, DynSize, DynVector};
 
 use cubecl::{ir::Type, prelude::*};
-use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
 /// Represents a global tensor with the given [element type](ElemType).
@@ -11,9 +10,10 @@ use std::hash::Hash;
 /// The `tensor` field type [Vector<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
 /// use.
 #[derive(CubeType, Clone)]
+#[expand(derive(Clone))]
 pub struct GlobalTensor {
     /// The global tensor type.
-    pub tensor: Tensor<Vector<DynElem, DynSize>>,
+    pub tensor: OwnedTensor<DynVector>,
     /// The element type of the tensor.
     #[cube(comptime)]
     pub ty: Type,
@@ -24,7 +24,7 @@ pub struct GlobalTensor {
 
 // Everything below is to implement [LaunchArg].
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GlobalTensorCompilationArg {
     tensor: TensorCompilationArg,
     ty: Type,
@@ -33,7 +33,7 @@ pub struct GlobalTensorCompilationArg {
 
 #[derive(new, Debug)]
 pub struct GlobalTensorArg<R: Runtime> {
-    pub tensor: <Tensor<Vector<DynElem, DynSize>> as LaunchArg>::RuntimeArg<R>,
+    pub tensor: <OwnedTensor<DynVector> as LaunchArg>::RuntimeArg<R>,
     pub ty: Type,
     pub broadcasted: bool,
     pub address_type: AddressType,
@@ -47,14 +47,8 @@ impl LaunchArg for GlobalTensor {
         arg: Self::RuntimeArg<R>,
         launcher: &mut KernelLauncher<R>,
     ) -> Self::CompilationArg {
-        let tensor = TensorCompilationArg {
-            inplace: match arg.tensor {
-                TensorArg::Handle { .. } => None,
-                TensorArg::Alias { input_pos, .. } => Some(input_pos as u32),
-            },
-        };
-        launcher.register_tensor(arg.tensor, arg.ty);
-
+        launcher.with_scope(|scope| set_polyfill::expand::<DynElem, DynSize>(scope, arg.ty));
+        let tensor = OwnedTensor::<DynVector>::register(arg.tensor, launcher);
         GlobalTensorCompilationArg {
             tensor,
             ty: arg.ty,
@@ -63,25 +57,10 @@ impl LaunchArg for GlobalTensor {
     }
 
     fn expand(arg: &Self::CompilationArg, builder: &mut KernelBuilder) -> GlobalTensorExpand {
-        let tensor = builder.input_tensor(arg.ty);
-
+        set_polyfill::expand::<DynElem, DynSize>(&builder.scope, arg.ty);
+        let tensor = OwnedTensor::expand(&arg.tensor, builder);
         GlobalTensorExpand {
-            tensor: tensor.into(),
-            ty: arg.ty,
-            broadcasted: arg.broadcasted,
-        }
-    }
-
-    fn expand_output(
-        arg: &Self::CompilationArg,
-        builder: &mut KernelBuilder,
-    ) -> GlobalTensorExpand {
-        let tensor = match arg.tensor.inplace {
-            Some(id) => builder.inplace_output(id),
-            None => builder.output_tensor(arg.ty),
-        };
-        GlobalTensorExpand {
-            tensor: tensor.into(),
+            tensor,
             ty: arg.ty,
             broadcasted: arg.broadcasted,
         }

@@ -27,12 +27,12 @@ fn cross_kernel<E: Float>(
     }
 
     // Extract vectors
-    let a0 = lhs[base_pos];
-    let a1 = lhs[base_pos + 1];
-    let a2 = lhs[base_pos + 2];
-    let b0 = rhs[base_pos];
-    let b1 = rhs[base_pos + 1];
-    let b2 = rhs[base_pos + 2];
+    let a0 = lhs.read(base_pos);
+    let a1 = lhs.read(base_pos + 1);
+    let a2 = lhs.read(base_pos + 2);
+    let b0 = rhs.read(base_pos);
+    let b1 = rhs.read(base_pos + 1);
+    let b2 = rhs.read(base_pos + 2);
 
     // Compute cross product: a × b
     let x = a1 * b2 - a2 * b1;
@@ -40,9 +40,9 @@ fn cross_kernel<E: Float>(
     let z = a0 * b1 - a1 * b0;
 
     // Store result
-    output[base_pos] = x;
-    output[base_pos + 1] = y;
-    output[base_pos + 2] = z;
+    output.write(base_pos, x);
+    output.write(base_pos + 1, y);
+    output.write(base_pos + 2, z);
 }
 
 pub(crate) fn cross<R: CubeRuntime>(

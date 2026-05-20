@@ -31,7 +31,10 @@ pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::Unary::<F, N>::execute(input[ABSOLUTE_POS], options);
+    output.write(
+        ABSOLUTE_POS,
+        O::Unary::<F, N>::execute(input.read(ABSOLUTE_POS), options),
+    );
 }
 
 pub(crate) fn launch_unary_float<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
@@ -160,8 +163,8 @@ pub(crate) mod unary_basic {
                     let one = Vector::one();
                     let minus_one = Vector::new(F::new(-1.0));
 
-                    let is_positive = input.greater_than(zero);
-                    let is_negative = input.less_than(zero);
+                    let is_positive = input.greater_than(&zero);
+                    let is_negative = input.less_than(&zero);
                     let sign = select_many(is_negative, minus_one, zero);
 
                     select_many(is_positive, one, sign)

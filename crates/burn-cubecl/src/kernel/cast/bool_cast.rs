@@ -22,7 +22,10 @@ fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Vector::cast_from(input[ABSOLUTE_POS] & Vector::one());
+    output.write(
+        ABSOLUTE_POS,
+        Vector::cast_from(input.read(ABSOLUTE_POS) & Vector::one()),
+    );
 }
 
 /// Cast a bool tensor to the given element type.

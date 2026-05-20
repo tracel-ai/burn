@@ -60,7 +60,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             //
             // TODO: Actually implement good gemv with fused relayout.
             } else if matches!(key.analysis.kind, MatmulKind::MatVec | MatmulKind::VecMat) {
-                PRIORITY_HIGH
+                PRIORITY_MAX
             } else {
                 PRIORITY_MEDIUM
             }

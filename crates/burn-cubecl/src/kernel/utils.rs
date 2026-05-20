@@ -105,7 +105,7 @@ pub(crate) fn decompose_linear<I: FastDivmodInt>(
         offs = rem;
     }
 
-    (offs, out.rev())
+    (offs, out.reversed())
 }
 
 pub(crate) trait RequiredAddrType {

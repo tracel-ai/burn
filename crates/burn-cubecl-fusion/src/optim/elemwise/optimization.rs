@@ -123,19 +123,19 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
 fn elemwise_fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
-    #[comptime] config: &FuseBlockConfig,
+    #[comptime] config: FuseBlockConfig,
 ) {
     // We write no values for this fusion.
     let values = Registry::<FuseArg, Vector<f32, DynSize>>::new();
     let args = comptime![Vec::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
 
-    multi_block_variables_init(config, &mut outputs.variables);
+    multi_block_variables_init(&config, &mut outputs.variables);
 
-    let mut locals = init_locals(inputs, outputs, config);
-    let length = ref_len(inputs, outputs, &locals, config);
+    let mut locals = init_locals(inputs, outputs, &config);
+    let length = ref_len(inputs, &*outputs, &locals, &config);
 
     if pos < length {
-        fuse_on_write::<f32, DynSize>(inputs, outputs, &mut locals, pos, values, args, config)
+        fuse_on_write::<f32, DynSize>(inputs, outputs, &mut locals, pos, values, args, &config)
     }
 }

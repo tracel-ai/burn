@@ -43,7 +43,7 @@ fn flip_kernel<E: Numeric, Bool: Int>(
         offset_input += offset_local * input.stride(dim);
     }
 
-    output[ABSOLUTE_POS] = input[offset_input];
+    output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
 pub(crate) fn flip<R: CubeRuntime>(

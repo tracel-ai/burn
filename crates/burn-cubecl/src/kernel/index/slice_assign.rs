@@ -42,7 +42,7 @@ fn slice_assign_kernel<E: Numeric, N: Size>(
     }
 
     // Value tensor is accessed linearly since it's a LinearView
-    input[offset_input / line_size] = value[ABSOLUTE_POS];
+    input[offset_input / line_size] = value.read(ABSOLUTE_POS);
 }
 
 /// Kernel for slice assign with steps
@@ -93,7 +93,7 @@ fn slice_assign_with_steps_kernel<E: Numeric>(
         input_offset += input_idx * input.stride(dim);
     }
 
-    input[input_offset] = value[ABSOLUTE_POS];
+    input[input_offset] = value.read(ABSOLUTE_POS);
 }
 
 pub(crate) fn slice_assign<R: CubeRuntime>(
