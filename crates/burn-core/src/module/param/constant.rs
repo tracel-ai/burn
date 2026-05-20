@@ -369,12 +369,12 @@ mod tests {
     #[test]
     fn tensor_load_record_setting() {
         use crate::{
-            TestDevice,
+            test_device,
             record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
         };
         use burn_tensor::{Device, Tensor};
 
-        let device = &Device::new(TestDevice::default()).autodiff();
+        let device = &test_device().autodiff();
         let tensor = Tensor::<2>::ones([3, 3], device);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
