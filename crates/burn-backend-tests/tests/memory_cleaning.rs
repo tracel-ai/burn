@@ -39,7 +39,7 @@ mod fusion {
 
     use super::*;
     use burn_fusion::inspect::FusionInspector;
-    use burn_tensor::{Device, StreamId};
+    use burn_tensor::{Device, StreamId, Transaction};
     use serial_test::serial;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -978,6 +978,52 @@ mod fusion {
             assert_no_leaked_handles(
                 &inspector,
                 "both streams holding pending work on a shared tensor must converge cleanly",
+            );
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn transaction_cross_stream_no_reentrant_panic() {
+        let owner = test_stream();
+        let peer = test_stream();
+
+        owner.executes(|| {
+            let device = Default::default();
+            let inspector = install_and_baseline(&device, owner);
+
+            // Create and compute a tensor on the owner stream, leave it un-drained.
+            let a = TestTensor::<2>::ones([4, 4], &device);
+            let b = (a.clone() + 1.0) * 2.0;
+
+            // Execute the transaction from the peer stream, `b.stream == owner` but
+            // `current == peer`, so `resolve_tensor_float` hits the cross-stream mismatch
+            // and previously called `into_ir()` inside the `submit_blocking` closure,
+            // triggering the re-entrancy panic.
+            let [data] = peer.executes(|| {
+                Transaction::default()
+                    .register(b)
+                    .execute()
+                    .try_into()
+                    .unwrap()
+            });
+
+            data.assert_approx_eq::<FloatElem>(
+                &burn_tensor::TensorData::from([
+                    [4.0_f32, 4.0, 4.0, 4.0],
+                    [4.0, 4.0, 4.0, 4.0],
+                    [4.0, 4.0, 4.0, 4.0],
+                    [4.0, 4.0, 4.0, 4.0],
+                ]),
+                burn_tensor::Tolerance::default(),
+            );
+
+            drop(a);
+            sync_streams(&device, &[peer]);
+
+            assert_no_leaked_handles(
+                &inspector,
+                "transaction executed cross-stream must not panic or leak handles",
             );
         });
     }
