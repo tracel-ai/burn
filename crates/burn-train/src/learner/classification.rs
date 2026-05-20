@@ -1,6 +1,6 @@
 use crate::metric::{
-    AccuracyInput, Adaptor, AurocInput, ConfusionStatsInput, HammingScoreInput, LossInput,
-    PerplexityInput, TopKAccuracyInput, processor::ItemLazy,
+    AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput, PerplexityInput,
+    TopKAccuracyInput, processor::ItemLazy,
 };
 use burn_core::tensor::{Device, Int, Tensor, Transaction};
 use burn_flex::FlexDevice;
@@ -51,12 +51,6 @@ impl ItemLazy for ClassificationOutput {
 impl Adaptor<AccuracyInput> for ClassificationOutput {
     fn adapt(&self) -> AccuracyInput {
         AccuracyInput::new(self.output.clone(), self.targets.clone())
-    }
-}
-
-impl Adaptor<AurocInput> for ClassificationOutput {
-    fn adapt(&self) -> AurocInput {
-        AurocInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
