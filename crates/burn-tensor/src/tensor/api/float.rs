@@ -1090,13 +1090,7 @@ where
 
 // =========================================================================
 // Non-generic implementation helpers (outlined from the public generic API).
-//
-// Each public `Tensor<D, K>` method that previously called `Dispatch::*` is
-// re-routed through one of these helpers. The helpers take and return only
-// `BridgeTensor` (blob-obfuscated, no `DispatchTensor` in scope), so the MIR
-// of the public generic methods doesn't mention any `burn_dispatch` types.
-// Downstream callers monomorphizing the public methods therefore never have
-// to resolve the cubecl-backed type tree.
+// See the crate-level docs for the rationale behind this pattern.
 // =========================================================================
 
 fn erf_impl(p: BridgeTensor) -> BridgeTensor {

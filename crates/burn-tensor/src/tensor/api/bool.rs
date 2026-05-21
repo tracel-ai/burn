@@ -478,6 +478,7 @@ impl<const D: usize> core::ops::BitXor for Tensor<D, Bool> {
 
 // =========================================================================
 // Non-generic implementation helpers (outlined from the generic API).
+// See the crate-level docs for the rationale behind this pattern.
 // =========================================================================
 
 fn bool_to_int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {

@@ -614,6 +614,7 @@ pub fn shrink<const D: usize>(tensor: Tensor<D>, lambda: f64, bias: f64) -> Tens
 
 // =========================================================================
 // Non-generic implementation helpers (outlined from the generic API).
+// See the crate-level docs for the rationale behind this pattern.
 // =========================================================================
 
 fn leaky_relu_impl(p: BridgeTensor, negative_slope: f64) -> BridgeTensor {

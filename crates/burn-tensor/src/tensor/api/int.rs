@@ -196,6 +196,7 @@ impl<const D: usize> Tensor<D, Int> {
 
 // =========================================================================
 // Non-generic implementation helpers (outlined from the generic API).
+// See the crate-level docs for the rationale behind this pattern.
 // =========================================================================
 
 fn arange_impl(range: Range<i64>, device: Device, dtype: burn_std::DType) -> BridgeTensor {

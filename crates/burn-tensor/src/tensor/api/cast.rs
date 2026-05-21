@@ -116,6 +116,7 @@ impl<const D: usize> Cast<D, Bool> for FloatDType {
 
 // =========================================================================
 // Non-generic implementation helpers (outlined from the generic API).
+// See the crate-level docs for the rationale behind this pattern.
 // =========================================================================
 
 fn float_cast_impl(p: BridgeTensor, dtype: FloatDType) -> BridgeTensor {
