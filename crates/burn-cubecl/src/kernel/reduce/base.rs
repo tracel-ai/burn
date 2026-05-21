@@ -7,12 +7,7 @@ use crate::{
 };
 use burn_backend::{DType, TensorMetadata};
 use burn_std::Metadata;
-use cubecl::{
-    AutotuneKey,
-    client::ComputeClient,
-    features::AtomicUsage,
-    ir::{StorageType, Type},
-};
+use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy,
     components::instructions::ReduceOperationConfig,
@@ -36,7 +31,7 @@ pub struct SumAutotuneKey {
 fn supports_atomic_add<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType) -> bool {
     client
         .properties()
-        .atomic_type_usage(Type::new(StorageType::Atomic(dtype.into())))
+        .atomic_type_usage(Type::atomic(dtype))
         .contains(AtomicUsage::Add)
 }
 

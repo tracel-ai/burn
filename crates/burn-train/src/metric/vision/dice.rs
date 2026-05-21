@@ -146,9 +146,9 @@ impl<const D: usize> Metric for DiceMetric<D> {
         let targets_sum = targets.sum();
 
         // Convert to f64
-        let intersection_val = intersection.into_scalar().elem::<f64>();
-        let outputs_sum_val = outputs_sum.into_scalar().elem::<f64>();
-        let targets_sum_val = targets_sum.into_scalar().elem::<f64>();
+        let intersection_val = intersection.into_scalar::<f64>();
+        let outputs_sum_val = outputs_sum.into_scalar::<f64>();
+        let targets_sum_val = targets_sum.into_scalar::<f64>();
 
         // Use epsilon from config
         let epsilon = self.config.epsilon;

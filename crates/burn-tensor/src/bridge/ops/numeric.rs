@@ -1,7 +1,7 @@
 use burn_backend::{Distribution, Scalar};
 use burn_std::{DType, Shape};
 
-use crate::{Device, bridge::BasicOps};
+use crate::{Device, bridge::BasicOps, ops::BridgeTensor};
 
 /// Trait that list all operations that can be applied on all numerical tensors.
 ///
@@ -28,7 +28,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For adding tensors, users should prefer the [`Tensor::add`](crate::Tensor::add)
     /// function, which is more high-level and designed for public use.
-    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Adds a scalar to a tensor element-wise.
     ///
@@ -49,7 +49,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For adding a scalar to a tensor, users should prefer the [`Tensor::add_scalar`](crate::Tensor::add_scalar)
     /// function, which is more high-level and designed for public use.
-    fn add_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
+    fn add_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Subtracts two tensors.
     ///
@@ -70,7 +70,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For subtracting tensors, users should prefer the [`Tensor::sub`](crate::Tensor::sub)
     /// function, which is more high-level and designed for public use.
-    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn sub(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Subtracts a scalar from a tensor element-wise.
     ///
@@ -91,7 +91,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For subtracting a scalar from a tensor, users should prefer the [`Tensor::sub_scalar`](crate::Tensor::sub_scalar)
     /// function, which is more high-level and designed for public use.
-    fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
+    fn sub_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Divides two tensors.
     ///
@@ -112,7 +112,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For dividing tensors, users should prefer the [`Tensor::div`](crate::Tensor::div)
     /// function, which is more high-level and designed for public use.
-    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn div(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Divides a tensor by a scalar element-wise.
     ///
@@ -133,7 +133,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For dividing a tensor by a scalar, users should prefer the [`Tensor::div_scalar`](crate::Tensor::div_scalar)
     /// function, which is more high-level and designed for public use.
-    fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
+    fn div_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
     /// less than that of the divisor.
@@ -155,7 +155,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For performing the modulo operation, users should prefer the [`Tensor::remainder`](crate::Tensor::remainder)
     /// function, which is more high-level and designed for public use.
-    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn remainder(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
     /// less than that of the divisor.
@@ -177,7 +177,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For performing the modulo operation, users should prefer the [`Tensor::remainder_scalar`](crate::Tensor::remainder_scalar)
     /// function, which is more high-level and designed for public use.
-    fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
+    fn remainder_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Multiplies two tensors.
     ///
@@ -198,7 +198,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For multiplying tensors, users should prefer the [`Tensor::mul`](crate::Tensor::mul)
     /// function, which is more high-level and designed for public use.
-    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn mul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Multiplies a tensor by a scalar element-wise.
     ///
@@ -219,7 +219,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For multiplying a tensor by a scalar, users should prefer the [`Tensor::mul_scalar`](crate::Tensor::mul_scalar)
     /// function, which is more high-level and designed for public use.
-    fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
+    fn mul_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Negates a tensor.
     ///
@@ -239,7 +239,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For negating a tensor, users should prefer the [`Tensor::neg`](crate::Tensor::neg)
     /// function, which is more high-level and designed for public use.
-    fn neg(tensor: Self::Primitive) -> Self::Primitive;
+    fn neg(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns the signs of the elements of a tensor.
     ///
@@ -259,7 +259,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For getting the signs of the elements of a tensor, users should prefer the [`Tensor::sign`](crate::Tensor::sign)
     /// function, which is more high-level and designed for public use.
-    fn sign(tensor: Self::Primitive) -> Self::Primitive;
+    fn sign(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Sums all the elements of the tensor.
     ///
@@ -279,7 +279,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For summing all the elements of a tensor, users should prefer the [`Tensor::sum`](crate::Tensor::sum)
     /// function, which is more high-level and designed for public use.
-    fn sum(tensor: Self::Primitive) -> Self::Primitive;
+    fn sum(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Sums all the elements of the tensor along a dimension.
     ///
@@ -300,7 +300,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For summing all the elements of a tensor along a dimension, users should prefer the [`Tensor::sum_dim`](crate::Tensor::sum_dim)
     /// function, which is more high-level and designed for public use.
-    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+    fn sum_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Computes the product of all the elements of the tensor.
     ///
@@ -320,7 +320,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For computing the product of all the elements of a tensor, users should prefer the
     /// [`Tensor::prod`](crate::Tensor::prod) function, which is more high-level and designed for public use.
-    fn prod(tensor: Self::Primitive) -> Self::Primitive;
+    fn prod(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Computes the product of all the elements of the tensor along a dimension.
     ///
@@ -341,7 +341,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For computing the product of all the elements of a tensor along a dimension, users should prefer the
     /// [`Tensor::prod_dim`](crate::Tensor::prod_dim) function, which is more high-level and designed for public use.
-    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+    fn prod_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Computes the mean of all the elements of the tensor.
     ///
@@ -361,7 +361,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For computing the mean of all the elements of a tensor, users should prefer the [`Tensor::mean`](crate::Tensor::mean)
     /// function, which is more high-level and designed for public use.
-    fn mean(tensor: Self::Primitive) -> Self::Primitive;
+    fn mean(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Computes the mean of all the elements of the tensor along a dimension.
     ///
@@ -382,7 +382,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For computing the mean of all the elements of a tensor along a dimension, users should prefer the
     /// [`Tensor::mean_dim`](crate::Tensor::mean_dim) function, which is more high-level and designed for public use.
-    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+    fn mean_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Computes the cumulative sum of elements along a dimension.
     ///
@@ -404,7 +404,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For computing the cumulative sum of elements along a dimension, users should prefer the
     /// [`Tensor::cumsum`](crate::Tensor::cumsum) function, which is more high-level and designed for public use.
-    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+    fn cumsum(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Computes the cumulative product of elements along a dimension.
     ///
@@ -426,7 +426,7 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For computing the cumulative product of elements along a dimension, users should prefer the
     /// [`Tensor::cumprod`](crate::Tensor::cumprod) function, which is more high-level and designed for public use.
-    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+    fn cumprod(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
     /// Calculate absolute value on all elements of a tensor
     ///
@@ -446,21 +446,21 @@ pub(crate) trait Numeric: BasicOps {
     ///
     /// For calculating abs of the elements of a tensor, users should prefer the [`Tensor::abs`](crate::Tensor::abs)
     /// function, which is more high-level and designed for public use.
-    fn abs(tensor: Self::Primitive) -> Self::Primitive;
+    fn abs(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise power of a tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn powi(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 
     /// Element-wise power of a tensor to a scalar int
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
+    fn powi_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
 
     /// Create a random tensor.
     ///
@@ -488,12 +488,12 @@ pub(crate) trait Numeric: BasicOps {
         distribution: Distribution,
         device: &Device,
         dtype: DType,
-    ) -> Self::Primitive;
+    ) -> BridgeTensor;
 
     /// Applies the matrix multiplication operation.
     ///
     /// ```math
     /// C = AB
     /// ```
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn matmul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 }

@@ -1,4 +1,4 @@
-use crate::{bridge::BasicOps, ops::TensorKind};
+use crate::{bridge::BasicOps, ops::BridgeTensor};
 
 /// Trait that list all operations that can be applied on all tensors on an autodiff backend.
 ///
@@ -16,7 +16,7 @@ pub(crate) trait BasicAutodiffOps: BasicOps {
     ///
     /// Users should prefer the [`Tensor::inner`](crate::Tensor::inner)
     /// function, which is more high-level and designed for public use.
-    fn inner(tensor: <Self as TensorKind>::Primitive) -> <Self as TensorKind>::Primitive;
+    fn inner(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Convert a tensor to the autodiff backend.
     ///
@@ -28,5 +28,5 @@ pub(crate) trait BasicAutodiffOps: BasicOps {
     ///
     /// Users should prefer the [`Tensor::from_inner`](crate::Tensor::from_inner)
     /// function, which is more high-level and designed for public use.
-    fn from_inner(inner: <Self as TensorKind>::Primitive) -> <Self as TensorKind>::Primitive;
+    fn from_inner(inner: BridgeTensor) -> BridgeTensor;
 }

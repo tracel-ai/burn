@@ -25,7 +25,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
     reduction: &Tensor<Atomic<I>>,
     cube_count_x: usize,
 ) {
-    let mut broadcast = SharedMemory::<I>::new(1usize);
+    let mut broadcast = Shared::<I>::new();
     let mut reduce = SharedMemory::<I>::new(MAX_REDUCE_SIZE);
     let batch = CUBE_POS_Z as usize;
     let line_spt = comptime!(PART_SIZE / CUBE_SIZE / scan_in.vector_size());
@@ -34,10 +34,10 @@ fn prefix_sum_kernel<I: Int, N: Size>(
 
     //acquire partition index
     if UNIT_POS_X == 0 {
-        broadcast[0] = scan_bump[batch].fetch_add(I::new(1));
+        *broadcast = scan_bump[batch].fetch_add(I::new(1));
     }
     sync_cube();
-    let part_id = usize::cast_from(broadcast[0]);
+    let part_id = usize::cast_from(*broadcast);
 
     let plane_id = UNIT_POS_X / PLANE_DIM;
     let dev_offs = part_id * nums_per_cube;
@@ -65,11 +65,11 @@ fn prefix_sum_kernel<I: Int, N: Size>(
             for k in 0..line_spt {
                 // Manually fuse not_equal and cast
                 let mut scan =
-                    Vector::cast_from(scan_in[i + scan_offs].not_equal(Vector::new(zero)));
+                    Vector::<I, N>::cast_from(scan_in[i + scan_offs].not_equal(&Vector::new(zero)));
                 #[unroll]
                 for v in 1..scan_in.vector_size() {
-                    let prev = scan[v - 1];
-                    scan[v] += prev;
+                    let prev = scan.extract(v - 1);
+                    scan.insert(v, scan.extract(v) + prev);
                 }
                 t_scan[k] = scan;
                 i += PLANE_DIM as usize;
@@ -80,12 +80,13 @@ fn prefix_sum_kernel<I: Int, N: Size>(
             for k in 0..line_spt {
                 if i < scan_in.shape(1) {
                     // Manually fuse not_equal and cast
-                    let mut scan =
-                        Vector::cast_from(scan_in[i + scan_offs].not_equal(Vector::new(zero)));
+                    let mut scan = Vector::<I, N>::cast_from(
+                        scan_in[i + scan_offs].not_equal(&Vector::new(zero)),
+                    );
                     #[unroll]
                     for v in 1..scan_in.vector_size() {
-                        let prev = scan[v - 1];
-                        scan[v] += prev;
+                        let prev = scan.extract(v - 1);
+                        scan.insert(v, scan.extract(v) + prev);
                     }
                     t_scan[k] = scan;
                 }
@@ -97,7 +98,10 @@ fn prefix_sum_kernel<I: Int, N: Size>(
         let plane_mask = PLANE_DIM - 1;
         let circular_shift = (UNIT_POS_PLANE + plane_mask) & plane_mask;
         for k in 0..line_spt {
-            let t = plane_shuffle(plane_inclusive_sum(t_scan[k][v_last]), circular_shift);
+            let t = plane_shuffle(
+                plane_inclusive_sum(t_scan[k].extract(v_last)),
+                circular_shift,
+            );
             t_scan[k] += Vector::cast_from(select(UNIT_POS_PLANE != 0, t, zero) + prev);
             prev += plane_broadcast(t, 0u32);
         }
@@ -171,7 +175,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
                         ((prev_reduction + reduce[(spine_size - 1) as usize]) << I::new(2))
                             | flag_inclusive,
                     );
-                    broadcast[0] = prev_reduction;
+                    *broadcast = prev_reduction;
                     break;
                 }
 
@@ -190,7 +194,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
         } else {
             zero
         };
-        let prev = Vector::cast_from(broadcast[0] + prev);
+        let prev = Vector::cast_from(*broadcast + prev);
         let s_offset = UNIT_POS_PLANE + plane_id * PLANE_DIM * line_spt as u32;
         let dev_offset = part_id * nums_per_cube;
         let mut i = s_offset as usize + dev_offset;

@@ -50,7 +50,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
                 key.matmul_key.analysis.kind,
                 MatmulKind::MatVec | MatmulKind::VecMat
             ) {
-                PRIORITY_HIGH
+                PRIORITY_MAX
             } else {
                 PRIORITY_MEDIUM
             }
@@ -139,7 +139,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
         for (selector, double_buf) in [
             (FusedMatmulSelector::SimpleVecMat, false),
             (FusedMatmulSelector::DoubleVecMat, true),
-            (FusedMatmulSelector::GemvPlaneParallel, false),
+            (FusedMatmulSelector::GemmNoStage, false),
             (FusedMatmulSelector::GemvUnitPerpendicular, false),
         ] {
             set = set.with(

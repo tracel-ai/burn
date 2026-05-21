@@ -46,9 +46,8 @@ metal = ["burn-dispatch/metal"]
 cpu = ["burn-dispatch/cpu"]
 autodiff = ["burn-dispatch/autodiff"]
 
-# TODO: might need to re-introduce the feature flag for from/into primitive
 # For backend extensions
-# extension = []
+extension = []
 
 # Backend features
 autotune = ["burn-dispatch/autotune"]

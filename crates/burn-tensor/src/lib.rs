@@ -27,4 +27,4 @@ pub use burn_std::{
 mod device;
 pub use device::*;
 
-pub(crate) use burn_backend::{TensorMetadata, TensorPrimitive};
+pub(crate) use burn_backend::TensorPrimitive;

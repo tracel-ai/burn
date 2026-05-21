@@ -24,7 +24,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
     /// Create a new stream optimizer.
     pub fn new(builders: Vec<Box<dyn OperationFuser<O>>>) -> Self {
         // Too high and it may break the fusion cache always retriggering explorations.
-        let max_blocks = Some(config().fusion.beam_search.max_blocks);
+        let max_blocks = Some(config().fusion().beam_search.max_blocks);
         Self {
             builders,
             blocks: Vec::new(),

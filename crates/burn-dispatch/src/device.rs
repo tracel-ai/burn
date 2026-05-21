@@ -1,4 +1,4 @@
-use burn_backend::{DeviceId, DeviceOps};
+use burn_backend::{DeviceId, DeviceOps, DeviceSettings, get_device_settings};
 
 use crate::backends::*;
 
@@ -333,6 +333,11 @@ impl DispatchDevice {
         }
 
         self
+    }
+
+    /// Get the device settings.
+    pub fn settings(&self) -> DeviceSettings {
+        get_device_settings::<crate::Dispatch>(self)
     }
 
     /// Returns a unique number per variant to encode into type_id.

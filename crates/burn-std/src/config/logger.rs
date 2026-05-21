@@ -65,13 +65,13 @@ impl Logger {
 
         let fusion_index = register_enabled(
             &mut sinks,
-            &config.fusion.logger,
-            config.fusion.logger.level != FusionLogLevel::Disabled,
+            &config.fusion().logger,
+            config.fusion().logger.level != FusionLogLevel::Disabled,
         );
         let autodiff_index = register_enabled(
             &mut sinks,
-            &config.autodiff.logger,
-            config.autodiff.logger.level != AutodiffLogLevel::Disabled,
+            &config.autodiff().logger,
+            config.autodiff().logger.level != AutodiffLogLevel::Disabled,
         );
 
         Self {
@@ -94,12 +94,12 @@ impl Logger {
 
     /// Returns the current fusion log level.
     pub fn log_level_fusion(&self) -> FusionLogLevel {
-        self.config.fusion.logger.level
+        self.config.fusion().logger.level
     }
 
     /// Returns the current autodiff log level.
     pub fn log_level_autodiff(&self) -> AutodiffLogLevel {
-        self.config.autodiff.logger.level
+        self.config.autodiff().logger.level
     }
 }
 
@@ -122,7 +122,7 @@ pub fn log_fusion<F>(level: FusionLogLevel, f: F)
 where
     F: FnOnce() -> String,
 {
-    let current = config().fusion.logger.level;
+    let current = config().fusion().logger.level;
     if current < level {
         return;
     }
@@ -139,7 +139,7 @@ pub fn log_autodiff<F>(level: AutodiffLogLevel, f: F)
 where
     F: FnOnce() -> String,
 {
-    let current = config().autodiff.logger.level;
+    let current = config().autodiff().logger.level;
     if current < level {
         return;
     }

@@ -1,4 +1,4 @@
-use crate::bridge::Numeric;
+use crate::{bridge::Numeric, ops::BridgeTensor};
 
 /// Trait that lists some floating-point mathematical operations are common to all float-like dtypes.
 ///
@@ -10,31 +10,31 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     #[cfg_attr(doc, doc = "$y_i = x^{2}$")]
     #[cfg_attr(not(doc), doc = "`y = x^2`")]
-    fn square(tensor: Self::Primitive) -> Self::Primitive;
+    fn square(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Applies element wise exponential operation.
     ///
     #[cfg_attr(doc, doc = "$y_i = e^{x_i}$")]
     #[cfg_attr(not(doc), doc = "`y = e^x`")]
-    fn exp(tensor: Self::Primitive) -> Self::Primitive;
+    fn exp(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
     #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i + 1\)$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = log(x_i + 1)`")]
-    fn log1p(tensor: Self::Primitive) -> Self::Primitive;
+    fn log1p(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Applies element wise natural log operation *ln*.
     ///
     #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i\)$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = log(x_i)`")]
-    fn log(tensor: Self::Primitive) -> Self::Primitive;
+    fn log(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Applies element wise root square operation.
     ///
     #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i}$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i)`")]
-    fn sqrt(tensor: Self::Primitive) -> Self::Primitive;
+    fn sqrt(tensor: BridgeTensor) -> BridgeTensor;
     /// Returns a new tensor with cosine values.
     ///
     /// # Arguments
@@ -53,7 +53,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the cosine of a tensor, users should prefer the [`Tensor::cos`](crate::Tensor::cos)
     /// function, which is more high-level and designed for public use.
-    fn cos(tensor: Self::Primitive) -> Self::Primitive;
+    fn cos(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with sine values.
     ///
@@ -73,7 +73,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the sine of a tensor, users should prefer the [`Tensor::sin`](crate::Tensor::sin)
     /// function, which is more high-level and designed for public use.
-    fn sin(tensor: Self::Primitive) -> Self::Primitive;
+    fn sin(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with tangent values.
     ///
@@ -93,7 +93,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the tangent of a tensor, users should prefer the [`Tensor::tan`](crate::Tensor::tan)
     /// function, which is more high-level and designed for public use.
-    fn tan(tensor: Self::Primitive) -> Self::Primitive;
+    fn tan(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with hyperbolic cosine values.
     ///
@@ -113,7 +113,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the hyperbolic cosine of a tensor, users should prefer the [`Tensor::cosh`](crate::Tensor::cosh)
     /// function, which is more high-level and designed for public use.
-    fn cosh(tensor: Self::Primitive) -> Self::Primitive;
+    fn cosh(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with hyperbolic sine values.
     ///
@@ -133,7 +133,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the hyperbolic sine of a tensor, users should prefer the [`Tensor::sinh`](crate::Tensor::sinh)
     /// function, which is more high-level and designed for public use.
-    fn sinh(tensor: Self::Primitive) -> Self::Primitive;
+    fn sinh(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with hyperbolic tangent values.
     ///
@@ -153,7 +153,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the hyperbolic tangent of a tensor, users should prefer the [`Tensor::tanh`](crate::Tensor::tanh)
     /// function, which is more high-level and designed for public use.
-    fn tanh(tensor: Self::Primitive) -> Self::Primitive;
+    fn tanh(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with inverse cosine values.
     ///
@@ -173,7 +173,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the inverse cosine of a tensor, users should prefer the [`Tensor::acos`](crate::Tensor::acos)
     /// function, which is more high-level and designed for public use.
-    fn acos(tensor: Self::Primitive) -> Self::Primitive;
+    fn acos(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with inverse hyperbolic cosine values.
     ///
@@ -193,7 +193,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the inverse hyperbolic cosine of a tensor, users should prefer the [`Tensor::acosh`](crate::Tensor::acosh)
     /// function, which is more high-level and designed for public use.
-    fn acosh(tensor: Self::Primitive) -> Self::Primitive;
+    fn acosh(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with inverse sine values.
     ///
@@ -213,7 +213,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the inverse sine of a tensor, users should prefer the [`Tensor::asin`](crate::Tensor::asin)
     /// function, which is more high-level and designed for public use.
-    fn asin(tensor: Self::Primitive) -> Self::Primitive;
+    fn asin(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with inverse hyperbolic sine values.
     ///
@@ -233,7 +233,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the inverse hyperbolic sine of a tensor, users should prefer the [`Tensor::asinh`](crate::Tensor::asinh)
     /// function, which is more high-level and designed for public use.
-    fn asinh(tensor: Self::Primitive) -> Self::Primitive;
+    fn asinh(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with inverse tangent values.
     ///
@@ -253,7 +253,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the inverse tangent of a tensor, users should prefer the [`Tensor::atan`](crate::Tensor::atan)
     /// function, which is more high-level and designed for public use.
-    fn atan(tensor: Self::Primitive) -> Self::Primitive;
+    fn atan(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a new tensor with inverse hyperbolic tangent values.
     ///
@@ -273,7 +273,7 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the inverse hyperbolic tangent of a tensor, users should prefer the [`Tensor::atanh`](crate::Tensor::atanh)
     /// function, which is more high-level and designed for public use.
-    fn atanh(tensor: Self::Primitive) -> Self::Primitive;
+    fn atanh(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Returns a tensor with the four-quadrant inverse tangent values of `y` and `x`.
     ///
@@ -294,5 +294,5 @@ pub(crate) trait FloatMathOps: Numeric {
     ///
     /// For the four-quadrant inverse tangent of two tensors, users should prefer the [`Tensor::atan2`](crate::Tensor::atan2)
     /// function, which is more high-level and designed for public use.
-    fn atan2(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    fn atan2(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 }

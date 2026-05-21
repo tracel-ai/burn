@@ -293,6 +293,9 @@ where
                 )
                 .into())
             }
+            InterpolateMode::NearestExact => {
+                panic!("nearest exact interpolation is not supported for ndarray backend")
+            }
             InterpolateMode::Bilinear => {
                 let align_corners = options.align_corners;
                 module_op!(inp(x), opt(), E, |x| bilinear_interpolate::<E>(
@@ -333,6 +336,9 @@ where
             InterpolateMode::Nearest => module_op!(inp(x, grad), opt(), E, |x, grad| {
                 nearest_interpolate_backward::<E>(x, grad, output_size).into()
             }),
+            InterpolateMode::NearestExact => {
+                panic!("nearest exact interpolation backward is not supported for ndarray backend")
+            }
             InterpolateMode::Bilinear => {
                 panic!("bilinear interpolation backward is not supported for ndarray backend")
             }

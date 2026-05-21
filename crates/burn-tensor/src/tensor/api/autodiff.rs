@@ -1,7 +1,7 @@
 use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
-use crate::TensorPrimitive;
+use crate::ops::BridgeTensor;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 #[cfg(feature = "autodiff")]
@@ -28,7 +28,7 @@ impl Gradients {
 impl<const D: usize> Tensor<D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> Gradients {
-        Gradients::new(Dispatch::backward(self.primitive.clone().tensor()))
+        Gradients::new(Dispatch::backward(self.primitive.clone().into_float()))
     }
 
     /// Get the gradients of a tensor if it exist.
@@ -37,45 +37,26 @@ impl<const D: usize> Tensor<D> {
     /// be accessed multiple times. If you only need to get the gradients one time,
     /// consider using [grad_remove](Tensor::grad_remove) for better performance.
     pub fn grad(&self, grads: &Gradients) -> Option<Tensor<D>> {
-        match &self.primitive {
-            TensorPrimitive::Float(tensor) => Dispatch::grad(tensor, &grads.inner)
-                .map(TensorPrimitive::Float)
-                .map(Tensor::new),
-            TensorPrimitive::QFloat(_tensor) => {
-                Dispatch::grad(&self.primitive.clone().tensor(), &grads.inner)
-                    .map(TensorPrimitive::Float)
-                    .map(Tensor::new)
-            }
-        }
+        Dispatch::grad(self.primitive.as_float(), &grads.inner)
+            .map(BridgeTensor::Float)
+            .map(Tensor::new)
     }
 
     /// Remove the grad tensor from the [grads](AutodiffBackend::Gradients) struct returning the result.
     pub fn grad_remove(&self, grads: &mut Gradients) -> Option<Tensor<D>> {
-        match &self.primitive {
-            TensorPrimitive::Float(tensor) => Dispatch::grad_remove(tensor, &mut grads.inner)
-                .map(TensorPrimitive::Float)
-                .map(Tensor::new),
-            TensorPrimitive::QFloat(_tensor) => {
-                Dispatch::grad_remove(&self.primitive.clone().tensor(), &mut grads.inner)
-                    .map(TensorPrimitive::Float)
-                    .map(Tensor::new)
-            }
-        }
+        Dispatch::grad_remove(self.primitive.as_float(), &mut grads.inner)
+            .map(BridgeTensor::Float)
+            .map(Tensor::new)
     }
 
     /// Replace the grad tensor from the [grads](AutodiffBackend::Gradients) struct with the provided
     /// gradient.
     pub fn grad_replace(&self, grads: &mut Gradients, grad: Tensor<D>) {
-        match &self.primitive {
-            TensorPrimitive::Float(tensor) => {
-                Dispatch::grad_replace(tensor, &mut grads.inner, grad.primitive.tensor())
-            }
-            TensorPrimitive::QFloat(_tensor) => Dispatch::grad_replace(
-                &self.primitive.clone().tensor(),
-                &mut grads.inner,
-                grad.primitive.tensor(),
-            ),
-        }
+        Dispatch::grad_replace(
+            self.primitive.as_float(),
+            &mut grads.inner,
+            grad.primitive.into_float(),
+        )
     }
 }
 

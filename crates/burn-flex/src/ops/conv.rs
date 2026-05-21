@@ -2226,7 +2226,7 @@ mod tests {
             for kw in 0..3 {
                 let ih = oh as isize + kh as isize - 1;
                 let iw = ow as isize + kw as isize - 1;
-                if ih >= 0 && ih < 5 && iw >= 0 && iw < 5 {
+                if (0..5).contains(&ih) && (0..5).contains(&iw) {
                     let x_idx = ((b * 4 + c) * 5 + ih as usize) * 5 + iw as usize;
                     let w_idx = (c * 3 + kh) * 3 + kw;
                     expected += x_data[x_idx] * w_data[w_idx];
@@ -2561,7 +2561,7 @@ mod tests {
                 for kw in 0..3 {
                     let ih = oh as isize + kh as isize - 1;
                     let iw = ow as isize + kw as isize - 1;
-                    if ih >= 0 && ih < 5 && iw >= 0 && iw < 5 {
+                    if (0..5).contains(&ih) && (0..5).contains(&iw) {
                         let x_idx = ((b * 3 + ci) * 5 + ih as usize) * 5 + iw as usize;
                         let w_idx = ((co * 3 + ci) * 3 + kh) * 3 + kw;
                         expected += x_data[x_idx] * w_data[w_idx];

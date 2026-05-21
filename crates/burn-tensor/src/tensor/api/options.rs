@@ -1,6 +1,6 @@
 use burn_std::DType;
 
-use crate::{Device, bridge::BasicOps};
+use crate::{Device, bridge::BasicOps, ops::TensorKindId};
 
 /// Options for tensor creation.
 ///
@@ -56,16 +56,13 @@ impl TensorCreationOptions {
 
     /// Returns the tensor data type, or the default from the [device settings](crate::DeviceSettings).
     pub(crate) fn resolve_dtype<K: BasicOps>(&self) -> DType {
-        let kind_name = K::name();
-        // TODO: tensor kind enum?
+        let kind = K::id();
         self.dtype.unwrap_or_else(|| {
             let settings = self.device.settings();
-            if kind_name == "Float" {
-                settings.float_dtype.into()
-            } else if kind_name == "Int" {
-                settings.int_dtype.into()
-            } else {
-                settings.bool_dtype.into()
+            match kind {
+                TensorKindId::Float => settings.float_dtype.into(),
+                TensorKindId::Int => settings.int_dtype.into(),
+                TensorKindId::Bool => settings.bool_dtype.into(),
             }
         })
     }

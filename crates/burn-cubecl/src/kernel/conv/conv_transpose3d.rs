@@ -30,12 +30,16 @@ struct ConvArgs {
 fn conv_transpose3d_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &ComptimeOption<Tensor<E>>,
+    bias: ComptimeOption<&[E]>,
     output: &mut LinearView<E, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
     #[define(E)] _dtype: StorageType,
 ) {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
+        terminate!()
+    }
+
     let in_channels = weight.shape(0);
     let out_c_per_group = weight.shape(1);
     let kernel_size_0 = weight.shape(2);
@@ -80,7 +84,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let index_input_batch = batch * input.stride(0);
     let index_weight_out_c = out_channel * weight.stride(1);
 
-    let bias: ComptimeOption<E> = bias.map(|bias| bias[out_c_out]);
+    let bias: ComptimeOption<E> = bias.as_ref().map(|bias| bias[out_c_out]);
     let mut sum = bias.unwrap_or_default();
 
     let numerator_d_base = out_z + args.padding_0;
@@ -146,7 +150,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
         }
     }
 
-    output[ABSOLUTE_POS] = sum;
+    output.write(ABSOLUTE_POS, sum);
 }
 
 pub(crate) fn conv_transpose3d<R: CubeRuntime>(
@@ -201,7 +205,7 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
         address_type!(input, weight, bias, output),
         input.into_tensor_arg(),
         weight.into_tensor_arg(),
-        bias.map(|bias| bias.into_tensor_arg()).into(),
+        bias.map(|bias| bias.into_buffer_arg()).into(),
         output.clone().into_linear_view(),
         shape_divmod(&output),
         ConvArgsLaunch::new(

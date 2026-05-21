@@ -1,4 +1,4 @@
-use crate::{Bool, Cast, Device, Int, Shape, Tensor, TensorData, TensorPrimitive};
+use crate::{Bool, Cast, Device, Int, Shape, Tensor, TensorData, ops::BridgeTensor};
 use alloc::{vec, vec::Vec};
 use burn_backend::ops::BoolTensorOps;
 use burn_dispatch::Dispatch;
@@ -36,12 +36,12 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
+    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
     ///     println!("{tensor}");
     /// }
     /// ```
-    pub fn from_bool(data: TensorData, device: &Device) -> Self {
-        Self::from_data(data, device)
+    pub fn from_bool<A: Into<TensorData>>(data: A, device: &Device) -> Self {
+        Self::from_data(data.into(), device)
     }
 
     /// Convert the bool tensor into an int tensor.
@@ -57,14 +57,17 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
     ///     let int_tensor = bool_tensor.int();
     ///     println!("{int_tensor}"); // [1, 0, 1]
     /// }
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
         let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(Dispatch::bool_into_int(self.primitive, out_dtype))
+        Tensor::new(BridgeTensor::Int(Dispatch::bool_into_int(
+            self.primitive.into(),
+            out_dtype,
+        )))
     }
 
     /// Convert the bool tensor into a float tensor.
@@ -80,15 +83,15 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
     ///     let float_tensor = bool_tensor.float();
     ///     println!("{float_tensor}"); // [1.0, 0.0, 1.0]
     /// }
     /// ```
     pub fn float(self) -> Tensor<D> {
         let out_dtype = self.device().settings().float_dtype;
-        Tensor::new(TensorPrimitive::Float(Dispatch::bool_into_float(
-            self.primitive,
+        Tensor::new(BridgeTensor::Float(Dispatch::bool_into_float(
+            self.primitive.into(),
             out_dtype,
         )))
     }
@@ -105,7 +108,7 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
     ///
     ///     // Cast to int
     ///     let int_tensor = bool_tensor.clone().cast(IntDType::I64);
@@ -115,8 +118,8 @@ impl<const D: usize> Tensor<D, Bool> {
     /// }
     /// ```
     #[must_use]
-    pub fn cast<T: Cast<Bool>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
-        Tensor::new(T::cast(self.primitive, dtype))
+    pub fn cast<T: Cast<D, Bool>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
+        T::cast(self, dtype)
     }
 
     /// Inverses boolean values.
@@ -128,13 +131,15 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
+    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
     ///     let inverted = tensor.bool_not();
     ///     println!("{inverted}"); // [[false, true], [true, false]]
     /// }
     /// ```
     pub fn bool_not(self) -> Self {
-        Tensor::new(Dispatch::bool_not(self.primitive))
+        Tensor::new(BridgeTensor::Bool(Dispatch::bool_not(
+            self.primitive.into(),
+        )))
     }
 
     /// Performs logical and (`&&`) on two boolean tensors.
@@ -154,14 +159,17 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
-    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
     ///     let result = a.bool_and(b);
     ///     println!("{result}"); // [[true, false], [false, false]]
     /// }
     /// ```
     pub fn bool_and(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(Dispatch::bool_and(self.primitive, rhs.primitive))
+        Tensor::new(BridgeTensor::Bool(Dispatch::bool_and(
+            self.primitive.into(),
+            rhs.primitive.into(),
+        )))
     }
 
     /// Performs logical or (`||`) on two boolean tensors.
@@ -181,14 +189,17 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
-    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
     ///     let result = a.bool_or(b);
     ///     println!("{result}"); // [[true, true], [true, false]]
     /// }
     /// ```
     pub fn bool_or(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(Dispatch::bool_or(self.primitive, rhs.primitive))
+        Tensor::new(BridgeTensor::Bool(Dispatch::bool_or(
+            self.primitive.into(),
+            rhs.primitive.into(),
+        )))
     }
 
     /// Performs logical xor (`^`) on two boolean tensors.
@@ -209,14 +220,17 @@ impl<const D: usize> Tensor<D, Bool> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
-    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
     ///     let result = a.bool_xor(b);
     ///     println!("{result}"); // [[false, true], [true, false]]
     /// }
     /// ```
     pub fn bool_xor(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
-        Tensor::new(Dispatch::bool_xor(self.primitive, rhs.primitive))
+        Tensor::new(BridgeTensor::Bool(Dispatch::bool_xor(
+            self.primitive.into(),
+            rhs.primitive.into(),
+        )))
     }
 
     /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
@@ -234,7 +248,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::<2, Bool>::from_bool(
-    ///         [[true, false, true], [false, true, false], [false, true, false]].into(),
+    ///         [[true, false, true], [false, true, false], [false, true, false]],
     ///         &device,
     ///     );
     ///     let indices = tensor.nonzero();
@@ -284,7 +298,7 @@ impl<const D: usize> Tensor<D, Bool> {
     /// fn example() {
     ///     let device = Default::default();
     ///     let tensor = Tensor::<2, Bool>::from_bool(
-    ///         [[true, false, true], [false, true, false], [false, true, false]].into(),
+    ///         [[true, false, true], [false, true, false], [false, true, false]],
     ///         &device,
     ///     );
     ///     let indices = tensor.argwhere();
@@ -304,7 +318,9 @@ impl<const D: usize> Tensor<D, Bool> {
     /// result contains the indices of a non-zero element.
     pub async fn argwhere_async(self) -> Tensor<2, Int> {
         let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(Dispatch::bool_argwhere(self.primitive, out_dtype).await)
+        Tensor::new(BridgeTensor::Int(
+            Dispatch::bool_argwhere(self.primitive.into(), out_dtype).await,
+        ))
     }
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to
@@ -439,5 +455,41 @@ impl<const D: usize> Tensor<D, Bool> {
     /// ```
     pub fn diag_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Diagonal, offset, device)
+    }
+}
+
+// !tensor (bool only)
+impl<const D: usize> core::ops::Not for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn not(self) -> Self::Output {
+        self.bool_not()
+    }
+}
+
+// tensor & tensor (bool only)
+impl<const D: usize> core::ops::BitAnd for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn bitand(self, tensor: Tensor<D, Bool>) -> Self::Output {
+        self.bool_and(tensor)
+    }
+}
+
+// tensor | tensor (bool only)
+impl<const D: usize> core::ops::BitOr for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn bitor(self, tensor: Tensor<D, Bool>) -> Self::Output {
+        self.bool_or(tensor)
+    }
+}
+
+// tensor ^ tensor (bool only)
+impl<const D: usize> core::ops::BitXor for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn bitxor(self, tensor: Tensor<D, Bool>) -> Self::Output {
+        self.bool_xor(tensor)
     }
 }

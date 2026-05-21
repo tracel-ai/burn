@@ -2,7 +2,7 @@ use crate::{
     Fusion, FusionBackend,
     client::GlobalFusionClient,
     get_client,
-    stream::{OperationStreams, execution::Operation},
+    stream::{StreamId, execution::Operation},
 };
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
@@ -44,7 +44,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         client
             .register(
-                OperationStreams::default(),
+                StreamId::current(),
                 OperationIr::BaseBool(BaseOperationIr::Empty(desc.clone())),
                 EmptyOps::<B>::new(desc.out, device.clone()),
             )
@@ -74,7 +74,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         client
             .register(
-                OperationStreams::default(),
+                StreamId::current(),
                 OperationIr::BaseBool(BaseOperationIr::Zeros(desc.clone())),
                 ZerosOps::<B>::new(desc.out, device.clone()),
             )
@@ -104,7 +104,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         client
             .register(
-                OperationStreams::default(),
+                StreamId::current(),
                 OperationIr::BaseBool(BaseOperationIr::Ones(desc.clone())),
                 OnesOps::<B>::new(desc.out, device.clone()),
             )
@@ -126,7 +126,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         client
             .register(
-                OperationStreams::default(),
+                StreamId::current(),
                 OperationIr::Init(desc),
                 NoOp::<B>::new(),
             )
@@ -148,7 +148,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = CastOpIr::create(tensor.into_ir(), out_dtype.into(), || {
@@ -179,7 +179,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = CastOpIr::create(tensor.into_ir(), out_dtype.into(), || {
@@ -232,7 +232,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = ShapeOpIr::reshape(tensor.into_ir(), shape, || client.create_empty_handle());
@@ -263,7 +263,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = SliceOpIr::create(tensor.into_ir(), slices.into(), || {
@@ -301,7 +301,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &value]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc =
@@ -340,7 +340,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs(&tensors);
+        let streams = StreamId::current();
 
         let client = tensors.first().unwrap().client.clone();
         let tensors = tensors.into_iter().map(|t| t.into_ir()).collect();
@@ -371,7 +371,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&lhs, &rhs]);
+        let streams = StreamId::current();
 
         let client = lhs.client.clone();
         let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
@@ -402,7 +402,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
@@ -432,7 +432,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&lhs, &rhs]);
+        let streams = StreamId::current();
 
         let client = lhs.client.clone();
         let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
@@ -464,7 +464,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&lhs, &rhs]);
+        let streams = StreamId::current();
 
         let client = lhs.client.clone();
         let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
@@ -494,7 +494,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = SwapDimsOpIr::create(tensor.into_ir(), dim1, dim2, || {
@@ -525,7 +525,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = PermuteOpIr::create(tensor.into_ir(), axes.into(), || {
@@ -557,7 +557,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = ShapeOpIr::expand(tensor.into_ir(), shape, || client.create_empty_handle());
@@ -586,7 +586,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = FlipOpIr::create(tensor.into_ir(), axes.into(), || {
@@ -619,7 +619,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = RepeatDimOpIr::create(tensor.into_ir(), dim, times, || {
@@ -656,7 +656,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = UnfoldOpIr::create(tensor.into_ir(), dim, size, step, || {
@@ -695,7 +695,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &mask, &value]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = MaskWhereOpIr::create(tensor.into_ir(), mask.into_ir(), value.into_ir(), || {
@@ -733,7 +733,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &mask]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let value = value.into();
@@ -771,7 +771,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &indices]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = GatherOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
@@ -811,7 +811,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &indices, &value]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = ScatterOpIr::create(
@@ -846,7 +846,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&lhs]);
+        let streams = StreamId::current();
 
         let dtype = lhs.dtype;
         let client = lhs.client.clone();
@@ -886,7 +886,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &indices]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = SelectOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
@@ -926,7 +926,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let streams = OperationStreams::with_inputs([&tensor, &indices, &value]);
+        let streams = StreamId::current();
 
         let client = tensor.client.clone();
         let desc = SelectAssignOpIr::create(

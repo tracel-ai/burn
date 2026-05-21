@@ -30,7 +30,10 @@ pub(crate) fn unary_int<I: Int, N: Size, O: IntUnaryOpFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::Unary::<I, N>::execute(input[ABSOLUTE_POS], options);
+    output.write(
+        ABSOLUTE_POS,
+        O::Unary::<I, N>::execute(input.read(ABSOLUTE_POS), options),
+    );
 }
 
 pub(crate) fn launch_unary_int<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
@@ -129,8 +132,8 @@ pub(crate) mod unary_basic_int {
                     let one = Vector::one();
                     let minus_one = Vector::new(I::new(-1));
 
-                    let is_positive = input.greater_than(zero);
-                    let is_negative = input.less_than(zero);
+                    let is_positive = input.greater_than(&zero);
+                    let is_negative = input.less_than(&zero);
                     let sign = select_many(is_negative, minus_one, zero);
 
                     select_many(is_positive, one, sign)

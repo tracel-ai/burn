@@ -18,7 +18,7 @@ pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Vector::cast_from(input[ABSOLUTE_POS]);
+    output.write(ABSOLUTE_POS, Vector::cast_from(input.read(ABSOLUTE_POS)));
 }
 
 /// Cast a tensor to the given element type.

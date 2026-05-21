@@ -7,7 +7,8 @@ use crate::{
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
 use cubek::interpolate::{
     definition::InterpolateMode as CubekInterpolateMode,
-    definition::InterpolateOptions as CubekInterpolateOptions, interpolate as cubek_interpolate,
+    definition::InterpolateOptions as CubekInterpolateOptions,
+    definition::NearestMode as CubekNearestMode, interpolate as cubek_interpolate,
     interpolate_backward as cubek_interpolate_backward,
 };
 
@@ -91,7 +92,10 @@ fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
     CubekInterpolateOptions {
         mode: {
             match options.mode {
-                InterpolateMode::Nearest => CubekInterpolateMode::Nearest,
+                InterpolateMode::Nearest => CubekInterpolateMode::Nearest(CubekNearestMode::Floor),
+                InterpolateMode::NearestExact => {
+                    CubekInterpolateMode::Nearest(CubekNearestMode::Exact)
+                }
                 InterpolateMode::Bilinear => CubekInterpolateMode::Bilinear,
                 InterpolateMode::Bicubic => CubekInterpolateMode::Bicubic,
                 InterpolateMode::Lanczos3 => CubekInterpolateMode::Lanczos3,

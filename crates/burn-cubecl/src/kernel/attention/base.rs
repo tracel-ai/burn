@@ -6,11 +6,11 @@ use burn_backend::{
     DType, Shape,
     ops::{AttentionModuleOptions, attention::attention_fallback},
 };
-use cubek::attention::launch;
-use cubek::attention::{
+use cubek::attention::forward::{
     definition::{
         AccumulatorPrecision, AttentionGlobalTypes, AttentionOptions, AttentionSetupError,
     },
+    launch,
     routines::blackbox_accelerated::BlackboxAcceleratedStrategy,
 };
 
@@ -62,9 +62,7 @@ pub fn attention<R: CubeRuntime>(
             mask,
             attn_bias,
             options,
-            launch::Strategy::BlackboxAccelerated(
-                cubek::attention::launch::BlueprintStrategy::Inferred(strategy),
-            ),
+            launch::Strategy::BlackboxAccelerated(launch::BlueprintStrategy::Inferred(strategy)),
         ),
         AttentionStrategy::FlashUnit => flash_attention(
             query,
@@ -73,7 +71,7 @@ pub fn attention<R: CubeRuntime>(
             mask,
             attn_bias,
             options,
-            launch::Strategy::Unit(cubek::attention::launch::BlueprintStrategy::Inferred(())),
+            launch::Strategy::Unit(launch::BlueprintStrategy::Inferred(())),
         ),
         AttentionStrategy::Fallback => Ok(attention_fallback::<CubeBackend<R, f32, i32, u8>>(
             query, key, value, mask, attn_bias, options,
@@ -107,7 +105,7 @@ pub fn flash_attention<R: CubeRuntime>(
         out: out.dtype.into(),
     };
 
-    cubek::attention::launch::launch_ref::<R>(
+    launch::launch_ref::<R>(
         strategy,
         &client,
         query.binding(),

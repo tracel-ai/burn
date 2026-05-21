@@ -15,7 +15,6 @@ fn should_support_dilate_luma() {
 
     let output = tensor.dilate(kernel, MorphOptions::default());
     let expected = test_image("morphology/Dilate_1_5x5_Rect.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -30,7 +29,6 @@ fn should_support_dilate_luma_cross() {
 
     let output = tensor.dilate(kernel, MorphOptions::default());
     let expected = test_image("morphology/Dilate_1_5x5_Cross.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -45,7 +43,6 @@ fn should_support_dilate_luma_ellipse() {
 
     let output = tensor.dilate(kernel, MorphOptions::default());
     let expected = test_image("morphology/Dilate_1_5x5_Ellipse.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -60,7 +57,6 @@ fn should_support_dilate_luma_non_square_rect() {
 
     let output = tensor.dilate(kernel, MorphOptions::default());
     let expected = test_image("morphology/Dilate_1_3x5_Rect.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -75,7 +71,6 @@ fn should_support_dilate_luma_non_square_cross() {
 
     let output = tensor.dilate(kernel, MorphOptions::default());
     let expected = test_image("morphology/Dilate_1_3x5_Cross.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -90,7 +85,6 @@ fn should_support_dilate_rgb_rect() {
 
     let output = tensor.dilate(kernel, MorphOptions::default());
     let expected = test_image("morphology/Dilate_2_3x5_Rect.png", &device, false);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -105,7 +99,6 @@ fn should_support_dilate_rgb_cross() {
 
     let output = tensor.dilate(kernel, MorphOptions::default());
     let expected = test_image("morphology/Dilate_2_3x5_Cross.png", &device, false);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -129,7 +122,6 @@ fn should_support_dilate_rgb_border_reflect_rect() {
         &device,
         false,
     );
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -153,7 +145,6 @@ fn should_support_dilate_rgb_border_reflect_cross() {
         &device,
         false,
     );
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -177,7 +168,6 @@ fn should_support_dilate_rgb_border_reflect101_rect() {
         &device,
         false,
     );
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -201,7 +191,6 @@ fn should_support_dilate_rgb_border_reflect101_cross() {
         &device,
         false,
     );
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -225,7 +214,6 @@ fn should_support_dilate_rgb_border_replicate_rect() {
         &device,
         false,
     );
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -249,7 +237,6 @@ fn should_support_dilate_rgb_border_replicate_cross() {
         &device,
         false,
     );
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -272,7 +259,6 @@ fn should_support_dilate_rgb_anchor_rect() {
         MorphOptions::builder().anchor(Point::new(2, 1)).build(),
     );
     let expected = test_image("morphology/Dilate_2_5x7_Rect_ANCHOR.png", &device, false);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -304,7 +290,6 @@ fn should_support_dilate_rgb_anchor_cross() {
         &device,
         false,
     );
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -393,7 +378,6 @@ fn should_support_erode_luma() {
 
     let output = tensor.erode(kernel, MorphOptions::default());
     let expected = test_image("morphology/Erode_1_5x5_Rect.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -408,7 +392,6 @@ fn should_support_erode_luma_cross() {
 
     let output = tensor.erode(kernel, MorphOptions::default());
     let expected = test_image("morphology/Erode_1_5x5_Cross.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -423,7 +406,6 @@ fn should_support_erode_luma_ellipse() {
 
     let output = tensor.erode(kernel, MorphOptions::default());
     let expected = test_image("morphology/Erode_1_5x5_Ellipse.png", &device, true);
-    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()

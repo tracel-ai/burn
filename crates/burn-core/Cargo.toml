@@ -78,7 +78,7 @@ fusion = ["burn-tensor/fusion"]
 
 # Backend extensions
 # burn-dispatch features are enabled from burn-tensor, we just re-export the public types
-extension = ["burn-backend-extension", "burn-dispatch", "burn-backend"]
+extension = ["burn-tensor/extension", "burn-backend-extension", "burn-dispatch", "burn-backend"]
 
 [dependencies]
 

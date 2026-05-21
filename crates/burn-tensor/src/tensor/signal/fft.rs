@@ -3,9 +3,9 @@ use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 
 use crate::Tensor;
-use crate::TensorPrimitive;
 use crate::check;
 use crate::check::TensorCheck;
+use crate::ops::BridgeTensor;
 
 /// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
 ///
@@ -74,10 +74,10 @@ pub fn rfft<const D: usize>(
         }
     }
 
-    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.tensor(), dim, n);
+    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.into_float(), dim, n);
     (
-        Tensor::new(TensorPrimitive::Float(spectrum_re)),
-        Tensor::new(TensorPrimitive::Float(spectrum_im)),
+        Tensor::new(BridgeTensor::Float(spectrum_re)),
+        Tensor::new(BridgeTensor::Float(spectrum_im)),
     )
 }
 
@@ -142,12 +142,12 @@ pub fn irfft<const D: usize>(
     }
 
     let signal = Dispatch::irfft(
-        spectrum_re.primitive.tensor(),
-        spectrum_im.primitive.tensor(),
+        spectrum_re.primitive.into_float(),
+        spectrum_im.primitive.into_float(),
         dim,
         n,
     );
-    Tensor::new(TensorPrimitive::Float(signal))
+    Tensor::new(BridgeTensor::Float(signal))
 }
 
 /// Computes the 1-dimensional discrete Fourier Transform of complex-valued input.

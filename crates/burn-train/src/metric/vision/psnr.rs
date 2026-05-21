@@ -177,7 +177,7 @@ impl Metric for PsnrMetric {
             .mul_scalar(max_squared)
             .log()
             .mul_scalar(10.0 / LN_10);
-        let avg_psnr = psnr_per_image.mean().into_scalar().elem::<f64>();
+        let avg_psnr = psnr_per_image.mean().into_scalar::<f64>();
 
         self.state.update(
             avg_psnr,
