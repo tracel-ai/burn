@@ -49,14 +49,21 @@ impl<C: ProtocolClient> ClientWorker<C> {
 
         #[allow(deprecated)]
         runtime.spawn(async move {
-            println!("Connecting to {} ...", address.clone());
-            log::info!("Connecting to {} ...", address.clone());
-            let mut stream_request = C::connect(address.clone(), "request")
-                .await
-                .expect("Server to be accessible");
-            let mut stream_response = C::connect(address, "response")
-                .await
-                .expect("Server to be accessible");
+            log::info!("Connecting to {address} ...");
+            let mut stream_request = match C::connect(address.clone(), "request").await {
+                Ok(stream) => stream,
+                Err(err) => panic!(
+                    "Failed to open remote 'request' channel to {address}: {err:?}. \
+                     Is a `burn-remote` server running at that address?"
+                ),
+            };
+            let mut stream_response = match C::connect(address.clone(), "response").await {
+                Ok(stream) => stream,
+                Err(err) => panic!(
+                    "Failed to open remote 'response' channel to {address}: {err:?}. \
+                     Is a `burn-remote` server running at that address?"
+                ),
+            };
 
             let state = Arc::new(tokio::sync::Mutex::new(ClientWorker::<C>::default()));
 
