@@ -48,7 +48,7 @@ impl SgdConfig {
         }
     }
 
-    /// Creates a new [SgdConfig](SgdConfig) with default values.
+    /// Initializes the SGD optimizer from the configuration.
     pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Sgd, M> {
         let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.gradient_clipping {
