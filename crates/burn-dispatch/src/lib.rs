@@ -98,6 +98,11 @@ pub mod backends {
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorch;
 
+    #[cfg(feature = "remote")]
+    pub use burn_remote as remote;
+    #[cfg(feature = "remote")]
+    pub use burn_remote::RemoteBackend as Remote;
+
     pub use super::devices::*;
 }
 
@@ -120,4 +125,7 @@ pub mod devices {
     pub use burn_ndarray::NdArrayDevice;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorchDevice;
+
+    #[cfg(feature = "remote")]
+    pub use burn_remote::RemoteDevice;
 }

@@ -120,6 +120,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::NdArray => NdArray::<f32>::device_count(backend_type_id),
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "remote")]
+            DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
         }
     }
@@ -674,6 +676,10 @@ impl Dispatch {
             DispatchDevice::LibTorch(_) => {
                 <QuantizedTensor<LibTorch> as QTensorPrimitive>::default_scheme()
             }
+            #[cfg(feature = "remote")]
+            DispatchDevice::Remote(_) => {
+                <QuantizedTensor<Remote> as QTensorPrimitive>::default_scheme()
+            }
             #[cfg(feature = "autodiff")]
             DispatchDevice::Autodiff(ad_device) => Self::default_quant_scheme(&ad_device.inner),
         }
@@ -713,6 +719,9 @@ impl Dispatch {
             DispatchDeviceId::LibTorch => (0..LibTorch::<f32>::device_count(0))
                 .map(|i| LibTorchDevice::Cuda(i).into())
                 .collect(),
+            #[cfg(feature = "remote")]
+            // Remote devices are user-supplied addresses, not enumerable hardware.
+            DispatchDeviceId::Remote => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
         }
     }

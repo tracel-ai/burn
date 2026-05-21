@@ -45,6 +45,7 @@ wgpu = ["burn-dispatch/wgpu"]
 metal = ["burn-dispatch/metal"]
 cpu = ["burn-dispatch/cpu"]
 autodiff = ["burn-dispatch/autodiff"]
+remote = ["std", "burn-dispatch/remote"]
 
 # For backend extensions
 extension = []

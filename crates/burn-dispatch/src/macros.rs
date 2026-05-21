@@ -78,6 +78,13 @@ macro_rules! dispatch_device_arms {
                     $([$Backend, $cfg]),*
                 )
             },
+            // Remote arm: Remote is non-generic, so it doesn't fit the `$Backend<f32>` shape
+            // of the generated arms below.
+            #[cfg(feature = "remote")]
+            $crate::DispatchDevice::Remote($inner) => {
+                type B = $crate::backends::Remote;
+                $body
+            }
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
@@ -94,6 +101,13 @@ macro_rules! dispatch_device_arms {
         $([$Backend:ident, $cfg:meta]),*
     ) => {
         match $device {
+            // Autodiff<Remote> lives client-side; the server doesn't know it's executing
+            // a backward pass — it just sees ops as usual.
+            #[cfg(feature = "remote")]
+            $crate::DispatchDevice::Remote($inner) => {
+                type B = Autodiff<$crate::backends::Remote>;
+                $body
+            }
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
@@ -198,7 +212,10 @@ macro_rules! to_device_arms {
             #[cfg(feature = "autodiff")]
             (_, $crate::DispatchDevice::Autodiff(_)) => unreachable!("Autodiff should not wrap an autodiff device."),
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff.")
+            ($crate::DispatchTensorKind::Autodiff(..), _) => panic!("Operation not marked for autodiff."),
+            // Remote source/destination requires `DispatchTensorKind::Remote`, added in a later milestone.
+            #[cfg(feature = "remote")]
+            (_, $crate::DispatchDevice::Remote(_)) => unimplemented!("Remote tensor support pending"),
         }
     };
 }
@@ -269,7 +286,10 @@ macro_rules! float_to_device_arms {
                 )+
             )*
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
+            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances."),
+            // Remote destination requires `DispatchTensorKind::Remote`, added in a later milestone.
+            #[cfg(feature = "remote")]
+            (_, $crate::DispatchDevice::Remote(_)) => unimplemented!("Remote tensor support pending"),
         }
     };
 
@@ -343,6 +363,9 @@ macro_rules! creation_op_arms {
                     $([$Backend, $cfg]),*
                 )
             },
+            // Remote creation requires `DispatchTensorKind::Remote`, added in a later milestone.
+            #[cfg(feature = "remote")]
+            $crate::DispatchDevice::Remote(_) => unimplemented!("Remote tensor support pending"),
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
@@ -367,6 +390,9 @@ macro_rules! creation_op_arms {
         $([$Backend:ident, $cfg:meta]),*
     ) => {{
         match $device {
+            // Remote creation under autodiff still requires the tensor variant.
+            #[cfg(feature = "remote")]
+            $crate::DispatchDevice::Remote(_) => unimplemented!("Remote tensor support pending"),
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
