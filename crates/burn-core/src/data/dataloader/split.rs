@@ -71,16 +71,10 @@ mod tests {
         let (device1, device2) = (Device::flex(), Device::flex());
 
         #[cfg(all(test, feature = "tch"))]
-        let (device1, device2) = (
-            Device::libtorch_cuda(burn_tensor::DeviceIndex::new(0usize)),
-            Device::libtorch_cuda(burn_tensor::DeviceIndex::new(1usize)),
-        );
+        let (device1, device2) = (Device::libtorch_cuda(0), Device::libtorch_cuda(1));
 
         #[cfg(all(test, feature = "cuda"))]
-        let (device1, device2) = (
-            Device::cuda(burn_tensor::DeviceIndex::new(0usize)),
-            Device::cuda(burn_tensor::DeviceIndex::new(1usize)),
-        );
+        let (device1, device2) = (Device::cuda(0), Device::cuda(1));
 
         let dataloaders = split_dataloader(dataloader.clone(), &[device1.clone(), device2.clone()]);
 

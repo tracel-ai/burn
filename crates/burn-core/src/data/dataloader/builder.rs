@@ -213,16 +213,10 @@ mod tests {
         let (device1, device2) = (Device::flex(), Device::flex());
 
         #[cfg(all(test, feature = "tch"))]
-        let (device1, device2) = (
-            Device::libtorch_cuda(burn_tensor::DeviceIndex::new(0usize)),
-            Device::libtorch_cuda(burn_tensor::DeviceIndex::new(1usize)),
-        );
+        let (device1, device2) = (Device::libtorch_cuda(0), Device::libtorch_cuda(1));
 
         #[cfg(all(test, feature = "cuda"))]
-        let (device1, device2) = (
-            Device::cuda(burn_tensor::DeviceIndex::new(0usize)),
-            Device::cuda(burn_tensor::DeviceIndex::new(1usize)),
-        );
+        let (device1, device2) = (Device::cuda(0), Device::cuda(1));
 
         assert_eq!(dataloader.num_items(), 11);
         let dataloader_1 = dataloader.slice(0, 5).to_device(&device1);

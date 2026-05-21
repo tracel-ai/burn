@@ -40,7 +40,7 @@ use crate::macros::obfuscate_type;
 /// let device = Device::cuda(DeviceIndex::Default);
 ///
 /// // CUDA device at hardware index 1.
-/// let device = Device::cuda(DeviceIndex::new(1));
+/// let device = Device::cuda(1);
 ///
 /// // WGPU with explicit selector (requires `wgpu`/`vulkan`/`metal`/`webgpu`).
 /// let device = Device::wgpu(DeviceKind::DiscreteGpu(0));
@@ -51,9 +51,10 @@ use crate::macros::obfuscate_type;
 ///
 /// Available factory methods (each gated by its matching Cargo feature):
 /// `Device::cpu`, `Device::cuda` / `Device::rocm` / `Device::libtorch_cuda`
-/// (take a [`DeviceIndex`]), `Device::wgpu` / `Device::vulkan` / `Device::metal`
-/// / `Device::webgpu` (take a [`DeviceKind`]), `Device::flex`, `Device::ndarray`,
-/// `Device::libtorch`, `Device::libtorch_mps`, `Device::libtorch_vulkan`.
+/// (take an integer index or a [`DeviceIndex`]), `Device::wgpu` /
+/// `Device::vulkan` / `Device::metal` / `Device::webgpu` (take a
+/// [`DeviceKind`]), `Device::flex`, `Device::ndarray`, `Device::libtorch`,
+/// `Device::libtorch_mps`, `Device::libtorch_vulkan`.
 ///
 /// # Autodiff
 ///
@@ -156,35 +157,69 @@ impl<D: Into<DispatchDevice>> From<D> for Device {
 /// Selector for the hardware index of a backend whose devices are simply
 /// indexed (e.g. CUDA, ROCm).
 ///
-/// Use [`DeviceIndex::Default`] to let the backend pick its default device, or
-/// [`DeviceIndex::Specified`] / [`DeviceIndex::new`] to target a particular
-/// hardware index.
+/// Backend factory methods that take an index (`Device::cuda`, `Device::rocm`,
+/// `Device::libtorch_cuda`) accept `impl Into<DeviceIndex>`, so the common
+/// shorthand is to pass a plain integer literal:
+///
+/// ```rust,ignore
+/// Device::cuda(0);                    // hardware index 0
+/// Device::cuda(DeviceIndex::Default); // backend-chosen default
+/// ```
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
 pub enum DeviceIndex {
-    /// Target a specific device by its hardware index.
+    /// Target a specific hardware device by its index.
     Specified(usize),
-    /// Use whatever device the backend considers its default
-    /// (typically index `0`).
+    /// Let the backend pick its default device (typically index `0`).
     #[default]
     Default,
 }
 
 impl DeviceIndex {
-    /// Convenience constructor for [`DeviceIndex::Specified`].
+    /// Construct a [`DeviceIndex::Specified`] from anything convertible into
+    /// a `usize`.
     pub fn new(index: impl Into<usize>) -> Self {
         Self::Specified(index.into())
     }
 
     /// Resolve to a concrete hardware index, defaulting to `0` for
-    /// [`DeviceIndex::Default`]. Used by backend factory methods that need a
-    /// plain `usize` (each gated by its own Cargo feature — so this looks
-    /// dead when none of them are enabled).
+    /// [`DeviceIndex::Default`]. Backend factory methods are each gated by a
+    /// Cargo feature, so this looks dead when none of them are enabled.
     #[allow(dead_code)]
     fn resolve(self) -> usize {
         match self {
             DeviceIndex::Specified(i) => i,
             DeviceIndex::Default => 0,
         }
+    }
+}
+
+impl From<usize> for DeviceIndex {
+    fn from(i: usize) -> Self {
+        Self::Specified(i)
+    }
+}
+
+impl From<u32> for DeviceIndex {
+    fn from(i: u32) -> Self {
+        Self::Specified(i as usize)
+    }
+}
+
+impl From<u64> for DeviceIndex {
+    fn from(i: u64) -> Self {
+        Self::Specified(i as usize)
+    }
+}
+
+impl From<i32> for DeviceIndex {
+    fn from(i: i32) -> Self {
+        Self::Specified(usize::try_from(i).expect("device index must be non-negative"))
+    }
+}
+
+impl From<i64> for DeviceIndex {
+    fn from(i: i64) -> Self {
+        Self::Specified(usize::try_from(i).expect("device index must be non-negative"))
     }
 }
 
@@ -235,29 +270,26 @@ impl Device {
         Self::new(burn_dispatch::devices::CpuDevice::default())
     }
 
-    /// CUDA device.
+    /// CUDA device at the given hardware index.
     ///
-    /// Pass [`DeviceIndex::Default`] (or `DeviceIndex::Default` via
-    /// `Default::default()`) for the default CUDA device, or
-    /// [`DeviceIndex::Specified(i)`](DeviceIndex::Specified) / [`DeviceIndex::new(i)`](DeviceIndex::new)
-    /// to target hardware index `i`.
+    /// Accepts a plain integer (e.g. `Device::cuda(0)`) or a
+    /// [`DeviceIndex`] — use [`DeviceIndex::Default`] to let the backend
+    /// pick.
     #[cfg(feature = "cuda")]
-    pub fn cuda(index: DeviceIndex) -> Self {
-        // `CudaDevice` is a plain `struct { index: usize }` with `Default`
-        // returning index `0`, so we just resolve our enum to a usize.
-        Self::new(burn_dispatch::devices::CudaDevice::new(index.resolve()))
+    pub fn cuda(index: impl Into<DeviceIndex>) -> Self {
+        Self::new(burn_dispatch::devices::CudaDevice::new(
+            index.into().resolve(),
+        ))
     }
 
-    /// ROCm/HIP device.
+    /// ROCm/HIP device at the given hardware index.
     ///
-    /// Same selector semantics as [`Device::cuda`]: pass [`DeviceIndex::Default`]
-    /// for the default device, or a [`DeviceIndex::Specified`] / [`DeviceIndex::new`]
-    /// hardware index.
+    /// Same selector semantics as [`Device::cuda`].
     #[cfg(feature = "rocm")]
-    pub fn rocm(index: DeviceIndex) -> Self {
-        // `RocmDevice` (cubecl's `AmdDevice`) is also a plain
-        // `struct { index: usize }`.
-        Self::new(burn_dispatch::devices::RocmDevice::new(index.resolve()))
+    pub fn rocm(index: impl Into<DeviceIndex>) -> Self {
+        Self::new(burn_dispatch::devices::RocmDevice::new(
+            index.into().resolve(),
+        ))
     }
 
     /// Flex backend device.
@@ -278,15 +310,13 @@ impl Device {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cpu)
     }
 
-    /// LibTorch CUDA device.
+    /// LibTorch CUDA device at the given hardware index.
     ///
-    /// Selector semantics match `Device::cuda`: pass [`DeviceIndex::Default`]
-    /// for the backend's default device, or [`DeviceIndex::Specified`] /
-    /// [`DeviceIndex::new`] for a specific hardware index.
+    /// Same selector semantics as [`Device::cuda`].
     #[cfg(feature = "tch")]
-    pub fn libtorch_cuda(index: DeviceIndex) -> Self {
+    pub fn libtorch_cuda(index: impl Into<DeviceIndex>) -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(
-            index.resolve(),
+            index.into().resolve(),
         ))
     }
 
