@@ -8,11 +8,18 @@ use crate::{
 
 /// Event happening during the training/validation process.
 pub enum LearnerEvent<T> {
-    /// Signal the start of the process (e.g., training start)
-    Start,
+    /// Signal the start of the process (e.g., training start).
+    Start {
+        /// The total number of training epochs.
+        total_epochs: usize,
+    },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),
-    /// Signal the end of an epoch.
+    /// Signal the start of a split, carrying the total number of items in that split.
+    StartSplit(usize),
+    /// Signal the end of a split, carrying the current epoch number.
+    EndSplit(usize),
+    /// Signal the end of a full epoch.
     EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
     End(Option<LearnerSummary>),
@@ -21,9 +28,16 @@ pub enum LearnerEvent<T> {
 /// Event happening during the evaluation process.
 pub enum EvaluatorEvent<T> {
     /// Signal the start of the process (e.g., evaluation start)
-    Start,
+    Start {
+        /// The total number of items to evaluate.
+        total_tests: usize,
+    },
+    /// Signal the start of a test split, carrying the split name and total number of items.
+    StartTest(EvaluationName, usize),
     /// Signal that an item have been processed.
     ProcessedItem(EvaluationName, EvaluationItem<T>),
+    /// Signal the end of a single test split.
+    EndTest,
     /// Signal the end of the process (e.g., evaluation end).
     End(Option<LearnerSummary>),
 }

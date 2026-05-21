@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
+    file_progress::{FileEvaluationProgressLogger, FileTrainingProgressLogger},
     model::Model,
 };
 
@@ -26,7 +27,6 @@ use burn::{
             AccuracyMetric, LearningRateMetric, LossMetric,
             store::{Aggregate, Direction, Split},
         },
-        renderer::MetricsRenderer,
     },
 };
 use burn::{optim::AdamWConfig, train::SupervisedTraining};
@@ -106,6 +106,10 @@ pub fn run(device: Device) {
             Split::Valid,
             StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
+        .with_progress_logger(
+            FileTrainingProgressLogger::new(format!("{ARTIFACT_DIR}/training_progress.log"))
+                .expect("Failed to create training progress log"),
+        )
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -116,21 +120,30 @@ pub fn run(device: Device) {
     ));
 
     let dataset_test_plain = Arc::new(MnistDataset::test());
-    let mut renderer = result.renderer;
 
-    let idents_tests = generate_idents(None);
+    let splits: Vec<_> = generate_idents(None)
+        .into_iter()
+        .map(|(ident, _)| {
+            let name = ident.to_string();
+            let dataset_test = DatasetIdent::prepare(ident, dataset_test_plain.clone());
+            let dataloader = DataLoaderBuilder::new(MnistBatcher::default())
+                .batch_size(config.batch_size)
+                .num_workers(2)
+                .build(dataset_test);
+            (name, dataloader)
+        })
+        .collect();
 
-    for (ident, _) in idents_tests {
-        let name = ident.to_string();
-        renderer = evaluate(
-            name.as_str(),
-            ident,
-            result.model.clone(),
-            renderer,
-            dataset_test_plain.clone(),
-            config.batch_size,
-        );
-    }
+    let mut renderer = EvaluatorBuilder::new(ARTIFACT_DIR)
+        .renderer(result.renderer)
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .with_progress_logger(
+            FileEvaluationProgressLogger::new(format!("{ARTIFACT_DIR}/evaluation_progress.log"))
+                .expect("Failed to create evaluation progress log"),
+        )
+        .summary()
+        .build(result.model.clone())
+        .eval_all(splits);
 
     result
         .model
@@ -145,30 +158,6 @@ pub fn run(device: Device) {
         .unwrap();
 
     renderer.manual_close();
-}
-
-fn evaluate(
-    name: &str,
-    ident: DatasetIdent,
-    model: Model,
-    renderer: Box<dyn MetricsRenderer>,
-    dataset: impl Dataset<MnistItem> + 'static,
-    batch_size: usize,
-) -> Box<dyn MetricsRenderer> {
-    let batcher = MnistBatcher::default();
-    let dataset_test = DatasetIdent::prepare(ident, dataset);
-    let dataloader_test = DataLoaderBuilder::new(batcher)
-        .batch_size(batch_size)
-        .num_workers(2)
-        .build(dataset_test);
-
-    let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
-        .renderer(renderer)
-        .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .summary()
-        .build(model);
-
-    evaluator.eval(name, dataloader_test)
 }
 
 enum DatasetIdent {

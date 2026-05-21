@@ -129,8 +129,6 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
                 break;
             }
         }
-
-        event_processor.process_train(LearnerEvent::EndEpoch(epoch));
     }
 
     fn run_optim_distr(
@@ -206,7 +204,5 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
                 break;
             }
         }
-
-        event_processor.process_train(LearnerEvent::EndEpoch(epoch));
     }
 }

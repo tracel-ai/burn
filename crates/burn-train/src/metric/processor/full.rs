@@ -1,4 +1,5 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
+use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
 use crate::renderer::{
@@ -13,6 +14,7 @@ pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
     metrics: MetricsTraining<T, V>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
+    progress_logger: Option<Box<dyn TrainingProgressLogger>>,
 }
 
 /// An [event processor](EventProcessorEvaluation) that handles:
@@ -22,6 +24,7 @@ pub struct FullEventProcessorEvaluation<T: ItemLazy> {
     metrics: MetricsEvaluation<T>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
+    progress_logger: Option<Box<dyn EvaluationProgressLogger>>,
 }
 
 impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
@@ -34,7 +37,13 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
             metrics,
             renderer,
             store,
+            progress_logger: None,
         }
+    }
+
+    pub(crate) fn with_progress_logger(mut self, logger: Box<dyn TrainingProgressLogger>) -> Self {
+        self.progress_logger = Some(logger);
+        self
     }
 
     fn progress_indicators(&self, progress: &TrainingProgress) -> Vec<ProgressType> {
@@ -72,7 +81,16 @@ impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
             metrics,
             renderer,
             store,
+            progress_logger: None,
         }
+    }
+
+    pub(crate) fn with_progress_logger(
+        mut self,
+        logger: Box<dyn EvaluationProgressLogger>,
+    ) -> Self {
+        self.progress_logger = Some(logger);
+        self
     }
 
     fn progress_indicators(&self, progress: &EvaluationProgress) -> Vec<ProgressType> {
@@ -98,7 +116,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
     fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
         match event {
-            EvaluatorEvent::Start => {
+            EvaluatorEvent::Start { total_tests } => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(
@@ -107,10 +125,18 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 definitions
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start(total_tests);
+                }
+            }
+            EvaluatorEvent::StartTest(name, total_items) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start_test(name.as_str(), total_items);
+                }
             }
             EvaluatorEvent::ProcessedItem(name, item) => {
                 let item = item.sync();
-                let progress = (&item).into();
+                let progress: crate::renderer::EvaluationProgress = (&item).into();
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_test(&item, &metadata);
@@ -139,9 +165,20 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     });
 
                 let indicators = self.progress_indicators(&progress);
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.update_test(progress.progress.items_processed);
+                }
                 self.renderer.render_test(progress, indicators);
             }
+            EvaluatorEvent::EndTest => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end_test();
+                }
+            }
             EvaluatorEvent::End(summary) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end();
+                }
                 self.renderer.on_test_end(summary).ok();
             }
         }
@@ -157,7 +194,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 {
     fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
-            LearnerEvent::Start => {
+            LearnerEvent::Start { total_epochs } => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(
@@ -166,10 +203,18 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 definitions
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start(total_epochs, None);
+                }
+            }
+            LearnerEvent::StartSplit(total_items) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start_split("train", total_items);
+                }
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress = (&item).into();
+                let progress: TrainingProgress = (&item).into();
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_train(&item, &metadata);
@@ -193,17 +238,32 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 let indicators = self.progress_indicators(&progress);
+                if let Some(logger) = &mut self.progress_logger {
+                    logger
+                        .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
+                }
                 self.renderer.render_train(progress, indicators);
             }
-            LearnerEvent::EndEpoch(epoch) => {
+            LearnerEvent::EndSplit(epoch) => {
                 self.store
                     .add_event_train(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
                         Split::Train,
                     )));
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end_split();
+                }
                 self.metrics.end_epoch_train();
             }
+            LearnerEvent::EndEpoch(epoch) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.update_epoch(epoch);
+                }
+            }
             LearnerEvent::End(summary) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end();
+                }
                 self.renderer.on_train_end(summary).ok();
             }
         }
@@ -211,10 +271,15 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
     fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
-            LearnerEvent::Start => {} // no-op for now
+            LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
+            LearnerEvent::StartSplit(total_items) => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.start_split("valid", total_items);
+                }
+            }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress = (&item).into();
+                let progress: TrainingProgress = (&item).into();
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_valid(&item, &metadata);
@@ -238,17 +303,25 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 let indicators = self.progress_indicators(&progress);
+                if let Some(logger) = &mut self.progress_logger {
+                    logger
+                        .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
+                }
                 self.renderer.render_valid(progress, indicators);
             }
-            LearnerEvent::EndEpoch(epoch) => {
+            LearnerEvent::EndSplit(epoch) => {
                 self.store
                     .add_event_valid(crate::metric::store::Event::EndEpoch(EpochSummary::new(
                         epoch,
                         Split::Valid,
                     )));
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end_split();
+                }
                 self.metrics.end_epoch_valid();
             }
-            LearnerEvent::End(_) => {} // no-op for now
+            LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)
+            LearnerEvent::End(_) => {}      // no-op
         }
     }
     fn renderer(self) -> Box<dyn MetricsRenderer> {
