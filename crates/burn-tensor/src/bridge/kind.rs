@@ -205,22 +205,22 @@ impl BridgeTensor {
         }
     }
 
-    /// Returns `true` if this tensor is the [`BridgeKind::Float`] variant.
+    /// Returns `true` if this tensor is the float variant.
     pub fn is_float(&self) -> bool {
         matches!(self.kind(), BridgeKind::Float)
     }
 
-    /// Returns `true` if this tensor is the [`BridgeKind::Int`] variant.
+    /// Returns `true` if this tensor is the int variant.
     pub fn is_int(&self) -> bool {
         matches!(self.kind(), BridgeKind::Int)
     }
 
-    /// Returns `true` if this tensor is the [`BridgeKind::Bool`] variant.
+    /// Returns `true` if this tensor is the bool variant.
     pub fn is_bool(&self) -> bool {
         matches!(self.kind(), BridgeKind::Bool)
     }
 
-    /// Returns `true` if this tensor is the [`BridgeKind::QFloat`] variant.
+    /// Returns `true` if this tensor is the quantized float variant.
     pub fn is_qfloat(&self) -> bool {
         matches!(self.kind(), BridgeKind::QFloat)
     }

@@ -311,8 +311,6 @@ impl Device {
     }
 
     /// LibTorch CUDA device at the given hardware index.
-    ///
-    /// Same selector semantics as [`Device::cuda`].
     #[cfg(feature = "tch")]
     pub fn libtorch_cuda(index: impl Into<DeviceIndex>) -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(
