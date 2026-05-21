@@ -13,10 +13,7 @@ use burn::train::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 ///
 /// # Example
 ///
-/// ```no_run
-/// use crate::file_progress::FileTrainingProgressLogger;
-/// use burn_train::SupervisedTraining;
-///
+/// ```ignore
 /// let training = SupervisedTraining::new(/* ... */)
 ///     .with_progress_logger(
 ///         FileTrainingProgressLogger::new("/tmp/my-run/training_progress.log").unwrap()
@@ -82,10 +79,7 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 ///
 /// # Example
 ///
-/// ```no_run
-/// use crate::file_progress::FileEvaluationProgressLogger;
-/// use burn_train::EvaluatorBuilder;
-///
+/// ```ignore
 /// let evaluator = EvaluatorBuilder::new(/* ... */)
 ///     .with_progress_logger(
 ///         FileEvaluationProgressLogger::new("/tmp/my-run/evaluation_progress.log").unwrap()

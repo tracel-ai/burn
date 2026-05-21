@@ -159,8 +159,9 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # struct MyTrainingProgressLogger;
+    /// ```ignore
+    /// // `MyTrainingProgressLogger` is a user-defined type that implements
+    /// // `burn_train::logger::TrainingProgressLogger`.
     /// let learner = SupervisedTraining::new(...)
     ///     .with_progress_logger(MyTrainingProgressLogger);
     /// ```

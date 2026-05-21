@@ -107,7 +107,7 @@ pub fn run(device: Device) {
             StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
         .with_progress_logger(
-            FileTrainingProgressLogger::new(format!("./training_progress.log"))
+            FileTrainingProgressLogger::new(format!("{ARTIFACT_DIR}/training_progress.log"))
                 .expect("Failed to create training progress log"),
         )
         .num_epochs(config.num_epochs)
@@ -138,7 +138,7 @@ pub fn run(device: Device) {
         .renderer(result.renderer)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .with_progress_logger(
-            FileEvaluationProgressLogger::new(format!("./evaluation_progress.log"))
+            FileEvaluationProgressLogger::new(format!("{ARTIFACT_DIR}/evaluation_progress.log"))
                 .expect("Failed to create evaluation progress log"),
         )
         .summary()
