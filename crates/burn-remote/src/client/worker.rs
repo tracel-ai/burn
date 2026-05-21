@@ -49,6 +49,7 @@ impl<C: ProtocolClient> ClientWorker<C> {
 
         #[allow(deprecated)]
         runtime.spawn(async move {
+            println!("Connecting to {} ...", address.clone());
             log::info!("Connecting to {} ...", address.clone());
             let mut stream_request = C::connect(address.clone(), "request")
                 .await

@@ -14,9 +14,9 @@ pub fn start() {
         } else if #[cfg(feature = "cuda")]{
             burn::server::start_websocket::<burn::backend::Cuda>(Default::default(), port);
         } else if #[cfg(feature = "webgpu")] {
-            burn::server::start_websocket::<burn::backend::WebGpu>(Default::default(), port);
+            burn::server::start_websocket::<burn_wgpu::WebGpu>(Default::default(), port);
         } else if #[cfg(feature = "vulkan")] {
-            burn::server::start_websocket::<burn::backend::Vulkan>(Default::default(), port);
+            burn::server::start_websocket::<burn_wgpu::Vulkan>(Default::default(), port);
         } else {
             panic!("No backend selected, can't start server on port {port}");
         }

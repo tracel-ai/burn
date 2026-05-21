@@ -19,4 +19,5 @@ flex = ["burn/flex"]
 [dependencies]
 cfg-if = { workspace = true }
 burn = { workspace = true, features = ["default", "server"] }
+burn-wgpu = { path = "../../crates/burn-wgpu" }
 cubecl = { workspace = true }
