@@ -36,6 +36,8 @@ pub enum EvaluatorEvent<T> {
     StartTest(EvaluationName, usize),
     /// Signal that an item have been processed.
     ProcessedItem(EvaluationName, EvaluationItem<T>),
+    /// Signal the end of a single test split.
+    EndTest,
     /// Signal the end of the process (e.g., evaluation end).
     End(Option<LearnerSummary>),
 }

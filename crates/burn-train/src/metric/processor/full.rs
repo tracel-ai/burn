@@ -7,9 +7,6 @@ use crate::renderer::{
 };
 use std::sync::Arc;
 
-// Each Evaluator::eval() call runs exactly one test split.
-const EVALUATOR_TEST_SPLITS: usize = 1;
-
 /// An [event processor](EventProcessorTraining) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
@@ -173,9 +170,13 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 }
                 self.renderer.render_test(progress, indicators);
             }
-            EvaluatorEvent::End(summary) => {
+            EvaluatorEvent::EndTest => {
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_test();
+                }
+            }
+            EvaluatorEvent::End(summary) => {
+                if let Some(logger) = &mut self.progress_logger {
                     logger.end();
                 }
                 self.renderer.on_test_end(summary).ok();
