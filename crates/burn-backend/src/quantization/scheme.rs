@@ -1,5 +1,5 @@
 pub use burn_std::{QPARAM_ALIGN, params_shape};
-use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape};
+use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape, TensorData};
 
 use super::{Calibration, QuantizationParametersPrimitive};
 use crate::{Backend, TensorMetadata, get_device_settings};
@@ -35,6 +35,38 @@ pub fn compute_range<B: Backend>(
                 (blocks_min, blocks_max)
             }
         },
+        Calibration::Ternary { threshold } => {
+            // gamma = threshold ?? mean(|W|) — symmetric range [-gamma, +gamma]
+            // Use with QuantValue::Q2S + PackedU32 for 2-bit ternary storage.
+            let gamma = match threshold {
+                Some(t) => {
+                    let device = B::float_device(&tensor);
+                    B::float_from_data(TensorData::new(vec![*t], Shape::new([1])), &device)
+                }
+                None => match scheme.level {
+                    QuantLevel::Tensor => B::float_mean(B::float_abs(tensor)),
+                    QuantLevel::Block(block_size) => {
+                        let block_elems = block_size.num_elements();
+                        let shape = tensor.shape();
+                        let numel = shape.num_elements();
+
+                        assert_eq!(
+                            numel % block_elems,
+                            0,
+                            "Tensor {shape:?} must be evenly divisible by block size {block_elems}"
+                        );
+
+                        let num_blocks = numel / block_elems;
+                        let params_shape = params_shape(&shape, scheme.level);
+                        let blocks =
+                            B::float_reshape(B::float_abs(tensor), Shape::new([num_blocks, block_elems]));
+                        B::float_reshape(B::float_mean_dim(blocks, 1), params_shape)
+                    }
+                },
+            };
+            let neg_gamma = B::float_neg(gamma.clone());
+            (neg_gamma, gamma)
+        }
     }
 }
 
