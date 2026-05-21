@@ -12,11 +12,23 @@ static BURN_GLOBAL_CONFIG: spin::Mutex<Option<Arc<BurnConfig>>> = spin::Mutex::n
 pub struct BurnConfig {
     /// Configuration for operation fusion.
     #[serde(default)]
-    pub fusion: FusionConfig,
+    fusion: FusionConfig,
 
     /// Configuration for autodiff.
     #[serde(default)]
-    pub autodiff: AutodiffConfig,
+    autodiff: AutodiffConfig,
+}
+
+impl BurnConfig {
+    /// Returns a reference to the operation-fusion configuration.
+    pub fn fusion(&self) -> &FusionConfig {
+        &self.fusion
+    }
+
+    /// Returns a reference to the autodiff configuration.
+    pub fn autodiff(&self) -> &AutodiffConfig {
+        &self.autodiff
+    }
 }
 
 impl RuntimeConfig for BurnConfig {

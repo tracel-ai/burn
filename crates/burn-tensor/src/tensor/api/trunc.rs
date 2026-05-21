@@ -1,7 +1,7 @@
 use burn_backend::ops::FloatTensorOps;
 use burn_dispatch::Dispatch;
 
-use crate::{Float, Tensor, TensorPrimitive};
+use crate::{Float, Tensor, ops::BridgeTensor};
 
 impl<const D: usize> Tensor<D, Float> {
     /// Truncates the tensor element-wise, rounding toward zero.
@@ -27,15 +27,17 @@ impl<const D: usize> Tensor<D, Float> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let tensor = Tensor::< 1>::from_data([2.3, -1.7, 0.5, -0.5, 3.9], &device);
+    ///     let tensor = Tensor::<1>::from_data([2.3, -1.7, 0.5, -0.5, 3.9], &device);
     ///     let truncated = tensor.trunc();
     ///
     ///     // Result: [2.0, -1.0, 0.0, -0.0, 3.0]
     /// }
     /// ```
     pub fn trunc(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_trunc(
-            self.primitive.tensor(),
-        )))
+        Self::new(trunc_impl(self.primitive))
     }
+}
+
+fn trunc_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_trunc(p.into_float()))
 }

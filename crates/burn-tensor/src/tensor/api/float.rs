@@ -6,7 +6,7 @@ use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
 use crate::kind::FloatMath;
-use crate::ops::GridSampleOptions;
+use crate::ops::{BridgeKind, BridgeTensor};
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
@@ -20,6 +20,7 @@ use burn_backend::TensorMetadata;
 use burn_backend::distributed::DistributedParamId;
 use burn_backend::ops::ActivationOps;
 pub use burn_backend::ops::FloatTensorOps;
+use burn_backend::ops::GridSampleOptions;
 use burn_backend::ops::QTensorOps;
 use burn_backend::quantization::QuantizationParametersPrimitive;
 use burn_dispatch::Dispatch;
@@ -46,9 +47,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     )]
     #[cfg_attr(not(doc), doc = "`y_i = erf(x_i)`")]
     pub fn erf(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_erf(
-            self.primitive.tensor(),
-        )))
+        Self::new(erf_impl(self.primitive))
     }
 
     /// Applies [reciprocal operation](https://en.wikipedia.org/wiki/Multiplicative_inverse)
@@ -57,9 +56,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     #[cfg_attr(doc, doc = r#"$y_i = \frac{1}{x_i}$"#)]
     #[cfg_attr(not(doc), doc = "`y_i = 1/x_i`")]
     pub fn recip(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_recip(
-            self.primitive.tensor(),
-        )))
+        Self::new(recip_impl(self.primitive))
     }
 
     /// Converts each of the elements of the input tensor from angles in degrees to radians.
@@ -87,23 +84,17 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// This function implements the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
     /// strategy, with halfway cases rounded to the nearest even integer value.
     pub fn round(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_round(
-            self.primitive.tensor(),
-        )))
+        Self::new(round_impl(self.primitive))
     }
 
     /// Applies element wise floor operation.
     pub fn floor(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_floor(
-            self.primitive.tensor(),
-        )))
+        Self::new(floor_impl(self.primitive))
     }
 
     /// Applies element wise ceil operation.
     pub fn ceil(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_ceil(
-            self.primitive.tensor(),
-        )))
+        Self::new(ceil_impl(self.primitive))
     }
 
     /// Create a tensor from floats (f32) on a given device.
@@ -115,8 +106,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let _ = Tensor::< 1>::from_floats([1.0, 2.0], &device);
-    ///     let _ = Tensor::< 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+    ///     let _ = Tensor::<1>::from_floats([1.0, 2.0], &device);
+    ///     let _ = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
     /// }
     /// ```
     pub fn from_floats<A: Into<TensorData>>(floats: A, device: &Device) -> Self {
@@ -133,24 +124,19 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let float_tensor = Tensor::< 1>::from_floats([1.0, 2.0], &device);
+    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.0], &device);
     ///     let int_tensor = float_tensor.int();
     /// }
     /// ```
     pub fn int(self) -> Tensor<D, Int> {
-        let out_dtype = self.device().settings().int_dtype;
-        Tensor::new(Dispatch::float_into_int(self.primitive.tensor(), out_dtype))
+        let device = self.device();
+        Tensor::new(int_impl(self.primitive, device))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_random(
-            self.shape(),
-            distribution,
-            &self.device().dispatch,
-            self.dtype().into(),
-        )))
+        Self::new(random_like_impl(&self.primitive, distribution))
     }
 
     /// Calculate the variance along the given dimension.
@@ -202,7 +188,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// ```ignore
     /// let device = Default::default();
-    /// let tensor = Tensor::< 2>::from_data(
+    /// let tensor = Tensor::<2>::from_data(
     ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
     ///     &device,
     /// );
@@ -263,7 +249,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// ```ignore
     /// let device = Default::default();
-    /// let tensor = Tensor::< 2>::from_data(
+    /// let tensor = Tensor::<2>::from_data(
     ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
     ///     &device,
     /// );
@@ -293,7 +279,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let float_tensor = Tensor::< 1>::from_floats([1.0, 2.5], &device);
+    ///     let float_tensor = Tensor::<1>::from_floats([1.0, 2.5], &device);
     ///
     ///     // Within-kind cast (float to float)
     ///     let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
@@ -303,8 +289,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     #[must_use]
-    pub fn cast<T: Cast<Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
-        Tensor::new(T::cast(self.primitive, dtype))
+    pub fn cast<T: Cast<D, Float>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
+        T::cast(self, dtype)
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -313,9 +299,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::float_detach(
-            self.primitive.tensor(),
-        )))
+        Self::new(detach_impl(self.primitive))
     }
 
     /// Mark the tensor to keep gradients during the backward pass.
@@ -327,10 +311,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
 
     /// Returns true if the tensor requires gradients during the backward pass.
     pub fn is_require_grad(&self) -> bool {
-        match &self.primitive {
-            TensorPrimitive::Float(tensor) => Dispatch::float_is_require_grad(tensor),
-            TensorPrimitive::QFloat(tensor) => Dispatch::q_is_require_grad(tensor),
-        }
+        is_require_grad_impl(&self.primitive)
     }
 
     /// Mark the tensor as tracked or untracked depending on the require_grad argument.
@@ -338,22 +319,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// This function does nothing when autodiff is not enabled.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
-        let primitive = match self.primitive {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::float_set_require_grad(tensor, require_grad))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(Dispatch::q_set_require_grad(tensor, require_grad))
-            }
-        };
-        Self::new(primitive)
+        Self::new(set_require_grad_impl(self.primitive, require_grad))
     }
 
     /// Applies the relu function to the tensor.
     pub(crate) fn relu(self) -> Self {
-        Self::new(TensorPrimitive::Float(Dispatch::relu(
-            self.primitive.tensor(),
-        )))
+        Self::new(relu_impl(self.primitive))
     }
 
     /// Calculate covaraince matrix between different entries alongside a given dimension.
@@ -383,13 +354,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The quantized tensor.
     pub fn quantize(self, scheme: &QuantScheme, qparams: QuantizationParameters) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::QFloat(Dispatch::quantize(
-            self.primitive.tensor(),
+        Tensor::new(quantize_impl(
+            self.primitive,
             scheme,
-            QuantizationParametersPrimitive {
-                scales: qparams.scales.primitive.tensor(),
-            },
-        )))
+            qparams.scales.primitive,
+        ))
     }
 
     /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
@@ -405,10 +374,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// # Notes
     /// This uses [min-max calibration](crate::quantization::Calibration::MinMax).
     pub fn quantize_dynamic(self, scheme: &QuantScheme) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::QFloat(Dispatch::quantize_dynamic(
-            self.primitive.tensor(),
-            scheme,
-        )))
+        Tensor::new(quantize_dynamic_impl(self.primitive, scheme))
     }
 
     /// Convert the tensor back to a higher precision data type.
@@ -419,7 +385,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// The dequantized tensor.
     pub fn dequantize(self) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::Float(self.primitive.tensor()))
+        Tensor::new(dequantize_impl(self.primitive))
     }
 
     /// Checks element wise if the tensor is close to another tensor.
@@ -450,8 +416,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor1.is_close(tensor2, None, None);
     ///    println!("{tensor}");
     ///    // [[true, true, true], [true, true, true]]
@@ -539,8 +505,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let result = tensor1.all_close(tensor2, None, None);
     ///    println!("{}", result);
     ///    // true
@@ -549,7 +515,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
         self.is_close(other, rtol, atol)
             .all()
-            .into_scalar()
+            .into_scalar::<u8>()
             .to_bool()
     }
 
@@ -566,15 +532,14 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_nan();
     ///    println!("{tensor}");
     ///    // [[false, true, false], [false, false, false]]
     /// }
     /// ```
     pub fn is_nan(self) -> Tensor<D, Bool> {
-        let out_dtype = self.device().settings().bool_dtype;
-        Tensor::new(Dispatch::float_is_nan(self.primitive.tensor(), out_dtype))
+        Tensor::new(is_nan_impl(self.primitive))
     }
 
     /// Checks if the tensor contains any NaN values.
@@ -590,11 +555,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
     ///   println!("{tensor}");
     ///   // [true]
-    ///   let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///   let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
     ///   println!("{tensor}");
     ///   // [false]
@@ -622,15 +587,14 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
     ///    // [[false, true, false], [false, false, false]]
     /// }
     /// ```
     pub fn is_inf(self) -> Tensor<D, Bool> {
-        let out_dtype = self.device().settings().bool_dtype;
-        Tensor::new(Dispatch::float_is_inf(self.primitive.tensor(), out_dtype))
+        Tensor::new(is_inf_impl(self.primitive))
     }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is finite
@@ -647,7 +611,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, f64::INFINITY, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_finite();
     ///    println!("{tensor}");
     ///    // [[true, false, true], [false, true, true]]
@@ -692,11 +656,11 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         grid: Tensor<D>,
         options: impl Into<GridSampleOptions>,
     ) -> Tensor<D> {
-        Tensor::new(TensorPrimitive::Float(Dispatch::float_grid_sample_2d(
-            self.primitive.tensor(),
-            grid.primitive.tensor(),
+        Tensor::new(grid_sample_2d_impl(
+            self.primitive,
+            grid.primitive,
             options.into(),
-        )))
+        ))
     }
 
     /// Computes the cross product of `self` and another tensor along a given dimension.
@@ -715,11 +679,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn cross<Dim: AsIndex>(self, other: Tensor<D>, dim: Dim) -> Tensor<D> {
         let dim = dim.expect_dim_index(D);
         check!(TensorCheck::cross(&self, &other, dim));
-        Tensor::new(TensorPrimitive::Float(Dispatch::float_cross(
-            self.primitive.tensor(),
-            other.primitive.tensor(),
-            dim,
-        )))
+        Tensor::new(cross_impl(self.primitive, other.primitive, dim))
     }
 
     /// Applies element wise power operation with a float Tensor
@@ -735,38 +695,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::< 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
+    ///    let tensor1 = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor2 = Tensor::<2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.powf(tensor2);
     ///    println!("{tensor}");
     ///    // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
     /// }
     /// ```
     pub fn powf(self, other: Self) -> Self {
-        let primitive = match (self.primitive, other.primitive) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(Dispatch::float_powf(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                Dispatch::q_powf(lhs, rhs)
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                let dtype = rhs.dtype();
-                TensorPrimitive::Float(Dispatch::float_powf(
-                    Dispatch::dequantize(lhs, dtype.into()),
-                    rhs,
-                ))
-            }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                let dtype = lhs.dtype();
-                TensorPrimitive::Float(Dispatch::float_powf(
-                    lhs,
-                    Dispatch::dequantize(rhs, dtype.into()),
-                ))
-            }
-        };
-
-        Tensor::new(primitive)
+        Tensor::new(powf_impl(self.primitive, other.primitive))
     }
 
     /// Applies element wise power operation with a float scalar
@@ -782,7 +719,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::< 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
+    ///    let tensor = Tensor::<2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.powf_scalar(2.0);
     ///    println!("{tensor}");
     ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
@@ -790,15 +727,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// ```
     pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
         let rhs = Scalar::new(other, &self.dtype());
-
-        let primitive = match self.primitive {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(Dispatch::float_powf_scalar(lhs, rhs))
-            }
-            TensorPrimitive::QFloat(lhs) => Dispatch::q_powf_scalar(lhs, rhs),
-        };
-
-        Tensor::new(primitive)
+        Tensor::new(powf_scalar_impl(self.primitive, rhs))
     }
 }
 
@@ -838,7 +767,7 @@ impl<const D: usize> Tensor<D> {
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let probs = Tensor::< 2>::from_floats(
+    ///     let probs = Tensor::<2>::from_floats(
     ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
     ///         &device,
     ///     );
@@ -897,23 +826,14 @@ impl<const D: usize> Tensor<D> {
 impl<const D: usize> Tensor<D> {
     /// Returns true if the tensor is marked as distributed.
     pub fn is_distributed(&self) -> bool {
-        match &self.primitive {
-            TensorPrimitive::Float(tensor) => Dispatch::is_distributed(tensor),
-            TensorPrimitive::QFloat(_) => unimplemented!(),
-        }
+        is_distributed_impl(&self.primitive)
     }
 
     /// Mark the tensor as distributed.
     ///
     /// This function does nothing when autodiff or distributed is not enabled.
     pub fn set_distributed(self, param_id: DistributedParamId) -> Self {
-        let primitive = match self.primitive {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(Dispatch::set_distributed_params(tensor, param_id))
-            }
-            TensorPrimitive::QFloat(_) => unimplemented!(),
-        };
-        Self::new(primitive)
+        Self::new(set_distributed_impl(self.primitive, param_id))
     }
 }
 
@@ -995,7 +915,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.cosh()); // [1.0, 1.5430, 3.7621]
     /// }
     /// ```
@@ -1016,7 +936,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.sinh()); // [0.0, -1.1752, 3.6269]
     /// }
     /// ```
@@ -1037,7 +957,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.tanh()); // [0.0, -0.7616, 0.9640]
     /// }
     /// ```
@@ -1058,7 +978,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
     /// }
     /// ```
@@ -1079,7 +999,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([1.0, 2.0, 3.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
     ///     println!("{}", tensor.acosh()); // [0.0000, 1.3170, 1.7627]
     /// }
     /// ```
@@ -1100,7 +1020,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
     /// }
     /// ```
@@ -1121,7 +1041,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 1.0], &device);
     ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
     /// }
     /// ```
@@ -1142,7 +1062,7 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -1.0, 2.0], &device);
     ///     println!("{}", tensor.atan()); // [ 0.0, -0.7854,  1.1071]
     /// }
     /// ```
@@ -1163,11 +1083,217 @@ where
     /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let tensor = Tensor::< 1>::from_data([0.0, -0.5, 0.5], &device);
+    ///     let tensor = Tensor::<1>::from_data([0.0, -0.5, 0.5], &device);
     ///     println!("{}", tensor.atanh()); // [ 0.0, -0.5493,  0.5493]
     /// }
     /// ```
     pub fn atanh(self) -> Self {
         Tensor::new(K::atanh(self.primitive))
+    }
+
+    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
+    ///
+    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///
+    ///     let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
+    /// }
+    /// ```
+    pub fn atan2(self, other: Self) -> Self {
+        Tensor::new(K::atan2(self.primitive, other.primitive))
+    }
+}
+
+// =========================================================================
+// Non-generic implementation helpers (outlined from the public generic API).
+// See the crate-level docs for the rationale behind this pattern.
+// =========================================================================
+
+fn erf_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_erf(p.into_float()))
+}
+
+fn recip_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_recip(p.into_float()))
+}
+
+fn round_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_round(p.into_float()))
+}
+
+fn floor_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_floor(p.into_float()))
+}
+
+fn ceil_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_ceil(p.into_float()))
+}
+
+fn int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
+    let out_dtype = device.settings().int_dtype;
+    BridgeTensor::int(Dispatch::float_into_int(p.into_float(), out_dtype))
+}
+
+fn random_like_impl(p: &BridgeTensor, distribution: Distribution) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_random(
+        p.shape(),
+        distribution,
+        &Dispatch::float_device(p.as_dispatch()),
+        p.dtype().into(),
+    ))
+}
+
+fn detach_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_detach(p.into_float()))
+}
+
+fn is_require_grad_impl(p: &BridgeTensor) -> bool {
+    let (kind, tensor) = p.as_parts();
+    match kind {
+        BridgeKind::Float => Dispatch::float_is_require_grad(tensor),
+        BridgeKind::QFloat => Dispatch::q_is_require_grad(tensor),
+        _ => panic!("Should be Float primitive kind"),
+    }
+}
+
+fn set_require_grad_impl(p: BridgeTensor, require_grad: bool) -> BridgeTensor {
+    let (kind, tensor) = p.into_parts();
+    match kind {
+        BridgeKind::Float => {
+            BridgeTensor::float(Dispatch::float_set_require_grad(tensor, require_grad))
+        }
+        BridgeKind::QFloat => {
+            BridgeTensor::qfloat(Dispatch::q_set_require_grad(tensor, require_grad))
+        }
+        _ => panic!("Should be Float primitive kind"),
+    }
+}
+
+fn relu_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::relu(p.into_float()))
+}
+
+fn quantize_impl(p: BridgeTensor, scheme: &QuantScheme, scales: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::qfloat(Dispatch::quantize(
+        p.into_float(),
+        scheme,
+        QuantizationParametersPrimitive {
+            scales: scales.into_float(),
+        },
+    ))
+}
+
+fn quantize_dynamic_impl(p: BridgeTensor, scheme: &QuantScheme) -> BridgeTensor {
+    BridgeTensor::qfloat(Dispatch::quantize_dynamic(p.into_float(), scheme))
+}
+
+fn dequantize_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::float(p.into_float())
+}
+
+fn is_nan_impl(p: BridgeTensor) -> BridgeTensor {
+    let out_dtype = Dispatch::float_device(p.as_dispatch())
+        .settings()
+        .bool_dtype;
+    BridgeTensor::bool(Dispatch::float_is_nan(p.into_float(), out_dtype))
+}
+
+fn is_inf_impl(p: BridgeTensor) -> BridgeTensor {
+    let out_dtype = Dispatch::float_device(p.as_dispatch())
+        .settings()
+        .bool_dtype;
+    BridgeTensor::bool(Dispatch::float_is_inf(p.into_float(), out_dtype))
+}
+
+fn grid_sample_2d_impl(
+    p: BridgeTensor,
+    grid: BridgeTensor,
+    options: GridSampleOptions,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_grid_sample_2d(
+        p.into_float(),
+        grid.into_float(),
+        options,
+    ))
+}
+
+fn cross_impl(p: BridgeTensor, other: BridgeTensor, dim: usize) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::float_cross(
+        p.into_float(),
+        other.into_float(),
+        dim,
+    ))
+}
+
+fn powf_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    let (lkind, lhs) = lhs.into_parts();
+    let (rkind, rhs) = rhs.into_parts();
+    match (lkind, rkind) {
+        (BridgeKind::Float, BridgeKind::Float) => {
+            BridgeTensor::float(Dispatch::float_powf(lhs, rhs))
+        }
+        (BridgeKind::QFloat, BridgeKind::QFloat) => match Dispatch::q_powf(lhs, rhs) {
+            TensorPrimitive::Float(out) => BridgeTensor::float(out),
+            TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+        },
+        (BridgeKind::QFloat, BridgeKind::Float) => {
+            let dtype = rhs.dtype();
+            BridgeTensor::float(Dispatch::float_powf(
+                Dispatch::dequantize(lhs, dtype.into()),
+                rhs,
+            ))
+        }
+        (BridgeKind::Float, BridgeKind::QFloat) => {
+            let dtype = lhs.dtype();
+            BridgeTensor::float(Dispatch::float_powf(
+                lhs,
+                Dispatch::dequantize(rhs, dtype.into()),
+            ))
+        }
+        _ => panic!("Should be Float primitive kind"),
+    }
+}
+
+fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+    let (kind, lhs) = p.into_parts();
+    match kind {
+        BridgeKind::Float => BridgeTensor::float(Dispatch::float_powf_scalar(lhs, rhs)),
+        BridgeKind::QFloat => match Dispatch::q_powf_scalar(lhs, rhs) {
+            TensorPrimitive::Float(out) => BridgeTensor::float(out),
+            TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+        },
+        _ => panic!("Should be Float primitive kind"),
+    }
+}
+
+#[cfg(feature = "distributed")]
+fn is_distributed_impl(p: &BridgeTensor) -> bool {
+    let (kind, tensor) = p.as_parts();
+    match kind {
+        BridgeKind::Float => Dispatch::is_distributed(tensor),
+        BridgeKind::QFloat => unimplemented!(),
+        _ => panic!("Should be Float primitive kind"),
+    }
+}
+
+#[cfg(feature = "distributed")]
+fn set_distributed_impl(p: BridgeTensor, param_id: DistributedParamId) -> BridgeTensor {
+    let (kind, tensor) = p.into_parts();
+    match kind {
+        BridgeKind::Float => {
+            BridgeTensor::float(Dispatch::set_distributed_params(tensor, param_id))
+        }
+        BridgeKind::QFloat => unimplemented!(),
+        _ => panic!("Should be Float primitive kind"),
     }
 }

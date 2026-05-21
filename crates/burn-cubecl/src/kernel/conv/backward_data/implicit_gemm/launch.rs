@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubek::{
@@ -18,18 +19,20 @@ pub fn dgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let strategy = match tile_kind {
-        AcceleratedTileKind::Cmma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleSyncCyclic,
-            tile_kind,
-        },
-        AcceleratedTileKind::Mma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleSyncStrided,
-            tile_kind,
-        },
+    let algorithm = match tile_kind {
+        AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleSyncCyclic,
+        AcceleratedTileKind::Mma => ConvAlgorithm::SimpleSyncStrided,
     };
-
-    launch_backwards_data::<R, N>(&strategy, out_grad, weights, input_shape, options)
+    launch_backwards_data::<R, N>(
+        &Strategy::Inferred {
+            algorithm,
+            tile_kind,
+        },
+        out_grad,
+        weights,
+        input_shape,
+        options,
+    )
 }
 
 pub fn dgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
@@ -39,18 +42,20 @@ pub fn dgrad_gemm_simple_async<R: CubeRuntime, const N: usize>(
     options: ConvOptions<N>,
     tile_kind: AcceleratedTileKind,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let strategy = match tile_kind {
-        AcceleratedTileKind::Cmma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleAsyncCyclic,
-            tile_kind,
-        },
-        AcceleratedTileKind::Mma => Strategy::Inferred {
-            algorithm: ConvAlgorithm::SimpleAsyncStrided,
-            tile_kind,
-        },
+    let algorithm = match tile_kind {
+        AcceleratedTileKind::Cmma => ConvAlgorithm::SimpleAsyncCyclic,
+        AcceleratedTileKind::Mma => ConvAlgorithm::SimpleAsyncStrided,
     };
-
-    launch_backwards_data::<R, N>(&strategy, out_grad, weights, input_shape, options)
+    launch_backwards_data::<R, N>(
+        &Strategy::Inferred {
+            algorithm,
+            tile_kind,
+        },
+        out_grad,
+        weights,
+        input_shape,
+        options,
+    )
 }
 
 pub fn dgrad_gemm_simple_tma<R: CubeRuntime, const N: usize>(
@@ -101,14 +106,14 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
 
     let client = out_grad.client.clone();
     let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
-        lhs: out_grad.dtype.into(),
-        rhs: weights.dtype.into(),
-        out: out_dtype.into(),
+        lhs: dtype_to_storage_type(out_grad.dtype),
+        rhs: dtype_to_storage_type(weights.dtype),
+        out: dtype_to_storage_type(out_dtype),
     });
     let out_grad_dtype = out_grad.dtype;
     let weights_dtype = weights.dtype;
-    let out_grad = InputBinding::new(out_grad.binding(), out_grad_dtype.into());
-    let weights = InputBinding::new(weights.binding(), weights_dtype.into());
+    let out_grad = InputBinding::new(out_grad.binding(), dtype_to_storage_type(out_grad_dtype));
+    let weights = InputBinding::new(weights.binding(), dtype_to_storage_type(weights_dtype));
 
     launch_ref::<R, N>(
         strategy,

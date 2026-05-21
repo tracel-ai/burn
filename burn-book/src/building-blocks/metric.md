@@ -51,7 +51,7 @@ adaptor code yourself.
 - `MultiLabelClassificationOutput<B>`:
     - Use case: Multi-label classification
     - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 2, Int>`
-    - Adapted metrics: HammingScore, Precision\*, Recall\*, FBetaScore\*, Loss
+    - Adapted metrics: HammingScore, Precision\*, Recall\*, FBetaScore\*, AUROC\*, Loss
 - `RegressionOutput<B>`:
     - Use case: Regression tasks
     - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 2>`
@@ -61,7 +61,7 @@ adaptor code yourself.
     - Fields: `loss: Tensor<B, 1>`, `logits: Tensor<B, 3>`, `predictions: Option<Tensor<B, 2, Int>>`, `targets: Tensor<B, 2, Int>`
     - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, CER, WER, Loss
 
-\* Precision, Recall, and FBetaScore all use `ConfusionStatsInput` as its input type so these three 
+\* Precision, Recall, FBetaScore, and AUROC all use `ConfusionStatsInput` as their input type so these 
 metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.
 
 If your metric isn't already adapted for the appropriate output struct, you can implement `Adaptor` yourself. 

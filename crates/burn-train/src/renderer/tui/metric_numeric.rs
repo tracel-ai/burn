@@ -160,20 +160,22 @@ impl NumericMetricsState {
     }
 
     fn next_metric(&mut self) {
-        self.selected = (self.selected + 1) % {
-            let this = &self;
-            this.data.len()
-        };
+        let len = self.data.len();
+        if len == 0 {
+            return;
+        }
+        self.selected = (self.selected + 1) % len;
     }
 
     fn previous_metric(&mut self) {
+        let len = self.data.len();
+        if len == 0 {
+            return;
+        }
         if self.selected > 0 {
             self.selected -= 1;
         } else {
-            self.selected = ({
-                let this = &self;
-                this.data.len()
-            }) - 1;
+            self.selected = len - 1;
         }
     }
 
@@ -322,5 +324,24 @@ impl NumericMetricView<'_> {
             }
             Self::None => {}
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_navigation_on_empty_state_is_a_no_op() {
+        // Pressing Right or Left before any metric has been recorded must not
+        // panic. Previously this triggered `(0 + 1) % 0` and `0usize - 1` on
+        // the empty `data` map.
+        let mut state = NumericMetricsState::default();
+
+        state.next_metric();
+        state.previous_metric();
+
+        assert_eq!(state.selected, 0);
+        assert!(state.data.is_empty());
     }
 }

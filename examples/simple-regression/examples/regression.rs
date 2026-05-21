@@ -5,22 +5,22 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";
 
 #[cfg(feature = "flex")]
 mod flex {
-    use burn::backend::flex::FlexDevice;
+    use burn::tensor::Device;
 
     pub fn run() {
-        super::run(FlexDevice);
+        super::run(Device::flex());
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(DeviceIndex::Default);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
         super::run(device);
     }
@@ -28,18 +28,18 @@ mod tch_gpu {
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::WgpuDevice;
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        super::run(WgpuDevice::default());
+        super::run(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::Device;
     pub fn run() {
-        super::run(LibTorchDevice::Cpu);
+        super::run(Device::libtorch());
     }
 }
 
@@ -54,8 +54,7 @@ mod tch_cpu {
 // }
 
 /// Train a regression model and predict results on a number of samples.
-pub fn run(device: impl Into<Device>) {
-    let device = device.into();
+pub fn run(device: Device) {
     training::run(ARTIFACT_DIR, device.clone());
     inference::infer(ARTIFACT_DIR, device)
 }

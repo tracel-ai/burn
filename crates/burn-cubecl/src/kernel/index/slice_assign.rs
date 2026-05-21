@@ -3,6 +3,7 @@ use crate::{
     kernel::utils::{address_type, shape_divmod},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
@@ -41,7 +42,7 @@ fn slice_assign_kernel<E: Numeric, N: Size>(
     }
 
     // Value tensor is accessed linearly since it's a LinearView
-    input[offset_input / line_size] = value[ABSOLUTE_POS];
+    input[offset_input / line_size] = value.read(ABSOLUTE_POS);
 }
 
 /// Kernel for slice assign with steps
@@ -92,7 +93,7 @@ fn slice_assign_with_steps_kernel<E: Numeric>(
         input_offset += input_idx * input.stride(dim);
     }
 
-    input[input_offset] = value[ABSOLUTE_POS];
+    input[input_offset] = value.read(ABSOLUTE_POS);
 }
 
 pub(crate) fn slice_assign<R: CubeRuntime>(
@@ -174,7 +175,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             value.into_linear_view(),
             shape,
             offsets,
-            tensor.dtype.into(),
+            dtype_to_storage_type(tensor.dtype),
         )
     };
 
@@ -237,7 +238,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
             starts,
             ends,
             steps,
-            tensor.dtype.into(),
+            dtype_to_storage_type(tensor.dtype),
         );
     }
 

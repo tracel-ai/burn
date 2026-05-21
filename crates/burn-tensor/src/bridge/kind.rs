@@ -1,4 +1,8 @@
-use crate::{BackendTypes, TensorMetadata, TensorPrimitive};
+use alloc::vec::Vec;
+use burn_backend::{TensorMetadata, TensorPrimitive};
+use burn_dispatch::{Dispatch, DispatchTensor};
+
+use crate::macros::obfuscate_type;
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -14,31 +18,316 @@ pub struct Bool;
 
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
-pub trait TensorKind<B: BackendTypes>: Clone + core::fmt::Debug {
-    /// The primitive type of the tensor.
-    type Primitive: TensorMetadata;
-
+pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
     /// The name of the tensor kind.
-    fn name() -> &'static str;
+    fn name() -> &'static str {
+        Self::id().as_str()
+    }
+
+    /// The tensor kind identifier.
+    fn id() -> TensorKindId;
 }
 
-impl<B: BackendTypes + core::fmt::Debug + Clone> TensorKind<B> for Float {
-    type Primitive = TensorPrimitive<B>;
-    fn name() -> &'static str {
-        "Float"
+impl TensorKind for Float {
+    fn id() -> TensorKindId {
+        TensorKindId::Float
     }
 }
 
-impl<B: BackendTypes + core::fmt::Debug + Clone> TensorKind<B> for Int {
-    type Primitive = B::IntTensorPrimitive;
-    fn name() -> &'static str {
-        "Int"
+impl TensorKind for Int {
+    fn id() -> TensorKindId {
+        TensorKindId::Int
     }
 }
 
-impl<B: BackendTypes + core::fmt::Debug + Clone> TensorKind<B> for Bool {
-    type Primitive = B::BoolTensorPrimitive;
-    fn name() -> &'static str {
-        "Bool"
+impl TensorKind for Bool {
+    fn id() -> TensorKindId {
+        TensorKindId::Bool
+    }
+}
+
+/// Runtime identifier for a tensor kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TensorKindId {
+    /// A float tensor kind.
+    Float,
+    /// An integer tensor kind.
+    Int,
+    /// A boolean tensor kind.
+    Bool,
+    /// A complex tensor kind.
+    Complex,
+}
+
+impl TensorKindId {
+    /// Get the string representation of the [`TensorKindId`].
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TensorKindId::Float => "Float",
+            TensorKindId::Int => "Int",
+            TensorKindId::Bool => "Bool",
+            TensorKindId::Complex => "Complex",
+        }
+    }
+}
+
+/// A type-tagged tensor at the bridge layer between the high-level tensor API
+/// and the dispatch system.
+///
+/// `BridgeTensor` serves as the runtime representation for the public tensor
+/// kinds (Float, Int, Bool) and internal variants like quantized floats, wrapping
+/// the uniform [`DispatchTensor`] used by the underlying dispatch layer. This
+/// separation keeps tensor kind tracking out of the backends while avoiding
+/// exposure of backend-level primitives in the public API.
+pub struct BridgeTensor {
+    blob: bridge_blob::Blob,
+}
+
+// Aligned, type-erased storage for `BridgeTensorVariant`. See `crate::macros`
+// for why this indirection exists (it keeps the dispatch type tree out of
+// downstream MIR).
+obfuscate_type!(bridge_blob, BridgeTensorVariant, Send, Sync);
+
+impl core::fmt::Debug for BridgeTensor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BridgeTensor")
+            .field("kind", &self.kind())
+            .finish()
+    }
+}
+
+impl Clone for BridgeTensor {
+    fn clone(&self) -> Self {
+        Self::new(self.as_variant().clone())
+    }
+}
+
+impl BridgeTensor {
+    fn as_variant(&self) -> &BridgeTensorVariant {
+        self.blob.as_ref()
+    }
+
+    fn into_variant(self) -> BridgeTensorVariant {
+        self.blob.into_inner()
+    }
+
+    fn new(inner: BridgeTensorVariant) -> Self {
+        Self {
+            blob: bridge_blob::Blob::new(inner),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+/// Private type obfucated by Blob.
+enum BridgeTensorVariant {
+    /// A boolean tensor.
+    Bool(DispatchTensor),
+    /// An integer tensor.
+    Int(DispatchTensor),
+    /// A floating-point tensor.
+    Float(DispatchTensor),
+    /// A quantized floating-point tensor.
+    QFloat(DispatchTensor),
+}
+
+/// Runtime tag identifying which variant a [`BridgeTensor`] wraps.
+///
+/// Exposed so callers can dispatch on the variant without having to reach the
+/// private [`BridgeTensorVariant`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BridgeKind {
+    /// A boolean tensor.
+    Bool,
+    /// An integer tensor.
+    Int,
+    /// A floating-point tensor.
+    Float,
+    /// A quantized floating-point tensor.
+    QFloat,
+}
+
+/// Switches visibility based on the `extension` feature: `pub` when enabled
+/// (so backend-extension authors can call these), `pub(crate)` otherwise (so
+/// burn-tensor's own ops keep working without leaking the dispatch types).
+macro_rules! ext_fn {
+    ($(#[$meta:meta])* fn $($tt:tt)+) => {
+        #[cfg(feature = "extension")]
+        $(#[$meta])*
+        pub fn $($tt)+
+        #[cfg(not(feature = "extension"))]
+        $(#[$meta])*
+        pub(crate) fn $($tt)+
+    };
+}
+
+impl BridgeTensor {
+    ext_fn! {
+        /// Builds a bridge tensor that wraps a floating-point dispatch tensor.
+        ///
+        /// Available with the `extension` feature for backend-extension authors.
+        fn float(tensor: DispatchTensor) -> Self {
+            Self::new(BridgeTensorVariant::Float(tensor))
+        }
+    }
+
+    ext_fn! {
+        /// Builds a bridge tensor that wraps an integer dispatch tensor.
+        ///
+        /// Available with the `extension` feature for backend-extension authors.
+        fn int(tensor: DispatchTensor) -> Self {
+            Self::new(BridgeTensorVariant::Int(tensor))
+        }
+    }
+
+    ext_fn! {
+        /// Builds a bridge tensor that wraps a boolean dispatch tensor.
+        ///
+        /// Available with the `extension` feature for backend-extension authors.
+        fn bool(tensor: DispatchTensor) -> Self {
+            Self::new(BridgeTensorVariant::Bool(tensor))
+        }
+    }
+
+    ext_fn! {
+        /// Builds a bridge tensor that wraps a quantized floating-point dispatch tensor.
+        ///
+        /// Available with the `extension` feature for backend-extension authors.
+        fn qfloat(tensor: DispatchTensor) -> Self {
+            Self::new(BridgeTensorVariant::QFloat(tensor))
+        }
+    }
+
+    /// Returns the runtime tag identifying which variant this tensor wraps.
+    pub fn kind(&self) -> BridgeKind {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(_) => BridgeKind::Bool,
+            BridgeTensorVariant::Int(_) => BridgeKind::Int,
+            BridgeTensorVariant::Float(_) => BridgeKind::Float,
+            BridgeTensorVariant::QFloat(_) => BridgeKind::QFloat,
+        }
+    }
+
+    /// Returns `true` if this tensor is the float variant.
+    pub fn is_float(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Float)
+    }
+
+    /// Returns `true` if this tensor is the int variant.
+    pub fn is_int(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Int)
+    }
+
+    /// Returns `true` if this tensor is the bool variant.
+    pub fn is_bool(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Bool)
+    }
+
+    /// Returns `true` if this tensor is the quantized float variant.
+    pub fn is_qfloat(&self) -> bool {
+        matches!(self.kind(), BridgeKind::QFloat)
+    }
+
+    ext_fn! {
+        /// Consumes the bridge tensor and returns its variant tag together with
+        /// the underlying dispatch tensor.
+        ///
+        /// Available with the `extension` feature for backend-extension authors.
+        fn into_parts(self) -> (BridgeKind, DispatchTensor) {
+            match self.into_variant() {
+                BridgeTensorVariant::Bool(t) => (BridgeKind::Bool, t),
+                BridgeTensorVariant::Int(t) => (BridgeKind::Int, t),
+                BridgeTensorVariant::Float(t) => (BridgeKind::Float, t),
+                BridgeTensorVariant::QFloat(t) => (BridgeKind::QFloat, t),
+            }
+        }
+    }
+
+    ext_fn! {
+        /// Borrows the bridge tensor as its variant tag together with a reference
+        /// to the underlying dispatch tensor.
+        ///
+        /// Available with the `extension` feature for backend-extension authors.
+        fn as_parts(&self) -> (BridgeKind, &DispatchTensor) {
+            match self.as_variant() {
+                BridgeTensorVariant::Bool(t) => (BridgeKind::Bool, t),
+                BridgeTensorVariant::Int(t) => (BridgeKind::Int, t),
+                BridgeTensorVariant::Float(t) => (BridgeKind::Float, t),
+                BridgeTensorVariant::QFloat(t) => (BridgeKind::QFloat, t),
+            }
+        }
+    }
+
+    /// Returns the dtype of the tensor.
+    pub fn dtype(&self) -> burn_std::DType {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.dtype(),
+            BridgeTensorVariant::Int(tensor) => tensor.dtype(),
+            BridgeTensorVariant::Float(tensor) => tensor.dtype(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.dtype(),
+        }
+    }
+
+    /// Returns the shape of the tensor.
+    pub fn shape(&self) -> burn_std::Shape {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.shape(),
+            BridgeTensorVariant::Int(tensor) => tensor.shape(),
+            BridgeTensorVariant::Float(tensor) => tensor.shape(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.shape(),
+        }
+    }
+
+    /// Returns the number of dimensions of the tensor.
+    pub fn rank(&self) -> usize {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.rank(),
+            BridgeTensorVariant::Int(tensor) => tensor.rank(),
+            BridgeTensorVariant::Float(tensor) => tensor.rank(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.rank(),
+        }
+    }
+
+    pub(crate) fn as_dispatch(&self) -> &DispatchTensor {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor,
+            BridgeTensorVariant::Int(tensor) => tensor,
+            BridgeTensorVariant::Float(tensor) => tensor,
+            BridgeTensorVariant::QFloat(tensor) => tensor,
+        }
+    }
+
+    #[cfg(feature = "autodiff")]
+    pub(crate) fn as_float(&self) -> &DispatchTensor {
+        match self.as_variant() {
+            BridgeTensorVariant::Float(tensor) => tensor,
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    pub(crate) fn into_dispatch_vec(tensors: Vec<Self>) -> Vec<DispatchTensor> {
+        tensors.into_iter().map(Into::into).collect()
+    }
+
+    pub(crate) fn into_float(self) -> DispatchTensor {
+        match self.into_variant() {
+            BridgeTensorVariant::Float(tensor) => tensor,
+            // Returns the dequantized float tensor.
+            BridgeTensorVariant::QFloat(tensor) => {
+                TensorPrimitive::<Dispatch>::QFloat(tensor).tensor()
+            }
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+}
+
+impl From<BridgeTensor> for DispatchTensor {
+    fn from(value: BridgeTensor) -> Self {
+        match value.into_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor,
+            BridgeTensorVariant::Int(tensor) => tensor,
+            BridgeTensorVariant::Float(tensor) => tensor,
+            BridgeTensorVariant::QFloat(tensor) => tensor,
+        }
     }
 }

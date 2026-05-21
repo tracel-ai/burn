@@ -1,13 +1,7 @@
-use crate::{
-    Device, ElementConversion, Tensor,
-    bridge::{Bool, Float, Int},
-    check,
-    check::TensorCheck,
-};
+use crate::{Bool, Device, ElementConversion, Float, Int, Tensor, check, check::TensorCheck};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::{Slice, tensor::IndexingUpdateOp};
-use burn_std::{DType, FloatDType};
+use burn_std::{DType, FloatDType, IndexingUpdateOp, Slice};
 
 /// Computes the LU decomposition of a square or rectangular matrix with partial pivoting.
 ///
@@ -54,7 +48,7 @@ use burn_std::{DType, FloatDType};
 ///
 /// fn example() {
 ///     let device = Default::default();
-///     let tensor = Tensor::< 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
+///     let tensor = Tensor::<2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
 ///
 ///     // Compute P, L, U
 ///     let (p, l, u) = linalg::lu::< 2, 1>(tensor);

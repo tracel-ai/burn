@@ -47,7 +47,7 @@ use num_traits::float::Float;
 ///
 /// fn example() {
 ///     let device = Default::default();
-///     let tensor = Tensor::< 3>::from_data([[[4.0, 3.0], [6.0, 3.0]]], &device);
+///     let tensor = Tensor::<3>::from_data([[[4.0, 3.0], [6.0, 3.0]]], &device);
 ///
 ///     // Compute determinant
 ///     let result = linalg::det::<B, 3, 2, 1>(tensor);
@@ -58,7 +58,7 @@ use num_traits::float::Float;
 ///
 /// fn example2() {
 ///     let device = Default::default();
-///     let tensor = Tensor::< 3>::from_data(
+///     let tensor = Tensor::<3>::from_data(
 ///         [
 ///             [[1.0, 2.0], [3.0, 4.0]],   // det = -2
 ///             [[2.0, 0.0], [0.0, 3.0]],   // det = 6

@@ -26,7 +26,7 @@ tracing = ["burn-std/tracing", "cubecl/tracing"]
 # For DTypeUsage de/serialization
 serde = ["enumset/serde"]
 
-cubecl = ["dep:cubecl", "burn-std/cubecl"]
+cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
@@ -44,7 +44,6 @@ num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
-thiserror = { workspace = true }
 oneshot = { version = "0.2.1", optional = true }
 spin = { workspace = true }
 num-complex = { workspace = true, default-features = false }

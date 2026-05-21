@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::std::FastDivmod;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -171,7 +172,7 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
         shape_spatial,
         options.align_corners,
         padding_mode,
-        dtype.into(),
+        dtype_to_storage_type(dtype),
     );
 
     output

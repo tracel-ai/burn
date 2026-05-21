@@ -1,22 +1,19 @@
-pub use burn_std::backtrace::BackTrace;
+pub use burn_std::{ExecutionError, backtrace::BackTrace};
 use burn_std::{DType, ElementComparison};
 
-use alloc::string::String;
-use enumset::{EnumSet, EnumSetType};
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-use crate::element::Element;
+pub use crate::element::Element;
 use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{QTensorPrimitive, TensorData, TensorMetadata};
+use alloc::string::String;
+use enumset::{EnumSet, EnumSetType};
 
 #[cfg(feature = "distributed")]
 use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 
-/// The mapping of types used by Backend and traits like Numeric, BasicOps
+/// The mapping of types used by Backend and traits.
 pub trait BackendTypes {
     /// Device type.
     type Device: DeviceOps;
@@ -177,36 +174,28 @@ pub trait Backend:
         Iter: Iterator<Item = &'a mut TensorData>,
     {
     }
-}
 
-/// An error that can happen when syncing a device.
-#[derive(Error, Serialize, Deserialize)]
-pub enum ExecutionError {
-    /// A generic error happened during execution.
+    /// Whether the type is fully supported by the specified device for general operations.
     ///
-    /// The backtrace and context information should be included in the reason string.
-    #[error("An error happened during execution\nCaused by:\n  {reason}")]
-    WithContext {
-        /// The reason of the error.
-        reason: String,
-    },
-    /// A generic error happened during execution thrown in the Burn project.
+    /// A type is considered supported if it can be used for the full suite of tensor
+    /// operations, including storage, conversion, and basic arithmetic.
     ///
-    /// The full context isn't captured by the string alone.
-    #[error("An error happened during execution\nCaused by:\n  {reason}")]
-    Generic {
-        /// The reason of the error.
-        reason: String,
-        /// The backtrace.
-        #[serde(skip)]
-        backtrace: BackTrace,
-    },
-}
-
-impl core::fmt::Debug for ExecutionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("{self}"))
+    /// Returning `false` does not necessarily mean the device cannot handle the type at all.
+    /// For instance, a device might support a type only for specialized hardware
+    /// acceleration (e.g., matrix multiplication) but lack general arithmetic support. Such
+    /// types should return `false` here as they are not globally supported.
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        Self::dtype_usage(device, dtype).is_superset(DTypeUsage::general())
     }
+
+    /// Returns the [DTypeUsageSet] for the given [DType] on the specified device.
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet;
+
+    /// Returns the number of devices available on this backend.
+    /// `device` is a reference device used to determine the underlying backend that should be queried.
+    /// A CUDA device will return all devices available to CUDA, a Vulkan device will return all
+    /// devices available to Vulkan, etc.
+    fn device_count(type_id: u16) -> usize;
 }
 
 /// Trait that allows a backend to support autodiff.

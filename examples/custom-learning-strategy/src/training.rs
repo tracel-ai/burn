@@ -55,14 +55,13 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run(device: impl Into<Device>) {
+pub fn run(device: Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    let device = device.into();
     device.seed(config.seed);
     let autodiff_device = device.clone().autodiff();
 

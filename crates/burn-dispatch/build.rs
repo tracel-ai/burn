@@ -16,9 +16,6 @@ fn main() {
     let mut vulkan = cfg!(feature = "vulkan");
     let mut webgpu = cfg!(feature = "webgpu");
 
-    let no_backend_enabled =
-        !(cuda || flex || rocm || ndarray || tch || cpu || metal || vulkan || webgpu);
-
     // Detect which single wgpu backend is enabled
     let wgpu_only = cfg!(all(
         feature = "wgpu",
@@ -42,6 +39,9 @@ fn main() {
             enabled.join(", ")
         );
     }
+
+    let no_backend_enabled =
+        !(cuda || flex || rocm || ndarray || tch || cpu || metal || vulkan || webgpu || wgpu_only);
 
     if metal {
         println!("cargo:rustc-cfg=wgpu_metal");

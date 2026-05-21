@@ -1,9 +1,8 @@
 use crate::metric::{
-    AccuracyInput, Adaptor, AurocInput, ConfusionStatsInput, HammingScoreInput, LossInput,
-    PerplexityInput, TopKAccuracyInput, processor::ItemLazy,
+    AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput, PerplexityInput,
+    TopKAccuracyInput, processor::ItemLazy,
 };
 use burn_core::tensor::{Device, Int, Tensor, Transaction};
-use burn_flex::FlexDevice;
 
 /// Simple classification output adapted for multiple metrics.
 ///
@@ -38,7 +37,7 @@ impl ItemLazy for ClassificationOutput {
             .try_into()
             .expect("Correct amount of tensor data");
 
-        let device: Device = FlexDevice.into();
+        let device: Device = Device::flex();
 
         ClassificationOutput {
             output: Tensor::from_data(output, &device),
@@ -51,12 +50,6 @@ impl ItemLazy for ClassificationOutput {
 impl Adaptor<AccuracyInput> for ClassificationOutput {
     fn adapt(&self) -> AccuracyInput {
         AccuracyInput::new(self.output.clone(), self.targets.clone())
-    }
-}
-
-impl Adaptor<AurocInput> for ClassificationOutput {
-    fn adapt(&self) -> AurocInput {
-        AurocInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
@@ -125,7 +118,7 @@ impl ItemLazy for MultiLabelClassificationOutput {
             .try_into()
             .expect("Correct amount of tensor data");
 
-        let device: Device = FlexDevice.into();
+        let device: Device = Device::flex();
 
         MultiLabelClassificationOutput {
             output: Tensor::from_data(output, &device),

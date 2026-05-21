@@ -6,6 +6,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::{prelude::*, std::FastDivmod};
 
@@ -65,7 +66,7 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
             Vector::cast_from(input[input_idx]),
             Vector::cast_from(value),
         );
-        input[input_idx] = value[0];
+        input[input_idx] = value.extract(0);
     }
 }
 
@@ -105,7 +106,10 @@ pub(crate) fn scatter<R: CubeRuntime>(
             value.into_tensor_arg(),
             shape_divmod(&tensor),
             dim,
-            [tensor_dtype.into(), indices_dtype.into()],
+            [
+                dtype_to_storage_type(tensor_dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     }
     tensor

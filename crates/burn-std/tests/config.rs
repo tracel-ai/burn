@@ -50,9 +50,9 @@ stdout = true
         let file = write_toml(EMPTY_TOML);
         let config = BurnConfig::from_file_path(file.path()).expect("parse empty toml");
 
-        assert_eq!(config.fusion.beam_search.max_blocks, 5);
-        assert_eq!(config.fusion.logger.level, FusionLogLevel::Disabled);
-        assert_eq!(config.autodiff.logger.level, AutodiffLogLevel::Disabled);
+        assert_eq!(config.fusion().beam_search.max_blocks, 5);
+        assert_eq!(config.fusion().logger.level, FusionLogLevel::Disabled);
+        assert_eq!(config.autodiff().logger.level, AutodiffLogLevel::Disabled);
     }
 
     #[test]
@@ -60,9 +60,9 @@ stdout = true
         let file = write_toml(MINIMAL_TOML);
         let config = BurnConfig::from_file_path(file.path()).expect("parse minimal toml");
 
-        assert_eq!(config.fusion.beam_search.max_blocks, 3);
+        assert_eq!(config.fusion().beam_search.max_blocks, 3);
         // Untouched sections keep defaults.
-        assert_eq!(config.autodiff.logger.level, AutodiffLogLevel::Disabled);
+        assert_eq!(config.autodiff().logger.level, AutodiffLogLevel::Disabled);
     }
 
     /// The important case: a single `burn.toml` with both Burn and CubeCL sections must
@@ -72,9 +72,9 @@ stdout = true
         let file = write_toml(FULL_TOML);
         let config = BurnConfig::from_file_path(file.path()).expect("parse full toml");
 
-        assert_eq!(config.fusion.beam_search.max_blocks, 10);
-        assert_eq!(config.fusion.logger.level, FusionLogLevel::Medium);
-        assert!(config.fusion.logger.stdout);
-        assert_eq!(config.autodiff.logger.level, AutodiffLogLevel::Basic);
+        assert_eq!(config.fusion().beam_search.max_blocks, 10);
+        assert_eq!(config.fusion().logger.level, FusionLogLevel::Medium);
+        assert!(config.fusion().logger.stdout);
+        assert_eq!(config.autodiff().logger.level, AutodiffLogLevel::Basic);
     }
 }

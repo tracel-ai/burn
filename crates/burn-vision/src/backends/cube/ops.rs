@@ -4,13 +4,11 @@ use crate::{
 };
 use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
-use burn_core::tensor::{
-    Element, IntDType,
-    backend::{
-        BoolTensor, IntTensor,
-        ops::{BoolTensorOps, IntTensorOps},
-    },
+use burn_core::backend::{
+    ops::{BoolTensorOps, IntTensorOps},
+    tensor::{BoolTensor, IntTensor},
 };
+use burn_core::tensor::{Element, IntDType};
 
 use super::connected_components::hardware_accelerated;
 
@@ -108,7 +106,7 @@ mod fusion {
     use burn_core::tensor::Shape;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
-        stream::{Operation, OperationStreams},
+        stream::{StreamId, Operation},
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr, OperationOutput, TensorIr};
 
@@ -145,7 +143,7 @@ mod fusion {
                 }
             }
 
-            let streams = OperationStreams::with_inputs([&img]);
+            let streams = StreamId::current();
             let out = TensorIr::uninit(
                 client.create_empty_handle(),
                 Shape::new([height, width]),
@@ -227,7 +225,7 @@ mod fusion {
             let dtype = B::IntElem::dtype();
             let shape = Shape::new([height, width]);
             let shape_flat = shape.clone().flatten();
-            let streams = OperationStreams::with_inputs([&img]);
+            let streams = StreamId::current();
             let out = TensorIr::uninit(client.create_empty_handle(), shape.clone(), dtype);
             let area = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);
             let left = TensorIr::uninit(client.create_empty_handle(), shape_flat.clone(), dtype);

@@ -1,5 +1,5 @@
 use alloc::format;
-use burn_tensor::kind::Basic;
+use burn_tensor::kind::{Autodiff, Basic};
 use core::fmt::Display;
 
 use crate as burn;
@@ -11,8 +11,6 @@ use crate::{
     record::{PrecisionSettings, Record},
 };
 use burn_tensor::{Device, Tensor};
-
-use burn_tensor::kind::Autodiff;
 
 #[deprecated(
     since = "0.21.0",
@@ -206,7 +204,7 @@ impl<const D: usize, K: Basic> ModuleDisplayDefault for Tensor<D, K> {
 
 impl<const D: usize, K: Basic> ModuleDisplay for Tensor<D, K> {}
 
-impl<const D: usize, K: Autodiff<InnerKind = K>> AutodiffModule for Tensor<D, K> {
+impl<const D: usize, K: Autodiff> AutodiffModule for Tensor<D, K> {
     fn valid(&self) -> Self {
         self.clone().inner()
     }
@@ -371,12 +369,12 @@ mod tests {
     #[test]
     fn tensor_load_record_setting() {
         use crate::{
-            TestDevice,
             record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
+            test_device,
         };
-        use burn_tensor::{Device, Tensor};
+        use burn_tensor::Tensor;
 
-        let device = &Device::new(TestDevice::default()).autodiff();
+        let device = &test_device().autodiff();
         let tensor = Tensor::<2>::ones([3, 3], device);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();

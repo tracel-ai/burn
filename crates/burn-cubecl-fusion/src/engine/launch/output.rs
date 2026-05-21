@@ -12,6 +12,7 @@ use crate::{
     },
     strides_dyn_rank,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_std::Shape;
@@ -19,7 +20,7 @@ use burn_std::{
     Strides,
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action},
 };
-use cubecl::{Runtime, client::ComputeClient, ir::StorageType};
+use cubecl::{Runtime, client::ComputeClient};
 
 /// Create or reuse handles for the outputs.
 ///
@@ -500,7 +501,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         let dtype = tensor_global.dtype;
-        let size = tensor_global.shape.iter().product::<usize>() * StorageType::from(dtype).size();
+        let size =
+            tensor_global.shape.iter().product::<usize>() * dtype_to_storage_type(dtype).size();
 
         let handle = CubeFusionHandle {
             client: client.clone(),

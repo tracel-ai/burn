@@ -1,4 +1,7 @@
-use crate::{Tensor, TensorPrimitive};
+use crate::{
+    Tensor,
+    ops::{BridgeKind, BridgeTensor},
+};
 use burn_backend::quantization;
 
 // User-facing quantization data types come from burn-std.
@@ -23,26 +26,30 @@ pub fn compute_range<const D: usize>(
     tensor: &Tensor<D>,
     calibration: &Calibration,
 ) -> CalibrationRange {
-    let (min, max) = match &tensor.primitive {
-        TensorPrimitive::Float(tensor) => {
-            quantization::compute_range::<Dispatch>(scheme, tensor.clone(), calibration)
+    let (kind, inner) = tensor.primitive.as_parts();
+    let (min, max) = match kind {
+        BridgeKind::Float => {
+            quantization::compute_range::<Dispatch>(scheme, inner.clone(), calibration)
         }
-        TensorPrimitive::QFloat(_) => unreachable!(),
+        BridgeKind::QFloat => unreachable!(),
+        _ => panic!("Should be Float primitive kind"),
     };
 
     CalibrationRange {
-        min: Tensor::from_primitive(TensorPrimitive::Float(min)),
-        max: Tensor::from_primitive(TensorPrimitive::Float(max)),
+        min: Tensor::new(BridgeTensor::float(min)),
+        max: Tensor::new(BridgeTensor::float(max)),
     }
 }
 
 /// Compute the quantization parameters.
 pub fn compute_q_params(scheme: &QuantScheme, range: CalibrationRange) -> QuantizationParameters {
-    match (range.min.primitive, range.max.primitive) {
-        (TensorPrimitive::Float(min), TensorPrimitive::Float(max)) => {
+    let (min_kind, min) = range.min.primitive.into_parts();
+    let (max_kind, max) = range.max.primitive.into_parts();
+    match (min_kind, max_kind) {
+        (BridgeKind::Float, BridgeKind::Float) => {
             let qparams = quantization::compute_q_params::<Dispatch>(scheme, min, max);
             QuantizationParameters {
-                scales: Tensor::from_primitive(TensorPrimitive::Float(qparams.scales)),
+                scales: Tensor::new(BridgeTensor::float(qparams.scales)),
             }
         }
         _ => unreachable!(),

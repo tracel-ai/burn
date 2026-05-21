@@ -58,12 +58,12 @@ impl GradientsParams {
     /// You should use [remove](GradientsParams::remove) if you want to get the gradients
     /// only one time.
     pub fn get<const D: usize>(&self, id: ParamId) -> Option<Tensor<D>> {
-        self.container.get(&id).map(Tensor::from_primitive)
+        self.container.get(&id)
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).
     pub fn remove<const D: usize>(&mut self, id: ParamId) -> Option<Tensor<D>> {
-        self.container.remove(&id).map(Tensor::from_primitive)
+        self.container.remove(&id)
     }
 
     /// Register a gradients tensor for the given [parameter id](ParamId).
@@ -73,7 +73,7 @@ impl GradientsParams {
     /// If a tensor is already registered for the given [parameter id](ParamId), it will be replaced.
     pub fn register<const D: usize>(&mut self, id: ParamId, value: Tensor<D>) {
         // TODO: always call value.inner() to make sure?
-        self.container.register(id, value.into_primitive())
+        self.container.register(id, value)
     }
 
     /// The number of gradients tensors registered.

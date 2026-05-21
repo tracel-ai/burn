@@ -1,5 +1,5 @@
-use burn::backend::wgpu::WgpuDevice;
+use burn::tensor::Device;
 
 fn main() {
-    custom_learning_strategy::training::run(WgpuDevice::default());
+    custom_learning_strategy::training::run(Device::default());
 }

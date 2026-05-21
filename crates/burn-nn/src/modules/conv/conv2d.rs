@@ -236,7 +236,8 @@ mod tests {
         };
 
         let config = Conv2dConfig::new([5, 1], [5, 5]).with_initializer(init.clone());
-        let _ = config.init(&device);
+        let c = config.init(&device);
+        let _ = c.weight.val(); // initializes param
 
         assert_eq!(config.initializer, init);
     }

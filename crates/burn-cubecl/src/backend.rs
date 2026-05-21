@@ -1,4 +1,5 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
 };
@@ -52,7 +53,7 @@ where
 
         let client = R::client(device);
 
-        let type_usage = client.properties().type_usage(dtype.into());
+        let type_usage = client.properties().type_usage(dtype_to_storage_type(dtype));
         // Same as `TypeUsage::all_scalar()`, but we make the usage explicit here
         type_usage.is_superset(
             TypeUsage::Buffer
@@ -72,7 +73,7 @@ where
         let client = R::client(device);
 
         let props = client.properties();
-        let storage = dtype.into();
+        let storage = dtype_to_storage_type(dtype);
         let usage = props.type_usage(storage);
 
         let mut out = DTypeUsageSet::new();

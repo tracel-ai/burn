@@ -4,6 +4,7 @@ use crate::{
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{TensorMetadata, bf16, f16};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic, prelude::*, std::tensor::layout::linear::LinearView,
@@ -106,7 +107,7 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for DivOp {
 #[cube]
 impl<T: Numeric, N: Size> BinaryOp<T, N> for RemainderOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        Vector::rem(lhs, rhs)
+        Vector::mod_floor(lhs, rhs)
     }
 }
 
@@ -115,7 +116,7 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for PowOp {
     #[allow(unused)]
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         intrinsic!(|scope| {
-            let elem = T::as_type(scope).elem_type();
+            let elem = T::__expand_as_type(scope).elem_type();
 
             if let cubecl::ir::ElemType::Float(kind) = elem {
                 match kind {
@@ -152,7 +153,9 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for PowOp {
 #[cube]
 impl<T: Numeric, N: Size> BinaryOp<T, N> for AndOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        Vector::cast_from(Vector::<bool, N>::cast_from(lhs).and(Vector::<bool, N>::cast_from(rhs)))
+        Vector::cast_from(
+            Vector::<bool, N>::cast_from(lhs).vec_and(Vector::<bool, N>::cast_from(rhs)),
+        )
     }
 }
 
@@ -195,8 +198,10 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] =
-        O::BinaryOp::<C, N>::execute(input[ABSOLUTE_POS], Vector::new(scalar.get::<C>()));
+    output.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(input.read(ABSOLUTE_POS), Vector::new(scalar.get::<C>())),
+    );
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -210,7 +215,10 @@ pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = O::BinaryOp::<C, N>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
+    out.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(lhs.read(ABSOLUTE_POS), rhs.read(ABSOLUTE_POS)),
+    );
 }
 
 pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
@@ -242,7 +250,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 lhs.clone().into_linear_view(),
                 rhs.into_linear_view_like(&lhs),
                 lhs.as_linear_view_alias(0),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             lhs
@@ -256,7 +264,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 lhs.into_linear_view_like(&rhs),
                 rhs.clone().into_linear_view(),
                 rhs.as_linear_view_alias(1),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             rhs
@@ -273,7 +281,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 lhs.into_linear_view_like(&output),
                 rhs.into_linear_view_like(&output),
                 output.clone().into_linear_view(),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             output
@@ -306,7 +314,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 tensor.clone().into_linear_view(),
                 scalar,
                 tensor.as_linear_view_alias(0),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             tensor
@@ -327,7 +335,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 tensor.into_linear_view(),
                 scalar,
                 output.clone().into_linear_view(),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             output

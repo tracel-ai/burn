@@ -1,488 +1,586 @@
 use alloc::vec::Vec;
-use burn_backend::BackendTypes;
-use burn_std::{DType, Shape, Slice};
+use burn_backend::{
+    AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata, TensorPrimitive,
+    ops::{FloatTensorOps, QTensorOps, TransactionPrimitive},
+};
+use burn_dispatch::Dispatch;
+use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, Distribution, ExecutionError, IndexingUpdateOp, Int, IntTensor,
-    Scalar, TensorData, TensorMetadata, TensorPrimitive, TransactionPrimitive,
-    bridge::{
-        BasicAutodiffOps, BasicOps, Device, Float, Numeric, Ordered, TensorKind, TransactionOp,
-    },
-    get_device_settings,
+    Device, Float,
+    bridge::{BasicAutodiffOps, BasicOps, FloatMathOps, Numeric, Ordered, TransactionOp},
+    ops::{BridgeKind, BridgeTensor},
 };
 
+fn from_q_primitive(prim: TensorPrimitive<Dispatch>) -> BridgeTensor {
+    match prim {
+        TensorPrimitive::Float(out) => BridgeTensor::float(out),
+        TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+    }
+}
+
 macro_rules! q_bin_ops {
-    ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {
-        match ($lhs, $rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::$op(lhs, rhs))
-            }
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::$q_op(lhs, rhs),
-            (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
+    ($lhs:ident, $rhs:ident, $op:ident, $q_op:ident) => {{
+        let (lkind, lhs) = $lhs.into_parts();
+        let (rkind, rhs) = $rhs.into_parts();
+        match (lkind, rkind) {
+            (BridgeKind::Float, BridgeKind::Float) => BridgeTensor::float(Dispatch::$op(lhs, rhs)),
+            (BridgeKind::QFloat, BridgeKind::QFloat) => from_q_primitive(Dispatch::$q_op(lhs, rhs)),
+            (BridgeKind::QFloat, BridgeKind::Float) => {
                 let dtype = rhs.dtype();
-                TensorPrimitive::Float(B::$op(B::dequantize(lhs, dtype.into()), rhs))
+                BridgeTensor::float(Dispatch::$op(Dispatch::dequantize(lhs, dtype.into()), rhs))
             }
-            (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
+            (BridgeKind::Float, BridgeKind::QFloat) => {
                 let dtype = lhs.dtype();
-                TensorPrimitive::Float(B::$op(lhs, B::dequantize(rhs, dtype.into())))
+                BridgeTensor::float(Dispatch::$op(lhs, Dispatch::dequantize(rhs, dtype.into())))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
-    };
+    }};
 }
-impl<B: Backend> TransactionOp<B> for Float {
-    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
-        tr.register_float(tensor);
+impl TransactionOp for Float {
+    fn register_transaction(tr: &mut TransactionPrimitive<Dispatch>, tensor: BridgeTensor) {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => tr.register_float(TensorPrimitive::Float(tensor)),
+            _ => panic!("Should be Float primitive kind"),
+        }
     }
 }
-impl<B: Backend> BasicOps<B> for Float {
-    type Elem = B::FloatElem;
 
-    fn empty(shape: Shape, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_empty(shape, device, dtype.into()))
-    }
-
-    fn zeros(shape: Shape, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_zeros(shape, device, dtype.into()))
-    }
-    fn ones(shape: Shape, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_ones(shape, device, dtype.into()))
-    }
-
-    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_full(shape, fill_value, device, dtype.into()))
-    }
-
-    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_reshape(tensor, shape))
-            }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_reshape(tensor, shape)),
-        }
-    }
-
-    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_transpose(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_transpose(tensor)),
-        }
-    }
-
-    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_swap_dims(tensor, dim1, dim2))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_swap_dims(tensor, dim1, dim2))
-            }
-        }
-    }
-
-    fn slice(tensor: Self::Primitive, slices: &[Slice]) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_slice(tensor, slices))
-            }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_slice(tensor, slices)),
-        }
-    }
-
-    fn slice_assign(
-        tensor: Self::Primitive,
-        slices: &[Slice],
-        value: Self::Primitive,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_slice_assign(
-            tensor.tensor(),
-            slices,
-            value.tensor(),
+impl BasicOps for Float {
+    fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_empty(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
         ))
     }
 
-    fn select(tensor: Self::Primitive, dim: usize, indices: IntTensor<B>) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_select(tensor, dim, indices))
+    fn zeros(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_zeros(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
+    }
+    fn ones(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_ones(
+            shape,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
+    }
+
+    fn full(shape: Shape, fill_value: Scalar, device: &Device, dtype: DType) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_full(
+            shape,
+            fill_value,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
+    }
+
+    fn reshape(tensor: BridgeTensor, shape: Shape) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_reshape(tensor, shape)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_reshape(tensor, shape)),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn transpose(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_transpose(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_transpose(tensor)),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn swap_dims(tensor: BridgeTensor, dim1: usize, dim2: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_swap_dims(tensor, dim1, dim2)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_swap_dims(tensor, dim1, dim2)),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn slice(tensor: BridgeTensor, slices: &[Slice]) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_slice(tensor, slices)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_slice(tensor, slices)),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn slice_assign(tensor: BridgeTensor, slices: &[Slice], value: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_slice_assign(
+            tensor.into_float(),
+            slices,
+            value.into_float(),
+        ))
+    }
+
+    fn select(tensor: BridgeTensor, dim: usize, indices: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                BridgeTensor::float(Dispatch::float_select(tensor, dim, indices.into()))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_select(tensor, dim, indices))
+            BridgeKind::QFloat => {
+                BridgeTensor::qfloat(Dispatch::q_select(tensor, dim, indices.into()))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn select_assign(
-        tensor: Self::Primitive,
+        tensor: BridgeTensor,
         dim: usize,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> BridgeTensor {
         // Select assign is ambiguous for QFloat
         match update {
-            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_select_add(
-                tensor.tensor(),
+            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_select_add(
+                tensor.into_float(),
                 dim,
-                indices,
-                values.tensor(),
+                indices.into(),
+                values.into_float(),
             )),
-            _ => unimplemented!(),
+            other => unimplemented!("Unsupported update op {other:?}"),
         }
     }
 
-    fn mask_where(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        source: Self::Primitive,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_mask_where(tensor.tensor(), mask, source.tensor()))
+    fn mask_where(tensor: BridgeTensor, mask: BridgeTensor, source: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_mask_where(
+            tensor.into_float(),
+            mask.into(),
+            source.into_float(),
+        ))
     }
 
-    fn mask_fill(
-        tensor: Self::Primitive,
-        mask: B::BoolTensorPrimitive,
-        value: Scalar,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
+    fn mask_fill(tensor: BridgeTensor, mask: BridgeTensor, value: Scalar) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_mask_fill(
+            tensor.into_float(),
+            mask.into(),
+            value,
+        ))
     }
 
-    fn gather(dim: usize, tensor: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_gather(dim, tensor, indices))
+    fn gather(dim: usize, tensor: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                BridgeTensor::float(Dispatch::float_gather(dim, tensor, indices.into()))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_gather(dim, tensor, indices))
+            BridgeKind::QFloat => {
+                BridgeTensor::qfloat(Dispatch::q_gather(dim, tensor, indices.into()))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn scatter(
         dim: usize,
-        tensor: Self::Primitive,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
+        tensor: BridgeTensor,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         update: IndexingUpdateOp,
-    ) -> Self::Primitive {
+    ) -> BridgeTensor {
         match update {
-            IndexingUpdateOp::Add => TensorPrimitive::Float(B::float_scatter_add(
+            IndexingUpdateOp::Add => BridgeTensor::float(Dispatch::float_scatter_add(
                 dim,
-                tensor.tensor(),
-                indices,
-                values.tensor(),
+                tensor.into_float(),
+                indices.into(),
+                values.into_float(),
             )),
-            _ => unimplemented!(),
+            other => unimplemented!("Unsupported update op {other:?}"),
         }
     }
 
     fn scatter_nd(
-        data: Self::Primitive,
-        indices: IntTensor<B>,
-        values: Self::Primitive,
+        data: BridgeTensor,
+        indices: BridgeTensor,
+        values: BridgeTensor,
         reduction: IndexingUpdateOp,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_scatter_nd(
-            data.tensor(),
-            indices,
-            values.tensor(),
+    ) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_scatter_nd(
+            data.into_float(),
+            indices.into(),
+            values.into_float(),
             reduction,
         ))
     }
 
-    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_gather_nd(data.tensor(), indices))
+    fn gather_nd(data: BridgeTensor, indices: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_gather_nd(data.into_float(), indices.into()))
     }
 
-    fn device(tensor: &Self::Primitive) -> Device<B> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_device(tensor),
-            TensorPrimitive::QFloat(tensor) => B::q_device(tensor),
+    fn device(tensor: &BridgeTensor) -> Device {
+        let (kind, tensor) = tensor.as_parts();
+        match kind {
+            BridgeKind::Float => Device::new(Dispatch::float_device(tensor)),
+            BridgeKind::QFloat => Device::new(Dispatch::q_device(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_to_device(tensor, device))
+    fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                BridgeTensor::float(Dispatch::float_to_device(tensor, device.as_dispatch()))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_to_device(tensor, device))
+            BridgeKind::QFloat => {
+                BridgeTensor::qfloat(Dispatch::q_to_device(tensor, device.as_dispatch()))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    async fn into_data_async(tensor: Self::Primitive) -> Result<TensorData, ExecutionError> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
-            TensorPrimitive::QFloat(tensor) => B::q_into_data(tensor).await,
+    async fn into_data_async(tensor: BridgeTensor) -> Result<TensorData, ExecutionError> {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => Dispatch::float_into_data(tensor).await,
+            BridgeKind::QFloat => Dispatch::q_into_data(tensor).await,
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn from_data(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
+    fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
         if matches!(data.dtype, DType::QFloat(_)) {
             // When the source is QFloat, there is no conversion path possible.
-            TensorPrimitive::QFloat(B::q_from_data(data, device))
+            BridgeTensor::qfloat(Dispatch::q_from_data(data, device.as_dispatch()))
         } else if dtype.is_float() {
-            TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device))
+            BridgeTensor::float(Dispatch::float_from_data(
+                data.convert_dtype(dtype),
+                device.as_dispatch(),
+            ))
         } else {
             panic!("Expected float dtype, got {dtype:?}")
         }
     }
 
-    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_repeat_dim(tensor, dim, times))
+    fn repeat_dim(tensor: BridgeTensor, dim: usize, times: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                BridgeTensor::float(Dispatch::float_repeat_dim(tensor, dim, times))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_repeat_dim(tensor, dim, times))
-            }
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_repeat_dim(tensor, dim, times)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
-        match vectors.first().unwrap() {
-            TensorPrimitive::Float(_) => TensorPrimitive::Float(B::float_cat(
-                vectors.into_iter().map(|tensor| tensor.tensor()).collect(),
+    fn cat(vectors: Vec<BridgeTensor>, dim: usize) -> BridgeTensor {
+        match vectors.first().unwrap().kind() {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cat(
+                BridgeTensor::into_dispatch_vec(vectors),
                 dim,
             )),
-            TensorPrimitive::QFloat(_) => TensorPrimitive::QFloat(B::q_cat(
-                vectors
-                    .into_iter()
-                    .map(|tensor| {
-                        if let TensorPrimitive::QFloat(t) = tensor {
-                            t
-                        } else {
-                            panic!("Concatenation only works with vector of QFloat")
-                        }
-                    })
-                    .collect(),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_cat(
+                BridgeTensor::into_dispatch_vec(vectors),
                 dim,
             )),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_equal(lhs, rhs.tensor(), out_dtype)
+    fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_equal(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_not_equal(lhs, rhs.tensor(), out_dtype)
+    fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_not_equal(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_equal_elem(lhs, rhs, out_dtype)
+    fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_not_equal_elem(lhs, rhs, out_dtype)
+    fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_not_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        let tensor = tensor.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
-        B::float_any(tensor, out_dtype)
+    fn any(tensor: BridgeTensor) -> BridgeTensor {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_any(tensor, out_dtype))
     }
 
-    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        let tensor = tensor.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
-        B::float_any_dim(tensor, dim, out_dtype)
+    fn any_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_any_dim(tensor, dim, out_dtype))
     }
 
-    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        let tensor = tensor.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
-        B::float_all(tensor, out_dtype)
+    fn all(tensor: BridgeTensor) -> BridgeTensor {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_all(tensor, out_dtype))
     }
 
-    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        let tensor = tensor.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
-        B::float_all_dim(tensor, dim, out_dtype)
+    fn all_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let tensor = tensor.into_float();
+        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_all_dim(tensor, dim, out_dtype))
     }
 
-    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_permute(tensor, axes))
-            }
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_permute(tensor, axes)),
+    fn permute(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_permute(tensor, axes)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_permute(tensor, axes)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_expand(tensor.tensor(), shape))
+    fn expand(tensor: BridgeTensor, shape: Shape) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_expand(tensor.into_float(), shape))
     }
 
-    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_flip(tensor, axes)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_flip(tensor, axes)),
+    fn flip(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_flip(tensor, axes)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_flip(tensor, axes)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_unfold(tensor.tensor(), dim, size, step))
+    fn unfold(tensor: BridgeTensor, dim: usize, size: usize, step: usize) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_unfold(tensor.into_float(), dim, size, step))
     }
 }
 
-impl<B: Backend> Numeric<B> for Float {
-    type IntTensor = Int;
-    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+impl Numeric for Float {
+    fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         q_bin_ops!(lhs, rhs, float_add, q_add)
     }
 
-    fn add_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_add_scalar(lhs, rhs)),
-            TensorPrimitive::QFloat(lhs) => B::q_add_scalar(lhs, rhs),
+    fn add_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let (kind, lhs) = lhs.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_add_scalar(lhs, rhs)),
+            BridgeKind::QFloat => match Dispatch::q_add_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn sub(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         q_bin_ops!(lhs, rhs, float_sub, q_sub)
     }
 
-    fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_sub_scalar(lhs, rhs)),
-            TensorPrimitive::QFloat(lhs) => B::q_sub_scalar(lhs, rhs),
+    fn sub_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let (kind, lhs) = lhs.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sub_scalar(lhs, rhs)),
+            BridgeKind::QFloat => match Dispatch::q_sub_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+    fn div(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         q_bin_ops!(lhs, rhs, float_div, q_div)
     }
 
-    fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_div_scalar(lhs, rhs)),
-            TensorPrimitive::QFloat(lhs) => B::q_div_scalar(lhs, rhs),
-        }
-    }
-    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_remainder(lhs.tensor(), rhs.tensor()))
-    }
-
-    fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_remainder_scalar(lhs.tensor(), rhs))
-    }
-
-    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        q_bin_ops!(lhs, rhs, float_mul, q_mul)
-    }
-
-    fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_mul_scalar(lhs, rhs)),
-            TensorPrimitive::QFloat(lhs) => B::q_mul_scalar(lhs, rhs),
-        }
-    }
-    fn neg(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_neg(tensor)),
-            TensorPrimitive::QFloat(tensor) => B::q_neg(tensor),
-        }
-    }
-
-    fn sum(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum(tensor)),
-            TensorPrimitive::QFloat(tensor) => B::q_sum(tensor),
-        }
-    }
-
-    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum_dim(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => B::q_sum_dim(tensor, dim),
-        }
-    }
-
-    fn prod(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_prod(tensor)),
-            TensorPrimitive::QFloat(tensor) => B::q_prod(tensor),
-        }
-    }
-
-    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_prod_dim(tensor, dim))
-            }
-            TensorPrimitive::QFloat(tensor) => B::q_prod_dim(tensor, dim),
-        }
-    }
-
-    fn mean(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_mean(tensor)),
-            TensorPrimitive::QFloat(tensor) => B::q_mean(tensor),
-        }
-    }
-
-    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_mean_dim(tensor, dim))
-            }
-            TensorPrimitive::QFloat(tensor) => B::q_mean_dim(tensor, dim),
-        }
-    }
-
-    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumsum(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => B::q_cumsum(tensor, dim),
-        }
-    }
-
-    fn cumprod(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumprod(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => B::q_cumprod(tensor, dim),
-        }
-    }
-
-    fn powi(lhs: Self::Primitive, rhs: <B as BackendTypes>::IntTensorPrimitive) -> Self::Primitive {
-        let rtype = rhs.dtype().into();
-        TensorPrimitive::Float(B::float_powf(
-            match lhs {
-                TensorPrimitive::Float(lhs) => lhs,
-                TensorPrimitive::QFloat(lhs) => B::dequantize(lhs, rtype),
+    fn div_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let (kind, lhs) = lhs.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_div_scalar(lhs, rhs)),
+            BridgeKind::QFloat => match Dispatch::q_div_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
             },
-            B::int_into_float(rhs, rtype),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+    fn remainder(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_remainder(
+            lhs.into_float(),
+            rhs.into_float(),
         ))
     }
 
-    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs)),
-            TensorPrimitive::QFloat(lhs) => B::q_powi_scalar(lhs, rhs),
+    fn remainder_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_remainder_scalar(lhs.into_float(), rhs))
+    }
+
+    fn mul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        q_bin_ops!(lhs, rhs, float_mul, q_mul)
+    }
+
+    fn mul_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let (kind, lhs) = lhs.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_mul_scalar(lhs, rhs)),
+            BridgeKind::QFloat => match Dispatch::q_mul_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+    fn neg(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_neg(tensor)),
+            BridgeKind::QFloat => match Dispatch::q_neg(tensor) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn sum(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sum(tensor)),
+            BridgeKind::QFloat => match Dispatch::q_sum(tensor) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn sum_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sum_dim(tensor, dim)),
+            BridgeKind::QFloat => match Dispatch::q_sum_dim(tensor, dim) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn prod(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_prod(tensor)),
+            BridgeKind::QFloat => match Dispatch::q_prod(tensor) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn prod_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_prod_dim(tensor, dim)),
+            BridgeKind::QFloat => match Dispatch::q_prod_dim(tensor, dim) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn mean(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_mean(tensor)),
+            BridgeKind::QFloat => match Dispatch::q_mean(tensor) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn mean_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_mean_dim(tensor, dim)),
+            BridgeKind::QFloat => match Dispatch::q_mean_dim(tensor, dim) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn cumsum(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cumsum(tensor, dim)),
+            BridgeKind::QFloat => match Dispatch::q_cumsum(tensor, dim) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn cumprod(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cumprod(tensor, dim)),
+            BridgeKind::QFloat => match Dispatch::q_cumprod(tensor, dim) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
+    fn powi(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        q_bin_ops!(lhs, rhs, float_powf, q_powf)
+    }
+
+    fn powi_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let (kind, lhs) = lhs.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_powi_scalar(lhs, rhs)),
+            BridgeKind::QFloat => match Dispatch::q_powi_scalar(lhs, rhs) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn random(
         shape: Shape,
         distribution: Distribution,
-        device: &Device<B>,
+        device: &Device,
         dtype: DType,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_random(shape, distribution, device, dtype.into()))
+    ) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_random(
+            shape,
+            distribution,
+            device.as_dispatch(),
+            dtype.into(),
+        ))
     }
 
-    fn sign(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_sign(tensor.tensor()))
+    fn sign(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_sign(tensor.into_float()))
     }
 
     /// Applies the matrix multiplication operation.
@@ -492,646 +590,431 @@ impl<B: Backend> Numeric<B> for Float {
     /// # Panics
     ///
     /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
+    fn matmul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let (lkind, lhs) = lhs.into_parts();
+        let (rkind, rhs) = rhs.into_parts();
+        match (lkind, rkind) {
+            (BridgeKind::Float, BridgeKind::Float) => {
+                BridgeTensor::float(Dispatch::float_matmul(lhs, rhs))
             }
-            (lhs, rhs) => B::q_matmul(lhs, rhs),
+            (BridgeKind::Float, BridgeKind::QFloat) => from_q_primitive(Dispatch::q_matmul(
+                TensorPrimitive::Float(lhs),
+                TensorPrimitive::QFloat(rhs),
+            )),
+            (BridgeKind::QFloat, BridgeKind::Float) => from_q_primitive(Dispatch::q_matmul(
+                TensorPrimitive::QFloat(lhs),
+                TensorPrimitive::Float(rhs),
+            )),
+            (BridgeKind::QFloat, BridgeKind::QFloat) => from_q_primitive(Dispatch::q_matmul(
+                TensorPrimitive::QFloat(lhs),
+                TensorPrimitive::QFloat(rhs),
+            )),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 }
-impl<B: Backend> Ordered<B> for Float {
-    fn abs(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_abs(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_abs(tensor)),
+impl Ordered for Float {
+    fn abs(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_abs(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_abs(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
-    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_sort(tensor, dim, descending))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_sort(tensor, dim, descending))
-            }
+    fn sort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_sort(tensor, dim, descending)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_sort(tensor, dim, descending)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn sort_with_indices(
-        tensor: Self::Primitive,
+        tensor: BridgeTensor,
         dim: usize,
         descending: bool,
-    ) -> (Self::Primitive, IntTensor<B>) {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+    ) -> (BridgeTensor, BridgeTensor) {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
                 let (values, indices) =
-                    B::float_sort_with_indices(tensor, dim, descending, out_dtype);
-                (TensorPrimitive::Float(values), indices)
+                    Dispatch::float_sort_with_indices(tensor, dim, descending, out_dtype);
+                (BridgeTensor::float(values), BridgeTensor::int(indices))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
-                let (values, indices) = B::q_sort_with_indices(tensor, dim, descending, out_dtype);
-                (TensorPrimitive::QFloat(values), indices)
+            BridgeKind::QFloat => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                let (values, indices) =
+                    Dispatch::q_sort_with_indices(tensor, dim, descending, out_dtype);
+                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
-                B::float_argsort(tensor, dim, descending, out_dtype)
+    fn argsort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::float_argsort(tensor, dim, descending, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
-                B::q_argsort(tensor, dim, descending, out_dtype)
+            BridgeKind::QFloat => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::q_argsort(tensor, dim, descending, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => B::q_cummin(tensor, dim),
+    fn cummin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cummin(tensor, dim)),
+            BridgeKind::QFloat => match Dispatch::q_cummin(tensor, dim) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn cummax(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummax(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => B::q_cummax(tensor, dim),
+    fn cummax(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_cummax(tensor, dim)),
+            BridgeKind::QFloat => match Dispatch::q_cummax(tensor, dim) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_greater(lhs, rhs.tensor(), out_dtype)
+    fn greater(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_greater(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_greater_elem(lhs, rhs, out_dtype)
+    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_greater_elem(lhs, rhs, out_dtype))
     }
 
-    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_greater_equal(lhs, rhs.tensor(), out_dtype)
+    fn greater_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_greater_equal(
+            lhs,
+            rhs.into_float(),
+            out_dtype,
+        ))
     }
 
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_greater_equal_elem(lhs, rhs, out_dtype)
+    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_greater_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_lower(lhs, rhs.tensor(), out_dtype)
+    fn lower(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_lower(lhs, rhs.into_float(), out_dtype))
     }
 
-    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_lower_elem(lhs, rhs, out_dtype)
+    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_lower_elem(lhs, rhs, out_dtype))
     }
 
-    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_lower_equal(lhs, rhs.tensor(), out_dtype)
+    fn lower_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_lower_equal(
+            lhs,
+            rhs.into_float(),
+            out_dtype,
+        ))
     }
 
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        let lhs = lhs.tensor();
-        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
-        B::float_lower_equal_elem(lhs, rhs, out_dtype)
+    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let lhs = lhs.into_float();
+        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::float_lower_equal_elem(lhs, rhs, out_dtype))
     }
 
-    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
-                B::float_argmax(tensor, dim, out_dtype)
+    fn argmax(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::float_argmax(tensor, dim, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
-                B::q_argmax(tensor, dim, out_dtype)
+            BridgeKind::QFloat => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::q_argmax(tensor, dim, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
-                B::float_argtopk(tensor, dim, k, out_dtype)
+    fn argtopk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::float_argtopk(tensor, dim, k, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
-                B::q_argtopk(tensor, dim, k, out_dtype)
+            BridgeKind::QFloat => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::q_argtopk(tensor, dim, k, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
-                B::float_argmin(tensor, dim, out_dtype)
+    fn argmin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::float_argmin(tensor, dim, out_dtype))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
-                B::q_argmin(tensor, dim, out_dtype)
+            BridgeKind::QFloat => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                BridgeTensor::int(Dispatch::q_argmin(tensor, dim, out_dtype))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max(tensor)),
+    fn max(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_dim(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_dim(tensor, dim)),
+    fn max_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max_dim(tensor, dim)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max_dim(tensor, dim)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_topk(tensor, dim, k)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_topk(tensor, dim, k)),
+    fn topk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_topk(tensor, dim, k)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_topk(tensor, dim, k)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_dim_with_indices(
-        tensor: Self::Primitive,
-        dim: usize,
-    ) -> (Self::Primitive, IntTensor<B>) {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
-                let (values, indices) = B::float_max_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::Float(values), indices)
+    fn max_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                let (values, indices) =
+                    Dispatch::float_max_dim_with_indices(tensor, dim, out_dtype);
+                (BridgeTensor::float(values), BridgeTensor::int(indices))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
-                let (values, indices) = B::q_max_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::QFloat(values), indices)
+            BridgeKind::QFloat => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                let (values, indices) = Dispatch::q_max_dim_with_indices(tensor, dim, out_dtype);
+                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn min(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_min(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_min(tensor)),
+    fn min(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_min(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_min(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_min_dim(tensor, dim)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_min_dim(tensor, dim)),
+    fn min_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_min_dim(tensor, dim)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_min_dim(tensor, dim)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn min_dim_with_indices(
-        tensor: Self::Primitive,
-        dim: usize,
-    ) -> (Self::Primitive, IntTensor<B>) {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
-                let (values, indices) = B::float_min_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::Float(values), indices)
+    fn min_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
+                let (values, indices) =
+                    Dispatch::float_min_dim_with_indices(tensor, dim, out_dtype);
+                (BridgeTensor::float(values), BridgeTensor::int(indices))
             }
-            TensorPrimitive::QFloat(tensor) => {
-                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
-                let (values, indices) = B::q_min_dim_with_indices(tensor, dim, out_dtype);
-                (TensorPrimitive::QFloat(values), indices)
+            BridgeKind::QFloat => {
+                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
+                let (values, indices) = Dispatch::q_min_dim_with_indices(tensor, dim, out_dtype);
+                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
             }
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn clamp(tensor: Self::Primitive, min: Scalar, max: Scalar) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_clamp(tensor, min, max))
-            }
-            TensorPrimitive::QFloat(tensor) => B::q_clamp(tensor, min, max),
+    fn clamp(tensor: BridgeTensor, min: Scalar, max: Scalar) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_clamp(tensor, min, max)),
+            BridgeKind::QFloat => match Dispatch::q_clamp(tensor, min, max) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn clamp_min(tensor: Self::Primitive, min: Scalar) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_clamp_min(tensor, min))
-            }
-            TensorPrimitive::QFloat(tensor) => B::q_clamp_min(tensor, min),
+    fn clamp_min(tensor: BridgeTensor, min: Scalar) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_clamp_min(tensor, min)),
+            BridgeKind::QFloat => match Dispatch::q_clamp_min(tensor, min) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_clamp_max(tensor, max))
-            }
-            TensorPrimitive::QFloat(tensor) => B::q_clamp_max(tensor, max),
+    fn clamp_max(tensor: BridgeTensor, max: Scalar) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_clamp_max(tensor, max)),
+            BridgeKind::QFloat => match Dispatch::q_clamp_max(tensor, max) {
+                TensorPrimitive::Float(out) => BridgeTensor::float(out),
+                TensorPrimitive::QFloat(out) => BridgeTensor::qfloat(out),
+            },
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_abs(tensor: Self::Primitive) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_abs(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_abs(tensor)),
+    fn max_abs(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max_abs(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max_abs(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn max_abs_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_max_abs_dim(tensor, dim))
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_max_abs_dim(tensor, dim))
-            }
+    fn max_abs_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_max_abs_dim(tensor, dim)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_max_abs_dim(tensor, dim)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 }
 
-/// Trait that lists some floating-point mathematical operations are common to all float-like dtypes.
-///
-/// # Warnings
-///
-/// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
-pub trait FloatMathOps<B: Backend>: Numeric<B> {
-    /// Applies element wise square operation
-    ///
-    #[cfg_attr(doc, doc = "$y_i = x^{2}$")]
-    #[cfg_attr(not(doc), doc = "`y = x^2`")]
-    fn square(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Applies element wise exponential operation.
-    ///
-    #[cfg_attr(doc, doc = "$y_i = e^{x_i}$")]
-    #[cfg_attr(not(doc), doc = "`y = e^x`")]
-    fn exp(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Applies the natural logarithm of one plus the input tensor, element-wise.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i + 1\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = log(x_i + 1)`")]
-    fn log1p(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Applies element wise natural log operation *ln*.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \log_e\(x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = log(x_i)`")]
-    fn log(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Applies element wise root square operation.
-    ///
-    #[cfg_attr(doc, doc = r#"$y_i = \sqrt{x_i}$"#)]
-    #[cfg_attr(not(doc), doc = "`y_i = sqrt(x_i)`")]
-    fn sqrt(tensor: Self::Primitive) -> Self::Primitive;
-    /// Returns a new tensor with cosine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with cosine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the cosine of a tensor, users should prefer the [`Tensor::cos`](crate::Tensor::cos)
-    /// function, which is more high-level and designed for public use.
-    fn cos(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with sine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with sine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the sine of a tensor, users should prefer the [`Tensor::sin`](crate::Tensor::sin)
-    /// function, which is more high-level and designed for public use.
-    fn sin(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with tangent values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with tangent values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the tangent of a tensor, users should prefer the [`Tensor::tan`](crate::Tensor::tan)
-    /// function, which is more high-level and designed for public use.
-    fn tan(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with hyperbolic cosine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with hyperbolic cosine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the hyperbolic cosine of a tensor, users should prefer the [`Tensor::cosh`](crate::Tensor::cosh)
-    /// function, which is more high-level and designed for public use.
-    fn cosh(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with hyperbolic sine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with hyperbolic sine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the hyperbolic sine of a tensor, users should prefer the [`Tensor::sinh`](crate::Tensor::sinh)
-    /// function, which is more high-level and designed for public use.
-    fn sinh(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with hyperbolic tangent values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the hyperbolic tangent of a tensor, users should prefer the [`Tensor::tanh`](crate::Tensor::tanh)
-    /// function, which is more high-level and designed for public use.
-    fn tanh(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with inverse cosine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with inverse cosine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the inverse cosine of a tensor, users should prefer the [`Tensor::acos`](crate::Tensor::acos)
-    /// function, which is more high-level and designed for public use.
-    fn acos(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with inverse hyperbolic cosine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with inverse hyperbolic cosine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the inverse hyperbolic cosine of a tensor, users should prefer the [`Tensor::acosh`](crate::Tensor::acosh)
-    /// function, which is more high-level and designed for public use.
-    fn acosh(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with inverse sine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with inverse sine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the inverse sine of a tensor, users should prefer the [`Tensor::asin`](crate::Tensor::asin)
-    /// function, which is more high-level and designed for public use.
-    fn asin(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with inverse hyperbolic sine values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with inverse hyperbolic sine values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the inverse hyperbolic sine of a tensor, users should prefer the [`Tensor::asinh`](crate::Tensor::asinh)
-    /// function, which is more high-level and designed for public use.
-    fn asinh(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with inverse tangent values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with inverse tangent values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the inverse tangent of a tensor, users should prefer the [`Tensor::atan`](crate::Tensor::atan)
-    /// function, which is more high-level and designed for public use.
-    fn atan(tensor: Self::Primitive) -> Self::Primitive;
-
-    /// Returns a new tensor with inverse hyperbolic tangent values.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same shape as `tensor` with inverse hyperbolic tangent values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the inverse hyperbolic tangent of a tensor, users should prefer the [`Tensor::atanh`](crate::Tensor::atanh)
-    /// function, which is more high-level and designed for public use.
-    fn atanh(tensor: Self::Primitive) -> Self::Primitive;
-}
-
-impl<B: Backend> FloatMathOps<B> for Float {
-    fn square(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_powi_scalar(tensor.tensor(), 2.into()))
+impl FloatMathOps for Float {
+    fn square(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_powi_scalar(tensor.into_float(), 2.into()))
     }
-    fn sqrt(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_sqrt(tensor.tensor()))
+    fn sqrt(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_sqrt(tensor.into_float()))
     }
-    fn cos(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_cos(tensor.tensor()))
+    fn cos(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_cos(tensor.into_float()))
     }
 
-    fn sin(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_sin(tensor.tensor()))
+    fn sin(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_sin(tensor.into_float()))
     }
 
-    fn tan(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_tan(tensor.tensor()))
+    fn tan(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_tan(tensor.into_float()))
     }
 
-    fn cosh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_cosh(tensor.tensor()))
+    fn cosh(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_cosh(tensor.into_float()))
     }
 
-    fn sinh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_sinh(tensor.tensor()))
+    fn sinh(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_sinh(tensor.into_float()))
     }
 
-    fn tanh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_tanh(tensor.tensor()))
+    fn tanh(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_tanh(tensor.into_float()))
     }
 
-    fn acos(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_acos(tensor.tensor()))
+    fn acos(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_acos(tensor.into_float()))
     }
 
-    fn acosh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_acosh(tensor.tensor()))
+    fn acosh(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_acosh(tensor.into_float()))
     }
 
-    fn asin(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_asin(tensor.tensor()))
+    fn asin(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_asin(tensor.into_float()))
     }
 
-    fn asinh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_asinh(tensor.tensor()))
+    fn asinh(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_asinh(tensor.into_float()))
     }
 
-    fn atan(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_atan(tensor.tensor()))
+    fn atan(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_atan(tensor.into_float()))
     }
 
-    fn atanh(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_atanh(tensor.tensor()))
+    fn atanh(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_atanh(tensor.into_float()))
     }
 
-    fn exp(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_exp(tensor.tensor()))
+
+    fn exp(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_exp(tensor.into_float()))
     }
 
-    fn log(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_log(tensor.tensor()))
+    fn log(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_log(tensor.into_float()))
     }
 
-    fn log1p(tensor: Self::Primitive) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_log1p(tensor.tensor()))
+    fn log1p(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::float_log1p(tensor.into_float()))
     }
 }
 
-impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
-    type InnerKind = Float;
-
-    fn inner(
-        tensor: <Self as TensorKind<B>>::Primitive,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
-        match tensor {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::inner(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_inner(tensor)),
+impl BasicAutodiffOps for Float {
+    fn inner(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::inner(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_inner(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 
-    fn from_inner(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
-    ) -> <Self as TensorKind<B>>::Primitive {
-        match inner {
-            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::from_inner(tensor)),
-            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_from_inner(tensor)),
+    fn from_inner(inner: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = inner.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::from_inner(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_from_inner(tensor)),
+            _ => panic!("Should be Float primitive kind"),
         }
     }
 }

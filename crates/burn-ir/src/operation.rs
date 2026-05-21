@@ -1669,6 +1669,7 @@ pub struct MaxPool2dWithIndicesBackwardOpIr {
 #[allow(missing_docs)]
 pub enum InterpolateModeIr {
     Nearest,
+    NearestExact,
     Bilinear,
     Bicubic,
     Lanczos3,
@@ -1834,6 +1835,7 @@ impl From<InterpolateModeIr> for InterpolateMode {
     fn from(val: InterpolateModeIr) -> Self {
         match val {
             InterpolateModeIr::Nearest => Self::Nearest,
+            InterpolateModeIr::NearestExact => Self::NearestExact,
             InterpolateModeIr::Bilinear => Self::Bilinear,
             InterpolateModeIr::Bicubic => Self::Bicubic,
             InterpolateModeIr::Lanczos3 => Self::Lanczos3,
@@ -1851,6 +1853,7 @@ impl From<InterpolateMode> for InterpolateModeIr {
     fn from(val: InterpolateMode) -> Self {
         match val {
             InterpolateMode::Nearest => Self::Nearest,
+            InterpolateMode::NearestExact => Self::Nearest,
             InterpolateMode::Bilinear => Self::Bilinear,
             InterpolateMode::Bicubic => Self::Bicubic,
             InterpolateMode::Lanczos3 => Self::Lanczos3,

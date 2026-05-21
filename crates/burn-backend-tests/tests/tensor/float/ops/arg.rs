@@ -1,3 +1,5 @@
+#![allow(clippy::identity_op)]
+
 use super::*;
 use burn_tensor::TensorData;
 

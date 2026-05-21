@@ -4,6 +4,7 @@ use crate::{
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
@@ -18,7 +19,7 @@ pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Vector::cast_from(input[ABSOLUTE_POS]);
+    output.write(ABSOLUTE_POS, Vector::cast_from(input.read(ABSOLUTE_POS)));
 }
 
 /// Cast a tensor to the given element type.
@@ -63,7 +64,10 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         vector_size,
         input.into_linear_view(),
         output.clone().into_linear_view(),
-        [dtype_input.into(), dtype_output.into()],
+        [
+            dtype_to_storage_type(dtype_input),
+            dtype_to_storage_type(dtype_output),
+        ],
     );
 
     output

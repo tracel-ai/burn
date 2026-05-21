@@ -1,241 +1,214 @@
-use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
-use burn_std::config::{fusion::FusionLogLevel, log_fusion};
-use hashbrown::{HashMap, HashSet};
-use smallvec::SmallVec;
-
 use super::{
     StreamId,
     execution::{ExecutionMode, Processor, StreamSegment},
     queue::OperationQueue,
-    shared_tensors::SharedTensors,
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
-use crate::{
-    DropOp, FusionRuntime, UnfusedOp,
-    stream::shared_tensors::{SharedTensorAnalysis, SharedTensorDropAction},
-};
+use crate::{FusionRuntime, UnfusedOp};
+use burn_ir::{HandleContainer, OperationIr, TensorId};
+use hashbrown::{HashMap, HashSet};
 
 /// Keep track of multiple concurrent lazy streams of operations.
+///
+/// # Why this exists
+///
+/// Each `Stream` holds a lazy queue of [`OperationIr`]s whose inputs are assumed
+/// to live on that stream. That makes single-stream execution simple — every
+/// `TensorId` in a queue is resolvable from the same handle map and the same
+/// pending op chain. But a [`FusionTensor`](crate::FusionTensor) is `Send + Clone`,
+/// so user code can move or clone a tensor from one thread (= one [`StreamId`]) to
+/// another. The receiving thread will then submit ops whose inputs reference a
+/// tensor whose home is a *different* stream's queue. This struct is what makes
+/// that case behave correctly without giving up the stream-locality invariant.
+///
+/// # Strategy: shared views
+///
+/// We never let a foreign-stream tensor id appear in another stream's queue.
+/// Instead, when [`FusionTensor::clone`](crate::FusionTensor::clone) or
+/// [`FusionTensor::into_ir`](crate::FusionTensor::into_ir) detects that
+/// `self.stream != StreamId::current()`, it allocates a fresh id (`dst`) and calls
+/// `tag_shared_view` with `(src_stream, src, dst)`. That call does two
+/// things, in order:
+///
+/// 1. **Materialise `src`.** The id `src` might be the output of an op still
+///    pending on `src_stream`. We need its backing handle to actually exist before
+///    we can alias it. If [`HandleContainer::get_handle_ref`] returns `None` —
+///    meaning no op has produced a handle for `src` yet — we drain `src_stream`
+///    synchronously, forcing every pending op to run (and thus the handle to be
+///    registered). We also record `src` in `shared_sources` so that any
+///    *next* share of the same `src` can skip the drain: once registered, a
+///    handle stays put (see invariants below).
+///
+/// 2. **Alias the handle under `dst`.** [`HandleContainer::register_handle`] is
+///    called with `dst` and a `clone()` of `src`'s backend handle. Cubecl handles
+///    are `Arc`-style reference counters over a backing buffer, so `clone()` is
+///    cheap and the buffer survives until the last alias drops. After this call,
+///    `handles[src]` and `handles[dst]` are two distinct map entries that both
+///    point at the same allocation.
+///
+/// `shared_view` then returns a new `FusionTensor` carrying `(id = dst, stream =
+/// current)`. Every subsequent op on that tensor enqueues on `current` like any
+/// other local tensor — the rest of the fusion engine sees no special case.
+///
+/// # Freeing
+///
+/// Each `FusionTensor::drop` enqueues an `OperationIr::Drop(ir)` on **its own**
+/// `stream` field (the home stream of that particular alias), not the calling
+/// thread's stream. So:
+///
+/// - The original tensor's drop targets `src_stream` and removes `handles[src]`.
+/// - The alias tensor's drop targets the stream that minted it and removes
+///   `handles[dst]`.
+///
+/// Each removal decrements the backend handle's `Arc` refcount; the underlying
+/// buffer is freed only after the last side drops. No cross-stream coordination
+/// is needed.
+///
+/// # Bounding `shared_sources`
+///
+/// Naively the set would grow forever, since `tag_shared_view` only ever inserts.
+/// Cleanup happens in `register`: as soon as we see an
+/// `OperationIr::Drop(ir)` come through, we remove `ir.id` from
+/// `shared_sources` immediately — without waiting for the queued `Drop`
+/// to actually execute. This is safe because a `Drop` op is registered only
+/// after the last live `FusionTensor` with that id has been dropped, so no
+/// future `tag_shared_view` can possibly receive that id as a `src`. Removing
+/// the entry therefore cannot trigger a redundant drain on any subsequent call.
+///
+/// # The SSA-like invariant
+///
+/// Skipping the drain on subsequent shares of the same `src` relies on a
+/// property of the fusion IR: **every op output uses a fresh `TensorId`
+/// allocated by [`crate::Client::create_empty_handle`], never the id of an
+/// input.** Once `handles[src]` is set, no later op overwrites it; the data
+/// behind `src` is effectively immutable from the IR's point of view.
+///
+/// The cubecl-fusion engine *does* sometimes reuse the backing buffer of an
+/// input for an output (in-place fusion), but that path is gated by
+/// `handle.can_mut()`, which returns false the moment another reference exists.
+/// Calling `handle.clone()` in step 2 above is precisely that extra reference,
+/// so aliased sources are never eligible for in-place reuse — the engine
+/// allocates a fresh output buffer instead.
+///
+/// # The chained-share fast path
+///
+/// When a share is itself re-shared (owner → peer → grandpeer), the second
+/// `tag_shared_view` call has `src = peer's id`. That id was set up directly by
+/// the previous call (via `register_handle`), not by an op enqueued on the peer
+/// stream, so `handles.get_handle_ref(&src)` is already `Some` the moment we
+/// look. The drain check therefore short-circuits — even though `peer's id` was
+/// never added to `shared_sources` (only sources that *required* a
+/// drain are tracked there), the handle-existence test alone is sufficient.
 pub struct MultiStream<R: FusionRuntime> {
+    /// Tensor ids that have been the source of a cross-stream share *and*
+    /// required a drain when first shared. Used by `tag_shared_view` to
+    /// skip the drain on subsequent shares of the same source. Bounded by
+    /// pruning in `register` when a `Drop` op for the id is enqueued —
+    /// see the struct-level docs for the full strategy.
+    shared_sources: HashSet<TensorId>,
     streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
-    shared_tensors: SharedTensors,
     device: R::FusionDevice,
     #[cfg(feature = "memory-checks")]
     memory_checks: super::memory_checks::MemoryChecks,
 }
 
-/// Decision taken by [`MultiStream`] when an [`OperationIr::Drop`] is registered.
-///
-/// Dropping a tensor is straightforward when the tensor lives on a single stream: the drop op is
-/// simply enqueued like any other operation. The subtle case is when the tensor is *shared*
-/// between multiple concurrent streams. In that case, each stream may still hold a pending
-/// reference to the tensor in its queue, and we must coordinate the drop so that:
-///
-///   1. The tensor's handle is not released while another stream still needs to read it.
-///   2. No stream keeps a dangling reference that would prevent the handle from ever being freed
-///      (which would leak memory for the lifetime of the process).
-///
-/// This enum encodes the three possible outcomes of that coordination, computed by
-/// [`MultiStream::handle_drop_op`].
-#[derive(Debug)]
-enum DropAction {
-    /// The tensor is shared with at least one other stream, and at least one of those streams has
-    /// not yet consumed it. The current drop request is suppressed entirely — the drop will be
-    /// re-issued later by [`SharedTensors::clear_tensors`] once every sharing stream has caught
-    /// up, at which point the tensor's handle can be safely released.
-    SkipSharedTensor,
-    /// The tensor is shared, but all sharing streams are now in a state where the tensor can be
-    /// released. The drop must go through, and in addition the tensor has to be purged from the
-    /// pending variables of the listed streams so they stop tracking a tensor that no longer
-    /// exists.
-    ///
-    /// The associated [`TensorId`] is the tensor being dropped; the [`Vec<StreamId>`] is the set
-    /// of streams whose queues still reference it and need cleanup. After handling this variant,
-    /// the caller must also drain the current stream to make sure the drop actually executes
-    /// (see the `sync = true` path in [`MultiStream::register`]) — otherwise the handle would
-    /// linger in the lazy queue and leak until the stream is next drained for another reason.
-    ForceSharedTensor(Vec<StreamId>, TensorId),
-    /// `ReadWrite` drop on a tensor that is *still tracked as shared* by [`SharedTensors`] —
-    /// peer streams have pending references even though the caller owns this drop. The drop is
-    /// enqueued normally, but the current stream must be drained afterwards so the op doesn't
-    /// linger in the queue past stream close, which would leak the handle.
-    ///
-    /// This case exists because [`MultiStream::register_shared_tensors_drop`] only re-tags
-    /// already-`ReadOnly` current tensors, so a `ReadWrite` drop of a shared tensor slips past
-    /// the normal shared-drop path and needs its own safety drain here.
-    ContinueDropShared,
-    /// `ReadWrite` drop on a tensor that is *not* shared — the caller owns it exclusively and no
-    /// other stream is tracking it. The drop op is enqueued on the current stream and processed
-    /// like any other operation, with no cross-stream bookkeeping and no forced drain.
-    ContinueDrop,
-}
-
 impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn new(device: R::FusionDevice) -> Self {
         Self {
+            shared_sources: HashSet::new(),
             streams: HashMap::new(),
             optimizations: ExecutionPlanStore::new(),
-            shared_tensors: SharedTensors::default(),
             device,
             #[cfg(feature = "memory-checks")]
             memory_checks: super::memory_checks::MemoryChecks::default(),
         }
     }
 
-    /// Register a new tensor operation.
+    /// Register a new tensor operation on the given `stream`.
     pub(crate) fn register(
         &mut self,
-        streams: OperationStreams,
-        mut repr: OperationIr,
+        stream: StreamId,
+        repr: OperationIr,
         operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        let id = self.resolve_streams(&streams, handles, &mut repr);
-
-        let drop_action = match &mut repr {
-            OperationIr::Drop(tensor_ir) => Some(self.handle_drop_op(id, tensor_ir)),
-            _ => None,
-        };
-
-        let sync = match drop_action {
-            Some(DropAction::SkipSharedTensor) => return,
-            Some(DropAction::ContinueDrop) => false,
-            Some(DropAction::ContinueDropShared) => true,
-            Some(DropAction::ForceSharedTensor(stream_ids, tid)) => {
-                for stream_id in stream_ids {
-                    if let Some(stream) = self.streams.get_mut(&stream_id) {
-                        stream.queue.variables.remove(&tid);
-                        if stream.queue.variables.is_empty() {
-                            self.streams.remove(&stream_id);
-                        }
-                    }
-                }
-                true
-            }
-            None => false,
-        };
-
-        let num_executed = self.enqueue_operation(id, repr, &streams, operation, handles);
-
-        if num_executed > 0
-            && let Some(stream) = self.streams.get_mut(&id)
-        {
-            let cleared = self.shared_tensors.on_executed_ops(id, stream);
-            self.clear_shared_tensors(&cleared, id);
-            let to_drop = self.shared_tensors.clear_tensors(cleared);
-            self.drop_shared_tensors(to_drop, handles, id);
+        // Bound `shared_sources` (see struct-level docs). When the last `FusionTensor`
+        // for an id is dropped, a `Drop` op is registered here. At that point no live
+        // `FusionTensor` holds this id, so no future `tag_shared_view` can use it as
+        // a source — it is safe to drop the entry immediately, without waiting for
+        // the queued `Drop` op to actually execute.
+        if let OperationIr::Drop(ir) = &repr {
+            self.shared_sources.remove(&ir.id);
         }
 
-        let stream = match self.streams.get(&id) {
-            Some(val) => val,
-            None => {
-                #[cfg(feature = "memory-checks")]
-                self.memory_checks.check(&self.streams, handles);
-                #[cfg(feature = "test-util")]
-                crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
-                return;
-            }
-        };
-
-        if !stream.queue.variables.is_empty() && sync {
-            // Not draining the queue can cause a memory leak when a stream is closing.
-            let pending = stream.queue.global.len();
-            log_fusion(FusionLogLevel::Full, move || {
-                format!(
-                    "[multi] drop-triggered drain: flushing {pending} pending op(s) (prevents leak on stream close)"
-                )
-            });
-            self.drain(handles, id);
-        }
+        self.enqueue_operation(stream, repr, operation, handles);
 
         #[cfg(feature = "memory-checks")]
         self.memory_checks.check(&self.streams, handles);
         #[cfg(feature = "test-util")]
-        crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
+        crate::inspect::emit_handle_snapshot(stream, handles.handle_ids().copied());
     }
 
-    /// Decide what to do with a drop operation on the given stream.
+    /// Set up a cross-stream alias `dst` for the foreign tensor `src` that lives on
+    /// `src_stream`. Called when [`FusionTensor::clone`](crate::FusionTensor::clone)
+    /// or [`FusionTensor::into_ir`](crate::FusionTensor::into_ir) detects that the
+    /// tensor's home stream is not the current stream.
     ///
-    /// A drop with `ReadWrite` status means the caller holds the last reference to the tensor on
-    /// its own stream. If [`SharedTensors`] still tracks the tensor as shared (peer streams have
-    /// pending references), we return [`DropAction::ContinueDropShared`] so the caller knows to
-    /// drain afterwards; otherwise the drop proceeds as a plain [`DropAction::ContinueDrop`].
+    /// See the [`MultiStream`] struct-level docs for the full strategy. In short:
     ///
-    /// Otherwise (the tensor was marked read-only by [`Self::register_shared_tensors_drop`]
-    /// because it is potentially shared), we delegate to [`SharedTensors::on_drop`], which
-    /// tracks per-stream reference state and returns either:
-    ///
-    /// - [`SharedTensorDropAction::Skip`] — another stream still has a pending reference; the
-    ///   drop is deferred and will be re-issued when that stream catches up. Translated to
-    ///   [`DropAction::SkipSharedTensor`].
-    /// - [`SharedTensorDropAction::ForceDrop`] — every sharing stream is done with the tensor, so
-    ///   we must actually release the handle. The tensor's status is upgraded back to
-    ///   `ReadWrite` (it is now effectively unshared) and we return
-    ///   [`DropAction::ForceSharedTensor`] carrying the streams whose queues need to stop
-    ///   tracking this tensor.
-    ///
-    /// The `stream_completed` argument passed to [`SharedTensors::on_drop`] (derived from
-    /// whether the stream still has an entry in [`Self::streams`]) tells the shared-tensor
-    /// bookkeeping whether this stream has already fully drained — a completed stream can
-    /// relinquish its share without waiting for further ops.
-    fn handle_drop_op(&mut self, id: StreamId, tensor_ir: &mut TensorIr) -> DropAction {
-        match !matches!(tensor_ir.status, TensorStatus::ReadWrite) {
-            true => {
-                let stream = self.streams.get(&id);
-                let on_drop = self
-                    .shared_tensors
-                    .on_drop(id, tensor_ir.id, stream.is_none());
+    /// - If `src`'s handle isn't materialised yet, drain `src_stream` so the
+    ///   producing op runs and registers it. Skip the drain on subsequent shares
+    ///   of the same source by remembering it in `shared_sources` *or* by
+    ///   observing that the handle is already in the container (which covers the
+    ///   chained-share case where `src` is itself a previously-aliased view).
+    /// - Then alias the backing handle under `dst`. `register_handle` clones the
+    ///   cubecl handle (`Arc`-style), so both ids share refcount on the buffer
+    ///   until each side's own `Drop` op runs.
+    pub(crate) fn tag_shared_view(
+        &mut self,
+        src_stream: StreamId,
+        src: TensorId,
+        dst: TensorId,
+        handles: &mut HandleContainer<R::FusionHandle>,
+    ) {
+        // Drain only when neither short-circuit applies: `shared_sources` records ids
+        // we already drained for, and a `Some` handle means `src` is materialised
+        // (e.g., it was itself set up by an earlier `tag_shared_view` call). We
+        // record `src` only when we actually drain — the handle-existence path is
+        // naturally idempotent on later calls.
+        if !self.shared_sources.contains(&src) && handles.get_handle_ref(&src).is_none() {
+            self.shared_sources.insert(src);
+            self.drain(handles, src_stream);
+        }
 
-                match on_drop {
-                    SharedTensorDropAction::ForceDrop(streams) => {
-                        tensor_ir.status = TensorStatus::ReadWrite;
-                        DropAction::ForceSharedTensor(streams, tensor_ir.id)
-                    }
-                    SharedTensorDropAction::Skip => DropAction::SkipSharedTensor,
-                }
-            }
-            false => match self.shared_tensors.is_shared(&tensor_ir.id) {
-                true => DropAction::ContinueDropShared,
-                false => DropAction::ContinueDrop,
-            },
+        if let Some(handle) = handles.get_handle_ref(&src) {
+            handles.register_handle(dst, handle.clone());
         }
     }
 
-    /// Enqueue an operation on the queue.
+    /// Enqueue an operation on the queue for `stream` and run the lazy processor.
     fn enqueue_operation(
         &mut self,
-        id: StreamId,
+        stream: StreamId,
         repr: OperationIr,
-        streams: &OperationStreams,
         operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
-    ) -> usize {
-        let stream = match self.streams.get_mut(&id) {
-            Some(stream) => stream,
-            None => {
-                let stream = Stream::new(self.device.clone());
-                self.streams.insert(id, stream);
-                self.streams
-                    .get_mut(&id)
-                    .expect("Just added, so should be included in the hashmap.")
-            }
-        };
+    ) {
+        let s = self
+            .streams
+            .entry(stream)
+            .or_insert_with(|| Stream::new(self.device.clone()));
+        s.queue.add(repr, operation);
 
-        stream.queue.add(repr, operation, streams, id);
-
-        let len_before = stream.queue.global.len();
-        stream.processor.process(
-            Segment::new(&mut stream.queue, handles, id),
+        let len_before = s.queue.global.len();
+        s.processor.process(
+            Segment::new(&mut s.queue, handles, stream),
             &mut self.optimizations,
             ExecutionMode::Lazy,
         );
-        let len_after = stream.queue.global.len();
-        let num_executed = len_before - len_after;
-
-        stream.cursor += num_executed as u64;
-
-        num_executed
+        let len_after = s.queue.global.len();
+        s.cursor += (len_before - len_after) as u64;
     }
 
     /// Mark a tensor as read.
@@ -243,10 +216,10 @@ impl<R: FusionRuntime> MultiStream<R> {
     pub fn mark_read(
         &mut self,
         id: StreamId,
-        ir: &TensorIr,
+        ir: &burn_ir::TensorIr,
         handles: &HandleContainer<R::FusionHandle>,
     ) {
-        if !matches!(ir.status, TensorStatus::ReadWrite) {
+        if !matches!(ir.status, burn_ir::TensorStatus::ReadWrite) {
             return;
         };
 
@@ -267,7 +240,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
     }
 
-    /// Drain a stream
+    /// Drain a stream.
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         id.executes(|| {
             if let Some(stream) = self.streams.get_mut(&id) {
@@ -278,194 +251,10 @@ impl<R: FusionRuntime> MultiStream<R> {
                     ExecutionMode::Sync,
                 );
                 stream.cursor += num_executed as u64;
-
-                let cleared = self.shared_tensors.on_executed_ops(id, stream);
-                self.clear_shared_tensors(&cleared, id);
-                let to_drop = self.shared_tensors.clear_tensors(cleared);
-
-                self.drop_shared_tensors(to_drop, handles, id);
             }
         });
         #[cfg(feature = "test-util")]
         crate::inspect::emit_handle_snapshot(id, handles.handle_ids().copied());
-    }
-
-    /// When one of the provided streams is different from the current stream, we drain them.
-    ///
-    /// Returns the selected stream id.
-    fn resolve_streams(
-        &mut self,
-        streams: &OperationStreams,
-        handles: &mut HandleContainer<R::FusionHandle>,
-        op: &mut OperationIr,
-    ) -> StreamId {
-        let current = streams.current;
-        let nodes = op.nodes();
-
-        let analysis = self.analyse_shared_tensors(&nodes, streams, current);
-
-        self.merge_streams_timelines(handles, &analysis, current, &nodes);
-        self.register_shared_tensors_drop(&analysis, op);
-
-        current
-    }
-
-    /// Drain the stream only if one of the tensor in the given nodes is also included in the
-    /// stream queue.
-    fn resolve_stream(
-        &mut self,
-        handles: &mut HandleContainer<R::FusionHandle>,
-        id: StreamId,
-        nodes: &[&TensorIr],
-    ) {
-        if let Some(stream) = self.streams.get(&id) {
-            for node in nodes {
-                if stream.queue.variables.contains_key(&node.id) {
-                    self.drain(handles, id);
-                    return;
-                }
-            }
-        }
-    }
-
-    fn analyse_shared_tensors(
-        &mut self,
-        nodes: &[&TensorIr],
-        streams: &OperationStreams,
-        current: StreamId,
-    ) -> MultiSharedTensorAnalysis {
-        let mut shared_analysis = MultiSharedTensorAnalysis::default();
-
-        for node in nodes.iter() {
-            let analysis = self
-                .shared_tensors
-                .analyse(current, node, streams, &self.streams);
-            match analysis {
-                SharedTensorAnalysis::SharedFromCurrentStream => {
-                    shared_analysis.current.push((node.id, node.status));
-                }
-                SharedTensorAnalysis::NotShared => {}
-                SharedTensorAnalysis::SharedFromExistingStream {
-                    stream_id,
-                    original_cursor,
-                } => {
-                    shared_analysis
-                        .existing
-                        .push((node.id, stream_id, original_cursor));
-                }
-                SharedTensorAnalysis::SharedFromNewStream { stream_id } => {
-                    shared_analysis.new.push((node.id, stream_id));
-                }
-            }
-        }
-
-        shared_analysis
-    }
-
-    fn merge_streams_timelines(
-        &mut self,
-        handles: &mut HandleContainer<R::FusionHandle>,
-        analysis: &MultiSharedTensorAnalysis,
-        current: StreamId,
-        nodes: &[&TensorIr],
-    ) {
-        // If we only have current tensors that are shared, we're safe to not sync the timelines.
-        if analysis.new.is_empty() && analysis.existing.is_empty() && analysis.current.is_empty() {
-            return;
-        }
-
-        let mut streams_to_sync = HashSet::new();
-        for (_tensor_id, stream_id) in analysis.new.iter() {
-            streams_to_sync.insert(*stream_id);
-        }
-
-        for (_tensor_id, stream_id, original_cursor) in analysis.existing.iter() {
-            if let Some(stream) = self.streams.get(stream_id) {
-                // We only have to sync a stream when the stream isn't up to date with
-                // the original cursor of the current operation.
-                if stream.cursor <= *original_cursor && *stream_id != current {
-                    streams_to_sync.insert(*stream_id);
-                }
-            }
-        }
-
-        for (tensor_id, status) in analysis.current.iter() {
-            if let TensorStatus::ReadWrite = status {
-                for stream in self.shared_tensors.streams_of(tensor_id) {
-                    streams_to_sync.insert(stream);
-                }
-            }
-        }
-
-        for id in streams_to_sync.drain() {
-            log::trace!("Drain stream {id} for use in current {current}");
-            self.resolve_stream(handles, id, nodes);
-        }
-    }
-
-    fn register_shared_tensors_drop(
-        &mut self,
-        analysis: &MultiSharedTensorAnalysis,
-        op: &mut OperationIr,
-    ) {
-        let mut readonly_tensors = Vec::new();
-
-        for (tensor_id, _stream_id) in analysis.new.iter() {
-            readonly_tensors.push(*tensor_id);
-        }
-        for (tensor_id, _stream_id, _cursor) in analysis.existing.iter() {
-            readonly_tensors.push(*tensor_id);
-        }
-        for (tensor_id, status) in analysis.current.iter() {
-            if let TensorStatus::ReadOnly = status {
-                readonly_tensors.push(*tensor_id);
-            }
-        }
-
-        self.shared_tensors
-            .tag_manual_drop(op.mark_read_only(&readonly_tensors));
-    }
-
-    fn drop_shared_tensors(
-        &mut self,
-        tensors: Vec<TensorIr>,
-        handles: &mut HandleContainer<R::FusionHandle>,
-        current: StreamId,
-    ) {
-        for (stream_id, s) in self.streams.iter_mut() {
-            for tensor in tensors.iter() {
-                if let Some((original, _status)) = s.queue.variables.get(&tensor.id)
-                    && original != stream_id
-                {
-                    s.queue.variables.remove(&tensor.id);
-                }
-            }
-        }
-        for tensor in tensors {
-            let streams = OperationStreams {
-                streams: SmallVec::new(),
-                current,
-            };
-
-            let op = UnfusedOp::new(DropOp { id: tensor.id }, current);
-            self.register(streams, OperationIr::Drop(tensor), op, handles);
-        }
-    }
-    fn clear_shared_tensors(&mut self, tensors: &[TensorId], current: StreamId) {
-        let mut to_remove = Vec::new();
-        for (stream_id, s) in self.streams.iter_mut() {
-            for tensor in tensors.iter() {
-                s.queue.variables.remove(tensor);
-            }
-
-            if s.queue.variables.is_empty() && current != *stream_id {
-                to_remove.push(*stream_id);
-            }
-        }
-
-        for s in to_remove {
-            self.streams.remove(&s);
-        }
     }
 }
 
@@ -500,70 +289,4 @@ impl<R: FusionRuntime> Stream<R> {
             cursor: 0,
         }
     }
-}
-
-#[derive(Debug)]
-/// Manage the streams used for the current [operation](OperationIr).
-pub struct OperationStreams {
-    pub(crate) streams: SmallVec<[(TensorId, StreamId); 5]>,
-    pub(crate) current: StreamId,
-}
-
-impl Default for OperationStreams {
-    fn default() -> Self {
-        Self {
-            streams: SmallVec::new(),
-            current: StreamId::current(),
-        }
-    }
-}
-
-impl OperationStreams {
-    /// Register a tensor in the list of streams used for the current [operation](OperationIr).
-    ///
-    /// You only need to register input tensors, not the outputs.
-    /// So init tensor operations should have no streams registered.
-    pub fn tensor<R: FusionRuntime>(&mut self, tensor: &crate::FusionTensor<R>) {
-        for (id, _) in self.streams.iter() {
-            if *id == tensor.id {
-                return;
-            }
-        }
-        self.streams.push((tensor.id, tensor.stream));
-    }
-
-    pub(crate) fn get(&self, id: TensorId) -> Option<StreamId> {
-        for (tensor_id, stream) in self.streams.iter() {
-            if *tensor_id == id {
-                return Some(*stream);
-            }
-        }
-
-        None
-    }
-
-    /// Create new operation streams with the given inputs.
-    ///
-    /// The inputs are automatically registered.
-    pub fn with_inputs<'a, R: FusionRuntime + 'a, I>(tensors: I) -> Self
-    where
-        I: IntoIterator<Item = &'a crate::FusionTensor<R>>,
-    {
-        let mut streams = OperationStreams::default();
-        for tensor in tensors.into_iter() {
-            streams.tensor(tensor)
-        }
-        streams
-    }
-}
-
-#[derive(Default, Debug)]
-struct MultiSharedTensorAnalysis {
-    /// Tensors that are shared with other streams, but we're currently executing on the same stream
-    /// the tensor was originally created.
-    current: Vec<(TensorId, TensorStatus)>,
-    /// Tensors that are shared with new streams.
-    new: Vec<(TensorId, StreamId)>,
-    /// Tensors that are shared with existing streams.
-    existing: Vec<(TensorId, StreamId, u64)>,
 }

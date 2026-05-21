@@ -132,9 +132,6 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
-/// Backend module.
-pub mod backend;
-
 #[cfg(feature = "server")]
 pub use burn_remote::server;
 
@@ -149,7 +146,7 @@ pub mod nn {
     pub use burn_nn::*;
 }
 
-pub use burn_std::config::config as runtime_config;
+pub use burn_std::config::{BurnConfig, config as runtime_config};
 
 /// Optimizers module.
 #[cfg(feature = "optim")]

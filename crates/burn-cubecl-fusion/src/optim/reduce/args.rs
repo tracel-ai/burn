@@ -27,11 +27,12 @@ pub struct FusedReduceOutput {
     pub arg: FuseArg,
 }
 
+#[derive(Clone)]
 pub struct FusedReduceState {
-    inputs: *const GlobalArgs,
-    outputs: *mut GlobalArgs,
-    locals_on_read: *mut LocalArgs,
-    locals_on_write: *mut LocalArgs,
+    inputs: GlobalArgs,
+    outputs: GlobalArgs,
+    locals_on_read: LocalArgs,
+    locals_on_write: LocalArgs,
     config_on_read: FuseBlockConfig,
     config_on_write: FuseBlockConfig,
     // TODO: Should be a list when multiple blocks are there.
@@ -71,10 +72,11 @@ impl ReduceArgs for FusedReduceArgs {
         state: &Self::State<P>,
         index: usize,
     ) -> Vector<P::In, P::SizeIn> {
+        let mut state = state.clone();
         let value = fuse_on_read::<P::In, P::SizeIn>(
-            unsafe { &(*state.inputs) },
-            unsafe { &mut (*state.outputs) },
-            unsafe { &mut (*state.locals_on_read) },
+            &state.inputs,
+            &mut state.outputs,
+            &mut state.locals_on_read,
             index,
             comptime! {
                 let mut sequence = Sequence::new();
@@ -83,8 +85,8 @@ impl ReduceArgs for FusedReduceArgs {
                 sequence
             },
             &state.config_on_read,
-        )[0];
-        value
+        );
+        value[0]
     }
 
     fn read_output<P: ReduceDType>(
@@ -105,9 +107,9 @@ impl ReduceArgs for FusedReduceArgs {
         values.insert(comptime![state.out.clone()], value);
         comptime![args.push(state.out.clone())];
         fuse_on_write(
-            unsafe { &(*state.inputs) },
-            unsafe { &mut (*state.outputs) },
-            unsafe { &mut (*state.locals_on_write) },
+            &state.inputs,
+            &mut state.outputs,
+            &mut state.locals_on_write,
             index,
             values,
             args,
@@ -117,36 +119,36 @@ impl ReduceArgs for FusedReduceArgs {
 
     fn len_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_len(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            unsafe { &(*state.locals_on_read) },
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_read,
             &state.config_on_read,
         )
     }
 
     fn len_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_len(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            unsafe { &(*state.locals_on_write) },
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_write,
             &state.config_on_write,
         )
     }
 
     fn buffer_len_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_buffer_len(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            unsafe { &(*state.locals_on_read) },
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_read,
             &state.config_on_read,
         )
     }
 
     fn buffer_len_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_buffer_len(
-            unsafe { &(*state.inputs) },
-            unsafe { &(*state.outputs) },
-            unsafe { &(*state.locals_on_write) },
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_write,
             &state.config_on_write,
         )
     }
@@ -160,27 +162,27 @@ impl ReduceArgs for FusedReduceArgs {
     }
 
     fn shape_input<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
-        ref_shape(unsafe { &(*state.locals_on_read) }, dim)
+        ref_shape(&state.locals_on_read, dim)
     }
 
     fn shape_output<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
-        ref_shape(unsafe { &(*state.locals_on_write) }, dim)
+        ref_shape(&state.locals_on_write, dim)
     }
 
     fn stride_input<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
-        ref_stride(unsafe { &(*state.locals_on_read) }, dim)
+        ref_stride(&state.locals_on_read, dim)
     }
 
     fn stride_output<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
-        ref_stride(unsafe { &(*state.locals_on_write) }, dim)
+        ref_stride(&state.locals_on_write, dim)
     }
 
     fn vector_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
-        ref_vector_size(unsafe { &(*state.locals_on_read) })
+        ref_vector_size(&state.locals_on_read)
     }
 
     fn vector_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
-        ref_vector_size(unsafe { &(*state.locals_on_write) })
+        ref_vector_size(&state.locals_on_write)
     }
 }
 
@@ -193,10 +195,10 @@ impl FusedReduceState {
         locals_on_write: &mut LocalArgs,
     ) -> FusedReduceState {
         FusedReduceState {
-            inputs: &inputs.global,
-            outputs: &mut outputs.global,
-            locals_on_read,
-            locals_on_write,
+            inputs: inputs.global.clone(),
+            outputs: outputs.global.clone(),
+            locals_on_read: locals_on_read.clone(),
+            locals_on_write: locals_on_write.clone(),
             config_on_read: comptime![inputs.config.clone()],
             config_on_write: comptime![outputs.config.clone()],
             input: comptime![inputs.arg.clone()],
@@ -209,8 +211,34 @@ impl CubeType for FusedReduceState {
     type ExpandType = FusedReduceStateExpand;
 }
 
+impl IntoExpand for FusedReduceStateExpand {
+    type Expand = Self;
+
+    fn into_expand(self, _: &Scope) -> Self::Expand {
+        self
+    }
+}
+
+impl ExpandTypeClone for FusedReduceStateExpand {
+    fn clone_unchecked(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl AsRefExpand for FusedReduceStateExpand {
+    fn __expand_ref_method(&self, _: &Scope) -> &Self {
+        self
+    }
+}
+
+impl AsMutExpand for FusedReduceStateExpand {
+    fn __expand_ref_mut_method(&mut self, _: &Scope) -> &mut Self {
+        self
+    }
+}
+
 impl IntoMut for FusedReduceStateExpand {
-    fn into_mut(self, _context: &mut Scope) -> Self {
+    fn into_mut(self, _context: &Scope) -> Self {
         self
     }
 }

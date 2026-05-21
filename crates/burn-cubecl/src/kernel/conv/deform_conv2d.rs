@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::FastDivmod};
 use cubek::convolution::components::ConvSetupError;
 
@@ -37,7 +38,7 @@ struct DeformConv2dArgs {
 fn deform_im2col_kernel<F: Float>(
     input: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &ComptimeOption<Tensor<F>>,
+    mask: ComptimeOption<&Tensor<F>>,
     columns: &mut Tensor<F>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dArgs,
@@ -142,7 +143,7 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     let stride_x = input.stride(3);
 
     let mut result = F::new(0.0);
-    if y > -1.0 && height as f32 > y && x > -1.0 && width as f32 > x {
+    if y > -1.0f32 && height as f32 > y && x > -1.0f32 && width as f32 > x {
         let y_low = y.floor();
         let x_low = x.floor();
         let y_high = (y_low + 1.) as usize;
@@ -233,11 +234,11 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
             options.dilation[1],
             {
                 let val = options.padding[0] as f32;
-                InputScalar::new(val, dtype)
+                InputScalar::new(val, dtype_to_storage_type(dtype))
             },
             {
                 let val = options.padding[1] as f32;
-                InputScalar::new(val, dtype)
+                InputScalar::new(val, dtype_to_storage_type(dtype))
             },
             options.offset_groups,
             kernel_height,
@@ -247,7 +248,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         ),
         Some(kernel_height),
         Some(kernel_width),
-        dtype.into(),
+        dtype_to_storage_type(dtype),
     );
 
     Ok(output)

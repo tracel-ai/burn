@@ -6,7 +6,7 @@ use burn_std::quantization::QuantScheme;
 use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
-    ir::{ManagedVariable, Variable},
+    ir::Variable,
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
@@ -264,19 +264,19 @@ pub fn read_input_window<C: CubePrimitive>(
     #[comptime] pos: usize,
     start: usize,
     end: usize,
-) -> Slice<C> {
+) -> &[C] {
     set_polyfill_typed::<C, DynElem, DynSize>();
     let tensor = inputs.tensors.index(pos);
-    let slice = tensor.tensor.slice(start, end);
+    let slice = &tensor.tensor[start..end];
     slice.downcast()
 }
 
 /// Returns the input as a slice.
 #[cube]
-pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: usize) -> Slice<C> {
+pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: usize) -> &[C] {
     set_polyfill_typed::<C, DynElem, DynSize>();
     let tensor = inputs.tensors.index(pos);
-    let slice = tensor.tensor.to_slice();
+    let slice = tensor.tensor.as_slice();
     slice.downcast()
 }
 
@@ -316,7 +316,8 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
             ScalesLayout::new_BlockScaled(layout)
         }
     };
-    View::new::<Slice<C>, usize>(&scales.tensor.to_slice().downcast(), layout)
+    let slice = scales.tensor.as_slice().downcast();
+    View::new::<Box<[C]>, usize>(unsafe { slice.as_boxed_unchecked() }, layout)
 }
 
 /// Reads the input tensor aligned.
@@ -348,7 +349,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
                     comptime![shape.clone()],
                 );
                 let index = reshaped_index_to_original_index(&tensor.tensor, index, config.rank);
-                result[i] = C::cast_from(tensor.tensor[index][0])
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
             }
         }
         Some(Transform::SwapDims(dim1, dim2)) => {
@@ -360,7 +361,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result[i] = C::cast_from(tensor.tensor[index][0])
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
             }
         }
         None => {
@@ -370,7 +371,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result[i] = C::cast_from(tensor.tensor[index][0])
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
             }
         }
     }
@@ -446,7 +447,9 @@ pub fn write<C: Scalar, N: Size>(
             if comptime![output_vs != config.width] {
                 // Output tensor has a different vector_size than the computation width.
                 // Write element-by-element to avoid SPIR-V type mismatch.
-                write_output_aligned(inputs, outputs, locals, pos, ref_pos, value, layout, config);
+                write_output_aligned(
+                    inputs, outputs, &*locals, pos, ref_pos, value, layout, config,
+                );
             } else {
                 // Vector sizes match - set polyfill to output type and write directly.
                 set_polyfill::<DynElem, DynSize>(comptime![tensor.ty]);
@@ -454,7 +457,7 @@ pub fn write<C: Scalar, N: Size>(
                     LayoutInfo::SameAsRef => ref_pos,
                     LayoutInfo::IsRef => ref_pos,
                     LayoutInfo::Unknown => {
-                        get_offset(inputs, locals, tensor, ref_pos, None, config, None)
+                        get_offset(inputs, &*locals, tensor, ref_pos, None, config, None)
                     }
                 };
                 let tensor = outputs.tensors.index_mut(pos);
@@ -498,9 +501,9 @@ fn write_output_aligned<C: Scalar, N: Size>(
             for i in 0..config.width {
                 let idx = offset + i * stride;
                 let val = if comptime![value.vector_size() == config.width] {
-                    Vector::cast_from(value[i])
+                    Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value[i % value.vector_size()])
+                    Vector::cast_from(value.extract(i % value.vector_size()))
                 };
                 output.tensor[idx] = val;
             }
@@ -527,9 +530,9 @@ fn write_output_aligned<C: Scalar, N: Size>(
                 let output = outputs.tensors.index_mut(pos);
 
                 let val = if comptime![value.vector_size() == config.width] {
-                    Vector::cast_from(value[i])
+                    Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value[i % value.vector_size()])
+                    Vector::cast_from(value.extract(i % value.vector_size()))
                 };
                 output.tensor[offset] = val;
             }
@@ -859,16 +862,14 @@ pub(crate) fn reverse_index(
 #[allow(unused_variables)]
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
-    intrinsic!(|scope| {
-        ManagedVariable::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
-    })
+    intrinsic!(|scope| { Variable::constant(value.into(), C::__expand_as_type(scope)).into() })
 }
 
 #[cube]
 #[allow(clippy::extra_unused_type_parameters)]
 pub(crate) fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>() {
     intrinsic!(|scope| {
-        let elem_type = C::as_type(scope);
+        let elem_type = C::__expand_as_type(scope);
         set_polyfill::expand::<Dyn, DynSize>(scope, elem_type);
     })
 }

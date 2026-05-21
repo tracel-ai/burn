@@ -49,8 +49,7 @@ pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
     ))
 }
 
-pub fn launch_single(device: impl Into<Device>) {
-    let mut device = device.into();
+pub fn launch_single(mut device: Device) {
     device
         .set_default_dtypes(ElemType::dtype(), DType::I32)
         .unwrap();
@@ -75,25 +74,15 @@ pub fn launch(strategy: ExecutionStrategy) {
     );
 }
 
-#[cfg(feature = "flex")]
-mod flex {
-    use burn::backend::flex::FlexDevice;
-
-    pub fn run() {
-        crate::launch_single(FlexDevice);
-    }
-}
-
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::autodiff::checkpoint::strategy::BalancedCheckpointing;
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(DeviceIndex::Default);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
         crate::launch_single(device);
     }
@@ -101,19 +90,19 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::Device;
 
     pub fn run() {
-        crate::launch_single(LibTorchDevice::Cpu);
+        crate::launch_single(Device::libtorch());
     }
 }
 
 #[cfg(any(feature = "wgpu", feature = "vulkan", feature = "metal"))]
 mod wgpu {
-    use burn::backend::wgpu::WgpuDevice;
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        crate::launch_single(WgpuDevice::default());
+        crate::launch_single(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 
@@ -136,24 +125,19 @@ mod cuda {
 
 #[cfg(feature = "rocm")]
 mod rocm {
-    use super::*;
-    use burn::backend::rocm::RocmDevice;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
-        crate::launch_single(RocmDevice::default());
+        crate::launch_single(Device::rocm(DeviceIndex::Default));
     }
 }
 
 #[cfg(feature = "flex")]
 mod flex {
-    use super::*;
-    use crate::launch;
-    use burn::backend::{Autodiff, Flex, autodiff::checkpoint::strategy::BalancedCheckpointing};
+    use burn::tensor::Device;
 
     pub fn run() {
-        launch::<Autodiff<Flex, BalancedCheckpointing>>(ExecutionStrategy::SingleDevice(
-            Default::default(),
-        ));
+        crate::launch_single(Device::flex());
     }
 }
 

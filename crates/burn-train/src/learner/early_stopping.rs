@@ -279,9 +279,8 @@ mod tests {
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 
-        let mut epoch = 1;
         processor.process_train(crate::LearnerEvent::Start);
-        for (points, should_start, comment) in data {
+        for (epoch, (points, should_start, comment)) in (1..).zip(data.iter()) {
             for point in points.iter() {
                 process_train(&mut processor, *point, epoch);
             }
@@ -292,7 +291,6 @@ mod tests {
                 early_stopping.should_stop(epoch, &store),
                 "{comment}"
             );
-            epoch += 1;
         }
     }
 }

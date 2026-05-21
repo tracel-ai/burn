@@ -397,6 +397,9 @@ impl<E: FloatTchElement> ModuleOps<Self> for LibTorch<E> {
             InterpolateMode::Nearest => {
                 tch::Tensor::upsample_nearest2d(&x.tensor, output_size, None, None)
             }
+            InterpolateMode::NearestExact => {
+                panic!("nearest exact interpolation is not supported by PyTorch/tch backend")
+            }
             InterpolateMode::Bilinear => {
                 tch::Tensor::upsample_bilinear2d(&x.tensor, output_size, align_corners, None, None)
             }
@@ -430,6 +433,11 @@ impl<E: FloatTchElement> ModuleOps<Self> for LibTorch<E> {
                 None,
                 None,
             ),
+            InterpolateMode::NearestExact => {
+                panic!(
+                    "nearest exact interpolation backward is not supported by PyTorch/tch backend"
+                )
+            }
             InterpolateMode::Bilinear => tch::Tensor::upsample_bilinear2d_backward(
                 &grad.tensor,
                 output_size,

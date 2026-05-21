@@ -7,13 +7,13 @@ use burn_core::tensor::{Bool, Int};
 
 #[allow(unused)]
 #[cfg(all(test, feature = "flex", not(any(feature = "wgpu", feature = "cuda"))))]
-pub type TestDevice = burn_flex::FlexDevice;
+pub type TestDevice = burn_core::backend::FlexDevice;
 
 #[cfg(all(test, feature = "wgpu"))]
-pub type TestDevice = burn_wgpu::WgpuDevice;
+pub type TestDevice = burn_core::backend::WgpuDevice;
 
 #[cfg(all(test, feature = "cuda"))]
-pub type TestDevice = burn_cuda::CudaDevice;
+pub type TestDevice = burn_core::backend::CudaDevice;
 
 pub use burn_core::tensor::Tensor;
 pub type TestTensorInt<const D: usize> = Tensor<D, Int>;

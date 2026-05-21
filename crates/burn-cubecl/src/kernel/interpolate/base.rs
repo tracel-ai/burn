@@ -4,10 +4,12 @@ use crate::{
     ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
 use cubek::interpolate::{
     definition::InterpolateMode as CubekInterpolateMode,
-    definition::InterpolateOptions as CubekInterpolateOptions, interpolate as cubek_interpolate,
+    definition::InterpolateOptions as CubekInterpolateOptions,
+    definition::NearestMode as CubekNearestMode, interpolate as cubek_interpolate,
     interpolate_backward as cubek_interpolate_backward,
 };
 
@@ -37,7 +39,7 @@ pub fn interpolate<R: CubeRuntime>(
         input.clone().binding(),
         output.clone().binding(),
         map_options(options.clone()),
-        input.dtype.into(),
+        dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {
         panic!(
@@ -75,7 +77,7 @@ pub fn interpolate_backward<R: CubeRuntime>(
         out_grad.binding(),
         output.clone().binding(),
         map_options(options.clone()),
-        input.dtype.into(),
+        dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {
         panic!(
@@ -91,7 +93,10 @@ fn map_options(options: InterpolateOptions) -> CubekInterpolateOptions {
     CubekInterpolateOptions {
         mode: {
             match options.mode {
-                InterpolateMode::Nearest => CubekInterpolateMode::Nearest,
+                InterpolateMode::Nearest => CubekInterpolateMode::Nearest(CubekNearestMode::Floor),
+                InterpolateMode::NearestExact => {
+                    CubekInterpolateMode::Nearest(CubekNearestMode::Exact)
+                }
                 InterpolateMode::Bilinear => CubekInterpolateMode::Bilinear,
                 InterpolateMode::Bicubic => CubekInterpolateMode::Bicubic,
                 InterpolateMode::Lanczos3 => CubekInterpolateMode::Lanczos3,

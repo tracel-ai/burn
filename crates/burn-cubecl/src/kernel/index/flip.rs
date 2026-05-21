@@ -4,6 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use cubecl::{
     calculate_cube_count_elemwise,
@@ -42,7 +43,7 @@ fn flip_kernel<E: Numeric, Bool: Int>(
         offset_input += offset_local * input.stride(dim);
     }
 
-    output[ABSOLUTE_POS] = input[offset_input];
+    output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
 pub(crate) fn flip<R: CubeRuntime>(
@@ -72,7 +73,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
     for i in 0..ndims {
         indices_sequence.push({
             let val = indices.contains(&i) as u8;
-            InputScalar::new(val, dtype_bool)
+            InputScalar::new(val, dtype_to_storage_type(dtype_bool))
         });
     }
 
@@ -91,7 +92,10 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             output.clone().into_linear_view(),
             shape,
             indices_sequence,
-            [dtype_input.into(), dtype_bool.into()],
+            [
+                dtype_to_storage_type(dtype_input),
+                dtype_to_storage_type(dtype_bool),
+            ],
         )
     }
 

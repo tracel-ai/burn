@@ -6,7 +6,7 @@ use super::{
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
 };
-use burn_core::{prelude::Tensor, tensor::cast::ToElement};
+use burn_core::prelude::Tensor;
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The Precision Metric
@@ -89,13 +89,7 @@ impl PrecisionMetric {
         let avg_tensor = match self.config.class_reduction {
             Micro => aggregated_metric,
             Macro => {
-                if aggregated_metric
-                    .clone()
-                    .contains_nan()
-                    .any()
-                    .into_scalar()
-                    .to_bool()
-                {
+                if aggregated_metric.clone().contains_nan().any().into_scalar() {
                     let nan_mask = aggregated_metric.clone().is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
@@ -104,7 +98,7 @@ impl PrecisionMetric {
                 aggregated_metric.mean()
             }
         };
-        avg_tensor.into_scalar().to_f64()
+        avg_tensor.into_scalar()
     }
 }
 

@@ -1,6 +1,7 @@
 use crate::{CubeRuntime, kernel::utils::address_type, tensor::CubeTensor};
 use crate::{kernel::utils::shape_divmod, ops::numeric::empty_device_dtype};
 use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};
 
@@ -25,19 +26,17 @@ fn select_kernel<T: Numeric, I: Numeric>(
     #[unroll]
     for i in 0..rank {
         let i = rank - i - 1;
-        let (rem, offset_local) = out_shape[i].div_mod(offset);
+        let (rem, mut offset_local) = out_shape[i].div_mod(offset);
         offset = rem;
 
-        let offset_local = cubecl::prelude::select(
-            i == dim,
-            usize::cast_from(indices[offset_local]),
-            offset_local,
-        );
+        if i == dim {
+            offset_local = usize::cast_from(indices.read(offset_local));
+        }
 
         offset_input += offset_local * input.stride(i);
     }
 
-    output[ABSOLUTE_POS] = input[offset_input];
+    output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
 pub(crate) fn select<R: CubeRuntime>(
@@ -73,7 +72,10 @@ pub(crate) fn select<R: CubeRuntime>(
             output.clone().into_linear_view(),
             shape_divmod(&output),
             dim,
-            [tensor_dtype.into(), indices_dtype.into()],
+            [
+                dtype_to_storage_type(tensor_dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     };
     output

@@ -2,6 +2,7 @@ use crate::kernel::utils::{shape_divmod, shape_divmod_range};
 use crate::{
     CubeRuntime, kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::prelude::*;
 use cubecl::std::FastDivmod;
 use cubecl::std::tensor::layout::linear::LinearView;
@@ -34,7 +35,7 @@ fn gather_nd_kernel<T: Numeric, I: Int>(
     let idx_base = index_idx * k;
     let mut base_offset = 0usize;
     for j in 0..k {
-        let idx_val = usize::cast_from(indices[idx_base + j]);
+        let idx_val = usize::cast_from(indices.read(idx_base + j));
         base_offset += idx_val * data.stride(j);
     }
 
@@ -112,7 +113,10 @@ pub(crate) fn gather_nd<R: CubeRuntime>(
             slice_size,
             k,
             total_elem,
-            [dtype.into(), indices_dtype.into()],
+            [
+                dtype_to_storage_type(dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     }
 

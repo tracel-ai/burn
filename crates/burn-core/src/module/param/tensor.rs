@@ -491,14 +491,14 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
 mod tests {
     use super::*;
     use crate::{
-        TestDevice,
         module::Module,
         record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
+        test_device,
     };
 
     #[test]
     fn test_load_record_setting() {
-        let device = Device::new(TestDevice::default()).autodiff();
+        let device = test_device().autodiff();
         let tensor = Tensor::<2>::ones([3, 3], &device).require_grad();
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
@@ -524,7 +524,7 @@ mod tests {
 
     #[test]
     fn test_param_require_grad_stateful() {
-        let device = Device::new(TestDevice::default()).autodiff();
+        let device = test_device().autodiff();
         let tensor = Tensor::<2>::ones([3, 3], &device).require_grad();
 
         let param = Param::initialized(ParamId::new(), tensor);

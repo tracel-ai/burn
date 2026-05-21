@@ -1211,7 +1211,7 @@ mod tests {
         let val_dim = 1;
 
         let q_data = vec![1.0f32, 0.0];
-        let k_data = vec![1.0f32, 0.0].repeat(seq_kv);
+        let k_data = [1.0f32, 0.0].repeat(seq_kv);
         let v_data: Vec<f32> = (0..seq_kv).map(|i| i as f32).collect();
         // true == masked out.
         let mask_data: Vec<u8> = (0..seq_kv).map(|i| (i < 64) as u8).collect();
@@ -1276,8 +1276,8 @@ mod tests {
         let head_dim = 2;
         let val_dim = 1;
 
-        let q_data = vec![0.1f32, 0.1].repeat(seq_q);
-        let k_data = vec![0.1f32, 0.1].repeat(seq_kv);
+        let q_data = [0.1f32, 0.1].repeat(seq_q);
+        let k_data = [0.1f32, 0.1].repeat(seq_kv);
         let v_data: Vec<f32> = (0..seq_kv).map(|i| i as f32).collect();
 
         let q = flex_f32(q_data, &[1, 1, seq_q, head_dim]);
@@ -1330,6 +1330,7 @@ mod tests {
             }
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn run_both(
             batch: usize,
             heads: usize,

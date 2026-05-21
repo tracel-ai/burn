@@ -6,11 +6,8 @@
 use crate::{
     ConnectedStatsOptions, Connectivity, backends::cube::connected_components::stats_from_opts,
 };
-use burn_core::tensor::{
-    Shape,
-    backend::{TensorMetadata, ops::IntTensorOps},
-    cast::ToElement,
-};
+use burn_core::backend::{TensorMetadata, ops::IntTensorOps};
+use burn_core::tensor::{Shape, cast::ToElement};
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel,
     ops::{into_data_sync, numeric::zeros_client},
@@ -63,7 +60,7 @@ fn end_distance(pixels: u32, tx: u32) -> u32 {
 #[allow(unconditional_panic, reason = "clippy thinks PLANE_DIM is always 2")]
 fn ballot_dyn(y: u32, pred: bool) -> u32 {
     let index = y % (PLANE_DIM / 32);
-    plane_ballot(pred)[index as usize]
+    plane_ballot(pred).extract(index as usize)
 }
 
 #[cube(launch_unchecked)]

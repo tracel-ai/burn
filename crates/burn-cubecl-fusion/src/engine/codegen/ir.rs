@@ -1,5 +1,5 @@
 use super::tensor::GlobalTensor;
-use crate::engine::codegen::{DynElem, DynSize};
+use crate::engine::codegen::{DynElem, DynSize, DynVector};
 use burn_std::{
     BoolStore, DType, Shape, Strides, bf16, f16,
     quantization::{QuantScheme, QuantStore, QuantValue},
@@ -98,14 +98,40 @@ impl CubeType for FuseArg {
     type ExpandType = Self;
 }
 
+impl IntoExpand for FuseArg {
+    type Expand = Self;
+
+    fn into_expand(self, _: &Scope) -> Self::Expand {
+        self
+    }
+}
+
+impl ExpandTypeClone for FuseArg {
+    fn clone_unchecked(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl AsRefExpand for FuseArg {
+    fn __expand_ref_method(&self, _: &Scope) -> &Self {
+        self
+    }
+}
+
+impl AsMutExpand for FuseArg {
+    fn __expand_ref_mut_method(&mut self, _: &Scope) -> &mut Self {
+        self
+    }
+}
+
 impl IntoMut for FuseArg {
-    fn into_mut(self, _context: &mut Scope) -> Self {
+    fn into_mut(self, _context: &Scope) -> Self {
         self
     }
 }
 
 impl IntoRuntime for FuseArg {
-    fn __expand_runtime_method(self, _context: &mut Scope) -> Self::ExpandType {
+    fn __expand_runtime_method(self, _context: &Scope) -> Self::ExpandType {
         self
     }
 }
@@ -293,6 +319,7 @@ impl FuseOp {
 }
 
 #[derive(CubeType, CubeLaunch, Default, Clone)]
+#[expand(derive(Clone))]
 /// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
     /// Tensors that are stored in global memory.
@@ -321,8 +348,9 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 
 /// Variables shared between blocks.
 #[derive(CubeType, Default, Clone)]
+#[expand(derive(Clone))]
 pub struct MultiBlockVariables {
-    variables: Registry<usize, Registry<usize, RuntimeCell<Vector<DynElem, DynSize>>>>,
+    variables: Registry<usize, Registry<usize, RuntimeCell<DynVector>>>,
 }
 
 #[cube]
@@ -333,10 +361,11 @@ impl MultiBlockVariables {
     ///
     /// The type of [`NumericExpand<DYN_ELEM_ID>`] must be set before calling this function.
     pub fn init(&mut self, #[comptime] key: MultiBlockPos) {
-        let mut registers = Registry::<
-            usize,
-            Registry<usize, RuntimeCell<Vector<DynElem, DynSize>>>,
-        >::find_or_default::<usize>(&mut self.variables, key.block_pos);
+        let mut registers =
+            Registry::<usize, Registry<usize, RuntimeCell<DynVector>>>::find_or_default::<usize>(
+                &mut self.variables,
+                key.block_pos,
+            );
         let cell = RuntimeCell::new(Vector::empty());
         registers.insert(key.block_local_pos, cell);
     }
@@ -346,7 +375,7 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The variable must be initialized.
-    pub fn read(&self, #[comptime] key: MultiBlockPos) -> Vector<DynElem, DynSize> {
+    pub fn read(&self, #[comptime] key: MultiBlockPos) -> DynVector {
         let registers = self.variables.find(key.block_pos);
         let cell = registers.find(key.block_local_pos);
         cell.read()
@@ -357,7 +386,7 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The variable must be initialized.
-    pub fn write(&mut self, #[comptime] key: MultiBlockPos, value: Vector<DynElem, DynSize>) {
+    pub fn write(&mut self, #[comptime] key: MultiBlockPos, value: DynVector) {
         let registers = self.variables.find(key.block_pos);
         // Try find for local(visibility) registers.
         let cell = registers.find(key.block_local_pos);
@@ -504,6 +533,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 }
 
 #[derive(CubeType, Clone)]
+#[expand(derive(Clone))]
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
@@ -519,8 +549,8 @@ pub struct LocalArgs {
     pub l_u32: Registry<usize, Vector<u32, DynSize>>,
     pub l_u16: Registry<usize, Vector<u16, DynSize>>,
     pub l_u8: Registry<usize, Vector<u8, DynSize>>,
-    pub ref_shape: Slice<usize>,
-    pub ref_strides: Slice<usize>,
+    pub ref_shape: Box<[usize]>,
+    pub ref_strides: Box<[usize]>,
     #[cube(comptime)]
     pub ref_vector_size: VectorSize,
 }
@@ -529,8 +559,8 @@ pub struct LocalArgs {
 impl LocalArgs {
     /// Creates a new [LocalArgs] container.
     pub fn new(
-        ref_shape: Slice<usize>,
-        ref_strides: Slice<usize>,
+        ref_shape: &[usize],
+        ref_strides: &[usize],
         #[comptime] ref_vector_size: VectorSize,
     ) -> LocalArgs {
         LocalArgs {
@@ -546,8 +576,8 @@ impl LocalArgs {
             l_u32: Registry::<usize, Vector<u32, DynSize>>::new(),
             l_u16: Registry::<usize, Vector<u16, DynSize>>::new(),
             l_u8: Registry::<usize, Vector<u8, DynSize>>::new(),
-            ref_shape,
-            ref_strides,
+            ref_shape: unsafe { ref_shape.as_boxed_unchecked() },
+            ref_strides: unsafe { ref_strides.as_boxed_unchecked() },
             ref_vector_size,
         }
     }
@@ -598,6 +628,12 @@ pub struct FuseBlockConfig {
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
     pub width: VectorSize,
+}
+
+impl AsRefExpand for FuseBlockConfig {
+    fn __expand_ref_method(&self, _: &Scope) -> &Self {
+        self
+    }
 }
 
 impl FuseBlockConfig {
