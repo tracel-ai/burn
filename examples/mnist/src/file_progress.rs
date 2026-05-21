@@ -5,6 +5,7 @@ use std::{
 };
 
 use burn::train::logger::{EvaluationProgressLogger, TrainingProgressLogger};
+use burn::train::renderer::{EvaluationProgress, TrainingProgress};
 
 /// A progress logger that appends training progress to a file.
 ///
@@ -57,7 +58,8 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
         ));
     }
 
-    fn update_split(&mut self, items_processed: usize) {
+    fn update_split(&mut self, progress: &TrainingProgress) {
+        let items_processed = progress.progress.as_ref().map_or(0, |p| p.items_processed);
         self.write(&format!(
             "[Training] split_update  items_processed={items_processed}"
         ));
@@ -114,7 +116,8 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
         ));
     }
 
-    fn update_test(&mut self, items_processed: usize) {
+    fn update_test(&mut self, progress: &EvaluationProgress) {
+        let items_processed = progress.progress.items_processed;
         self.write(&format!(
             "[Evaluation] test_update  items_processed={items_processed}"
         ));

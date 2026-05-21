@@ -1,3 +1,5 @@
+use crate::renderer::{EvaluationProgress, TrainingProgress};
+
 /// Trait for logging training progress at each step and end of epoch.
 ///
 /// # Call sequence
@@ -8,11 +10,11 @@
 /// start(total_epochs, total_items)
 ///   for each epoch:
 ///     start_split("train", total_items_train)
-///       update_split(items_processed)  // called once per batch
+///       update_split(progress)  // called once per batch
 ///       ...
 ///     end_split()
 ///     start_split("valid", total_items_valid)
-///       update_split(items_processed)  // called once per batch
+///       update_split(progress)  // called once per batch
 ///       ...
 ///     end_split()
 ///     update_epoch(epoch)
@@ -33,7 +35,7 @@ pub trait TrainingProgressLogger: Send {
     fn start_split(&mut self, split: &str, total_items: usize);
 
     /// Log the progress of the current training step.
-    fn update_split(&mut self, items_processed: usize);
+    fn update_split(&mut self, progress: &TrainingProgress);
 
     /// Called at the end of a training split.
     fn end_split(&mut self);
@@ -52,7 +54,7 @@ pub trait TrainingProgressLogger: Send {
 /// start(total_tests)
 ///   for each test split:
 ///     start_test(name, total_items)
-///       update_test(items_processed)  // called once per batch
+///       update_test(progress)  // called once per batch
 ///       ...
 ///     end_test()
 /// end()
@@ -67,7 +69,7 @@ pub trait EvaluationProgressLogger: Send {
     fn start_test(&mut self, name: &str, total_items: usize);
 
     /// Log the progress of the current test step.
-    fn update_test(&mut self, items_processed: usize);
+    fn update_test(&mut self, progress: &EvaluationProgress);
 
     /// Called at the end of a test split.
     fn end_test(&mut self);

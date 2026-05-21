@@ -166,7 +166,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_test(progress.progress.items_processed);
+                    logger.update_test(&progress);
                 }
                 self.renderer.render_test(progress, indicators);
             }
@@ -239,8 +239,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    logger
-                        .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
+                    logger.update_split(&progress);
                 }
                 self.renderer.render_train(progress, indicators);
             }
@@ -304,8 +303,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 let indicators = self.progress_indicators(&progress);
                 if let Some(logger) = &mut self.progress_logger {
-                    logger
-                        .update_split(progress.progress.as_ref().map_or(0, |p| p.items_processed));
+                    logger.update_split(&progress);
                 }
                 self.renderer.render_valid(progress, indicators);
             }
