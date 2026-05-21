@@ -5,7 +5,6 @@ use burn_backend::{
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
 
-use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
 
 impl FloatTensorOps<Self> for Dispatch {
