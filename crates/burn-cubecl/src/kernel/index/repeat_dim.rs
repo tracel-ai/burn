@@ -4,6 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::FastDivmod};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -82,7 +83,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             shape_divmod(&output),
             shape_arg,
             dim,
-            output.dtype.into(),
+            dtype_to_storage_type(output.dtype),
         )
     };
 

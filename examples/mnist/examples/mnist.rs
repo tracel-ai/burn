@@ -3,39 +3,28 @@
 use burn::tensor::Device;
 use mnist::training;
 
-#[cfg(feature = "cuda")]
-use burn::backend::cuda::CudaDevice;
-#[cfg(feature = "flex")]
-use burn::backend::flex::FlexDevice;
-#[cfg(feature = "tch-gpu")]
-use burn::backend::libtorch::LibTorchDevice;
-#[cfg(feature = "rocm")]
-use burn::backend::rocm::RocmDevice;
-#[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
-use burn::backend::wgpu::WgpuDevice;
-
 #[allow(unreachable_code)]
 fn select_device() -> Device {
     #[cfg(feature = "flex")]
-    return FlexDevice.into();
+    return Device::flex();
 
     #[cfg(all(feature = "tch-gpu", not(target_os = "macos")))]
-    return LibTorchDevice::Cuda(0).into();
+    return Device::libtorch_cuda(burn::tensor::DeviceIndex::Default);
 
     #[cfg(all(feature = "tch-gpu", target_os = "macos"))]
-    return LibTorchDevice::Mps.into();
+    return Device::libtorch_mps();
 
     #[cfg(feature = "tch-cpu")]
-    return LibTorchDevice::Cpu;
+    return Device::libtorch();
 
     #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
-    return WgpuDevice::default().into();
+    return Device::wgpu(burn::tensor::DeviceKind::DefaultDevice);
 
     #[cfg(feature = "cuda")]
-    return CudaDevice::default().into();
+    return Device::cuda(burn::tensor::DeviceIndex::Default);
 
     #[cfg(feature = "rocm")]
-    return RocmDevice::default().into();
+    return Device::rocm(burn::tensor::DeviceIndex::Default);
 
     unreachable!("At least one backend will be selected.")
 }

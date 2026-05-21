@@ -1,5 +1,5 @@
-use burn::backend::wgpu::WgpuDevice;
+use burn::tensor::Device;
 
 fn main() {
-    custom_renderer::run(WgpuDevice::default());
+    custom_renderer::run(Device::default());
 }

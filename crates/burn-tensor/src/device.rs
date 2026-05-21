@@ -1,4 +1,3 @@
-pub use burn_dispatch::devices::*;
 pub use burn_std::{
     DeviceError, DeviceSettings, ExecutionError, backtrace::BackTrace, device::DeviceId,
 };
@@ -14,6 +13,8 @@ use burn_std::QuantScheme;
 use alloc::vec::Vec;
 use enumset::EnumSet;
 use enumset::EnumSetType;
+
+use crate::macros::obfuscate_type;
 
 /// A high-level device handle for tensor operations.
 ///
@@ -31,18 +32,29 @@ use enumset::EnumSetType;
 ///
 /// # Backend selection
 ///
-/// Enable the desired backend via Cargo feature flags, then construct the corresponding
-/// backend device. You can use [`Device::new`], the [`From`]/[`Into`] trait,
-/// or [`Device::default()`] for the active backend's default device:
+/// Enable the desired backend via Cargo feature flags, then call the
+/// corresponding factory method:
 ///
 /// ```rust,ignore
-/// let device = Device::new(CudaDevice::default());
+/// // Default CUDA device (requires the `cuda` feature).
+/// let device = Device::cuda(DeviceIndex::Default);
 ///
-/// let device: Device = CudaDevice::default().into();
+/// // CUDA device at hardware index 1.
+/// let device = Device::cuda(1);
 ///
-/// // Default device for whichever backend is enabled
+/// // WGPU with explicit selector (requires `wgpu`/`vulkan`/`metal`/`webgpu`).
+/// let device = Device::wgpu(DeviceKind::DiscreteGpu(0));
+///
+/// // Default device for whichever backend is enabled.
 /// let device = Default::default();
 /// ```
+///
+/// Available factory methods (each gated by its matching Cargo feature):
+/// `Device::cpu`, `Device::cuda` / `Device::rocm` / `Device::libtorch_cuda`
+/// (take an integer index or a [`DeviceIndex`]), `Device::wgpu` /
+/// `Device::vulkan` / `Device::metal` / `Device::webgpu` (take a
+/// [`DeviceKind`]), `Device::flex`, `Device::ndarray`, `Device::libtorch`,
+/// `Device::libtorch_mps`, `Device::libtorch_vulkan`.
 ///
 /// # Autodiff
 ///
@@ -56,14 +68,30 @@ use enumset::EnumSetType;
 /// // Tensors created on this device will track gradients
 /// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 /// ```
-#[derive(Clone, Default)]
 pub struct Device {
-    pub(crate) dispatch: DispatchDevice,
+    blob: device_blob::Blob,
+}
+
+// Aligned, type-erased storage for `DispatchDevice`. See `crate::macros` for
+// why this indirection exists (it keeps the dispatch type tree out of
+// downstream MIR).
+obfuscate_type!(device_blob, DispatchDevice, Send, Sync);
+
+impl Clone for Device {
+    fn clone(&self) -> Self {
+        Self::new(self.as_dispatch().clone())
+    }
+}
+
+impl Default for Device {
+    fn default() -> Self {
+        Self::new(DispatchDevice::default())
+    }
 }
 
 impl core::fmt::Debug for Device {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Device<{:?}>", self.dispatch)
+        write!(f, "Device<{:?}>", self.as_dispatch())
     }
 }
 
@@ -76,7 +104,7 @@ impl PartialEq for Device {
     /// Note that this comparison ignores autodiff and checkpointing settings.
     /// To check if two devices have identical capabilities, check [`Device::is_autodiff`].
     fn eq(&self, other: &Self) -> bool {
-        self.dispatch == other.dispatch
+        self.as_dispatch() == other.as_dispatch()
     }
 
     /// Compares devices based on hardware identity.
@@ -90,24 +118,263 @@ impl PartialEq for Device {
 
 impl Eq for Device {}
 
+impl Device {
+    /// Wrap a backend-specific device in a unified [`Device`].
+    ///
+    /// Used by:
+    /// - the backend-specific factory methods below (`Device::cuda`, etc.)
+    ///   — these are the recommended entry points for downstream code;
+    /// - burn-tensor's bridge ops, which already hold a [`DispatchDevice`]
+    ///   and just need to wrap it;
+    /// - direct callers (tests, type-erased helpers) that have a concrete
+    ///   backend device type at hand.
+    ///
+    /// Anything convertible into [`DispatchDevice`] is accepted, including
+    /// `DispatchDevice` itself.
+    pub fn new(device: impl Into<DispatchDevice>) -> Self {
+        Self {
+            blob: device_blob::Blob::new(device.into()),
+        }
+    }
+
+    /// Crate-internal borrow of the underlying dispatch device.
+    pub(crate) fn as_dispatch(&self) -> &DispatchDevice {
+        self.blob.as_ref()
+    }
+
+    /// Crate-internal owning extraction of the underlying dispatch device.
+    pub(crate) fn into_dispatch(self) -> DispatchDevice {
+        self.blob.into_inner()
+    }
+}
+
 impl<D: Into<DispatchDevice>> From<D> for Device {
     fn from(device: D) -> Self {
         Self::new(device)
     }
 }
 
-impl Device {
-    /// Creates a new [`Device`] from a supported backend device.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let device = Device::new(CudaDevice::default());
-    /// ```
-    pub fn new(device: impl Into<DispatchDevice>) -> Self {
-        Self {
-            dispatch: device.into(),
+/// Selector for the hardware index of a backend whose devices are simply
+/// indexed (e.g. CUDA, ROCm).
+///
+/// Backend factory methods that take an index (`Device::cuda`, `Device::rocm`,
+/// `Device::libtorch_cuda`) accept `impl Into<DeviceIndex>`, so the common
+/// shorthand is to pass a plain integer literal:
+///
+/// ```rust,ignore
+/// Device::cuda(0);                    // hardware index 0
+/// Device::cuda(DeviceIndex::Default); // backend-chosen default
+/// ```
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
+pub enum DeviceIndex {
+    /// Target a specific hardware device by its index.
+    Specified(usize),
+    /// Let the backend pick its default device (typically index `0`).
+    #[default]
+    Default,
+}
+
+impl DeviceIndex {
+    /// Construct a [`DeviceIndex::Specified`] from anything convertible into
+    /// a `usize`.
+    pub fn new(index: impl Into<usize>) -> Self {
+        Self::Specified(index.into())
+    }
+
+    /// Resolve to a concrete hardware index, defaulting to `0` for
+    /// [`DeviceIndex::Default`]. Backend factory methods are each gated by a
+    /// Cargo feature, so this looks dead when none of them are enabled.
+    #[allow(dead_code)]
+    fn resolve(self) -> usize {
+        match self {
+            DeviceIndex::Specified(i) => i,
+            DeviceIndex::Default => 0,
         }
+    }
+}
+
+impl From<usize> for DeviceIndex {
+    fn from(i: usize) -> Self {
+        Self::Specified(i)
+    }
+}
+
+impl From<u32> for DeviceIndex {
+    fn from(i: u32) -> Self {
+        Self::Specified(i as usize)
+    }
+}
+
+impl From<u64> for DeviceIndex {
+    fn from(i: u64) -> Self {
+        Self::Specified(i as usize)
+    }
+}
+
+impl From<i32> for DeviceIndex {
+    fn from(i: i32) -> Self {
+        Self::Specified(usize::try_from(i).expect("device index must be non-negative"))
+    }
+}
+
+impl From<i64> for DeviceIndex {
+    fn from(i: i64) -> Self {
+        Self::Specified(usize::try_from(i).expect("device index must be non-negative"))
+    }
+}
+
+/// Selector for the more flexible backends whose device handle is a tagged
+/// enum (e.g. WGPU, which can target a discrete/integrated/virtual GPU, a CPU
+/// adapter, an externally-created wgpu setup, or just "best available").
+///
+/// The variants mirror `WgpuDevice` from cubecl so the mapping is direct, but
+/// it is kept as a burn-owned enum so callers don't have to depend on cubecl.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
+pub enum DeviceKind {
+    /// Discrete GPU with the given index. The index is the index of the discrete GPU in the list
+    /// of all discrete GPUs found on the system.
+    DiscreteGpu(usize),
+
+    /// Integrated GPU with the given index. The index is the index of the integrated GPU in the
+    /// list of all integrated GPUs found on the system.
+    IntegratedGpu(usize),
+
+    /// Virtual GPU with the given index. The index is the index of the virtual GPU in the list of
+    /// all virtual GPUs found on the system.
+    VirtualGpu(usize),
+
+    /// CPU.
+    Cpu,
+
+    /// The best available device found with the current graphics API.
+    ///
+    /// This will prioritize GPUs wgpu recognizes as "high power". Additionally, you can override this using
+    /// the `CUBECL_WGPU_DEFAULT_DEVICE` environment variable. This variable is spelled as if i was a `WgpuDevice`,
+    /// so for example `CUBECL_WGPU_DEFAULT_DEVICE=IntegratedGpu(1)` or `CUBECL_WGPU_DEFAULT_DEVICE=Cpu`
+    #[default]
+    DefaultDevice,
+
+    /// Use an externally created, existing, wgpu setup. This is helpful when using `CubeCL` in conjunction
+    /// with some existing wgpu setup (eg. egui or bevy), as resources can be transferred in & out of `CubeCL`.
+    ///
+    /// # Notes
+    ///
+    /// This can be initialized with `init_device` from the wgpu runtime.
+    Existing(u32),
+}
+
+impl Device {
+    /// Default CPU device backed by CubeCL's CPU backend.
+    #[cfg(feature = "cpu")]
+    pub fn cpu() -> Self {
+        Self::new(burn_dispatch::devices::CpuDevice::default())
+    }
+
+    /// CUDA device at the given hardware index.
+    ///
+    /// Accepts a plain integer (e.g. `Device::cuda(0)`) or a
+    /// [`DeviceIndex`] — use [`DeviceIndex::Default`] to let the backend
+    /// pick.
+    #[cfg(feature = "cuda")]
+    pub fn cuda(index: impl Into<DeviceIndex>) -> Self {
+        Self::new(burn_dispatch::devices::CudaDevice::new(
+            index.into().resolve(),
+        ))
+    }
+
+    /// ROCm/HIP device at the given hardware index.
+    ///
+    /// Same selector semantics as [`Device::cuda`].
+    #[cfg(feature = "rocm")]
+    pub fn rocm(index: impl Into<DeviceIndex>) -> Self {
+        Self::new(burn_dispatch::devices::RocmDevice::new(
+            index.into().resolve(),
+        ))
+    }
+
+    /// Flex backend device.
+    #[cfg(feature = "flex")]
+    pub fn flex() -> Self {
+        Self::new(burn_dispatch::devices::FlexDevice)
+    }
+
+    /// Default NdArray (CPU) device.
+    #[cfg(feature = "ndarray")]
+    pub fn ndarray() -> Self {
+        Self::new(burn_dispatch::devices::NdArrayDevice::default())
+    }
+
+    /// LibTorch CPU device.
+    #[cfg(feature = "tch")]
+    pub fn libtorch() -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Cpu)
+    }
+
+    /// LibTorch CUDA device at the given hardware index.
+    #[cfg(feature = "tch")]
+    pub fn libtorch_cuda(index: impl Into<DeviceIndex>) -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Cuda(
+            index.into().resolve(),
+        ))
+    }
+
+    /// LibTorch Metal Performance Shaders (MPS) device.
+    #[cfg(feature = "tch")]
+    pub fn libtorch_mps() -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Mps)
+    }
+
+    /// LibTorch Vulkan device.
+    #[cfg(feature = "tch")]
+    pub fn libtorch_vulkan() -> Self {
+        Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
+    }
+
+    /// WGPU device, selected via [`DeviceKind`].
+    ///
+    /// The actual wgpu adapter (Vulkan / Metal / WebGPU) is picked by the
+    /// enabled Cargo features and, for [`DeviceKind::DefaultDevice`], by
+    /// `wgpu`'s adapter-selection heuristics (high-power GPU preferred, or
+    /// whatever `CUBECL_WGPU_DEFAULT_DEVICE` overrides it to).
+    ///
+    /// `Device::vulkan` / `Device::metal` / `Device::webgpu` are
+    /// equivalent calls (they exist only to make the intended backend
+    /// explicit at the call site — the underlying adapter is still picked by
+    /// enabled Cargo features).
+    #[cfg(any(
+        feature = "wgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "webgpu"
+    ))]
+    pub fn wgpu(device_kind: DeviceKind) -> Self {
+        Self::new(wgpu_device(device_kind))
+    }
+
+    /// Vulkan-backed WGPU device, selected via [`DeviceKind`].
+    ///
+    /// Equivalent to [`Device::wgpu`]; provided so the caller's choice of
+    /// graphics API reads clearly at the call site. The actual adapter is
+    /// still determined by enabled Cargo features.
+    #[cfg(feature = "vulkan")]
+    pub fn vulkan(device_kind: DeviceKind) -> Self {
+        Self::new(wgpu_device(device_kind))
+    }
+
+    /// Metal-backed WGPU device, selected via [`DeviceKind`].
+    ///
+    /// See [`Device::vulkan`] — same shape, different feature gate.
+    #[cfg(feature = "metal")]
+    pub fn metal(device_kind: DeviceKind) -> Self {
+        Self::new(wgpu_device(device_kind))
+    }
+
+    /// WebGPU-backed device, selected via [`DeviceKind`].
+    ///
+    /// See [`Device::vulkan`] — same shape, different feature gate.
+    #[cfg(feature = "webgpu")]
+    pub fn webgpu(device_kind: DeviceKind) -> Self {
+        Self::new(wgpu_device(device_kind))
     }
 
     /// Enables autodiff on this device.
@@ -130,13 +397,11 @@ impl Device {
     ///
     /// Panics if autodiff is already enabled on this device.
     #[cfg(feature = "autodiff")]
-    pub fn autodiff(mut self) -> Self {
-        match self.dispatch {
+    pub fn autodiff(self) -> Self {
+        match self.into_dispatch() {
             DispatchDevice::Autodiff(_) => unimplemented!("Only first-order autodiff is supported"),
-            other => self.dispatch = DispatchDevice::autodiff(other),
+            other => Self::new(DispatchDevice::autodiff(other)),
         }
-
-        self
     }
 
     /// Enables gradient checkpointing on the autodiff device.
@@ -156,20 +421,18 @@ impl Device {
     ///
     /// Panics if autodiff is not enabled on this device.
     #[cfg(feature = "autodiff")]
-    pub fn gradient_checkpointing(mut self) -> Self {
-        match self.dispatch {
+    pub fn gradient_checkpointing(self) -> Self {
+        match self.into_dispatch() {
             DispatchDevice::Autodiff(device) => {
                 use burn_dispatch::CheckpointingStrategy;
 
-                self.dispatch = DispatchDevice::autodiff_checkpointed(
+                Self::new(DispatchDevice::autodiff_checkpointed(
                     device.inner(),
                     CheckpointingStrategy::Balanced,
-                )
+                ))
             }
             _ => panic!("Autodiff is not enabled on this device"),
         }
-
-        self
     }
 
     /// Returns the underlying device, removing the autodiff capability if present.
@@ -184,12 +447,12 @@ impl Device {
     ///
     /// assert!(!inner_device.is_autodiff());
     /// ```
-    pub fn inner(mut self) -> Self {
+    pub fn inner(self) -> Self {
         if self.is_autodiff() {
-            self.dispatch = self.dispatch.inner();
+            Self::new(self.into_dispatch().inner())
+        } else {
+            self
         }
-
-        self
     }
 
     /// Synchronize the device, waiting for all pending operations to complete.
@@ -198,7 +461,7 @@ impl Device {
     ///
     /// Returns an [`ExecutionError`] if an operation failed to execute.
     pub fn sync(&self) -> Result<(), ExecutionError> {
-        Dispatch::sync(&self.dispatch)
+        Dispatch::sync(self.as_dispatch())
     }
 
     /// Seeds the random number generator for this device.
@@ -219,7 +482,7 @@ impl Device {
     /// let t = Tensor::<1>::random([8], Distribution::Default, &device);
     /// ```
     pub fn seed(&self, seed: u64) {
-        Dispatch::seed(&self.dispatch, seed)
+        Dispatch::seed(self.as_dispatch(), seed)
     }
 
     /// Returns `true` if autodiff (gradient tracking) is enabled on this device.
@@ -234,13 +497,13 @@ impl Device {
     /// assert!(ad_device.is_autodiff());
     /// ```
     pub fn is_autodiff(&self) -> bool {
-        Dispatch::ad_enabled(&self.dispatch)
+        Dispatch::ad_enabled(self.as_dispatch())
     }
 
     /// Returns the default [quantization scheme](QuantScheme) for this device.
     pub fn default_quant_scheme(&self) -> QuantScheme {
         // TODO: maybe in device settings?
-        Dispatch::default_quant_scheme(&self.dispatch)
+        Dispatch::default_quant_scheme(self.as_dispatch())
     }
 
     /// Sets the current allocation mode to persistent.
@@ -253,7 +516,7 @@ impl Device {
         input: Input,
         func: Func,
     ) -> Output {
-        Dispatch::memory_persistent_allocations(&self.dispatch, input, func)
+        Dispatch::memory_persistent_allocations(self.as_dispatch(), input, func)
     }
 
     /// Returns the [`DeviceSettings`] for this device.
@@ -263,7 +526,7 @@ impl Device {
     ///
     /// See [`set_default_dtypes`](Device::set_default_dtypes) to configure them.
     pub fn settings(&self) -> DeviceSettings {
-        burn_backend::get_device_settings::<Dispatch>(&self.dispatch)
+        burn_backend::get_device_settings::<Dispatch>(self.as_dispatch())
     }
 
     /// Sets the default float and integer data types for tensors created on this device.
@@ -299,7 +562,7 @@ impl Device {
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
     ) -> Result<(), DeviceError> {
-        burn_backend::set_default_dtypes::<Dispatch>(&self.dispatch, float_dtype, int_dtype)
+        burn_backend::set_default_dtypes::<Dispatch>(self.as_dispatch(), float_dtype, int_dtype)
     }
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
@@ -339,6 +602,28 @@ impl Device {
         }
 
         devices
+    }
+}
+
+/// Map our backend-agnostic [`DeviceKind`] onto cubecl's `WgpuDevice` enum.
+///
+/// Shared by [`Device::wgpu`], [`Device::vulkan`], [`Device::metal`], and
+/// [`Device::webgpu`], which differ only in which Cargo feature gates them.
+#[cfg(any(
+    feature = "wgpu",
+    feature = "vulkan",
+    feature = "metal",
+    feature = "webgpu"
+))]
+fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
+    use burn_dispatch::devices::WgpuDevice;
+    match device_kind {
+        DeviceKind::DiscreteGpu(i) => WgpuDevice::DiscreteGpu(i),
+        DeviceKind::IntegratedGpu(i) => WgpuDevice::IntegratedGpu(i),
+        DeviceKind::VirtualGpu(i) => WgpuDevice::VirtualGpu(i),
+        DeviceKind::Cpu => WgpuDevice::Cpu,
+        DeviceKind::DefaultDevice => WgpuDevice::DefaultDevice,
+        DeviceKind::Existing(id) => WgpuDevice::Existing(id),
     }
 }
 

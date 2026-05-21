@@ -4,6 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Slice, TensorMetadata};
 use burn_std::{Metadata, SliceOps};
 use cubecl::{
@@ -116,7 +117,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             output.clone().into_linear_view(),
             shape_divmod(&output),
             indices_sequence,
-            dtype.into(),
+            dtype_to_storage_type(dtype),
         )
     };
 
@@ -233,7 +234,7 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
             starts,
             ends,
             steps,
-            dtype.into(),
+            dtype_to_storage_type(dtype),
         );
     }
 

@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use burn_std::Shape;
 use cubek::{
@@ -105,14 +106,14 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
 
     let client = input.client.clone();
     let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
-        lhs: input.dtype.into(),
-        rhs: out_grad.dtype.into(),
-        out: out_dtype.into(),
+        lhs: dtype_to_storage_type(input.dtype),
+        rhs: dtype_to_storage_type(out_grad.dtype),
+        out: dtype_to_storage_type(out_dtype),
     });
     let input_dtype = input.dtype;
     let out_grad_dtype = out_grad.dtype;
-    let input = InputBinding::new(input.binding(), input_dtype.into());
-    let out_grad = InputBinding::new(out_grad.binding(), out_grad_dtype.into());
+    let input = InputBinding::new(input.binding(), dtype_to_storage_type(input_dtype));
+    let out_grad = InputBinding::new(out_grad.binding(), dtype_to_storage_type(out_grad_dtype));
 
     launch_ref::<R, N>(
         strategy,

@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::FastDivmod};
 use cubek::convolution::components::ConvSetupError;
 
@@ -233,11 +234,11 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
             options.dilation[1],
             {
                 let val = options.padding[0] as f32;
-                InputScalar::new(val, dtype)
+                InputScalar::new(val, dtype_to_storage_type(dtype))
             },
             {
                 let val = options.padding[1] as f32;
-                InputScalar::new(val, dtype)
+                InputScalar::new(val, dtype_to_storage_type(dtype))
             },
             options.offset_groups,
             kernel_height,
@@ -247,7 +248,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         ),
         Some(kernel_height),
         Some(kernel_width),
-        dtype.into(),
+        dtype_to_storage_type(dtype),
     );
 
     Ok(output)

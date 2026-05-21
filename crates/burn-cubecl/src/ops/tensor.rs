@@ -10,6 +10,7 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
@@ -91,7 +92,7 @@ where
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::add_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::add_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
@@ -111,7 +112,7 @@ where
             client,
             shape,
             device.clone(),
-            InputScalar::new(fill_value, dtype),
+            InputScalar::new(fill_value, dtype_to_storage_type(dtype)),
             dtype,
         )
     }
@@ -127,7 +128,7 @@ where
 
     fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::sub_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::sub_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -136,7 +137,7 @@ where
 
     fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::mul_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::mul_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -145,7 +146,7 @@ where
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::div_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::div_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -154,7 +155,7 @@ where
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -268,7 +269,12 @@ where
     ) -> FloatTensor<Self> {
         let dtype = tensor.dtype;
         let bool_dtype = mask.dtype;
-        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), bool_dtype)
+        kernel::mask_fill_auto(
+            tensor,
+            mask,
+            InputScalar::new(value, dtype_to_storage_type(dtype)),
+            bool_dtype,
+        )
     }
 
     fn float_equal(
@@ -285,7 +291,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_greater(
@@ -302,7 +312,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::greater_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_greater_equal(
@@ -319,7 +333,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::greater_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_lower(
@@ -336,7 +354,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::lower_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_lower_equal(
@@ -353,7 +375,11 @@ where
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::lower_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -510,7 +536,9 @@ where
         }
 
         let dtype = lhs.dtype;
-        launch_unary_float::<R, Powf, _>(lhs, |_| InputScalar::new(rhs, dtype))
+        launch_unary_float::<R, Powf, _>(lhs, |_| {
+            InputScalar::new(rhs, dtype_to_storage_type(dtype))
+        })
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -654,8 +682,8 @@ where
         let dtype = tensor.dtype;
         kernel::clamp(
             tensor,
-            InputScalar::new(min, dtype),
-            InputScalar::new(max, dtype),
+            InputScalar::new(min, dtype_to_storage_type(dtype)),
+            InputScalar::new(max, dtype_to_storage_type(dtype)),
         )
     }
 

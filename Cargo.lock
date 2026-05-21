@@ -1120,9 +1120,9 @@ dependencies = [
 name = "burn-std"
 version = "0.22.0-pre.1"
 dependencies = [
+ "ahash",
  "bytemuck",
  "bytes",
- "cubecl",
  "cubecl-common",
  "cubecl-zspace",
  "dashmap",

@@ -27,7 +27,7 @@ std = [
 tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-dispatch/tracing"]
 distributed = ["std", "burn-backend/distributed", "burn-dispatch/distributed"]
 
-cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
+cubecl = ["burn-backend/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]
 cubecl-hip = ["burn-backend/cubecl-hip"]
 cubecl-wgpu = ["burn-backend/cubecl-wgpu"]

@@ -15,15 +15,15 @@ version.workspace = true
 workspace = true
 
 [features]
-cubecl = ["dep:cubecl"]
 default = ["std", "cubecl-common/default"]
 doc = ["default"]
 std = ["cubecl-common/std", "num-traits/std", "rand/std"]
-tracing = ["cubecl?/tracing", "cubecl-common/tracing"]
+tracing = ["cubecl-common/tracing"]
 
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
 [dependencies]
+ahash = { workspace = true }
 hashbrown = { workspace = true }
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
@@ -37,7 +37,6 @@ smallvec = { workspace = true, features = ["serde"] }
 spin = { workspace = true }
 thiserror = { workspace = true }
 
-cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",

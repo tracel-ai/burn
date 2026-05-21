@@ -1,4 +1,5 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, Shape, TensorMetadata};
 
 /// Pseudo-random generator with uniform distribution
@@ -17,7 +18,7 @@ pub fn random_uniform<R: CubeRuntime>(
         lower_bound,
         upper_bound,
         output.clone().binding(),
-        dtype.into(),
+        dtype_to_storage_type(dtype),
     )
     .expect("Kernel to never fail");
 

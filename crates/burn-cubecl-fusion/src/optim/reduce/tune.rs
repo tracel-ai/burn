@@ -4,6 +4,7 @@ use crate::{
     engine::trace::TuneOutput,
     tune::{FusionInputGen, TuneInput},
 };
+use burn_backend::cubecl::dtype_to_elem_type;
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
@@ -131,8 +132,8 @@ pub(crate) fn create_key<R: Runtime>(
     let acc = opt.info.reduce.acc.into_elem();
 
     let key = ReduceAutotuneKey::generate(
-        input_tensor.dtype.into(),
-        out_tensor.dtype.into(),
+        dtype_to_elem_type(input_tensor.dtype),
+        dtype_to_elem_type(out_tensor.dtype),
         acc,
         &input_tensor.shape,
         opt.info.reduce.axis == input_tensor.shape.rank() - 1,

@@ -33,7 +33,7 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Device>) {
+pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
     create_artifact_dir(artifact_dir);
 
     // Save training config
@@ -41,7 +41,6 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
 
-    let device = device.into();
     device.seed(RANDOM_SEED);
     let autodiff_device = device.clone().autodiff();
 

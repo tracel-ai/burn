@@ -407,11 +407,11 @@ pub trait AutodiffModule: Module + Send + core::fmt::Debug {
 mod tests {
     use super::*;
 
-    use crate::{TestDevice, test_utils::SimpleLinear};
+    use crate::{test_device, test_utils::SimpleLinear};
 
     #[test]
     fn test_module_val_train_stateful() {
-        let device = Device::new(TestDevice::default()).autodiff();
+        let device = test_device().autodiff();
         let module = SimpleLinear::new(4, 4, &device);
 
         assert!(module.weight.is_require_grad());

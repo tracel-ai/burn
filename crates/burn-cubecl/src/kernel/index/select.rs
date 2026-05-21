@@ -1,6 +1,7 @@
 use crate::{CubeRuntime, kernel::utils::address_type, tensor::CubeTensor};
 use crate::{kernel::utils::shape_divmod, ops::numeric::empty_device_dtype};
 use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};
 
@@ -71,7 +72,10 @@ pub(crate) fn select<R: CubeRuntime>(
             output.clone().into_linear_view(),
             shape_divmod(&output),
             dim,
-            [tensor_dtype.into(), indices_dtype.into()],
+            [
+                dtype_to_storage_type(tensor_dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     };
     output

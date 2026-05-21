@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
@@ -83,7 +84,10 @@ pub fn mask_fill<R: CubeRuntime>(
             mask,
             out_arg,
             value,
-            [output.dtype.into(), dtype_bool.into()],
+            [
+                dtype_to_storage_type(output.dtype),
+                dtype_to_storage_type(dtype_bool),
+            ],
         );
     }
 
