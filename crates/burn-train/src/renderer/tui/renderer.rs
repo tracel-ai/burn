@@ -1,3 +1,4 @@
+use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::{MetricDefinition, MetricId};
 use crate::renderer::tui::TuiSplit;
 use crate::renderer::{
@@ -61,6 +62,7 @@ pub struct TuiMetricsRendererWrapper {
     interrupter: Interrupter,
     handle_join: Option<JoinHandle<()>>,
     kill_signal: Arc<Mutex<Receiver<()>>>,
+    current_split: TuiSplit,
 }
 
 impl TuiMetricsRendererWrapper {
@@ -109,6 +111,7 @@ impl TuiMetricsRendererWrapper {
             interrupter,
             handle_join: Some(handle_join),
             kill_signal: Arc::new(Mutex::new(kill_signal_receiver)),
+            current_split: TuiSplit::Train,
         }
     }
 
@@ -155,13 +158,6 @@ impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
         )));
     }
 
-    fn render_test(&mut self, item: EvaluationProgress, progress_indicators: Vec<ProgressType>) {
-        self.send_event(TuiRendererEvent::StatusUpdateTest((
-            item,
-            progress_indicators,
-        )));
-    }
-
     fn on_test_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
         // Update the summary
         self.send_event(TuiRendererEvent::ProcessEnd {
@@ -200,22 +196,6 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
         )));
     }
 
-    fn render_train(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>) {
-        self.send_event(TuiRendererEvent::StatusUpdateTrain((
-            TuiSplit::Train,
-            item,
-            progress_indicators,
-        )));
-    }
-
-    fn render_valid(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>) {
-        self.send_event(TuiRendererEvent::StatusUpdateTrain((
-            TuiSplit::Valid,
-            item,
-            progress_indicators,
-        )));
-    }
-
     fn on_train_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
         // Reset for following steps.
         self.interrupter.reset();
@@ -226,6 +206,49 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
         });
         Ok(())
     }
+}
+
+impl TrainingProgressLogger for TuiMetricsRendererWrapper {
+    fn start(&mut self, total_epochs: usize, total_items: Option<usize>) {}
+
+    fn update_epoch(&mut self, epoch: usize) {}
+
+    fn start_split(&mut self, split: &str, _total_items: usize) {
+        self.current_split = if split == "train" {
+            TuiSplit::Train
+        } else {
+            TuiSplit::Valid
+        };
+    }
+
+    fn update_split(&mut self, progress: &TrainingProgress, indicators: Vec<ProgressType>) {
+        self.send_event(TuiRendererEvent::StatusUpdateTrain((
+            self.current_split,
+            progress.clone(),
+            indicators,
+        )));
+    }
+
+    fn end_split(&mut self) {}
+
+    fn end(&mut self) {}
+}
+
+impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
+    fn start(&mut self, total_items: usize) {}
+
+    fn start_test(&mut self, name: &str, total_items: usize) {}
+
+    fn update_test_progress(&mut self, progress: &EvaluationProgress, indicators: Vec<ProgressType>) {
+        self.send_event(TuiRendererEvent::StatusUpdateTest((
+            progress.clone(),
+            indicators,
+        )));
+    }
+
+    fn end_test(&mut self) {}
+
+    fn end(&mut self) {}
 }
 
 impl Drop for TuiMetricsRendererWrapper {

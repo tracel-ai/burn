@@ -1,6 +1,9 @@
-use crate::renderer::{
-    EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
-    MetricsRendererTraining, ProgressType, TrainingProgress,
+use crate::{
+    logger::{EvaluationProgressLogger, TrainingProgressLogger},
+    renderer::{
+        EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+        MetricsRendererTraining, ProgressType, TrainingProgress,
+    },
 };
 
 /// A simple renderer for when the cli feature is not enabled.
@@ -18,21 +21,61 @@ impl MetricsRendererTraining for CliMetricsRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}
+}
 
-    fn render_train(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
+impl TrainingProgressLogger for CliMetricsRenderer {
+    fn start(&mut self, total_epochs: usize, _total_items: Option<usize>) {
+        println!("Starting training for {total_epochs} epochs.");
+    }
+
+    fn start_split(&mut self, split_name: &str, total_items: usize) {
+        println!("Starting split '{split_name}' with {total_items} items.");
+    }
+
+    fn update_split(&mut self, item: &TrainingProgress, _progress_indicators: Vec<ProgressType>) {
         println!("{item:?}");
     }
 
-    fn render_valid(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
-        println!("{item:?}");
+    fn update_epoch(&mut self, epoch: usize) {
+        todo!()
+    }
+
+    fn end_split(&mut self) {
+        todo!()
+    }
+
+    fn end(&mut self) {
+        todo!()
+    }
+}
+
+impl EvaluationProgressLogger for CliMetricsRenderer {
+    fn start(&mut self, total_tests: usize) {
+        todo!()
+    }
+
+    fn start_test(&mut self, name: &str, total_items: usize) {
+        todo!()
+    }
+
+    fn update_test_progress(
+        &mut self,
+        progress: &EvaluationProgress,
+        indicators: Vec<ProgressType>,
+    ) {
+        todo!()
+    }
+
+    fn end_test(&mut self) {
+        todo!()
+    }
+
+    fn end(&mut self) {
+        todo!()
     }
 }
 
 impl MetricsRendererEvaluation for CliMetricsRenderer {
-    fn render_test(&mut self, item: EvaluationProgress, _progress_indicators: Vec<ProgressType>) {
-        println!("{item:?}");
-    }
-
     fn update_test(&mut self, _name: super::EvaluationName, _state: MetricState) {}
 }
 

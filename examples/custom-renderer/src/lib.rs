@@ -5,6 +5,7 @@ use burn::{
     tensor::Device,
     train::{
         Learner, SupervisedTraining,
+        logger::{EvaluationProgressLogger, TrainingProgressLogger},
         renderer::{
             EvaluationName, EvaluationProgress, MetricState, MetricsRenderer,
             MetricsRendererEvaluation, MetricsRendererTraining, ProgressType, TrainingProgress,
@@ -35,14 +36,22 @@ impl MetricsRendererTraining for CustomRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}
+}
 
-    fn render_train(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
-        dbg!(item);
+impl TrainingProgressLogger for CustomRenderer {
+    fn start(&mut self, _total_epochs: usize, _total_items: Option<usize>) {}
+
+    fn update_epoch(&mut self, _epoch: usize) {}
+
+    fn start_split(&mut self, _split: &str, _total_items: usize) {}
+
+    fn update_split(&mut self, progress: &TrainingProgress, _indicators: Vec<ProgressType>) {
+        dbg!(progress);
     }
 
-    fn render_valid(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
-        dbg!(item);
-    }
+    fn end_split(&mut self) {}
+
+    fn end(&mut self) {}
 }
 
 impl MetricsRenderer for CustomRenderer {
@@ -55,10 +64,24 @@ impl MetricsRenderer for CustomRenderer {
 
 impl MetricsRendererEvaluation for CustomRenderer {
     fn update_test(&mut self, _name: EvaluationName, _state: MetricState) {}
+}
 
-    fn render_test(&mut self, item: EvaluationProgress, _progress_indicators: Vec<ProgressType>) {
-        dbg!(item);
+impl EvaluationProgressLogger for CustomRenderer {
+    fn start(&mut self, _total_tests: usize) {}
+
+    fn start_test(&mut self, _name: &str, _total_items: usize) {}
+
+    fn update_test_progress(
+        &mut self,
+        progress: &EvaluationProgress,
+        _indicators: Vec<ProgressType>,
+    ) {
+        dbg!(progress);
     }
+
+    fn end_test(&mut self) {}
+
+    fn end(&mut self) {}
 }
 
 pub fn run(device: impl Into<Device>) {

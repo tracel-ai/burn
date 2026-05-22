@@ -60,7 +60,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress);
+                    logger.update_split(&progress, vec![]);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {
@@ -105,7 +105,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress);
+                    logger.update_split(&progress, vec![]);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {

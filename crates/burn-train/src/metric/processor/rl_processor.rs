@@ -132,7 +132,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let update = self.metrics.update_env_step(&item, &metadata);
                 self.process_update_train(update);
                 let status = self.progress_indicators(&progress);
-                self.renderer.render_train(progress, status);
+                self.renderer.update_split(&progress, status);
             }
             RLEvent::EpisodeEnd(item) => {
                 let item = item.sync();
@@ -165,7 +165,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let update = self.metrics.update_episode_end_valid(&item, &metadata);
                 self.process_update_valid(update);
                 let status = self.progress_indicators_eval(&progress);
-                self.renderer.render_valid(progress, status);
+                self.renderer.update_split(&progress, status);
             }
             AgentEvaluationEvent::End => {} // no-op for now
         }

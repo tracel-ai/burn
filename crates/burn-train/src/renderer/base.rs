@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     LearnerSummary,
+    logger::{EvaluationProgressLogger, TrainingProgressLogger},
     metric::{MetricDefinition, MetricEntry, NumericEntry},
 };
 use burn_core::data::dataloader::Progress;
@@ -22,20 +23,6 @@ pub trait MetricsRendererTraining: Send + Sync {
     /// * `state` - The metric state.
     fn update_valid(&mut self, state: MetricState);
 
-    /// Renders the training progress.
-    ///
-    /// # Arguments
-    ///
-    /// * `item` - The training progress.
-    fn render_train(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>);
-
-    /// Renders the validation progress.
-    ///
-    /// # Arguments
-    ///
-    /// * `item` - The validation progress.
-    fn render_valid(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>);
-
     /// Callback method invoked when training ends, whether it
     /// completed successfully or was interrupted.
     ///
@@ -52,7 +39,12 @@ pub trait MetricsRendererTraining: Send + Sync {
 }
 
 /// A renderer that can be used for both training and evaluation.
-pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {
+pub trait MetricsRenderer:
+    MetricsRendererEvaluation
+    + MetricsRendererTraining
+    + TrainingProgressLogger
+    + EvaluationProgressLogger
+{
     /// Keep the renderer from automatically closing, requiring manual action to close it.
     fn manual_close(&mut self);
     /// Register a new metric.
@@ -95,12 +87,6 @@ pub trait MetricsRendererEvaluation: Send + Sync {
     ///
     /// * `state` - The metric state.
     fn update_test(&mut self, name: EvaluationName, state: MetricState);
-    /// Renders the testing progress.
-    ///
-    /// # Arguments
-    ///
-    /// * `item` - The training progress.
-    fn render_test(&mut self, item: EvaluationProgress, progress_indicators: Vec<ProgressType>);
 
     /// Callback method invoked when testing ends, whether it
     /// completed successfully or was interrupted.
@@ -127,7 +113,7 @@ pub enum MetricState {
 }
 
 /// Training progress.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TrainingProgress {
     /// The progress.
     pub progress: Option<Progress>,
@@ -140,7 +126,7 @@ pub struct TrainingProgress {
 }
 
 /// Evaluation progress.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EvaluationProgress {
     /// The progress.
     pub progress: Progress,
@@ -174,6 +160,7 @@ impl TrainingProgress {
 }
 
 /// Type of progress indicators.
+#[derive(Clone)]
 pub enum ProgressType {
     /// Detailed progress.
     Detailed {
