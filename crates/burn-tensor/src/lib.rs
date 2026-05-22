@@ -38,7 +38,6 @@ extern crate derive_new;
 extern crate alloc;
 
 mod bridge;
-mod macros;
 mod tensor;
 
 pub(crate) use tensor::check::macros::check;
