@@ -573,22 +573,14 @@ impl Device {
                 DeviceType::Cuda => &[DispatchDeviceId::Cuda],
                 #[cfg(feature = "rocm")]
                 DeviceType::Rocm => &[DispatchDeviceId::Rocm],
-                #[cfg(any(
-                    feature = "wgpu",
-                    feature = "metal",
-                    feature = "vulkan",
-                    feature = "webgpu"
-                ))]
-                DeviceType::Wgpu => &[
-                    #[cfg(feature = "wgpu")]
-                    DispatchDeviceId::Wgpu,
-                    #[cfg(feature = "metal")]
-                    DispatchDeviceId::Metal,
-                    #[cfg(feature = "vulkan")]
-                    DispatchDeviceId::Vulkan,
-                    #[cfg(feature = "webgpu")]
-                    DispatchDeviceId::WebGpu,
-                ],
+                #[cfg(feature = "wgpu")]
+                DeviceType::Wgpu => &[DispatchDeviceId::Wgpu],
+                #[cfg(feature = "metal")]
+                DeviceType::Metal => &[DispatchDeviceId::Metal],
+                #[cfg(feature = "vulkan")]
+                DeviceType::Vulkan => &[DispatchDeviceId::Vulkan],
+                #[cfg(feature = "webgpu")]
+                DeviceType::WebGpu => &[DispatchDeviceId::WebGpu],
                 #[cfg(feature = "flex")]
                 DeviceType::Flex => &[DispatchDeviceId::Flex],
                 #[cfg(feature = "ndarray")]
@@ -640,13 +632,14 @@ pub enum DeviceType {
     Cuda,
     #[cfg(feature = "rocm")]
     Rocm,
-    #[cfg(any(
-        feature = "wgpu",
-        feature = "metal",
-        feature = "vulkan",
-        feature = "webgpu"
-    ))]
+    #[cfg(feature = "wgpu")]
     Wgpu,
+    #[cfg(feature = "metal")]
+    Metal,
+    #[cfg(feature = "vulkan")]
+    Vulkan,
+    #[cfg(feature = "webgpu")]
+    WebGpu,
     #[cfg(feature = "flex")]
     Flex,
     #[cfg(feature = "ndarray")]
