@@ -67,7 +67,7 @@ impl MetricsRendererEvaluation for CustomRenderer {
 }
 
 impl EvaluationProgressLogger for CustomRenderer {
-    fn start(&mut self, _total_tests: usize) {}
+    fn start_global_progress(&mut self, _total_tests: usize) {}
 
     fn start_test(&mut self, _name: &str, _total_items: usize) {}
 
@@ -81,7 +81,7 @@ impl EvaluationProgressLogger for CustomRenderer {
 
     fn end_test(&mut self) {}
 
-    fn end(&mut self) {}
+    fn end_global_progress(&mut self) {}
 }
 
 pub fn run(device: impl Into<Device>) {

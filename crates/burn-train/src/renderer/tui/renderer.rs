@@ -209,9 +209,9 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
 }
 
 impl TrainingProgressLogger for TuiMetricsRendererWrapper {
-    fn start(&mut self, total_epochs: usize, total_items: Option<usize>) {}
+    fn start(&mut self, _total_epochs: usize, _total_items: Option<usize>) {}
 
-    fn update_epoch(&mut self, epoch: usize) {}
+    fn update_epoch(&mut self, _epoch: usize) {}
 
     fn start_split(&mut self, split: &str, _total_items: usize) {
         self.current_split = if split == "train" {
@@ -235,11 +235,15 @@ impl TrainingProgressLogger for TuiMetricsRendererWrapper {
 }
 
 impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
-    fn start(&mut self, total_items: usize) {}
+    fn start_global_progress(&mut self, _total_items: usize) {}
 
-    fn start_test(&mut self, name: &str, total_items: usize) {}
+    fn start_test(&mut self, _name: &str, _total_items: usize) {}
 
-    fn update_test_progress(&mut self, progress: &EvaluationProgress, indicators: Vec<ProgressType>) {
+    fn update_test_progress(
+        &mut self,
+        progress: &EvaluationProgress,
+        indicators: Vec<ProgressType>,
+    ) {
         self.send_event(TuiRendererEvent::StatusUpdateTest((
             progress.clone(),
             indicators,
@@ -248,7 +252,7 @@ impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
 
     fn end_test(&mut self) {}
 
-    fn end(&mut self) {}
+    fn end_global_progress(&mut self) {}
 }
 
 impl Drop for TuiMetricsRendererWrapper {

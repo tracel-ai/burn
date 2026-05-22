@@ -126,10 +126,12 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start(total_tests);
+                    logger.start_global_progress(total_tests);
                 }
+                self.renderer.start_global_progress(total_tests);
             }
             EvaluatorEvent::StartTest(name, total_items) => {
+                self.renderer.start_test(name.as_str(), total_items);
                 if let Some(logger) = &mut self.progress_logger {
                     logger.start_test(name.as_str(), total_items);
                 }
@@ -174,11 +176,13 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_test();
                 }
+                self.renderer.end_test();
             }
             EvaluatorEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.end();
+                    logger.end_global_progress();
                 }
+                self.renderer.end_global_progress();
                 self.renderer.on_test_end(summary).ok();
             }
         }
@@ -206,6 +210,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 if let Some(logger) = &mut self.progress_logger {
                     logger.start(total_epochs, None);
                 }
+                self.renderer.start(total_epochs, None);
             }
             LearnerEvent::StartSplit(total_items) => {
                 self.renderer.start_split("train", total_items);
@@ -253,17 +258,20 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_split();
                 }
+                self.renderer.end_split();
                 self.metrics.end_epoch_train();
             }
             LearnerEvent::EndEpoch(epoch) => {
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_epoch(epoch);
                 }
+                self.renderer.update_epoch(epoch)
             }
             LearnerEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end();
                 }
+                self.renderer.end();
                 self.renderer.on_train_end(summary).ok();
             }
         }
@@ -273,10 +281,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
         match event {
             LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
             LearnerEvent::StartSplit(total_items) => {
-                self.renderer.start_split("valid", total_items);
                 if let Some(logger) = &mut self.progress_logger {
                     logger.start_split("valid", total_items);
                 }
+                self.renderer.start_split("valid", total_items);
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
@@ -318,6 +326,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_split();
                 }
+                self.renderer.end_split();
                 self.metrics.end_epoch_valid();
             }
             LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)

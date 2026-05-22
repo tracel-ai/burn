@@ -106,7 +106,7 @@ impl FileEvaluationProgressLogger {
 }
 
 impl EvaluationProgressLogger for FileEvaluationProgressLogger {
-    fn start(&mut self, total_tests: usize) {
+    fn start_global_progress(&mut self, total_tests: usize) {
         self.write(&format!("[Evaluation] start  total_tests={total_tests}"));
     }
 
@@ -131,7 +131,7 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
         self.write("[Evaluation] test_end");
     }
 
-    fn end(&mut self) {
+    fn end_global_progress(&mut self) {
         self.write("[Evaluation] end");
     }
 }

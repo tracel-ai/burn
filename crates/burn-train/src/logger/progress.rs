@@ -51,19 +51,19 @@ pub trait TrainingProgressLogger: Send {
 /// Implementors can expect the following sequence of calls for a complete evaluation run:
 ///
 /// ```text
-/// start(total_tests)
+/// start_global_progress(total_tests)
 ///   for each test split:
 ///     start_test(name, total_items)
-///       update_test(progress)  // called once per batch
+///       update_test_progress(progress)  // called once per batch
 ///       ...
 ///     end_test()
-/// end()
+/// end_global_progress()
 /// ```
 ///
 /// `end()` is called whether evaluation completes normally or is interrupted early.
 pub trait EvaluationProgressLogger: Send {
     /// Called once at the start of evaluation, providing the total number of test splits.
-    fn start(&mut self, total_tests: usize);
+    fn start_global_progress(&mut self, total_tests: usize);
 
     /// Called at the start of a test split, providing the split name and total number of items.
     fn start_test(&mut self, name: &str, total_items: usize);
@@ -79,5 +79,5 @@ pub trait EvaluationProgressLogger: Send {
     fn end_test(&mut self);
 
     /// Called at the end of evaluation.
-    fn end(&mut self);
+    fn end_global_progress(&mut self);
 }

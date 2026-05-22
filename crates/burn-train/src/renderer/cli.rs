@@ -36,43 +36,37 @@ impl TrainingProgressLogger for CliMetricsRenderer {
         println!("{item:?}");
     }
 
-    fn update_epoch(&mut self, epoch: usize) {
-        todo!()
-    }
+    fn update_epoch(&mut self, _epoch: usize) {}
 
     fn end_split(&mut self) {
-        todo!()
+        println!("Split ended.");
     }
 
     fn end(&mut self) {
-        todo!()
+        println!("Training ended.");
     }
 }
 
 impl EvaluationProgressLogger for CliMetricsRenderer {
-    fn start(&mut self, total_tests: usize) {
-        todo!()
+    fn start_global_progress(&mut self, total_tests: usize) {
+        println!("Starting evaluation with {total_tests} test(s).");
     }
 
     fn start_test(&mut self, name: &str, total_items: usize) {
-        todo!()
+        println!("Starting test '{name}' with {total_items} items.");
     }
 
     fn update_test_progress(
         &mut self,
         progress: &EvaluationProgress,
-        indicators: Vec<ProgressType>,
+        _indicators: Vec<ProgressType>,
     ) {
-        todo!()
+        println!("{progress:?}");
     }
 
-    fn end_test(&mut self) {
-        todo!()
-    }
+    fn end_test(&mut self) {}
 
-    fn end(&mut self) {
-        todo!()
-    }
+    fn end_global_progress(&mut self) {}
 }
 
 impl MetricsRendererEvaluation for CliMetricsRenderer {
@@ -80,9 +74,7 @@ impl MetricsRendererEvaluation for CliMetricsRenderer {
 }
 
 impl MetricsRenderer for CliMetricsRenderer {
-    fn manual_close(&mut self) {
-        // Nothing to do.
-    }
+    fn manual_close(&mut self) {}
 
     fn register_metric(&mut self, _definition: crate::metric::MetricDefinition) {}
 }
