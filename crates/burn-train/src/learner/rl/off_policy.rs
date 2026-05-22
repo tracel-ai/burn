@@ -95,11 +95,9 @@ where
             None,
         );
 
-        // TODO: device should probably be specified somewhere instead of using the default
-        let device = Device::flex().autodiff(); // was already a requirement via `B: AutodiffBackend`
         let mut transition_buffer = TransitionBuffer::<RLC::PolicyObs, RLC::PolicyAction>::new(
             self.config.replay_buffer_size,
-            &device,
+            &learner_agent.device(),
         );
 
         let mut valid_next = self.config.eval_interval + starting_epoch - 1;
@@ -146,7 +144,7 @@ where
                 for _ in 0..self.config.train_steps {
                     let batch = transition_buffer.sample(self.config.train_batch_size);
                     let train_item = learner_agent.train(batch);
-                    intermediary_update = Some(train_item.policy);
+                    intermediary_update = Some(learner_agent.policy().state());
 
                     event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
                         train_item.item,

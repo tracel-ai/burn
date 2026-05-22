@@ -175,7 +175,10 @@ impl FloatTensorOps<Self> for Dispatch {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        binary_float!((tensor, float), (indices, int), |tensor, indices| B::float_select(tensor, dim, indices) => Float)
+        multi_op!(
+            inputs[(tensor, float), (indices, int)], => Float,
+            B::float_select(tensor, dim, indices)
+        )
     }
 
     fn float_select_add(

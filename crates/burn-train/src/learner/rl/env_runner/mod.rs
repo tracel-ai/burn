@@ -266,6 +266,10 @@ pub(crate) mod tests {
         fn load_record(self, _record: Self::Record) -> Self {
             unimplemented!()
         }
+
+        fn device(&self) -> burn_core::prelude::Device {
+            unimplemented!()
+        }
     }
 
     // Mock event processor for testing

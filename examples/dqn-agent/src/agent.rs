@@ -110,8 +110,14 @@ impl SliceAccess for ObservationTensor<2> {
     }
 
     fn slice_assign_inplace(&mut self, index: usize, value: Self) {
+        let device = self.state.device();
+        let state = if self.state.device().is_autodiff() {
+            Tensor::from_inner(value.state)
+        } else {
+            value.state
+        };
         self.state
-            .inplace(|t| t.slice_assign(index..index + 1, value.state));
+            .inplace(|t| t.slice_assign(index..index + 1, state.to_device(&device)));
     }
 }
 
@@ -269,8 +275,14 @@ impl SliceAccess for DiscreteActionTensor<2> {
     }
 
     fn slice_assign_inplace(&mut self, index: usize, value: Self) {
+        let device = self.actions.device();
+        let actions = if self.actions.device().is_autodiff() {
+            Tensor::from_inner(value.actions)
+        } else {
+            value.actions
+        };
         self.actions
-            .inplace(|t| t.slice_assign(index..index + 1, value.actions));
+            .inplace(|t| t.slice_assign(index..index + 1, actions.to_device(&device)));
     }
 }
 
@@ -448,6 +460,7 @@ where
         self.target_model = self
             .target_model
             .soft_update(&self.policy_model, self.config.tau);
+
         let policy_update = EpsilonGreedyPolicyState::new(
             DqnState {
                 model: self.policy_model.clone(),
@@ -464,7 +477,11 @@ where
     }
 
     fn policy(&self) -> Self::InnerPolicy {
-        self.agent.clone()
+        // TODO: charles; cleaner
+        let valid_module = self.agent.inner_policy.model.valid();
+        let mut policy = self.agent.clone();
+        policy.inner_policy.model = valid_module;
+        policy
     }
 
     fn update_policy(&mut self, update: Self::InnerPolicy) {
@@ -490,5 +507,9 @@ where
             optimizer,
             config: self.config,
         }
+    }
+
+    fn device(&self) -> Device {
+        self.policy_model.devices()[0].clone()
     }
 }

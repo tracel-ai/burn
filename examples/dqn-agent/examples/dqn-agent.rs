@@ -9,10 +9,11 @@
     feature = "remote",
 )))]
 mod flex {
+    use burn::tensor::Device;
     use dqn_agent::training;
 
     pub fn run() {
-        training::run(Default::default());
+        training::run(Device::flex().autodiff());
     }
 }
 

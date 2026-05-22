@@ -112,7 +112,7 @@ impl<P: Policy> PolicyState for EpsilonGreedyPolicyState<P> {
 
 #[derive(Clone, Debug)]
 pub struct EpsilonGreedyPolicy<P: Policy> {
-    inner_policy: P,
+    pub inner_policy: P,
     eps_start: f64,
     eps_end: f64,
     eps_decay: f64,
@@ -173,7 +173,7 @@ where
             let threshold = if deterministic { 0.0 } else { threshold };
             contexts.push(EpsilonGreedyPolicyOutput { epsilon: threshold });
             if random::<f64>() > threshold {
-                actions.push(a.clone().float());
+                actions.push(a.clone().float().inner());
             } else {
                 actions
                     .push(Tensor::<1>::from_floats([random_range(0..2)], &a.device()).unsqueeze());

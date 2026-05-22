@@ -1,6 +1,6 @@
 use derive_new::new;
 
-use burn_core::record::Record;
+use burn_core::{record::Record, tensor::Device};
 
 use crate::TransitionBatch;
 
@@ -95,13 +95,14 @@ where
         &mut self,
         input: LearnerTransitionBatch<Self::InnerPolicy>,
     ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy>::PolicyState>;
-    /// Returns the learner's current policy.
+    /// Returns the learner's current policy for validation.
     fn policy(&self) -> Self::InnerPolicy;
     /// Update the learner's policy.
     fn update_policy(&mut self, update: Self::InnerPolicy);
-
     /// Convert the learner's state into a record.
     fn record(&self) -> Self::Record;
     /// Load the learner's state from a record.
     fn load_record(self, record: Self::Record) -> Self;
+    /// Returns the device used for training.
+    fn device(&self) -> Device;
 }

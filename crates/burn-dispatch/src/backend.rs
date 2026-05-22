@@ -509,6 +509,12 @@ impl AutodiffBackend for Dispatch {
                 panic!("Autodiff should not wrap an autodiff tensor.")
             }
         };
+
+        let checkpointing = if let Some(strategy) = checkpointing {
+            Some(strategy)
+        } else {
+            Some(crate::CheckpointingStrategy::None)
+        };
         DispatchTensor {
             kind,
             checkpointing,
