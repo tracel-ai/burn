@@ -59,6 +59,7 @@ record-item-custom-serde = ["thiserror"]
 
 # Backends
 remote = ["burn-tensor/remote"]
+server = ["burn-tensor/server"]
 cuda = ["burn-tensor/cuda"]
 rocm = ["burn-tensor/rocm"]
 flex = ["burn-tensor/flex"]

@@ -20,16 +20,20 @@ mod __client {
     /// The remote backend allows you to run computation on a remote device.
     ///
     /// Make sure there is a running server before trying to connect to it.
+    /// The recommended way to start one is via `burn::server::start` (requires
+    /// the `server` feature on `burn`):
     ///
     /// ```rust, ignore
-    /// fn main() {
-    ///     let device = Default::default();
-    ///     let port = 3000;
+    /// use burn::{Device, server::{start, Channel}};
     ///
-    ///     // You need to activate the `server` feature flag to have access to this function.
-    ///     burn::server::start::<burn::backend::Wgpu>(device, port);
+    /// fn main() {
+    ///     start(Device::default(), Channel::WebSocket { port: 3000 });
     /// }
-    ///```
+    /// ```
+    ///
+    /// For backends that aren't part of `DispatchDevice` but implement
+    /// `BackendIr`, call [`server::start_websocket`] directly with the
+    /// concrete backend type parameter.
     pub type RemoteBackend = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
 
     pub use client::RemoteDevice;

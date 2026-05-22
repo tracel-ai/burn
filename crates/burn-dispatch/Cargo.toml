@@ -56,8 +56,6 @@ distributed = [
     "burn-backend/distributed",
     "burn-autodiff?/distributed",
     "burn-cuda?/distributed",
-    # TODO: router
-    # "burn-router?/distributed",
 ]
 
 # Backends
@@ -73,6 +71,7 @@ wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 autodiff = ["burn-autodiff"]
 remote = ["std", "burn-remote"]
+remote-server = ["remote", "burn-remote/server"]
 
 # Backend features
 autotune = [

@@ -49,6 +49,10 @@ mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
 
+/// Entry points for hosting a remote-execution server.
+#[cfg(feature = "remote-server")]
+pub mod remote_server;
+
 pub use backend::*;
 pub use device::*;
 pub use tensor::*;

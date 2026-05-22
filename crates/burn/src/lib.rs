@@ -133,7 +133,7 @@ pub mod rl {
 }
 
 #[cfg(feature = "server")]
-pub use burn_remote::server;
+pub use burn_core::tensor::server;
 
 /// Module for model storage and serialization
 #[cfg(feature = "store")]
