@@ -8,7 +8,7 @@ use std::cell::Cell;
 use std::panic::{self, AssertUnwindSafe, Location};
 use std::sync::Mutex;
 
-use burn_tensor::{Element, FloatDType, IntDType};
+use burn_tensor::Element;
 use ctor::ctor;
 
 pub type FloatElem = f32;
@@ -18,10 +18,11 @@ pub type IntElem = i32;
 fn init_device_settings() {
     let mut device = burn_tensor::Device::default();
     device
-        .configure((
-            FloatDType::from(<FloatElem as Element>::dtype()),
-            IntDType::from(<IntElem as Element>::dtype()),
-        ))
+        .configure(
+            burn_tensor::DeviceConfig::default()
+                .float_dtype(<FloatElem as Element>::dtype())
+                .int_dtype(<IntElem as Element>::dtype()),
+        )
         .unwrap();
 }
 
