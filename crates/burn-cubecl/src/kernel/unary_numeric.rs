@@ -5,6 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait NumericUnaryOpFamily: 'static + Send + Sync {
@@ -64,7 +65,7 @@ where
                 tensor.clone().into_linear_view(),
                 tensor.as_linear_view_alias(0),
                 args(&()),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             tensor
@@ -85,7 +86,7 @@ where
                 tensor.into_linear_view(),
                 output.clone().into_linear_view(),
                 args(&()),
-                dtype.into(),
+                dtype_to_storage_type(dtype),
             );
 
             output

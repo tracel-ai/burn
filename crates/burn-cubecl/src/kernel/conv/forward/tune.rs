@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::ConvOptions;
 use cubecl::{
     ir::StorageType,
@@ -132,13 +133,13 @@ fn create_key<R: CubeRuntime, const N: usize>(
     } = options.clone();
 
     let lhs_stride_align = if input.meta.strides()[dim_c] == 1 {
-        stride_align(input.meta.strides(), input.dtype.into())
+        stride_align(input.meta.strides(), dtype_to_storage_type(input.dtype))
     } else {
         0
     };
     let lhs_shape_align = pow2_factor(in_channels).min(lhs_stride_align);
     let rhs_stride_align = if weights.meta.strides()[dim_c] == 1 {
-        stride_align(weights.meta.strides(), weights.dtype.into())
+        stride_align(weights.meta.strides(), dtype_to_storage_type(weights.dtype))
     } else {
         0
     };

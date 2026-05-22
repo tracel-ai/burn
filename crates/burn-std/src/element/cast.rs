@@ -517,7 +517,6 @@ impl ToElement for bf16 {
     }
 }
 
-#[cfg(feature = "cubecl")]
 impl ToElement for crate::flex32 {
     #[inline]
     fn to_i64(&self) -> i64 {

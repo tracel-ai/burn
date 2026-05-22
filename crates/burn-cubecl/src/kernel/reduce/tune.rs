@@ -2,6 +2,7 @@
 
 use super::SumAutotuneKey;
 use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_elem_type;
 use cubecl::{
     client::ComputeClient,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
@@ -161,8 +162,8 @@ pub(crate) fn create_key<Run: CubeRuntime>(
         ReduceDtypes,
     ),
 ) -> ReduceAutotuneKey {
-    let elem_input = input.dtype.into();
-    let elem_output = output.dtype.into();
+    let elem_input = dtype_to_elem_type(input.dtype);
+    let elem_output = dtype_to_elem_type(output.dtype);
     let elem_acc = dtypes.accumulation.elem_type();
 
     ReduceAutotuneKey::generate(
@@ -270,7 +271,7 @@ mod sum_ops {
             input.binding(),
             output.clone().binding(),
             C,
-            dtype.into(),
+            dtype_to_elem_type(dtype),
         )
         .map_err(|e| e.to_string())
         .map(|_| output)

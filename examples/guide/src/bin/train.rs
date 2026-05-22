@@ -1,5 +1,5 @@
 #![recursion_limit = "131"]
-use burn::{data::dataset::Dataset, optim::AdamConfig};
+use burn::{data::dataset::Dataset, optim::AdamConfig, prelude::*};
 use guide::{
     inference,
     model::ModelConfig,
@@ -7,8 +7,8 @@ use guide::{
 };
 
 fn main() {
-    // Create a default Wgpu device
-    let device = burn::backend::wgpu::WgpuDevice::default();
+    // Create a default Wgpu-backed device.
+    let device = Device::wgpu(DeviceKind::DefaultDevice);
 
     // All the training artifacts will be saved in this directory
     let artifact_dir = "target/guide";

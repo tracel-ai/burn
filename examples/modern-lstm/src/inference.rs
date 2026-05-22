@@ -13,8 +13,7 @@ use burn::{
 };
 use polars::prelude::*;
 
-pub fn infer(artifact_dir: &str, device: impl Into<Device>) {
-    let device = device.into();
+pub fn infer(artifact_dir: &str, device: Device) {
     // Loading model
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");

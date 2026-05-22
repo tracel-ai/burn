@@ -5,6 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::frontend::{ABSOLUTE_POS, Numeric, Tensor};
 use cubecl::std::{FastDivmod, tensor::index_offset_contiguous_fastdivmod};
 use cubecl::{CubeDim, std::tensor::layout::linear::LinearView};
@@ -69,7 +70,10 @@ pub(crate) fn gather<R: CubeRuntime>(
             in_strides,
             shape_divmod(&output),
             dim,
-            [dtype.into(), indices_dtype.into()],
+            [
+                dtype_to_storage_type(dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     }
 

@@ -61,7 +61,6 @@ impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
                 break;
             }
         }
-        processor.process_valid(LearnerEvent::EndEpoch(epoch));
     }
 }
 
@@ -131,6 +130,5 @@ impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
                 break;
             }
         }
-        processor.process_train(LearnerEvent::EndEpoch(epoch));
     }
 }

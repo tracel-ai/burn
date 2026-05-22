@@ -3,6 +3,7 @@ use crate::{
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     ExecutionError, Slice,
     ops::BoolTensorOps,
@@ -92,9 +93,10 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let dtype = tensor.dtype;
+        let storage = dtype_to_storage_type(dtype);
         let scalar = match dtype {
-            DType::Bool(BoolStore::U32) => InputScalar::new(u32::false_val(), dtype),
-            DType::Bool(BoolStore::U8) => InputScalar::new(u8::false_val(), dtype),
+            DType::Bool(BoolStore::U32) => InputScalar::new(u32::false_val(), storage),
+            DType::Bool(BoolStore::U8) => InputScalar::new(u8::false_val(), storage),
             other => unimplemented!("Unsupported dtype for `bool_from_data` {other:?}"),
         };
         kernel::equal_elem(tensor, scalar, dtype)
@@ -176,7 +178,12 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
         value: Scalar,
     ) -> BoolTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), dtype)
+        kernel::mask_fill_auto(
+            tensor,
+            mask,
+            InputScalar::new(value, dtype_to_storage_type(dtype)),
+            dtype,
+        )
     }
 
     fn bool_gather(
@@ -198,6 +205,10 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), dtype)
+        kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            dtype,
+        )
     }
 }

@@ -30,7 +30,7 @@ pub fn ctc_loss(
     target_lengths: Tensor<1, Int>,
     blank: usize,
 ) -> Tensor<1> {
-    Tensor::new(BridgeTensor::Float(Dispatch::ctc_loss(
+    Tensor::new(BridgeTensor::float(Dispatch::ctc_loss(
         log_probs.primitive.into_float(),
         targets.primitive.into(),
         input_lengths.primitive.into(),
@@ -41,7 +41,7 @@ pub fn ctc_loss(
 
 /// Applies the [embedding module](burn_backend::ops::ModuleOps::embedding).
 pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
-    Tensor::new(BridgeTensor::Float(Dispatch::embedding(
+    Tensor::new(BridgeTensor::float(Dispatch::embedding(
         weights.primitive.into_float(),
         indices.primitive.into(),
     )))
@@ -77,14 +77,14 @@ pub fn conv1d(
             padded_options.options.dilation,
             padded_options.options.groups,
         );
-        Tensor::new(BridgeTensor::Float(Dispatch::conv1d(
+        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
             padded.primitive.into_float(),
             weight.primitive.into_float(),
             bias.map(|b| b.primitive.into_float()),
             zero_options,
         )))
     } else {
-        Tensor::new(BridgeTensor::Float(Dispatch::conv1d(
+        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
             x.primitive.into_float(),
             weight.primitive.into_float(),
             bias.map(|b| b.primitive.into_float()),
@@ -125,14 +125,14 @@ pub fn conv2d(
             padded_options.options.dilation,
             padded_options.options.groups,
         );
-        Tensor::new(BridgeTensor::Float(Dispatch::conv2d(
+        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
             padded.primitive.into_float(),
             weight.primitive.into_float(),
             bias.map(|b| b.primitive.into_float()),
             zero_options,
         )))
     } else {
-        Tensor::new(BridgeTensor::Float(Dispatch::conv2d(
+        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
             x.primitive.into_float(),
             weight.primitive.into_float(),
             bias.map(|b| b.primitive.into_float()),
@@ -163,7 +163,7 @@ pub fn conv3d(
         panic!("Asymmetric padding is not yet supported for conv3d");
     }
 
-    Tensor::new(BridgeTensor::Float(Dispatch::conv3d(
+    Tensor::new(BridgeTensor::float(Dispatch::conv3d(
         x.primitive.into_float(),
         weight.primitive.into_float(),
         bias.map(|b| b.primitive.into_float()),
@@ -186,7 +186,7 @@ pub fn deform_conv2d(
         weight.dims(),
         options.weight_groups,
     ));
-    Tensor::new(BridgeTensor::Float(Dispatch::deform_conv2d(
+    Tensor::new(BridgeTensor::float(Dispatch::deform_conv2d(
         x.primitive.into_float(),
         offset.primitive.into_float(),
         weight.primitive.into_float(),
@@ -208,7 +208,7 @@ pub fn conv_transpose1d(
         x.dims(),
         weight.dims(),
     ));
-    Tensor::new(BridgeTensor::Float(Dispatch::conv_transpose1d(
+    Tensor::new(BridgeTensor::float(Dispatch::conv_transpose1d(
         x.primitive.into_float(),
         weight.primitive.into_float(),
         bias.map(|b| b.primitive.into_float()),
@@ -228,7 +228,7 @@ pub fn conv_transpose2d(
         x.dims(),
         weight.dims(),
     ));
-    Tensor::new(BridgeTensor::Float(Dispatch::conv_transpose2d(
+    Tensor::new(BridgeTensor::float(Dispatch::conv_transpose2d(
         x.primitive.into_float(),
         weight.primitive.into_float(),
         bias.map(|b| b.primitive.into_float()),
@@ -248,7 +248,7 @@ pub fn conv_transpose3d(
         x.dims(),
         weight.dims(),
     ));
-    Tensor::new(BridgeTensor::Float(Dispatch::conv_transpose3d(
+    Tensor::new(BridgeTensor::float(Dispatch::conv_transpose3d(
         x.primitive.into_float(),
         weight.primitive.into_float(),
         bias.map(|b| b.primitive.into_float()),
@@ -258,7 +258,7 @@ pub fn conv_transpose3d(
 
 /// Applies a [4D to 3D unfold](burn_backend::ops::ModuleOps::unfold4d).
 pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -> Tensor<3> {
-    Tensor::new(BridgeTensor::Float(Dispatch::unfold4d(
+    Tensor::new(BridgeTensor::float(Dispatch::unfold4d(
         x.primitive.into_float(),
         kernel_size,
         options,
@@ -274,7 +274,7 @@ pub fn max_pool1d(
     dilation: usize,
     ceil_mode: bool,
 ) -> Tensor<3> {
-    Tensor::new(BridgeTensor::Float(Dispatch::max_pool1d(
+    Tensor::new(BridgeTensor::float(Dispatch::max_pool1d(
         x.primitive.into_float(),
         kernel_size,
         stride,
@@ -293,7 +293,7 @@ pub fn max_pool2d(
     dilation: [usize; 2],
     ceil_mode: bool,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(Dispatch::max_pool2d(
+    Tensor::new(BridgeTensor::float(Dispatch::max_pool2d(
         x.primitive.into_float(),
         kernel_size,
         stride,
@@ -312,7 +312,7 @@ pub fn avg_pool2d(
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(Dispatch::avg_pool2d(
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool2d(
         x.primitive.into_float(),
         kernel_size,
         stride,
@@ -331,7 +331,7 @@ pub fn avg_pool1d(
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<3> {
-    Tensor::new(BridgeTensor::Float(Dispatch::avg_pool1d(
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool1d(
         x.primitive.into_float(),
         kernel_size,
         stride,
@@ -362,8 +362,8 @@ pub fn max_pool1d_with_indices(
     );
 
     (
-        Tensor::new(BridgeTensor::Float(output.output)),
-        Tensor::new(BridgeTensor::Int(output.indices)),
+        Tensor::new(BridgeTensor::float(output.output)),
+        Tensor::new(BridgeTensor::int(output.indices)),
     )
 }
 
@@ -388,14 +388,14 @@ pub fn max_pool2d_with_indices(
     );
 
     (
-        Tensor::new(BridgeTensor::Float(output.output)),
-        Tensor::new(BridgeTensor::Int(output.indices)),
+        Tensor::new(BridgeTensor::float(output.output)),
+        Tensor::new(BridgeTensor::int(output.indices)),
     )
 }
 
 /// Applies a [2D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
 pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(Dispatch::adaptive_avg_pool2d(
+    Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool2d(
         x.primitive.into_float(),
         output_size,
     )))
@@ -403,7 +403,7 @@ pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
 
 /// Applies a [1D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
 pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
-    Tensor::new(BridgeTensor::Float(Dispatch::adaptive_avg_pool1d(
+    Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool1d(
         x.primitive.into_float(),
         output_size,
     )))
@@ -415,7 +415,7 @@ pub fn interpolate(
     output_size: [usize; 2],
     options: InterpolateOptions,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(Dispatch::interpolate(
+    Tensor::new(BridgeTensor::float(Dispatch::interpolate(
         x.primitive.into_float(),
         output_size,
         options,
@@ -459,11 +459,23 @@ pub fn linear<const D: usize>(
         return output.squeeze_dim(0);
     }
 
-    Tensor::new(BridgeTensor::Float(Dispatch::linear(
-        input.primitive.into_float(),
-        weight.primitive.into_float(),
-        bias.map(|b| b.primitive.into_float()),
-    )))
+    Tensor::new(linear_impl(
+        input.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
+    ))
+}
+
+fn linear_impl(
+    input: BridgeTensor,
+    weight: BridgeTensor,
+    bias: Option<BridgeTensor>,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::linear(
+        input.into_float(),
+        weight.into_float(),
+        bias.map(|b| b.into_float()),
+    ))
 }
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
@@ -495,7 +507,7 @@ pub fn attention(
     attn_bias: Option<Tensor<4>>,
     options: AttentionModuleOptions,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(Dispatch::attention(
+    Tensor::new(BridgeTensor::float(Dispatch::attention(
         query.primitive.into_float(),
         key.primitive.into_float(),
         value.primitive.into_float(),
@@ -514,7 +526,7 @@ pub fn attention_fallback(
     attn_bias: Option<Tensor<4>>,
     options: AttentionModuleOptions,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(
+    Tensor::new(BridgeTensor::float(
         burn_backend::ops::attention::attention_fallback::<Dispatch>(
             query.primitive.into_float(),
             key.primitive.into_float(),
@@ -533,7 +545,7 @@ pub fn conv2d_weight_backward(
     output_grad: Tensor<4>,
     options: ConvOptions<2>,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(Dispatch::conv2d_weight_backward(
+    Tensor::new(BridgeTensor::float(Dispatch::conv2d_weight_backward(
         x.primitive.into_float(),
         weight.primitive.into_float(),
         output_grad.primitive.into_float(),
@@ -551,7 +563,7 @@ pub fn avg_pool2d_backward(
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(Dispatch::avg_pool2d_backward(
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool2d_backward(
         x.primitive.into_float(),
         grad.primitive.into_float(),
         kernel_size,
@@ -574,7 +586,7 @@ pub fn max_pool2d_with_indices_backward(
     output_grad: Tensor<4>,
     indices: Tensor<4, Int>,
 ) -> Tensor<4> {
-    Tensor::new(BridgeTensor::Float(
+    Tensor::new(BridgeTensor::float(
         Dispatch::max_pool2d_with_indices_backward(
             x.primitive.into_float(),
             kernel_size,
@@ -604,10 +616,24 @@ pub fn layer_norm<const D: usize>(
     beta: Option<Tensor<1>>,
     epsilon: f64,
 ) -> Tensor<D> {
-    Tensor::new(BridgeTensor::Float(Dispatch::layer_norm(
-        input.primitive.into_float(),
-        gamma.primitive.into_float(),
-        beta.map(|b| b.primitive.into_float()),
+    Tensor::new(layer_norm_impl(
+        input.primitive,
+        gamma.primitive,
+        beta.map(|b| b.primitive),
         epsilon,
-    )))
+    ))
+}
+
+fn layer_norm_impl(
+    input: BridgeTensor,
+    gamma: BridgeTensor,
+    beta: Option<BridgeTensor>,
+    epsilon: f64,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::layer_norm(
+        input.into_float(),
+        gamma.into_float(),
+        beta.map(|b| b.into_float()),
+        epsilon,
+    ))
 }

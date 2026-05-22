@@ -1,4 +1,5 @@
 use self::unary_basic_int::BasicIntUnaryKind;
+use burn_backend::cubecl::dtype_to_storage_type;
 
 use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
@@ -107,7 +108,12 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
     ) -> IntTensor<Self> {
         let dtype = tensor.dtype;
         let bool_dtype = mask.dtype;
-        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), bool_dtype)
+        kernel::mask_fill_auto(
+            tensor,
+            mask,
+            InputScalar::new(value, dtype_to_storage_type(dtype)),
+            bool_dtype,
+        )
     }
 
     fn int_gather(
@@ -167,7 +173,11 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_greater(
@@ -184,7 +194,11 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::greater_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_greater_equal(
@@ -201,7 +215,11 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::greater_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_lower(
@@ -214,7 +232,11 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::lower_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_lower_equal(
@@ -231,7 +253,11 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
+        kernel::lower_equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -240,7 +266,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn int_add_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::add_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::add_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -249,7 +275,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn int_sub_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::sub_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::sub_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -258,7 +284,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn int_mul_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::mul_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::mul_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -267,7 +293,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn int_div_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::div_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::div_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -276,7 +302,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn int_zeros(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -301,7 +327,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
             client,
             shape,
             device.clone(),
-            InputScalar::new(fill_value, dtype),
+            InputScalar::new(fill_value, dtype_to_storage_type(dtype)),
             dtype,
         )
     }
@@ -471,8 +497,8 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         let dtype = tensor.dtype;
         kernel::clamp(
             tensor,
-            InputScalar::new(min, dtype),
-            InputScalar::new(max, dtype),
+            InputScalar::new(min, dtype_to_storage_type(dtype)),
+            InputScalar::new(max, dtype_to_storage_type(dtype)),
         )
     }
 
@@ -552,7 +578,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::bitwise_and_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::bitwise_and_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -561,7 +587,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::bitwise_or_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::bitwise_or_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -570,7 +596,7 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        numeric::bitwise_xor_scalar(lhs, InputScalar::new(rhs, dtype))
+        numeric::bitwise_xor_scalar(lhs, InputScalar::new(rhs, dtype_to_storage_type(dtype)))
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -583,7 +609,10 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        launch_scalar_binop_int::<R, BitwiseShlOp>(lhs, InputScalar::new(rhs, dtype))
+        launch_scalar_binop_int::<R, BitwiseShlOp>(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+        )
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -592,7 +621,10 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
-        launch_scalar_binop_int::<R, BitwiseShrOp>(lhs, InputScalar::new(rhs, dtype))
+        launch_scalar_binop_int::<R, BitwiseShrOp>(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+        )
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {

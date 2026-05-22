@@ -4,6 +4,7 @@ use super::{
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
 use crate::engine::{codegen::ir::QuantSchemeFuse, scoring::Scoring};
+use burn_backend::cubecl::dtype_to_elem_type;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
@@ -341,7 +342,7 @@ impl TraceOperationFuser {
                     return false;
                 }
 
-                let elem: ElemType = desc.out.dtype.into();
+                let elem: ElemType = dtype_to_elem_type(desc.out.dtype);
                 let precision = elem.into();
                 let input = FuseArg::Literal(1, precision);
 
@@ -358,7 +359,7 @@ impl TraceOperationFuser {
                     return false;
                 }
 
-                let elem: ElemType = desc.out.dtype.into();
+                let elem: ElemType = dtype_to_elem_type(desc.out.dtype);
                 let precision = elem.into();
                 let input = FuseArg::Literal(0, precision);
 

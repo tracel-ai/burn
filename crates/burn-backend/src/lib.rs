@@ -46,6 +46,15 @@ pub use alias::*;
 /// Quantization data representation.
 pub mod quantization;
 
+/// CubeCL inter-operation helpers (gated by the `cubecl` feature).
+///
+/// Provides plain conversion functions between burn's [`DType`] and cubecl's
+/// `ElemType` / `StorageType`. They are intentionally exposed as named
+/// functions rather than `From`/`Into` impls so the cubecl type tree does not
+/// leak into `burn-std`'s public surface.
+#[cfg(feature = "cubecl")]
+pub mod cubecl;
+
 #[cfg(any(
     feature = "cubecl-metal",
     feature = "cubecl-vulkan",

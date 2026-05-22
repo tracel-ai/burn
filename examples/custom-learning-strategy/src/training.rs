@@ -55,14 +55,13 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run(device: impl Into<Device>) {
+pub fn run(device: Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    let device = device.into();
     device.seed(config.seed);
     let autodiff_device = device.clone().autodiff();
 
@@ -142,7 +141,9 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
         starting_epoch: usize,
     ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
+        let train_total_items = dataloader_train.num_items();
         let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
+        let valid_total_items = dataloader_valid.num_items();
         learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
@@ -154,6 +155,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
             log::info!("Executing training step for epoch {}", epoch,);
 
             // Single device / dataloader
+            event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
             let mut iterator = dataloader_train.iter();
             let mut iteration = 0;
 
@@ -184,10 +186,11 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                     break;
                 }
             }
-            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+            event_processor.process_train(LearnerEvent::EndSplit(epoch));
 
             let model_valid = learner.model().valid();
 
+            event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
 
@@ -206,7 +209,8 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
 
                 event_processor.process_valid(LearnerEvent::ProcessedItem(item));
             }
-            event_processor.process_valid(LearnerEvent::EndEpoch(epoch));
+            event_processor.process_valid(LearnerEvent::EndSplit(epoch));
+            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
 
             if let Some(checkpointer) = &mut checkpointer {
                 checkpointer.checkpoint(&learner, epoch, &training_components.event_store);

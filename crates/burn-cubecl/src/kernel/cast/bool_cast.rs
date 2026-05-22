@@ -5,6 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_std::DType;
 use cubecl::{
     CubeDim, calculate_cube_count_elemwise, num_traits::One, prelude::*,
@@ -58,7 +59,10 @@ pub fn bool_cast<R: CubeRuntime>(tensor: CubeTensor<R>, out_dtype: DType) -> Cub
             vector_size,
             tensor.into_linear_view(),
             output.clone().into_linear_view(),
-            [dtype.into(), out_dtype.into()],
+            [
+                dtype_to_storage_type(dtype),
+                dtype_to_storage_type(out_dtype),
+            ],
         )
     };
 

@@ -4,6 +4,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::DType;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
@@ -478,9 +479,9 @@ fn create_key<R: CubeRuntime>(
         rhs.meta.shape(),
         lhs.meta.strides(),
         rhs.meta.strides(),
-        lhs.dtype.into(),
-        rhs.dtype.into(),
-        out.dtype.into(),
+        dtype_to_storage_type(lhs.dtype),
+        dtype_to_storage_type(rhs.dtype),
+        dtype_to_storage_type(out.dtype),
         lhs.try_scheme(),
         rhs.try_scheme(),
     )
