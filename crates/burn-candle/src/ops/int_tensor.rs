@@ -333,7 +333,7 @@ impl IntTensorOps<Self> for Candle {
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        let sum = tensor.tensor.sum_all().unwrap().reshape((1)).unwrap();
+        let sum = tensor.tensor.sum_all().unwrap().reshape((1,)).unwrap();
         CandleTensor::new(sum)
     }
 

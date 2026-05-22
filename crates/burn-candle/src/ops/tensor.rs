@@ -390,7 +390,7 @@ impl FloatTensorOps<Self> for Candle {
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        let sum = tensor.tensor.sum_all().unwrap().reshape((1)).unwrap();
+        let sum = tensor.tensor.sum_all().unwrap().reshape((1,)).unwrap();
         CandleTensor::new(sum)
     }
 

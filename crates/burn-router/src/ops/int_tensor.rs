@@ -25,7 +25,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
-        Ok(tensor.into_data().await?)
+        tensor.into_data().await
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {

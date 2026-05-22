@@ -516,7 +516,7 @@ pub trait QTensorOps<B: Backend> {
                 let settings = get_device_settings::<B>(&Self::q_device(&lhs));
                 propagation = settings.quantization.propagation;
                 scheme = lhs.scheme();
-                let float_dtype = target_dtype.unwrap_or_else(|| settings.float_dtype);
+                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
 
                 Self::dequantize(lhs, float_dtype)
             }
@@ -527,7 +527,7 @@ pub trait QTensorOps<B: Backend> {
                 let settings = get_device_settings::<B>(&Self::q_device(&rhs));
                 propagation = settings.quantization.propagation;
                 scheme = rhs.scheme();
-                let float_dtype = target_dtype.unwrap_or_else(|| settings.float_dtype);
+                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
 
                 Self::dequantize(rhs, float_dtype)
             }

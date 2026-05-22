@@ -458,7 +458,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
         };
 
-        let settings = get_device_settings::<Self>(&client.device());
+        let settings = get_device_settings::<Self>(client.device());
 
         if let TensorPrimitive::QFloat(lhs) = &lhs {
             propagation = settings.quantization.propagation;

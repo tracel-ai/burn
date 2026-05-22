@@ -28,7 +28,7 @@ pub(crate) fn stats_from_opts<R: CubeRuntime>(
     let zeros = || zeros_client::<R>(l.client.clone(), l.device.clone(), shape.clone(), int_dtype);
 
     let max = dispatch_int_dtype!(int_dtype.into(), |I| InputScalar::new(
-        I::max_value(),
+        I::MAX,
         dtype_to_storage_type(int_dtype)
     ));
     let max = || {

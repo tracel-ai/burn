@@ -555,18 +555,9 @@ impl Device {
 
         let defaults = self.as_dispatch().defaults();
 
-        let float_dtype = config
-            .float_dtype
-            .take()
-            .unwrap_or_else(|| defaults.float_dtype);
-        let int_dtype = config
-            .int_dtype
-            .take()
-            .unwrap_or_else(|| defaults.int_dtype);
-        let bool_dtype = config
-            .bool_dtype
-            .take()
-            .unwrap_or_else(|| defaults.bool_dtype);
+        let float_dtype = config.float_dtype.take().unwrap_or(defaults.float_dtype);
+        let int_dtype = config.int_dtype.take().unwrap_or(defaults.int_dtype);
+        let bool_dtype = config.bool_dtype.take().unwrap_or(defaults.bool_dtype);
 
         burn_backend::set_default_dtypes::<Dispatch>(
             self.as_dispatch(),

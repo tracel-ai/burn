@@ -151,7 +151,7 @@ impl Backend for LibTorch {
                 burn_backend::read_sync(Self::int_into_data(Self::int_zeros(
                     [1].into(),
                     device,
-                    int_dtype.into(),
+                    int_dtype,
                 )))
                 .unwrap();
             }

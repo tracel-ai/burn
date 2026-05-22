@@ -82,7 +82,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        Ok(tensor.into_data().await?)
+        tensor.into_data().await
     }
 
     fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
