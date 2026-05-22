@@ -72,8 +72,10 @@ macro_rules! with_autodiff_backend {
                 $body
             }
             Some($crate::CheckpointingStrategy::None) => {
-                type $B =
-                    $crate::backends::Autodiff<inst!($Backend), burn_autodiff::checkpoint::strategy::NoCheckpointing>;
+                type $B = $crate::backends::Autodiff<
+                    inst!($Backend),
+                    burn_autodiff::checkpoint::strategy::NoCheckpointing,
+                >;
                 $body
             }
             None => unreachable!("Should only be called with autodiff."),

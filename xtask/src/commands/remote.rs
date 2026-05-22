@@ -56,11 +56,18 @@ pub fn handle_command(
 ) -> anyhow::Result<()> {
     let backend = args.backend.to_string();
 
-    info!("Building server example (backend = {backend}, release = {}) ...", args.release);
+    info!(
+        "Building server example (backend = {backend}, release = {}) ...",
+        args.release
+    );
     build_server(&backend, args.release)?;
 
     let server_bin = server_binary_path(args.release);
-    info!("Spawning server at {} on port {} ...", server_bin.display(), args.port);
+    info!(
+        "Spawning server at {} on port {} ...",
+        server_bin.display(),
+        args.port
+    );
     let _server = ServerGuard::spawn(&server_bin, args.port)?;
 
     wait_for_bind(args.port, args.startup_timeout)?;
@@ -98,7 +105,10 @@ fn build_server(backend: &str, release: bool) -> anyhow::Result<()> {
 
 fn server_binary_path(release: bool) -> PathBuf {
     let profile = if release { "release" } else { "debug" };
-    PathBuf::from("target").join(profile).join("examples").join("server")
+    PathBuf::from("target")
+        .join(profile)
+        .join("examples")
+        .join("server")
 }
 
 fn run_remote_tests(port: u16, release: bool, filter: Option<&str>) -> anyhow::Result<()> {
