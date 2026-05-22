@@ -23,9 +23,9 @@ pub mod graphics {
     pub use cubecl::wgpu::{AutoGraphicsApi, Dx12, GraphicsApi, Metal, OpenGl, Vulkan, WebGpu};
 }
 
-#[cfg(feature = "cubecl-wgsl")]
+#[cfg(feature = "webgpu")]
 pub use cubecl::wgpu::WgslCompiler;
-#[cfg(feature = "cubecl-spirv")]
+#[cfg(feature = "vulkan")]
 pub use cubecl::wgpu::vulkan::VkSpirvCompiler;
 
 #[cfg(feature = "fusion")]
@@ -111,22 +111,20 @@ pub type Metal = Wgpu;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{Backend, BoolStore, DType, QTensorPrimitive};
+    use burn_backend::{Backend, BoolStore, DType, DeviceOps};
 
     #[test]
     fn should_support_dtypes() {
         type B = Wgpu;
-        let device = Default::default();
+        let device = WgpuDevice::default();
+        let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F32));
         assert!(B::supports_dtype(&device, DType::I64));
         assert!(B::supports_dtype(&device, DType::I32));
         assert!(B::supports_dtype(&device, DType::U64));
         assert!(B::supports_dtype(&device, DType::U32));
-        assert!(B::supports_dtype(
-            &device,
-            DType::QFloat(CubeTensor::<WgpuRuntime>::default_scheme())
-        ));
+        assert!(B::supports_dtype(&device, DType::QFloat(scheme)));
         assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
 
         #[cfg(feature = "vulkan")]

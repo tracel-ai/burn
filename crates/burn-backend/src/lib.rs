@@ -46,19 +46,33 @@ pub use alias::*;
 /// Quantization data representation.
 pub mod quantization;
 
-#[cfg(feature = "cubecl-wgpu")]
+#[cfg(any(
+    feature = "cubecl-metal",
+    feature = "cubecl-vulkan",
+    feature = "cubecl-webgpu"
+))]
 mod cube_wgpu {
     use crate::backend::DeviceOps;
     use burn_std::{BoolStore, DType, DeviceSettings};
     use cubecl::wgpu::WgpuDevice;
 
-    // TODO: vulkan/metal features
     impl DeviceOps for WgpuDevice {
+        #[cfg(not(any(feature = "cubecl-metal", feature = "cubecl-vulkan")))]
         fn defaults(&self) -> DeviceSettings {
             DeviceSettings::new(
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U32),
+                Default::default(),
+            )
+        }
+
+        #[cfg(any(feature = "cubecl-metal", feature = "cubecl-vulkan"))]
+        fn defaults(&self) -> DeviceSettings {
+            DeviceSettings::new(
+                DType::F32,
+                DType::I32,
+                DType::Bool(BoolStore::U8),
                 Default::default(),
             )
         }
