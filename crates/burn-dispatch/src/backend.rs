@@ -122,6 +122,8 @@ impl Backend for Dispatch {
             DispatchDeviceId::NdArray => NdArray::<f32>::device_count(backend_type_id),
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "remote")]
+            DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
         }
     }
@@ -186,6 +188,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -251,6 +255,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -320,6 +329,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -381,6 +395,10 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
+                #[cfg(feature = "remote")]
+                (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
+                    tensor.as_autodiff().grad_replace(grads, grad.float())
+                }
                 (DispatchTensorKind::Autodiff(_), _) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -438,6 +456,10 @@ impl AutodiffBackend for Dispatch {
                 ),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
+                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                ),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
                 DispatchTensorKind::Autodiff(_) => {
@@ -531,6 +553,12 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<LibTorch<f32>>::from_inner(
                         tensor.float(),
                     )),
+                )))
+            }
+            #[cfg(feature = "remote")]
+            DispatchTensorKind::Remote(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
+                    crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
                 )))
             }
             DispatchTensorKind::Autodiff(_) => {
@@ -638,6 +666,8 @@ impl DispatchTensorKind {
             DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
             #[cfg(feature = "tch")]
             DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
+            #[cfg(feature = "remote")]
+            DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
@@ -708,6 +738,10 @@ impl Dispatch {
             DispatchDevice::LibTorch(_) => {
                 <QuantizedTensor<LibTorch> as QTensorPrimitive>::default_scheme()
             }
+            #[cfg(feature = "remote")]
+            DispatchDevice::Remote(_) => {
+                <QuantizedTensor<Remote> as QTensorPrimitive>::default_scheme()
+            }
             #[cfg(feature = "autodiff")]
             DispatchDevice::Autodiff(ad_device) => Self::default_quant_scheme(&ad_device.inner),
         }
@@ -751,6 +785,9 @@ impl Dispatch {
             DispatchDeviceId::LibTorch => (0..LibTorch::<f32>::device_count(0))
                 .map(|i| LibTorchDevice::Cuda(i).into())
                 .collect(),
+            #[cfg(feature = "remote")]
+            // Remote devices are user-supplied addresses, not enumerable hardware.
+            DispatchDeviceId::Remote => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
         }
     }

@@ -53,4 +53,7 @@ pub use burn_std::{
 mod device;
 pub use device::*;
 
+#[cfg(feature = "server")]
+pub mod server;
+
 pub(crate) use burn_backend::TensorPrimitive;

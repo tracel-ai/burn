@@ -52,12 +52,10 @@ tracing = [
     "burn-wgpu?/tracing",
 ]
 distributed = [
-    "std", 
+    "std",
     "burn-backend/distributed",
     "burn-autodiff?/distributed",
     "burn-cuda?/distributed",
-    # TODO: router
-    # "burn-router?/distributed",
 ]
 
 # Backends
@@ -72,7 +70,8 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 autodiff = ["burn-autodiff"]
-# remote = ["burn-remote"]
+remote = ["std", "burn-remote"]
+remote-server = ["remote", "burn-remote/server"]
 
 # Backend features
 autotune = [
@@ -108,8 +107,7 @@ burn-tch = { workspace = true, optional = true }
 burn-rocm = { workspace = true, optional = true }
 burn-wgpu = { workspace = true, optional = true }
 
-# TODO: add remote backend
-# burn-remote = { path = "../burn-remote", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-remote = { workspace = true, optional = true, features = ["client"] }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }

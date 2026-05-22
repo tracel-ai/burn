@@ -1,3 +1,25 @@
+/// Resolves a backend identifier to its concrete `Backend`-impl type.
+///
+/// Most backends are generic over a float element (`Cpu<f32>`, `Cuda<f32>`, …) — `Remote`
+/// is non-generic. This helper keeps the dispatch macros agnostic so a single
+/// `type B = inst!($Backend);` line works for every variant.
+///
+/// When the trailing `<f32>` parameter goes away project-wide, the only edit needed here
+/// is dropping it from each arm.
+macro_rules! inst {
+    (Cpu) => { $crate::backends::Cpu<f32> };
+    (Cuda) => { $crate::backends::Cuda<f32> };
+    (Metal) => { $crate::backends::Metal<f32> };
+    (Rocm) => { $crate::backends::Rocm<f32> };
+    (Vulkan) => { $crate::backends::Vulkan<f32> };
+    (Wgpu) => { $crate::backends::Wgpu<f32> };
+    (WebGpu) => { $crate::backends::WebGpu<f32> };
+    (Flex) => { $crate::backends::Flex<f32> };
+    (NdArray) => { $crate::backends::NdArray<f32> };
+    (LibTorch) => { $crate::backends::LibTorch<f32> };
+    (Remote) => { $crate::backends::Remote };
+}
+
 /// Supplies a list of all supported backends and their corresponding feature flags
 /// to a callback macro. This centralizes the backend registry.
 macro_rules! backend_list {
@@ -13,7 +35,8 @@ macro_rules! backend_list {
             [WebGpu, feature = "webgpu"],
             [Flex, feature = "flex"],
             [NdArray, any(feature = "ndarray", default_backend)],
-            [LibTorch, feature = "tch"]
+            [LibTorch, feature = "tch"],
+            [Remote, feature = "remote"]
         }
     };
 }
@@ -23,16 +46,17 @@ macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
             $($extra)*;
-            [Cpu, feature = "cpu"] => [[Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Cuda, feature = "cuda"] => [[Cpu, feature = "cpu"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Metal, feature = "metal"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Rocm, feature = "rocm"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Vulkan, feature = "vulkan"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Wgpu, feature = "wgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [WebGpu, feature = "webgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Flex, feature = "flex"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [NdArray, any(feature = "ndarray", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [LibTorch, feature = "tch"]];
-            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"]]
+            [Cpu, feature = "cpu"] => [[Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Cuda, feature = "cuda"] => [[Cpu, feature = "cpu"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Metal, feature = "metal"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Rocm, feature = "rocm"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Vulkan, feature = "vulkan"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Wgpu, feature = "wgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [WebGpu, feature = "webgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Flex, feature = "flex"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [NdArray, any(feature = "ndarray", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [Remote, feature = "remote"]];
+            [Remote, feature = "remote"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"]]
         }
     };
 }
@@ -44,15 +68,17 @@ macro_rules! with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {
             Some($crate::CheckpointingStrategy::Balanced) => {
-                type $B = Autodiff<
-                    $Backend<f32>,
+                type $B = $crate::backends::Autodiff<
+                    inst!($Backend),
                     burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
                 >;
                 $body
             }
             Some($crate::CheckpointingStrategy::None) => {
-                type $B =
-                    Autodiff<$Backend<f32>, burn_autodiff::checkpoint::strategy::NoCheckpointing>;
+                type $B = $crate::backends::Autodiff<
+                    inst!($Backend),
+                    burn_autodiff::checkpoint::strategy::NoCheckpointing,
+                >;
                 $body
             }
             None => unreachable!("Should only be called with autodiff."),
@@ -83,7 +109,7 @@ macro_rules! dispatch_device_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     $body
                 }
             )*
@@ -99,7 +125,7 @@ macro_rules! dispatch_device_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
-                    type B = Autodiff<$Backend<f32>>;
+                    type B = $crate::backends::Autodiff<inst!($Backend)>;
                     $body
                 }
             )*
@@ -130,7 +156,7 @@ macro_rules! to_device_arms {
                 ($crate::DispatchTensorKind::$B1(t), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
-                            $B1::<f32>::$to_device(t.$inner_fn(), d)
+                            <inst!($B1)>::$to_device(t.$inner_fn(), d)
                         )),
                         checkpointing: $tensor.checkpointing,
                     }
@@ -143,8 +169,8 @@ macro_rules! to_device_arms {
                 $(
                     #[cfg(all($src_cfg, $dst_cfg))]
                     ($crate::DispatchTensorKind::$B1(t), $crate::DispatchDevice::$B2($device_ident)) => {
-                        type B1 = $B1<f32>;
-                        type B2 = $B2<f32>;
+                        type B1 = inst!($B1);
+                        type B2 = inst!($B2);
                         let $inner = t.$inner_fn();
 
                         $crate::DispatchTensor {
@@ -169,7 +195,7 @@ macro_rules! to_device_arms {
 
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
-                            $B1::<f32>::$to_device(t.$inner_fn(), d)
+                            <inst!($B1)>::$to_device(t.$inner_fn(), d)
                         )),
                         checkpointing: Some(device_ad.checkpointing),
                     }
@@ -183,8 +209,8 @@ macro_rules! to_device_arms {
                     ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::Autodiff(device_ad))
                     if matches!(&*device_ad.inner, $crate::DispatchDevice::$B2(_)) => {
                         let $crate::DispatchDevice::$B2($device_ident) = &*device_ad.inner else { unreachable!() };
-                        type B1 = $B1<f32>;
-                        type B2 = $B2<f32>;
+                        type B1 = inst!($B1);
+                        type B2 = inst!($B2);
                         let $inner = tensor.$inner_fn();
 
                         $crate::DispatchTensor {
@@ -246,7 +272,7 @@ macro_rules! float_to_device_arms {
                 ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::Float(
-                            $B1::<f32>::$to_device(kind.float(), d)
+                            <inst!($B1)>::$to_device(kind.float(), d)
                         )),
                         checkpointing: $tensor.checkpointing,
                     }
@@ -259,8 +285,8 @@ macro_rules! float_to_device_arms {
                 $(
                     #[cfg(all($src_cfg, $dst_cfg))]
                     ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B2($device_ident)) => {
-                        type B1 = $B1<f32>;
-                        type B2 = $B2<f32>;
+                        type B1 = inst!($B1);
+                        type B2 = inst!($B2);
                         let $inner = kind.float();
 
                         $crate::DispatchTensor {
@@ -348,7 +374,7 @@ macro_rules! creation_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend(
                             $crate::BackendTensor::$kind($body)
@@ -431,7 +457,7 @@ macro_rules! unary_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $inner = $inner.$inner_kind();
 
                     #[cfg(feature = "autodiff")]
@@ -471,7 +497,7 @@ macro_rules! unary_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $inner = $inner.$inner_kind();
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body)),
@@ -495,7 +521,7 @@ macro_rules! unary_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $inner = $inner.$inner_kind();
                     $body
                 }
@@ -549,7 +575,7 @@ macro_rules! unary_float_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $inner = unary_float_arms!(@unwrap $mode, $inner, $inner_kind);
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend(
@@ -610,7 +636,7 @@ macro_rules! unary_float_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $inner = unary_float_arms!(@unwrap $mode, $inner, $inner_kind);
                     $body
                 }
@@ -707,7 +733,7 @@ macro_rules! binary_op_arms {
             $(
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $lhs_inner = $lhs_inner.$lhs_kind();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
                     $crate::DispatchTensor {
@@ -774,7 +800,7 @@ macro_rules! binary_float_arms {
             $(
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $lhs_inner = $lhs_inner.float();
                     let $rhs_inner = $rhs_inner.float();
                     $crate::DispatchTensor {
@@ -832,7 +858,7 @@ macro_rules! binary_float_arms {
 
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $lhs_inner = $lhs_inner.float();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
                     $crate::DispatchTensor {
@@ -860,7 +886,7 @@ macro_rules! binary_float_arms {
             $(
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $lhs_inner = $lhs_inner.$lhs_kind();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
                     $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body))
@@ -939,7 +965,7 @@ macro_rules! multi_op_arm {
         [ $( $opt_out:ident ),* ],
         $body:expr
     ) => {{
-        type B = $Backend<f32>;
+        type B = inst!($Backend);
 
         // Required inputs
         $(
@@ -1007,7 +1033,7 @@ macro_rules! multi_op_arm_autodiff {
         [ $( $opt_out:ident ),* ],
         $body:expr
     ) => {{
-        // type B = Autodiff<$Backend<f32>>;
+        // type B = Autodiff<inst!($Backend)>;
         with_autodiff_backend!($Backend, $ckp, |B| {
             // Required inputs
             $(
@@ -1318,7 +1344,7 @@ macro_rules! vec_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend(_) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
 
                     let $inner = unwrap_vec!($Backend, $tensors, $inner_kind);
                     $crate::DispatchTensor {
@@ -1336,7 +1362,7 @@ macro_rules! vec_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend(_) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
 
                     let $inner = unwrap_vec!($Backend, $tensors, $inner_kind);
                     $crate::DispatchTensor {
@@ -1373,7 +1399,7 @@ macro_rules! transaction_op_arms {
                     $(
                     #[cfg($cfg)]
                     $crate::DispatchTensorKind::$Backend(_) => {
-                        type B = $Backend<f32>;
+                        type B = inst!($Backend);
 
                         // Unwrap vec
                         let floats = unwrap_vec!(@autodiff $Backend, $tx.read_floats, autodiff_inner);
@@ -1392,7 +1418,7 @@ macro_rules! transaction_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend(_) => {
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
 
                     // Unwrap vec
                     let floats = unwrap_vec!($Backend, $tx.read_floats, float);

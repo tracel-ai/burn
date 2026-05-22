@@ -940,6 +940,7 @@ dependencies = [
  "burn-cuda",
  "burn-flex",
  "burn-ndarray",
+ "burn-remote",
  "burn-rocm",
  "burn-tch",
  "burn-wgpu",
@@ -8002,8 +8003,6 @@ name = "server"
 version = "0.22.0-pre.1"
 dependencies = [
  "burn",
- "cfg-if",
- "cubecl",
 ]
 
 [[package]]
