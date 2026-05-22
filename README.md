@@ -138,37 +138,6 @@ See the [Fusion Backend README](./crates/burn-fusion/README.md) for more details
 
 <details>
 <summary>
-Router (Beta): Backend decorator that composes multiple backends into a single one
-</summary>
-<br />
-
-That backend simplifies hardware operability, if for instance you want to execute some operations on
-the CPU and other operations on the GPU.
-
-```rust
-use burn::tensor::{Distribution, Tensor};
-use burn::backend::{
-    Flex, Router, Wgpu, flex::FlexDevice, router::duo::MultiDevice, wgpu::WgpuDevice,
-};
-
-fn main() {
-    type Backend = Router<(Wgpu, Flex)>;
-
-    let device_0 = MultiDevice::B1(WgpuDevice::DiscreteGpu(0));
-    let device_1 = MultiDevice::B2(FlexDevice);
-
-    let tensor_gpu =
-        Tensor::<Backend, 2>::random([3, 3], burn::tensor::Distribution::Default, &device_0);
-    let tensor_cpu =
-        Tensor::<Backend, 2>::random([3, 3], burn::tensor::Distribution::Default, &device_1);
-}
-
-```
-
-</details>
-
-<details>
-<summary>
 Remote (Beta): Backend decorator for remote backend execution, useful for distributed computations
 </summary>
 <br />
