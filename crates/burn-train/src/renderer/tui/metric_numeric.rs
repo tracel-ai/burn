@@ -30,6 +30,28 @@ const MAX_NUM_SAMPLES_RECENT: usize = 1000;
 /// Otherwise, there is too much points and the lines arent't smooth enough.
 const MAX_NUM_SAMPLES_FULL: usize = 250;
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ChevronSide {
+    Left,
+    Right,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum HoverTarget {
+    Tab(usize),
+    Chevron(ChevronSide),
+}
+
+/// Hit-test geometry and hover state for the tab strip, populated by `render_tab_strip`
+/// on every frame and consumed by `on_mouse_event`.
+#[derive(Default)]
+pub(crate) struct TabStripState {
+    hovered: Option<HoverTarget>,
+    tab_rects: Vec<Rect>,
+    chevron_left: Option<Rect>,
+    chevron_right: Option<Rect>,
+}
+
 /// Numeric metrics state that handles creating plots.
 #[derive(Default)]
 pub(crate) struct NumericMetricsState {
@@ -41,8 +63,7 @@ pub(crate) struct NumericMetricsState {
     num_samples_valid: Option<usize>,
     num_samples_test: Option<usize>,
     epoch: usize,
-    hovered: Option<usize>,
-    last_tab_rects: Vec<Rect>,
+    strip: TabStripState,
 }
 
 /// The kind of plot to display.
@@ -135,9 +156,8 @@ impl NumericMetricsState {
                 NumericMetricView::BarPlots {
                     titles: &self.names,
                     selected: self.selected,
-                    hovered: self.hovered,
                     chart,
-                    tab_rects_out: &mut self.last_tab_rects,
+                    strip: &mut self.strip,
                 }
             }
             kind => {
@@ -145,10 +165,9 @@ impl NumericMetricsState {
                 NumericMetricView::LinePlots {
                     titles: &self.names,
                     selected: self.selected,
-                    hovered: self.hovered,
                     chart,
                     kind,
-                    tab_rects_out: &mut self.last_tab_rects,
+                    strip: &mut self.strip,
                 }
             }
         }
@@ -181,17 +200,15 @@ impl NumericMetricsState {
 
     fn on_mouse_event(&mut self, mouse: &MouseEvent) {
         let pos = Position::new(mouse.column, mouse.row);
-        let hit = self
-            .last_tab_rects
-            .iter()
-            .position(|rect| rect.contains(pos));
+        let target = hover_target_at(&self.strip, pos);
         match mouse.kind {
-            MouseEventKind::Moved => self.hovered = hit,
-            MouseEventKind::Down(MouseButton::Left) => {
-                if let Some(idx) = hit {
-                    self.selected = idx;
-                }
-            }
+            MouseEventKind::Moved => self.strip.hovered = target,
+            MouseEventKind::Down(MouseButton::Left) => match target {
+                Some(HoverTarget::Tab(idx)) => self.selected = idx,
+                Some(HoverTarget::Chevron(ChevronSide::Left)) => self.previous_metric(),
+                Some(HoverTarget::Chevron(ChevronSide::Right)) => self.next_metric(),
+                None => {}
+            },
             _ => {}
         }
     }
@@ -287,17 +304,15 @@ pub(crate) enum NumericMetricView<'a> {
     LinePlots {
         titles: &'a [MetricName],
         selected: usize,
-        hovered: Option<usize>,
         chart: Chart<'a>,
         kind: PlotKind,
-        tab_rects_out: &'a mut Vec<Rect>,
+        strip: &'a mut TabStripState,
     },
     BarPlots {
         titles: &'a [MetricName],
         selected: usize,
-        hovered: Option<usize>,
         chart: BarChart<'a>,
-        tab_rects_out: &'a mut Vec<Rect>,
+        strip: &'a mut TabStripState,
     },
     None,
 }
@@ -308,10 +323,9 @@ impl NumericMetricView<'_> {
             Self::LinePlots {
                 titles,
                 selected,
-                hovered,
                 chart,
                 kind,
-                tab_rects_out,
+                strip,
             } => {
                 let plot_title = match kind {
                     PlotKind::Full => "Full History",
@@ -319,34 +333,17 @@ impl NumericMetricView<'_> {
                     _ => unreachable!(),
                 };
                 render_plot_panel(
-                    frame,
-                    size,
-                    "Plots",
-                    plot_title,
-                    titles,
-                    selected,
-                    hovered,
-                    tab_rects_out,
-                    chart,
+                    frame, size, "Plots", plot_title, titles, selected, strip, chart,
                 );
             }
             Self::BarPlots {
                 titles,
                 selected,
-                hovered,
                 chart,
-                tab_rects_out,
+                strip,
             } => {
                 render_plot_panel(
-                    frame,
-                    size,
-                    "Summary",
-                    "Summary",
-                    titles,
-                    selected,
-                    hovered,
-                    tab_rects_out,
-                    chart,
+                    frame, size, "Summary", "Summary", titles, selected, strip, chart,
                 );
             }
             Self::None => {}
@@ -363,8 +360,7 @@ fn render_plot_panel<W: Widget>(
     plot_title: &str,
     titles: &[MetricName],
     selected: usize,
-    hovered: Option<usize>,
-    tab_rects_out: &mut Vec<Rect>,
+    strip: &mut TabStripState,
     chart: W,
 ) {
     let block = Block::default()
@@ -383,7 +379,7 @@ fn render_plot_panel<W: Widget>(
         ])
         .split(inner);
 
-    render_tab_strip(frame, chunks[0], titles, selected, hovered, tab_rects_out);
+    render_tab_strip(frame, chunks[0], titles, selected, strip);
     let title = Paragraph::new(Line::from(plot_title.bold())).alignment(Alignment::Center);
     frame.render_widget(title, chunks[1]);
     frame.render_widget(chart, chunks[2]);
@@ -391,19 +387,20 @@ fn render_plot_panel<W: Widget>(
 
 /// Render the metric tabs in `area`, scrolling horizontally so the `selected` tab is always
 /// visible. A `‹` / `›` indicator is drawn in a reserved cell on each side when tabs are
-/// hidden off that edge. The hovered tab gets an extra underline. Hit-test rects for the
-/// visible tabs are written into `tab_rects_out`, indexed by global tab position. Off-screen
-/// tabs get a zero-sized rect so the mouse-event hit test misses them.
+/// hidden off that edge. The hovered tab gets an extra underline, a hovered chevron gets a
+/// brighter foreground. Hit-test rects for the visible tabs and the two chevrons are written
+/// back into `strip` so `on_mouse_event` can route clicks.
 fn render_tab_strip(
     frame: &mut TerminalFrame<'_>,
     area: Rect,
     titles: &[MetricName],
     selected: usize,
-    hovered: Option<usize>,
-    tab_rects_out: &mut Vec<Rect>,
+    strip: &mut TabStripState,
 ) {
-    tab_rects_out.clear();
-    tab_rects_out.resize(titles.len(), Rect::default());
+    strip.tab_rects.clear();
+    strip.tab_rects.resize(titles.len(), Rect::default());
+    strip.chevron_left = None;
+    strip.chevron_right = None;
 
     if titles.is_empty() || area.width == 0 {
         return;
@@ -415,10 +412,11 @@ fn render_tab_strip(
     let inner_width = area.width.saturating_sub(2);
     let (start, end) = visible_tab_window(&widths, selected, inner_width);
 
-    let edge_style = Style::default().fg(Color::DarkGray);
     if start > 0 {
         let left = Rect { width: 1, ..area };
-        frame.render_widget(Paragraph::new("‹").style(edge_style), left);
+        let color = chevron_color(strip.hovered, ChevronSide::Left);
+        frame.render_widget(Paragraph::new("‹").style(Style::default().fg(color)), left);
+        strip.chevron_left = Some(left);
     }
     if end < titles.len() {
         let right = Rect {
@@ -426,7 +424,9 @@ fn render_tab_strip(
             width: 1,
             ..area
         };
-        frame.render_widget(Paragraph::new("›").style(edge_style), right);
+        let color = chevron_color(strip.hovered, ChevronSide::Right);
+        frame.render_widget(Paragraph::new("›").style(Style::default().fg(color)), right);
+        strip.chevron_right = Some(right);
     }
 
     let tabs_area = Rect {
@@ -440,10 +440,9 @@ fn render_tab_strip(
     // misses them.
     let mut x = tabs_area.x;
     let tabs_end = tabs_area.x.saturating_add(tabs_area.width);
-    for i in start..end {
-        let w = widths[i];
+    for (i, &w) in (start..end).zip(&widths[start..end]) {
         let remaining = tabs_end.saturating_sub(x);
-        tab_rects_out[i] = Rect {
+        strip.tab_rects[i] = Rect {
             x: x.min(tabs_end),
             y: tabs_area.y,
             width: w.min(remaining),
@@ -454,7 +453,7 @@ fn render_tab_strip(
 
     let tabs = Tabs::new(titles_str[start..end].iter().enumerate().map(|(local, s)| {
         let span = s.clone().yellow();
-        let span = if hovered == Some(start + local) {
+        let span = if strip.hovered == Some(HoverTarget::Tab(start + local)) {
             span.underlined()
         } else {
             span
@@ -468,6 +467,28 @@ fn render_tab_strip(
             .fg(Color::LightYellow),
     );
     frame.render_widget(tabs, tabs_area);
+}
+
+fn chevron_color(hovered: Option<HoverTarget>, side: ChevronSide) -> Color {
+    if hovered == Some(HoverTarget::Chevron(side)) {
+        Color::Gray
+    } else {
+        Color::DarkGray
+    }
+}
+
+fn hover_target_at(strip: &TabStripState, pos: Position) -> Option<HoverTarget> {
+    if strip.chevron_left.is_some_and(|r| r.contains(pos)) {
+        return Some(HoverTarget::Chevron(ChevronSide::Left));
+    }
+    if strip.chevron_right.is_some_and(|r| r.contains(pos)) {
+        return Some(HoverTarget::Chevron(ChevronSide::Right));
+    }
+    strip
+        .tab_rects
+        .iter()
+        .position(|r| r.contains(pos))
+        .map(HoverTarget::Tab)
 }
 
 /// Cells consumed by one tab. Title display width plus ratatui's default padding.
@@ -559,11 +580,18 @@ mod tests {
         assert_eq!(state.selected, 1);
     }
 
+    fn strip_with_tabs(tabs: Vec<Rect>) -> TabStripState {
+        TabStripState {
+            tab_rects: tabs,
+            ..TabStripState::default()
+        }
+    }
+
     #[test]
     fn mouse_click_on_tab_selects_it() {
         let mut state = NumericMetricsState {
             names: vec![name("loss"), name("acc")],
-            last_tab_rects: vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)],
+            strip: strip_with_tabs(vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)]),
             ..NumericMetricsState::default()
         };
 
@@ -577,7 +605,7 @@ mod tests {
         let mut state = NumericMetricsState {
             names: vec![name("loss"), name("acc")],
             selected: 0,
-            last_tab_rects: vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)],
+            strip: strip_with_tabs(vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)]),
             ..NumericMetricsState::default()
         };
 
@@ -590,15 +618,101 @@ mod tests {
     fn mouse_moved_updates_hovered() {
         let mut state = NumericMetricsState {
             names: vec![name("loss"), name("acc")],
-            last_tab_rects: vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)],
+            strip: strip_with_tabs(vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)]),
             ..NumericMetricsState::default()
         };
 
         state.on_event(&mouse(MouseEventKind::Moved, 2, 0));
-        assert_eq!(state.hovered, Some(0));
+        assert_eq!(state.strip.hovered, Some(HoverTarget::Tab(0)));
 
         state.on_event(&mouse(MouseEventKind::Moved, 50, 50));
-        assert_eq!(state.hovered, None);
+        assert_eq!(state.strip.hovered, None);
+    }
+
+    #[test]
+    fn mouse_click_on_left_chevron_goes_to_previous_metric() {
+        // Three metrics with the second one selected. A click on the left chevron should
+        // wrap-decrement the selection just like KeyCode::Left does.
+        let mut state = NumericMetricsState {
+            names: vec![name("a"), name("b"), name("c")],
+            data: BTreeMap::from_iter([
+                (
+                    name("a"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+                (
+                    name("b"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+                (
+                    name("c"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+            ]),
+            selected: 1,
+            strip: TabStripState {
+                chevron_left: Some(Rect::new(0, 0, 1, 2)),
+                ..TabStripState::default()
+            },
+            ..NumericMetricsState::default()
+        };
+
+        state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 0, 0));
+        assert_eq!(state.selected, 0);
+    }
+
+    #[test]
+    fn mouse_click_on_right_chevron_goes_to_next_metric() {
+        let mut state = NumericMetricsState {
+            names: vec![name("a"), name("b"), name("c")],
+            data: BTreeMap::from_iter([
+                (
+                    name("a"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+                (
+                    name("b"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+                (
+                    name("c"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+            ]),
+            selected: 1,
+            strip: TabStripState {
+                chevron_right: Some(Rect::new(20, 0, 1, 2)),
+                ..TabStripState::default()
+            },
+            ..NumericMetricsState::default()
+        };
+
+        state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 20, 0));
+        assert_eq!(state.selected, 2);
+    }
+
+    #[test]
+    fn mouse_moved_over_chevron_updates_hover_target() {
+        let mut state = NumericMetricsState {
+            strip: TabStripState {
+                chevron_left: Some(Rect::new(0, 0, 1, 2)),
+                chevron_right: Some(Rect::new(20, 0, 1, 2)),
+                ..TabStripState::default()
+            },
+            ..NumericMetricsState::default()
+        };
+
+        state.on_event(&mouse(MouseEventKind::Moved, 0, 0));
+        assert_eq!(
+            state.strip.hovered,
+            Some(HoverTarget::Chevron(ChevronSide::Left))
+        );
+
+        state.on_event(&mouse(MouseEventKind::Moved, 20, 0));
+        assert_eq!(
+            state.strip.hovered,
+            Some(HoverTarget::Chevron(ChevronSide::Right))
+        );
     }
 
     fn cells(titles: &[&str]) -> Vec<u16> {
