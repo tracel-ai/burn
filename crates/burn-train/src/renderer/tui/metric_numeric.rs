@@ -173,43 +173,70 @@ impl NumericMetricsState {
         }
     }
 
-    /// Handle the current event.
-    pub(crate) fn on_event(&mut self, event: &Event) {
+    /// Handle the current event. Returns `true` when visible state changed and a
+    /// redraw is warranted, `false` for events that produced no observable change
+    /// (so the caller can skip an unnecessary redraw).
+    pub(crate) fn on_event(&mut self, event: &Event) -> bool {
         match event {
             Event::Key(key) => self.on_key_event(key),
             Event::Mouse(mouse) => self.on_mouse_event(mouse),
-            _ => {}
+            _ => false,
         }
     }
 
-    fn on_key_event(&mut self, key: &KeyEvent) {
+    fn on_key_event(&mut self, key: &KeyEvent) -> bool {
         match key.kind {
-            KeyEventKind::Release | KeyEventKind::Repeat => return,
+            KeyEventKind::Release | KeyEventKind::Repeat => return false,
             #[cfg(target_os = "windows")] // Fix the double toggle on Windows.
-            KeyEventKind::Press => return,
+            KeyEventKind::Press => return false,
             #[cfg(not(target_os = "windows"))]
             KeyEventKind::Press => (),
         }
         match key.code {
-            KeyCode::Right => self.next_metric(),
-            KeyCode::Left => self.previous_metric(),
-            KeyCode::Up | KeyCode::Down => self.switch_kind(),
-            _ => {}
+            KeyCode::Right => {
+                self.next_metric();
+                true
+            }
+            KeyCode::Left => {
+                self.previous_metric();
+                true
+            }
+            KeyCode::Up | KeyCode::Down => {
+                self.switch_kind();
+                true
+            }
+            _ => false,
         }
     }
 
-    fn on_mouse_event(&mut self, mouse: &MouseEvent) {
+    fn on_mouse_event(&mut self, mouse: &MouseEvent) -> bool {
         let pos = Position::new(mouse.column, mouse.row);
         let target = hover_target_at(&self.strip, pos);
         match mouse.kind {
-            MouseEventKind::Moved => self.strip.hovered = target,
+            MouseEventKind::Moved => {
+                if self.strip.hovered == target {
+                    false
+                } else {
+                    self.strip.hovered = target;
+                    true
+                }
+            }
             MouseEventKind::Down(MouseButton::Left) => match target {
-                Some(HoverTarget::Tab(idx)) => self.selected = idx,
-                Some(HoverTarget::Chevron(ChevronSide::Left)) => self.previous_metric(),
-                Some(HoverTarget::Chevron(ChevronSide::Right)) => self.next_metric(),
-                None => {}
+                Some(HoverTarget::Tab(idx)) => {
+                    self.selected = idx;
+                    true
+                }
+                Some(HoverTarget::Chevron(ChevronSide::Left)) => {
+                    self.previous_metric();
+                    true
+                }
+                Some(HoverTarget::Chevron(ChevronSide::Right)) => {
+                    self.next_metric();
+                    true
+                }
+                None => false,
             },
-            _ => {}
+            _ => false,
         }
     }
 
@@ -713,6 +740,69 @@ mod tests {
             state.strip.hovered,
             Some(HoverTarget::Chevron(ChevronSide::Right))
         );
+    }
+
+    #[test]
+    fn on_event_returns_false_for_mouse_move_that_does_not_change_hover() {
+        let mut state = NumericMetricsState {
+            names: vec![name("loss"), name("acc")],
+            strip: TabStripState {
+                tab_rects: vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)],
+                ..TabStripState::default()
+            },
+            ..NumericMetricsState::default()
+        };
+
+        // First move onto tab 0: hover changes from None to Some(Tab(0)).
+        assert!(state.on_event(&mouse(MouseEventKind::Moved, 2, 0)));
+        // Second move still on tab 0: no change, no redraw needed.
+        assert!(!state.on_event(&mouse(MouseEventKind::Moved, 3, 0)));
+        // Move off any tab: hover changes back to None.
+        assert!(state.on_event(&mouse(MouseEventKind::Moved, 50, 50)));
+        // Move outside again: still None, no change.
+        assert!(!state.on_event(&mouse(MouseEventKind::Moved, 60, 60)));
+    }
+
+    #[test]
+    fn on_event_returns_true_for_tab_click_false_for_missed_click() {
+        let mut state = NumericMetricsState {
+            names: vec![name("loss"), name("acc")],
+            strip: TabStripState {
+                tab_rects: vec![Rect::new(0, 0, 6, 2), Rect::new(7, 0, 5, 2)],
+                ..TabStripState::default()
+            },
+            ..NumericMetricsState::default()
+        };
+
+        assert!(state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 8, 0)));
+        assert!(!state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 50, 50)));
+    }
+
+    #[test]
+    fn on_event_returns_true_for_handled_keys_false_for_unhandled() {
+        use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
+        fn key(code: KeyCode) -> Event {
+            Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
+        }
+        let mut state = NumericMetricsState {
+            names: vec![name("loss"), name("acc")],
+            data: BTreeMap::from_iter([
+                (
+                    name("loss"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+                (
+                    name("acc"),
+                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
+                ),
+            ]),
+            ..NumericMetricsState::default()
+        };
+
+        assert!(state.on_event(&key(KeyCode::Right)));
+        assert!(state.on_event(&key(KeyCode::Left)));
+        assert!(state.on_event(&key(KeyCode::Up)));
+        assert!(!state.on_event(&key(KeyCode::Char('z'))));
     }
 
     fn cells(titles: &[&str]) -> Vec<u16> {

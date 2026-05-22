@@ -12,13 +12,29 @@ use ratatui::{
 };
 use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
+/// Hit-test geometry and hover state for the metrics pane, populated by
+/// `TextMetricView::render` on every frame and consumed by `on_event`.
+#[derive(Default)]
+pub(crate) struct TextHitState {
+    hovered: Option<MetricName>,
+    rect: Option<Rect>,
+    header_rows: Vec<(MetricName, Range<u16>)>,
+}
+
 #[derive(Default)]
 pub(crate) struct TextMetricsState {
     data: BTreeMap<String, MetricGroup>,
     names: Vec<MetricName>,
-    hovered: Option<MetricName>,
-    last_pane_rect: Option<Rect>,
-    last_header_rows: Vec<(MetricName, Range<u16>)>,
+    pane: TextHitState,
+}
+
+/// What a mouse event meant for the left pane. Drives both selection routing
+/// (the `Clicked` arm carries the metric name to switch to) and redraw gating
+/// (anything other than `Ignored` should cause a redraw).
+pub(crate) enum TextEventOutcome {
+    Clicked(MetricName),
+    HoverChanged,
+    Ignored,
 }
 
 struct MetricGroup {
@@ -80,23 +96,18 @@ impl TextMetricsState {
     }
 
     pub(crate) fn view(&mut self) -> TextMetricView<'_> {
-        TextMetricView::new(
-            &self.names,
-            &self.data,
-            self.hovered.as_ref(),
-            &mut self.last_pane_rect,
-            &mut self.last_header_rows,
-        )
+        TextMetricView::new(&self.names, &self.data, &mut self.pane)
     }
 
-    /// Updates hover state and returns the clicked metric name, if any.
-    pub(crate) fn on_event(&mut self, event: &Event) -> Option<MetricName> {
+    /// Updates hover state and reports what the event meant for the left pane.
+    pub(crate) fn on_event(&mut self, event: &Event) -> TextEventOutcome {
         let Event::Mouse(mouse) = event else {
-            return None;
+            return TextEventOutcome::Ignored;
         };
         let pos = Position::new(mouse.column, mouse.row);
-        let hit = if self.last_pane_rect.is_some_and(|pane| pane.contains(pos)) {
-            self.last_header_rows
+        let hit = if self.pane.rect.is_some_and(|pane| pane.contains(pos)) {
+            self.pane
+                .header_rows
                 .iter()
                 .find(|(_, rows)| rows.contains(&pos.y))
                 .map(|(name, _)| name.clone())
@@ -106,11 +117,18 @@ impl TextMetricsState {
 
         match mouse.kind {
             MouseEventKind::Moved => {
-                self.hovered = hit;
-                None
+                if self.pane.hovered == hit {
+                    TextEventOutcome::Ignored
+                } else {
+                    self.pane.hovered = hit;
+                    TextEventOutcome::HoverChanged
+                }
             }
-            MouseEventKind::Down(MouseButton::Left) => hit,
-            _ => None,
+            MouseEventKind::Down(MouseButton::Left) => match hit {
+                Some(name) => TextEventOutcome::Clicked(name),
+                None => TextEventOutcome::Ignored,
+            },
+            _ => TextEventOutcome::Ignored,
         }
     }
 }
@@ -119,21 +137,19 @@ pub(crate) struct TextMetricView<'a> {
     lines: Vec<Vec<Span<'static>>>,
     /// Index into `lines` of each metric's header row, in display order.
     header_line_indices: Vec<(MetricName, usize)>,
-    pane_rect_out: &'a mut Option<Rect>,
-    header_rows_out: &'a mut Vec<(MetricName, Range<u16>)>,
+    pane: &'a mut TextHitState,
 }
 
 impl<'a> TextMetricView<'a> {
     fn new(
         names: &[MetricName],
         data: &BTreeMap<String, MetricGroup>,
-        hovered: Option<&MetricName>,
-        pane_rect_out: &'a mut Option<Rect>,
-        header_rows_out: &'a mut Vec<(MetricName, Range<u16>)>,
+        pane: &'a mut TextHitState,
     ) -> Self {
         let mut lines = Vec::with_capacity(names.len() * 4);
         let mut header_line_indices = Vec::with_capacity(names.len());
 
+        let hovered = pane.hovered.as_ref();
         let start_line = |title: &str, is_hovered: bool| {
             let span = Span::from(format!(" {title} ")).bold().yellow();
             let span = if is_hovered { span.underlined() } else { span };
@@ -165,8 +181,7 @@ impl<'a> TextMetricView<'a> {
         Self {
             lines,
             header_line_indices,
-            pane_rect_out,
-            header_rows_out,
+            pane,
         }
     }
 
@@ -174,15 +189,14 @@ impl<'a> TextMetricView<'a> {
         let Self {
             lines,
             header_line_indices,
-            pane_rect_out,
-            header_rows_out,
+            pane,
         } = self;
 
         // Skip the 1-cell top border. Header lines longer than the pane will
         // wrap and misplace the hit zone, accepted as a known limitation.
         let text_origin_y = size.y.saturating_add(1);
-        *pane_rect_out = Some(size);
-        *header_rows_out = header_line_indices
+        pane.rect = Some(size);
+        pane.header_rows = header_line_indices
             .into_iter()
             .map(|(name, line_idx)| {
                 let row = text_origin_y.saturating_add(line_idx as u16);
@@ -218,48 +232,59 @@ mod tests {
         })
     }
 
-    #[test]
-    fn click_on_header_row_returns_metric_name() {
-        let mut state = TextMetricsState {
-            last_pane_rect: Some(Rect::new(0, 0, 20, 10)),
-            last_header_rows: vec![(name("Loss"), 1..2), (name("Accuracy"), 5..6)],
+    fn state_with(headers: Vec<(MetricName, Range<u16>)>) -> TextMetricsState {
+        TextMetricsState {
+            pane: TextHitState {
+                rect: Some(Rect::new(0, 0, 20, 10)),
+                header_rows: headers,
+                ..TextHitState::default()
+            },
             ..TextMetricsState::default()
-        };
-
-        let clicked = state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 3, 5));
-
-        assert_eq!(clicked.as_deref().map(|s| s.as_str()), Some("Accuracy"));
+        }
     }
 
     #[test]
-    fn click_off_any_header_returns_none() {
-        let mut state = TextMetricsState {
-            last_pane_rect: Some(Rect::new(0, 0, 20, 10)),
-            last_header_rows: vec![(name("Loss"), 1..2)],
-            ..TextMetricsState::default()
-        };
+    fn click_on_header_row_returns_clicked() {
+        let mut state = state_with(vec![(name("Loss"), 1..2), (name("Accuracy"), 5..6)]);
+
+        let outcome = state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 3, 5));
+
+        match outcome {
+            TextEventOutcome::Clicked(n) => assert_eq!(n.as_str(), "Accuracy"),
+            _ => panic!("expected Clicked"),
+        }
+    }
+
+    #[test]
+    fn click_off_any_header_returns_ignored() {
+        let mut state = state_with(vec![(name("Loss"), 1..2)]);
 
         let on_data_row = state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 3, 3));
         let outside_pane = state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 50, 50));
 
-        assert!(on_data_row.is_none());
-        assert!(outside_pane.is_none());
+        assert!(matches!(on_data_row, TextEventOutcome::Ignored));
+        assert!(matches!(outside_pane, TextEventOutcome::Ignored));
     }
 
     #[test]
-    fn moved_event_updates_hovered_and_returns_none() {
-        let mut state = TextMetricsState {
-            last_pane_rect: Some(Rect::new(0, 0, 20, 10)),
-            last_header_rows: vec![(name("Loss"), 1..2)],
-            ..TextMetricsState::default()
-        };
+    fn moved_event_signals_hover_change_only_when_target_changes() {
+        let mut state = state_with(vec![(name("Loss"), 1..2)]);
 
-        let result = state.on_event(&mouse(MouseEventKind::Moved, 3, 1));
-        assert!(result.is_none());
-        assert_eq!(state.hovered.as_deref().map(|s| s.as_str()), Some("Loss"));
+        // First move onto Loss: hover changes from None to Some(Loss).
+        let r1 = state.on_event(&mouse(MouseEventKind::Moved, 3, 1));
+        assert!(matches!(r1, TextEventOutcome::HoverChanged));
+        assert_eq!(
+            state.pane.hovered.as_deref().map(|s| s.as_str()),
+            Some("Loss")
+        );
 
-        let result = state.on_event(&mouse(MouseEventKind::Moved, 3, 8));
-        assert!(result.is_none());
-        assert!(state.hovered.is_none());
+        // Second move still on Loss: no change, ignored (no redraw needed).
+        let r2 = state.on_event(&mouse(MouseEventKind::Moved, 4, 1));
+        assert!(matches!(r2, TextEventOutcome::Ignored));
+
+        // Move off the header: hover changes to None.
+        let r3 = state.on_event(&mouse(MouseEventKind::Moved, 3, 8));
+        assert!(matches!(r3, TextEventOutcome::HoverChanged));
+        assert!(state.pane.hovered.is_none());
     }
 }
