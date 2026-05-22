@@ -82,7 +82,7 @@ pub mod backends {
     pub use burn_wgpu::Vulkan;
     #[cfg(all(wgpu_webgpu, feature = "webgpu"))]
     pub use burn_wgpu::WebGpu;
-    #[cfg(wgpu_webgpu)]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu::Wgpu;
 
     #[cfg(feature = "flex")]
