@@ -6,10 +6,11 @@ macro_rules! backend_list {
             $($extra)*;
             [Cpu, feature = "cpu"],
             [Cuda, feature = "cuda"],
-            [Metal, wgpu_metal],
+            [Metal, feature = "metal"],
             [Rocm, feature = "rocm"],
-            [Vulkan, wgpu_vulkan],
-            [Wgpu, wgpu_webgpu],
+            [Vulkan, feature = "vulkan"],
+            [Wgpu, feature = "wgpu"],
+            [WebGpu, feature = "webgpu"],
             [Flex, feature = "flex"],
             [NdArray, any(feature = "ndarray", default_backend)],
             [LibTorch, feature = "tch"]
@@ -22,15 +23,16 @@ macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
             $($extra)*;
-            [Cpu, feature = "cpu"] => [[Cuda, feature = "cuda"], [Metal, wgpu_metal], [Rocm, feature = "rocm"], [Vulkan, wgpu_vulkan], [Wgpu, wgpu_webgpu], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Cuda, feature = "cuda"] => [[Cpu, feature = "cpu"], [Metal, wgpu_metal], [Rocm, feature = "rocm"], [Vulkan, wgpu_vulkan], [Wgpu, wgpu_webgpu], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Metal, wgpu_metal] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Rocm, feature = "rocm"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, wgpu_metal], [Vulkan, wgpu_vulkan], [Wgpu, wgpu_webgpu], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Vulkan, wgpu_vulkan] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Wgpu, wgpu_webgpu] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [Flex, feature = "flex"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, wgpu_metal], [Rocm, feature = "rocm"], [Vulkan, wgpu_vulkan], [Wgpu, wgpu_webgpu], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
-            [NdArray, any(feature = "ndarray", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, wgpu_metal], [Rocm, feature = "rocm"], [Vulkan, wgpu_vulkan], [Wgpu, wgpu_webgpu], [Flex, feature = "flex"], [LibTorch, feature = "tch"]];
-            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, wgpu_metal], [Rocm, feature = "rocm"], [Vulkan, wgpu_vulkan], [Wgpu, wgpu_webgpu], [Flex, feature = "flex"], [NdArray, feature = "ndarray"]]
+            [Cpu, feature = "cpu"] => [[Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [Cuda, feature = "cuda"] => [[Cpu, feature = "cpu"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [Metal, feature = "metal"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [Rocm, feature = "rocm"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [Vulkan, feature = "vulkan"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [Wgpu, feature = "wgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [WebGpu, feature = "webgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [Flex, feature = "flex"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
+            [NdArray, any(feature = "ndarray", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [LibTorch, feature = "tch"]];
+            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, feature = "ndarray"]]
         }
     };
 }
