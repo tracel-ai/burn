@@ -96,7 +96,7 @@ where
         );
 
         // TODO: device should probably be specified somewhere instead of using the default
-        let device = Device::default().autodiff(); // was already a requirement via `B: AutodiffBackend`
+        let device = Device::flex().autodiff(); // was already a requirement via `B: AutodiffBackend`
         let mut transition_buffer = TransitionBuffer::<RLC::PolicyObs, RLC::PolicyAction>::new(
             self.config.replay_buffer_size,
             &device,

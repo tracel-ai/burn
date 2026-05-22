@@ -55,7 +55,7 @@ static ALLOC: AllocProfiler = AllocProfiler::system();
 static STATIC_MODEL_BYTES: OnceLock<&'static [u8]> = OnceLock::new();
 
 // Backend type aliases
-use burn_core::tensor::FlexDevice;
+use burn_core::backend::FlexDevice;
 
 #[cfg(any(feature = "wgpu", feature = "metal"))]
 use burn_core::tensor::WgpuDevice;

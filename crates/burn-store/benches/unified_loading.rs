@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 // Backend type aliases
-use burn_core::tensor::FlexDevice;
+use burn_core::backend::FlexDevice;
 
 #[cfg(any(feature = "wgpu", feature = "metal"))]
 use burn_core::tensor::WgpuDevice;

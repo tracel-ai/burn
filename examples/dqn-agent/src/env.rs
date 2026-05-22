@@ -1,8 +1,5 @@
 use burn::rl::{Environment, StepResult};
-use burn::{
-    Tensor,
-    prelude::{Backend, ToElement},
-};
+use burn::{Tensor, prelude::ToElement};
 use gym_rs::{
     core::Env,
     envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
@@ -15,18 +12,18 @@ pub struct CartPoleAction {
     action: usize,
 }
 
-impl<B: Backend> From<DiscreteActionTensor<B, 2>> for CartPoleAction {
-    fn from(value: DiscreteActionTensor<B, 2>) -> Self {
+impl From<DiscreteActionTensor<2>> for CartPoleAction {
+    fn from(value: DiscreteActionTensor<2>) -> Self {
         Self {
-            action: value.actions.int().into_scalar().to_usize(),
+            action: value.actions.int().into_scalar::<i32>().to_usize(),
         }
     }
 }
 
-impl<B: Backend> From<CartPoleAction> for DiscreteActionTensor<B, 2> {
+impl From<CartPoleAction> for DiscreteActionTensor<2> {
     fn from(value: CartPoleAction) -> Self {
         DiscreteActionTensor {
-            actions: Tensor::<B, 1>::from_data([value.action], &Default::default()).unsqueeze(),
+            actions: Tensor::<1>::from_data([value.action], &Default::default()).unsqueeze(),
         }
     }
 }
@@ -44,10 +41,10 @@ impl From<CartPoleObservation> for CartPoleState {
         }
     }
 }
-impl<B: Backend> From<CartPoleState> for ObservationTensor<B, 2> {
+impl From<CartPoleState> for ObservationTensor<2> {
     fn from(val: CartPoleState) -> Self {
         ObservationTensor {
-            state: Tensor::<B, 1>::from_floats(val.state, &Default::default()).unsqueeze(),
+            state: Tensor::<1>::from_floats(val.state, &Default::default()).unsqueeze(),
         }
     }
 }

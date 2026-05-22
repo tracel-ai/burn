@@ -1,10 +1,18 @@
-#[cfg(feature = "flex")]
+#[cfg(not(any(
+    feature = "tch-gpu",
+    feature = "tch-cpu",
+    feature = "wgpu",
+    feature = "metal",
+    feature = "vulkan",
+    feature = "rocm",
+    feature = "cuda",
+    feature = "remote",
+)))]
 mod flex {
-    use burn::backend::{Autodiff, Flex};
     use dqn_agent::training;
 
     pub fn run() {
-        training::run::<Autodiff<Flex>>(Default::default());
+        training::run(Default::default());
     }
 }
 
@@ -87,7 +95,16 @@ mod remote {
 }
 
 fn main() {
-    #[cfg(feature = "flex")]
+    #[cfg(not(any(
+        feature = "tch-gpu",
+        feature = "tch-cpu",
+        feature = "wgpu",
+        feature = "metal",
+        feature = "vulkan",
+        feature = "rocm",
+        feature = "cuda",
+        feature = "remote",
+    )))]
     flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();

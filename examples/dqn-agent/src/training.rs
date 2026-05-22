@@ -2,7 +2,7 @@ use burn::{
     grad_clipping::GradientClippingConfig,
     optim::AdamWConfig,
     record::CompactRecorder,
-    tensor::backend::AutodiffBackend,
+    tensor::Device,
     train::{
         OffPolicyConfig, RLTraining,
         metric::{CumulativeRewardMetric, EpisodeLengthMetric, ExplorationRateMetric, LossMetric},
@@ -16,7 +16,7 @@ use crate::{
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-dqn-agent";
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run(device: Device) {
     let dqn_config = DqnAgentConfig {
         gamma: 0.99,
         learning_rate: 3e-4,
@@ -44,7 +44,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         warmup_steps: 0,
     };
 
-    let policy_model = MlpNet::<B>::new(&model_config, &device);
+    let policy_model = MlpNet::new(&model_config, &device);
     let optimizer = AdamWConfig::new()
         .with_grad_clipping(Some(GradientClippingConfig::Value(100.0)))
         .init();

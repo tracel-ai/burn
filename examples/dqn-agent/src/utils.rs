@@ -1,10 +1,7 @@
-use std::marker::PhantomData;
-
 use burn::{
     Tensor,
     module::{Param, ParamId},
     nn::{self, Linear},
-    prelude::Backend,
     record::Record,
     rl::{Policy, PolicyState},
     tensor::Device,
@@ -18,13 +15,13 @@ use rand::{random, random_range};
 
 use crate::agent::{DiscreteActionTensor, DiscreteLogitsTensor};
 
-pub fn create_lin_layers<B: Backend>(
+pub fn create_lin_layers(
     num_layers: usize,
     d_input: usize,
     d_hidden: usize,
     d_output: usize,
-    device: &Device<B>,
-) -> Vec<Linear<B>> {
+    device: &Device,
+) -> Vec<Linear> {
     let mut linears = Vec::with_capacity(num_layers);
 
     if num_layers == 1 {
@@ -43,21 +40,21 @@ pub fn create_lin_layers<B: Backend>(
     linears
 }
 
-pub fn soft_update_linear<B: Backend>(this: Linear<B>, that: &Linear<B>, tau: f64) -> Linear<B> {
+pub fn soft_update_linear(this: Linear, that: &Linear, tau: f64) -> Linear {
     let weight = soft_update_tensor(&this.weight, &that.weight, tau);
     let bias = match (&this.bias, &that.bias) {
         (Some(this_bias), Some(that_bias)) => Some(soft_update_tensor(this_bias, that_bias, tau)),
         _ => None,
     };
 
-    Linear::<B> { weight, bias }
+    Linear { weight, bias }
 }
 
-fn soft_update_tensor<const N: usize, B: Backend>(
-    this: &Param<Tensor<B, N>>,
-    that: &Param<Tensor<B, N>>,
+fn soft_update_tensor<const N: usize>(
+    this: &Param<Tensor<N>>,
+    that: &Param<Tensor<N>>,
     tau: f64,
-) -> Param<Tensor<B, N>> {
+) -> Param<Tensor<N>> {
     let that_weight = that.val();
     let this_weight = this.val();
     let new_weight = this_weight * (1.0 - tau) + that_weight * tau;
@@ -71,9 +68,7 @@ pub struct EpsilonGreedyPolicyOutput {
 }
 
 impl ItemLazy for EpsilonGreedyPolicyOutput {
-    type ItemSync = EpsilonGreedyPolicyOutput;
-
-    fn sync(self) -> Self::ItemSync {
+    fn sync(self) -> Self {
         self
     }
 }
@@ -85,19 +80,19 @@ impl Adaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
 }
 
 #[derive(Record)]
-pub struct EpsilonGreedyPolicyRecord<B: Backend, P: Policy<B>> {
-    pub inner_state: <P::PolicyState as PolicyState<B>>::Record,
+pub struct EpsilonGreedyPolicyRecord<P: Policy> {
+    pub inner_state: <P::PolicyState as PolicyState>::Record,
     pub step: usize,
 }
 
 #[derive(Clone, new)]
-pub struct EpsilonGreedyPolicyState<B: Backend, P: Policy<B>> {
+pub struct EpsilonGreedyPolicyState<P: Policy> {
     pub inner_state: P::PolicyState,
     pub step: usize,
 }
 
-impl<B: Backend, P: Policy<B>> PolicyState<B> for EpsilonGreedyPolicyState<B, P> {
-    type Record = EpsilonGreedyPolicyRecord<B, P>;
+impl<P: Policy> PolicyState for EpsilonGreedyPolicyState<P> {
+    type Record = EpsilonGreedyPolicyRecord<P>;
 
     fn into_record(self) -> Self::Record {
         EpsilonGreedyPolicyRecord {
@@ -116,16 +111,15 @@ impl<B: Backend, P: Policy<B>> PolicyState<B> for EpsilonGreedyPolicyState<B, P>
 }
 
 #[derive(Clone, Debug)]
-pub struct EpsilonGreedyPolicy<B: Backend, P: Policy<B>> {
+pub struct EpsilonGreedyPolicy<P: Policy> {
     inner_policy: P,
     eps_start: f64,
     eps_end: f64,
     eps_decay: f64,
     step: usize,
-    _backend: PhantomData<B>,
 }
 
-impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
+impl<P: Policy> EpsilonGreedyPolicy<P> {
     pub fn new(inner_policy: P, eps_start: f64, eps_end: f64, eps_decay: f64) -> Self {
         Self {
             inner_policy,
@@ -133,7 +127,6 @@ impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
             eps_end,
             eps_decay,
             step: 0,
-            _backend: PhantomData,
         }
     }
 
@@ -149,21 +142,16 @@ impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
     }
 }
 
-impl<B, P> Policy<B> for EpsilonGreedyPolicy<B, P>
+impl<P> Policy for EpsilonGreedyPolicy<P>
 where
-    B: Backend,
-    P: Policy<
-            B,
-            ActionDistribution = DiscreteLogitsTensor<B, 2>,
-            Action = DiscreteActionTensor<B, 2>,
-        >,
+    P: Policy<ActionDistribution = DiscreteLogitsTensor<2>, Action = DiscreteActionTensor<2>>,
 {
     type ActionContext = EpsilonGreedyPolicyOutput;
-    type PolicyState = EpsilonGreedyPolicyState<B, P>;
+    type PolicyState = EpsilonGreedyPolicyState<P>;
 
     type Observation = P::Observation;
-    type ActionDistribution = DiscreteLogitsTensor<B, 2>;
-    type Action = DiscreteActionTensor<B, 2>;
+    type ActionDistribution = DiscreteLogitsTensor<2>;
+    type Action = DiscreteActionTensor<2>;
 
     fn forward(&mut self, states: Self::Observation) -> Self::ActionDistribution {
         self.inner_policy.forward(states)
@@ -187,9 +175,8 @@ where
             if random::<f64>() > threshold {
                 actions.push(a.clone().float());
             } else {
-                actions.push(
-                    Tensor::<B, 1>::from_floats([random_range(0..2)], &a.device()).unsqueeze(),
-                );
+                actions
+                    .push(Tensor::<1>::from_floats([random_range(0..2)], &a.device()).unsqueeze());
             }
         }
 
@@ -209,7 +196,7 @@ where
         }
     }
 
-    fn load_record(self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+    fn load_record(self, record: <Self::PolicyState as PolicyState>::Record) -> Self {
         let state = self.state().load_record(record);
         let inner_policy = self
             .inner_policy
@@ -220,7 +207,6 @@ where
             eps_end: self.eps_end,
             eps_decay: self.eps_decay,
             step: state.step,
-            _backend: PhantomData,
         }
     }
 }

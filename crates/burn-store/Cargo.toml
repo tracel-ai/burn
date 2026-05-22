@@ -42,7 +42,7 @@ safetensors = ["dep:safetensors"]
 pytorch = ["burn-core/record-item-custom-serde", "zip", "serde", "tar"]
 
 [dependencies]
-burn-core = { workspace = true }
+burn-core = { workspace = true, features = ["extension"] }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
