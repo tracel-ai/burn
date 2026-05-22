@@ -37,6 +37,9 @@ webgpu = ["wgpu", "burn-tensor/webgpu"]
 metal = ["wgpu", "burn-tensor/metal"]
 wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
 cpu = ["burn-tensor/cpu", "cube"]
+# Runs the test suite against a remote `burn-remote` server.
+# At runtime, set `BURN_DEVICE=remote` (and optionally `BURN_REMOTE_ADDRESS=ws://host:port`).
+remote = ["burn-tensor/remote"]
 
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]

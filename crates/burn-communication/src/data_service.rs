@@ -184,10 +184,12 @@ impl<B: Backend, P: Protocol> TensorDataService<B, P> {
             Some(stream) => stream.clone(),
             None => {
                 // Open a new WebSocket connection to the address
-                let stream = P::Client::connect(address.clone(), "data").await;
-
-                let Some(stream) = stream else {
-                    panic!("Failed to connect to data server at {address:?}");
+                let stream = match P::Client::connect(address.clone(), "data").await {
+                    Ok(stream) => stream,
+                    Err(err) => panic!(
+                        "Failed to open remote 'data' channel to {address}: {err:?}. \
+                         Is a `burn-remote` server running at that address?"
+                    ),
                 };
 
                 let stream = Arc::new(Mutex::new(stream));

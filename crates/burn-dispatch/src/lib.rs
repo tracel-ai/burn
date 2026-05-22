@@ -49,6 +49,10 @@ mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
 
+/// Entry points for hosting a remote-execution server.
+#[cfg(feature = "remote-server")]
+pub mod remote_server;
+
 pub use backend::*;
 pub use device::*;
 pub use tensor::*;
@@ -98,6 +102,11 @@ pub mod backends {
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorch;
 
+    #[cfg(feature = "remote")]
+    pub use burn_remote as remote;
+    #[cfg(feature = "remote")]
+    pub use burn_remote::RemoteBackend as Remote;
+
     pub use super::devices::*;
 }
 
@@ -120,4 +129,7 @@ pub mod devices {
     pub use burn_ndarray::NdArrayDevice;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorchDevice;
+
+    #[cfg(feature = "remote")]
+    pub use burn_remote::RemoteDevice;
 }

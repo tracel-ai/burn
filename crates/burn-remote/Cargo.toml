@@ -74,7 +74,7 @@ tokio-util = { workspace = true }
 
 [dev-dependencies]
 burn-flex = { workspace = true, features = ["default"] }
-burn-tensor = { workspace = true, features = ["default"] }
+burn-tensor = { workspace = true, features = ["default", "remote"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]
