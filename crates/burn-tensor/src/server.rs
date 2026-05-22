@@ -13,7 +13,7 @@
 //! ```
 //!
 //! User-defined backends that implement `BackendIr` but aren't part of
-//! `DispatchDevice` should call [`burn_remote::server::start_websocket`]
+//! `DispatchDevice` should call burn_remote::server::start_websocket.
 //! directly with the concrete backend type parameter.
 
 use crate::Device;
