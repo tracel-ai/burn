@@ -1,5 +1,5 @@
 use super::SourceTemplate;
-use crate::{CubeRuntime, element::CubeElement, tensor::CubeTensor};
+use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::{CompilationError, Compiler, CubeTask, prelude::*};
 
 /// Kernel source to create a [source](SourceTemplate)
@@ -81,7 +81,7 @@ macro_rules! kernel_source {
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: CubeRuntime, E: CubeElement>(tensors: &[&CubeTensor<R>]) -> Vec<u32> {
+pub fn build_info<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Vec<u32> {
     let ndims = tensors[0].meta.num_dims();
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * ndims + 1];
     info[0] = ndims as u32;

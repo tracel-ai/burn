@@ -1,13 +1,11 @@
-use burn_core::backend::TensorMetadata;
-use burn_core::tensor::Shape;
+use burn_core::backend::{TensorMetadata, cubecl::dtype_to_storage_type};
+use burn_core::tensor::{DType, Shape};
+use burn_cubecl::ops::numeric::empty_device_dtype;
 use cubecl::prelude::*;
 
 use burn_cubecl::{
-    CubeRuntime, IntElement,
-    ops::{
-        numeric::{empty_device, zeros_client},
-        reshape,
-    },
+    CubeRuntime,
+    ops::{numeric::zeros_client, reshape},
     tensor::CubeTensor,
 };
 
@@ -24,6 +22,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
     scan_bump: &Tensor<Atomic<I>>,
     reduction: &Tensor<Atomic<I>>,
     cube_count_x: usize,
+    #[define(I)] _dtype: StorageType,
 ) {
     let mut broadcast = Shared::<I>::new();
     let mut reduce = SharedMemory::<I>::new(MAX_REDUCE_SIZE);
@@ -223,7 +222,7 @@ fn count_trailing_zeros(num: u32) -> u32 {
 }
 
 /// Compute the prefix sum of a tensor
-pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTensor<R> {
+pub fn prefix_sum<R: CubeRuntime>(input: CubeTensor<R>, int_dtype: DType) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
     let num_elems = input.meta.num_elements();
@@ -231,7 +230,7 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches, numbers]));
-    let out = empty_device::<R, I>(client.clone(), device.clone(), input.shape());
+    let out = empty_device_dtype::<R>(client.clone(), device.clone(), input.shape(), int_dtype);
 
     let cubes = numbers.div_ceil(PART_SIZE);
     let cube_dim = CubeDim::new_1d(CUBE_SIZE as u32);
@@ -241,17 +240,17 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
         client.clone(),
         device.clone(),
         Shape::new([batches]),
-        I::dtype(),
+        int_dtype,
     );
     let reduction = zeros_client::<R>(
         client.clone(),
         device.clone(),
         Shape::new([batches, cubes]),
-        I::dtype(),
+        int_dtype,
     );
 
     unsafe {
-        prefix_sum_kernel::launch_unchecked::<I, R>(
+        prefix_sum_kernel::launch_unchecked::<R>(
             &out.client,
             cube_count,
             cube_dim,
@@ -261,6 +260,7 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
             bump.into_tensor_arg(),
             reduction.into_tensor_arg(),
             cubes,
+            dtype_to_storage_type(int_dtype),
         )
     };
 

@@ -517,7 +517,7 @@ impl Device {
     /// Settings include the default float and integer data types used when creating
     /// tensors on this device.
     ///
-    /// See [`set_default_dtypes`](Device::set_default_dtypes) to configure them.
+    /// See [`configure`](Device::configure) to configure them.
     pub fn settings(&self) -> DeviceSettings {
         burn_backend::get_device_settings::<Dispatch>(self.as_dispatch())
     }
@@ -687,6 +687,26 @@ pub struct DeviceConfig {
     /// Default boolean data type.
     pub bool_dtype: Option<BoolDType>,
     // TODO: maybe quantization, but for now we keep this as device defaults
+}
+
+impl DeviceConfig {
+    /// Sets the default floating-point data type for tensors created on the device.
+    pub fn float_dtype(mut self, dtype: impl Into<FloatDType>) -> Self {
+        self.float_dtype = Some(dtype.into());
+        self
+    }
+
+    /// Sets the default integer data type for tensors created on the device.
+    pub fn int_dtype(mut self, dtype: impl Into<IntDType>) -> Self {
+        self.int_dtype = Some(dtype.into());
+        self
+    }
+
+    /// Sets the default boolean data type storage precision for tensors created on the device.
+    pub fn bool_dtype(mut self, dtype: impl Into<BoolDType>) -> Self {
+        self.bool_dtype = Some(dtype.into());
+        self
+    }
 }
 
 impl From<FloatDType> for DeviceConfig {

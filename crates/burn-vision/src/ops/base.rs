@@ -268,7 +268,7 @@ pub trait BoolVisionOps: Backend {
         let input = read_sync(Self::bool_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::bool_from_data(morph::<Self>(input, kernel, MorphOp::Erode, opts), &device)
+        Self::bool_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -281,7 +281,7 @@ pub trait BoolVisionOps: Backend {
         let input = read_sync(Self::bool_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::bool_from_data(morph::<Self>(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::bool_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
     }
 }
 
@@ -307,7 +307,7 @@ pub trait IntVisionOps: Backend {
         let input = read_sync(Self::int_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::int_from_data(morph::<Self>(input, kernel, MorphOp::Erode, opts), &device)
+        Self::int_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -320,7 +320,7 @@ pub trait IntVisionOps: Backend {
         let input = read_sync(Self::int_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::int_from_data(morph::<Self>(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::int_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
     }
 }
 
@@ -346,7 +346,7 @@ pub trait FloatVisionOps: Backend {
         let input = read_sync(Self::float_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::float_from_data(morph::<Self>(input, kernel, MorphOp::Erode, opts), &device)
+        Self::float_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -359,7 +359,7 @@ pub trait FloatVisionOps: Backend {
         let input = read_sync(Self::float_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::float_from_data(morph::<Self>(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::float_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
     }
 
     /// Perform Non-Maximum Suppression on bounding boxes.

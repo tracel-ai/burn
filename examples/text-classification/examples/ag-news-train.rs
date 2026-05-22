@@ -5,7 +5,7 @@ use burn::tensor::backend::distributed::{DistributedBackend, DistributedConfig, 
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
-    tensor::{DType, Device, Element},
+    tensor::{Device, DeviceConfig, Element},
     train::ExecutionStrategy,
 };
 
@@ -23,9 +23,10 @@ type ElemType = burn::tensor::flex32;
 pub fn launch_multi() {
     let devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
 
-    devices
-        .iter()
-        .for_each(|d| d.set_default_dtypes(ElemType::dtype(), DType::I32).unwrap());
+    devices.iter().for_each(|d| {
+        d.configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+            .unwrap()
+    });
 
     launch(ExecutionStrategy::MultiDevice(
         devices,
@@ -37,9 +38,10 @@ pub fn launch_multi() {
 pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
     let devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
 
-    devices
-        .iter()
-        .for_each(|d| d.set_default_dtypes(ElemType::dtype(), DType::I32).unwrap());
+    devices.iter().for_each(|d| {
+        d.configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+            .unwrap()
+    });
 
     launch(ExecutionStrategy::ddp(
         devices,
@@ -51,7 +53,7 @@ pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
 
 pub fn launch_single(mut device: Device) {
     device
-        .set_default_dtypes(ElemType::dtype(), DType::I32)
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
         .unwrap();
 
     launch(ExecutionStrategy::SingleDevice(device))

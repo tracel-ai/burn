@@ -10,15 +10,12 @@ use burn::{
             grads::Gradients,
             ops::{Backward, Ops, OpsKind, broadcast_shape},
         },
-        wgpu::{BoolElement, CubeBackend, FloatElement, IntElement, WgpuRuntime},
+        wgpu::{CubeBackend, WgpuRuntime},
     },
     tensor::Shape,
 };
 
-impl<F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
-    for Autodiff<CubeBackend<WgpuRuntime, F, I, BT>>
-{
-}
+impl AutodiffBackend for Autodiff<CubeBackend<WgpuRuntime>> {}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //

@@ -3,27 +3,26 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        BoolElement, CubeBackend, CubeTensor, FloatElement, IntElement, KernelSource, SourceKernel,
-        SourceTemplate, WgpuRuntime, build_info, into_contiguous, kernel_source,
+        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        build_info, into_contiguous, kernel_source,
     },
-    tensor::Shape,
+    tensor::{DType, Shape},
 };
 use cubecl::{CubeCount, CubeDim, prelude::KernelId, server::KernelArguments};
 use derive_new::new;
-use std::marker::PhantomData;
 
 // Source the kernel written in WGSL.
 kernel_source!(FusedMatmulAddReluRaw, "./kernel.wgsl");
 
 // Define our kernel type with cube information.
 #[derive(new, Debug)]
-struct FusedMatmulAddRelu<E: FloatElement> {
+struct FusedMatmulAddRelu {
     cube_dim: CubeDim,
-    _elem: PhantomData<E>,
+    dtype: DType,
 }
 
 // Implement the dynamic kernel trait for our kernel type.
-impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
+impl KernelSource for FusedMatmulAddRelu {
     fn source(&self) -> SourceTemplate {
         // Extend our raw kernel with cube size information using the
         // `SourceTemplate` trait.
@@ -31,7 +30,7 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
             .source()
             .register("workgroup_size_x", self.cube_dim.x.to_string())
             .register("workgroup_size_y", self.cube_dim.y.to_string())
-            .register("elem", E::type_name())
+            .register("elem", self.dtype.name())
             .register("int", "i32")
     }
 
@@ -41,14 +40,13 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for CubeBackend<WgpuRuntime, F, I, BT>
-{
+impl Backend for CubeBackend<WgpuRuntime> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
         bias: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
+        let dtype = lhs.dtype;
         // Define cube dim, hardcoded for simplicity.
         let cube_dim = CubeDim { x: 16, y: 16, z: 1 };
 
@@ -77,9 +75,7 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
         let shape_out = Shape::from(shape_out);
 
         // Create a buffer for the output tensor.
-        let buffer = lhs
-            .client
-            .empty(shape_out.num_elements() * core::mem::size_of::<F>());
+        let buffer = lhs.client.empty(shape_out.num_elements() * dtype.size());
 
         // Create the output tensor primitive.
         let output = CubeTensor::new_contiguous(
@@ -87,14 +83,14 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
             lhs.device.clone(),
             shape_out,
             buffer,
-            F::dtype(),
+            dtype,
         );
 
         // Create the kernel.
-        let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
+        let kernel = FusedMatmulAddRelu::new(cube_dim, dtype);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
-        let info = build_info::<_, F>(&[&lhs, &rhs, &output]);
+        let info = build_info(&[&lhs, &rhs, &output]);
         let info_handle = lhs.client.create_from_slice(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
@@ -121,9 +117,7 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
     }
 }
 
-impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for burn_fusion::Fusion<CubeBackend<WgpuRuntime, F, I, BT>>
-{
+impl Backend for burn_fusion::Fusion<CubeBackend<WgpuRuntime>> {
     fn fused_matmul_add_relu(
         _lhs: FloatTensor<Self>,
         _rhs: FloatTensor<Self>,

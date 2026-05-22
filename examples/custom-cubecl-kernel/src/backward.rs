@@ -13,7 +13,7 @@ use burn::{
     },
     tensor::Shape,
 };
-use burn_cubecl::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
+use burn_cubecl::{CubeBackend, CubeRuntime};
 
 impl<R: CubeRuntime> AutodiffBackend for Autodiff<CubeBackend<R>> {}
 

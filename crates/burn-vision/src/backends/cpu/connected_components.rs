@@ -11,7 +11,10 @@ use burn_core::tensor::{
 };
 use ndarray::Array2;
 
-use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, dispatch_int_dtype};
+use crate::{
+    ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, dispatch_bool_dtype,
+    dispatch_int_dtype,
+};
 
 mod spaghetti;
 mod spaghetti_4c;
@@ -22,12 +25,14 @@ pub fn connected_components<B: Backend>(
     out_dtype: IntDType,
 ) -> TensorData {
     let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
-    dispatch_int_dtype!(out_dtype, |I| run::<B, I, NoOp<_>>(
-        img,
-        connectivity,
-        NoOp::default
-    )
-    .0)
+    dispatch_bool_dtype!(img.dtype.into(), |B| {
+        dispatch_int_dtype!(out_dtype, |I| run::<B, I, NoOp<_>>(
+            img,
+            connectivity,
+            NoOp::default
+        )
+        .0)
+    })
 }
 
 pub fn connected_components_with_stats<B: Backend>(
@@ -38,32 +43,34 @@ pub fn connected_components_with_stats<B: Backend>(
 ) -> (TensorData, ConnectedStatsPrimitive<B>) {
     let device = B::bool_device(&img);
     let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
-    dispatch_int_dtype!(out_dtype, |I| {
-        let (labels, stats) =
-            run::<B, I, ConnectedStatsOp<I>>(img, connectivity, ConnectedStatsOp::default);
-        let stats = finalize_stats::<B, I>(&device, stats);
-        (labels, stats)
+    dispatch_bool_dtype!(img.dtype.into(), |BT| {
+        dispatch_int_dtype!(out_dtype, |I| {
+            let (labels, stats) =
+                run::<BT, I, ConnectedStatsOp<I>>(img, connectivity, ConnectedStatsOp::default);
+            let stats = finalize_stats::<B, I>(&device, stats);
+            (labels, stats)
+        })
     })
 }
 
-fn run<B: Backend, I: ElementOrdered, Stats: StatsOp<Label = I>>(
+fn run<B: Element, I: ElementOrdered, Stats: StatsOp<Label = I>>(
     img: TensorData,
     connectivity: Connectivity,
     stats: impl Fn() -> Stats,
 ) -> (TensorData, Stats) {
     let [height, width] = img.shape.dims();
-    let img = img.into_vec::<B::BoolElem>().unwrap();
+    let img = img.into_vec::<B>().unwrap();
 
     let mut stats = stats();
 
     let out = match connectivity {
         Connectivity::Four => {
-            spaghetti_4c::process::<B::BoolElem, UnionFind<_>>(img, height, width, &mut stats)
+            spaghetti_4c::process::<B, UnionFind<_>>(img, height, width, &mut stats)
         }
         Connectivity::Eight => {
             // SAFETY: This is validated by `TensorData`
             let img = unsafe { Array2::from_shape_vec_unchecked((height, width), img) };
-            spaghetti::process::<B::BoolElem, UnionFind<_>>(img, &mut stats)
+            spaghetti::process::<B, UnionFind<_>>(img, &mut stats)
         }
     };
 
