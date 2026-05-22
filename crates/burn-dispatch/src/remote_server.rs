@@ -19,20 +19,22 @@ pub fn start_websocket(device: DispatchDevice, port: u16) {
         DispatchDevice::Cpu(device) => burn_remote::server::start_websocket::<Cpu>(device, port),
         #[cfg(feature = "cuda")]
         DispatchDevice::Cuda(device) => burn_remote::server::start_websocket::<Cuda>(device, port),
-        #[cfg(wgpu_metal)]
+        #[cfg(feature = "metal")]
         DispatchDevice::Metal(device) => {
             burn_remote::server::start_websocket::<Metal>(device, port)
         }
         #[cfg(feature = "rocm")]
         DispatchDevice::Rocm(device) => burn_remote::server::start_websocket::<Rocm>(device, port),
-        #[cfg(wgpu_vulkan)]
+        #[cfg(feature = "vulkan")]
         DispatchDevice::Vulkan(device) => {
             burn_remote::server::start_websocket::<Vulkan>(device, port)
         }
-        #[cfg(wgpu_webgpu)]
-        DispatchDevice::Wgpu(device) => {
+        #[cfg(feature = "vulkan")]
+        DispatchDevice::WebGpu(device) => {
             burn_remote::server::start_websocket::<WebGpu>(device, port)
         }
+        #[cfg(feature = "wgpu")]
+        DispatchDevice::Wgpu(device) => burn_remote::server::start_websocket::<Wgpu>(device, port),
         #[cfg(feature = "flex")]
         DispatchDevice::Flex(device) => burn_remote::server::start_websocket::<Flex>(device, port),
         #[cfg(any(feature = "ndarray", default_backend))]
@@ -67,7 +69,7 @@ pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
         DispatchDevice::Cuda(device) => {
             burn_remote::server::start_websocket_async::<Cuda>(device, port).await
         }
-        #[cfg(wgpu_metal)]
+        #[cfg(feature = "metal")]
         DispatchDevice::Metal(device) => {
             burn_remote::server::start_websocket_async::<Metal>(device, port).await
         }
@@ -75,13 +77,17 @@ pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
         DispatchDevice::Rocm(device) => {
             burn_remote::server::start_websocket_async::<Rocm>(device, port).await
         }
-        #[cfg(wgpu_vulkan)]
+        #[cfg(feature = "vulkan")]
         DispatchDevice::Vulkan(device) => {
             burn_remote::server::start_websocket_async::<Vulkan>(device, port).await
         }
-        #[cfg(wgpu_webgpu)]
-        DispatchDevice::Wgpu(device) => {
+        #[cfg(feature = "webgpu")]
+        DispatchDevice::WebGpu(device) => {
             burn_remote::server::start_websocket_async::<WebGpu>(device, port).await
+        }
+        #[cfg(feature = "wgpu")]
+        DispatchDevice::Wgpu(device) => {
+            burn_remote::server::start_websocket_async::<Wgpu>(device, port).await
         }
         #[cfg(feature = "flex")]
         DispatchDevice::Flex(device) => {

@@ -68,14 +68,14 @@ pub mod backends {
     pub use burn_rocm::Rocm;
     #[cfg(feature = "wgpu")]
     pub use burn_wgpu as wgpu;
-    #[cfg(feature = "wgpu")]
-    pub use burn_wgpu::Wgpu;
     #[cfg(feature = "metal")]
     pub use burn_wgpu::Metal;
     #[cfg(feature = "vulkan")]
     pub use burn_wgpu::Vulkan;
     #[cfg(feature = "webgpu")]
     pub use burn_wgpu::WebGpu;
+    #[cfg(feature = "wgpu")]
+    pub use burn_wgpu::Wgpu;
 
     #[cfg(feature = "flex")]
     pub use burn_flex as flex;
