@@ -15,10 +15,7 @@ use crate::{
     NdArray, cast_to_dtype, cat_with_dtype, execute_with_int_dtype, tensor::NdArrayTensor,
 };
 use crate::{NdArrayDevice, SEED, execute_with_float_out_dtype, execute_with_int_out_dtype, slice};
-use crate::{
-    SharedArray,
-    element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement},
-};
+use crate::{SharedArray, element::ExpElement};
 use crate::{execute_with_float_dtype, ops::grid_sample::grid_sample_2d};
 
 // Workspace crates
@@ -48,12 +45,7 @@ fn round_ties_even_wrapper(x: f64) -> f64 {
     }
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorOps<Self>
-    for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
+impl FloatTensorOps<Self> for NdArray {
     fn float_from_data(data: TensorData, _device: &NdArrayDevice) -> FloatTensor<Self> {
         NdArrayTensor::from_data(data)
     }

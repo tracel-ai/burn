@@ -9,13 +9,6 @@ pub mod tensor {
     /// Device type used by the backend.
     pub type Device<B> = <B as BackendTypes>::Device;
 
-    /// Float element type used by backend.
-    pub type FloatElem<B> = <B as BackendTypes>::FloatElem;
-    /// Integer element type used by backend.
-    pub type IntElem<B> = <B as BackendTypes>::IntElem;
-    /// Boolean element type used by backend.
-    pub type BoolElem<B> = <B as BackendTypes>::BoolElem;
-
     /// Float tensor primitive type used by the backend.
     pub type FloatTensor<B> = <B as BackendTypes>::FloatTensorPrimitive;
     /// Integer tensor primitive type used by the backend.

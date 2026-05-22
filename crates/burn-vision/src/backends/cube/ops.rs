@@ -12,19 +12,13 @@ use burn_core::tensor::{Element, IntDType};
 
 use super::connected_components::hardware_accelerated;
 
-impl<R, F, I, BT> BoolVisionOps for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
     fn connected_components(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R, F, I, BT>(
+        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R>(
             img.clone(),
             ConnectedStatsOptions::none(),
             connectivity,
@@ -54,7 +48,7 @@ where
         IntTensor<Self>,
     ) {
         let device = Self::bool_device(&img);
-        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R, F, I, BT>(
+        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R>(
             img.clone(),
             opts,
             connectivity
@@ -75,30 +69,9 @@ where
     }
 }
 
-impl<R, F, I, BT> IntVisionOps for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
-}
-impl<R, F, I, BT> FloatVisionOps for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
-}
-impl<R, F, I, BT> VisionBackend for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
-}
+impl<R: CubeRuntime> IntVisionOps for CubeBackend<R> {}
+impl<R: CubeRuntime> FloatVisionOps for CubeBackend<R> {}
+impl<R: CubeRuntime> VisionBackend for CubeBackend<R> {}
 
 #[cfg(feature = "fusion")]
 mod fusion {
@@ -106,7 +79,7 @@ mod fusion {
     use burn_core::tensor::Shape;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
-        stream::{StreamId, Operation},
+        stream::{Operation, StreamId},
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr, OperationOutput, TensorIr};
 

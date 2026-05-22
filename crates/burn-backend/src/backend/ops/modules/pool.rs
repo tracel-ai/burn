@@ -1,6 +1,6 @@
 use crate::tensor::{FloatTensor, IntTensor};
 use crate::{Backend, TensorMetadata};
-use burn_std::Shape;
+use burn_std::{IntDType, Shape};
 
 use super::{MaxPool1dBackward, MaxPool1dWithIndices};
 
@@ -118,6 +118,7 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
     padding: usize,
     dilation: usize,
     ceil_mode: bool,
+    indices_dtype: IntDType,
 ) -> MaxPool1dWithIndices<B> {
     let [batch_size, channels, length] = x.shape().dims();
 
@@ -129,6 +130,7 @@ pub(crate) fn max_pool1d_with_indices_from_2d<B: Backend>(
         [0, padding],
         [1, dilation],
         ceil_mode,
+        indices_dtype,
     );
     let [batch_size, channels, _, length] = x.output.shape().dims();
     let output = B::float_reshape(x.output, Shape::from([batch_size, channels, length]));

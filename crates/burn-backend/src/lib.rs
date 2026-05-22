@@ -49,33 +49,74 @@ pub mod quantization;
 #[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {
     use crate::backend::DeviceOps;
+    use burn_std::{BoolStore, DType, DeviceSettings};
     use cubecl::wgpu::WgpuDevice;
 
-    impl DeviceOps for WgpuDevice {}
+    // TODO: vulkan/metal features
+    impl DeviceOps for WgpuDevice {
+        fn defaults(&self) -> DeviceSettings {
+            DeviceSettings::new(
+                DType::F32,
+                DType::I32,
+                DType::Bool(BoolStore::U32),
+                Default::default(),
+            )
+        }
+    }
 }
 
 #[cfg(feature = "cubecl-cuda")]
 mod cube_cuda {
     use crate::backend::DeviceOps;
+    use burn_std::{BoolStore, DType, DeviceSettings};
     use cubecl::cuda::CudaDevice;
 
-    impl DeviceOps for CudaDevice {}
+    impl DeviceOps for CudaDevice {
+        fn defaults(&self) -> DeviceSettings {
+            DeviceSettings::new(
+                DType::F32,
+                DType::I32,
+                DType::Bool(BoolStore::U8),
+                Default::default(),
+            )
+        }
+    }
 }
 
 #[cfg(feature = "cubecl-cpu")]
 mod cube_cpu {
     use crate::backend::DeviceOps;
+    use burn_std::{BoolStore, DType, DeviceSettings};
     use cubecl::cpu::CpuDevice;
 
-    impl DeviceOps for CpuDevice {}
+    impl DeviceOps for CpuDevice {
+        fn defaults(&self) -> DeviceSettings {
+            DeviceSettings::new(
+                DType::F32,
+                DType::I32,
+                DType::Bool(BoolStore::U8),
+                Default::default(),
+            )
+        }
+    }
 }
 
 #[cfg(feature = "cubecl-hip")]
 mod cube_hip {
     use crate::backend::DeviceOps;
+    use burn_std::{BoolStore, DType, DeviceSettings};
     use cubecl::hip::AmdDevice;
 
-    impl DeviceOps for AmdDevice {}
+    impl DeviceOps for AmdDevice {
+        fn defaults(&self) -> DeviceSettings {
+            DeviceSettings::new(
+                DType::F32,
+                DType::I32,
+                DType::Bool(BoolStore::U8),
+                Default::default(),
+            )
+        }
+    }
 }
 
 /// Convenience macro to link to the `burn-tensor` docs for this crate version.

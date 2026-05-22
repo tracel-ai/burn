@@ -20,12 +20,6 @@ impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
     type Bridge = RemoteBridge<C>;
     type Client = RemoteClient;
 
-    type FloatElem = f32;
-
-    type IntElem = i32;
-
-    type BoolElem = u32;
-
     fn name(device: &Self::Device) -> String {
         format!("remote-{device:?}")
     }

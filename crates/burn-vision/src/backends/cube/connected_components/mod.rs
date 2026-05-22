@@ -14,16 +14,10 @@ pub use hardware_accelerated::*;
 
 use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive};
 
-pub(crate) fn stats_from_opts<R, F, I, BT>(
+pub(crate) fn stats_from_opts<R: CubeRuntime>(
     l: CubeTensor<R>,
     opts: ConnectedStatsOptions,
-) -> ConnectedStatsPrimitive<CubeBackend<R, F, I, BT>>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+) -> ConnectedStatsPrimitive<CubeBackend<R>> {
     let [height, width] = l.meta.shape().dims();
     let shape = Shape::new([height * width]);
     let zeros = || {

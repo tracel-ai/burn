@@ -8,4 +8,4 @@ use crate::{
     element::{FloatCandleElement, IntCandleElement},
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> TransactionOps<Self> for Candle<F, I> {}
+impl TransactionOps<Self> for Candle {}

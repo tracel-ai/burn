@@ -1,11 +1,9 @@
-use std::marker::PhantomData;
-
 use crate::IntoKind;
 
 use super::TchTensor;
-use super::element::TchElement;
 use burn_backend::backend::{Backend, BackendTypes, DeviceId, DeviceOps, ExecutionError};
 use burn_backend::ops::IntTensorOps;
+use burn_backend::{BoolStore, DType, DeviceSettings};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `tch` backend.
@@ -90,7 +88,16 @@ impl burn_backend::Device for LibTorchDevice {
     }
 }
 
-impl DeviceOps for LibTorchDevice {}
+impl DeviceOps for LibTorchDevice {
+    fn defaults(&self) -> DeviceSettings {
+        DeviceSettings::new(
+            DType::F32,
+            DType::I64,
+            DType::Bool(BoolStore::Native),
+            Default::default(),
+        )
+    }
+}
 
 /// Tensor backend that uses `LibTorch` with the [tch] crate for executing tensor operations.
 ///
@@ -102,26 +109,18 @@ impl DeviceOps for LibTorchDevice {}
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32> {
-    _e: PhantomData<E>,
-}
+pub struct LibTorch;
 
-impl<E: TchElement> BackendTypes for LibTorch<E> {
+impl BackendTypes for LibTorch {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
-    type FloatElem = E;
-
     type IntTensorPrimitive = TchTensor;
-    type IntElem = i64;
-
     type BoolTensorPrimitive = TchTensor;
-    type BoolElem = bool;
-
     type QuantizedTensorPrimitive = TchTensor;
 }
 
-impl<E: TchElement> Backend for LibTorch<E> {
+impl Backend for LibTorch {
     fn seed(_device: &Self::Device, seed: u64) {
         tch::manual_seed(seed as i64);
     }
@@ -147,11 +146,12 @@ impl<E: TchElement> Backend for LibTorch<E> {
                 tch::Cuda::synchronize(*index as i64);
             }
             _ => {
+                let int_dtype = device.defaults().int_dtype;
                 // When there is no explicit way to synchronize, we write and read one value to sync
                 burn_backend::read_sync(Self::int_into_data(Self::int_zeros(
                     [1].into(),
                     device,
-                    <Self::IntElem as burn_backend::Element>::dtype().into(),
+                    int_dtype.into(),
                 )))
                 .unwrap();
             }

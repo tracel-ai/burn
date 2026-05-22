@@ -44,13 +44,13 @@ fn make_matrix(rows: usize, cols: usize) -> Tensor<2> {
 // caller can fall back to a no-op bench instead of taking down the whole binary.
 fn make_qtensor(size: usize) -> Option<Tensor<1>> {
     common::try_setup(|| {
-        make_tensor(size).quantize_dynamic(&Device::default().default_quant_scheme())
+        make_tensor(size).quantize_dynamic(&Device::default().settings().quantization.scheme)
     })
 }
 
 fn make_qmatrix(rows: usize, cols: usize) -> Option<Tensor<2>> {
     common::try_setup(|| {
-        make_matrix(rows, cols).quantize_dynamic(&Device::default().default_quant_scheme())
+        make_matrix(rows, cols).quantize_dynamic(&Device::default().settings().quantization.scheme)
     })
 }
 
@@ -66,19 +66,19 @@ macro_rules! bench_backend {
 
                 #[divan::bench]
                 fn small(bencher: Bencher) {
-                    let scheme = Device::default().default_quant_scheme();
+                    let scheme = Device::default().settings().quantization.scheme;
                     bencher.bench_synced(|| make_tensor(SMALL).quantize_dynamic(&scheme));
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
-                    let scheme = Device::default().default_quant_scheme();
+                    let scheme = Device::default().settings().quantization.scheme;
                     bencher.bench_synced(|| make_tensor(MEDIUM).quantize_dynamic(&scheme));
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
-                    let scheme = Device::default().default_quant_scheme();
+                    let scheme = Device::default().settings().quantization.scheme;
                     bencher.bench_synced(|| make_tensor(LARGE).quantize_dynamic(&scheme));
                 }
             }

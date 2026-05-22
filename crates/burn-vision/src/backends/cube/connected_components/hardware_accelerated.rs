@@ -456,7 +456,7 @@ fn compact_stats<I: Int>(
 }
 
 #[allow(clippy::type_complexity)]
-pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement>(
+pub fn hardware_accelerated<R: CubeRuntime>(
     img: CubeTensor<R>,
     stats_opt: ConnectedStatsOptions,
     connectivity: Connectivity,
@@ -538,7 +538,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
         (rows as u32).div_ceil(cube_dim.y),
     );
 
-    let mut stats = stats_from_opts::<R, F, I, BT>(labels.clone(), stats_opt);
+    let mut stats = stats_from_opts::<R>(labels.clone(), stats_opt);
 
     if stats_opt == ConnectedStatsOptions::none() {
         unsafe {
@@ -568,7 +568,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             )
         };
         if stats_opt.compact_labels {
-            let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.5);
+            let max_label = CubeBackend::<R>::int_max(stats.5);
             let max_label = into_data_sync::<R>(max_label);
             let max_label = ToElement::to_usize(&max_label.as_slice::<I>().unwrap()[0]);
             let sliced = kernel::slice::<R>(

@@ -1,7 +1,7 @@
 use crate::CubeRuntime;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_backend::quantization::QuantScheme;
-use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
+use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
@@ -108,19 +108,6 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
 
     fn rank(&self) -> usize {
         self.meta.rank()
-    }
-}
-
-impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
-    fn scheme(&self) -> &QuantScheme {
-        if let DType::QFloat(scheme) = &self.dtype {
-            scheme
-        } else {
-            panic!(
-                "Quantization scheme is not valid for dtype {:?}",
-                self.dtype,
-            )
-        }
     }
 }
 

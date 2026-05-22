@@ -1,8 +1,6 @@
 use crate::backends::*;
 
-use burn_backend::{
-    Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
-};
+use burn_backend::{Backend, DType, Shape, TensorMetadata};
 
 use crate::CheckpointingStrategy;
 #[cfg(feature = "autodiff")]
@@ -150,18 +148,6 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
     }
 }
 
-impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
-    fn scheme(&self) -> &QuantScheme {
-        match self {
-            BackendTensor::Quantized(tensor) => tensor.scheme(),
-            _ => panic!(
-                "Quantization scheme is not valid for dtype {:?}",
-                self.dtype(),
-            ),
-        }
-    }
-}
-
 /// A tensor that can dispatch operations to any enabled backend at runtime.
 ///
 /// When the `autodiff` feature is enabled, tensors may carry a checkpointing
@@ -205,20 +191,14 @@ pub enum DispatchTensorKind {
     #[cfg(feature = "cuda")]
     Cuda(BackendTensor<Cuda>),
 
-    /// The [Metal backend](Metal) tensor.
-    #[cfg(wgpu_metal)]
-    Metal(BackendTensor<Metal>),
-
     /// The [ROCm backend](Rocm) tensor.
     #[cfg(feature = "rocm")]
     Rocm(BackendTensor<Rocm>),
 
-    /// The [Vulkan backend](Vulkan) tensor.
-    #[cfg(wgpu_vulkan)]
-    Vulkan(BackendTensor<Vulkan>),
-
-    /// The [WebGPU backend](Wgpu) tensor.
-    #[cfg(wgpu_webgpu)]
+    #[cfg_attr(wgpu_webgpu, doc = r#"The [WebGPU backend](Wgpu) tensor"#)]
+    #[cfg_attr(wgpu_vulkan, doc = r#"The [Vulkan backend](Vulkan) tensor"#)]
+    #[cfg_attr(wgpu_metal, doc = r#"The [Metal backend](Metal) tensor"#)]
+    #[cfg(feature = "wgpu")]
     Wgpu(BackendTensor<Wgpu>),
 
     /// The [Flex backend](Flex) tensor.
@@ -245,13 +225,9 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cpu(tensor) => tensor.dtype(),
             #[cfg(feature = "cuda")]
             Self::Cuda(tensor) => tensor.dtype(),
-            #[cfg(wgpu_metal)]
-            Self::Metal(tensor) => tensor.dtype(),
             #[cfg(feature = "rocm")]
             Self::Rocm(tensor) => tensor.dtype(),
-            #[cfg(wgpu_vulkan)]
-            Self::Vulkan(tensor) => tensor.dtype(),
-            #[cfg(wgpu_webgpu)]
+            #[cfg(feature = "wgpu")]
             Self::Wgpu(tensor) => tensor.dtype(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.dtype(),
@@ -271,12 +247,8 @@ impl TensorMetadata for DispatchTensorKind {
             #[cfg(feature = "cuda")]
             Self::Cuda(tensor) => tensor.shape(),
             #[cfg(wgpu_metal)]
-            Self::Metal(tensor) => tensor.shape(),
-            #[cfg(feature = "rocm")]
             Self::Rocm(tensor) => tensor.shape(),
-            #[cfg(wgpu_vulkan)]
-            Self::Vulkan(tensor) => tensor.shape(),
-            #[cfg(wgpu_webgpu)]
+            #[cfg(feature = "wgpu")]
             Self::Wgpu(tensor) => tensor.shape(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.shape(),
@@ -290,33 +262,6 @@ impl TensorMetadata for DispatchTensorKind {
     }
 }
 
-impl QTensorPrimitive for DispatchTensorKind {
-    fn scheme(&self) -> &QuantScheme {
-        match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(tensor) => tensor.scheme(),
-            #[cfg(wgpu_metal)]
-            Self::Metal(tensor) => tensor.scheme(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(tensor) => tensor.scheme(),
-            #[cfg(wgpu_vulkan)]
-            Self::Vulkan(tensor) => tensor.scheme(),
-            #[cfg(wgpu_webgpu)]
-            Self::Wgpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "flex")]
-            Self::Flex(tensor) => tensor.scheme(),
-            #[cfg(any(feature = "ndarray", default_backend))]
-            Self::NdArray(tensor) => tensor.scheme(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(tensor) => tensor.scheme(),
-            #[cfg(feature = "autodiff")]
-            Self::Autodiff(tensor) => tensor.scheme(),
-        }
-    }
-}
-
 impl TensorMetadata for DispatchTensor {
     fn dtype(&self) -> DType {
         self.kind.dtype()
@@ -324,11 +269,5 @@ impl TensorMetadata for DispatchTensor {
 
     fn shape(&self) -> Shape {
         self.kind.shape()
-    }
-}
-
-impl QTensorPrimitive for DispatchTensor {
-    fn scheme(&self) -> &QuantScheme {
-        self.kind.scheme()
     }
 }

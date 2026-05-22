@@ -1,4 +1,6 @@
+use burn_backend::DeviceOps;
 pub use burn_dispatch::devices::*;
+use burn_std::BoolDType;
 pub use burn_std::{
     DeviceError, DeviceSettings, ExecutionError, backtrace::BackTrace, device::DeviceId,
 };
@@ -9,7 +11,6 @@ use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::FloatDType;
 use burn_std::IntDType;
-use burn_std::QuantScheme;
 
 use alloc::vec::Vec;
 use enumset::EnumSet;
@@ -237,12 +238,6 @@ impl Device {
         Dispatch::ad_enabled(&self.dispatch)
     }
 
-    /// Returns the default [quantization scheme](QuantScheme) for this device.
-    pub fn default_quant_scheme(&self) -> QuantScheme {
-        // TODO: maybe in device settings?
-        Dispatch::default_quant_scheme(&self.dispatch)
-    }
-
     /// Sets the current allocation mode to persistent.
     pub fn memory_persistent_allocations<
         Output: Send,
@@ -266,7 +261,7 @@ impl Device {
         burn_backend::get_device_settings::<Dispatch>(&self.dispatch)
     }
 
-    /// Sets the default float and integer data types for tensors created on this device.
+    /// Configures the [settings](DeviceSettings) for this device.
     ///
     /// This configures the dtype used when no explicit type is specified at tensor
     /// creation time.
@@ -287,19 +282,37 @@ impl Device {
     /// ```rust,ignore
     /// let device = Default::default();
     ///
-    /// device.set_default_dtypes(DType::F16, DType::I32)?;
+    /// device.configure((FloatDType::F16, IntDType::I32))?
     ///
     /// // Float tensors will now use F16
     /// let floats = Tensor::<2>::zeros([2, 3], &device);
     /// // Int tensors will now use I32
     /// let ints = Tensor::<2, Int>::zeros([2, 3], &device);
     /// ```
-    pub fn set_default_dtypes(
-        &mut self,
-        float_dtype: impl Into<FloatDType>,
-        int_dtype: impl Into<IntDType>,
-    ) -> Result<(), DeviceError> {
-        burn_backend::set_default_dtypes::<Dispatch>(&self.dispatch, float_dtype, int_dtype)
+    pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {
+        let mut config = config.into();
+
+        let defaults = self.dispatch.defaults();
+
+        let float_dtype = config
+            .float_dtype
+            .take()
+            .unwrap_or_else(|| defaults.float_dtype);
+        let int_dtype = config
+            .int_dtype
+            .take()
+            .unwrap_or_else(|| defaults.int_dtype);
+        let bool_dtype = config
+            .bool_dtype
+            .take()
+            .unwrap_or_else(|| defaults.bool_dtype);
+
+        burn_backend::set_default_dtypes::<Dispatch>(
+            &self.dispatch,
+            float_dtype,
+            int_dtype,
+            bool_dtype,
+        )
     }
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
@@ -369,4 +382,50 @@ pub enum DeviceType {
     NdArray,
     #[cfg(feature = "tch")]
     LibTorch,
+}
+
+/// Configuration options used to initialize a device.
+///
+/// Unlike [`DeviceSettings`], this type represents partial user-provided
+/// configuration and does not require all settings to be specified.
+///
+/// Any unspecified options will be resolved to device-specific defaults
+/// when the device is initialized.
+///
+/// Use [`Device::configure`] to apply this configuration to a device.
+#[derive(new, Debug, Clone, Default)]
+pub struct DeviceConfig {
+    /// Default floating-point data type.
+    pub float_dtype: Option<FloatDType>,
+
+    /// Default integer data type.
+    pub int_dtype: Option<IntDType>,
+
+    /// Default boolean data type.
+    pub bool_dtype: Option<BoolDType>,
+    // TODO: maybe quantization, but for now we keep this as device defaults
+}
+
+impl From<FloatDType> for DeviceConfig {
+    fn from(value: FloatDType) -> Self {
+        DeviceConfig::new(Some(value), None, None)
+    }
+}
+
+impl From<IntDType> for DeviceConfig {
+    fn from(value: IntDType) -> Self {
+        DeviceConfig::new(None, Some(value), None)
+    }
+}
+
+impl From<BoolDType> for DeviceConfig {
+    fn from(value: BoolDType) -> Self {
+        DeviceConfig::new(None, None, Some(value))
+    }
+}
+
+impl From<(FloatDType, IntDType)> for DeviceConfig {
+    fn from(value: (FloatDType, IntDType)) -> Self {
+        DeviceConfig::new(Some(value.0), Some(value.1), None)
+    }
 }

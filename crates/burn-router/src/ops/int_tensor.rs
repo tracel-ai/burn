@@ -3,10 +3,8 @@ use burn_backend::backend::ExecutionError;
 use burn_std::{BoolDType, FloatDType};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
-use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntElem, IntTensor};
-use burn_backend::{
-    Distribution, Element, IntDType, Scalar, Shape, Slice, TensorData, ops::IntTensorOps,
-};
+use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
+use burn_backend::{Distribution, IntDType, Scalar, Shape, Slice, TensorData, ops::IntTensorOps};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr,
     GatherNdOpIr, GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr,
@@ -27,11 +25,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
-        Ok(tensor
-            .into_data()
-            .await?
-            // Since underlying backends can have different data types, we convert to the current elem
-            .convert::<IntElem<Self>>())
+        Ok(tensor.into_data().await?)
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
@@ -823,13 +817,11 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         tensor: IntTensor<Self>,
         dim: usize,
     ) -> (IntTensor<Self>, IntTensor<Self>) {
+        let dtype = tensor.dtype;
         let client = tensor.client.clone();
-        let desc = ReduceDimWithIndicesOpIr::create(
-            tensor.into_ir(),
-            dim,
-            IntElem::<Self>::dtype(),
-            || client.create_empty_handle(),
-        );
+        let desc = ReduceDimWithIndicesOpIr::create(tensor.into_ir(), dim, dtype, || {
+            client.create_empty_handle()
+        });
 
         client
             .register(OperationIr::NumericInt(
@@ -892,13 +884,11 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         tensor: IntTensor<Self>,
         dim: usize,
     ) -> (IntTensor<Self>, IntTensor<Self>) {
+        let dtype = tensor.dtype;
         let client = tensor.client.clone();
-        let desc = ReduceDimWithIndicesOpIr::create(
-            tensor.into_ir(),
-            dim,
-            IntElem::<Self>::dtype(),
-            || client.create_empty_handle(),
-        );
+        let desc = ReduceDimWithIndicesOpIr::create(tensor.into_ir(), dim, dtype, || {
+            client.create_empty_handle()
+        });
 
         client
             .register(OperationIr::NumericInt(

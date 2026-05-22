@@ -1,5 +1,5 @@
 use burn_backend::{
-    AllocationProperty, DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
+    AllocationProperty, DType, Element, Shape, TensorData, TensorMetadata,
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 use burn_std::BoolStore;
@@ -738,16 +738,6 @@ impl NdArrayQTensor {
     }
 }
 
-impl QTensorPrimitive for NdArrayQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
-    }
-
-    fn default_scheme() -> QuantScheme {
-        QuantScheme::default().with_store(burn_backend::quantization::QuantStore::Native)
-    }
-}
-
 impl TensorMetadata for NdArrayQTensor {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
@@ -833,7 +823,7 @@ mod tests {
 
     #[test]
     fn should_support_qtensor_strategy() {
-        type B = NdArray<f32, i64, i8>;
+        type B = NdArray;
         let scale: f32 = 0.009_019_608;
         let device = Default::default();
 
@@ -846,7 +836,7 @@ mod tests {
         };
         let qtensor: NdArrayQTensor = B::quantize(tensor, &scheme, qparams);
 
-        assert_eq!(qtensor.scheme(), &scheme);
+        assert_eq!(qtensor.scheme(), scheme);
         assert_eq!(
             qtensor.strategy(),
             QuantizationStrategy::PerTensorSymmetric(SymmetricQuantization::init(

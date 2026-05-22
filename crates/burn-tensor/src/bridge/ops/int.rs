@@ -160,31 +160,39 @@ impl BasicOps for Int {
     }
 
     fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_equal(lhs.into(), rhs.into(), out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Int(Dispatch::int_equal(
+            lhs.into(),
+            rhs.into(),
+            settings.bool_dtype,
+        ))
     }
 
     fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_not_equal(lhs.into(), rhs.into(), out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Int(Dispatch::int_not_equal(
+            lhs.into(),
+            rhs.into(),
+            settings.bool_dtype,
+        ))
     }
 
     fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_equal_elem(lhs.into(), rhs, out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Int(Dispatch::int_equal_elem(
+            lhs.into(),
+            rhs,
+            settings.bool_dtype,
+        ))
     }
 
     fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_not_equal_elem(lhs.into(), rhs, out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Int(Dispatch::int_not_equal_elem(
+            lhs.into(),
+            rhs,
+            settings.bool_dtype,
+        ))
     }
 
     fn cat(vectors: Vec<BridgeTensor>, dim: usize) -> BridgeTensor {
@@ -195,31 +203,31 @@ impl BasicOps for Int {
     }
 
     fn any(tensor: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(tensor.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_any(tensor.into(), out_dtype))
+        let settings = tensor.device_settings();
+        BridgeTensor::Int(Dispatch::int_any(tensor.into(), settings.bool_dtype))
     }
 
     fn any_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(tensor.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_any_dim(tensor.into(), dim, out_dtype))
+        let settings = tensor.device_settings();
+        BridgeTensor::Int(Dispatch::int_any_dim(
+            tensor.into(),
+            dim,
+            settings.bool_dtype,
+        ))
     }
 
     fn all(tensor: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(tensor.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_all(tensor.into(), out_dtype))
+        let settings = tensor.device_settings();
+        BridgeTensor::Int(Dispatch::int_all(tensor.into(), settings.bool_dtype))
     }
 
     fn all_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(tensor.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_all_dim(tensor.into(), dim, out_dtype))
+        let settings = tensor.device_settings();
+        BridgeTensor::Int(Dispatch::int_all_dim(
+            tensor.into(),
+            dim,
+            settings.bool_dtype,
+        ))
     }
 
     fn permute(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
@@ -372,63 +380,75 @@ impl Ordered for Int {
     }
 
     fn greater(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Int(Dispatch::int_greater(lhs.into(), rhs.into(), out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Int(Dispatch::int_greater(
+            lhs.into(),
+            rhs.into(),
+            settings.bool_dtype,
+        ))
     }
 
     fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Bool(Dispatch::int_greater_elem(lhs.into(), rhs, out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Bool(Dispatch::int_greater_elem(
+            lhs.into(),
+            rhs,
+            settings.bool_dtype,
+        ))
     }
 
     fn greater_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
+        let settings = lhs.device_settings();
         BridgeTensor::Bool(Dispatch::int_greater_equal(
             lhs.into(),
             rhs.into(),
-            out_dtype,
+            settings.bool_dtype,
         ))
     }
 
     fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Bool(Dispatch::int_greater_equal_elem(lhs.into(), rhs, out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Bool(Dispatch::int_greater_equal_elem(
+            lhs.into(),
+            rhs,
+            settings.bool_dtype,
+        ))
     }
 
     fn lower(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Bool(Dispatch::int_lower(lhs.into(), rhs.into(), out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Bool(Dispatch::int_lower(
+            lhs.into(),
+            rhs.into(),
+            settings.bool_dtype,
+        ))
     }
 
     fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Bool(Dispatch::int_lower_elem(lhs.into(), rhs, out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Bool(Dispatch::int_lower_elem(
+            lhs.into(),
+            rhs,
+            settings.bool_dtype,
+        ))
     }
 
     fn lower_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Bool(Dispatch::int_lower_equal(lhs.into(), rhs.into(), out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Bool(Dispatch::int_lower_equal(
+            lhs.into(),
+            rhs.into(),
+            settings.bool_dtype,
+        ))
     }
 
     fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let out_dtype = Dispatch::int_device(lhs.as_dispatch())
-            .settings()
-            .bool_dtype;
-        BridgeTensor::Bool(Dispatch::int_lower_equal_elem(lhs.into(), rhs, out_dtype))
+        let settings = lhs.device_settings();
+        BridgeTensor::Bool(Dispatch::int_lower_equal_elem(
+            lhs.into(),
+            rhs,
+            settings.bool_dtype,
+        ))
     }
 
     fn argmax(tensor: BridgeTensor, dim: usize) -> BridgeTensor {

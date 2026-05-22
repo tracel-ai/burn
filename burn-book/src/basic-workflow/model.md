@@ -143,8 +143,7 @@ There are two major things going on in this code sample.
 
    ```rust, ignore
    // Choose from any of the supported backends.
-   // type Backend = Candle<f32, i64>;
-   // type Backend = LibTorch<f32>;
+   // type Backend = Cuda;
    // type Backend = Flex;
    type Backend = Wgpu;
 

@@ -1,13 +1,4 @@
-use crate::{
-    FloatNdArrayElement, NdArray, NdArrayTensor, SharedArray,
-    element::{IntNdArrayElement, QuantElement},
-};
+use crate::NdArray;
 use burn_backend::ops::TransactionOps;
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> TransactionOps<Self>
-    for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
-}
+impl TransactionOps<Self> for NdArray {}

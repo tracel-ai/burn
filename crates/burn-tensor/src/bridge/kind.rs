@@ -1,6 +1,10 @@
 use alloc::vec::Vec;
-use burn_backend::{TensorMetadata, TensorPrimitive};
+use burn_backend::{
+    TensorMetadata, TensorPrimitive, get_device_settings,
+    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
+};
 use burn_dispatch::{Dispatch, DispatchTensor};
+use burn_std::DeviceSettings;
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -145,6 +149,17 @@ impl BridgeTensor {
             BridgeTensor::QFloat(tensor) => TensorPrimitive::<Dispatch>::QFloat(tensor).tensor(),
             _ => panic!("Should be Float primitive kind"),
         }
+    }
+
+    pub(crate) fn device_settings(&self) -> DeviceSettings {
+        let device = match self {
+            BridgeTensor::Bool(tensor) => Dispatch::bool_device(tensor),
+            BridgeTensor::Int(tensor) => Dispatch::int_device(tensor),
+            BridgeTensor::Float(tensor) => Dispatch::float_device(tensor),
+            BridgeTensor::QFloat(tensor) => Dispatch::q_device(tensor),
+        };
+
+        get_device_settings::<Dispatch>(&device)
     }
 }
 

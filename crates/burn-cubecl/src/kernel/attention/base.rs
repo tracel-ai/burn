@@ -73,7 +73,7 @@ pub fn attention<R: CubeRuntime>(
             options,
             launch::Strategy::Unit(launch::BlueprintStrategy::Inferred(())),
         ),
-        AttentionStrategy::Fallback => Ok(attention_fallback::<CubeBackend<R, f32, i32, u8>>(
+        AttentionStrategy::Fallback => Ok(attention_fallback::<CubeBackend<R>>(
             query, key, value, mask, attn_bias, options,
         )),
         #[cfg(feature = "autotune")]

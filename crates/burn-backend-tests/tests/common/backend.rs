@@ -1,3 +1,4 @@
+use burn_tensor::{Element, FloatDType, IntDType};
 use ctor::ctor;
 
 // Re-export
@@ -7,10 +8,10 @@ use super::{FloatElem, IntElem};
 fn init_device_settings() {
     let mut device = burn_tensor::Device::default();
     device
-        .set_default_dtypes(
-            <FloatElem as burn_tensor::Element>::dtype(),
-            <IntElem as burn_tensor::Element>::dtype(),
-        )
+        .configure((
+            FloatDType::from(<FloatElem as Element>::dtype()),
+            IntDType::from(<IntElem as Element>::dtype()),
+        ))
         .unwrap();
 }
 

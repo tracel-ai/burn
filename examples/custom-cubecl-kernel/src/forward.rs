@@ -9,9 +9,7 @@ use burn_cubecl::{
 use cubecl::{CubeCount, CubeDim};
 
 /// Implement our custom backend trait for the generic `CubeBackend`.
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> Backend for CubeBackend<R> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -81,9 +79,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for burn_fusion::Fusion<CubeBackend<R, F, I, BT>>
-{
+impl<R: CubeRuntime> Backend for burn_fusion::Fusion<CubeBackend<R>> {
     fn fused_matmul_add_relu(
         _lhs: FloatTensor<Self>,
         _rhs: FloatTensor<Self>,

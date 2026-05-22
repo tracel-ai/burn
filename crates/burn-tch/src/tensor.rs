@@ -91,12 +91,6 @@ impl TensorMetadata for TchTensor {
     }
 }
 
-impl burn_backend::QTensorPrimitive for TchTensor {
-    fn scheme(&self) -> &burn_backend::quantization::QuantScheme {
-        unimplemented!("Quantization is not supported")
-    }
-}
-
 impl core::fmt::Display for TchTensor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.tensor)
@@ -442,7 +436,7 @@ mod tests {
     use burn_backend::ops::FloatTensorOps;
     use burn_backend::{Backend, quantization::QuantScheme, read_sync};
 
-    type B = crate::LibTorch<f32>;
+    type B = crate::LibTorch;
 
     #[test]
     fn should_have_bf16_kind() {

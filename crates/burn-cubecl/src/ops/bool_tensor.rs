@@ -1,5 +1,5 @@
 use crate::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
+    CubeBackend, CubeRuntime,
     element::BoolElement,
     kernel::{self, AndOp, OrOp},
 };
@@ -15,13 +15,7 @@ use std::ops::Range;
 
 use super::{expand, numeric, permute, unfold};
 
-impl<R, F, I, BT> BoolTensorOps<Self> for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         super::empty(shape, device, dtype.into())
     }

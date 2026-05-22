@@ -1,8 +1,8 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
-use crate::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::{Backend, Distribution, TensorData, TensorMetadata, element::ElementConversion};
+use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
+use crate::{Backend, Distribution, TensorData, TensorMetadata};
 use crate::{ExecutionError, Scalar, get_device_settings};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
@@ -1186,10 +1186,7 @@ pub trait IntTensorOps<B: Backend> {
         device: &Device<B>,
         dtype: IntDType,
     ) -> IntTensor<B> {
-        let value = range
-            .step_by(step)
-            .map(|i| i.elem())
-            .collect::<Vec<IntElem<B>>>();
+        let value = range.step_by(step).collect::<Vec<_>>();
         let shape = Shape::new([value.len()]);
         let data = TensorData::new(value, shape).convert_dtype(dtype.into());
         B::int_from_data(data, device)
