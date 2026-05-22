@@ -9,7 +9,7 @@ use crate::{Interrupter, LearnerSummary};
 use ratatui::{
     Terminal,
     crossterm::{
-        event::{self, Event, KeyCode},
+        event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
         execute,
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
@@ -273,7 +273,7 @@ impl TuiMetricsRenderer {
         kill_signal: Sender<()>,
     ) -> Self {
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen).unwrap();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
         enable_raw_mode().unwrap();
         let terminal = Terminal::new(CrosstermBackend::new(stdout)).unwrap();
 
@@ -284,7 +284,7 @@ impl TuiMetricsRenderer {
             let previous_panic_hook = previous_panic_hook.clone();
             move |panic_info| {
                 let _ = disable_raw_mode();
-                let _ = execute!(io::stdout(), LeaveAlternateScreen);
+                let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
                 previous_panic_hook(panic_info);
             }
         }));
@@ -393,6 +393,9 @@ impl TuiMetricsRenderer {
 
             if self.popup.is_empty() {
                 self.metrics_numeric.on_event(&event);
+                if let Some(clicked) = self.metrics_text.on_event(&event) {
+                    self.metrics_numeric.select_by_name(&clicked);
+                }
 
                 if let Event::Key(key) = event
                     && let KeyCode::Char('q') = key.code
@@ -460,6 +463,16 @@ impl TuiMetricsRenderer {
                         self.draw().ok();
                     }
 
+                    Ok(event @ Event::Mouse(_)) => {
+                        if self.popup.is_empty() {
+                            self.metrics_numeric.on_event(&event);
+                            if let Some(clicked) = self.metrics_text.on_event(&event) {
+                                self.metrics_numeric.select_by_name(&clicked);
+                            }
+                        }
+                        self.draw().ok();
+                    }
+
                     Ok(Event::Resize(..)) => {
                         self.draw().ok();
                     }
@@ -485,7 +498,11 @@ impl TuiMetricsRenderer {
             }
 
             disable_raw_mode()?;
-            execute!(self.terminal.backend_mut(), LeaveAlternateScreen)?;
+            execute!(
+                self.terminal.backend_mut(),
+                DisableMouseCapture,
+                LeaveAlternateScreen
+            )?;
             self.terminal.show_cursor()?;
 
             // Reinstall the previous panic hook
