@@ -127,6 +127,7 @@ futures-lite = { version = "2.6.1", default-features = false }
 
 # Terminal UI
 ratatui = "0.30.0"
+unicode-width = "0.2"
 
 # WGPU stuff
 text_placeholder = "0.5.1"

@@ -22,7 +22,7 @@ tracing = ["burn-core/tracing", "burn-optim/tracing"]
 
 
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
-tui = ["ratatui"]
+tui = ["ratatui", "unicode-width"]
 rl = ["burn-rl"]
 # Distributed Data Parallel
 ddp = ["burn-optim/distributed", "burn-core/distributed"]
@@ -55,6 +55,7 @@ ratatui = { workspace = true, optional = true, features = [
     "all-widgets",
     "crossterm",
 ] }
+unicode-width = { workspace = true, optional = true }
 
 # Utilities
 derive-new = { workspace = true }

@@ -14,6 +14,12 @@ use ratatui::{
     },
 };
 use std::collections::BTreeMap;
+use unicode_width::UnicodeWidthStr;
+
+/// 1 cell of padding on each side of a tab title, matching ratatui's default `Tabs` widget.
+const TAB_PADDING: u16 = 2;
+/// 1-cell `│` divider between adjacent tabs in ratatui's default `Tabs` widget.
+const TAB_DIVIDER: u16 = 1;
 
 /// 1000 seems to be required to see some improvement.
 const MAX_NUM_SAMPLES_RECENT: usize = 1000;
@@ -234,97 +240,161 @@ impl NumericMetricView<'_> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         match self {
             Self::LinePlots(titles, selected, chart, kind) => {
-                let block = Block::default()
-                    .borders(Borders::ALL)
-                    .title("Plots")
-                    .title_alignment(Alignment::Left);
-                let size_new = block.inner(size);
-                frame.render_widget(block, size);
-
-                let size = size_new;
-
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints(
-                        [
-                            Constraint::Length(2),
-                            Constraint::Length(1),
-                            Constraint::Min(0),
-                        ]
-                        .as_ref(),
-                    )
-                    .split(size);
-
-                let tabs = Tabs::new(
-                    titles
-                        .iter()
-                        .map(|i| Line::from(vec![i.to_string().yellow()])),
-                )
-                .select(selected)
-                .style(Style::default())
-                .highlight_style(
-                    Style::default()
-                        .add_modifier(Modifier::BOLD)
-                        .add_modifier(Modifier::UNDERLINED)
-                        .fg(Color::LightYellow),
-                );
-                let title = match kind {
+                let plot_title = match kind {
                     PlotKind::Full => "Full History",
                     PlotKind::Recent => "Recent History",
                     _ => unreachable!(),
                 };
-
-                let plot_type =
-                    Paragraph::new(Line::from(title.bold())).alignment(Alignment::Center);
-
-                frame.render_widget(tabs, chunks[0]);
-                frame.render_widget(plot_type, chunks[1]);
-                frame.render_widget(chart, chunks[2]);
+                render_plot_panel(
+                    frame,
+                    size,
+                    "Plots",
+                    plot_title,
+                    titles,
+                    selected,
+                    |f, a| f.render_widget(chart, a),
+                );
             }
             Self::BarPlots(titles, selected, chart) => {
-                let block = Block::default()
-                    .borders(Borders::ALL)
-                    .title("Summary")
-                    .title_alignment(Alignment::Left);
-                let size_new = block.inner(size);
-                frame.render_widget(block, size);
-
-                let size = size_new;
-
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Length(2),
-                        Constraint::Length(1),
-                        Constraint::Min(0),
-                    ])
-                    .split(size);
-
-                let tabs = Tabs::new(
-                    titles
-                        .iter()
-                        .map(|i| Line::from(vec![i.to_string().yellow()])),
-                )
-                .select(selected)
-                .style(Style::default())
-                .highlight_style(
-                    Style::default()
-                        .add_modifier(Modifier::BOLD)
-                        .add_modifier(Modifier::UNDERLINED)
-                        .fg(Color::LightYellow),
+                render_plot_panel(
+                    frame,
+                    size,
+                    "Summary",
+                    "Summary",
+                    titles,
+                    selected,
+                    |f, a| f.render_widget(chart, a),
                 );
-                let title = "Summary";
-
-                let plot_type =
-                    Paragraph::new(Line::from(title.bold())).alignment(Alignment::Center);
-
-                frame.render_widget(tabs, chunks[0]);
-                frame.render_widget(plot_type, chunks[1]);
-                frame.render_widget(chart, chunks[2]);
             }
             Self::None => {}
-        };
+        }
     }
+}
+
+/// Draw the bordered plot panel: tab strip on top, centered plot title, then the chart.
+fn render_plot_panel(
+    frame: &mut TerminalFrame<'_>,
+    size: Rect,
+    block_title: &str,
+    plot_title: &str,
+    titles: &[MetricName],
+    selected: usize,
+    render_chart: impl FnOnce(&mut TerminalFrame<'_>, Rect),
+) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(block_title)
+        .title_alignment(Alignment::Left);
+    let inner = block.inner(size);
+    frame.render_widget(block, size);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(inner);
+
+    render_tab_strip(frame, chunks[0], titles, selected);
+    let title = Paragraph::new(Line::from(plot_title.bold())).alignment(Alignment::Center);
+    frame.render_widget(title, chunks[1]);
+    render_chart(frame, chunks[2]);
+}
+
+/// Render the metric tabs in `area`, scrolling horizontally so the `selected` tab is always
+/// visible. A `‹` / `›` indicator is drawn in a reserved cell on each side when tabs are
+/// hidden off that edge.
+fn render_tab_strip(
+    frame: &mut TerminalFrame<'_>,
+    area: Rect,
+    titles: &[MetricName],
+    selected: usize,
+) {
+    if titles.is_empty() || area.width == 0 {
+        return;
+    }
+
+    let titles_str: Vec<String> = titles.iter().map(|t| t.to_string()).collect();
+    let widths: Vec<u16> = titles_str.iter().map(|s| tab_cell_width(s)).collect();
+
+    let inner_width = area.width.saturating_sub(2);
+    let (start, end) = visible_tab_window(&widths, selected, inner_width);
+
+    let edge_style = Style::default().fg(Color::DarkGray);
+    if start > 0 {
+        let left = Rect { width: 1, ..area };
+        frame.render_widget(Paragraph::new("‹").style(edge_style), left);
+    }
+    if end < titles.len() {
+        let right = Rect {
+            x: area.x + area.width - 1,
+            width: 1,
+            ..area
+        };
+        frame.render_widget(Paragraph::new("›").style(edge_style), right);
+    }
+
+    let tabs_area = Rect {
+        x: area.x + 1,
+        width: inner_width,
+        ..area
+    };
+    let tabs = Tabs::new(
+        titles_str[start..end]
+            .iter()
+            .map(|s| Line::from(vec![s.clone().yellow()])),
+    )
+    .select(selected - start)
+    .highlight_style(
+        Style::default()
+            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            .fg(Color::LightYellow),
+    );
+    frame.render_widget(tabs, tabs_area);
+}
+
+/// Cells consumed by one tab. Title display width plus ratatui's default padding.
+fn tab_cell_width(title: &str) -> u16 {
+    u16::try_from(UnicodeWidthStr::width(title) + TAB_PADDING as usize).unwrap_or(u16::MAX)
+}
+
+/// Pick the `[start, end)` slice of `widths` to render so the tab at `selected` is visible
+/// inside `available` cells. The selected tab is pinned as far right as fits. `end` is then
+/// grown rightward as far as the remaining space allows. Always returns
+/// `start <= selected < end` when `widths` is non-empty. If a single tab exceeds
+/// `available`, clipping is delegated to ratatui's `Tabs`.
+fn visible_tab_window(widths: &[u16], selected: usize, available: u16) -> (usize, usize) {
+    if widths.is_empty() {
+        return (0, 0);
+    }
+    let selected = selected.min(widths.len() - 1);
+    let available = available as u32;
+    let divider = TAB_DIVIDER as u32;
+
+    // Width of titles[start..=selected] including dividers between them. Maintained
+    // incrementally so the windowing loop is O(N) over the full title list.
+    let mut width: u32 =
+        widths[..=selected].iter().map(|&w| w as u32).sum::<u32>() + selected as u32 * divider;
+
+    let mut start = 0;
+    while width > available && start < selected {
+        width -= widths[start] as u32 + divider;
+        start += 1;
+    }
+
+    let mut end = selected + 1;
+    while end < widths.len() {
+        let next = width + widths[end] as u32 + divider;
+        if next > available {
+            break;
+        }
+        width = next;
+        end += 1;
+    }
+
+    (start, end)
 }
 
 #[cfg(test)]
@@ -343,5 +413,49 @@ mod tests {
 
         assert_eq!(state.selected, 0);
         assert!(state.data.is_empty());
+    }
+
+    fn cells(titles: &[&str]) -> Vec<u16> {
+        titles.iter().copied().map(tab_cell_width).collect()
+    }
+
+    #[test]
+    fn tab_cell_width_includes_padding() {
+        assert_eq!(tab_cell_width("Loss"), 4 + TAB_PADDING);
+        assert_eq!(tab_cell_width(""), TAB_PADDING);
+    }
+
+    #[test]
+    fn visible_window_is_empty_when_no_tabs() {
+        assert_eq!(visible_tab_window(&[], 0, 80), (0, 0));
+    }
+
+    #[test]
+    fn visible_window_returns_full_range_when_everything_fits() {
+        let widths = cells(&["Loss", "Acc", "F1"]);
+        assert_eq!(visible_tab_window(&widths, 1, 80), (0, widths.len()));
+    }
+
+    #[test]
+    fn visible_window_pins_selected_to_right_edge_when_growing_from_left() {
+        // Each tab cell is 2 + TAB_PADDING = 4. One divider between = 5 per added tab.
+        // available = 9 means exactly two tabs fit ([start..=selected] = 4 + 1 + 4 = 9).
+        let widths = cells(&["AA", "BB", "CC", "DD", "EE"]);
+        assert_eq!(visible_tab_window(&widths, 3, 9), (2, 4));
+    }
+
+    #[test]
+    fn visible_window_does_not_panic_when_single_tab_is_wider_than_available() {
+        let widths = cells(&["this title is much wider than the cell", "B"]);
+        let (start, end) = visible_tab_window(&widths, 0, 4);
+        assert_eq!(start, 0);
+        assert!(end >= 1);
+    }
+
+    #[test]
+    fn visible_window_clamps_out_of_range_selected() {
+        let widths = cells(&["A", "B", "C"]);
+        let (start, end) = visible_tab_window(&widths, 99, 80);
+        assert!(start <= 2 && 2 < end);
     }
 }

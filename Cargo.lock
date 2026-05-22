@@ -1223,6 +1223,7 @@ dependencies = [
  "tracing-appender",
  "tracing-core",
  "tracing-subscriber",
+ "unicode-width",
 ]
 
 [[package]]
