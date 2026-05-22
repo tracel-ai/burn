@@ -37,18 +37,65 @@ type WgpuInner<C, F, I, B> =
 #[cfg(not(feature = "fusion"))]
 type WgpuInner<C, F, I, B> = CubeBackend<cubecl::wgpu::WgpuRuntime<C>, F, I, B>;
 
+/// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
+///
+/// This backend can target multiple graphics APIs, including:
+///   - [Vulkan][crate::graphics::Vulkan] on Linux, Windows, and Android.
+///   - [OpenGL](crate::graphics::OpenGl) on Linux, Windows, and Android.
+///   - [DirectX 12](crate::graphics::Dx12) on Windows.
+///   - [Metal][crate::graphics::Metal] on Apple hardware.
+///   - [WebGPU](crate::graphics::WebGpu) on supported browsers and `wasm` runtimes.
+///
+/// The selected graphics API is chosen automatically at runtime, and the appropriate shader
+/// compiler (WGSL, SPIR-V or MSL) is dispatched via [`AutoCompiler`]. When the target API is
+/// known ahead of time, prefer the dedicated `Vulkan`, `WebGpu` or `Metal` backend aliases
+/// (enabled by their respective Cargo features), which lock the compiler at compile time and
+/// avoid the runtime dispatch.
+///
+/// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
+/// you have to manually initialize the runtime. For example:
+///
+/// ```rust, ignore
+/// fn custom_init() {
+///     let device = Default::default();
+///     burn::backend::wgpu::init_setup::<burn::backend::wgpu::graphics::Vulkan>(
+///         &device,
+///         Default::default(),
+///     );
+/// }
+/// ```
+/// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
+/// It's also possible to use an existing wgpu device, by using `init_device`.
+///
+/// # Notes
+///
+/// When the `fusion` feature flag is enabled (the default), this backend uses [burn_fusion] to
+/// compile and optimize streams of tensor operations for improved performance. You can disable
+/// the `fusion` feature flag to remove that functionality, which might be necessary on `wasm`
+/// for now.
 pub type Wgpu<F = f32, I = i32, B = u32> = WgpuInner<AutoCompiler, F, I, B>;
 
-#[cfg(feature = "vulkan")]
 /// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
+///
+/// This is a specialization of [`Wgpu`] that pins the shader compiler to SPIR-V at compile time,
+/// removing the runtime [`AutoCompiler`] dispatch. Enable the `vulkan` feature to use it.
+/// Multiple wgpu backend aliases (`Vulkan`, `WebGpu`, `Metal`) can be enabled simultaneously
+/// since each is a distinct type parameterized by its own compiler.
+#[cfg(feature = "vulkan")]
 pub type Vulkan<F = f32, I = i32, B = u8> = WgpuInner<SpirvCompiler, F, I, B>;
 
-#[cfg(feature = "webgpu")]
 /// Tensor backend that uses the wgpu crate to execute GPU compute shaders written in WGSL.
+///
+/// This is a specialization of [`Wgpu`] that pins the shader compiler to WGSL at compile time,
+/// removing the runtime [`AutoCompiler`] dispatch. Enable the `webgpu` feature to use it.
+#[cfg(feature = "webgpu")]
 pub type WebGpu<F = f32, I = i32, B = u32> = WgpuInner<WgslCompiler, F, I, B>;
 
-#[cfg(feature = "metal")]
 /// Tensor backend that leverages the Metal graphics API to execute GPU compute shaders compiled to MSL.
+///
+/// This is a specialization of [`Wgpu`] that pins the shader compiler to MSL at compile time,
+/// removing the runtime [`AutoCompiler`] dispatch. Enable the `metal` feature to use it.
+#[cfg(feature = "metal")]
 pub type Metal<F = f32, I = i32, B = u8> = WgpuInner<MslCompiler, F, I, B>;
 
 #[cfg(test)]
