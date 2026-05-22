@@ -2,8 +2,6 @@ use alloc::vec::Vec;
 use burn_backend::{TensorMetadata, TensorPrimitive};
 use burn_dispatch::{Dispatch, DispatchTensor};
 
-use crate::macros::obfuscate_type;
-
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
 pub struct Float;
@@ -77,13 +75,17 @@ impl TensorKindId {
 /// separation keeps tensor kind tracking out of the backends while avoiding
 /// exposure of backend-level primitives in the public API.
 pub struct BridgeTensor {
-    blob: bridge_blob::Blob,
+    blob: bridge_opaque::Opaque,
 }
 
 // Aligned, type-erased storage for `BridgeTensorVariant`. See `crate::macros`
 // for why this indirection exists (it keeps the dispatch type tree out of
 // downstream MIR).
-obfuscate_type!(bridge_blob, BridgeTensorVariant, Send, Sync);
+burn_std::obfuscate!(
+    type: BridgeTensorVariant,
+    module: bridge_opaque,
+    derives: [Send, Sync]
+);
 
 impl core::fmt::Debug for BridgeTensor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -110,7 +112,7 @@ impl BridgeTensor {
 
     fn new(inner: BridgeTensorVariant) -> Self {
         Self {
-            blob: bridge_blob::Blob::new(inner),
+            blob: bridge_opaque::Opaque::new(inner),
         }
     }
 }
