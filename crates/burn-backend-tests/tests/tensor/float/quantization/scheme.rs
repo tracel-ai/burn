@@ -12,7 +12,11 @@ fn per_tensor_symmetric_int8() {
         min: TestTensor::<1>::from_data([0.5], &device),
         max: TestTensor::<1>::from_data([1.8], &device),
     };
-    let scheme = device.default_quant_scheme().with_value(QuantValue::Q8S);
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
 
     let qparams = compute_q_params(&scheme, range);
 
@@ -30,7 +34,9 @@ fn per_block_symmetric_int8() {
         max: TestTensor::<1>::from_data([0.5, 1.8, 0.04, -0.01], &device),
     };
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([4]));
 
@@ -45,7 +51,11 @@ fn per_block_symmetric_int8() {
 #[test]
 fn quant_scheme_should_inhibit_by_default() {
     let device = Device::default();
-    let scheme = device.default_quant_scheme().with_value(QuantValue::Q8S);
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
 
     let tensor_1 = TestTensor::<2>::from_data(
         [[1.0, 6.35, 0., 0.], [2.0, 3.0, 0., 0.], [1.0, 3.0, 0., 0.]],

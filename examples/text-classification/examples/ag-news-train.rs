@@ -21,9 +21,9 @@ type ElemType = burn::tensor::flex32;
 
 #[cfg(all(feature = "cuda", not(feature = "ddp")))]
 pub fn launch_multi() {
-    let devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
+    let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
 
-    devices.iter().for_each(|d| {
+    devices.iter_mut().for_each(|d| {
         d.configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap()
     });
@@ -36,9 +36,9 @@ pub fn launch_multi() {
 
 #[cfg(all(feature = "cuda", feature = "ddp"))]
 pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
-    let devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
+    let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
 
-    devices.iter().for_each(|d| {
+    devices.iter_mut().for_each(|d| {
         d.configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap()
     });
