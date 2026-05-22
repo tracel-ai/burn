@@ -1072,7 +1072,9 @@ fn test_store_quantized_module_round_trip() {
 
     // Define quantization scheme (Q8S with tensor-level quantization)
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::Tensor)
         .with_param(QuantParam::F32);
@@ -1322,7 +1324,9 @@ fn test_store_quantized_module_block_level() {
 
     // Define quantization scheme with block-level quantization
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([32])) // Block size of 32
         .with_param(QuantParam::F32);
