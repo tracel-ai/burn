@@ -60,9 +60,10 @@ distributed = [
     # "burn-router?/distributed",
 ]
 
+
 # Backends
 cuda = ["burn-cuda"]
-flex = ["burn-flex"]
+flex = ["burn-flex", "complex"]
 rocm = ["burn-rocm"]
 ndarray = [] # default
 tch = ["burn-tch"]
@@ -73,10 +74,8 @@ wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 autodiff = ["burn-autodiff"]
 # remote = ["burn-remote"]
-complex = [
-    #"burn-complex",
-    "burn-flex?/complex",
-]
+# until interleaved complex support is available globally
+complex = []
 
 # Backend features
 autotune = [

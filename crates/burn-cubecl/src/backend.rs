@@ -2,8 +2,9 @@ use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor:
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
+    UnimplementedTensorPrimitive,
 };
-use burn_std::{BoolStore, DType};
+use burn_std::{BoolStore, Complex, DType};
 use cubecl::{
     features::{MmaConfig, TypeUsage},
     server::ComputeServer,
@@ -102,6 +103,10 @@ where
         let client = R::client(&Default::default());
         client.device_count(type_id)
     }
+
+    type ComplexScalar = Complex<F>;
+
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<F>>;
 }
 
 impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>

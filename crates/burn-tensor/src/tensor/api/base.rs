@@ -1,8 +1,8 @@
 #![allow(clippy::single_range_in_vec_init)]
+use crate::bridge::ComplexKind;
 use crate::check::unwrap_shape_reshape;
 use crate::kind::Basic;
 use crate::ops::BridgeTensor;
-
 use burn_backend::Scalar;
 
 use alloc::vec::Vec;
@@ -11,8 +11,8 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::ExecutionError;
 use burn_std::Complex;
+use burn_std::ExecutionError;
 use burn_std::{SliceOps, stub::RwLock};
 use core::iter::repeat;
 use core::marker::PhantomData;
@@ -3043,6 +3043,7 @@ async fn into_data_async_impl(
         TensorKindId::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
         TensorKindId::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
         TensorKindId::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
+        TensorKindId::Complex => <ComplexKind as BasicOps>::into_data_async(primitive).await,
     }
 }
 
@@ -3056,6 +3057,7 @@ fn slice_bridge_by_kind(
         TensorKindId::Float => <crate::Float as BasicOps>::slice(p, slices),
         TensorKindId::Int => <crate::Int as BasicOps>::slice(p, slices),
         TensorKindId::Bool => <crate::Bool as BasicOps>::slice(p, slices),
+        TensorKindId::Complex => <ComplexKind as BasicOps>::slice(p, slices),
     }
 }
 
@@ -3269,6 +3271,9 @@ fn display_fmt_impl(
         }
         crate::ops::TensorKindId::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
         crate::ops::TensorKindId::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
+        crate::ops::TensorKindId::Complex => {
+            <crate::Complex as crate::ops::BasicOps>::device(primitive)
+        }
     };
     writeln!(f, "  device:  {:?},", device)?;
     writeln!(f, "  kind:  {:?},", kind_name)?;

@@ -43,6 +43,9 @@ mod macros;
 
 /// Dispatch backend module.
 pub mod backend;
+#[cfg(feature = "complex")]
+/// Dispatch complex backend module.
+pub mod complex;
 /// Dispatch device module.
 pub mod device;
 mod ops;

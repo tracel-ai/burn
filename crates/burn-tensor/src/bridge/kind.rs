@@ -16,6 +16,10 @@ pub struct Int;
 #[derive(Clone, Debug)]
 pub struct Bool;
 
+/// A type-level representation of the kind of a complex tensor.
+#[derive(Clone, Debug)]
+pub struct ComplexKind;
+
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
 pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
@@ -43,6 +47,12 @@ impl TensorKind for Int {
 impl TensorKind for Bool {
     fn id() -> TensorKindId {
         TensorKindId::Bool
+    }
+}
+
+impl TensorKind for ComplexKind {
+    fn id() -> TensorKindId {
+        TensorKindId::Complex
     }
 }
 

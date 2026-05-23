@@ -7,10 +7,12 @@ use crate::{
 use alloc::string::String;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps};
+use burn_backend::{
+    Backend, BackendTypes, DType, DeviceId, DeviceOps, UnimplementedTensorPrimitive,
+};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
-use burn_std::BoolStore;
 use burn_std::stub::Mutex;
+use burn_std::{BoolStore, Complex};
 use core::marker::PhantomData;
 use rand::SeedableRng;
 
@@ -119,6 +121,10 @@ where
     fn device_count(_: u16) -> usize {
         1
     }
+
+    type ComplexScalar = Complex<f32>;
+
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<E>>;
 }
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for NdArray<E, I, Q>
 where

@@ -11,6 +11,23 @@ pub enum TensorPrimitive<B: BackendTypes> {
     QFloat(B::QuantizedTensorPrimitive),
 }
 
+/// a Placeholder primitive for tensor types that are not yet supported by a backend.
+#[derive(Debug, Clone)]
+pub struct UnimplementedTensorPrimitive<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> {
+    _elem: core::marker::PhantomData<E>,
+}
+impl<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> TensorMetadata
+    for UnimplementedTensorPrimitive<E>
+{
+    fn dtype(&self) -> DType {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+
+    fn shape(&self) -> Shape {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+}
+
 impl<B: Backend> TensorPrimitive<B> {
     /// Returns the full tensor representation.
     pub fn tensor(self) -> B::FloatTensorPrimitive {

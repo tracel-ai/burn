@@ -31,7 +31,7 @@ pub(crate) trait Ordered: Numeric {
     ///
     /// For calculating abs of the elements of a tensor, users should prefer the [`Tensor::abs`](crate::Tensor::abs)
     /// function, which is more high-level and designed for public use.
-    fn abs(tensor: BridgeTensor) -> Self::Primitive;
+    fn abs(tensor: BridgeTensor) -> BridgeTensor;
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).

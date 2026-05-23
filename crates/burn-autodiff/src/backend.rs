@@ -24,7 +24,7 @@ pub struct Autodiff<B, C = NoCheckpointing> {
     _checkpoint_strategy: PhantomData<C>,
 }
 
-impl<B: Backend, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
+impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     type Device = B::Device;
 
     type FloatTensorPrimitive = AutodiffTensor<B>;
@@ -49,6 +49,10 @@ impl<B: Backend, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
+
+    type ComplexScalar = B::ComplexScalar;
+
+    type ComplexTensorPrimitive = B::ComplexTensorPrimitive;
 }
 
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {

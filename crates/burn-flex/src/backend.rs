@@ -1,4 +1,5 @@
 use alloc::string::String;
+use burn_std::Complex;
 use core::marker::PhantomData;
 
 use burn_backend::{Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
@@ -150,6 +151,9 @@ impl BackendTypes for Flex {
             _ => DTypeUsageSet::empty(),
         }
     }
+
+    type ComplexScalar = Complex<f32>;
+    type ComplexTensorPrimitive = FlexTensor;
 }
 
 impl Backend for Flex {

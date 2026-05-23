@@ -525,7 +525,6 @@ where
     make_tensor(result, shape, dtype)
 }
 //Remove this if it turns out to be used elsewhere
-#[cfg(feature = "complex")]
 pub(crate) fn scalar_op_typed_convert<E, O, Op>(
     mut tensor: FlexTensor,
     scalar: E,

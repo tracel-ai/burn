@@ -5,7 +5,7 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, vec};
-use burn_backend::{Backend, TensorMetadata};
+use burn_backend::{Backend, BackendTypes, TensorMetadata};
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
@@ -17,13 +17,13 @@ use portable_atomic_util::Arc;
 use burn_backend::distributed::{DistributedBackend, DistributedParamId, DistributedParams};
 
 #[derive(Debug, Clone)]
-pub struct AutodiffTensor<B: Backend> {
+pub struct AutodiffTensor<B: BackendTypes> {
     pub primitive: B::FloatTensorPrimitive,
     pub node: NodeRef,
     pub rc: NodeRefCount,
 }
 
-impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
+impl<B: BackendTypes> TensorMetadata for AutodiffTensor<B> {
     fn dtype(&self) -> burn_std::DType {
         self.primitive.dtype()
     }

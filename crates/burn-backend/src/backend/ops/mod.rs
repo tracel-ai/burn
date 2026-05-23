@@ -1,5 +1,6 @@
 mod activation;
 mod bool_tensor;
+mod complex;
 mod int_tensor;
 mod modules;
 mod qtensor;
@@ -13,6 +14,7 @@ pub(crate) mod sort;
 
 pub use activation::*;
 pub use bool_tensor::*;
+pub use complex::*;
 pub use int_tensor::*;
 pub use modules::*;
 pub use qtensor::*;

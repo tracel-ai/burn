@@ -1,223 +1,16 @@
-use burn_backend::{
-    Backend, BackendTypes, ExecutionError, TensorMetadata,
+use burn_std::{
+    ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice,
+    SplitTensorData, TensorData,
+};
+
+use crate::{
+    BackendTypes, CBT, ComplexTensor, ComplexTensorBackend, DefaultComplexOps, InterleavedLayout,
+    Layout, TensorMetadata,
     ops::IntTensorOps,
     tensor::{Device, FloatTensor, IntTensor},
 };
-use burn_std::{
-    Bytes, ComplexDType, ComplexElement, DType, Distribution, FloatDType, IndexingUpdateOp, Scalar,
-    Shape, TensorData,
-};
-/*
-The base implementation for complex tensors, contains everything that would be in burn-tensor.
-May get split into separate files at some point, but for now it's easier to keep all the base
-definitions in one spot.
-*/
 
-use serde::{Deserialize, Serialize};
-
-pub trait CBT<L: Layout = InterleavedLayout>: BackendTypes {
-    /// a complex element in interleaved layout
-    type ComplexScalar: ComplexElement;
-
-    type ComplexTensorPrimitive: TensorMetadata + 'static;
-}
-
-/// The layout of the complex tensor. Used to define shared behavior only meant
-/// to be used for a specific layout (such as butterfly operations).
-pub trait Layout {
-    // /// The complex Tensor primitive type for this layout. For interleaved, this will be
-    // /// a tensor of Complex\<E\>,for split this will be a tuple tensor Complex\<FloatTensorPrimitive\<E\>, FloatTensorPrimitive\<E\>\>.
-    //type ComplexTensorPrimitive: TensorMetadata + 'static;
-}
-
-/// Complex tensor primitive type used by the backend.
-pub type ComplexTensor<B> = <B as CBT>::ComplexTensorPrimitive;
-
-pub trait ComplexTensorBackend<L: Layout = InterleavedLayout>:
-    ComplexTensorOps<Self, L> + Sized + CBT<L>
-{
-    /// The inner backend type.
-    ///
-    /// Must share all primitive types and device with `Self` so that operations
-    /// can delegate directly without any type-level conversion.
-    type InnerBackend: Backend<
-            Device = Self::Device,
-            FloatTensorPrimitive = Self::FloatTensorPrimitive,
-            FloatElem = Self::FloatElem,
-            IntTensorPrimitive = Self::IntTensorPrimitive,
-            IntElem = Self::IntElem,
-            BoolTensorPrimitive = Self::BoolTensorPrimitive,
-            BoolElem = Self::BoolElem,
-        >;
-
-    ///// Tensor primitive to be used for all complex operations.
-    //type ComplexTensorPrimitive: TensorMetadata + 'static;
-
-    // /// The underlying layout for the complex elements
-    // type Layout: Layout + DefaultComplexOps<Self>;
-
-    /// Creates a complex tensor from real-valued data, padding the imaginary part with zeros.
-    ///
-    /// Each element `x` in `data` becomes `x + 0i`.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - The real-valued data. Must contain scalar float elements.
-    /// * `device` - The device to create the tensor on.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor with the given real values and a zero imaginary part.
-    fn complex_from_real_data(data: TensorData, device: &Self::Device) -> ComplexTensor<Self>;
-
-    /// Creates a complex tensor from imaginary-valued data, padding the real part with zeros.
-    ///
-    /// Each element `y` in `data` becomes `0 + yi`.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - The imaginary-valued data. Must contain scalar float elements.
-    /// * `device` - The device to create the tensor on.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor with a zero real part and the given imaginary values.
-    fn complex_from_imag_data(data: TensorData, device: &Self::Device) -> ComplexTensor<Self>;
-
-    /// Creates a complex tensor from interleaved complex data.
-    ///
-    /// The `data` buffer must already be in interleaved layout, i.e. elements are ordered as
-    /// `[re₀, im₀, re₁, im₁, …]`. No conversion is performed — the buffer is used directly.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - Interleaved complex data with alternating real and imaginary values.
-    /// * `device` - The device to create the tensor on.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor backed by the interleaved buffer.
-    fn complex_from_interleaved_data(
-        data: TensorData,
-        device: &Self::Device,
-    ) -> ComplexTensor<Self>;
-
-    /// Creates a complex tensor from two separate real and imaginary data buffers.
-    ///
-    /// Both buffers must have the same shape and element type. They are combined into a single
-    /// complex tensor, pairing each `real_data[i]` with `imag_data[i]` as `re + im·i`.
-    ///
-    /// # Arguments
-    ///
-    /// * `real_data` - The real parts.
-    /// * `imag_data` - The imaginary parts. Must match the shape and dtype of `real_data`.
-    /// * `device` - The device to create the tensor on.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor constructed from the paired real and imaginary buffers.
-    fn complex_from_parts_data(
-        real_data: TensorData,
-        imag_data: TensorData,
-        device: &Self::Device,
-    ) -> ComplexTensor<Self>;
-}
-
-//Note: changing to adopt terminology used in fftw doc
-
-/// Indicates that the underlying implementation has separate real and imaginary tensors.
-pub struct SplitLayout {
-    //_marker: core::marker::PhantomData<T>,
-}
-
-/// Indicates that the underlying implementation uses a complex primitive type \[float,float\] like that found in the
-/// num_complex trait.
-pub struct InterleavedLayout {
-    //_marker: core::marker::PhantomData<E>,
-}
-
-/// Data structure for tensors.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SplitTensorData {
-    /// The real values of the tensor (as bytes).
-    pub real_bytes: Bytes,
-
-    /// The imaginary values of the tensor (as bytes).
-    pub imag_bytes: Bytes,
-
-    #[serde(with = "shape_inner")]
-    /// The shape of the tensor.
-    pub shape: Shape,
-
-    /// The data type of the tensor.
-    pub dtype: DType,
-}
-
-mod shape_inner {
-    use burn_std::SmallVec;
-
-    use super::*;
-
-    pub fn serialize<S: serde::Serializer>(
-        shape: &Shape,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        shape.as_slice().serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Shape, D::Error> {
-        let dims = SmallVec::<[usize; _]>::deserialize(deserializer)?;
-        Ok(Shape::new_raw(dims))
-    }
-}
-
-// impl<T: TensorMetadata + 'static> Layout for InterleavedLayout<T> {
-//     type ComplexTensorPrimitive = T;
-// }
-
-impl Layout for InterleavedLayout {}
-
-// The evolution of Laziness
-pub trait DefaultComplexOps<B: ComplexTensorBackend> {
-    type OutTensorData;
-    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
-    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
-    fn full(shape: Shape, fill_value: B::ComplexScalar, device: &Device<B>) -> ComplexTensor<B>;
-    fn complex_into_data(
-        tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<Self::OutTensorData, ExecutionError>> + Send;
-}
-
-impl<B> DefaultComplexOps<B> for InterleavedLayout
-where
-    B: ComplexTensorBackend + CBT<Self>,
-{
-    type OutTensorData = TensorData;
-
-    fn ones(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(TensorData::ones::<B::ComplexScalar, _>(shape), device)
-    }
-
-    fn zeros(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(TensorData::zeros::<B::ComplexScalar, _>(shape), device)
-    }
-
-    fn full(shape: Shape, fill_value: B::ComplexScalar, device: &Device<B>) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(TensorData::full(shape, fill_value), device)
-    }
-
-    async fn complex_into_data(
-        tensor: ComplexTensor<B>,
-    ) -> Result<Self::OutTensorData, ExecutionError> {
-        B::complex_into_interleaved_data(tensor).await
-    }
-}
-
-pub(crate) type OutTensorData<L, B> = <L as DefaultComplexOps<B>>::OutTensorData;
-/// Operations on complex tensors.
-pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
+pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// Converts the tensor's real component to a data structure.
     ///
     /// # Arguments
@@ -352,11 +145,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// # Returns
     ///
     /// The tensor with the given shape and value.
-    fn complex_full(
-        shape: Shape,
-        fill_value: B::ComplexScalar,
-        device: &Device<B>,
-    ) -> ComplexTensor<B> {
+    fn complex_full(shape: Shape, fill_value: Scalar, device: &Device<B>) -> ComplexTensor<B> {
         B::Layout::full(shape, fill_value, device)
     }
 
@@ -407,7 +196,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// The data structure with the tensor's data.
     fn complex_into_data(
         tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<OutTensorData<L, B>, ExecutionError>> + Send;
+    ) -> impl Future<Output = Result<OutTensorData<B>, ExecutionError>> + Send;
 
     /// Reshapes the tensor.
     ///
@@ -702,7 +491,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn complex_slice(tensor: ComplexTensor<B>, slices: &[burn_tensor::Slice]) -> ComplexTensor<B>;
+    fn complex_slice(tensor: ComplexTensor<B>, slices: &[Slice]) -> ComplexTensor<B>;
 
     /// Assign the selected elements corresponding for the given ranges to the given value.
     ///
@@ -717,10 +506,22 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// The tensor with the selected elements assigned to the given value.
     fn complex_slice_assign(
         tensor: ComplexTensor<B>,
-        ranges: &[burn_tensor::Slice],
+        ranges: &[Slice],
         value: ComplexTensor<B>,
     ) -> ComplexTensor<B>;
 
+    /// Multi-dimensional scatter: update `tensor` at locations specified by `indices` with `value`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to scatter into.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `tensor`.
+    /// * `value` - The values to scatter.
+    /// * `reduction` - How to combine with existing values.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with scattered values.
     fn complex_scatter_nd(
         tensor: ComplexTensor<B>,
         indices: B::IntTensorPrimitive,
@@ -1032,7 +833,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// # Returns
     ///
     /// The element-wise remainder when dividing `lhs` by `rhs`.
-    fn complex_remainder_scalar(lhs: ComplexTensor<B>, rhs: B::ComplexScalar) -> ComplexTensor<B>;
+    fn complex_remainder_scalar(lhs: ComplexTensor<B>, rhs: Scalar) -> ComplexTensor<B>;
 
     /// Equal comparison of a complex tensor and a scalar.
     ///
@@ -1047,7 +848,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// A boolean tensor with the result of the comparison.
     fn complex_equal_elem(
         lhs: ComplexTensor<B>,
-        rhs: B::ComplexScalar,
+        rhs: Scalar,
         out_dtype: burn_std::BoolDType,
     ) -> B::BoolTensorPrimitive;
 
@@ -1064,7 +865,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// A boolean tensor with the result of the comparison.
     fn complex_not_equal_elem(
         lhs: ComplexTensor<B>,
-        rhs: B::ComplexScalar,
+        rhs: Scalar,
         out_dtype: burn_std::BoolDType,
     ) -> B::BoolTensorPrimitive;
 
@@ -1099,7 +900,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     fn complex_mask_fill(
         tensor: ComplexTensor<B>,
         mask: B::BoolTensorPrimitive,
-        value: B::ComplexScalar,
+        value: Scalar,
     ) -> ComplexTensor<B>;
 
     /// Gather elements from a complex tensor.
@@ -1177,7 +978,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the power of `rhs`.
-    fn complex_powc_scalar(lhs: ComplexTensor<B>, rhs: B::ComplexScalar) -> ComplexTensor<B>;
+    fn complex_powc_scalar(lhs: ComplexTensor<B>, rhs: Scalar) -> ComplexTensor<B>;
 
     /// Element-wise complex power with a float tensor.
     ///
@@ -1207,7 +1008,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
         // make the equality explicit at the use site
         <B::InnerBackend as BackendTypes>::IntTensorPrimitive: From<B::IntTensorPrimitive>,
     {
-        let dtype = crate::utils::complex_to_real_dtype(lhs.dtype());
+        let dtype = burn_std::complex_utils::complex_to_real_dtype(lhs.dtype());
 
         Self::complex_powf(
             lhs,
@@ -1282,3 +1083,33 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend<L>, L: Layout> {
     /// of all elements up to and including that position along the dimension.
     fn complex_cumprod(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
 }
+
+impl<B> DefaultComplexOps<B> for InterleavedLayout
+where
+    B: ComplexTensorBackend + BackendTypes,
+{
+    type OutTensorData = TensorData;
+
+    fn ones(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
+        B::complex_from_interleaved_data(TensorData::ones::<B::ComplexScalar, _>(shape), device)
+    }
+
+    fn zeros(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
+        B::complex_from_interleaved_data(TensorData::zeros::<B::ComplexScalar, _>(shape), device)
+    }
+
+    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>) -> ComplexTensor<B> {
+        B::complex_from_interleaved_data(
+            TensorData::full::<B::ComplexScalar, _>(shape, fill_value.elem()),
+            device,
+        )
+    }
+
+    async fn complex_into_data(
+        tensor: ComplexTensor<B>,
+    ) -> Result<Self::OutTensorData, ExecutionError> {
+        B::complex_into_interleaved_data(tensor).await
+    }
+}
+pub(crate) type OutTensorData<B> =
+    <<B as ComplexTensorBackend>::Layout as DefaultComplexOps<B>>::OutTensorData;

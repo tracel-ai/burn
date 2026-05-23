@@ -1,8 +1,7 @@
 use alloc::vec::Vec;
-use burn_std::{Bytes, DType};
-use burn_tensor::TensorData;
+use cubecl_common::bytes::Bytes;
 
-use crate::base::SplitTensorData;
+use crate::{DType, SplitTensorData, TensorData};
 
 /// Converts a real float `TensorData` into interleaved complex `TensorData` by inserting zero
 /// imaginary parts.
@@ -96,7 +95,7 @@ pub fn interleaved_data_from_imag_data(data: TensorData) -> TensorData {
 ///
 /// A `TensorData` with the same shape and an interleaved complex dtype.
 #[inline]
-pub fn interleave_from_split_data(real: TensorData, imag: TensorData) -> TensorData {
+pub fn interleaved_data_from_parts_data(real: TensorData, imag: TensorData) -> TensorData {
     let elem_size = real.dtype.size();
     // Pre-allocate the full size
     let mut interleaved_bytes = zeroed_vec(real.bytes.len() * 2);
@@ -134,7 +133,7 @@ pub fn interleave_from_split_data(real: TensorData, imag: TensorData) -> TensorD
 #[inline]
 pub fn interleaved_data_to_real_data(interleaved: TensorData) -> TensorData {
     let real_dtype = complex_to_real_dtype(interleaved.dtype);
-    let real_elem_size = real_dtype.size();
+    let real_elem_size: usize = real_dtype.size();
     let complex_elem_size = interleaved.dtype.size();
 
     let mut real_bytes = Vec::with_capacity(interleaved.bytes.len() / 2);
@@ -244,10 +243,10 @@ pub fn split_from_interleaved_data(interleaved: TensorData) -> SplitTensorData {
 ///
 /// Panics if `real_data` is not a supported float dtype.
 #[inline(always)]
-pub const fn real_to_complex_dtype(real_data: DType) -> burn_std::DType {
+pub const fn real_to_complex_dtype(real_data: DType) -> DType {
     match real_data {
-        burn_tensor::DType::F32 => burn_tensor::DType::Complex32,
-        burn_tensor::DType::F64 => burn_tensor::DType::Complex64,
+        DType::F32 => DType::Complex32,
+        DType::F64 => DType::Complex64,
         _ => panic!("r2c: Unsupported dtype"),
     }
 }
@@ -261,10 +260,10 @@ pub const fn real_to_complex_dtype(real_data: DType) -> burn_std::DType {
 ///
 /// Panics if `real_data` is not a supported complex dtype.
 #[inline(always)]
-pub const fn complex_to_real_dtype(real_data: DType) -> burn_std::DType {
+pub const fn complex_to_real_dtype(real_data: DType) -> DType {
     match real_data {
-        burn_tensor::DType::Complex32 => burn_tensor::DType::F32,
-        burn_tensor::DType::Complex64 => burn_tensor::DType::F64,
+        DType::Complex32 => DType::F32,
+        DType::Complex64 => DType::F64,
         _ => panic!("c2r: Unsupported dtype"),
     }
 }

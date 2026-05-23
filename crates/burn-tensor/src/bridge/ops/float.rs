@@ -985,7 +985,6 @@ impl FloatMathOps for Float {
         BridgeTensor::float(Dispatch::float_atanh(tensor.into_float()))
     }
 
-
     fn exp(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::float(Dispatch::float_exp(tensor.into_float()))
     }

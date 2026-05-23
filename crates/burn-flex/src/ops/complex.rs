@@ -1,18 +1,13 @@
 use alloc::vec::Vec;
+use burn_backend::ops::ComplexTensorOps;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
-use burn_backend::{Complex, Distribution};
-use burn_backend::{Element, TensorData};
-use burn_complex::base::{CBT, SplitTensorData};
-use burn_complex::utils::interleaved_data_to_imag_data;
-use burn_complex::{
-    base::{ComplexTensor, ComplexTensorBackend, ComplexTensorOps, InterleavedLayout},
-    utils::{
-        interleave_from_split_data, interleaved_data_from_imag_data,
-        interleaved_data_from_real_data, interleaved_data_to_real_data,
-        split_from_interleaved_data,
-    },
+use burn_backend::{
+    BackendTypes, ComplexTensor, ComplexTensorBackend, Distribution, InterleavedLayout,
 };
-use burn_std::{BoolDType, DType, FloatDType, Slice};
+use burn_backend::{Element, TensorData};
+
+use burn_std::cast::ToElement;
+use burn_std::{BoolDType, Complex, DType, FloatDType, Scalar, Slice, SplitTensorData};
 use num_traits::ToPrimitive;
 use num_traits::Zero;
 
@@ -28,24 +23,20 @@ use crate::ops::{
 
 use crate::strided_index::StridedIter;
 use crate::{Flex, FlexDevice, FlexTensor, ops::binary::scalar_op_typed};
-impl CBT for Flex {
-    type ComplexTensorPrimitive = FlexTensor;
-}
+
 impl ComplexTensorBackend for Flex {
     type InnerBackend = Flex;
-
-    type ComplexScalar = Complex<f32>;
 
     type Layout = InterleavedLayout;
 
     fn complex_from_real_data(data: TensorData, _device: &Device<Self>) -> ComplexTensor<Self> {
-        let interleaved_data = interleaved_data_from_real_data(data);
+        let interleaved_data = burn_std::complex_utils::interleaved_data_from_real_data(data);
 
         FlexTensor::from_data(interleaved_data)
     }
 
     fn complex_from_imag_data(data: TensorData, _device: &Device<Self>) -> ComplexTensor<Self> {
-        let interleaved_data = interleaved_data_from_imag_data(data);
+        let interleaved_data = burn_std::complex_utils::interleaved_data_from_imag_data(data);
 
         FlexTensor::from_data(interleaved_data)
     }
@@ -62,7 +53,8 @@ impl ComplexTensorBackend for Flex {
         imag_data: TensorData,
         _device: &Self::Device,
     ) -> ComplexTensor<Self> {
-        let interleaved_data = interleave_from_split_data(real_data, imag_data);
+        let interleaved_data =
+            burn_std::complex_utils::interleaved_data_from_parts_data(real_data, imag_data);
         FlexTensor::from_data(interleaved_data)
     }
 }
@@ -71,13 +63,17 @@ impl ComplexTensorOps<Flex> for Flex {
     async fn complex_into_real_data(
         tensor: ComplexTensor<Flex>,
     ) -> Result<TensorData, burn_backend::ExecutionError> {
-        Ok(interleaved_data_to_real_data(tensor.into_data()))
+        Ok(burn_std::complex_utils::interleaved_data_to_real_data(
+            tensor.into_data(),
+        ))
     }
 
     async fn complex_into_imag_data(
         tensor: ComplexTensor<Flex>,
     ) -> Result<TensorData, burn_backend::ExecutionError> {
-        Ok(interleaved_data_to_imag_data(tensor.into_data()))
+        Ok(burn_std::complex_utils::interleaved_data_to_imag_data(
+            tensor.into_data(),
+        ))
     }
 
     async fn complex_into_interleaved_data(
@@ -89,11 +85,14 @@ impl ComplexTensorOps<Flex> for Flex {
     async fn complex_into_split_data(
         tensor: ComplexTensor<Flex>,
     ) -> Result<SplitTensorData, burn_backend::ExecutionError> {
-        Ok(split_from_interleaved_data(tensor.into_data()))
+        Ok(burn_std::complex_utils::split_from_interleaved_data(
+            tensor.into_data(),
+        ))
     }
 
     fn to_complex(tensor: FloatTensor<Flex>) -> ComplexTensor<Flex> {
-        let interleaved_data = interleaved_data_from_real_data(tensor.into_data());
+        let interleaved_data =
+            burn_std::complex_utils::interleaved_data_from_real_data(tensor.into_data());
         FlexTensor::from_data(interleaved_data)
     }
 
@@ -176,7 +175,7 @@ impl ComplexTensorOps<Flex> for Flex {
 
     fn complex_not_equal_elem(
         lhs: ComplexTensor<Flex>,
-        rhs: <Flex as ComplexTensorBackend>::ComplexScalar,
+        rhs: Scalar,
         out_dtype: BoolDType,
     ) -> BoolTensor<Flex> {
         let f32_cmp = |a, b| a != b;
@@ -186,15 +185,19 @@ impl ComplexTensorOps<Flex> for Flex {
         let dtype = lhs.dtype();
 
         match dtype {
-            DType::Complex32 => compare_elem_typed(lhs, rhs, out_dtype, f32_cmp),
-            DType::Complex64 => compare_elem_typed(lhs, rhs, out_dtype, f64_cmp),
+            DType::Complex32 => {
+                compare_elem_typed(lhs, rhs.elem::<Complex<f32>>(), out_dtype, f32_cmp)
+            }
+            DType::Complex64 => {
+                compare_elem_typed(lhs, rhs.elem::<Complex<f64>>(), out_dtype, f64_cmp)
+            }
             _ => panic!("compare: unsupported dtype {:?}", dtype),
         }
     }
 
     fn complex_equal_elem(
         lhs: ComplexTensor<Flex>,
-        rhs: <Flex as ComplexTensorBackend>::ComplexScalar,
+        rhs: Scalar,
         out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let f32_cmp = |a, b| a == b;
@@ -204,8 +207,12 @@ impl ComplexTensorOps<Flex> for Flex {
         let dtype = lhs.dtype();
 
         match dtype {
-            DType::Complex32 => compare_elem_typed(lhs, rhs, out_dtype, f32_cmp),
-            DType::Complex64 => compare_elem_typed(lhs, rhs, out_dtype, f64_cmp),
+            DType::Complex32 => {
+                compare_elem_typed(lhs, rhs.elem::<Complex<f32>>(), out_dtype, f32_cmp)
+            }
+            DType::Complex64 => {
+                compare_elem_typed(lhs, rhs.elem::<Complex<f64>>(), out_dtype, f64_cmp)
+            }
             _ => panic!("compare: unsupported dtype {:?}", dtype),
         }
     }
@@ -522,19 +529,14 @@ impl ComplexTensorOps<Flex> for Flex {
         crate::c2c_binary_op!(lhs, rhs, |a, b| a % b)
     }
 
-    fn complex_remainder_scalar(
-        lhs: ComplexTensor<Flex>,
-        rhs: <Flex as ComplexTensorBackend>::ComplexScalar,
-    ) -> ComplexTensor<Flex> {
+    fn complex_remainder_scalar(lhs: ComplexTensor<Flex>, rhs: Scalar) -> ComplexTensor<Flex> {
         let dtype = lhs.dtype();
         match dtype {
-            DType::Complex32 => scalar_op_typed::<Complex<f32>, _>(lhs, rhs, |a, b| a % b),
+            DType::Complex32 => {
+                scalar_op_typed::<Complex<f32>, _>(lhs, rhs.elem::<Complex<f32>>(), |a, b| a % b)
+            }
             DType::Complex64 => {
-                let rhs64 = Complex::<f64> {
-                    real: rhs.real as f64,
-                    imag: rhs.imag as f64,
-                };
-                scalar_op_typed::<Complex<f64>, _>(lhs, rhs64, |a, b| a % b)
+                scalar_op_typed::<Complex<f64>, _>(lhs, rhs.elem::<Complex<f64>>(), |a, b| a % b)
             }
             _ => panic!("complex_remainder_scalar: unsupported dtype {:?}", dtype),
         }
@@ -555,17 +557,19 @@ impl ComplexTensorOps<Flex> for Flex {
     fn complex_mask_fill(
         tensor: ComplexTensor<Flex>,
         mask: BoolTensor<Flex>,
-        value: <Flex as ComplexTensorBackend>::ComplexScalar,
+        value: Scalar,
     ) -> ComplexTensor<Flex> {
         match tensor.dtype() {
-            DType::Complex32 => crate::ops::mask::mask_fill::<Complex<f32>>(tensor, mask, value),
-            DType::Complex64 => {
-                let value64 = Complex::<f64> {
-                    real: value.real as f64,
-                    imag: value.imag as f64,
-                };
-                crate::ops::mask::mask_fill::<Complex<f64>>(tensor, mask, value64)
-            }
+            DType::Complex32 => crate::ops::mask::mask_fill::<Complex<f32>>(
+                tensor,
+                mask,
+                value.elem::<Complex<f32>>(),
+            ),
+            DType::Complex64 => crate::ops::mask::mask_fill::<Complex<f64>>(
+                tensor,
+                mask,
+                value.elem::<Complex<f64>>(),
+            ),
             _ => panic!("complex_mask_fill: unsupported dtype {:?}", tensor.dtype()),
         }
     }
@@ -604,18 +608,17 @@ impl ComplexTensorOps<Flex> for Flex {
         }
     }
 
-    fn complex_powc_scalar(
-        lhs: ComplexTensor<Flex>,
-        rhs: <Flex as ComplexTensorBackend>::ComplexScalar,
-    ) -> ComplexTensor<Flex> {
+    fn complex_powc_scalar(lhs: ComplexTensor<Flex>, rhs: Scalar) -> ComplexTensor<Flex> {
         match lhs.dtype() {
-            DType::Complex32 => scalar_op_typed::<Complex<f32>, _>(lhs, rhs, |a, b| a.powc(b)),
+            DType::Complex32 => {
+                scalar_op_typed::<Complex<f32>, _>(lhs, rhs.elem::<Complex<f32>>(), |a, b| {
+                    a.powc(b)
+                })
+            }
             DType::Complex64 => {
-                let rhs64 = Complex::<f64> {
-                    real: rhs.real as f64,
-                    imag: rhs.imag as f64,
-                };
-                scalar_op_typed::<Complex<f64>, _>(lhs, rhs64, |a, b| a.powc(b))
+                scalar_op_typed::<Complex<f64>, _>(lhs, rhs.elem::<Complex<f64>>(), |a, b| {
+                    a.powc(b)
+                })
             }
             _ => panic!("complex_powc_scalar: unsupported dtype {:?}", lhs.dtype()),
         }
@@ -643,10 +646,7 @@ impl ComplexTensorOps<Flex> for Flex {
         }
     }
 
-    fn complex_powf_scalar(
-        lhs: ComplexTensor<Flex>,
-        rhs: burn_backend::element::Scalar,
-    ) -> ComplexTensor<Flex> {
+    fn complex_powf_scalar(lhs: ComplexTensor<Flex>, rhs: Scalar) -> ComplexTensor<Flex> {
         match lhs.dtype() {
             DType::Complex32 => {
                 let rhs_f32 = rhs
@@ -718,6 +718,12 @@ impl ComplexTensorOps<Flex> for Flex {
             }
             _ => panic!("complex_gather_nd: unsupported dtype {:?}", data.dtype()),
         }
+    }
+
+    async fn complex_into_data(
+        tensor: ComplexTensor<Flex>,
+    ) -> Result<TensorData, burn_std::ExecutionError> {
+        Ok(tensor.into_data())
     }
 }
 

@@ -39,6 +39,7 @@ extern crate alloc;
 
 mod bridge;
 mod macros;
+mod split_complex;
 mod tensor;
 
 pub(crate) use tensor::check::macros::check;

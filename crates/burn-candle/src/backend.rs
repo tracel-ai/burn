@@ -2,9 +2,10 @@ use std::marker::PhantomData;
 
 use burn_backend::{
     BackTrace, Backend, BackendTypes, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError,
-    QTensorPrimitive, tensor::Device,
+    QTensorPrimitive, UnimplementedTensorPrimitive, tensor::Device,
 };
 use burn_std::{
+    Complex,
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
@@ -217,6 +218,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BackendTypes for Candle<F, I> {
     fn device_count(_: u16) -> usize {
         1
     }
+
+    type ComplexScalar = Complex<F>;
+
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<F>>;
 }
 
 impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {

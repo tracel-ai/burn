@@ -54,6 +54,10 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
+
+    type ComplexScalar = B::ComplexScalar;
+
+    type ComplexTensorPrimitive = B::ComplexTensorPrimitive;
 }
 
 impl<B: FusionBackend> Backend for Fusion<B> {

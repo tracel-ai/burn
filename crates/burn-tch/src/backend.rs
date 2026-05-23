@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use crate::{FloatTchElement, IntoKind};
 
 use super::TchTensor;
+use burn_backend::UnimplementedTensorPrimitive;
 use burn_backend::backend::{Backend, BackendTypes, DeviceId, DeviceOps, ExecutionError};
+use burn_backend::element::Complex;
 use burn_backend::ops::IntTensorOps;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -134,6 +136,10 @@ impl<E: FloatTchElement> BackendTypes for LibTorch<E> {
         // tch only supports one device for each backend
         1
     }
+
+    type ComplexScalar = Complex<Self::FloatElem>;
+
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<Self::FloatElem>>;
 }
 
 impl<E: FloatTchElement> Backend for LibTorch<E> {

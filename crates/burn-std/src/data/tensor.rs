@@ -33,6 +33,23 @@ pub struct TensorData {
     pub dtype: DType,
 }
 
+/// Data structure for tensors.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SplitTensorData {
+    /// The real values of the tensor (as bytes).
+    pub real_bytes: Bytes,
+
+    /// The imaginary values of the tensor (as bytes).
+    pub imag_bytes: Bytes,
+
+    #[serde(with = "shape_inner")]
+    /// The shape of the tensor.
+    pub shape: Shape,
+
+    /// The data type of the tensor.
+    pub dtype: DType,
+}
+
 // For backward compatibility with shape `Vec<usize>`
 mod shape_inner {
     use crate::SmallVec;

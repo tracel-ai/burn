@@ -274,25 +274,4 @@ pub(crate) trait FloatMathOps: Numeric {
     /// For the inverse hyperbolic tangent of a tensor, users should prefer the [`Tensor::atanh`](crate::Tensor::atanh)
     /// function, which is more high-level and designed for public use.
     fn atanh(tensor: BridgeTensor) -> BridgeTensor;
-
-    /// Returns a tensor with the four-quadrant inverse tangent values of `y` and `x`.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The tensor with y coordinates.
-    /// * `rhs` - The tensor with x coordinates.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the four-quadrant inverse tangent values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For the four-quadrant inverse tangent of two tensors, users should prefer the [`Tensor::atan2`](crate::Tensor::atan2)
-    /// function, which is more high-level and designed for public use.
-    fn atan2(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
 }

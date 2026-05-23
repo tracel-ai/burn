@@ -252,7 +252,6 @@ impl BasicOps for Int {
 }
 
 impl Numeric for Int {
-    type IntTensor = Self;
     fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_add(lhs.into(), rhs.into()))
     }
@@ -316,11 +315,8 @@ impl Numeric for Int {
         BridgeTensor::int(Dispatch::int_cumprod(tensor.into(), dim))
     }
 
-    fn powi(
-        lhs: BridgeTensor,
-        rhs: BridgeTensor,
-    ) -> Self::Primitive {
-        B::int_powi(lhs, rhs)
+    fn powi(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::int(Dispatch::int_powi(lhs.into(), rhs.into()))
     }
 
     fn powi_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {

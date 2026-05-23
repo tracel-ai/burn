@@ -1,5 +1,5 @@
+use burn_std::{ComplexElement, DType, ElementComparison};
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
-use burn_std::{DType, ElementComparison};
 
 pub use crate::element::Element;
 use crate::ops::*;
@@ -14,7 +14,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 use super::DeviceOps;
 
 /// The mapping of types used by Backend and traits.
-pub trait BackendTypes {
+pub trait BackendTypes: Clone + core::fmt::Debug + 'static {
     /// Device type.
     type Device: DeviceOps;
 
@@ -35,6 +35,11 @@ pub trait BackendTypes {
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
+
+    /// a complex element in interleaved layout
+    type ComplexScalar: ComplexElement;
+    /// a complex primitive used for interleaved operations (if the backend supports it)
+    type ComplexTensorPrimitive: TensorMetadata + 'static;
 
     /// Whether the type is fully supported by the specified device for general operations.
     ///
@@ -174,28 +179,6 @@ pub trait Backend:
         Iter: Iterator<Item = &'a mut TensorData>,
     {
     }
-
-    /// Whether the type is fully supported by the specified device for general operations.
-    ///
-    /// A type is considered supported if it can be used for the full suite of tensor
-    /// operations, including storage, conversion, and basic arithmetic.
-    ///
-    /// Returning `false` does not necessarily mean the device cannot handle the type at all.
-    /// For instance, a device might support a type only for specialized hardware
-    /// acceleration (e.g., matrix multiplication) but lack general arithmetic support. Such
-    /// types should return `false` here as they are not globally supported.
-    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
-        Self::dtype_usage(device, dtype).is_superset(DTypeUsage::general())
-    }
-
-    /// Returns the [DTypeUsageSet] for the given [DType] on the specified device.
-    fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet;
-
-    /// Returns the number of devices available on this backend.
-    /// `device` is a reference device used to determine the underlying backend that should be queried.
-    /// A CUDA device will return all devices available to CUDA, a Vulkan device will return all
-    /// devices available to Vulkan, etc.
-    fn device_count(type_id: u16) -> usize;
 }
 
 /// Trait that allows a backend to support autodiff.

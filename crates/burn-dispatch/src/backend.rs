@@ -10,10 +10,12 @@ use alloc::vec::Vec;
 ))]
 use alloc::vec;
 
+use burn_backend::element::Complex;
 use burn_backend::quantization::QuantScheme;
 use burn_backend::tensor::{Device, QuantizedTensor};
 use burn_backend::{
     AutodiffBackend, Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive,
+    UnimplementedTensorPrimitive,
 };
 
 #[cfg(feature = "autodiff")]
@@ -104,6 +106,12 @@ impl BackendTypes for Dispatch {
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
+    #[cfg(not(feature = "complex"))]
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<f32>>;
+    #[cfg(feature = "complex")]
+    type ComplexTensorPrimitive = DispatchTensor;
+    // We still need this for split ops
+    type ComplexScalar = Complex<f32>;
 }
 
 impl Backend for Dispatch {
@@ -615,7 +623,7 @@ impl DispatchTensorKind {
 }
 
 impl DispatchTensor {
-    pub(crate) fn device(&self) -> DispatchDevice {
+    pub fn device(&self) -> DispatchDevice {
         #[allow(unused_mut)]
         let mut device = self.kind.device();
 
