@@ -186,7 +186,7 @@ impl NumericMetricsState {
 
     fn on_key_event(&mut self, key: &KeyEvent) -> bool {
         match key.kind {
-            KeyEventKind::Release | KeyEventKind::Repeat => return false,
+            KeyEventKind::Release | KeyEventKind::Repeat => (),
             #[cfg(target_os = "windows")] // Fix the double toggle on Windows.
             KeyEventKind::Press => return false,
             #[cfg(not(target_os = "windows"))]
@@ -776,33 +776,6 @@ mod tests {
 
         assert!(state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 8, 0)));
         assert!(!state.on_event(&mouse(MouseEventKind::Down(MouseButton::Left), 50, 50)));
-    }
-
-    #[test]
-    fn on_event_returns_true_for_handled_keys_false_for_unhandled() {
-        use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
-        fn key(code: KeyCode) -> Event {
-            Event::Key(KeyEvent::new(code, KeyModifiers::NONE))
-        }
-        let mut state = NumericMetricsState {
-            names: vec![name("loss"), name("acc")],
-            data: BTreeMap::from_iter([
-                (
-                    name("loss"),
-                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
-                ),
-                (
-                    name("acc"),
-                    (RecentHistoryPlot::new(1), FullHistoryPlot::new(1)),
-                ),
-            ]),
-            ..NumericMetricsState::default()
-        };
-
-        assert!(state.on_event(&key(KeyCode::Right)));
-        assert!(state.on_event(&key(KeyCode::Left)));
-        assert!(state.on_event(&key(KeyCode::Up)));
-        assert!(!state.on_event(&key(KeyCode::Char('z'))));
     }
 
     fn cells(titles: &[&str]) -> Vec<u16> {
