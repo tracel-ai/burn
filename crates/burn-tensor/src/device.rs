@@ -6,15 +6,10 @@ use burn_backend::Backend;
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
-use burn_std::FloatDType;
-use burn_std::IntDType;
-use burn_std::QuantScheme;
+use burn_std::{FloatDType, IntDType, QuantScheme};
 
 use alloc::vec::Vec;
-use enumset::EnumSet;
-use enumset::EnumSetType;
-
-use crate::macros::obfuscate_type;
+use enumset::{EnumSet, EnumSetType};
 
 /// A high-level device handle for tensor operations.
 ///
@@ -69,13 +64,17 @@ use crate::macros::obfuscate_type;
 /// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 /// ```
 pub struct Device {
-    blob: device_blob::Blob,
+    blob: device_opaque::Opaque,
 }
 
 // Aligned, type-erased storage for `DispatchDevice`. See `crate::macros` for
 // why this indirection exists (it keeps the dispatch type tree out of
 // downstream MIR).
-obfuscate_type!(device_blob, DispatchDevice, Send, Sync);
+burn_std::obfuscate!(
+    type: DispatchDevice,
+    module: device_opaque,
+    derives: [Send, Sync]
+);
 
 impl Clone for Device {
     fn clone(&self) -> Self {
@@ -133,7 +132,7 @@ impl Device {
     /// `DispatchDevice` itself.
     pub fn new(device: impl Into<DispatchDevice>) -> Self {
         Self {
-            blob: device_blob::Blob::new(device.into()),
+            blob: device_opaque::Opaque::new(device.into()),
         }
     }
 
@@ -328,6 +327,16 @@ impl Device {
     #[cfg(feature = "tch")]
     pub fn libtorch_vulkan() -> Self {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
+    }
+
+    /// Remote device identified by a network address (e.g. `"ws://127.0.0.1:3000"`).
+    ///
+    /// Requires a running [`burn-remote`](burn_dispatch::backends::remote) server at
+    /// the given address. Operations on tensors created with this device are
+    /// shipped to the server and executed there.
+    #[cfg(feature = "remote")]
+    pub fn remote(address: &str) -> Self {
+        Self::new(burn_dispatch::devices::RemoteDevice::new(address))
     }
 
     /// WGPU device, selected via [`DeviceKind`].

@@ -1,7 +1,6 @@
 use burn_backend::{Scalar, ops::ActivationOps, tensor::FloatTensor};
 
 use crate::Dispatch;
-use crate::backends::*;
 
 impl ActivationOps<Self> for Dispatch {
     fn leaky_relu(tensor: FloatTensor<Self>, negative_slope: Scalar) -> FloatTensor<Self> {

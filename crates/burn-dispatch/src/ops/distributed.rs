@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 use core::mem::discriminant;
 
-use crate::backends::*;
-
 use burn_backend::{
     DeviceId,
     distributed::{
@@ -43,7 +41,7 @@ macro_rules! dispatch_devices_arms {
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
-                    type B = $Backend<f32>;
+                    type B = inst!($Backend);
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
@@ -75,7 +73,7 @@ macro_rules! dispatch_devices_arms {
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
-                    type B = Autodiff<$Backend<f32>>;
+                    type B = $crate::backends::Autodiff<inst!($Backend)>;
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {

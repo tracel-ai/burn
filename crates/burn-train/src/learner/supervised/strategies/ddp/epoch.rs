@@ -62,7 +62,6 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
                 break;
             }
         }
-        processor.process_valid(LearnerEvent::EndEpoch(epoch));
     }
 }
 
@@ -79,7 +78,6 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
     /// # Returns
     ///
     /// The trained model and the optimizer.
-    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &self,
         learner: &mut Learner<LC>,
@@ -87,7 +85,6 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
         processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
         interrupter: &Interrupter,
         peer_count: usize,
-        is_main: bool,
     ) {
         let epoch = global_progress.items_processed;
         log::info!("Executing training step for epoch {}", epoch,);
@@ -144,11 +141,6 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
                 log::info!("Training interrupted.");
                 break;
             }
-        }
-
-        if is_main {
-            let mut processor = processor.lock().unwrap();
-            processor.process_train(LearnerEvent::EndEpoch(epoch));
         }
     }
 }

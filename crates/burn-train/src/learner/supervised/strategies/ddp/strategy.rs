@@ -23,6 +23,10 @@ pub(crate) struct WorkerComponents {
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
+    /// The total number of items in the training dataset.
+    pub train_total_items: usize,
+    /// The total number of items in the validation dataset.
+    pub valid_total_items: usize,
 }
 
 /// A training strategy for Distributed Data Parallel (DDP) training.
@@ -53,6 +57,8 @@ where
     ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         // The reference model is always on the first device provided.
         let main_device = self.devices.first().unwrap();
+        let train_total_items = dataloader_train.num_items();
+        let valid_total_items = dataloader_valid.num_items();
         // One worker per device, so we use a fixed device strategy
         // for each (worker) data loader. This matches the expected device on the worker, so we
         // don't have to move the data between devices.
@@ -70,6 +76,8 @@ where
             interrupter: interrupter.clone(),
             early_stopping: training_components.early_stopping,
             event_store: training_components.event_store,
+            train_total_items,
+            valid_total_items,
         };
 
         self.runtime.start();

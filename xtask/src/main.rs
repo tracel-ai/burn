@@ -40,6 +40,9 @@ pub enum Command {
     Books(commands::books::BooksArgs),
     /// Build Burn in different modes.
     Build(commands::build::BurnBuildCmdArgs),
+    /// Validate the remote backend end-to-end: spin up the `server` example, point
+    /// `burn-backend-tests` at it via `BURN_DEVICE=remote`, tear it down on exit.
+    Remote(commands::remote::RemoteCmdArgs),
     /// Test Burn.
     Test(commands::test::BurnTestCmdArgs),
 }
@@ -59,6 +62,9 @@ fn main() -> anyhow::Result<()> {
         Command::Books(cmd_args) => cmd_args.parse(),
         Command::Build(cmd_args) => {
             commands::build::handle_command(cmd_args, environment, args.context)
+        }
+        Command::Remote(cmd_args) => {
+            commands::remote::handle_command(cmd_args, environment, args.context)
         }
         Command::Doc(cmd_args) => {
             commands::doc::handle_command(cmd_args, environment, args.context)
