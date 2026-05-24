@@ -1,6 +1,7 @@
 use std::os::unix::raw::dev_t;
 
 use alloc::vec::Vec;
+use burn_backend::TypedDevice;
 use burn_backend::ops::ComplexTensorOps;
 use burn_backend::ops::FloatTensorOps;
 use burn_backend::try_read_sync;
@@ -177,6 +178,16 @@ impl<B: Backend, const D: usize> BackendTypes for SplitBackend<B, D> {
     type ComplexScalar = Complex<B::FloatElem>;
 
     type ComplexTensorPrimitive = SplitComplexTensor<B, D>;
+}
+
+impl TypedDevice<SplitBackend<B, D>> for SplitBackend<B, D>
+where
+    B: Backend,
+    B::FloatElem: ElementComparison + Pod,
+{
+    fn complex_device(tensor: &ComplexTensor<SplitBackend<B, D>>) -> B::Device {
+        B::float_device(&tensor.real.into_primitive().to_float_tensor())
+    }
 }
 
 impl<B: Backend, const D: usize> ComplexTensorBackend for SplitBackend<B, D>
@@ -372,10 +383,6 @@ where
             shape,
             dtype,
         })
-    }
-
-    fn complex_device(tensor: &ComplexTensor<SplitBackend<B, D>>) -> B::Device {
-        B::float_device(&tensor.real.into_primitive().to_float_tensor())
     }
 
     fn complex_add(

@@ -5,7 +5,7 @@ mod module;
 mod qtensor;
 mod tensor;
 mod transaction;
-
+mod complex;
 #[cfg(feature = "distributed")]
 mod distributed;
 

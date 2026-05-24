@@ -9,6 +9,7 @@ mod qtensor;
 mod tensor;
 mod transaction;
 mod unary;
+mod complex;
 
 mod base;
 pub use base::NoOp;

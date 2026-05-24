@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_backend::ops::ComplexTensorOps;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{
-    BackendTypes, ComplexTensor, ComplexTensorBackend, Distribution, InterleavedLayout,
+    BackendTypes, ComplexTensor, ComplexTensorBackend, Distribution, InterleavedLayout, TypedDevice,
 };
 use burn_backend::{Element, TensorData};
 
@@ -23,7 +23,11 @@ use crate::ops::{
 
 use crate::strided_index::StridedIter;
 use crate::{Flex, FlexDevice, FlexTensor, ops::binary::scalar_op_typed};
-
+impl TypedDevice<Flex> for Flex {
+    fn complex_device(_tensor: &ComplexTensor<Flex>) -> Device<Flex> {
+        Default::default()
+    }
+}
 impl ComplexTensorBackend for Flex {
     type InnerBackend = Flex;
 
@@ -100,9 +104,6 @@ impl ComplexTensorOps<Flex> for Flex {
         crate::c2r_unary_op!(tensor, |a| a.norm_sqr())
     }
 
-    fn complex_device(_tensor: &ComplexTensor<Flex>) -> Device<Flex> {
-        Default::default()
-    }
 
     fn complex_to_device(
         tensor: ComplexTensor<Flex>,

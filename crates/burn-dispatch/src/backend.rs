@@ -596,6 +596,8 @@ impl AutodiffBackend for Dispatch {
 }
 
 impl DispatchTensorKind {
+    /// Need to gate these as 
+    #[cfg(not(feature = "complex"))]
     pub(crate) fn device(&self) -> DispatchDevice {
         match self {
             #[cfg(feature = "cpu")]
@@ -618,6 +620,18 @@ impl DispatchTensorKind {
             DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
+        }
+    }
+    // open to other solutions
+    // sort of a hack to avoid having to implement complex tensor backend universally
+    #[cfg(feature = "complex")]
+    pub(crate) fn device(&self) -> DispatchDevice {
+        match self {
+            #[cfg(feature = "flex")]
+            DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
+            #[cfg(feature = "autodiff")]
+            DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
+            _ => panic!("Interleaved Complex values are not supported on the selected backend. Use SplitTensor"),
         }
     }
 }

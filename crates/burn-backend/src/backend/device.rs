@@ -22,7 +22,7 @@ pub use hashbrown::HashMap;
 #[cfg(not(feature = "std"))]
 use spin::{Lazy as LazyLock, Once as OnceLock};
 
-use crate::{Backend, BackendTypes};
+use crate::{Backend, BackendTypes, ComplexTensor};
 
 /// Device trait for all burn backend devices.
 pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debug + Device {
@@ -344,6 +344,20 @@ fn initialize_unchecked<D: DeviceOps>(
     settings: DeviceSettings,
 ) -> Result<(), DeviceError> {
     DeviceSettingsRegistry::init(device, settings)
+}
+
+/// For use with types where support for backend is either not yet implemented or not supported, such as interleaved complex values and eventaully quaternions
+pub trait TypedDevice<B: BackendTypes> {
+    /// Gets the device of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The device of the tensor.
+    fn complex_device(tensor: &ComplexTensor<B>) -> B::Device;
 }
 
 #[cfg(all(test, feature = "std"))]

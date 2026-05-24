@@ -2,7 +2,7 @@ use burn_std::{ComplexElement, DType, ElementComparison};
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
 pub use crate::element::Element;
-use crate::ops::*;
+use crate::{TypedDevice, ops::*};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{QTensorPrimitive, TensorData, TensorMetadata};
 use alloc::string::String;
@@ -127,6 +127,7 @@ pub trait Backend:
     + Sized
     + Send
     + Sync
+    + TypedDevice<Self>
     + core::fmt::Debug
     + 'static
 {

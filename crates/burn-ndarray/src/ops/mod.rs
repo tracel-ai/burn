@@ -8,7 +8,7 @@ mod qtensor;
 mod simd;
 mod tensor;
 mod transaction;
-
+mod complex;
 pub(crate) mod adaptive_avgpool;
 pub(crate) mod avgpool;
 pub(crate) mod conv;

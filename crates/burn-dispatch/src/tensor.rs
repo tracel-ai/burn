@@ -157,7 +157,7 @@ impl<B: Backend> BackendTensor<B> {
     }
 }
 #[cfg(feature = "complex")]
-impl<B: Backend + ComplexTensorBackend> BackendTensor<B> {
+impl<B: Backend> BackendTensor<B> {
     pub(crate) fn device(&self) -> B::Device {
         match self {
             BackendTensor::Float(tensor) => B::float_device(tensor),

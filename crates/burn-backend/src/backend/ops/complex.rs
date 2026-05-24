@@ -10,6 +10,9 @@ use crate::{
     tensor::{Device, FloatTensor, IntTensor},
 };
 
+
+
+
 pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// Converts the tensor's real component to a data structure.
     ///
@@ -162,16 +165,6 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         tensor.shape()
     }
 
-    /// Gets the device of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The device of the tensor.
-    fn complex_device(tensor: &ComplexTensor<B>) -> B::Device;
 
     /// Moves the tensor to the given device.
     ///
