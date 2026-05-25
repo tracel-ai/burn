@@ -79,7 +79,7 @@ where
         let settings = session_manager.runner.device_settings();
         let response = TaskResponse {
             content: TaskResponseContent::Init(settings),
-            // Use a zero/empty ConnectionId for lifecycle handshakes
+            // Use a zero/empty ConnectionId for init handshakes
             id: ConnectionId::new(0, burn_std::id::StreamId::current()),
         };
         let bytes = rmp_serde::to_vec(&response).unwrap();
