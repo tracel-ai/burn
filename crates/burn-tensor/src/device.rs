@@ -343,15 +343,16 @@ impl Device {
 
     /// WGPU device, selected via [`DeviceKind`].
     ///
-    /// The actual wgpu adapter (Vulkan / Metal / WebGPU) is picked by the
-    /// enabled Cargo features and, for [`DeviceKind::DefaultDevice`], by
-    /// `wgpu`'s adapter-selection heuristics (high-power GPU preferred, or
-    /// whatever `CUBECL_WGPU_DEFAULT_DEVICE` overrides it to).
+    /// This variant uses the runtime [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler)
+    /// to dispatch to the most appropriate shader language (WGSL, SPIR-V, or MSL) based on the
+    /// enabled features.
     ///
-    /// `Device::vulkan` / `Device::metal` / `Device::webgpu` are
-    /// equivalent calls (they exist only to make the intended backend
-    /// explicit at the call site — the underlying adapter is still picked by
-    /// enabled Cargo features).
+    /// For [`DeviceKind::DefaultDevice`], the adapter is picked by `wgpu`'s
+    /// selection heuristics (high-power GPU preferred, or overridden by
+    /// `CUBECL_WGPU_DEFAULT_DEVICE`).
+    ///
+    /// `Device::vulkan`, `Device::metal`, and `Device::webgpu` also use the Wgpu runtime,
+    /// but bypass runtime dispatch by pinning specific compilers at compile time.
     #[cfg(feature = "wgpu")]
     pub fn wgpu(device_kind: DeviceKind) -> Self {
         Self::new(DispatchDevice::Wgpu(wgpu_device(device_kind)))
