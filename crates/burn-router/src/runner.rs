@@ -1551,6 +1551,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.padding,
                         desc.dilation,
                         desc.ceil_mode,
+                        desc.out_indices.dtype.into(),
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
@@ -1595,6 +1596,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         desc.padding,
                         desc.dilation,
                         desc.ceil_mode,
+                        desc.out_indices.dtype.into(),
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);

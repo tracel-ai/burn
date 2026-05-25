@@ -1,33 +1,28 @@
 use crate::{
     BoolVisionOps, ConnectedStatsOptions, Connectivity, FloatVisionOps, IntVisionOps,
-    VisionBackend, backends::cpu, dispatch_int_dtype,
+    VisionBackend, backends::cpu,
 };
-use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use burn_cubecl::{CubeBackend, CubeRuntime};
 
 use burn_core::backend::{
     ops::{BoolTensorOps, IntTensorOps},
     tensor::{BoolTensor, IntTensor},
 };
-use burn_core::tensor::{Element, IntDType};
+use burn_core::tensor::IntDType;
 
 use super::connected_components::hardware_accelerated;
 
-impl<R, F, I, BT> BoolVisionOps for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
     fn connected_components(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R, F, I, BT>(
+        hardware_accelerated(
             img.clone(),
             ConnectedStatsOptions::none(),
             connectivity,
+            out_dtype.into(),
         )
         .map(|it| it.0)
         .unwrap_or_else(|_| {
@@ -36,7 +31,7 @@ where
                 cpu::connected_components::<Self>(img, connectivity, out_dtype),
                 &device,
             )
-        }))
+        })
     }
 
     fn connected_components_with_stats(
@@ -54,51 +49,32 @@ where
         IntTensor<Self>,
     ) {
         let device = Self::bool_device(&img);
-        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R, F, I, BT>(
-            img.clone(),
-            opts,
-            connectivity
+        hardware_accelerated::<R>(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
+            |_| {
+                let (labels, (area, top, left, right, bottom, max_label)) =
+                    cpu::connected_components_with_stats::<Self>(
+                        img,
+                        connectivity,
+                        opts,
+                        out_dtype,
+                    );
+                (
+                    Self::int_from_data(labels, &device),
+                    area,
+                    top,
+                    left,
+                    right,
+                    bottom,
+                    max_label,
+                )
+            },
         )
-        .unwrap_or_else(|_| {
-            let (labels, (area, top, left, right, bottom, max_label)) =
-                cpu::connected_components_with_stats::<Self>(img, connectivity, opts, out_dtype);
-            (
-                Self::int_from_data(labels, &device),
-                area,
-                top,
-                left,
-                right,
-                bottom,
-                max_label,
-            )
-        }))
     }
 }
 
-impl<R, F, I, BT> IntVisionOps for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
-}
-impl<R, F, I, BT> FloatVisionOps for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
-}
-impl<R, F, I, BT> VisionBackend for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
-}
+impl<R: CubeRuntime> IntVisionOps for CubeBackend<R> {}
+impl<R: CubeRuntime> FloatVisionOps for CubeBackend<R> {}
+impl<R: CubeRuntime> VisionBackend for CubeBackend<R> {}
 
 #[cfg(feature = "fusion")]
 mod fusion {
@@ -106,7 +82,7 @@ mod fusion {
     use burn_core::tensor::Shape;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
-        stream::{StreamId, Operation},
+        stream::{Operation, StreamId},
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr, OperationOutput, TensorIr};
 
@@ -147,7 +123,7 @@ mod fusion {
             let out = TensorIr::uninit(
                 client.create_empty_handle(),
                 Shape::new([height, width]),
-                B::IntElem::dtype(),
+                out_dtype.into(),
             );
 
             let desc = CustomOpIr::new("connected_components", &[img.into_ir()], &[out]);
@@ -222,7 +198,7 @@ mod fusion {
                 }
             }
 
-            let dtype = B::IntElem::dtype();
+            let dtype = out_dtype.into();
             let shape = Shape::new([height, width]);
             let shape_flat = shape.clone().flatten();
             let streams = StreamId::current();

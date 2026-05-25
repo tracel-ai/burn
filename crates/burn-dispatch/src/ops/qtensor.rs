@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, FloatDType, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
+    DeviceOps, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorPrimitive,
     ops::QTensorOps,
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
@@ -100,7 +100,8 @@ impl QTensorOps<Self> for Dispatch {
         // TODO: this would be much cleaner if we consolidated tensor primitive types
         match (lhs, rhs) {
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
-                if matches!(lhs.propagation(), QuantPropagation::Propagate) {
+                let propagation = lhs.device().defaults().quantization.propagation;
+                if matches!(propagation, QuantPropagation::Propagate) {
                     let out = binary_op!(
                         (lhs, quantized),
                         (rhs, quantized),
@@ -135,7 +136,8 @@ impl QTensorOps<Self> for Dispatch {
                 }
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                if matches!(rhs.propagation(), QuantPropagation::Propagate) {
+                let propagation = rhs.device().defaults().quantization.propagation;
+                if matches!(propagation, QuantPropagation::Propagate) {
                     let out = binary_op!(
                         (lhs, float),
                         (rhs, quantized),
@@ -170,7 +172,8 @@ impl QTensorOps<Self> for Dispatch {
                 }
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                if matches!(lhs.propagation(), QuantPropagation::Propagate) {
+                let propagation = lhs.device().defaults().quantization.propagation;
+                if matches!(propagation, QuantPropagation::Propagate) {
                     let out = binary_op!(
                         (lhs, quantized),
                         (rhs, float),

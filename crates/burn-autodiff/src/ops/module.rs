@@ -8,12 +8,12 @@ use crate::graph::NodeId;
 use crate::ops::{Backward, Ops, unary};
 use crate::tensor::AutodiffTensor;
 
-use burn_backend::Backend;
 use burn_backend::TensorMetadata;
 use burn_backend::ops::attention::attention_fallback;
 use burn_backend::ops::*;
 use burn_backend::tensor::{FloatTensor, IntTensor};
-use burn_std::Slice;
+use burn_backend::{Backend, get_device_settings};
+use burn_std::{IntDType, Slice};
 
 use super::OpsKind;
 
@@ -1513,6 +1513,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
+                let settings = get_device_settings::<B>(&B::float_device(&x.primitive));
                 let output = B::max_pool1d_with_indices(
                     x.primitive,
                     kernel_size,
@@ -1520,6 +1521,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     padding,
                     dilation,
                     ceil_mode,
+                    settings.int_dtype,
                 );
                 prep.finish(
                     (
@@ -1552,6 +1554,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         padding: usize,
         dilation: usize,
         ceil_mode: bool,
+        int_dtype: IntDType,
     ) -> MaxPool1dWithIndices<Self> {
         match MaxPool1D
             .prepare::<C>([x.node.clone()])
@@ -1567,6 +1570,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     padding,
                     dilation,
                     ceil_mode,
+                    int_dtype,
                 );
 
                 let output_tensor = prep.finish(
@@ -1592,6 +1596,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     padding,
                     dilation,
                     ceil_mode,
+                    int_dtype,
                 );
                 let output_tensor = prep.finish(output.output);
 
@@ -1638,6 +1643,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
+                let settings = get_device_settings::<B>(&B::float_device(&x.primitive));
                 let output = B::max_pool2d_with_indices(
                     x.primitive,
                     kernel_size,
@@ -1645,6 +1651,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     padding,
                     dilation,
                     ceil_mode,
+                    settings.int_dtype,
                 );
                 prep.finish(
                     (
@@ -1677,6 +1684,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
+        int_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Self> {
         match MaxPool2D
             .prepare::<C>([x.node.clone()])
@@ -1693,6 +1701,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     padding,
                     dilation,
                     ceil_mode,
+                    int_dtype,
                 );
 
                 let output_tensor = prep.finish(
@@ -1718,6 +1727,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     padding,
                     dilation,
                     ceil_mode,
+                    int_dtype,
                 );
                 let output_tensor = prep.finish(output.output);
 

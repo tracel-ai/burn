@@ -3,7 +3,6 @@ use crate::{
     stream::{StreamId, execution::Operation},
 };
 use burn_backend::{
-    Element,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
         InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
@@ -12,6 +11,7 @@ use burn_backend::{
     tensor::{FloatTensor, IntTensor},
 };
 use burn_ir::*;
+use burn_std::IntDType;
 use std::marker::PhantomData;
 
 macro_rules! make_ops {
@@ -1067,6 +1067,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         padding: usize,
         dilation: usize,
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool1dWithIndices<Self> {
         make_ops!(
             MaxPool1dWithIndicesOps,
@@ -1080,6 +1081,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.padding,
                     args.dilation,
                     args.ceil_mode,
+                    args.out_indices.dtype.into(),
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -1097,7 +1099,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             padding,
             dilation,
             ceil_mode,
-            B::IntElem::dtype(),
+            indices_dtype.into(),
             || client.create_empty_handle(),
         );
 
@@ -1119,6 +1121,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Self> {
         make_ops!(
             MaxPool2dWithIndicesOps,
@@ -1132,6 +1135,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.padding,
                     args.dilation,
                     args.ceil_mode,
+                    args.out_indices.dtype.into(),
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -1149,7 +1153,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             padding,
             dilation,
             ceil_mode,
-            B::IntElem::dtype(),
+            indices_dtype.into(),
             || client.create_empty_handle(),
         );
 

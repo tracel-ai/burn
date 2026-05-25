@@ -11,7 +11,7 @@ use ratatui::{
 #[derive(new)]
 pub(crate) struct MetricsView<'a> {
     metric_numeric: NumericMetricView<'a>,
-    metric_text: TextMetricView,
+    metric_text: TextMetricView<'a>,
     progress: ProgressBarView,
     controls: ControlsView,
     status: StatusView,

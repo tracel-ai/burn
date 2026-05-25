@@ -293,51 +293,51 @@ impl BasicOps for Float {
     }
 
     fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_equal(lhs, rhs.into_float(), out_dtype))
+        BridgeTensor::bool(Dispatch::float_equal(lhs, rhs.into_float(), bool_dtype))
     }
 
     fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_not_equal(lhs, rhs.into_float(), out_dtype))
+        BridgeTensor::bool(Dispatch::float_not_equal(lhs, rhs.into_float(), bool_dtype))
     }
 
     fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_equal_elem(lhs, rhs, out_dtype))
+        BridgeTensor::bool(Dispatch::float_equal_elem(lhs, rhs, bool_dtype))
     }
 
     fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_not_equal_elem(lhs, rhs, out_dtype))
+        BridgeTensor::bool(Dispatch::float_not_equal_elem(lhs, rhs, bool_dtype))
     }
 
     fn any(tensor: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = tensor.device_settings().bool_dtype;
         let tensor = tensor.into_float();
-        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_any(tensor, out_dtype))
+        BridgeTensor::bool(Dispatch::float_any(tensor, bool_dtype))
     }
 
     fn any_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let bool_dtype = tensor.device_settings().bool_dtype;
         let tensor = tensor.into_float();
-        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_any_dim(tensor, dim, out_dtype))
+        BridgeTensor::bool(Dispatch::float_any_dim(tensor, dim, bool_dtype))
     }
 
     fn all(tensor: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = tensor.device_settings().bool_dtype;
         let tensor = tensor.into_float();
-        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_all(tensor, out_dtype))
+        BridgeTensor::bool(Dispatch::float_all(tensor, bool_dtype))
     }
 
     fn all_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let bool_dtype = tensor.device_settings().bool_dtype;
         let tensor = tensor.into_float();
-        let out_dtype = Dispatch::float_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_all_dim(tensor, dim, out_dtype))
+        BridgeTensor::bool(Dispatch::float_all_dim(tensor, dim, bool_dtype))
     }
 
     fn permute(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
@@ -637,18 +637,17 @@ impl Ordered for Float {
         dim: usize,
         descending: bool,
     ) -> (BridgeTensor, BridgeTensor) {
+        let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
         match kind {
             BridgeKind::Float => {
-                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
                 let (values, indices) =
-                    Dispatch::float_sort_with_indices(tensor, dim, descending, out_dtype);
+                    Dispatch::float_sort_with_indices(tensor, dim, descending, settings.int_dtype);
                 (BridgeTensor::float(values), BridgeTensor::int(indices))
             }
             BridgeKind::QFloat => {
-                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
                 let (values, indices) =
-                    Dispatch::q_sort_with_indices(tensor, dim, descending, out_dtype);
+                    Dispatch::q_sort_with_indices(tensor, dim, descending, settings.int_dtype);
                 (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
             }
             _ => panic!("Should be Float primitive kind"),
@@ -656,16 +655,21 @@ impl Ordered for Float {
     }
 
     fn argsort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor {
+        let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
         match kind {
-            BridgeKind::Float => {
-                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::float_argsort(tensor, dim, descending, out_dtype))
-            }
-            BridgeKind::QFloat => {
-                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::q_argsort(tensor, dim, descending, out_dtype))
-            }
+            BridgeKind::Float => BridgeTensor::int(Dispatch::float_argsort(
+                tensor,
+                dim,
+                descending,
+                settings.int_dtype,
+            )),
+            BridgeKind::QFloat => BridgeTensor::int(Dispatch::q_argsort(
+                tensor,
+                dim,
+                descending,
+                settings.int_dtype,
+            )),
             _ => panic!("Should be Float primitive kind"),
         }
     }
@@ -695,101 +699,98 @@ impl Ordered for Float {
     }
 
     fn greater(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_greater(lhs, rhs.into_float(), out_dtype))
+        BridgeTensor::bool(Dispatch::float_greater(lhs, rhs.into_float(), bool_dtype))
     }
 
     fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_greater_elem(lhs, rhs, out_dtype))
+        BridgeTensor::bool(Dispatch::float_greater_elem(lhs, rhs, bool_dtype))
     }
 
     fn greater_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
         BridgeTensor::bool(Dispatch::float_greater_equal(
             lhs,
             rhs.into_float(),
-            out_dtype,
+            bool_dtype,
         ))
     }
 
     fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_greater_equal_elem(lhs, rhs, out_dtype))
+        BridgeTensor::bool(Dispatch::float_greater_equal_elem(lhs, rhs, bool_dtype))
     }
 
     fn lower(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_lower(lhs, rhs.into_float(), out_dtype))
+        BridgeTensor::bool(Dispatch::float_lower(lhs, rhs.into_float(), bool_dtype))
     }
 
     fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_lower_elem(lhs, rhs, out_dtype))
+        BridgeTensor::bool(Dispatch::float_lower_elem(lhs, rhs, bool_dtype))
     }
 
     fn lower_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
         BridgeTensor::bool(Dispatch::float_lower_equal(
             lhs,
             rhs.into_float(),
-            out_dtype,
+            bool_dtype,
         ))
     }
 
     fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+        let bool_dtype = lhs.device_settings().bool_dtype;
         let lhs = lhs.into_float();
-        let out_dtype = Dispatch::float_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::float_lower_equal_elem(lhs, rhs, out_dtype))
+        BridgeTensor::bool(Dispatch::float_lower_equal_elem(lhs, rhs, bool_dtype))
     }
 
     fn argmax(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
         match kind {
             BridgeKind::Float => {
-                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::float_argmax(tensor, dim, out_dtype))
+                BridgeTensor::int(Dispatch::float_argmax(tensor, dim, settings.int_dtype))
             }
             BridgeKind::QFloat => {
-                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::q_argmax(tensor, dim, out_dtype))
+                BridgeTensor::int(Dispatch::q_argmax(tensor, dim, settings.int_dtype))
             }
             _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn argtopk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor {
+        let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
         match kind {
             BridgeKind::Float => {
-                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::float_argtopk(tensor, dim, k, out_dtype))
+                BridgeTensor::int(Dispatch::float_argtopk(tensor, dim, k, settings.int_dtype))
             }
             BridgeKind::QFloat => {
-                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::q_argtopk(tensor, dim, k, out_dtype))
+                BridgeTensor::int(Dispatch::q_argtopk(tensor, dim, k, settings.int_dtype))
             }
             _ => panic!("Should be Float primitive kind"),
         }
     }
 
     fn argmin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
+        let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
         match kind {
             BridgeKind::Float => {
-                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::float_argmin(tensor, dim, out_dtype))
+                BridgeTensor::int(Dispatch::float_argmin(tensor, dim, settings.int_dtype))
             }
             BridgeKind::QFloat => {
-                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
-                BridgeTensor::int(Dispatch::q_argmin(tensor, dim, out_dtype))
+                BridgeTensor::int(Dispatch::q_argmin(tensor, dim, settings.int_dtype))
             }
             _ => panic!("Should be Float primitive kind"),
         }
@@ -823,17 +824,17 @@ impl Ordered for Float {
     }
 
     fn max_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
+        let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
         match kind {
             BridgeKind::Float => {
-                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
                 let (values, indices) =
-                    Dispatch::float_max_dim_with_indices(tensor, dim, out_dtype);
+                    Dispatch::float_max_dim_with_indices(tensor, dim, settings.int_dtype);
                 (BridgeTensor::float(values), BridgeTensor::int(indices))
             }
             BridgeKind::QFloat => {
-                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
-                let (values, indices) = Dispatch::q_max_dim_with_indices(tensor, dim, out_dtype);
+                let (values, indices) =
+                    Dispatch::q_max_dim_with_indices(tensor, dim, settings.int_dtype);
                 (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
             }
             _ => panic!("Should be Float primitive kind"),
@@ -859,17 +860,17 @@ impl Ordered for Float {
     }
 
     fn min_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
+        let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
         match kind {
             BridgeKind::Float => {
-                let out_dtype = Dispatch::float_device(&tensor).settings().int_dtype;
                 let (values, indices) =
-                    Dispatch::float_min_dim_with_indices(tensor, dim, out_dtype);
+                    Dispatch::float_min_dim_with_indices(tensor, dim, settings.int_dtype);
                 (BridgeTensor::float(values), BridgeTensor::int(indices))
             }
             BridgeKind::QFloat => {
-                let out_dtype = Dispatch::q_device(&tensor).settings().int_dtype;
-                let (values, indices) = Dispatch::q_min_dim_with_indices(tensor, dim, out_dtype);
+                let (values, indices) =
+                    Dispatch::q_min_dim_with_indices(tensor, dim, settings.int_dtype);
                 (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
             }
             _ => panic!("Should be Float primitive kind"),

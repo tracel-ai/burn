@@ -1,4 +1,4 @@
-use burn_backend::{DeviceId, DeviceOps, DeviceSettings, get_device_settings};
+use burn_backend::{DeviceId, DeviceOps, DeviceSettings};
 
 use crate::backends::*;
 
@@ -368,11 +368,6 @@ impl DispatchDevice {
         self
     }
 
-    /// Get the device settings.
-    pub fn settings(&self) -> DeviceSettings {
-        get_device_settings::<crate::Dispatch>(self)
-    }
-
     /// Returns a unique number per variant to encode into type_id.
     fn backend_id(&self) -> DispatchDeviceId {
         match self {
@@ -478,7 +473,36 @@ impl TryFrom<u16> for DispatchDeviceId {
     }
 }
 
-impl DeviceOps for DispatchDevice {}
+impl DeviceOps for DispatchDevice {
+    fn defaults(&self) -> DeviceSettings {
+        match self {
+            #[cfg(feature = "cpu")]
+            Self::Cpu(device) => device.defaults(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => device.defaults(),
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => device.defaults(),
+            #[cfg(feature = "rocm")]
+            Self::Rocm(device) => device.defaults(),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(device) => device.defaults(),
+            #[cfg(feature = "wgpu")]
+            Self::Wgpu(device) => device.defaults(),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(device) => device.defaults(),
+            #[cfg(feature = "flex")]
+            Self::Flex(device) => device.defaults(),
+            #[cfg(any(feature = "ndarray", default_backend))]
+            Self::NdArray(device) => device.defaults(),
+            #[cfg(feature = "tch")]
+            Self::LibTorch(device) => device.defaults(),
+            #[cfg(feature = "remote")]
+            Self::Remote(device) => device.defaults(),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(device) => device.inner.defaults(),
+        }
+    }
+}
 
 impl burn_backend::Device for DispatchDevice {
     fn from_id(mut device_id: DeviceId) -> Self {

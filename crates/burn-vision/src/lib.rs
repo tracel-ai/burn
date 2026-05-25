@@ -45,43 +45,66 @@ pub mod utils;
 /// Loss module
 pub mod loss;
 
-/// Dispatches connected components based on `B::IntElem::dtype()`, binding a concrete
+/// Dispatches connected components based on the int dtype, binding a concrete
 /// integer type to enable generic instantiations without extra trait bounds (after removing
 /// `ElementComparison` from `Element`).
 #[macro_export]
 macro_rules! dispatch_int_dtype {
     ($dtype:expr, |$ty:ident| $body:expr) => {
         match $dtype {
-            IntDType::I64 => {
+            burn_core::tensor::IntDType::I64 => {
                 type $ty = i64;
                 $body
             }
-            IntDType::I32 => {
+            burn_core::tensor::IntDType::I32 => {
                 type $ty = i32;
                 $body
             }
-            IntDType::I16 => {
+            burn_core::tensor::IntDType::I16 => {
                 type $ty = i16;
                 $body
             }
-            IntDType::I8 => {
+            burn_core::tensor::IntDType::I8 => {
                 type $ty = i8;
                 $body
             }
-            IntDType::U64 => {
+            burn_core::tensor::IntDType::U64 => {
                 type $ty = u64;
                 $body
             }
-            IntDType::U32 => {
+            burn_core::tensor::IntDType::U32 => {
                 type $ty = u32;
                 $body
             }
-            IntDType::U16 => {
+            burn_core::tensor::IntDType::U16 => {
                 type $ty = u16;
                 $body
             }
-            IntDType::U8 => {
+            burn_core::tensor::IntDType::U8 => {
                 type $ty = u8;
+                $body
+            }
+        }
+    };
+}
+
+/// Dispatches connected components based on the bool dtype, binding a concrete
+/// integer type to enable generic instantiations without extra trait bounds (after removing
+/// `ElementComparison` from `Element`).
+#[macro_export]
+macro_rules! dispatch_bool_dtype {
+    ($dtype:expr, |$ty:ident| $body:expr) => {
+        match $dtype {
+            burn_core::tensor::BoolStore::Native => {
+                type $ty = bool;
+                $body
+            }
+            burn_core::tensor::BoolStore::U8 => {
+                type $ty = u8;
+                $body
+            }
+            burn_core::tensor::BoolStore::U32 => {
+                type $ty = u32;
                 $body
             }
         }

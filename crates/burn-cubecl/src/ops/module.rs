@@ -1,6 +1,5 @@
 use crate::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
-    element::BoolElement,
+    CubeBackend, CubeRuntime,
     kernel::{self, conv::ConvTranspose2dStrategy},
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
@@ -11,13 +10,11 @@ use burn_backend::{
         DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
     },
 };
+use burn_std::IntDType;
 
-impl<R, F, I, BT> ModuleOps<Self> for CubeBackend<R, F, I, BT>
+impl<R> ModuleOps<Self> for CubeBackend<R>
 where
     R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
 {
     fn conv1d(
         x: FloatTensor<Self>,
@@ -250,6 +247,7 @@ where
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Self> {
         let (output, indices) = kernel::pool::max_pool2d_with_indices(
             x,
@@ -258,7 +256,7 @@ where
             padding,
             dilation,
             ceil_mode,
-            I::dtype(),
+            indices_dtype.into(),
         );
 
         MaxPool2dWithIndices::new(output, indices)

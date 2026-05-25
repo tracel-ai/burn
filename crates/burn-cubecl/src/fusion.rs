@@ -1,5 +1,4 @@
-use crate::BoolElement;
-use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
+use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
 use burn_cubecl_fusion::optim::reduce::ReduceSettings;
@@ -100,9 +99,7 @@ impl<R: CubeRuntime> FallbackOperation<R>
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     type Handle = CubeFusionHandle<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
@@ -160,12 +157,10 @@ pub struct FusionCubeRuntime<R: CubeRuntime> {
     _b: PhantomData<R>,
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBackend
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> FusionBackend for CubeBackend<R> {
     type FusionRuntime = FusionCubeRuntime<R>;
 
-    type FullPrecisionBackend = CubeBackend<R, f32, i32, BT>;
+    type FullPrecisionBackend = CubeBackend<R>;
 
     fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle {
         kernel::cast(tensor, dtype).into()

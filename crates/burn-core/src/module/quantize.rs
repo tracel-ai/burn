@@ -38,7 +38,9 @@ mod tests {
         let device = test_device();
         let module = SimpleLinear::new(32, 32, &device);
         let scheme = device
-            .default_quant_scheme()
+            .settings()
+            .quantization
+            .scheme
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Tensor)
             .with_param(QuantParam::F32);

@@ -9,8 +9,10 @@ use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::Interpolate
 use cubek::interpolate::{
     definition::InterpolateMode as CubekInterpolateMode,
     definition::InterpolateOptions as CubekInterpolateOptions,
-    definition::NearestMode as CubekNearestMode, interpolate as cubek_interpolate,
-    interpolate_backward as cubek_interpolate_backward,
+    definition::NearestMode as CubekNearestMode,
+    interpolate as cubek_interpolate, interpolate_backward as cubek_interpolate_backward,
+    launch::InterpolateStrategy,
+    routines::{BlueprintStrategy, GlobalMemoryRoutine, GlobalMemoryStrategy},
 };
 
 /// Interpolate operation
@@ -39,6 +41,9 @@ pub fn interpolate<R: CubeRuntime>(
         input.clone().binding(),
         output.clone().binding(),
         map_options(options.clone()),
+        InterpolateStrategy::GlobalMemoryStrategy(
+            BlueprintStrategy::<GlobalMemoryRoutine>::Inferred(GlobalMemoryStrategy {}),
+        ),
         dtype_to_storage_type(input.dtype),
     )
     .unwrap_or_else(|e| {

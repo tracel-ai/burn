@@ -50,8 +50,9 @@ impl PopupState {
     pub(crate) fn is_empty(&self) -> bool {
         matches!(&self, PopupState::Empty)
     }
-    /// Handle popup events.
-    pub(crate) fn on_event(&mut self, event: &Event) {
+    /// Handle popup events. Returns `true` when the popup state changed and a
+    /// redraw is warranted, `false` for events that left the popup untouched.
+    pub(crate) fn on_event(&mut self, event: &Event) -> bool {
         let mut reset = false;
 
         match self {
@@ -72,6 +73,7 @@ impl PopupState {
         if reset {
             *self = Self::Empty;
         }
+        reset
     }
     /// Create the popup view.
     pub(crate) fn view(&self) -> Option<PopupView<'_>> {

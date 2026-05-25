@@ -6,7 +6,7 @@ use cubecl_common::backtrace::BackTrace;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{BoolDType, DType, FloatDType, IntDType};
+use crate::{BoolDType, DType, FloatDType, IntDType, QuantConfig};
 
 /// Settings controlling the default data types for a specific device.
 ///
@@ -25,20 +25,33 @@ pub struct DeviceSettings {
     pub int_dtype: IntDType,
     /// Default bool data type.
     pub bool_dtype: BoolDType,
+    /// Quantization configuration.
+    pub quantization: QuantConfig,
 }
 
 impl DeviceSettings {
-    /// Creates a new [`DeviceSettings`] from any types convertible into the dtype kinds.
+    /// Creates a new [`DeviceSettings`] from any types convertible into the dtype kinds and the [quantization config](QuantConfig).
     pub fn new(
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
         bool_dtype: impl Into<BoolDType>,
+        quantization: QuantConfig,
     ) -> Self {
         Self {
             float_dtype: float_dtype.into(),
             int_dtype: int_dtype.into(),
             bool_dtype: bool_dtype.into(),
+            quantization,
         }
+    }
+
+    /// Creates a new [`DeviceSettings`] from any types convertible into the dtype kinds.
+    pub fn with_dtypes(
+        float_dtype: impl Into<FloatDType>,
+        int_dtype: impl Into<IntDType>,
+        bool_dtype: impl Into<BoolDType>,
+    ) -> Self {
+        Self::new(float_dtype, int_dtype, bool_dtype, Default::default())
     }
 }
 

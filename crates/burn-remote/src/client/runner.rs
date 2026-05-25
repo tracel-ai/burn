@@ -4,6 +4,7 @@ use burn_backend::{DeviceId, DeviceOps, ExecutionError, TensorData};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
+use burn_std::DeviceSettings;
 use burn_std::{backtrace::BackTrace, future::DynFut};
 use std::sync::OnceLock;
 use std::{collections::HashMap, marker::PhantomData, str::FromStr, sync::Mutex};
@@ -176,7 +177,13 @@ impl burn_std::device::Device for RemoteDevice {
     }
 }
 
-impl DeviceOps for RemoteDevice {}
+impl DeviceOps for RemoteDevice {
+    fn defaults(&self) -> DeviceSettings {
+        // TODO: default settings for this remote device, fetched at client initialization time.
+        // Remote backend start currently being worked on
+        todo!()
+    }
+}
 
 pub struct RemoteBridge<C: ProtocolClient> {
     _p: PhantomData<C>,

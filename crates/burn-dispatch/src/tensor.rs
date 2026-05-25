@@ -1,8 +1,6 @@
 use crate::backends::*;
 
-use burn_backend::{
-    Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
-};
+use burn_backend::{Backend, DType, Shape, TensorMetadata};
 
 use crate::CheckpointingStrategy;
 #[cfg(feature = "autodiff")]
@@ -146,18 +144,6 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.shape(),
-        }
-    }
-}
-
-impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
-    fn scheme(&self) -> &QuantScheme {
-        match self {
-            BackendTensor::Quantized(tensor) => tensor.scheme(),
-            _ => panic!(
-                "Quantization scheme is not valid for dtype {:?}",
-                self.dtype(),
-            ),
         }
     }
 }
@@ -306,37 +292,6 @@ impl TensorMetadata for DispatchTensorKind {
     }
 }
 
-impl QTensorPrimitive for DispatchTensorKind {
-    fn scheme(&self) -> &QuantScheme {
-        match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "cuda")]
-            Self::Cuda(tensor) => tensor.scheme(),
-            #[cfg(feature = "metal")]
-            Self::Metal(tensor) => tensor.scheme(),
-            #[cfg(feature = "rocm")]
-            Self::Rocm(tensor) => tensor.scheme(),
-            #[cfg(feature = "vulkan")]
-            Self::Vulkan(tensor) => tensor.scheme(),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "webgpu")]
-            Self::WebGpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "flex")]
-            Self::Flex(tensor) => tensor.scheme(),
-            #[cfg(any(feature = "ndarray", default_backend))]
-            Self::NdArray(tensor) => tensor.scheme(),
-            #[cfg(feature = "tch")]
-            Self::LibTorch(tensor) => tensor.scheme(),
-            #[cfg(feature = "remote")]
-            Self::Remote(tensor) => tensor.scheme(),
-            #[cfg(feature = "autodiff")]
-            Self::Autodiff(tensor) => tensor.scheme(),
-        }
-    }
-}
-
 impl TensorMetadata for DispatchTensor {
     fn dtype(&self) -> DType {
         self.kind.dtype()
@@ -344,11 +299,5 @@ impl TensorMetadata for DispatchTensor {
 
     fn shape(&self) -> Shape {
         self.kind.shape()
-    }
-}
-
-impl QTensorPrimitive for DispatchTensor {
-    fn scheme(&self) -> &QuantScheme {
-        self.kind.scheme()
     }
 }

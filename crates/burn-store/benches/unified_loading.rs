@@ -37,18 +37,6 @@ use std::path::{Path, PathBuf};
 #[global_allocator]
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
-// Backend type aliases
-use burn_core::tensor::FlexDevice;
-
-#[cfg(any(feature = "wgpu", feature = "metal"))]
-use burn_core::tensor::WgpuDevice;
-
-#[cfg(feature = "cuda")]
-use burn_core::tensor::CudaDevice;
-
-#[cfg(feature = "tch")]
-use burn_core::tensor::LibTorchDevice;
-
 // Use the same LargeModel as other benchmarks for fair comparison
 #[derive(Module, Debug)]
 struct LargeModel {
@@ -74,7 +62,7 @@ fn get_model_dir() -> PathBuf {
 
 /// Generate Burnpack and NamedMpk files from existing SafeTensors file
 fn generate_burn_formats(st_path: &Path, bp_path: &Path, mpk_path: &Path) {
-    let device = FlexDevice.into();
+    let device = Device::flex();
 
     // Load the model from SafeTensors
     let mut model = LargeModel::new(&device);
@@ -215,7 +203,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let mut model = LargeModel::new(&device);
                         let mut store = BurnpackStore::from_file(bp_path.clone());
                         model.load_from(&mut store).expect("Failed to load");
@@ -230,7 +218,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
                         let record = recorder
                             .load(mpk_path.clone().into(), &device)
@@ -247,7 +235,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let mut model = LargeModel::new(&device);
                         let mut store = SafetensorsStore::from_file(st_path.clone())
                             .with_from_adapter(PyTorchToBurnAdapter);
@@ -310,10 +298,14 @@ macro_rules! bench_backend {
 }
 
 // Generate benchmarks for each backend
-bench_backend!(FlexDevice, ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(Device::flex(), ndarray_backend, "NdArray Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
-bench_backend!(WgpuDevice::default(), wgpu_backend, "WGPU Backend (GPU)");
+bench_backend!(
+    Device::wgpu(Default::default()),
+    wgpu_backend,
+    "WGPU Backend (GPU)"
+);
 
 #[cfg(feature = "cuda")]
 bench_backend!(
@@ -323,11 +315,11 @@ bench_backend!(
 );
 
 #[cfg(feature = "tch")]
-bench_backend!(LibTorchDevice::default(), tch_backend, "LibTorch Backend");
+bench_backend!(Device::libtorch(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
 bench_backend!(
-    WgpuDevice::default(),
+    Device::wgpu(Default::default()),
     metal_backend,
     "Metal Backend (Apple GPU)"
 );

@@ -26,17 +26,8 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     type Device = B::Device;
 
     type FloatTensorPrimitive = FusionTensor<B::FusionRuntime>;
-
-    type FloatElem = B::FloatElem;
-
     type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
-
-    type IntElem = B::IntElem;
-
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
-
-    type BoolElem = B::BoolElem;
-
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
 }
 

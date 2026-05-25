@@ -1,17 +1,12 @@
 use crate::rand::NdArrayRng;
 use crate::{NdArrayQTensor, NdArrayTensor};
-use crate::{
-    SharedArray,
-    element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
-};
 use alloc::string::String;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
-use burn_std::BoolStore;
 use burn_std::stub::Mutex;
-use core::marker::PhantomData;
+use burn_std::{BoolStore, DeviceSettings, QuantConfig};
 use rand::SeedableRng;
 
 pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
@@ -24,7 +19,20 @@ pub enum NdArrayDevice {
     Cpu,
 }
 
-impl DeviceOps for NdArrayDevice {}
+impl DeviceOps for NdArrayDevice {
+    fn defaults(&self) -> DeviceSettings {
+        // E = f32, I = i64
+        DeviceSettings::new(
+            DType::F32,
+            DType::I64,
+            DType::Bool(BoolStore::Native),
+            QuantConfig::new(
+                QuantScheme::default().with_store(QuantStore::Native),
+                Default::default(),
+            ),
+        )
+    }
+}
 
 impl burn_backend::Device for NdArrayDevice {
     fn from_id(_device_id: DeviceId) -> Self {
@@ -44,39 +52,18 @@ impl burn_backend::Device for NdArrayDevice {
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
 /// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArray<E = f32, I = i64, Q = i8>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
-    _e: PhantomData<E>,
-    _i: PhantomData<I>,
-    _q: PhantomData<Q>,
-}
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendTypes
-    for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
+pub struct NdArray;
+
+impl BackendTypes for NdArray {
     type Device = NdArrayDevice;
 
     type FloatTensorPrimitive = NdArrayTensor;
-    type FloatElem = E;
-
     type IntTensorPrimitive = NdArrayTensor;
-    type IntElem = I;
-
     type BoolTensorPrimitive = NdArrayTensor;
-    type BoolElem = bool;
-
     type QuantizedTensorPrimitive = NdArrayQTensor;
 }
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
+
+impl Backend for NdArray {
     fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
@@ -137,11 +124,7 @@ where
     }
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
+impl BackendIr for NdArray {
     type Handle = HandleKind<Self>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
@@ -192,12 +175,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::QTensorPrimitive;
 
     #[test]
     fn should_support_dtypes() {
-        type B = NdArray<f32>;
-        let device = Default::default();
+        type B = NdArray;
+        let device = NdArrayDevice::Cpu;
+        let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F64));
         assert!(B::supports_dtype(&device, DType::F32));
@@ -211,10 +194,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U16));
         assert!(B::supports_dtype(&device, DType::U8));
         assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
-        assert!(B::supports_dtype(
-            &device,
-            DType::QFloat(NdArrayQTensor::default_scheme())
-        ));
+        assert!(B::supports_dtype(&device, DType::QFloat(scheme)));
 
         assert!(!B::supports_dtype(&device, DType::F16));
         assert!(!B::supports_dtype(&device, DType::BF16));

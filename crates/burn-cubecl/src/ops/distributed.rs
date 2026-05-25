@@ -9,13 +9,7 @@ use crate::{
     ops::numeric::{self, zeros_client},
 };
 
-impl<R, F, I, BT> DistributedBackend for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
     fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
