@@ -223,3 +223,84 @@ impl<B: Backend> Numeric for LossMetric<B> {
     }
 }
 ```
+
+## Example: Confusion Matrix Metric for Classification
+
+For classification, you can keep `AccuracyMetric` and add a custom confusion matrix metric to inspect
+which classes are commonly misclassified.
+
+The metric input can be adapted from `ClassificationOutput<B>`:
+
+```rust,ignore
+#[derive(new)]
+pub struct ConfusionMatrixInput<B: Backend> {
+    pub output: Tensor<B, 2>,
+    pub targets: Tensor<B, 1, Int>,
+}
+
+impl<B: Backend> Adaptor<ConfusionMatrixInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> ConfusionMatrixInput<B> {
+        ConfusionMatrixInput::new(self.output.clone(), self.targets.clone())
+    }
+}
+```
+
+Then implement `Metric` by accumulating counts per `(target, predicted)` class pair:
+
+```rust,ignore
+#[derive(Clone)]
+pub struct ConfusionMatrixMetric<B: Backend> {
+    name: MetricName,
+    num_classes: usize,
+    counts: Vec<Vec<u64>>,
+    _b: B,
+}
+
+impl<B: Backend> ConfusionMatrixMetric<B> {
+    pub fn new(num_classes: usize) -> Self {
+        Self {
+            name: format!("Confusion Matrix ({num_classes} classes)").into(),
+            num_classes,
+            counts: vec![vec![0; num_classes]; num_classes],
+            _b: Default::default(),
+        }
+    }
+}
+
+impl<B: Backend> Metric for ConfusionMatrixMetric<B> {
+    type Input = ConfusionMatrixInput<B>;
+
+    fn name(&self) -> MetricName {
+        self.name.clone()
+    }
+
+    fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
+        let predictions = item.output.clone().argmax(1).into_data();
+        let targets = item.targets.clone().into_data();
+
+        for (target, predicted) in targets.iter::<i64>().zip(predictions.iter::<i64>()) {
+            let target = target as usize;
+            let predicted = predicted as usize;
+            if target < self.num_classes && predicted < self.num_classes {
+                self.counts[target][predicted] += 1;
+            }
+        }
+
+        format!("{:?}", self.counts).into()
+    }
+
+    fn clear(&mut self) {
+        self.counts = vec![vec![0; self.num_classes]; self.num_classes];
+    }
+}
+```
+
+Finally, register it with your learner alongside accuracy:
+
+```rust,ignore
+let learner = LearnerBuilder::new(artifact_dir)
+    .metric_train_numeric(AccuracyMetric::new())
+    .metric_valid_numeric(AccuracyMetric::new())
+    .metric_valid(ConfusionMatrixMetric::new(num_classes))
+    .build(model, optimizer, lr);
+```
