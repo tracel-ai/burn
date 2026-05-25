@@ -47,13 +47,7 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
             iteration += 1;
 
             let item = model.step(item);
-            let item = TrainingItem::new(
-                item,
-                progress,
-                global_progress.clone(),
-                Some(iteration),
-                None,
-            );
+            let item = TrainingItem::new(item, progress, Some(iteration), None);
 
             processor.process_valid(LearnerEvent::ProcessedItem(item));
 
@@ -124,13 +118,7 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
                 }
             }
 
-            let item = TrainingItem::new(
-                item.item,
-                progress,
-                global_progress.clone(),
-                Some(iteration),
-                Some(learner.lr_current()),
-            );
+            let item = TrainingItem::new(item.item, progress, Some(iteration), Some(learner.lr_current()));
 
             {
                 let mut processor = processor.lock().unwrap();

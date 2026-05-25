@@ -114,13 +114,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
 
             for item in progress_items {
                 iteration += 1;
-                let item = TrainingItem::new(
-                    item,
-                    progress.clone(),
-                    global_progress.clone(),
-                    Some(iteration),
-                    Some(learner.lr_current()),
-                );
+                let item = TrainingItem::new(item, progress.clone(), Some(iteration), Some(learner.lr_current()));
 
                 event_processor.process_train(LearnerEvent::ProcessedItem(item));
             }
@@ -189,13 +183,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
 
             for item in progress_items {
                 iteration += 1;
-                let item = TrainingItem::new(
-                    item,
-                    progress.clone(),
-                    global_progress.clone(),
-                    Some(iteration),
-                    Some(learner.lr_current()),
-                );
+                let item = TrainingItem::new(item, progress.clone(), Some(iteration), Some(learner.lr_current()));
 
                 event_processor.process_train(LearnerEvent::ProcessedItem(item));
             }

@@ -2,6 +2,7 @@ use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
+use crate::metric::{MetricMetadata};
 use crate::renderer::{MetricState, MetricsRenderer, OverallProgress};
 use burn_core::data::dataloader::Progress;
 use std::sync::Arc;
@@ -14,6 +15,8 @@ pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
     progress_logger: Option<Box<dyn TrainingProgressLogger>>,
+    current_epoch: usize,
+    total_epochs: usize,
 }
 
 /// An [event processor](EventProcessorEvaluation) that handles:
@@ -39,6 +42,8 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
             renderer,
             store,
             progress_logger: None,
+            current_epoch: 1,
+            total_epochs: 0,
         }
     }
 
@@ -166,6 +171,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
             LearnerEvent::Start { total_epochs } => {
+                self.total_epochs = total_epochs;
+                self.current_epoch = 1;
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(
@@ -187,9 +194,16 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
+                let global_progress =
+                    Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
                 let progress =
-                    OverallProgress::new(item.global_progress.clone(), item.progress.clone());
-                let metadata = (&item).into();
+                    OverallProgress::new(global_progress.clone(), item.progress.clone());
+                let metadata = MetricMetadata {
+                    progress: item.progress.clone(),
+                    global_progress,
+                    iteration: item.iteration,
+                    lr: item.lr,
+                };
 
                 let update = self.metrics.update_train(&item, &metadata);
 
@@ -229,6 +243,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.metrics.end_epoch_train();
             }
             LearnerEvent::EndEpoch(epoch) => {
+                self.current_epoch = epoch + 1;
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_epoch(epoch);
                 }
@@ -255,9 +270,16 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
+                let global_progress =
+                    Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
                 let progress =
-                    OverallProgress::new(item.global_progress.clone(), item.progress.clone());
-                let metadata = (&item).into();
+                    OverallProgress::new(global_progress.clone(), item.progress.clone());
+                let metadata = MetricMetadata {
+                    progress: item.progress.clone(),
+                    global_progress,
+                    iteration: item.iteration,
+                    lr: item.lr,
+                };
 
                 let update = self.metrics.update_valid(&item, &metadata);
 

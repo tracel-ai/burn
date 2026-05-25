@@ -228,7 +228,7 @@ impl<T> From<&TrainingItem<T>> for MetricMetadata {
     fn from(item: &TrainingItem<T>) -> Self {
         Self {
             progress: item.progress.clone(),
-            global_progress: item.global_progress.clone(),
+            global_progress: item.progress.clone(),
             iteration: item.iteration,
             lr: item.lr,
         }

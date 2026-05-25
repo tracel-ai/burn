@@ -49,21 +49,15 @@ pub(crate) mod test_utils {
         epoch: usize,
     ) {
         let dummy_progress = burn_core::data::dataloader::Progress {
-            items_processed: 1,
-            items_total: 10,
-            unit: "items".to_string(),
-        };
-        let dummy_global_progress = burn_core::data::dataloader::Progress {
             items_processed: epoch,
             items_total: 3,
-            unit: "epochs".to_string(),
+            unit: "items".to_string(),
         };
         let dummy_iteration = Some(1);
 
         processor.process_train(LearnerEvent::ProcessedItem(TrainingItem::new(
             value,
             dummy_progress,
-            dummy_global_progress,
             dummy_iteration,
             None,
         )));

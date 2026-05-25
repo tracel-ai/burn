@@ -189,7 +189,6 @@ impl NumericMetricsState {
             .x_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .title("Iteration")
                     .labels(axes.labels_x.clone().into_iter().map(|s| s.bold()))
                     .bounds(axes.bounds_x),
             )
