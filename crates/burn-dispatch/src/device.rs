@@ -151,7 +151,7 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Wgpu(device) => f.debug_tuple("Metal").field(device).finish(),
             #[cfg(wgpu_vulkan)]
             Self::Wgpu(device) => f.debug_tuple("Vulkan").field(device).finish(),
-            #[cfg(wgpu_webgpu)]
+            #[cfg(feature = "wgpu")]
             Self::Wgpu(device) => f.debug_tuple("Wgpu").field(device).finish(),
             #[cfg(feature = "flex")]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),

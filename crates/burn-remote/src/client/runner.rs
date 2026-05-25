@@ -6,7 +6,7 @@ use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_std::DeviceSettings;
 use burn_std::{backtrace::BackTrace, future::DynFut};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::{collections::HashMap, marker::PhantomData, str::FromStr, sync::Mutex};
 
 // TODO: we should work with the parsed structure of Address, not the string.
@@ -135,6 +135,8 @@ pub struct RemoteDevice {
     pub(crate) address: Address,
     /// The id of the device in the local registry, see [`address_to_id`].
     pub(crate) id: u32,
+    /// The remote device settings, fetched when the remote client is initialized.
+    pub(crate) settings: Arc<OnceLock<DeviceSettings>>,
 }
 
 impl RemoteDevice {
@@ -144,7 +146,24 @@ impl RemoteDevice {
         Self {
             address: Address::from_str(address).unwrap(),
             id,
+            settings: Arc::new(OnceLock::new()),
         }
+    }
+
+    /// Forces the client connection to be established immediately using the default protocol.
+    /// This is a no-op if the client is already initialized for this address.
+    pub fn connect(&self) {
+        use burn_communication::Protocol;
+        type DefaultChannel = RemoteChannel<<crate::shared::RemoteProtocol as Protocol>::Client>;
+
+        self.connect_with_channel::<DefaultChannel>();
+    }
+
+    /// Forces the connection using the specified communication protocol channel.
+    /// This is a no-op if the client is already initialized for this address.
+    pub fn connect_with_channel<R: burn_router::RunnerChannel<Device = Self>>(&self) {
+        // If the client doesn't exist, `new_client` will force initialization
+        get_client::<R>(self);
     }
 }
 
@@ -179,9 +198,8 @@ impl burn_std::device::Device for RemoteDevice {
 
 impl DeviceOps for RemoteDevice {
     fn defaults(&self) -> DeviceSettings {
-        // TODO: default settings for this remote device, fetched at client initialization time.
-        // Remote backend start currently being worked on
-        todo!()
+        // settings for this remote device, fetched at client initialization time.
+        *self.settings.get().expect("client not yet initialized")
     }
 }
 

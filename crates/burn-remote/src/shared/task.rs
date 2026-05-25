@@ -2,7 +2,7 @@ use burn_backend::{DTypeUsageSet, ExecutionError, TensorData};
 use burn_communication::{Address, data_service::TensorTransferId};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::{
-    DType,
+    DType, DeviceSettings,
     id::{IdGenerator, StreamId},
 };
 use serde::{Deserialize, Serialize};
@@ -79,6 +79,8 @@ pub struct TaskResponse {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskResponseContent {
+    // Server responds with device settings
+    Init(DeviceSettings),
     ReadTensor(Result<TensorData, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),

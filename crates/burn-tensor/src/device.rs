@@ -336,7 +336,9 @@ impl Device {
     /// shipped to the server and executed there.
     #[cfg(feature = "remote")]
     pub fn remote(address: &str) -> Self {
-        Self::new(burn_dispatch::devices::RemoteDevice::new(address))
+        let device = burn_dispatch::devices::RemoteDevice::new(address);
+        device.connect(); // initializes the connection (required to get the device default settings)
+        Self::new(device)
     }
 
     /// WGPU device, selected via [`DeviceKind`].
