@@ -13,7 +13,7 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn complex_device(tensor: &UnimplementedTensorPrimitive<Complex<F>>) -> R::CubeDevice {
+    fn complex_device(_tensor: &UnimplementedTensorPrimitive<Complex<F>>) -> R::CubeDevice {
         panic!("Cube backend does not yet support interleaved complex tensors")
     }   
 }

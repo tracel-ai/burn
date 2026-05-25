@@ -7,7 +7,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> TypedDevice<
     where
     NdArrayTensor: From<SharedArray<E>>,
     NdArrayTensor: From<SharedArray<I>> {
-        fn complex_device(tensor: &burn_backend::ComplexTensor<Self>) -> <Self as burn_backend::BackendTypes>::Device {
+        fn complex_device(_tensor: &burn_backend::ComplexTensor<Self>) -> <Self as burn_backend::BackendTypes>::Device {
             panic!("NdArray backend does not yet support interleaved complex tensors")
     }
     }

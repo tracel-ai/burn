@@ -16,6 +16,14 @@ pub enum TensorPrimitive<B: BackendTypes> {
 pub struct UnimplementedTensorPrimitive<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> {
     _elem: core::marker::PhantomData<E>,
 }
+
+impl<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> UnimplementedTensorPrimitive<E> {
+    /// Stub method that panics with a message indicating that the given tensor type is not yet supported for the backend associated with the device.
+    pub fn device(&self) -> ! {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+}
+
 impl<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> TensorMetadata
     for UnimplementedTensorPrimitive<E>
 {

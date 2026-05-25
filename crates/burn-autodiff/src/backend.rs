@@ -7,8 +7,7 @@ use alloc::{format, string::String};
 use core::marker::PhantomData;
 
 use burn_backend::{
-    backend::{AutodiffBackend, Backend, BackendTypes, ExecutionError},
-    tensor::{BoolTensor, IntTensor, QuantizedTensor},
+    backend::{AutodiffBackend, Backend, BackendTypes, ExecutionError}, tensor::{BoolTensor, IntTensor, QuantizedTensor}
 };
 
 #[cfg(feature = "distributed")]
@@ -51,7 +50,7 @@ impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     }
 
     type ComplexScalar = B::ComplexScalar;
-
+    
     type ComplexTensorPrimitive = B::ComplexTensorPrimitive;
 }
 

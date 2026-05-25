@@ -1,31 +1,40 @@
-use std::os::unix::raw::dev_t;
-
 use alloc::vec::Vec;
 use burn_backend::TypedDevice;
 use burn_backend::ops::ComplexTensorOps;
 use burn_backend::ops::FloatTensorOps;
 use burn_backend::try_read_sync;
 use burn_backend::{
-    Backend, BackendTypes, DTypeUsageSet, ExecutionError, TensorMetadata, tensor::Device,
+    Backend, BackendTypes, DTypeUsageSet, ExecutionError, TensorMetadata
 };
-use burn_backend::{CBT, ComplexTensor, ComplexTensorBackend, DefaultComplexOps, SplitLayout};
-use burn_dispatch::{Dispatch, DispatchTensor};
+use burn_backend::{CBT, ComplexTensor, ComplexTensorBackend, DefaultComplexOps, tensor::Device as BackendDevice};
 use burn_std::DType;
+use burn_std::Distribution;
+use burn_std::Element;
+use burn_std::ElementConversion;
+use burn_std::complex_utils::real_to_complex_dtype;
 use burn_std::{Complex, ComplexElement, ElementComparison, Scalar, TensorData, cast::ToElement};
 use burn_std::{ComplexDType, FloatDType, IndexingUpdateOp, Shape, SplitTensorData};
 use bytemuck::Pod;
 
 #[derive(Debug, Clone)]
-pub struct SplitComplexTensor<B: Backend, const D: usize> {
-    _phantom: core::marker::PhantomData<B>,
-    pub(crate) real: DispatchTensor,
-    pub(crate) imag: DispatchTensor,
+pub struct SplitComplexTensor<const D: usize, K=Float> 
+where K: Basic {
+    _kind: PhantomData<K>,
+    pub(crate) real: BridgeTensor,
+    pub(crate) imag: BridgeTensor,
 }
 
-impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata, const D: usize>
-    SplitComplexTensor<B, D>
+/// Indicates that the underlying implementation has separate real and imaginary tensors.
+pub struct SplitLayout<B> {
+    _marker: core::marker::PhantomData<B>,
+}
+
+impl<B> Layout for SplitLayout<B> {}
+
+impl<const D: usize, K> SplitComplexTensor<D, K>
+where K: Basic,
 {
-    pub fn new(real: DispatchTensor, imag: DispatchTensor) -> Self {
+    pub fn new(real: BridgeTensor, imag: BridgeTensor) -> Self {
         assert_eq!(
             real.shape(),
             imag.shape(),
@@ -37,13 +46,13 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata, const D: usize>
             "Real and imaginary parts must have the same dtype"
         );
         Self {
-            _phantom: core::marker::PhantomData,
+            _kind: core::marker::PhantomData,
             real,
             imag,
         }
     }
 
-    pub fn device(&self) -> Device<B> {
+    pub fn device(&self) -> Device {
         self.real.device().into()
     }
 
@@ -55,9 +64,9 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata, const D: usize>
         self.real.dtype()
     }
 
-    pub fn from_parts_data(real: TensorData, imag: TensorData, device: &B::Device) -> Self {
-        let real_tensor = DispatchTensor::from_data(real, device);
-        let imag_tensor = DispatchTensor::from_data(imag, device);
+    pub fn from_parts_data(real: TensorData, imag: TensorData, device: &Device) -> Self {
+        let real_tensor = BridgeTensor::from_data(real, device);
+        let imag_tensor = BridgeTensor::from_data(imag, device);
         assert_eq!(
             real.shape(),
             imag.shape(),
@@ -75,27 +84,27 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata, const D: usize>
         self.real.dtype()
     }
 
-    pub fn from_real_data(data: TensorData, device: &B::Device) -> Self {
+    pub fn from_real_data(data: TensorData, device: &Device) -> Self {
         let shape = data.shape.clone();
         let dtype = data.dtype;
         Self {
-            _phantom: core::marker::PhantomData,
-            real: DispatchTensor::from_data(data, device),
-            imag: DispatchTensor::zeros(shape, device, dtype.into()),
+            _kind: core::marker::PhantomData,
+            real: BridgeTensor::from_data(data, device),
+            imag: BridgeTensor::zeros(shape, device, dtype.into()),
         }
     }
 
-    pub fn from_imag_data(data: TensorData, device: &B::Device) -> Self {
+    pub fn from_imag_data(data: TensorData, device: &Device) -> Self {
         let shape = data.shape.clone();
         let dtype = data.dtype;
         Self {
-            _phantom: core::marker::PhantomData,
-            real: DispatchTensor::zeros(shape, device, dtype.into()),
-            imag: DispatchTensor::from_data(data, device),
+            _kind: core::marker::PhantomData,
+            real: BridgeTensor::zeros(shape, device, dtype.into()),
+            imag: BridgeTensor::from_data(data, device),
         }
     }
 
-    pub fn from_split_data(data: SplitTensorData, device: &B::Device) -> Self {
+    pub fn from_split_data(data: SplitTensorData, device: &Device) -> Self {
         let SplitTensorData {
             real_bytes: real,
             imag_bytes: imag,
@@ -104,30 +113,30 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata, const D: usize>
         } = data;
 
         Self {
-            _phantom: core::marker::PhantomData,
-            real: DispatchTensor::from_data(
+            _kind: core::marker::PhantomData,
+            real: BridgeTensor::from_data(
                 TensorData::from_bytes(real, shape.clone(), dtype),
                 device,
             ),
-            imag: DispatchTensor::from_data(TensorData::from_bytes(imag, shape, dtype), device),
+            imag: BridgeTensor::from_data(TensorData::from_bytes(imag, shape, dtype), device),
         }
     }
-    pub fn real(self) -> DispatchTensor {
+    pub fn real(self) -> BridgeTensor {
         self.real
     }
-    pub fn imag(self) -> DispatchTensor {
+    pub fn imag(self) -> BridgeTensor {
         self.imag
     }
-    pub fn real_ref(&self) -> &DispatchTensor {
+    pub fn real_ref(&self) -> &BridgeTensor {
         &self.real
     }
-    pub fn imag_ref(&self) -> &DispatchTensor {
+    pub fn imag_ref(&self) -> &BridgeTensor {
         &self.imag
     }
 }
 
 impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata + 'static, const D: usize>
-    TensorMetadata for SplitComplexTensor<B, D>
+    TensorMetadata for SplitComplexTensor<D,K>
 {
     fn shape(&self) -> burn_std::Shape {
         self.real.shape()
@@ -146,7 +155,7 @@ impl<B: Backend<FloatTensorPrimitive = T>, T: TensorMetadata + 'static, const D:
 /// A newtype that wraps a real backend B and exposes a split-layout complex backend.
 pub struct SplitBackend<B: Backend, const D: usize>(core::marker::PhantomData<B>);
 impl<B: Backend, const D: usize> CBT for SplitBackend<B, D> {
-    type ComplexTensorPrimitive = SplitComplexTensor<B, D>;
+    type ComplexTensorPrimitive = SplitComplexTensor<D,K>;
 
     type ComplexScalar = Complex<B::FloatElem>;
 }
@@ -177,16 +186,16 @@ impl<B: Backend, const D: usize> BackendTypes for SplitBackend<B, D> {
 
     type ComplexScalar = Complex<B::FloatElem>;
 
-    type ComplexTensorPrimitive = SplitComplexTensor<B, D>;
+    type ComplexTensorPrimitive = SplitComplexTensor<D,K>;
 }
 
-impl TypedDevice<SplitBackend<B, D>> for SplitBackend<B, D>
+impl<B, const D: usize> TypedDevice<Self> for SplitBackend<B, D>
 where
     B: Backend,
     B::FloatElem: ElementComparison + Pod,
 {
-    fn complex_device(tensor: &ComplexTensor<SplitBackend<B, D>>) -> B::Device {
-        B::float_device(&tensor.real.into_primitive().to_float_tensor())
+    fn complex_device(tensor: &ComplexTensor<Self>) -> <Self as BackendTypes>::Device {
+        tensor.real.device().into()
     }
 }
 
@@ -219,11 +228,9 @@ where
     fn complex_from_parts_data(
         real_data: TensorData,
         imag_data: TensorData,
-        device: &Self::Device,
+        device: &B::Device,
     ) -> ComplexTensor<Self> {
-        let real = DispatchTensor::from_data(real_data, device);
-        let imag = DispatchTensor::from_data(imag_data, device);
-        Self::ComplexTensorPrimitive::new(real, imag)
+        ComplexTensor::<Self>::from_parts(real_data, imag_data, device)
     }
 }
 
@@ -238,7 +245,7 @@ where
         let device = &<Self as ComplexTensorBackend>::InnerBackend::float_device(&tensor);
         ComplexTensor::<SplitBackend<B, D>>::new(
             tensor.into(),
-            DispatchTensor::zeros(shape, device, dtype),
+            BridgeTensor::zeros(shape, device, dtype),
         )
     }
 
@@ -332,12 +339,10 @@ where
     async fn complex_into_real_data(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> Result<TensorData, ExecutionError> {
-        tensor
-            .real
-            .into_primitive()
-            .to_float_tensor()
-            .into_data()
-            .await
+        B::float_into_data(tensor.real.into_primitive().to_float_tensor()).await
+            
+            
+            
     }
 
     async fn complex_into_imag_data(
@@ -434,30 +439,11 @@ where
     }
 
     fn complex_exp(tensor: ComplexTensor<SplitBackend<B, D>>) -> ComplexTensor<SplitBackend<B, D>> {
-        // formula: e^(a + bi) = e^a * (cos(b) + i*sin(b)) = from_polar(e^a, b)
-        //TODO: add the checks for corner cases +∞, -∞, and NaN
-        //https://github.com/skewballfox/burn/blob/67d84b677b3d718cb25fbdc2535dbf04706b0863/crates/burn-complex/src/base/element.rs#L322-L323
-        let exp_real = tensor.real.exp();
-        let cos_imag = tensor.imag.cos();
-        let sin_imag = tensor.imag.sin();
-
-        SplitComplexTensor::new(exp_real.clone() * cos_imag, exp_real * sin_imag)
+        tensor.exp()
     }
 
     fn complex_log(tensor: ComplexTensor<SplitBackend<B, D>>) -> ComplexTensor<SplitBackend<B, D>> {
-        // formula: ln(z) = ln|z| + i*arg(z)
-        // where |z| = sqrt(real^2 + imag^2) and arg(z) = atan2(imag, real)
-
-        // Compute norm: sqrt(real^2 + imag^2)
-        let real_sq = tensor.real * tensor.real;
-        let imag_sq = tensor.imag * tensor.imag;
-        let norm_sq = real_sq + imag_sq;
-        let norm = norm_sq.sqrt();
-
-        // Compute arg: atan2(imag, real)
-        let arg = tensor.imag.atan2(tensor.real);
-
-        SplitComplexTensor::new(norm.log(), arg)
+        tensor.log()
     }
 
     fn complex_squared_norm(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
@@ -470,9 +456,9 @@ where
         magnitude: B::FloatTensorPrimitive,
         phase: B::FloatTensorPrimitive,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        ComplexTensor::<SplitBackend<B, D>>::new(
-            (magnitude.clone() * B::float_cos(phase.clone())),
-            (magnitude * B::float_sin(phase)),
+        ComplexTensor<Self>::from_polar(
+            magnitude,
+            phase,
         )
     }
 
@@ -482,8 +468,8 @@ where
         indices: B::IntTensorPrimitive,
     ) -> ComplexTensor<SplitBackend<B, D>> {
         ComplexTensor::<SplitBackend<B, D>>::new(
-            DispatchTensor::float_gather(dim, tensor.real, indices.clone()),
-            DispatchTensor::float_gather(dim, tensor.imag, indices),
+            BridgeTensor::float_gather(dim, tensor.real, indices.clone()),
+            BridgeTensor::float_gather(dim, tensor.imag, indices),
         )
     }
 
@@ -494,26 +480,26 @@ where
         values: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
         ComplexTensor::<SplitBackend<B, D>>::new(
-            DispatchTensor::float_scatter_add(dim, tensor.real, indices.clone(), values.real),
-            DispatchTensor::float_scatter_add(dim, tensor.imag, indices, values.imag),
+            BridgeTensor::float_scatter_add(dim, tensor.real, indices.clone(), values.real),
+            BridgeTensor::float_scatter_add(dim, tensor.imag, indices, values.imag),
         )
     }
 
     fn complex_random(
         shape: burn_std::Shape,
         distribution: burn_std::Distribution,
-        device: &Device<B>,
+        device: &BackendDevice<B>,
         dtype: FloatDType,
     ) -> ComplexTensor<SplitBackend<B, D>> {
         ComplexTensor::<SplitBackend<B, D>>::new(
-            DispatchTensor::float_random(shape.clone(), distribution, device, dtype),
-            DispatchTensor::float_random(shape, distribution, device, dtype),
+            BridgeTensor::float_random(shape.clone(), distribution, device, dtype),
+            BridgeTensor::float_random(shape, distribution, device, dtype),
         )
     }
 
     fn complex_to_device(
         tensor: ComplexTensor<SplitBackend<B, D>>,
-        device: &Device<B>,
+        device: &BackendDevice<B>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
         SplitComplexTensor::new(tensor.real.to_device(device), tensor.imag.to_device(device))
     }
@@ -540,12 +526,12 @@ where
 
     fn conj(tensor: ComplexTensor<SplitBackend<B, D>>) -> ComplexTensor<SplitBackend<B, D>> {
         // conj(a + bi) = a - bi
-        SplitComplexTensor::new(tensor.real, -tensor.imag)
+        SplitComplexTensor::conj(tensor)
     }
 
     fn complex_arg(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
         // arg(a + bi) = atan2(b, a)
-        tensor.imag.atan2(tensor.real)
+        tensor.phase()
     }
 
     fn complex_powc(
@@ -561,185 +547,55 @@ where
     fn complex_sqrt(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        // sqrt(z) = from_polar(sqrt(|z|), arg(z) / 2)
-        let abs = SplitBackend::<B, D>::abs(tensor.clone());
-        let sqrt_abs = B::float_sqrt(abs);
-        let arg = tensor.imag.atan2(tensor.real);
-        let half_arg = B::float_div_scalar(arg, burn_std::Scalar::Float(2.0));
-        SplitBackend::<B, D>::complex_from_polar(sqrt_abs, half_arg)
+        tensor.sqrt()
     }
 
     fn complex_sin(tensor: ComplexTensor<SplitBackend<B, D>>) -> ComplexTensor<SplitBackend<B, D>> {
-        // sin(a + bi) = sin(a)*cosh(b) + i*cos(a)*sinh(b)
-        SplitComplexTensor::new(
-            tensor.real.sin() * tensor.imag.cosh(),
-            (tensor.real.cos() * tensor.imag.sinh()),
-        )
+        tensor.sin()
     }
 
     fn complex_cos(tensor: ComplexTensor<SplitBackend<B, D>>) -> ComplexTensor<SplitBackend<B, D>> {
-        // cos(a + bi) = cos(a)*cosh(b) - i*sin(a)*sinh(b)
-        SplitComplexTensor::new(
-            tensor.real.cos() * tensor.imag.cosh(),
-            -(tensor.real.sin() * tensor.imag.sinh()),
-        )
+        tensor.cos()
     }
 
     fn complex_tan(tensor: ComplexTensor<SplitBackend<B, D>>) -> ComplexTensor<SplitBackend<B, D>> {
-        // tan(z) = sin(z) / cos(z)
-        // sin(a+bi) = sin(a)*cosh(b) + i*cos(a)*sinh(b)
-        // cos(a+bi) = cos(a)*cosh(b) - i*sin(a)*sinh(b)
-        // Compute sin(a), cos(a), sinh(b), cosh(b) once and share between numerator/denominator.
-        let sin_a = tensor.real.sin();
-        let cos_a = tensor.real.cos();
-        let sinh_b = tensor.imag.sinh();
-        let cosh_b = tensor.imag.cosh();
-        let sin_z = SplitComplexTensor::new(
-            (sin_a.clone() * cosh_b.clone()),
-            (cos_a.clone() * sinh_b.clone()),
-        );
-        let cos_z = SplitComplexTensor::new((cos_a * cosh_b), -(sin_a * sinh_b));
-        SplitBackend::<B, D>::complex_div(sin_z, cos_z)
+        tensor.tan()
     }
 
     fn complex_acos(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        // acos(z) = -i * ln(z + i * sqrt(1 - z²))
-        let device = tensor.device();
-        let shape = tensor.shape();
-        let fdtype = tensor.inner_dtype().into();
-        let ones = SplitComplexTensor::new(
-            DispatchTensor::ones(shape.clone(), &device, fdtype),
-            DispatchTensor::zeros(shape, &device, fdtype),
-        );
-        // 1 - z²
-        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
-        let one_minus_z_sq = SplitBackend::<B, D>::complex_sub(ones, z_sq);
-        // i * sqrt(1 - z²): multiply by i via (-imag, real)
-        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(one_minus_z_sq);
-        let i_sqrt = SplitComplexTensor::new(-sqrt_term.imag, sqrt_term.real);
-        // z + i*sqrt(1 - z²)
-        let inner = SplitBackend::<B, D>::complex_add(tensor, i_sqrt);
-        // -i * ln(inner): multiply by -i via (imag, -real)
-        let log_inner = SplitBackend::<B, D>::complex_log(inner);
-        SplitComplexTensor::new(log_inner.imag, -log_inner.real)
+        tensor.acos()
     }
 
     fn complex_acosh(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        // acosh(z) = ln(z + sqrt(z² - 1))
-        let device = tensor.device();
-        let shape = tensor.shape();
-        let fdtype = tensor.inner_dtype().into();
-        let ones = SplitComplexTensor::new(
-            DispatchTensor::ones(shape.clone(), &device, fdtype),
-            DispatchTensor::zeros(shape, &device, fdtype),
-        );
-        // z² - 1
-        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
-        let z_sq_minus_one = SplitBackend::<B, D>::complex_sub(z_sq, ones);
-        // z + sqrt(z² - 1)
-        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(z_sq_minus_one);
-        let inner = SplitBackend::<B, D>::complex_add(tensor, sqrt_term);
-        SplitBackend::<B, D>::complex_log(inner)
+        tensor.acosh()
     }
 
     fn complex_asin(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        // asin(z) = -i * ln(i*z + sqrt(1 - z²))
-        let device = tensor.device();
-        let shape = tensor.shape();
-        let fdtype = tensor.inner_dtype().into();
-        let ones = SplitComplexTensor::new(
-            DispatchTensor::ones(shape.clone(), &device, fdtype),
-            DispatchTensor::zeros(shape, &device, fdtype),
-        );
-        // z² and i*z before consuming tensor
-        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
-        // i*z = (-imag, real)
-        let i_z = SplitComplexTensor::new(DispatchTensor::neg(tensor.imag), tensor.real);
-        // 1 - z²
-        let one_minus_z_sq = SplitBackend::<B, D>::complex_sub(ones, z_sq);
-        // i*z + sqrt(1 - z²)
-        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(one_minus_z_sq);
-        let inner = SplitBackend::<B, D>::complex_add(i_z, sqrt_term);
-        // -i * ln(inner): (imag, -real)
-        let log_inner = SplitBackend::<B, D>::complex_log(inner);
-        SplitComplexTensor::new(log_inner.imag, DispatchTensor::neg(log_inner.real))
+        tensor.asin()
     }
 
     fn complex_asinh(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        // asinh(z) = ln(z + sqrt(z² + 1))
-        let device = tensor.device();
-        let shape = tensor.shape();
-        let fdtype = tensor.inner_dtype().into();
-        let ones = SplitComplexTensor::new(
-            DispatchTensor::ones(shape.clone(), &device, fdtype),
-            DispatchTensor::zeros(shape, &device, fdtype),
-        );
-        // z² + 1
-        let z_sq = SplitBackend::<B, D>::complex_mul(tensor.clone(), tensor.clone());
-        let z_sq_plus_one = SplitBackend::<B, D>::complex_add(z_sq, ones);
-        // z + sqrt(z² + 1)
-        let sqrt_term = SplitBackend::<B, D>::complex_sqrt(z_sq_plus_one);
-        let inner = SplitBackend::<B, D>::complex_add(tensor, sqrt_term);
-        SplitBackend::<B, D>::complex_log(inner)
+        tensor.asinh()
     }
 
     fn complex_atan(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        // atan(z) = (-i/2) * ln((1 + i*z) / (1 - i*z))
-        let device = tensor.device();
-        let shape = tensor.shape();
-        let fdtype = tensor.inner_dtype().into();
-        let ones = SplitComplexTensor::new(
-            DispatchTensor::ones(shape.clone(), &device, fdtype),
-            DispatchTensor::zeros(shape, &device, fdtype),
-        );
-        // i*z = (-imag, real)
-        let i_z = SplitComplexTensor::new(DispatchTensor::neg(tensor.imag), tensor.real);
-        // 1 + i*z and 1 - i*z
-        let one_plus_i_z = SplitBackend::<B, D>::complex_add(ones.clone(), i_z.clone());
-        let one_minus_i_z = SplitBackend::<B, D>::complex_sub(ones, i_z);
-        // ln((1 + i*z) / (1 - i*z))
-        let log_ratio = SplitBackend::<B, D>::complex_log(SplitBackend::<B, D>::complex_div(
-            one_plus_i_z,
-            one_minus_i_z,
-        ));
-        // (-i/2) * log_ratio: -i*(a+bi) = (b, -a), then /2
-        SplitComplexTensor::new(
-            DispatchTensor::div_scalar(log_ratio.imag, burn_std::Scalar::Float(2.0)),
-            DispatchTensor::neg(DispatchTensor::div_scalar(
-                log_ratio.real,
-                burn_std::Scalar::Float(2.0),
-            )),
-        )
+        tensor.atan()
     }
 
     fn complex_atanh(
         tensor: ComplexTensor<SplitBackend<B, D>>,
     ) -> ComplexTensor<SplitBackend<B, D>> {
-        // atanh(z) = (1/2) * ln((1 + z) / (1 - z))
-        let device = tensor.device();
-        let shape = tensor.shape();
-        let fdtype = tensor.inner_dtype().into();
-        let ones = SplitComplexTensor::new(
-            DispatchTensor::ones(shape.clone(), &device, fdtype),
-            DispatchTensor::zeros(shape, &device, fdtype),
-        );
-        let one_plus_z = ones + tensor;
-        let one_minus_z = ones - tensor;
-        let log_ratio = (one_plus_z / one_minus_z).log();
-        SplitComplexTensor::new(
-            log_ratio.real / burn_std::Scalar::Float(2.0),
-            log_ratio.imag / burn_std::Scalar::Float(2.0),
-        )
+        tensor.atanh()
     }
 
     fn complex_slice(
@@ -1091,7 +947,7 @@ where
     F: burn_backend::TensorMetadata,
 {
     type OutTensorData = SplitTensorData;
-    fn zeros(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
+    fn zeros(shape: Shape, device: &BackendDevice<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
         let real = B::InnerBackend::float_from_data(
             TensorData::zeros::<<B::InnerBackend as BackendTypes>::FloatElem, _>(&shape),
             device,
@@ -1104,10 +960,10 @@ where
         <B as BackendTypes>::ComplexTensor::new(real, imag)
     }
 
-    fn ones(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
+    fn ones(shape: Shape, device: &BackendDevice<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
         let real = TensorData::ones::<<B::InnerBackend as BackendTypes>::FloatElem, _>(&shape);
         let imag = TensorData::zeros::<<B::InnerBackend as BackendTypes>::FloatElem, _>(shape);
-        SplitComplexTensor::<B, D>::from_parts_data(
+        ComplexTensor::<B>::from_parts_data(
             TensorData::ones(&shape),
             TensorData::zeros(&shape),
         )
@@ -1115,13 +971,21 @@ where
 
     fn full(
         shape: Shape,
-        fill_value: B::ComplexScalar,
-        device: &Device<B>,
-    ) -> SplitComplexTensor<B, D> {
-        SplitComplexTensor::<B, D>::from_parts_data(
-            TensorData::full(&shape, fill_value.real()),
-            TensorData::full(&shape, fill_value.imag()),
-        )
+        fill_value: Scalar,
+        device: &BackendDevice<B>,
+    ) -> ComplexTensor<B> {
+        match fill_value {
+            Scalar::Complex(c) => {
+                let real = TensorData::full(&shape, c.real());
+                let imag = TensorData::full(&shape, c.imag());
+                ComplexTensor::<B>::from_parts_data(real, imag)
+            }
+            x => {
+                ComplexTensor::<B>::from_real_data(
+                TensorData::full(&shape, x.into()),
+                )
+            }
+        }
     }
 
     async fn complex_into_data(
@@ -1131,7 +995,7 @@ where
     }
 }
 
-impl<B, const D: usize> SplitComplexTensor<B, D>
+impl<B, const D: usize> SplitComplexTensor<D,K>
 where
     B: Backend,
 {
@@ -1221,9 +1085,8 @@ where
     }
 }
 //BasicOps
-impl<B, const D: usize> SplitComplexTensor<B, D>
-where
-    B: Backend,
+impl<const D: usize, K> SplitComplexTensor<D,K>
+where K: Basic,
 {
     /// Select complex tensor elements along the given dimension corresponding to the given indices.
     ///
@@ -1312,7 +1175,7 @@ where
     pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(
         self,
         shape: S,
-    ) -> SplitComplexTensor<B, D2> {
+    ) -> SplitComplexTensor<D2, K> {
         // Convert reshape args to shape
         let shape = shape.into_shape::<D2>(self.shape());
         let (real, imag) = (self.real, self.imag);
@@ -1338,12 +1201,12 @@ where
     }
 
     /// Returns the device of the current complex tensor.
-    pub fn device(&self) -> B::Device {
+    pub fn device(&self) -> Device {
         SplitBackend::<B, D>::complex_device(self)
     }
 
     /// Move the complex tensor to the given device.
-    pub fn to_device(self, device: &B::Device) -> Self {
+    pub fn to_device(self, device: &Device) -> Self {
         SplitBackend::<B, D>::complex_to_device(self, device)
     }
 
@@ -1391,7 +1254,7 @@ where
     /// # Returns
     ///
     /// A boolean tensor that is `true` where the two complex elements are equal and `false` elsewhere.
-    pub fn equal(self, rhs: Self) -> B::BoolTensorPrimitive {
+    pub fn equal(self, rhs: Self) -> Tensor<D, Bool> {
         let out_dtype = self.real.dtype();
         SplitBackend::<B, D>::complex_equal(self, rhs, out_dtype.into())
     }
@@ -1401,7 +1264,7 @@ where
     /// # Returns
     ///
     /// A boolean tensor that is `true` where the two complex elements are not equal and `false` elsewhere.
-    pub fn not_equal(self, rhs: Self) -> B::BoolTensorPrimitive {
+    pub fn not_equal(self, rhs: Self) -> Tensor<D, Bool> {
         let out_dtype = self.real.dtype();
         SplitBackend::<B, D>::complex_not_equal(self, rhs, out_dtype.into())
     }
@@ -1422,7 +1285,7 @@ where
     /// # Returns
     ///
     /// A boolean tensor with a single element, `true` if any element is non-zero, `false` otherwise.
-    pub fn any(self) -> B::BoolTensorPrimitive {
+    pub fn any(self) -> Tensor<1, Bool> {
         let out_dtype = self.device().bool_dtype;
         SplitBackend::<B, D>::complex_any(self, out_dtype)
     }
@@ -1437,7 +1300,7 @@ where
     ///
     /// A boolean tensor with the same shape as the input, except in the `dim` axis where
     /// the size is 1, containing `true` if any element along that dimension is non-zero.
-    pub fn any_dim(self, dim: usize) -> B::BoolTensorPrimitive {
+    pub fn any_dim(self, dim: usize) -> Tensor<D, Bool> {
         let out_dtype = self.device().bool_dtype;
         SplitBackend::<B, D>::complex_any_dim(self, dim, out_dtype)
     }
@@ -1447,7 +1310,7 @@ where
     /// # Returns
     ///
     /// A boolean tensor with a single element, `true` if all elements are non-zero, `false` otherwise.
-    pub fn all(self) -> B::BoolTensorPrimitive {
+    pub fn all(self) -> Tensor<1, Bool> {
         let out_dtype = self.device().bool_dtype;
         SplitBackend::<B, D>::complex_all(self, out_dtype)
     }
@@ -1462,7 +1325,7 @@ where
     ///
     /// A boolean tensor with the same shape as the input, except in the `dim` axis where
     /// the size is 1, containing `true` if all elements along that dimension are non-zero.
-    pub fn all_dim(self, dim: usize) -> B::BoolTensorPrimitive {
+    pub fn all_dim(self, dim: usize) -> Tensor<D, Bool> {
         let out_dtype = self.device().bool_dtype;
         SplitBackend::<B, D>::complex_all_dim(self, dim, out_dtype)
     }
@@ -1519,7 +1382,7 @@ where
     pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(
         self,
         shape: S,
-    ) -> SplitComplexTensor<B, D2> {
+    ) -> SplitComplexTensor<D2, K> {
         let shape = shape.into_shape(&self.shape());
         // check!(TensorCheck::expand::<D, D2>(
         //     "expand",
@@ -1574,7 +1437,7 @@ where
         dim: I,
         size: usize,
         step: usize,
-    ) -> SplitComplexTensor<B, D2> {
+    ) -> SplitComplexTensor<D2,K> {
         let dim = dim.expect_dim_index(D);
         let (real, imag) = (self.real, self.imag);
         SplitComplexTensor::new(real.unfold(dim, size, step), imag.unfold(dim, size, step))
@@ -1736,7 +1599,7 @@ where
     /// * `other` - The element to compare each complex element against.
     pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<D, Bool> {
         let out_dtype = self.device().bool_dtype;
-        Tensor::<B, D, Bool>::new(SplitBackend::<B, D>::complex_not_equal_elem(
+        Tensor::<D, Bool>::new(SplitBackend::<B, D>::complex_not_equal_elem(
             self,
             other.elem(),
             out_dtype,
@@ -1784,7 +1647,7 @@ where
     pub fn scatter_nd<const M: usize, const DV: usize>(
         self,
         indices: Tensor<M, Int>,
-        values: SplitComplexTensor<B, DV>,
+        values: SplitComplexTensor<DV, K>,
         update: IndexingUpdateOp,
     ) -> Self {
         // check!(TensorCheck::scatter_nd::<D, M, DV>(
@@ -1793,8 +1656,8 @@ where
         //     &values.shape()
         // ));
         let indices = indices.tensor();
-        let SplitComplexTensor::<B, D> { real, imag, .. } = self;
-        let SplitComplexTensor::<B, DV> {
+        let SplitComplexTensor::<D, K> { real, imag, .. } = self;
+        let SplitComplexTensor::<DV, K> {
             real: real_values,
             imag: imag_values,
             ..
@@ -1819,18 +1682,15 @@ where
     pub fn gather_nd<const M: usize, const DV: usize>(
         self,
         indices: Tensor<M, Int>,
-    ) -> SplitComplexTensor<B, DV> {
+    ) -> SplitComplexTensor<DV, K> {
         let indices = indices.tensor();
-        let SplitComplexTensor::<B, D> { real, imag, .. } = self;
+        let SplitComplexTensor::<D, K> { real, imag, .. } = self;
         //check!(TensorCheck::gather_nd::<D, M, DV>(&indices.shape()));
         SplitComplexTensor::new(real.gather_nd(indices.clone()), imag.gather_nd(indices))
     }
 }
 //impl<B, F> Numeric<B> for SplitComplexTensor<F>
-impl<B: Backend, const D: usize, F> SplitComplexTensor<B, D, F>
-where
-    B: BackendTypes<FloatTensorPrimitive = F>,
-    F: TensorMetadata + 'static,
+impl<const D: usize, K:Numeric> SplitComplexTensor<D,K>
 {
     /// Applies element-wise addition operation.
     ///
@@ -2128,43 +1988,55 @@ where
 }
 
 // ComplexOnlyOps
-impl<B, const D: usize, F> SplitComplexTensor<B, D, F>
+impl<const D: usize, K> SplitComplexTensor<D,K>
 where
-    B: Backend,
-    B: BackendTypes<FloatTensorPrimitive = F>,
-    F: TensorMetadata + 'static,
+    K: Numeric,
 {
     /// Returns the complex conjugate of each element.
     ///
     /// For a complex number `a + bi`, the conjugate is `a - bi`.
     pub fn conj(self) -> Self {
-        SplitBackend::<B, D>::conj(self)
+        // conj(a + bi) = a - bi
+        SplitComplexTensor::new(self.real, -self.imag)
     }
 
     /// Returns the argument (phase angle) of each element, in radians.
     ///
     /// For a complex number `a + bi`, the phase is `atan2(b, a)`, ranging from `-π` to `π`.
-    pub fn phase(self) -> F {
-        SplitBackend::<B, D>::complex_arg(self)
+    pub fn phase(self) -> Tensor<D, K> {
+        // arg(a + bi) = atan2(b, a)
+        self.imag.atan2(self.real)
     }
 
     /// Returns the magnitude (absolute value, modulus) of each element.
     ///
     /// For a complex number `a + bi`, the magnitude is `sqrt(a² + b²)`.
-    pub fn magnitude(self) -> F {
-        SplitBackend::<B, D>::abs(self)
+    pub fn magnitude(self) -> Tensor<D, Float> {
+        //could use a hypot function for float kinds
+        Float::sqrt(self.real * self.real + self.imag * self.imag)
+        
     }
 
     /// Applies element-wise complex exponential.
     ///
     /// For a complex number `a + bi`, computes `exp(a) * (cos(b) + i·sin(b))`.
     pub fn exp(self) -> Self {
-        SplitBackend::<B, D>::complex_exp(self)
+        // formula: e^(a + bi) = e^a * (cos(b) + i*sin(b)) = from_polar(e^a, b)
+        //TODO: add the checks for corner cases +∞, -∞, and NaN
+        //https://github.com/skewballfox/burn/blob/67d84b677b3d718cb25fbdc2535dbf04706b0863/crates/burn-complex/src/base/element.rs#L322-L323
+        let exp_real = self.real.exp();
+        let cos_imag = self.imag.cos();
+        let sin_imag = self.imag.sin();
+        SplitComplexTensor::new(exp_real * cos_imag, exp_real * sin_imag)
     }
 
     /// Applies element-wise complex sine.
     pub fn sin(self) -> Self {
-        SplitBackend::<B, D>::complex_sin(self)
+        // sin(a + bi) = sin(a)*cosh(b) + i*cos(a)*sinh(b)
+        SplitComplexTensor::new(
+            self.real.sin() * self.imag.cosh(),
+            self.real.cos() * self.imag.sinh(),
+        )
     }
 
     /// Create a complex tensor from separate real and imaginary data.
@@ -2174,7 +2046,9 @@ where
     /// * `real` - The real part data.
     /// * `imag` - The imaginary part data.
     pub fn from_parts<T: Into<TensorData>>(real: T, imag: T) -> Self {
-        SplitBackend::<B, D>::complex_from_parts(real.into(), imag.into())
+        let real = BridgeTensor::from_data(real.into(), real.device());
+        let imag = BridgeTensor::from_data(imag.into(), imag.device());
+        Self::new(real, imag)
     }
 
     /// Create a complex tensor from interleaved (real, imaginary) data.
@@ -2185,8 +2059,11 @@ where
     ///
     /// * `data` - Interleaved complex data.
     /// * `device` - The device to create the tensor on.
-    pub fn from_interleaved_data(data: TensorData, device: &B::Device) -> Self {
-        SplitBackend::<B, D>::complex_from_interleaved_data(data, device)
+    pub fn from_interleaved_data(data: TensorData, device: &Device) -> Self {
+        Self::from_split_data(
+            burn_std::complex_utils::split_from_interleaved_data(data),
+            device,
+        )
     }
 
     /// Create a complex tensor from polar form.
@@ -2198,66 +2075,206 @@ where
     ///
     /// * `magnitude` - The magnitude (modulus) of each element.
     /// * `phase` - The phase angle of each element, in radians.
-    pub fn from_polar(magnitude: F, phase: F) -> Self {
-        SplitBackend::<B, D>::complex_from_polar(magnitude, phase)
+    pub fn from_polar(magnitude: Tensor<D, K>, phase: Tensor<D, K>) -> Self {
+        Self::new(
+            (magnitude * phase.cos()),
+            (magnitude * phase.sin()),
+        )
     }
 
     /// Applies element-wise complex cosine.
     pub fn cos(self) -> Self {
-        SplitBackend::<B, D>::complex_cos(self)
+        // cos(a + bi) = cos(a)*cosh(b) - i*sin(a)*sinh(b)
+        SplitComplexTensor::new(
+            self.real.cos() * self.imag.cosh(),
+            -(self.real.sin() * self.imag.sinh()),
+        )
     }
 
     /// Applies element-wise complex tangent.
     pub fn tan(self) -> Self {
-        SplitBackend::<B, D>::complex_tan(self)
+        // tan(z) = sin(z) / cos(z)
+        // Compute sin(a), cos(a), sinh(b), cosh(b) once and share between numerator/denominator.
+        let sin_a = self.real.sin();
+        let cos_a = self.real.cos();
+        let sinh_b = self.imag.sinh();
+        let cosh_b = self.imag.cosh();
+        let sin_z = SplitComplexTensor::new(
+            sin_a.clone() * cosh_b.clone(),
+            cos_a.clone() * sinh_b.clone(),
+        );
+        let cos_z = SplitComplexTensor::new(cos_a * cosh_b, -(sin_a * sinh_b));
+        sin_z.div(cos_z)
     }
 
     /// Applies element-wise complex arccosine.
     pub fn acos(self) -> Self {
-        SplitBackend::<B, D>::complex_acos(self)
+        // acos(z) = -i * ln(z + i * sqrt(1 - z²))
+        let device = self.device();
+        let shape = self.shape();
+        let fdtype = self.inner_dtype().into();
+        let ones = SplitComplexTensor::new(
+            BridgeTensor::ones(shape.clone(), &device, fdtype),
+            BridgeTensor::zeros(shape, &device, fdtype),
+        );
+        // 1 - z²
+        let z_sq = self.clone().mul(self.clone());
+        let one_minus_z_sq = ones.sub(z_sq);
+        // i * sqrt(1 - z²): multiply by i via (-imag, real)
+        let sqrt_term = one_minus_z_sq.sqrt();
+        let i_sqrt = SplitComplexTensor::new(-sqrt_term.imag, sqrt_term.real);
+        // z + i*sqrt(1 - z²)
+        let inner = self.add(i_sqrt);
+        // -i * ln(inner): multiply by -i via (imag, -real)
+        let log_inner = inner.log();
+        SplitComplexTensor::new(log_inner.imag, -log_inner.real)
     }
 
     /// Applies element-wise complex hyperbolic arccosine.
     pub fn acosh(self) -> Self {
-        SplitBackend::<B, D>::complex_acosh(self)
+        // acosh(z) = ln(z + sqrt(z² - 1))
+        let device = self.device();
+        let shape = self.shape();
+        let fdtype = self.inner_dtype().into();
+        let ones = SplitComplexTensor::new(
+            BridgeTensor::ones(shape.clone(), &device, fdtype),
+            BridgeTensor::zeros(shape, &device, fdtype),
+        );
+        // z² - 1
+        let z_sq = self.clone().mul(self.clone());
+        let z_sq_minus_one = z_sq.sub(ones);
+        // z + sqrt(z² - 1)
+        let sqrt_term = z_sq_minus_one.sqrt();
+        let inner = self.add(sqrt_term);
+        inner.log()
     }
 
     /// Applies element-wise complex arcsine.
     pub fn asin(self) -> Self {
-        SplitBackend::<B, D>::complex_asin(self)
+        // asin(z) = -i * ln(i*z + sqrt(1 - z²))
+        let device = self.device();
+        let shape = self.shape();
+        let fdtype = self.inner_dtype().into();
+        let ones = SplitComplexTensor::new(
+            BridgeTensor::ones(shape.clone(), &device, fdtype),
+            BridgeTensor::zeros(shape, &device, fdtype),
+        );
+        // z² and i*z — clone before partial-moving self
+        let z_sq = self.clone().mul(self.clone());
+        // i*z = (-imag, real)
+        let i_z = SplitComplexTensor::new(-self.imag, self.real);
+        // 1 - z²
+        let one_minus_z_sq = ones.sub(z_sq);
+        // i*z + sqrt(1 - z²)
+        let sqrt_term = one_minus_z_sq.sqrt();
+        let inner = i_z.add(sqrt_term);
+        // -i * ln(inner): (imag, -real)
+        let log_inner = inner.log();
+        SplitComplexTensor::new(log_inner.imag, -log_inner.real)
     }
 
     /// Applies element-wise complex hyperbolic arcsine.
     pub fn asinh(self) -> Self {
-        SplitBackend::<B, D>::complex_asinh(self)
+        // asinh(z) = ln(z + sqrt(z² + 1))
+        let device = self.device();
+        let shape = self.shape();
+        let fdtype = self.inner_dtype().into();
+        let ones = SplitComplexTensor::new(
+            BridgeTensor::ones(shape.clone(), &device, fdtype),
+            BridgeTensor::zeros(shape, &device, fdtype),
+        );
+        // z² + 1
+        let z_sq = self.clone().mul(self.clone());
+        let z_sq_plus_one = z_sq.add(ones);
+        // z + sqrt(z² + 1)
+        let sqrt_term = z_sq_plus_one.sqrt();
+        let inner = self.add(sqrt_term);
+        inner.log()
     }
 
     /// Applies element-wise complex arctangent.
     pub fn atan(self) -> Self {
-        SplitBackend::<B, D>::complex_atan(self)
+        // atan(z) = (-i/2) * ln((1 + i*z) / (1 - i*z))
+        let device = self.device();
+        let shape = self.shape();
+        
+        let ones = Self::ones(shape, TensorCreationOptions::new(device).with_dtype(real_to_complex_dtype(self.dtype()).into()));
+        // i*z = (-imag, real)
+        let i_z = SplitComplexTensor::new(-self.imag, self.real);
+        // 1 + i*z and 1 - i*z
+        // ln((1 + i*z) / (1 - i*z))
+        let log_ratio = (
+            (ones+ i_z) /
+            (ones - i_z),
+        ).log();
+        // (-i/2) * log_ratio: -i*(a+bi) = (b, -a), then /2
+        SplitComplexTensor::new(
+            BridgeTensor::div_scalar(log_ratio.imag, burn_std::Scalar::Float(2.0)),
+            BridgeTensor::neg(BridgeTensor::div_scalar(
+                log_ratio.real,
+                burn_std::Scalar::Float(2.0),
+            )),
+        )
     }
 
     /// Applies element-wise complex hyperbolic arctangent.
     pub fn atanh(self) -> Self {
-        SplitBackend::<B, D>::complex_atanh(self)
+        // atanh(z) = (1/2) * ln((1 + z) / (1 - z))
+        let device = self.device();
+        let shape = self.shape();
+        let fdtype = self.inner_dtype().into();
+        let ones = Self::complex_ones(shape, device, real_to_complex_dtype(fdtype).into());
+        let one_plus_z = ones + self;
+        let one_minus_z = ones - self;
+        let log_ratio = (one_plus_z / one_minus_z).log();
+        SplitComplexTensor::new(
+            log_ratio.real / burn_std::Scalar::Float(2.0),
+            log_ratio.imag / burn_std::Scalar::Float(2.0),
+        )
     }
 
     /// Applies element-wise complex natural logarithm.
     ///
     /// For a complex number `z = r · exp(i · θ)`, computes `ln(r) + i · θ`.
     pub fn log(self) -> Self {
-        SplitBackend::<B, D>::complex_log(self)
+        // formula: ln(z) = ln|z| + i*arg(z)
+        // where |z| = sqrt(real^2 + imag^2) and arg(z) = atan2(imag, real)
+
+        // Compute norm: sqrt(real^2 + imag^2)
+        let real_sq = self.real * self.real;
+        let imag_sq = self.imag * self.imag;
+        let norm_sq = real_sq + imag_sq;
+        let norm = norm_sq.sqrt();
+
+        // Compute arg: atan2(imag, real)
+        let arg = self.imag.atan2(self.real);
+
+        SplitComplexTensor::new(norm.log(), arg)
     }
     /// Applies element-wise complex square root.
     pub fn sqrt(self) -> Self {
-        SplitBackend::<B, D>::complex_sqrt(self)
+        // sqrt(z) = from_polar(sqrt(|z|), arg(z) / 2)
+        let abs = SplitComplexTensor::<Self>::abs(self.clone());
+        let sqrt_abs = abs.sqrt();
+        let arg = self.imag.atan2(self.real);
+        let half_arg = Float::div_scalar(arg, burn_std::Scalar::Float(2.0));
+        Self::from_polar(sqrt_abs, half_arg)
     }
 }
 
+use crate::Bool;
+use crate::Device;
+use crate::Float;
+use crate::Int;
+use crate::Tensor;
+use crate::TensorCreationOptions;
+use crate::kind::Basic;
+use crate::kind::Numeric;
+use crate::ops::BridgeTensor;
 use crate::split::SplitComplexTensor;
 
 // SplitComplexTensor + SplitComplexTensor
-impl<B: Backend, const D: usize> core::ops::Add<Self> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Add<Self> for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -2266,10 +2283,10 @@ impl<B: Backend, const D: usize> core::ops::Add<Self> for SplitComplexTensor<B, 
 }
 
 // SplitComplexTensor + Tensor<D, Float> — adds real tensor to the real part
-impl<B: Backend, const D: usize> core::ops::Add<Tensor<D>> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Add<Tensor<D, K>> for SplitComplexTensor<D,K> {
     type Output = Self;
 
-    fn add(self, rhs: Tensor<D>) -> Self::Output {
+    fn add(self, rhs: Tensor<D, K>) -> Self::Output {
         let prim = rhs.tensor();
         let (real, imag) = self.into_parts();
         SplitComplexTensor::new(real + prim, imag)
@@ -2280,7 +2297,7 @@ impl<B: Backend, const D: usize> core::ops::Add<Tensor<D>> for SplitComplexTenso
 macro_rules! impl_complex_tensor_add_scalar {
     ($($t:ty),*) => {
         $(
-            impl<B: Backend, const D: usize> core::ops::Add<$t> for SplitComplexTensor<B, D> {
+            impl<const D: usize, K: Numeric> core::ops::Add<$t> for SplitComplexTensor<D,K> {
                 type Output = Self;
 
                 fn add(self, rhs: $t) -> Self::Output {
@@ -2292,8 +2309,8 @@ macro_rules! impl_complex_tensor_add_scalar {
 }
 impl_complex_tensor_add_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<B: Backend, const D: usize, E: Element> core::ops::Add<Complex<E>>
-    for SplitComplexTensor<B, D>
+impl<const D: usize, K: Numeric, E: Element> core::ops::Add<Complex<E>>
+    for SplitComplexTensor<D,K>
 {
     type Output = Self;
 
@@ -2302,7 +2319,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Add<Complex<E>>
     }
 }
 // Tensor - tensor
-impl<B: Backend, const D: usize> core::ops::Sub<Self> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Sub<Self> for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -2311,10 +2328,10 @@ impl<B: Backend, const D: usize> core::ops::Sub<Self> for SplitComplexTensor<B, 
 }
 
 // SplitComplexTensor - Tensor<D, Float>
-impl<B: Backend, const D: usize> core::ops::Sub<Tensor<D, Float>> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Sub<Tensor<D, K>> for SplitComplexTensor<D,K> {
     type Output = Self;
 
-    fn sub(self, rhs: Tensor<D, Float>) -> Self::Output {
+    fn sub(self, rhs: Tensor<D, K>) -> Self::Output {
         let prim = rhs.tensor();
 
         let (real, imag) = self.into_parts();
@@ -2326,7 +2343,7 @@ impl<B: Backend, const D: usize> core::ops::Sub<Tensor<D, Float>> for SplitCompl
 macro_rules! impl_complex_tensor_sub_scalar {
     ($($t:ty),*) => {
         $(
-            impl<B: Backend, const D: usize> core::ops::Sub<$t> for SplitComplexTensor<B, D> {
+            impl<const D: usize, K: Numeric> core::ops::Sub<$t> for SplitComplexTensor<D,K> {
                 type Output = Self;
 
                 fn sub(self, rhs: $t) -> Self::Output {
@@ -2338,8 +2355,8 @@ macro_rules! impl_complex_tensor_sub_scalar {
 }
 impl_complex_tensor_sub_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<B: Backend, const D: usize, E: Element> core::ops::Sub<Complex<E>>
-    for SplitComplexTensor<B, D>
+impl<const D: usize, K: Numeric, E: Element> core::ops::Sub<Complex<E>>
+    for SplitComplexTensor<D,K>
 {
     type Output = Self;
 
@@ -2349,7 +2366,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Sub<Complex<E>>
 }
 
 // Tensor * tensor
-impl<B: Backend, const D: usize> core::ops::Mul<Self> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Mul<Self> for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -2358,10 +2375,10 @@ impl<B: Backend, const D: usize> core::ops::Mul<Self> for SplitComplexTensor<B, 
 }
 
 // SplitComplexTensor * Tensor<D, Float>
-impl<B: Backend, const D: usize> core::ops::Mul<Tensor<D, Float>> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Mul<Tensor<D, K>> for SplitComplexTensor<D,K> {
     type Output = Self;
 
-    fn mul(self, rhs: Tensor<D, Float>) -> Self::Output {
+    fn mul(self, rhs: Tensor<D, K>) -> Self::Output {
         let prim = rhs.tensor();
         let (real, imag) = self.into_parts();
         SplitComplexTensor::new(real * prim, imag * prim)
@@ -2372,7 +2389,7 @@ impl<B: Backend, const D: usize> core::ops::Mul<Tensor<D, Float>> for SplitCompl
 macro_rules! impl_complex_tensor_mul_scalar {
     ($($t:ty),*) => {
         $(
-            impl<B: Backend, const D: usize> core::ops::Mul<$t> for SplitComplexTensor<B, D> {
+            impl<const D: usize, K: Numeric> core::ops::Mul<$t> for SplitComplexTensor<D,K> {
                 type Output = Self;
 
                 fn mul(self, rhs: $t) -> Self::Output {
@@ -2384,8 +2401,8 @@ macro_rules! impl_complex_tensor_mul_scalar {
 }
 impl_complex_tensor_mul_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<B: Backend, const D: usize, E: Element> core::ops::Mul<Complex<E>>
-    for SplitComplexTensor<B, D>
+impl<const D: usize, K: Numeric, E: Element> core::ops::Mul<Complex<E>>
+    for SplitComplexTensor<D,K>
 {
     type Output = Self;
 
@@ -2395,7 +2412,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Mul<Complex<E>>
 }
 
 // Tensor / tensor
-impl<B: Backend, const D: usize> core::ops::Div<Self> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Div<Self> for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -2404,7 +2421,7 @@ impl<B: Backend, const D: usize> core::ops::Div<Self> for SplitComplexTensor<B, 
 }
 
 // SplitComplexTensor / Tensor<D, Float>
-impl<B: Backend, const D: usize> core::ops::Div<Tensor<D, Float>> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Div<Tensor<D, Float>> for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn div(self, rhs: Tensor<D, Float>) -> Self::Output {
@@ -2418,7 +2435,7 @@ impl<B: Backend, const D: usize> core::ops::Div<Tensor<D, Float>> for SplitCompl
 macro_rules! impl_complex_tensor_div_scalar {
     ($($t:ty),*) => {
         $(
-            impl<B: Backend, const D: usize> core::ops::Div<$t> for SplitComplexTensor<B, D> {
+            impl<const D: usize, K: Numeric> core::ops::Div<$t> for SplitComplexTensor<D,K> {
                 type Output = Self;
 
                 fn div(self, rhs: $t) -> Self::Output {
@@ -2430,8 +2447,8 @@ macro_rules! impl_complex_tensor_div_scalar {
 }
 impl_complex_tensor_div_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<B: Backend, const D: usize, E: Element> core::ops::Div<Complex<E>>
-    for SplitComplexTensor<B, D>
+impl<const D: usize, K: Numeric, E: Element> core::ops::Div<Complex<E>>
+    for SplitComplexTensor<D,K>
 {
     type Output = Self;
 
@@ -2441,7 +2458,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Div<Complex<E>>
 }
 
 // Tensor % tensor
-impl<B: Backend, const D: usize> core::ops::Rem<Self> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Rem<Self> for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn rem(self, rhs: Self) -> Self::Output {
@@ -2450,7 +2467,7 @@ impl<B: Backend, const D: usize> core::ops::Rem<Self> for SplitComplexTensor<B, 
 }
 
 // SplitComplexTensor % Tensor<D, Float>
-impl<B: Backend, const D: usize> core::ops::Rem<Tensor<D, Float>> for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Rem<Tensor<D, Float>> for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn rem(self, rhs: Tensor<D, Float>) -> Self::Output {
@@ -2464,7 +2481,7 @@ impl<B: Backend, const D: usize> core::ops::Rem<Tensor<D, Float>> for SplitCompl
 macro_rules! impl_complex_tensor_rem_scalar {
     ($($t:ty),*) => {
         $(
-            impl<B: Backend, const D: usize> core::ops::Rem<$t> for SplitComplexTensor<B, D> {
+            impl<const D: usize, K: Numeric> core::ops::Rem<$t> for SplitComplexTensor<D,K> {
                 type Output = Self;
 
                 fn rem(self, rhs: $t) -> Self::Output {
@@ -2476,8 +2493,8 @@ macro_rules! impl_complex_tensor_rem_scalar {
 }
 impl_complex_tensor_rem_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<B: Backend, const D: usize, E: Element> core::ops::Rem<Complex<E>>
-    for SplitComplexTensor<B, D>
+impl<const D: usize,K: Numeric, E: Element> core::ops::Rem<Complex<E>>
+    for SplitComplexTensor<D,K>
 {
     type Output = Self;
 
@@ -2486,7 +2503,7 @@ impl<B: Backend, const D: usize, E: Element> core::ops::Rem<Complex<E>>
     }
 }
 
-impl<B: Backend, const D: usize> core::ops::Neg for SplitComplexTensor<B, D> {
+impl<const D: usize, K: Numeric> core::ops::Neg for SplitComplexTensor<D,K> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {

@@ -17,10 +17,7 @@ pub trait Layout {
     //type ComplexTensorPrimitive: TensorMetadata + 'static;
 }
 
-/// Indicates that the underlying implementation has separate real and imaginary tensors.
-pub struct SplitLayout<B> {
-    _marker: core::marker::PhantomData<B>,
-}
+
 
 /// Indicates that the underlying implementation uses a complex primitive type \[float,float\] like that found in the
 /// num_complex trait.
@@ -29,7 +26,7 @@ pub struct InterleavedLayout {
 }
 
 impl Layout for InterleavedLayout {}
-impl<B> Layout for SplitLayout<B> {}
+
 
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <B as BackendTypes>::ComplexTensorPrimitive;

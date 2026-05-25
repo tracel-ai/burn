@@ -4,6 +4,11 @@ fn main() {
     println!("cargo::rustc-check-cfg=cfg(wgpu_webgpu)");
     println!("cargo::rustc-check-cfg=cfg(default_backend)");
 
+    // Unfortunately, the backend decorators need to have complex tensor ops implemented they can be used alongside
+    //interleaved complex tensors, even if the backend itself doesn't support complex tensors. This is because the decorators are designed to be used with any backend, and we don't want to restrict their use to only backends that support complex tensors. However, this does mean that if you enable a backend decorator that doesn't support complex tensors, you'll get compile-time errors when you try to use interleaved complex tensors.
+    println!("cargo::rustc-check-cfg=cfg(autodiff)");
+    println!("cargo::rustc-check-cfg=cfg(fusion)");
+
     // If you try to build with `--no-default-features`, we enable a cpu backend by default (Flex)
     let cuda = cfg!(feature = "cuda");
     let flex = cfg!(feature = "flex");
@@ -15,6 +20,10 @@ fn main() {
     let mut metal = cfg!(feature = "metal");
     let mut vulkan = cfg!(feature = "vulkan");
     let mut webgpu = cfg!(feature = "webgpu");
+
+    let complex = cfg!(feature = "complex");
+    let autodiff = cfg!(feature = "autodiff");
+    let fusion = cfg!(feature = "fusion");
 
     // Detect which single wgpu backend is enabled
     let wgpu_only = cfg!(all(
@@ -39,7 +48,23 @@ fn main() {
             enabled.join(", ")
         );
     }
-
+    if complex {
+        
+    
+    let enabled = [(autodiff, "autodiff"), (fusion, "fusion")]
+        .iter()
+        .filter(|x| x.0)
+        .map(|x| x.1)
+        .collect::<Vec<_>>();
+        if enabled.len() > 0 {
+            println!(
+                "cargo:warning=Backend Decorators that don't support complex values are enabled: [{}]. This will result in complile time errors.",
+                enabled.join(", "),
+            );
+            
+            
+        }
+    }
     let no_backend_enabled =
         !(cuda || flex || rocm || ndarray || tch || cpu || metal || vulkan || webgpu || wgpu_only);
 
@@ -51,6 +76,12 @@ fn main() {
     }
     if webgpu || wgpu_only {
         println!("cargo:rustc-cfg=wgpu_webgpu");
+    }
+    if autodiff {
+        println!("cargo:rustc-cfg=autodiff");
+    }
+    if fusion {
+        println!("cargo:rustc-cfg=fusion");
     }
     if no_backend_enabled {
         println!("cargo:rustc-cfg=default_backend");

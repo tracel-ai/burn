@@ -39,15 +39,6 @@ macro_rules! backend_list {
     };
 }
 
-#[cfg(feature = "complex")]
-macro_rules! complex_backend_list {
-    ($callback:ident, $($extra:tt)*) => {
-        $callback! {
-            $($extra)*;
-            [Flex, feature = "flex"]
-        }
-    };
-}
 
 /// Supplies a matrix of cross-backend combinations. Used for operations where the source and destination backends may differ.
 macro_rules! backend_matrix {
@@ -715,6 +706,7 @@ macro_rules! unary_float_arms {
 /// Match arm generator for `unary_complex`.
 ///
 /// Similar to `unary_op_arms`, but complex tensors are checked for autodiff support.
+#[cfg(feature = "complex")]
 macro_rules! unary_complex_arms {
     (
         $mode:ident, // `owned` or `ref`
@@ -887,7 +879,7 @@ macro_rules! unary_float {
 macro_rules! unary_complex {
     // Owned with return kind
     ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr => $kind:ident) => {
-        complex_backend_list!(
+        backend_list!(
             unary_complex_arms,
             owned,
             $kind,
@@ -898,13 +890,13 @@ macro_rules! unary_complex {
     };
     // Owned without return kind
     ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
-        complex_backend_list!(unary_complex_arms, owned, $inner_kind, $tensor, |$inner| {
+        backend_list!(unary_complex_arms, owned, $inner_kind, $tensor, |$inner| {
             $body
         })
     };
     // Reference without return kind
     (ref $tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
-        complex_backend_list!(unary_complex_arms, ref, $inner_kind, $tensor, |$inner| {
+        backend_list!(unary_complex_arms, ref, $inner_kind, $tensor, |$inner| {
             $body
         })
     };
@@ -1320,6 +1312,7 @@ macro_rules! binary_float {
 #[cfg(feature = "complex")]
 /// Backend dispatch for binary operations.
 /// Automatically verifies that both tensors reside on the same backend.
+#[cfg(feature = "complex")]
 macro_rules! binary_complex {
     (($lhs:expr, $lhs_kind:ident), ($rhs:expr, $rhs_kind:ident), |$lhs_inner:ident, $rhs_inner:ident| $body:expr => $kind:ident) => {
         complex_backend_list!(
@@ -1660,7 +1653,7 @@ macro_rules! multi_op {
         )
     };
 }
-
+#[cfg(feature = "complex")]
 /// High-level macro for complex module operations (e.g., conv2d) and multi-tensor operations.
 /// Handles variable numbers of required/optional inputs and wraps multiple outputs.
 ///
@@ -1673,6 +1666,7 @@ macro_rules! multi_op {
 ///     B::conv2d(x, weight, bias, options)
 /// )
 /// ```
+#[cfg(feature = "complex")]
 macro_rules! complex_multi_op {
     // --- Single output shorthands ---
     // Automatically wraps body in tuple and extracts .0

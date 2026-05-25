@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_backend::ops::ComplexTensorOps;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{
-    BackendTypes, ComplexTensor, ComplexTensorBackend, Distribution, InterleavedLayout, TypedDevice,
+    ComplexTensor, ComplexTensorBackend, Distribution, InterleavedLayout, TypedDevice,
 };
 use burn_backend::{Element, TensorData};
 
