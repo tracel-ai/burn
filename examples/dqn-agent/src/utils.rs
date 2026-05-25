@@ -204,6 +204,13 @@ where
         }
     }
 
+    fn to_device(self, device: &Device) -> Self {
+        let mut policy = self.clone();
+        let inner = policy.inner_policy().to_device(device);
+        policy.set_inner_policy(inner);
+        policy
+    }
+
     fn load_record(self, record: <Self::PolicyState as PolicyState>::Record) -> Self {
         let state = self.state().load_record(record);
         let inner_policy = self

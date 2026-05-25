@@ -3,10 +3,11 @@ use crate::{
     EventProcessorTraining, MultiAgentEnvLoop, RLComponents, RLComponentsTypes, RLEvent,
     RLEventProcessorType, RLStrategy,
 };
-use burn_core::tensor::Device;
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress};
-use burn_rl::{AsyncPolicy, Policy, PolicyLearner, SliceAccess, TransitionBuffer};
+use burn_rl::{
+    AsyncPolicy, Policy, PolicyLearner, SliceAccess, ToAction, ToObservation, TransitionBuffer,
+};
 
 /// Parameters of an on policy training with multi environments and double-batching.
 #[derive(Config, Debug)]
@@ -69,7 +70,7 @@ where
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;
 
-        let cpu_device = Device::flex();
+        let inference_device = training_components.inference_device;
         let mut env_runner = MultiAgentEnvLoop::<RLC>::new(
             self.config.num_envs,
             env_init.clone(),
@@ -79,7 +80,7 @@ where
             ),
             false,
             false,
-            &cpu_device,
+            &inference_device,
         );
         let runner_config = AsyncAgentEnvLoopConfig {
             eval: true,
@@ -90,7 +91,7 @@ where
             env_init,
             AsyncPolicy::new(1, learner_agent.policy()),
             runner_config,
-            &cpu_device,
+            &inference_device,
             None,
             None,
         );
@@ -127,9 +128,10 @@ where
 
             for item in &items {
                 let t = &item.transition;
-                let state: RLC::PolicyObs = t.state.clone().into();
-                let next_state: RLC::PolicyObs = t.next_state.clone().into();
-                let action: RLC::PolicyAction = t.action.clone().into();
+                let state: RLC::PolicyObs = t.state.clone().to_observation(&env_runner.device());
+                let next_state: RLC::PolicyObs =
+                    t.next_state.clone().to_observation(&env_runner.device());
+                let action: RLC::PolicyAction = t.action.clone().to_action(&env_runner.device());
                 let reward = t.reward.to_data().to_vec::<f32>().unwrap()[0];
                 let done = t.done.to_data().to_vec::<f32>().unwrap()[0] > 0.5;
                 transition_buffer.push(state, next_state, action, reward, done);

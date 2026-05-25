@@ -5,7 +5,10 @@ use burn::{
     tensor::Device,
     train::{
         OffPolicyConfig, RLTraining,
-        metric::{CumulativeRewardMetric, EpisodeLengthMetric, ExplorationRateMetric, LossMetric},
+        metric::{
+            CumulativeRewardMetric, EpisodeLengthMetric, ExplorationRateMetric,
+            IterationSpeedMetric, LossMetric,
+        },
     },
 };
 
@@ -58,6 +61,7 @@ pub fn run(device: Device) {
         .with_learning_strategy(burn::train::RLStrategies::OffPolicyStrategy(
             learning_config,
         ))
+        .with_inference_device(Device::flex())
         .summary();
 
     let _result = learner.launch(agent);

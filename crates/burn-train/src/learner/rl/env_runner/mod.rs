@@ -6,7 +6,9 @@ pub use base::*;
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use burn_rl::{Batchable, Environment, EnvironmentInit, Policy, PolicyState};
+    use burn_rl::{
+        Batchable, Environment, EnvironmentInit, Policy, PolicyState, ToAction, ToObservation,
+    };
 
     use crate::{
         AgentEvaluationEvent, EventProcessorTraining, ItemLazy, RLComponentsTypes, RLEvent,
@@ -65,6 +67,10 @@ pub(crate) mod tests {
 
         fn state(&self) -> Self::PolicyState {
             MockPolicyState(self.0)
+        }
+
+        fn to_device(self, _device: &burn_core::prelude::Device) -> Self {
+            self
         }
 
         fn load_record(self, _record: <Self::PolicyState as PolicyState>::Record) -> Self {
@@ -151,8 +157,8 @@ pub(crate) mod tests {
     #[derive(Clone, Debug)]
     pub(crate) struct MockAction(pub i32);
 
-    impl From<MockState> for MockObservation {
-        fn from(_value: MockState) -> Self {
+    impl ToObservation<MockObservation> for MockState {
+        fn to_observation(&self, _device: &burn_core::prelude::Device) -> MockObservation {
             MockObservation(vec![0.])
         }
     }
@@ -163,9 +169,9 @@ pub(crate) mod tests {
         }
     }
 
-    impl From<MockAction> for MockPolicyAction {
-        fn from(value: MockAction) -> Self {
-            MockPolicyAction(vec![value.0])
+    impl ToAction<MockPolicyAction> for MockAction {
+        fn to_action(&self, _device: &burn_core::prelude::Device) -> MockPolicyAction {
+            MockPolicyAction(vec![self.0])
         }
     }
 

@@ -15,7 +15,11 @@ use crate::{
 };
 use crate::{EpisodeSummary, RLStrategies};
 use burn_core::record::FileRecorder;
-use burn_rl::{Batchable, Environment, EnvironmentInit, Policy, PolicyLearner, SliceAccess};
+use burn_core::tensor::Device;
+use burn_rl::{
+    Batchable, Environment, EnvironmentInit, Policy, PolicyLearner, SliceAccess, ToAction,
+    ToObservation,
+};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -43,6 +47,7 @@ pub struct RLTraining<RLC: RLComponentsTypes> {
     summary_metrics: BTreeSet<String>,
     summary: bool,
     env_initializer: RLC::EnvInit,
+    inference_device: Device,
 }
 
 impl<E, EI, A> RLTraining<RLComponentsMarker<E, EI, A>>
@@ -57,9 +62,9 @@ where
     <A::InnerPolicy as Policy>::Action: Batchable + Clone + Send,
     <A::InnerPolicy as Policy>::ActionContext: ItemLazy + Clone + Send + 'static,
     <A::InnerPolicy as Policy>::PolicyState: Clone + Send,
-    E::State: Into<<A::InnerPolicy as Policy>::Observation> + Clone + Send + 'static,
+    E::State: ToObservation<<A::InnerPolicy as Policy>::Observation> + Clone + Send + 'static,
     E::Action: From<<A::InnerPolicy as Policy>::Action>
-        + Into<<A::InnerPolicy as Policy>::Action>
+        + ToAction<<A::InnerPolicy as Policy>::Action>
         + Clone
         + Send
         + 'static,
@@ -101,6 +106,7 @@ where
             summary_metrics: BTreeSet::new(),
             summary: false,
             env_initializer,
+            inference_device: Default::default(),
         }
     }
 }
@@ -300,6 +306,12 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         self
     }
 
+    /// The device on which to run inference during rollout collection and validation.
+    pub fn with_inference_device(mut self, device: Device) -> Self {
+        self.inference_device = device;
+        self
+    }
+
     /// Enable the training summary report.
     ///
     /// The summary will be displayed after `.launch()`, when the renderer is dropped.
@@ -357,6 +369,7 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
             num_steps: self.num_steps,
             grad_accumulation: self.grad_accumulation,
             summary,
+            inference_device: self.inference_device,
         };
 
         match self.learning_strategy {

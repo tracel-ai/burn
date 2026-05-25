@@ -110,14 +110,20 @@ impl SliceAccess for ObservationTensor<2> {
     }
 
     fn slice_assign_inplace(&mut self, index: usize, value: Self) {
+        // The given value needs to be on the same backend as the state tensor.
         let device = self.state.device();
-        let state = if self.state.device().is_autodiff() {
-            Tensor::from_inner(value.state)
+        let state = if value.state.device().is_autodiff() {
+            value.state.inner()
         } else {
             value.state
         };
+        let state = if device.is_autodiff() {
+            Tensor::from_inner(state.to_device(&device.inner()))
+        } else {
+            state.to_device(&device.inner())
+        };
         self.state
-            .inplace(|t| t.slice_assign(index..index + 1, state.to_device(&device)));
+            .inplace(|t| t.slice_assign(index..index + 1, state));
     }
 }
 
@@ -283,14 +289,20 @@ impl SliceAccess for DiscreteActionTensor<2> {
     }
 
     fn slice_assign_inplace(&mut self, index: usize, value: Self) {
+        // The given value needs to be on the same backend as the state tensor.
         let device = self.actions.device();
-        let actions = if self.actions.device().is_autodiff() {
-            Tensor::from_inner(value.actions)
+        let actions = if value.actions.device().is_autodiff() {
+            value.actions.inner()
         } else {
             value.actions
         };
+        let actions = if device.is_autodiff() {
+            Tensor::from_inner(actions.to_device(&device.inner()))
+        } else {
+            actions.to_device(&device.inner())
+        };
         self.actions
-            .inplace(|t| t.slice_assign(index..index + 1, actions.to_device(&device)));
+            .inplace(|t| t.slice_assign(index..index + 1, actions));
     }
 }
 
@@ -342,6 +354,12 @@ impl<M: DiscreteActionModel> Policy for DQN<M> {
     fn state(&self) -> Self::PolicyState {
         DqnState {
             model: self.model.clone(),
+        }
+    }
+
+    fn to_device(self, device: &Device) -> Self {
+        Self {
+            model: self.model.to_device(&device),
         }
     }
 

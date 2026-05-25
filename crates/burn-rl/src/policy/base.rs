@@ -24,6 +24,18 @@ pub trait PolicyState {
     fn load_record(&self, record: Self::Record) -> Self;
 }
 
+/// Defines how an environment's state is converted to a policy's observation.
+pub trait ToObservation<O> {
+    /// Convert an environment's state to a policy's observation, moving it to the given device if needed.
+    fn to_observation(&self, device: &Device) -> O;
+}
+
+/// Defines how an environment's action is converted to a policy's action.
+pub trait ToAction<A> {
+    /// Convert an environment's action to a policy's action, moving it to the given device if needed.
+    fn to_action(&self, device: &Device) -> A;
+}
+
 /// Trait for a RL policy.
 pub trait Policy: Clone {
     /// The observation given as input to the policy.
@@ -52,6 +64,8 @@ pub trait Policy: Clone {
     /// Returns the current parameterization.
     fn state(&self) -> Self::PolicyState;
 
+    /// Loads the policy on the given device.
+    fn to_device(self, device: &Device) -> Self;
     /// Loads the policy parameters from a record.
     fn load_record(self, record: <Self::PolicyState as PolicyState>::Record) -> Self;
 }
