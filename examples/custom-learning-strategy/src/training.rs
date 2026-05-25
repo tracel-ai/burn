@@ -1,5 +1,4 @@
 use crate::model::ModelConfig;
-use burn::data::dataloader::Progress;
 use burn::record::NoStdTrainingRecorder;
 use burn::train::{
     EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,

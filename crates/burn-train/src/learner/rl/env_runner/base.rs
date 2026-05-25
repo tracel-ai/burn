@@ -171,7 +171,7 @@ where
 
             if !self.eval {
                 progress.items_processed += 1;
-                processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                     context[0].clone(),
                     progress.clone(),
                     None,

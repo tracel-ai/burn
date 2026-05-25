@@ -5,7 +5,7 @@ use std::{
 };
 
 use burn::train::logger::{EvaluationProgressLogger, TrainingProgressLogger};
-use burn::train::renderer::OverallProgress;
+use burn::train::logger::{OverallProgress, ProgressEvent};
 
 /// A progress logger that appends training progress to a file.
 ///
@@ -22,13 +22,17 @@ use burn::train::renderer::OverallProgress;
 /// ```
 pub struct FileTrainingProgressLogger {
     writer: File,
+    iterations: usize,
 }
 
 impl FileTrainingProgressLogger {
     /// Opens (or creates) the file at `path` in append mode.
     pub fn new(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
-        Ok(Self { writer: file })
+        Ok(Self {
+            writer: file,
+            iterations: 0,
+        })
     }
 
     fn write(&mut self, line: &str) {
@@ -67,10 +71,21 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 
     fn end_split(&mut self) {
         self.write("[Training] split_end");
+        self.iterations = 0;
     }
 
     fn end(&mut self) {
         self.write("[Training] end");
+    }
+
+    fn log_event(&mut self, event: ProgressEvent) {
+        match event {
+            ProgressEvent::Iteration => {
+                self.write(&format!("[event] iteration = {}", self.iterations));
+                self.iterations += 1;
+            }
+            _ => {}
+        }
     }
 }
 

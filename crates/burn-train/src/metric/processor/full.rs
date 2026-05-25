@@ -1,9 +1,11 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
-use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
+use crate::logger::{
+    EvaluationProgressLogger, OverallProgress, ProgressEvent, TrainingProgressLogger,
+};
+use crate::metric::MetricMetadata;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
-use crate::metric::{MetricMetadata};
-use crate::renderer::{MetricState, MetricsRenderer, OverallProgress};
+use crate::renderer::{MetricState, MetricsRenderer};
 use burn_core::data::dataloader::Progress;
 use std::sync::Arc;
 
@@ -196,8 +198,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let item = item.sync();
                 let global_progress =
                     Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
-                let progress =
-                    OverallProgress::new(global_progress.clone(), item.progress.clone());
+                let progress = OverallProgress::new(global_progress.clone(), item.progress.clone());
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     global_progress,
@@ -227,8 +228,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(&progress);
+                    logger.log_event(ProgressEvent::Iteration);
                 }
                 self.renderer.update_split(&progress);
+                self.renderer.log_event(ProgressEvent::Iteration);
             }
             LearnerEvent::EndSplit(epoch) => {
                 self.store
@@ -272,8 +275,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let item = item.sync();
                 let global_progress =
                     Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
-                let progress =
-                    OverallProgress::new(global_progress.clone(), item.progress.clone());
+                let progress = OverallProgress::new(global_progress.clone(), item.progress.clone());
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     global_progress,
@@ -303,8 +305,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(&progress);
+                    logger.log_event(ProgressEvent::Iteration);
                 }
                 self.renderer.update_split(&progress);
+                self.renderer.log_event(ProgressEvent::Iteration);
             }
             LearnerEvent::EndSplit(epoch) => {
                 self.store

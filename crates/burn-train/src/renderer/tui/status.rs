@@ -1,4 +1,4 @@
-use crate::renderer::OverallProgress;
+use crate::logger::{OverallProgress, ProgressEvent};
 
 use super::TerminalFrame;
 use ratatui::{
@@ -12,6 +12,8 @@ use ratatui::{
 pub(crate) struct StatusState {
     progress: Option<OverallProgress>,
     mode: Mode,
+    iteration: usize,
+    episode: usize,
 }
 
 enum Mode {
@@ -25,6 +27,8 @@ impl Default for StatusState {
         Self {
             progress: None,
             mode: Mode::Train,
+            iteration: 0,
+            episode: 0,
         }
     }
 }
@@ -45,9 +49,28 @@ impl StatusState {
         self.progress = Some(progress.clone());
         self.mode = Mode::Evaluation;
     }
+    /// Update counters from a progress event.
+    pub(crate) fn update_counter(&mut self, event: ProgressEvent) {
+        match event {
+            ProgressEvent::Iteration => self.iteration += 1,
+            ProgressEvent::Episode => self.episode += 1,
+        }
+    }
+
+    /// Reset per-split counters at the end of a split.
+    pub(crate) fn reset_counters(&mut self) {
+        self.iteration = 0;
+        self.episode = 0;
+    }
+
     /// Create a view.
     pub(crate) fn view(&self) -> StatusView {
-        StatusView::new(self.progress.as_ref(), &self.mode)
+        StatusView::new(
+            self.progress.as_ref(),
+            &self.mode,
+            self.iteration,
+            self.episode,
+        )
     }
 }
 
@@ -64,7 +87,12 @@ fn capitalize(s: &str) -> String {
 }
 
 impl StatusView {
-    fn new(progress: Option<&OverallProgress>, mode: &Mode) -> Self {
+    fn new(
+        progress: Option<&OverallProgress>,
+        mode: &Mode,
+        iteration: usize,
+        episode: usize,
+    ) -> Self {
         let title = |title: &str| Span::from(format!(" {title} ")).bold().yellow();
         let value = |value: String| Span::from(value).italic();
         let mode_str = match mode {
@@ -81,7 +109,9 @@ impl StatusView {
                     .max(p.split_progress.unit.len())
             })
             .unwrap_or(0)
-            .max("Mode".len());
+            .max("Mode".len())
+            .max("Iteration".len())
+            .max(if episode > 0 { "Episode".len() } else { 0 });
 
         let mut lines = vec![vec![
             title(&format!("{: <width$} :", "Mode")),
@@ -98,6 +128,17 @@ impl StatusView {
             lines.push(vec![
                 title(&format!("{: <width$} :", capitalize(&s.unit))),
                 value(format!("{}/{}", s.items_processed, s.items_total)),
+            ]);
+        }
+
+        lines.push(vec![
+            title(&format!("{: <width$} :", "Iteration")),
+            value(format!("{iteration}")),
+        ]);
+        if episode > 0 {
+            lines.push(vec![
+                title(&format!("{: <width$} :", "Episode")),
+                value(format!("{episode}")),
             ]);
         }
 

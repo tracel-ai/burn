@@ -186,7 +186,7 @@ where
 
             if !self.eval {
                 progress.items_processed += 1;
-                processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                     transition.action_context,
                     progress.clone(),
                     None,
@@ -255,7 +255,7 @@ where
                         ));
                     }
                 } else {
-                    processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                    processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
                         Progress::new(i, i, "steps".to_string()),
                         None,
@@ -378,7 +378,7 @@ where
 
             if !self.eval {
                 progress.items_processed += 1;
-                processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                     transition.action_context,
                     progress.clone(),
                     None,
@@ -468,7 +468,7 @@ where
                         ));
                     }
                 } else {
-                    processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                    processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
                         Progress::new(i, i, "steps".to_string()),
                         None,

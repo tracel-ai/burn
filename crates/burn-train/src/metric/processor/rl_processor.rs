@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use crate::{
     EpisodeSummary, EvaluationItem, EventProcessorTraining, ItemLazy, LearnerSummary, RLMetrics,
+    logger::OverallProgress,
     metric::store::{Event, EventStoreClient, MetricsUpdate},
-    renderer::{MetricState, MetricsRenderer, OverallProgress},
+    renderer::{MetricState, MetricsRenderer},
 };
 
 /// Event happening during reinforcement learning.
@@ -13,7 +14,7 @@ pub enum RLEvent<TS, ES> {
     /// Signal an agent's training step.
     TrainStep(EvaluationItem<TS>),
     /// Signal a timestep of the agent-environment interface.
-    TimeStep(EvaluationItem<ES>),
+    EnvStep(EvaluationItem<ES>),
     /// Signal an episode end.
     EpisodeEnd(EvaluationItem<EpisodeSummary>),
     /// Signal the end of the process (e.g., learning ends).
@@ -104,7 +105,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let update = self.metrics.update_train_step(&item, &metadata);
                 self.process_update_train(update);
             }
-            RLEvent::TimeStep(item) => {
+            RLEvent::EnvStep(item) => {
                 let item = item.sync();
                 let progress = OverallProgress::new(item.progress.clone(), item.progress.clone());
                 let metadata = (&item).into();

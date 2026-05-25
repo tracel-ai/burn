@@ -1,9 +1,6 @@
 use crate::{
-    logger::{EvaluationProgressLogger, TrainingProgressLogger},
-    renderer::{
-        MetricState, MetricsRenderer, MetricsRendererEvaluation, MetricsRendererTraining,
-        OverallProgress,
-    },
+    logger::{EvaluationProgressLogger, OverallProgress, ProgressEvent, TrainingProgressLogger},
+    renderer::{MetricState, MetricsRenderer, MetricsRendererEvaluation, MetricsRendererTraining},
 };
 
 /// A simple renderer for when the cli feature is not enabled.
@@ -45,6 +42,8 @@ impl TrainingProgressLogger for CliMetricsRenderer {
     fn end(&mut self) {
         println!("Training ended.");
     }
+
+    fn log_event(&mut self, _event: ProgressEvent) {}
 }
 
 impl EvaluationProgressLogger for CliMetricsRenderer {

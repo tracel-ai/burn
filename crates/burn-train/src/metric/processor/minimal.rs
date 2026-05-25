@@ -1,8 +1,8 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::{
-    logger::TrainingProgressLogger,
+    logger::{OverallProgress, TrainingProgressLogger},
     metric::store::{EpochSummary, EventStoreClient, Split},
-    renderer::{OverallProgress, cli::CliMetricsRenderer},
+    renderer::cli::CliMetricsRenderer,
 };
 use std::sync::Arc;
 
@@ -52,8 +52,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress =
-                    OverallProgress::new(item.progress.clone(), item.progress.clone());
+                let progress = OverallProgress::new(item.progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_train(&item, &metadata);
@@ -98,8 +97,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress =
-                    OverallProgress::new(item.progress.clone(), item.progress.clone());
+                let progress = OverallProgress::new(item.progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_valid(&item, &metadata);

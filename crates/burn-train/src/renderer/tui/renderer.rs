@@ -1,9 +1,9 @@
-use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
+use crate::logger::{
+    EvaluationProgressLogger, OverallProgress, ProgressEvent, TrainingProgressLogger,
+};
 use crate::metric::{MetricDefinition, MetricId};
 use crate::renderer::tui::TuiSplit;
-use crate::renderer::{
-    EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation, OverallProgress,
-};
+use crate::renderer::{EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation};
 use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
 use crate::{Interrupter, LearnerSummary};
 use ratatui::{
@@ -50,6 +50,8 @@ enum TuiRendererEvent {
         /// Interrupter reset.
         reset: bool,
     },
+    CounterUpdate(ProgressEvent),
+    SplitEnd,
     ManualClose,
     Close,
     Persistent,
@@ -227,9 +229,15 @@ impl TrainingProgressLogger for TuiMetricsRendererWrapper {
         )));
     }
 
-    fn end_split(&mut self) {}
+    fn end_split(&mut self) {
+        self.send_event(TuiRendererEvent::SplitEnd);
+    }
 
     fn end(&mut self) {}
+
+    fn log_event(&mut self, event: ProgressEvent) {
+        self.send_event(TuiRendererEvent::CounterUpdate(event));
+    }
 }
 
 impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
@@ -365,6 +373,12 @@ impl TuiMetricsRenderer {
                 if reset {
                     self.interrupter.reset();
                 }
+            }
+            TuiRendererEvent::CounterUpdate(event) => {
+                self.status.update_counter(event);
+            }
+            TuiRendererEvent::SplitEnd => {
+                self.status.reset_counters();
             }
             TuiRendererEvent::ManualClose => self.manual_close = true,
             TuiRendererEvent::Persistent => self.persistent = true,

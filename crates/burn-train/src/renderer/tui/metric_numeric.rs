@@ -1,6 +1,7 @@
 use crate::{
+    logger::OverallProgress,
     metric::{MetricName, NumericEntry},
-    renderer::{OverallProgress, tui::TuiTag},
+    renderer::tui::TuiTag,
 };
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame, TuiSplit};

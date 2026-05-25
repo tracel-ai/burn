@@ -1,5 +1,5 @@
 use super::TerminalFrame;
-use crate::renderer::{OverallProgress, tui::TuiSplit};
+use crate::{logger::OverallProgress, renderer::tui::TuiSplit};
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},

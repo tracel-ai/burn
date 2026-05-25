@@ -1,3 +1,4 @@
+use burn::train::logger::ProgressEvent;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
@@ -5,10 +6,10 @@ use burn::{
     tensor::Device,
     train::{
         Learner, SupervisedTraining,
-        logger::{EvaluationProgressLogger, TrainingProgressLogger},
+        logger::{EvaluationProgressLogger, OverallProgress, TrainingProgressLogger},
         renderer::{
             EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation,
-            MetricsRendererTraining, OverallProgress,
+            MetricsRendererTraining,
         },
     },
 };
@@ -52,6 +53,10 @@ impl TrainingProgressLogger for CustomRenderer {
     fn end_split(&mut self) {}
 
     fn end(&mut self) {}
+
+    fn log_event(&mut self, event: ProgressEvent) {
+        dbg!(event);
+    }
 }
 
 impl MetricsRenderer for CustomRenderer {

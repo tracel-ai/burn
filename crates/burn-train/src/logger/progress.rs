@@ -1,4 +1,4 @@
-use crate::renderer::OverallProgress;
+use burn_core::data::dataloader::Progress;
 
 /// Trait for logging training progress at each step and end of epoch.
 ///
@@ -42,6 +42,9 @@ pub trait TrainingProgressLogger: Send {
 
     /// Called at the end of training, whether it completed successfully or was interrupted.
     fn end(&mut self);
+
+    /// Log a custom counter event, such as the number of iterations accomplished (or more).
+    fn log_event(&mut self, event: ProgressEvent);
 }
 
 /// Trait for logging evaluation progress at each step and end of evaluation.
@@ -76,4 +79,31 @@ pub trait EvaluationProgressLogger: Send {
 
     /// Called at the end of evaluation.
     fn end_global_progress(&mut self);
+}
+
+/// Two-level progress snapshot combining run-level and phase-level tracking.
+///
+/// `global_progress` spans the full training run (e.g., epochs completed out of total),
+/// while `split_progress` tracks the current phase (e.g., batches within the current epoch).
+#[derive(Debug, Clone)]
+pub struct OverallProgress {
+    /// Progress across the entire training run.
+    pub global_progress: Progress,
+    /// Progress within the current phase (epoch or evaluation split).
+    pub split_progress: Progress,
+}
+
+impl OverallProgress {
+    /// Create a new overall progress snapshot.
+    pub fn new(global_progress: Progress, split_progress: Progress) -> Self {
+        Self {
+            global_progress,
+            split_progress,
+        }
+    }
+}
+#[derive(Debug)]
+pub enum ProgressEvent {
+    Iteration,
+    Episode,
 }
