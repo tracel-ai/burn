@@ -673,9 +673,9 @@ macro_rules! dispatch_unary_simd {
     ($elem: ty, $op: ty, $lhs: expr, $($ty: ty),*) => {{ $lhs }};
 }
 
-// Helper function to broadcast two tensors to a common shape for comparison operations
+// Helper function to broadcast two tensors to a common shape for binary operations
 // Returns broadcasted views that can be safely zipped
-fn broadcast_for_comparison<'a, E: Copy, S1, S2>(
+fn broadcast_for_binary_ops<'a, E: Copy, S1, S2>(
     lhs: &'a ndarray::ArrayBase<S1, ndarray::IxDyn>,
     rhs: &'a ndarray::ArrayBase<S2, ndarray::IxDyn>,
 ) -> (
@@ -842,16 +842,17 @@ where
     }
 
     pub fn remainder(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<E> {
-        // Use into_owned() instead of clone() - only copies if shared, avoids copy if unique
-        let mut out = lhs.into_owned();
-        Zip::from(&mut out).and(&rhs).for_each(|out_elem, &b| {
-            // out_elem holds lhs value; read it before overwriting with remainder
-            let a_f = (*out_elem).to_f64();
-            let b_f = b.to_f64();
-            let r = a_f - b_f * (a_f / b_f).floor();
-            *out_elem = r.elem();
-        });
-        out.into_shared()
+        let (lhs, rhs) = broadcast_for_binary_ops(&lhs, &rhs);
+
+        Zip::from(&lhs)
+            .and(&rhs)
+            .map_collect(|&a, &b| {
+                let a_f = a.to_f64();
+                let b_f = b.to_f64();
+                let r = a_f - b_f * (a_f / b_f).floor();
+                r.elem()
+            })
+            .into_shared()
     }
 
     pub fn remainder_scalar(lhs: SharedArray<E>, rhs: E) -> SharedArray<E>
@@ -983,7 +984,7 @@ where
         );
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
             .and(&rhs_broadcast)
@@ -1183,7 +1184,7 @@ where
         );
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
             .and(&rhs_broadcast)
@@ -1231,7 +1232,7 @@ where
         );
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
             .and(&rhs_broadcast)
@@ -1266,7 +1267,7 @@ where
         );
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
             .and(&rhs_broadcast)
@@ -1301,7 +1302,7 @@ where
         );
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
 
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
@@ -1446,7 +1447,7 @@ impl NdArrayBoolOps {
         };
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
             .and(&rhs_broadcast)
@@ -1472,7 +1473,7 @@ impl NdArrayBoolOps {
         };
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
             .and(&rhs_broadcast)
@@ -1488,7 +1489,7 @@ impl NdArrayBoolOps {
         };
 
         // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_binary_ops(&lhs, &rhs);
         // Now we can safely zip and compare
         Zip::from(&lhs_broadcast)
             .and(&rhs_broadcast)

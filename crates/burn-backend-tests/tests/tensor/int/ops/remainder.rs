@@ -15,6 +15,18 @@ fn should_support_int_remainder_basic() {
 }
 
 #[test]
+fn should_support_int_remainder_broadcast() {
+    let device = Default::default();
+    let lhs = TestTensorInt::<2>::from_data(TensorData::from([[10, 20, 30]]), &device);
+    let rhs = TestTensorInt::<2>::from_data(TensorData::from([[7]]), &device);
+
+    let output = lhs.remainder(rhs);
+    let expected = TensorData::from([[3, 6, 2]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 fn should_support_int_remainder_basic_scalar() {
     let data = TensorData::from([-3, -2, -1, 1, 2, 3]);
     let device = Default::default();
