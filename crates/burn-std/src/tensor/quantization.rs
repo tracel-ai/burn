@@ -53,18 +53,11 @@ pub enum QuantAcc {
 pub enum Calibration {
     /// Computes quantization range mapping based on the min and max values.
     MinMax,
-    /// Ternary calibration for BitNet b1.58-style `{-1, 0, +1}` weight quantization.
+    /// Absolute-mean calibration for BitNet b1.58-style `{-1, 0, +1}` weight quantization.
     ///
-    /// The range is `[-γ, +γ]` where γ is the per-tensor (or per-block) mean absolute weight
-    /// value (BitNet b1.58 §3.1). Use with `QuantValue::Q2S` and `QuantStore::PackedU32` for
-    /// 2-bit packed storage (16 weights per u32, 16× smaller than f32).
-    ///
-    /// `threshold = None` (default) uses `mean(|W|)`.
-    /// `threshold = Some(t)` uses the supplied value directly.
-    Ternary {
-        /// Override for γ. `None` computes `mean(|W|)` from the tensor.
-        threshold: Option<f32>,
-    },
+    /// The range is `[-γ, +γ]` where γ = `mean(|W|)` per tensor or per block (BitNet b1.58
+    /// §3.1). Use with `QuantValue::Q2S` and `QuantStore::PackedU32` for 2-bit packed storage.
+    AbsMean,
 }
 
 /// Specify if the output of an operation is quantized using the scheme of the input

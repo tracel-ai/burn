@@ -58,15 +58,15 @@ fn min_max_calibration_range_per_block() {
         .assert_eq(&TensorData::from([[0.5], [1.8], [0.04], [-0.01]]), false);
 }
 
-// ternary calibration: gamma = mean(|W|), range = [-gamma, +gamma]
+// abs-mean calibration: gamma = mean(|W|), range = [-gamma, +gamma]
 // weights: [-0.9, -0.3, 0.0, 0.6]  => mean(|w|) = (0.9+0.3+0.0+0.6)/4 = 0.45
 #[test]
-fn ternary_calibration_range_per_tensor_auto_threshold() {
+fn abs_mean_calibration_range_per_tensor() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data([-0.9_f32, -0.3, 0.0, 0.6], &device);
     let scheme = device.default_quant_scheme().with_value(QuantValue::Q2S);
 
-    let range = compute_range(&scheme, &tensor, &Calibration::Ternary { threshold: None });
+    let range = compute_range(&scheme, &tensor, &Calibration::AbsMean);
 
     range
         .min
@@ -78,51 +78,27 @@ fn ternary_calibration_range_per_tensor_auto_threshold() {
         .assert_approx_eq::<FloatElem>(&TensorData::from([0.45_f32]), Tolerance::default());
 }
 
-#[test]
-fn ternary_calibration_range_per_tensor_explicit_threshold() {
-    let device = Default::default();
-    let tensor = TestTensor::<1>::from_data([-0.9_f32, -0.3, 0.0, 0.6], &device);
-    let scheme = device.default_quant_scheme().with_value(QuantValue::Q2S);
-
-    let range = compute_range(
-        &scheme,
-        &tensor,
-        &Calibration::Ternary { threshold: Some(0.5) },
-    );
-
-    range
-        .min
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([-0.5_f32]), Tolerance::default());
-    range
-        .max
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([0.5_f32]), Tolerance::default());
-}
-
-// block ternary: 2 blocks of 4 weights each
+// block abs-mean: 2 blocks of 4 weights each
 // block 0: [-0.9, -0.3, 0.0, 0.6]  gamma = 0.45
 // block 1: [0.1, 0.2, 0.3, 0.4]    gamma = 0.25
 #[test]
-fn ternary_calibration_range_per_block_auto_threshold() {
+fn abs_mean_calibration_range_per_block() {
     let device = Default::default();
-    let tensor = TestTensor::<2>::from_data(
-        [[-0.9_f32, -0.3, 0.0, 0.6], [0.1, 0.2, 0.3, 0.4]],
-        &device,
-    );
+    let tensor =
+        TestTensor::<2>::from_data([[-0.9_f32, -0.3, 0.0, 0.6], [0.1, 0.2, 0.3, 0.4]], &device);
     let scheme = device
         .default_quant_scheme()
         .with_value(QuantValue::Q2S)
         .with_level(QuantLevel::block([4]));
 
-    let range = compute_range(&scheme, &tensor, &Calibration::Ternary { threshold: None });
+    let range = compute_range(&scheme, &tensor, &Calibration::AbsMean);
 
-    range
-        .min
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([[-0.45_f32], [-0.25]]), Tolerance::default());
-    range
-        .max
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&TensorData::from([[0.45_f32], [0.25]]), Tolerance::default());
+    range.min.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([[-0.45_f32], [-0.25]]),
+        Tolerance::default(),
+    );
+    range.max.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([[0.45_f32], [0.25]]),
+        Tolerance::default(),
+    );
 }
