@@ -112,70 +112,24 @@ pub enum MetricState {
     Numeric(MetricEntry, NumericEntry),
 }
 
-/// Training progress.
-#[derive(Debug, Clone)]
-pub struct TrainingProgress {
-    /// The progress.
-    pub progress: Option<Progress>,
-
-    /// The progress of the whole training.
+/// Two-level progress snapshot combining run-level and phase-level tracking.
+///
+/// `global_progress` spans the full training run (e.g., epochs completed out of total),
+/// while `split_progress` tracks the current phase (e.g., batches within the current epoch).
+pub struct OverallProgress {
+    /// Progress across the entire training run.
     pub global_progress: Progress,
-
-    /// The iteration, if it differs from the items processed.
-    pub iteration: Option<usize>,
+    /// Progress within the current phase (epoch or evaluation split).
+    pub split_progress: Progress,
 }
 
-/// Evaluation progress.
-#[derive(Debug, Clone)]
-pub struct EvaluationProgress {
-    /// The progress.
-    pub progress: Progress,
-
-    /// The iteration, if it is different from the processed items.
-    pub iteration: Option<usize>,
-}
-
-impl From<&EvaluationProgress> for TrainingProgress {
-    fn from(value: &EvaluationProgress) -> Self {
-        TrainingProgress {
-            progress: None,
-            global_progress: value.progress.clone(),
-            iteration: value.iteration,
-        }
-    }
-}
-
-impl TrainingProgress {
-    /// Creates a new empty training progress.
-    pub fn none() -> Self {
+impl OverallProgress {
+    pub fn new(global_progress: Progress, split_progress: Progress) -> Self {
         Self {
-            progress: None,
-            global_progress: Progress {
-                items_processed: 0,
-                items_total: 0,
-            },
-            iteration: None,
+            global_progress,
+            split_progress,
         }
     }
-}
-
-/// Type of progress indicators.
-#[derive(Clone)]
-pub enum ProgressType {
-    /// Detailed progress.
-    Detailed {
-        /// The tag.
-        tag: String,
-        /// The progress.
-        progress: Progress,
-    },
-    /// Simple value.
-    Value {
-        /// The tag.
-        tag: String,
-        /// The value.
-        value: usize,
-    },
 }
 
 fn default_summary_action(summary: Option<LearnerSummary>) {
