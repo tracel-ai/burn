@@ -72,7 +72,7 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
     #[comptime] connectivity: Connectivity,
     #[define(I, BT)] _dtypes: [StorageType; 2],
 ) {
-    let mut shared_pixels = Shared::<u32>::new_array(BLOCK_H);
+    let mut shared_pixels = Shared::<[u32]>::new_slice(BLOCK_H);
 
     let y = ABSOLUTE_POS_Y;
     let rows = labels.shape(0) as u32;
@@ -237,8 +237,8 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
                 }
             }
             Connectivity::Eight => {
-                let mut last_dist_vec = Shared::<u32>::new_array(32usize);
-                let mut last_dist_up_vec = Shared::<u32>::new_array(32usize);
+                let mut last_dist_vec = Shared::<[u32]>::new_slice(32usize);
+                let mut last_dist_up_vec = Shared::<[u32]>::new_slice(32usize);
 
                 let s_dist = start_distance(pixels, UNIT_POS_X);
                 let s_dist_up = start_distance(pixels_up, UNIT_POS_X);

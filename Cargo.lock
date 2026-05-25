@@ -2750,6 +2750,7 @@ name = "cubek"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -2772,6 +2773,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
  "cubek-attention",
@@ -2791,6 +2794,7 @@ name = "cubek-attention"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -2813,6 +2817,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2828,6 +2834,7 @@ name = "cubek-convolution"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -2850,6 +2857,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2867,6 +2876,7 @@ name = "cubek-fft"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -2889,6 +2899,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
 ]
@@ -2898,6 +2910,7 @@ name = "cubek-interpolate"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -2905,28 +2918,12 @@ source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda29
 <<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=b4a62bd93b677f83f95108abb5bb893be75729d7#b4a62bd93b677f83f95108abb5bb893be75729d7"
 >>>>>>> 70ccc7d12 (Fix rebase)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
  "cubecl-common",
  "half",
-=======
-<<<<<<< HEAD
-source = "git+https://github.com/tracel-ai/cubek?rev=58f8027c402597a76f8b71cbc822e9cdc21eae1f#58f8027c402597a76f8b71cbc822e9cdc21eae1f"
-=======
-<<<<<<< HEAD
-source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d064585bbc78bc#0d259b53ff086b727dc1cdf001d064585bbc78bc"
-=======
->>>>>>> f40cd5818 (Fix rebase)
->>>>>>> e1bdc17a3 (Fix rebase)
-dependencies = [
- "cubecl 0.11.0-pre.1",
- "cubecl-common 0.11.0-pre.1",
->>>>>>> 5abd0054a (Fix rebase)
-=======
-dependencies = [
- "cubecl",
- "cubecl-common",
->>>>>>> 1065a6d22 (Port to lifetime views)
  "thiserror 2.0.18",
 ]
 
@@ -2935,6 +2932,7 @@ name = "cubek-matmul"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -2957,6 +2955,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "bytemuck",
  "cubecl",
@@ -2971,6 +2971,7 @@ name = "cubek-pool"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -2993,6 +2994,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -3004,6 +3007,7 @@ name = "cubek-quant"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -3026,6 +3030,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -3038,6 +3044,7 @@ name = "cubek-random"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -3060,6 +3067,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -3074,6 +3083,7 @@ name = "cubek-reduce"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -3096,6 +3106,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
  "cubek-std",
@@ -3110,6 +3122,7 @@ name = "cubek-std"
 version = "0.3.0-pre.1"
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubek?rev=deba7f003af37a231e38bebda293a89df338f467#deba7f003af37a231e38bebda293a89df338f467"
 =======
 =======
@@ -3132,6 +3145,8 @@ source = "git+https://github.com/tracel-ai/cubek?rev=0d259b53ff086b727dc1cdf001d
 =======
 >>>>>>> 1065a6d22 (Port to lifetime views)
 >>>>>>> 97d9c0c2e (Port to lifetime views)
+=======
+>>>>>>> 57064ef4a (Update to upstream changes)
 dependencies = [
  "cubecl",
  "cubecl-common",
@@ -8574,15 +8589,6 @@ name = "server"
 version = "0.22.0-pre.1"
 dependencies = [
  "burn",
-<<<<<<< HEAD
-=======
- "cfg-if",
-<<<<<<< HEAD
- "cubecl 0.11.0-pre.1 (git+https://github.com/tracel-ai/cubecl?rev=cb87b0d2ba4a14234d751a536dabb0540646e190)",
->>>>>>> 5abd0054a (Fix rebase)
-=======
- "cubecl",
->>>>>>> 1065a6d22 (Port to lifetime views)
 ]
 
 [[package]]
@@ -9573,31 +9579,9 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tracel-ash"
-<<<<<<< HEAD
-<<<<<<< HEAD
 version = "0.39.3+sdk1.4.350"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d97fcf7e656528db871e679727140819a221d8c2aa5b90bfb5eb492a0ecc16e6"
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
-version = "0.39.2+sdk1.4.341"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f3378d52492cf10e302310609b98cda2c9aa849d8af8e88bd3d2523affc71e6"
-=======
-version = "0.39.1+sdk1.4.131"
->>>>>>> 912b81a64 (refactor: Migrate to changes to references)
-=======
-version = "0.39.2+sdk1.4.341"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f3378d52492cf10e302310609b98cda2c9aa849d8af8e88bd3d2523affc71e6"
->>>>>>> f40cd5818 (Fix rebase)
->>>>>>> 5abd0054a (Fix rebase)
-=======
-version = "0.39.3+sdk1.4.350"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d97fcf7e656528db871e679727140819a221d8c2aa5b90bfb5eb492a0ecc16e6"
->>>>>>> 1065a6d22 (Port to lifetime views)
 dependencies = [
  "ash",
  "c2rust-bitfields",

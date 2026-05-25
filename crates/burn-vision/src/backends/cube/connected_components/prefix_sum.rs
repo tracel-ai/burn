@@ -25,7 +25,7 @@ fn prefix_sum_kernel<I: Int, N: Size>(
     #[define(I)] _dtype: StorageType,
 ) {
     let mut broadcast = Shared::<I>::new();
-    let mut reduce = Shared::<I>::new_array(MAX_REDUCE_SIZE);
+    let mut reduce = Shared::<[I]>::new_slice(MAX_REDUCE_SIZE);
     let batch = CUBE_POS_Z as usize;
     let line_spt = comptime!(PART_SIZE / CUBE_SIZE / scan_in.vector_size());
     let nums_per_cube = CUBE_SIZE * line_spt;
