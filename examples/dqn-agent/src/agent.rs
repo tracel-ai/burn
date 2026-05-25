@@ -359,7 +359,7 @@ impl<M: DiscreteActionModel> Policy for DQN<M> {
 
     fn to_device(self, device: &Device) -> Self {
         Self {
-            model: self.model.to_device(&device),
+            model: self.model.to_device(device),
         }
     }
 

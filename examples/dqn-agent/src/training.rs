@@ -5,10 +5,7 @@ use burn::{
     tensor::Device,
     train::{
         OffPolicyConfig, RLTraining,
-        metric::{
-            CumulativeRewardMetric, EpisodeLengthMetric, ExplorationRateMetric,
-            IterationSpeedMetric, LossMetric,
-        },
+        metric::{CumulativeRewardMetric, EpisodeLengthMetric, ExplorationRateMetric, LossMetric},
     },
 };
 

@@ -35,7 +35,6 @@ macro_rules! backend_matrix {
 
 #[cfg(feature = "autodiff")]
 /// Helper to map the runtime strategy to the compile-time Autodiff generic.
-#[cfg(feature = "autodiff")]
 macro_rules! with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {

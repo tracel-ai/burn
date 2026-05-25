@@ -127,7 +127,7 @@ where
         self.inner_policy.update(policy_update);
     }
 
-    pub fn to_device(&mut self, device: &Device) {
+    pub fn policy_to_device(&mut self, device: &Device) {
         self.inner_policy = self.inner_policy.clone().to_device(device);
     }
 
@@ -214,7 +214,7 @@ where
                         InferenceMessage::ActionMessage(item) => autobatcher.push_action(item),
                         InferenceMessage::ForwardMessage(item) => autobatcher.push_logits(item),
                         InferenceMessage::PolicyUpdate(update) => autobatcher.update_policy(update),
-                        InferenceMessage::ToDevice(device) => autobatcher.to_device(&device),
+                        InferenceMessage::ToDevice(device) => autobatcher.policy_to_device(&device),
                         InferenceMessage::PolicyRequest(sender) => sender
                             .send(autobatcher.state())
                             .expect("Autobatcher should be able to send current policy state."),
