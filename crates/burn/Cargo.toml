@@ -121,9 +121,9 @@ distributed = [
     "burn-train?/ddp",
 ]
 # TODO: add to burn dispatch
-remote = ["burn-remote/client", "ir"]
+remote = ["burn-remote/client", "ir", "burn-core/remote"]
 router = ["burn-router", "ir"]
-server = ["burn-remote/server"]
+server = ["burn-core/server"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]

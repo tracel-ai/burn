@@ -13,7 +13,7 @@ use burn_backend::{
     },
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
-use burn_std::{Bytes, Shape};
+use burn_std::{Bytes, IntDType, Shape};
 use bytemuck::Pod;
 
 /// Cast a tensor from half-precision type E to f32.
@@ -452,8 +452,9 @@ impl ModuleOps<Flex> for Flex {
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Flex> {
-        let (output, indices) = match x.dtype() {
+        let (output, mut indices) = match x.dtype() {
             DType::F32 => pool::max_pool2d_with_indices_f32(
                 x,
                 kernel_size,
@@ -488,6 +489,9 @@ impl ModuleOps<Flex> for Flex {
             ),
             dtype => panic!("max_pool2d_with_indices: unsupported dtype {:?}", dtype),
         };
+        if indices.dtype() != DType::from(indices_dtype) {
+            indices = Flex::int_cast(indices, indices_dtype);
+        }
         MaxPool2dWithIndices::new(output, indices)
     }
 

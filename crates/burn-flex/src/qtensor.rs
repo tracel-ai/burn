@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use burn_backend::{DType, QTensorPrimitive, TensorMetadata, quantization::QuantStore};
+use burn_backend::{DType, TensorMetadata};
 use burn_std::{QuantScheme, Shape};
 
 use crate::tensor::FlexTensor;
@@ -49,16 +49,6 @@ impl FlexQTensor {
     /// Get the quantization scales.
     pub fn scales(&self) -> &[f32] {
         &self.scales
-    }
-}
-
-impl QTensorPrimitive for FlexQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
-    }
-
-    fn default_scheme() -> QuantScheme {
-        QuantScheme::default().with_store(QuantStore::Native)
     }
 }
 

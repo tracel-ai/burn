@@ -28,18 +28,6 @@ use std::path::PathBuf;
 #[global_allocator]
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
-// Backend type aliases
-use burn_core::backend::FlexDevice;
-
-#[cfg(any(feature = "wgpu", feature = "metal"))]
-use burn_core::tensor::WgpuDevice;
-
-#[cfg(feature = "cuda")]
-use burn_core::tensor::CudaDevice;
-
-#[cfg(feature = "tch")]
-use burn_core::tensor::LibTorchDevice;
-
 // Use the same LargeModel as other benchmarks for fair comparison
 #[derive(Module, Debug)]
 struct LargeModel {
@@ -116,7 +104,7 @@ macro_rules! bench_backend {
             #[divan::bench]
             fn burnpack_store(bencher: Bencher) {
                 bencher.bench(|| {
-                    let device: Device = $device.into();
+                    let device = $device;
                     let model = LargeModel::new(&device);
                     let output_path = get_output_dir().join("test_burnpack.bpk");
                     let mut store = BurnpackStore::from_file(output_path.clone()).overwrite(true);
@@ -131,7 +119,7 @@ macro_rules! bench_backend {
             #[divan::bench]
             fn namedmpk_recorder(bencher: Bencher) {
                 bencher.bench(|| {
-                    let device: Device = $device.into();
+                    let device = $device;
                     let model = LargeModel::new(&device);
                     let output_path = get_output_dir().join("test_namedmpk.mpk");
                     let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
@@ -146,7 +134,7 @@ macro_rules! bench_backend {
             #[divan::bench]
             fn safetensors_store(bencher: Bencher) {
                 bencher.bench(|| {
-                    let device: Device = $device.into();
+                    let device = $device;
                     let model = LargeModel::new(&device);
                     let output_path = get_output_dir().join("test_safetensors_store.safetensors");
                     let mut store = SafetensorsStore::from_file(output_path.clone());
@@ -162,10 +150,14 @@ macro_rules! bench_backend {
 }
 
 // Generate benchmarks for each backend
-bench_backend!(FlexDevice, ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(Device::flex(), ndarray_backend, "NdArray Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
-bench_backend!(WgpuDevice::default(), wgpu_backend, "WGPU Backend (GPU)");
+bench_backend!(
+    Device::wgpu(Default::default()),
+    wgpu_backend,
+    "WGPU Backend (GPU)"
+);
 
 #[cfg(feature = "cuda")]
 bench_backend!(
@@ -175,11 +167,11 @@ bench_backend!(
 );
 
 #[cfg(feature = "tch")]
-bench_backend!(LibTorchDevice::default(), tch_backend, "LibTorch Backend");
+bench_backend!(Device::libtorch(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
 bench_backend!(
-    WgpuDevice::default(),
+    Device::wgpu(Default::default()),
     metal_backend,
     "Metal Backend (Apple GPU)"
 );

@@ -1,8 +1,7 @@
 use super::{ConvOptions, UnfoldOptions};
 use crate::tensor::FloatTensor;
-use crate::{Backend, TensorData, TensorMetadata, element::ElementConversion};
+use crate::{Backend, TensorData, TensorMetadata};
 use alloc::vec;
-use alloc::vec::Vec;
 use burn_std::{DType, Shape};
 
 /// Constructs a special weight tensor used for unfolding.
@@ -35,7 +34,7 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
 
     let num_elements = shape.num_elements();
 
-    let mut weight: Vec<B::FloatElem> = vec![0.0.elem(); num_elements];
+    let mut weight = vec![0f32; num_elements];
 
     for k in 0..in_channels {
         for i in 0..kernel_size[0] {
@@ -44,7 +43,7 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
                 let index =
                     output_channel * strides[0] + k * strides[1] + i * strides[2] + j * strides[3];
 
-                weight[index] = 1.elem();
+                weight[index] = 1.;
             }
         }
     }

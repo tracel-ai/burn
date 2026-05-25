@@ -9,7 +9,11 @@ use burn_tensor::{
 fn min_max_calibration_range_per_tensor() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data([-1.8, -1.0, 0.0, 0.5], &device);
-    let scheme = device.default_quant_scheme().with_value(QuantValue::Q8S);
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q8S);
 
     let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
 
@@ -36,7 +40,9 @@ fn min_max_calibration_range_per_block() {
         &device,
     );
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([4]));
 

@@ -2,10 +2,7 @@ use crate::{
     Client, FusionBackend, FusionRuntime,
     stream::{Operation, StreamId},
 };
-use burn_backend::{
-    DType, ExecutionError, QTensorPrimitive, Shape, TensorData, TensorMetadata,
-    quantization::QuantScheme,
-};
+use burn_backend::{DType, ExecutionError, Shape, TensorData, TensorMetadata};
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use std::sync::{
     Arc,
@@ -249,19 +246,6 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}
-        }
-    }
-}
-
-impl<R: FusionRuntime> QTensorPrimitive for FusionTensor<R> {
-    fn scheme(&self) -> &QuantScheme {
-        if let DType::QFloat(scheme) = &self.dtype {
-            scheme
-        } else {
-            panic!(
-                "Quantization scheme is not valid for dtype {:?}",
-                self.dtype,
-            )
         }
     }
 }

@@ -10,11 +10,7 @@ use alloc::vec::Vec;
 ))]
 use alloc::vec;
 
-use burn_backend::quantization::QuantScheme;
-use burn_backend::tensor::{Device, QuantizedTensor};
-use burn_backend::{
-    AutodiffBackend, Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive,
-};
+use burn_backend::{AutodiffBackend, Backend, BackendTypes, DType, ExecutionError};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -58,18 +54,8 @@ impl BackendTypes for Dispatch {
     type Device = DispatchDevice;
 
     type FloatTensorPrimitive = DispatchTensor;
-
-    // TODO: either allow default dtype generic or remove associated types entirely?
-    type FloatElem = f32;
-
     type IntTensorPrimitive = DispatchTensor;
-
-    type IntElem = i32;
-
     type BoolTensorPrimitive = DispatchTensor;
-
-    type BoolElem = bool;
-
     type QuantizedTensorPrimitive = DispatchTensor;
 }
 
@@ -103,23 +89,19 @@ impl Backend for Dispatch {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
         match dispatch_id {
             #[cfg(feature = "cpu")]
-            DispatchDeviceId::Cpu => Cpu::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Cpu => Cpu::device_count(backend_type_id),
             #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => Cuda::<f32>::device_count(backend_type_id),
-            #[cfg(wgpu_metal)]
-            DispatchDeviceId::Wgpu => Metal::<f32>::device_count(backend_type_id),
-            #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => Rocm::<f32>::device_count(backend_type_id),
-            #[cfg(wgpu_vulkan)]
-            DispatchDeviceId::Wgpu => Vulkan::<f32>::device_count(backend_type_id),
-            #[cfg(wgpu_webgpu)]
-            DispatchDeviceId::Wgpu => Wgpu::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Cuda => Cuda::device_count(backend_type_id),
+            #[cfg(feature = "wgpu")]
+            DispatchDeviceId::Wgpu => Wgpu::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(any(feature = "ndarray", default_backend))]
-            DispatchDeviceId::NdArray => NdArray::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
             #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
+            #[cfg(feature = "remote")]
+            DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
             _ => unreachable!("No backend feature enabled."),
         }
     }
@@ -168,13 +150,9 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "cuda")]
                 DispatchTensorKind::Cuda(tensor) => tensor.autodiff().backward(),
-                #[cfg(wgpu_metal)]
-                DispatchTensorKind::Metal(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => tensor.autodiff().backward(),
-                #[cfg(wgpu_vulkan)]
-                DispatchTensorKind::Vulkan(tensor) => tensor.autodiff().backward(),
-                #[cfg(wgpu_webgpu)]
+                #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
@@ -182,6 +160,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -207,22 +187,12 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Cuda(crate::BackendTensor::Float(t))),
-                #[cfg(wgpu_metal)]
-                DispatchTensorKind::Metal(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Metal(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Rocm(crate::BackendTensor::Float(t))),
-                #[cfg(wgpu_vulkan)]
-                DispatchTensorKind::Vulkan(tensor) => tensor
-                    .as_autodiff()
-                    .grad(grads)
-                    .map(|t| DispatchTensorKind::Vulkan(crate::BackendTensor::Float(t))),
-                #[cfg(wgpu_webgpu)]
+                #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
@@ -242,6 +212,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -271,22 +246,12 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Cuda(crate::BackendTensor::Float(t))),
-                #[cfg(wgpu_metal)]
-                DispatchTensorKind::Metal(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Metal(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Rocm(crate::BackendTensor::Float(t))),
-                #[cfg(wgpu_vulkan)]
-                DispatchTensorKind::Vulkan(tensor) => tensor
-                    .as_autodiff()
-                    .grad_remove(grads)
-                    .map(|t| DispatchTensorKind::Vulkan(crate::BackendTensor::Float(t))),
-                #[cfg(wgpu_webgpu)]
+                #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
@@ -306,6 +271,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::Remote(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -339,19 +309,11 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Cuda(tensor), DispatchTensorKind::Cuda(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(wgpu_metal)]
-                (DispatchTensorKind::Metal(tensor), DispatchTensorKind::Metal(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
                 #[cfg(feature = "rocm")]
                 (DispatchTensorKind::Rocm(tensor), DispatchTensorKind::Rocm(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(wgpu_vulkan)]
-                (DispatchTensorKind::Vulkan(tensor), DispatchTensorKind::Vulkan(grad)) => {
-                    tensor.as_autodiff().grad_replace(grads, grad.float())
-                }
-                #[cfg(wgpu_webgpu)]
+                #[cfg(feature = "wgpu")]
                 (DispatchTensorKind::Wgpu(tensor), DispatchTensorKind::Wgpu(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
@@ -361,6 +323,10 @@ impl AutodiffBackend for Dispatch {
                 }
                 #[cfg(any(feature = "ndarray", default_backend))]
                 (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
+                    tensor.as_autodiff().grad_replace(grads, grad.float())
+                }
+                #[cfg(feature = "remote")]
+                (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
                 (DispatchTensorKind::Autodiff(_), _) => {
@@ -390,19 +356,11 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cuda(tensor) => DispatchTensorKind::Cuda(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
-                #[cfg(wgpu_metal)]
-                DispatchTensorKind::Metal(tensor) => DispatchTensorKind::Metal(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => DispatchTensorKind::Rocm(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
-                #[cfg(wgpu_vulkan)]
-                DispatchTensorKind::Vulkan(tensor) => DispatchTensorKind::Vulkan(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
-                ),
-                #[cfg(wgpu_webgpu)]
+                #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => DispatchTensorKind::Wgpu(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
@@ -416,6 +374,10 @@ impl AutodiffBackend for Dispatch {
                 ),
                 #[cfg(feature = "tch")]
                 DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
+                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                ),
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
                 DispatchTensorKind::Autodiff(_) => {
@@ -450,41 +412,29 @@ impl AutodiffBackend for Dispatch {
 
         let kind = match kind {
             #[cfg(feature = "cpu")]
-            DispatchTensorKind::Cpu(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::Cpu(crate::BackendTensor::Autodiff(
-                    Autodiff::<Cpu<f32>>::from_inner(tensor.float()),
-                )),
-            )),
+            DispatchTensorKind::Cpu(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cpu(
+                    crate::BackendTensor::Autodiff(Autodiff::<Cpu>::from_inner(tensor.float())),
+                )))
+            }
             #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::Cuda(crate::BackendTensor::Autodiff(
-                    Autodiff::<Cuda<f32>>::from_inner(tensor.float()),
-                )),
-            )),
-            #[cfg(wgpu_metal)]
-            DispatchTensorKind::Metal(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::Metal(crate::BackendTensor::Autodiff(
-                    Autodiff::<Metal<f32>>::from_inner(tensor.float()),
-                )),
-            )),
+            DispatchTensorKind::Cuda(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cuda(
+                    crate::BackendTensor::Autodiff(Autodiff::<Cuda>::from_inner(tensor.float())),
+                )))
+            }
             #[cfg(feature = "rocm")]
-            DispatchTensorKind::Rocm(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::Rocm(crate::BackendTensor::Autodiff(
-                    Autodiff::<Rocm<f32>>::from_inner(tensor.float()),
-                )),
-            )),
-            #[cfg(wgpu_vulkan)]
-            DispatchTensorKind::Vulkan(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::Vulkan(crate::BackendTensor::Autodiff(
-                    Autodiff::<Vulkan<f32>>::from_inner(tensor.float()),
-                )),
-            )),
-            #[cfg(wgpu_webgpu)]
-            DispatchTensorKind::Wgpu(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::Wgpu(crate::BackendTensor::Autodiff(
-                    Autodiff::<Wgpu<f32>>::from_inner(tensor.float()),
-                )),
-            )),
+            DispatchTensorKind::Rocm(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Rocm(
+                    crate::BackendTensor::Autodiff(Autodiff::<Rocm>::from_inner(tensor.float())),
+                )))
+            }
+            #[cfg(feature = "wgpu")]
+            DispatchTensorKind::Wgpu(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Wgpu(
+                    crate::BackendTensor::Autodiff(Autodiff::<Wgpu>::from_inner(tensor.float())),
+                )))
+            }
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Flex(
@@ -492,17 +442,21 @@ impl AutodiffBackend for Dispatch {
                 )))
             }
             #[cfg(any(feature = "ndarray", default_backend))]
-            DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::Autodiff(Box::new(
-                DispatchTensorKind::NdArray(crate::BackendTensor::Autodiff(
-                    Autodiff::<NdArray<f32>>::from_inner(tensor.float()),
+            DispatchTensorKind::NdArray(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::NdArray(
+                    crate::BackendTensor::Autodiff(Autodiff::<NdArray>::from_inner(tensor.float())),
+                )))
+            }
+            #[cfg(feature = "tch")]
+            DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::Autodiff(Box::new(
+                DispatchTensorKind::LibTorch(crate::BackendTensor::Autodiff(
+                    Autodiff::<LibTorch>::from_inner(tensor.float()),
                 )),
             )),
-            #[cfg(feature = "tch")]
-            DispatchTensorKind::LibTorch(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::LibTorch(
-                    crate::BackendTensor::Autodiff(Autodiff::<LibTorch<f32>>::from_inner(
-                        tensor.float(),
-                    )),
+            #[cfg(feature = "remote")]
+            DispatchTensorKind::Remote(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
+                    crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
                 )))
             }
             DispatchTensorKind::Autodiff(_) => {
@@ -600,13 +554,9 @@ impl DispatchTensorKind {
             DispatchTensorKind::Cpu(tensor) => DispatchDevice::Cpu(tensor.device()),
             #[cfg(feature = "cuda")]
             DispatchTensorKind::Cuda(tensor) => DispatchDevice::Cuda(tensor.device()),
-            #[cfg(wgpu_metal)]
-            DispatchTensorKind::Metal(tensor) => DispatchDevice::Metal(tensor.device()),
             #[cfg(feature = "rocm")]
             DispatchTensorKind::Rocm(tensor) => DispatchDevice::Rocm(tensor.device()),
-            #[cfg(wgpu_vulkan)]
-            DispatchTensorKind::Vulkan(tensor) => DispatchDevice::Vulkan(tensor.device()),
-            #[cfg(wgpu_webgpu)]
+            #[cfg(feature = "wgpu")]
             DispatchTensorKind::Wgpu(tensor) => DispatchDevice::Wgpu(tensor.device()),
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
@@ -614,6 +564,8 @@ impl DispatchTensorKind {
             DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
             #[cfg(feature = "tch")]
             DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
+            #[cfg(feature = "remote")]
+            DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
@@ -641,50 +593,6 @@ impl DispatchTensor {
 }
 
 impl Dispatch {
-    /// Returns the default tensor quantization scheme for the device.
-    // TODO: replace this + QTensorPrimitive trait method with better API.
-    // This is temporary, for test purposes.
-    pub fn default_quant_scheme(device: &Device<Self>) -> QuantScheme {
-        match device {
-            #[cfg(feature = "cpu")]
-            DispatchDevice::Cpu(_) => <QuantizedTensor<Cpu> as QTensorPrimitive>::default_scheme(),
-            #[cfg(feature = "cuda")]
-            DispatchDevice::Cuda(_) => {
-                <QuantizedTensor<Cuda> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(wgpu_metal)]
-            DispatchDevice::Metal(_) => {
-                <QuantizedTensor<Metal> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(feature = "rocm")]
-            DispatchDevice::Rocm(_) => {
-                <QuantizedTensor<Rocm> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(wgpu_vulkan)]
-            DispatchDevice::Vulkan(_) => {
-                <QuantizedTensor<Vulkan> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(wgpu_webgpu)]
-            DispatchDevice::Wgpu(_) => {
-                <QuantizedTensor<Wgpu> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(feature = "flex")]
-            DispatchDevice::Flex(_) => {
-                <QuantizedTensor<Flex> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(any(feature = "ndarray", default_backend))]
-            DispatchDevice::NdArray(_) => {
-                <QuantizedTensor<NdArray> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(feature = "tch")]
-            DispatchDevice::LibTorch(_) => {
-                <QuantizedTensor<LibTorch> as QTensorPrimitive>::default_scheme()
-            }
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(ad_device) => Self::default_quant_scheme(&ad_device.inner),
-        }
-    }
-
     /// List all available devices of the specified [type id](DispatchDeviceId).
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
         // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
@@ -692,23 +600,15 @@ impl Dispatch {
             #[cfg(feature = "cpu")]
             DispatchDeviceId::Cpu => vec![CpuDevice.into()],
             #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => (0..Cuda::<f32>::device_count(0))
+            DispatchDeviceId::Cuda => (0..Cuda::device_count(0))
                 .map(|i| CudaDevice::new(i).into())
                 .collect(),
-            #[cfg(wgpu_metal)]
-            DispatchDeviceId::Wgpu => (0..Metal::<f32>::device_count(0))
-                .map(|i| WgpuDevice::DiscreteGpu(i).into())
-                .collect(),
             #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => (0..Rocm::<f32>::device_count(0))
+            DispatchDeviceId::Rocm => (0..Rocm::device_count(0))
                 .map(|i| RocmDevice::new(i).into())
                 .collect(),
-            #[cfg(wgpu_vulkan)]
-            DispatchDeviceId::Wgpu => (0..Vulkan::<f32>::device_count(0))
-                .map(|i| WgpuDevice::DiscreteGpu(i).into())
-                .collect(),
-            #[cfg(wgpu_webgpu)]
-            DispatchDeviceId::Wgpu => (0..Wgpu::<f32>::device_count(0))
+            #[cfg(feature = "wgpu")]
+            DispatchDeviceId::Wgpu => (0..Wgpu::device_count(0))
                 .map(|i| WgpuDevice::DiscreteGpu(i).into())
                 .collect(),
             #[cfg(feature = "flex")]
@@ -716,9 +616,12 @@ impl Dispatch {
             #[cfg(any(feature = "ndarray", default_backend))]
             DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
             #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => (0..LibTorch::<f32>::device_count(0))
+            DispatchDeviceId::LibTorch => (0..LibTorch::device_count(0))
                 .map(|i| LibTorchDevice::Cuda(i).into())
                 .collect(),
+            #[cfg(feature = "remote")]
+            // Remote devices are user-supplied addresses, not enumerable hardware.
+            DispatchDeviceId::Remote => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
         }
     }

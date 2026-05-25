@@ -12,8 +12,7 @@ use burn_backend::{
 use burn_std::{FloatDType, IntDType};
 
 use crate::{
-    FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray,
-    element::{IntNdArrayElement, QuantElement},
+    NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray, element::QuantElement,
     execute_with_dtype, execute_with_int_dtype, execute_with_int_out_dtype,
     execute_with_numeric_dtype, slice,
 };
@@ -21,12 +20,7 @@ use crate::{
 use super::quantization::{QuantizationStrategy, SymmetricQuantization};
 use super::{NdArrayMathOps, NdArrayOps};
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<Self>
-    for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
+impl QTensorOps<Self> for NdArray {
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => {
@@ -165,7 +159,7 @@ where
             num_elements,
         };
         let (values, _) = q_bytes.into_vec_i8();
-        let data = TensorData::new(values, shape).convert::<Q>();
+        let data = TensorData::new(values, shape);
 
         NdArrayQTensor {
             qtensor: NdArrayTensor::from_data(data),

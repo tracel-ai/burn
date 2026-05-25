@@ -54,17 +54,6 @@ static ALLOC: AllocProfiler = AllocProfiler::system();
 // Static storage for embedded model bytes (simulating include_bytes!)
 static STATIC_MODEL_BYTES: OnceLock<&'static [u8]> = OnceLock::new();
 
-// Backend type aliases
-use burn_core::backend::FlexDevice;
-
-#[cfg(any(feature = "wgpu", feature = "metal"))]
-use burn_core::tensor::WgpuDevice;
-
-#[cfg(feature = "cuda")]
-use burn_core::tensor::CudaDevice;
-
-#[cfg(feature = "tch")]
-use burn_core::tensor::LibTorchDevice;
 // Use the same LargeModel as other benchmarks for fair comparison
 #[derive(Module, Debug)]
 struct LargeModel {
@@ -118,7 +107,7 @@ fn ensure_burnpack_file() {
 
     println!("⏳ Generating Burnpack file from SafeTensors...");
 
-    let device = FlexDevice.into();
+    let device = Device::flex();
 
     // Load from SafeTensors
     let mut model = LargeModel::new(&device);
@@ -199,7 +188,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let mut model = LargeModel::new(&device);
                         let mut store = BurnpackStore::from_file(&bp_path).zero_copy(false);
                         model.load_from(&mut store).expect("Failed to load");
@@ -215,7 +204,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let mut model = LargeModel::new(&device);
                         let mut store = BurnpackStore::from_file(&bp_path).zero_copy(true);
                         model.load_from(&mut store).expect("Failed to load");
@@ -231,7 +220,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let mut model = LargeModel::new(&device);
 
                         // Simulate old behavior: copy static bytes to Vec, then load
@@ -250,7 +239,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let mut model = LargeModel::new(&device);
 
                         // Zero-copy: use from_static which keeps data in .rodata
@@ -271,7 +260,7 @@ macro_rules! bench_backend {
                 bencher
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
-                        let device: Device = $device.into();
+                        let device = $device;
                         let mut model = LargeModel::new(&device);
 
                         // Create Bytes from shared (cheap clone of Arc)
@@ -300,7 +289,7 @@ mod verification {
     fn verify_ops_produce_correct_results() {
         let static_bytes = get_static_model_bytes();
 
-        let device = FlexDevice.into();
+        let device = Device::flex();
         let mut model = LargeModel::new(&device);
         let mut store = BurnpackStore::from_static(static_bytes);
         model.load_from(&mut store).expect("Failed to load");
@@ -320,7 +309,7 @@ mod verification {
         let static_bytes = get_static_model_bytes();
 
         // Load model with zero-copy
-        let device = FlexDevice.into();
+        let device = Device::flex();
         let mut model = LargeModel::new(&device);
         let mut store = BurnpackStore::from_static(static_bytes);
         model.load_from(&mut store).expect("Failed to load");
@@ -367,7 +356,7 @@ mod verification {
     #[divan::bench]
     fn verify_copy_vs_zero_copy_equality() {
         let static_bytes = get_static_model_bytes();
-        let device = FlexDevice.into();
+        let device = Device::flex();
 
         // Load with zero-copy
         let mut model_zc = LargeModel::new(&device);
@@ -508,14 +497,18 @@ mod store_only {
 // =============================================================================
 
 // Generate benchmarks for each backend
-bench_backend!(FlexDevice, ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(Device::flex(), ndarray_backend, "NdArray Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
-bench_backend!(WgpuDevice::default(), wgpu_backend, "WGPU Backend (GPU)");
+bench_backend!(
+    Device::wgpu(Default::default()),
+    wgpu_backend,
+    "WGPU Backend (GPU)"
+);
 
 #[cfg(feature = "cuda")]
 bench_backend!(
-    CudaDevice::default(),
+    Device::cuda(Default::default()),
     cuda_backend,
     "CUDA Backend (NVIDIA GPU)"
 );
@@ -525,7 +518,7 @@ bench_backend!(LibTorchDevice::default(), tch_backend, "LibTorch Backend");
 
 #[cfg(feature = "metal")]
 bench_backend!(
-    WgpuDevice::default(),
+    Device::wgpu(Default::default()),
     metal_backend,
     "Metal Backend (Apple GPU)"
 );

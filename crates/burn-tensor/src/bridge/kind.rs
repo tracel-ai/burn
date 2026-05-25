@@ -1,8 +1,10 @@
 use alloc::vec::Vec;
-use burn_backend::{TensorMetadata, TensorPrimitive};
+use burn_backend::{
+    TensorMetadata, TensorPrimitive, get_device_settings,
+    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
+};
 use burn_dispatch::{Dispatch, DispatchTensor};
-
-use crate::macros::obfuscate_type;
+use burn_std::DeviceSettings;
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -77,13 +79,17 @@ impl TensorKindId {
 /// separation keeps tensor kind tracking out of the backends while avoiding
 /// exposure of backend-level primitives in the public API.
 pub struct BridgeTensor {
-    blob: bridge_blob::Blob,
+    blob: bridge_opaque::Opaque,
 }
 
 // Aligned, type-erased storage for `BridgeTensorVariant`. See `crate::macros`
 // for why this indirection exists (it keeps the dispatch type tree out of
 // downstream MIR).
-obfuscate_type!(bridge_blob, BridgeTensorVariant, Send, Sync);
+burn_std::obfuscate!(
+    type: BridgeTensorVariant,
+    module: bridge_opaque,
+    derives: [Send, Sync]
+);
 
 impl core::fmt::Debug for BridgeTensor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -110,7 +116,7 @@ impl BridgeTensor {
 
     fn new(inner: BridgeTensorVariant) -> Self {
         Self {
-            blob: bridge_blob::Blob::new(inner),
+            blob: bridge_opaque::Opaque::new(inner),
         }
     }
 }
@@ -315,6 +321,17 @@ impl BridgeTensor {
             }
             _ => panic!("Should be Float primitive kind"),
         }
+    }
+
+    pub(crate) fn device_settings(&self) -> DeviceSettings {
+        let device = match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => Dispatch::bool_device(tensor),
+            BridgeTensorVariant::Int(tensor) => Dispatch::int_device(tensor),
+            BridgeTensorVariant::Float(tensor) => Dispatch::float_device(tensor),
+            BridgeTensorVariant::QFloat(tensor) => Dispatch::q_device(tensor),
+        };
+
+        get_device_settings::<Dispatch>(&device)
     }
 }
 

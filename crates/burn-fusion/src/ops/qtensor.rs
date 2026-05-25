@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DType, Element, ExecutionError, FloatDType, QTensorPrimitive, Shape, Slice, TensorData,
-    TensorPrimitive,
+    DType, ExecutionError, FloatDType, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
+    get_device_settings,
     ops::QTensorOps,
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -452,25 +452,31 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let streams = StreamId::current();
         let mut lhs_quantized = false;
         let mut rhs_quantized = false;
+
+        let client = match &lhs {
+            TensorPrimitive::Float(lhs) => lhs.client.clone(),
+            TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
+        };
+
+        let settings = get_device_settings::<Self>(client.device());
+
         if let TensorPrimitive::QFloat(lhs) = &lhs {
-            propagation = lhs.propagation();
-            scheme = *lhs.scheme();
+            propagation = settings.quantization.propagation;
+            scheme = lhs.scheme();
             lhs_quantized = true;
         }
         if let TensorPrimitive::QFloat(rhs) = &rhs {
-            propagation = rhs.propagation();
-            scheme = *rhs.scheme();
+            propagation = settings.quantization.propagation;
+            scheme = rhs.scheme();
             rhs_quantized = true;
         }
 
         let dtype = match propagation {
             QuantPropagation::Propagate => DType::QFloat(scheme),
-            QuantPropagation::Inhibit => B::FloatElem::dtype(),
-        };
-
-        let client = match &lhs {
-            TensorPrimitive::Float(lhs) => lhs.client.clone(),
-            TensorPrimitive::QFloat(lhs) => lhs.client.clone(),
+            QuantPropagation::Inhibit => match (&lhs, &rhs) {
+                (TensorPrimitive::Float(t), _) | (_, TensorPrimitive::Float(t)) => t.dtype,
+                _ => settings.float_dtype.into(),
+            },
         };
 
         let lhs = match lhs {

@@ -1,8 +1,6 @@
 use crate::{Tensor, kind::Autodiff};
 
 #[cfg(feature = "autodiff")]
-use crate::macros::obfuscate_type;
-#[cfg(feature = "autodiff")]
 use crate::ops::BridgeTensor;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
@@ -15,12 +13,16 @@ type AutodiffGradients = <Dispatch as AutodiffBackend>::Gradients;
 // Aligned, type-erased storage for `AutodiffGradients`. See `crate::macros`
 // for why this indirection exists.
 #[cfg(feature = "autodiff")]
-obfuscate_type!(gradients_blob, AutodiffGradients, Send);
+burn_std::obfuscate!(
+    type: AutodiffGradients,
+    module: gradients_opaque,
+    derives: [Send]
+);
 
 /// Gradients container used during the backward pass.
 #[cfg(feature = "autodiff")]
 pub struct Gradients {
-    blob: gradients_blob::Blob,
+    blob: gradients_opaque::Opaque,
 }
 
 #[cfg(feature = "autodiff")]
@@ -28,7 +30,7 @@ impl Gradients {
     /// Crate-internal constructor wrapping the dispatch-level gradients.
     pub(crate) fn from_inner(inner: AutodiffGradients) -> Self {
         Self {
-            blob: gradients_blob::Blob::new(inner),
+            blob: gradients_opaque::Opaque::new(inner),
         }
     }
 

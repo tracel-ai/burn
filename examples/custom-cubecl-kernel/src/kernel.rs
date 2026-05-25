@@ -7,6 +7,7 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
     rhs: &Tensor<F>,
     bias: &Tensor<F>,
     output: &mut Tensor<F>,
+    #[define(F)] _dtype: StorageType,
 ) {
     let row = ABSOLUTE_POS_X as usize;
     let col = ABSOLUTE_POS_Y as usize;

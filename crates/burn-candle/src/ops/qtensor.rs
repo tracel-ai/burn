@@ -10,7 +10,7 @@ use crate::{
     element::{FloatCandleElement, IntCandleElement},
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, I> {
+impl QTensorOps<Self> for Candle {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         unimplemented!()
     }

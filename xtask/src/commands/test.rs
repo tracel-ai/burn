@@ -244,11 +244,24 @@ pub(crate) fn handle_command(
                     )?;
 
                     args.target = Target::AllPackages;
-                    let args_vulkan = args.clone().try_into().unwrap();
+                    let mut args_vulkan = args.clone();
+                    args_vulkan
+                        .features
+                        .get_or_insert_with(Vec::new)
+                        .push("vulkan".to_string());
+
+                    let args_vulkan = args_vulkan.try_into().unwrap();
+                    handle_wgpu_test("burn-wgpu", &args_vulkan)?;
                     handle_wgpu_test("burn-core", &args_vulkan)?;
+                    handle_wgpu_test("burn-vision", &args_vulkan)?;
+
+                    // Enable burn-core/vulkan
+                    args.features
+                        .get_or_insert_with(Vec::new)
+                        .push("burn-core/vulkan".to_string());
+                    let args_vulkan = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-optim", &args_vulkan)?;
                     handle_wgpu_test("burn-nn", &args_vulkan)?;
-                    handle_wgpu_test("burn-vision", &args_vulkan)?;
                 }
                 CiTestType::GcpWgpuRunner => {
                     handle_backend_tests(
@@ -257,17 +270,27 @@ pub(crate) fn handle_command(
                         env,
                         context,
                     )?;
-                    // "burn-router" uses "burn-wgpu" for the tests.
                     args.target = Target::AllPackages;
+                    handle_wgpu_test("burn-cubecl-fusion", &args.clone().try_into().unwrap())?;
+
+                    let mut args_wgpu = args.clone();
+                    args_wgpu
+                        .features
+                        .get_or_insert_with(Vec::new)
+                        .push("webgpu".to_string());
+
                     let args_wgpu = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-wgpu", &args_wgpu)?;
-                    handle_wgpu_test("burn-router", &args_wgpu)?;
-                    handle_wgpu_test("burn-cubecl-fusion", &args_wgpu)?;
-
                     handle_wgpu_test("burn-core", &args_wgpu)?;
+                    handle_wgpu_test("burn-vision", &args_wgpu)?;
+
+                    // Enable burn-core/webgpu
+                    args.features
+                        .get_or_insert_with(Vec::new)
+                        .push("burn-core/webgpu".to_string());
+                    let args_wgpu = args.clone().try_into().unwrap();
                     handle_wgpu_test("burn-optim", &args_wgpu)?;
                     handle_wgpu_test("burn-nn", &args_wgpu)?;
-                    handle_wgpu_test("burn-vision", &args_wgpu)?;
                 }
             }
 

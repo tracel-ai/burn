@@ -134,8 +134,7 @@ automatically implements the trait for `burn-cuda`, `burn-wgpu` as well as fusio
 
 ```rust, ignore
 /// Implement our custom backend trait for the generic `CubeBackend`.
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for CubeBackend<R, F, I, BT>
+impl<R: CubeRuntime> Backend for CubeBackend<R>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -365,8 +364,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our JIT Backend.
 
 ```rust, ignore
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
-    for Autodiff<CubeBackend<R, F, I, BT>>
+impl<R: CubeRuntime> AutodiffBackend for Autodiff<CubeBackend<R>>
 {
 }
 ```

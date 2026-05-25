@@ -17,6 +17,4 @@ vulkan = ["burn/vulkan"]
 flex = ["burn/flex"]
 
 [dependencies]
-cfg-if = { workspace = true }
 burn = { workspace = true, features = ["default", "server"] }
-cubecl = { workspace = true }

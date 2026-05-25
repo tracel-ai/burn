@@ -51,8 +51,10 @@ pub trait ProtocolClient: Send + Sync + 'static {
     /// * `address` - Address to connect to
     /// * `route` - The name of the route (no slashes)
     ///
-    /// Returns None if the connection can't be done.
-    fn connect(address: Address, route: &str) -> DynFut<Option<Self::Channel>>;
+    /// Returns `Err(Self::Error)` if the connection couldn't be established (address parse
+    /// failure, server unreachable, handshake failure, …). The error carries enough context
+    /// to identify the cause; callers should surface it rather than swallowing it.
+    fn connect(address: Address, route: &str) -> DynFut<Result<Self::Channel, Self::Error>>;
 }
 
 /// Data sent and received by the client and server.

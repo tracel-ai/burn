@@ -2,12 +2,12 @@ use super::{conv, ctc, linear, pool};
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, TensorMetadata};
-use burn_std::Shape;
 pub use burn_std::ops::{
     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConvOptions,
     GridSampleOptions, GridSamplePaddingMode, InterpolateMode, InterpolateOptions, PadMode,
     PaddedConvOptions, UnfoldOptions,
 };
+use burn_std::{IntDType, Shape};
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
 #[derive(new)]
@@ -587,6 +587,7 @@ pub trait ModuleOps<B: Backend> {
         padding: usize,
         dilation: usize,
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool1dWithIndices<B> {
         pool::max_pool1d_with_indices_from_2d::<B>(
             x,
@@ -595,6 +596,7 @@ pub trait ModuleOps<B: Backend> {
             padding,
             dilation,
             ceil_mode,
+            indices_dtype,
         )
     }
     /// Backward pass for the [max pooling 1d](ModuleOps::max_pool1d_with_indices) operation.
@@ -647,6 +649,7 @@ pub trait ModuleOps<B: Backend> {
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool2dWithIndices<B>;
     /// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indices) operation.
     #[allow(clippy::too_many_arguments)]

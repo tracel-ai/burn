@@ -7,6 +7,7 @@ use burn_backend::{
     },
     tensor::{FloatTensor, IntTensor},
 };
+use burn_std::IntDType;
 use candle_core::ToUsize2;
 
 use crate::{
@@ -15,7 +16,7 @@ use crate::{
     ops::base::reshape,
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I> {
+impl ModuleOps<Self> for Candle {
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -256,7 +257,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         padding: [usize; 2],
         dilation: [usize; 2],
         _ceil_mode: bool,
-    ) -> MaxPool2dWithIndices<Candle<F, I>> {
+        indices_dtype: IntDType,
+    ) -> MaxPool2dWithIndices<Self> {
         panic!("max_pool2d_with_indices is not supported by Candle")
     }
 
@@ -269,7 +271,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         _ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
-    ) -> MaxPool2dBackward<Candle<F, I>> {
+    ) -> MaxPool2dBackward<Self> {
         panic!("max_pool2d_with_indices_backward is not supported by Candle")
     }
 

@@ -49,6 +49,10 @@ mod ops;
 /// Dispatch tensor module.
 pub mod tensor;
 
+/// Entry points for hosting a remote-execution server.
+#[cfg(feature = "remote-server")]
+pub mod remote_server;
+
 pub use backend::*;
 pub use device::*;
 pub use tensor::*;
@@ -74,7 +78,7 @@ pub mod backends {
     pub use burn_rocm as rocm;
     #[cfg(feature = "rocm")]
     pub use burn_rocm::Rocm;
-    #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu as wgpu;
     #[cfg(wgpu_metal)]
     pub use burn_wgpu::Metal;
@@ -82,7 +86,7 @@ pub mod backends {
     pub use burn_wgpu::Vulkan;
     #[cfg(all(wgpu_webgpu, feature = "webgpu"))]
     pub use burn_wgpu::WebGpu;
-    #[cfg(wgpu_webgpu)]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu::Wgpu;
 
     #[cfg(feature = "flex")]
@@ -98,6 +102,11 @@ pub mod backends {
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorch;
 
+    #[cfg(feature = "remote")]
+    pub use burn_remote as remote;
+    #[cfg(feature = "remote")]
+    pub use burn_remote::RemoteBackend as Remote;
+
     pub use super::devices::*;
 }
 
@@ -111,7 +120,7 @@ pub mod devices {
     pub use burn_cuda::CudaDevice;
     #[cfg(feature = "rocm")]
     pub use burn_rocm::RocmDevice;
-    #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu::WgpuDevice;
 
     #[cfg(feature = "flex")]
@@ -120,4 +129,7 @@ pub mod devices {
     pub use burn_ndarray::NdArrayDevice;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorchDevice;
+
+    #[cfg(feature = "remote")]
+    pub use burn_remote::RemoteDevice;
 }
