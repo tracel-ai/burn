@@ -17,18 +17,18 @@ impl ProtocolClient for WsClient {
     type Channel = WsClientChannel;
     type Error = WsClientError;
 
-    fn connect(address: Address, route: &str) -> DynFut<Option<WsClientChannel>> {
+    fn connect(address: Address, route: &str) -> DynFut<Result<WsClientChannel, WsClientError>> {
         Box::pin(connect_ws(address, route.to_owned()))
     }
 }
 
-/// Open a new WebSocket connection to the address
-async fn connect_ws(address: Address, route: String) -> Option<WsClientChannel> {
-    let address = parse_ws_address(address).ok()?;
-    let address = format!("{address}/{route}");
+/// Open a new WebSocket connection to the address.
+async fn connect_ws(address: Address, route: String) -> Result<WsClientChannel, WsClientError> {
+    let address = parse_ws_address(address).map_err(WsClientError::Address)?;
+    let url = format!("{address}/{route}");
     const MB: usize = 1024 * 1024;
     let (stream, _) = connect_async_with_config(
-        address.clone(),
+        url,
         Some(
             WebSocketConfig::default()
                 .write_buffer_size(0)
@@ -39,10 +39,9 @@ async fn connect_ws(address: Address, route: String) -> Option<WsClientChannel> 
         ),
         true,
     )
-    .await
-    .ok()?;
+    .await?;
 
-    Some(WsClientChannel { inner: stream })
+    Ok(WsClientChannel { inner: stream })
 }
 pub struct WsClientChannel {
     inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -89,12 +88,28 @@ impl CommunicationChannel for WsClientChannel {
 
 #[derive(Debug)]
 pub enum WsClientError {
+    /// The address couldn't be parsed (e.g. missing scheme, unsupported scheme).
+    Address(String),
     Io(std::io::Error),
     Tungstenite(tungstenite::Error),
     UnknownMessage(String),
     Other(String),
 }
 impl CommunicationError for WsClientError {}
+
+impl core::fmt::Display for WsClientError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Address(msg) => write!(f, "invalid address: {msg}"),
+            Self::Io(err) => write!(f, "io error: {err}"),
+            Self::Tungstenite(err) => write!(f, "websocket error: {err}"),
+            Self::UnknownMessage(msg) => write!(f, "unknown message: {msg}"),
+            Self::Other(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl std::error::Error for WsClientError {}
 
 impl From<std::io::Error> for WsClientError {
     fn from(err: std::io::Error) -> Self {

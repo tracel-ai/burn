@@ -8,7 +8,6 @@ use burn_backend::{
 };
 
 use crate::Dispatch;
-use crate::backends::*;
 
 impl ModuleOps<Self> for Dispatch {
     fn conv2d(

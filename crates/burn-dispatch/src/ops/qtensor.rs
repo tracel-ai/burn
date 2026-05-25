@@ -5,7 +5,6 @@ use burn_backend::{
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
 
-use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
 
 impl QTensorOps<Self> for Dispatch {

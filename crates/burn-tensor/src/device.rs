@@ -329,6 +329,16 @@ impl Device {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }
 
+    /// Remote device identified by a network address (e.g. `"ws://127.0.0.1:3000"`).
+    ///
+    /// Requires a running [`burn-remote`](burn_dispatch::backends::remote) server at
+    /// the given address. Operations on tensors created with this device are
+    /// shipped to the server and executed there.
+    #[cfg(feature = "remote")]
+    pub fn remote(address: &str) -> Self {
+        Self::new(burn_dispatch::devices::RemoteDevice::new(address))
+    }
+
     /// WGPU device, selected via [`DeviceKind`].
     ///
     /// The actual wgpu adapter (Vulkan / Metal / WebGPU) is picked by the
