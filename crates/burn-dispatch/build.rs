@@ -1,7 +1,7 @@
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(default_backend)");
 
-    // If you try to build with `--no-default-features`, we enable a cpu backend by default (Flex)
+    // If you try to build with `--no-default-features`, we enable a cpu backend by default
     let cuda = cfg!(feature = "cuda");
     let flex = cfg!(feature = "flex");
     let rocm = cfg!(feature = "rocm");
@@ -13,7 +13,6 @@ fn main() {
     let webgpu = cfg!(feature = "webgpu");
     let wgpu = cfg!(feature = "wgpu");
 
-    // Detect which single wgpu backend is enabled
     let no_backend_enabled =
         !(cuda || flex || rocm || ndarray || tch || cpu || metal || vulkan || webgpu || wgpu);
 

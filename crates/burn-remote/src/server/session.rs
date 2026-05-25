@@ -22,7 +22,7 @@ where
     B: BackendIr,
     P: Protocol,
 {
-    runner: Runner<B>,
+    pub(crate) runner: Runner<B>,
     sessions: Mutex<HashMap<SessionId, Session<B, P>>>,
     data_service: Arc<TensorDataService<B, P>>,
 }

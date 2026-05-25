@@ -17,7 +17,7 @@ use crate::{BoolDType, DType, FloatDType, IntDType, QuantConfig};
 ///    the settings are permanently locked to their default values.
 /// 3. Immutability: Once initialized, settings cannot be changed. This ensures consistent behavior across
 ///    all threads and operations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceSettings {
     /// Default floating-point data type.
     pub float_dtype: FloatDType,

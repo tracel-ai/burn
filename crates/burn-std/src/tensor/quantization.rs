@@ -24,7 +24,7 @@ use crate::{DType, Metadata, Shape, bytes::Bytes};
 /// This configuration determines how tensors are quantized and how quantization rules
 /// propagate through operations on a given device. It is applied once during device
 /// initialization. See also the [device settings](crate::DeviceSettings).
-#[derive(new, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(new, Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct QuantConfig {
     /// Defines how a tensor is quantized.
     pub scheme: QuantScheme,
