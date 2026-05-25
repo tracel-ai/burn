@@ -350,40 +350,34 @@ impl Device {
     /// equivalent calls (they exist only to make the intended backend
     /// explicit at the call site — the underlying adapter is still picked by
     /// enabled Cargo features).
-    #[cfg(any(
-        feature = "wgpu",
-        feature = "vulkan",
-        feature = "metal",
-        feature = "webgpu"
-    ))]
+    #[cfg(feature = "wgpu")]
     pub fn wgpu(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::Wgpu(wgpu_device(device_kind)))
     }
 
     /// Vulkan-backed WGPU device, selected via [`DeviceKind`].
     ///
-    /// Equivalent to [`Device::wgpu`]; provided so the caller's choice of
-    /// graphics API reads clearly at the call site. The actual adapter is
-    /// still determined by enabled Cargo features.
+    /// Pins the wgpu shader compiler to SPIR-V at compile time, avoiding
+    /// the runtime [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler) dispatch.
     #[cfg(feature = "vulkan")]
     pub fn vulkan(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::Vulkan(wgpu_device(device_kind)))
     }
 
     /// Metal-backed WGPU device, selected via [`DeviceKind`].
     ///
-    /// See [`Device::vulkan`] — same shape, different feature gate.
+    /// Pins the wgpu shader compiler to MSL at compile time.
     #[cfg(feature = "metal")]
     pub fn metal(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::Metal(wgpu_device(device_kind)))
     }
 
     /// WebGPU-backed device, selected via [`DeviceKind`].
     ///
-    /// See [`Device::vulkan`] — same shape, different feature gate.
+    /// Pins the wgpu shader compiler to WGSL at compile time.
     #[cfg(feature = "webgpu")]
     pub fn webgpu(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::WebGpu(wgpu_device(device_kind)))
     }
 
     /// Enables autodiff on this device.
@@ -585,31 +579,34 @@ impl Device {
         #[allow(clippy::never_loop)] // at least one backend is expected to be enabled.
         for device_type in filter.into() {
             #[allow(unused)]
-            let type_id = match device_type {
+            let type_ids: &[DispatchDeviceId] = match device_type {
                 #[cfg(feature = "cpu")]
-                DeviceType::Cpu => DispatchDeviceId::Cpu,
+                DeviceType::Cpu => &[DispatchDeviceId::Cpu],
                 #[cfg(feature = "cuda")]
-                DeviceType::Cuda => DispatchDeviceId::Cuda,
+                DeviceType::Cuda => &[DispatchDeviceId::Cuda],
                 #[cfg(feature = "rocm")]
-                DeviceType::Rocm => DispatchDeviceId::Rocm,
-                #[cfg(any(
-                    feature = "wgpu",
-                    feature = "metal",
-                    feature = "vulkan",
-                    feature = "webgpu"
-                ))]
-                DeviceType::Wgpu => DispatchDeviceId::Wgpu,
+                DeviceType::Rocm => &[DispatchDeviceId::Rocm],
+                #[cfg(feature = "wgpu")]
+                DeviceType::Wgpu => &[DispatchDeviceId::Wgpu],
+                #[cfg(feature = "metal")]
+                DeviceType::Metal => &[DispatchDeviceId::Metal],
+                #[cfg(feature = "vulkan")]
+                DeviceType::Vulkan => &[DispatchDeviceId::Vulkan],
+                #[cfg(feature = "webgpu")]
+                DeviceType::WebGpu => &[DispatchDeviceId::WebGpu],
                 #[cfg(feature = "flex")]
-                DeviceType::Flex => DispatchDeviceId::Flex,
+                DeviceType::Flex => &[DispatchDeviceId::Flex],
                 #[cfg(feature = "ndarray")]
-                DeviceType::NdArray => DispatchDeviceId::NdArray,
+                DeviceType::NdArray => &[DispatchDeviceId::NdArray],
                 #[cfg(feature = "tch")]
-                DeviceType::LibTorch => DispatchDeviceId::LibTorch,
+                DeviceType::LibTorch => &[DispatchDeviceId::LibTorch],
             };
 
             #[allow(unreachable_code)] // need to have one backend enabled, so it is reachable
-            for device in Dispatch::enumerate(type_id) {
-                devices.push(Device::new(device))
+            for type_id in type_ids {
+                for device in Dispatch::enumerate(*type_id) {
+                    devices.push(Device::new(device))
+                }
             }
         }
 
@@ -621,12 +618,7 @@ impl Device {
 ///
 /// Shared by [`Device::wgpu`], [`Device::vulkan`], [`Device::metal`], and
 /// [`Device::webgpu`], which differ only in which Cargo feature gates them.
-#[cfg(any(
-    feature = "wgpu",
-    feature = "vulkan",
-    feature = "metal",
-    feature = "webgpu"
-))]
+#[cfg(feature = "wgpu")]
 fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
     use burn_dispatch::devices::WgpuDevice;
     match device_kind {
@@ -653,13 +645,14 @@ pub enum DeviceType {
     Cuda,
     #[cfg(feature = "rocm")]
     Rocm,
-    #[cfg(any(
-        feature = "wgpu",
-        feature = "metal",
-        feature = "vulkan",
-        feature = "webgpu"
-    ))]
+    #[cfg(feature = "wgpu")]
     Wgpu,
+    #[cfg(feature = "metal")]
+    Metal,
+    #[cfg(feature = "vulkan")]
+    Vulkan,
+    #[cfg(feature = "webgpu")]
+    WebGpu,
     #[cfg(feature = "flex")]
     Flex,
     #[cfg(feature = "ndarray")]

@@ -1,3 +1,44 @@
+/// Resolves a backend identifier to its concrete `Backend`-impl type.
+///
+/// Now that element type parameters have been removed project-wide, this is a simple
+/// passthrough — kept so the dispatch macros stay agnostic to future signature changes.
+#[allow(unused_macros)]
+macro_rules! inst {
+    (Cpu) => {
+        $crate::backends::Cpu
+    };
+    (Cuda) => {
+        $crate::backends::Cuda
+    };
+    (Metal) => {
+        $crate::backends::Metal
+    };
+    (Rocm) => {
+        $crate::backends::Rocm
+    };
+    (Vulkan) => {
+        $crate::backends::Vulkan
+    };
+    (Wgpu) => {
+        $crate::backends::Wgpu
+    };
+    (WebGpu) => {
+        $crate::backends::WebGpu
+    };
+    (Flex) => {
+        $crate::backends::Flex
+    };
+    (NdArray) => {
+        $crate::backends::NdArray
+    };
+    (LibTorch) => {
+        $crate::backends::LibTorch
+    };
+    (Remote) => {
+        $crate::backends::Remote
+    };
+}
+
 /// Supplies a list of all supported backends and their corresponding feature flags
 /// to a callback macro. This centralizes the backend registry.
 macro_rules! backend_list {
@@ -6,8 +47,11 @@ macro_rules! backend_list {
             $($extra)*;
             [Cpu, feature = "cpu"],
             [Cuda, feature = "cuda"],
+            [Metal, feature = "metal"],
             [Rocm, feature = "rocm"],
+            [Vulkan, feature = "vulkan"],
             [Wgpu, feature = "wgpu"],
+            [WebGpu, feature = "webgpu"],
             [Flex, feature = "flex"],
             [NdArray, any(feature = "ndarray", default_backend)],
             [LibTorch, feature = "tch"],
@@ -21,14 +65,17 @@ macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
             $($extra)*;
-            [Cpu, feature = "cpu"] => [[Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [Cuda, feature = "cuda"] => [[Cpu, feature = "cpu"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [Rocm, feature = "rocm"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [Wgpu, feature = "wgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [Flex, feature = "flex"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [NdArray, any(feature = "ndarray", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [Remote, feature = "remote"]];
-            [Remote, feature = "remote"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"]]
+            [Cpu, feature = "cpu"] => [[Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Cuda, feature = "cuda"] => [[Cpu, feature = "cpu"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Metal, feature = "metal"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Rocm, feature = "rocm"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Vulkan, feature = "vulkan"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Wgpu, feature = "wgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [WebGpu, feature = "webgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [Flex, feature = "flex"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [NdArray, any(feature = "ndarray", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
+            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [Remote, feature = "remote"]];
+            [Remote, feature = "remote"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Metal, feature = "metal"], [Rocm, feature = "rocm"], [Vulkan, feature = "vulkan"], [Wgpu, feature = "wgpu"], [WebGpu, feature = "webgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"]]
         }
     };
 }
