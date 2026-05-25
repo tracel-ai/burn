@@ -4,17 +4,39 @@
 /// passthrough — kept so the dispatch macros stay agnostic to future signature changes.
 #[allow(unused_macros)]
 macro_rules! inst {
-    (Cpu) => { $crate::backends::Cpu };
-    (Cuda) => { $crate::backends::Cuda };
-    (Metal) => { $crate::backends::Metal };
-    (Rocm) => { $crate::backends::Rocm };
-    (Vulkan) => { $crate::backends::Vulkan };
-    (Wgpu) => { $crate::backends::Wgpu };
-    (WebGpu) => { $crate::backends::WebGpu };
-    (Flex) => { $crate::backends::Flex };
-    (NdArray) => { $crate::backends::NdArray };
-    (LibTorch) => { $crate::backends::LibTorch };
-    (Remote) => { $crate::backends::Remote };
+    (Cpu) => {
+        $crate::backends::Cpu
+    };
+    (Cuda) => {
+        $crate::backends::Cuda
+    };
+    (Metal) => {
+        $crate::backends::Metal
+    };
+    (Rocm) => {
+        $crate::backends::Rocm
+    };
+    (Vulkan) => {
+        $crate::backends::Vulkan
+    };
+    (Wgpu) => {
+        $crate::backends::Wgpu
+    };
+    (WebGpu) => {
+        $crate::backends::WebGpu
+    };
+    (Flex) => {
+        $crate::backends::Flex
+    };
+    (NdArray) => {
+        $crate::backends::NdArray
+    };
+    (LibTorch) => {
+        $crate::backends::LibTorch
+    };
+    (Remote) => {
+        $crate::backends::Remote
+    };
 }
 
 /// Supplies a list of all supported backends and their corresponding feature flags
