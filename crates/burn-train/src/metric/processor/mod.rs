@@ -51,10 +51,12 @@ pub(crate) mod test_utils {
         let dummy_progress = burn_core::data::dataloader::Progress {
             items_processed: 1,
             items_total: 10,
+            unit: "items".to_string(),
         };
         let dummy_global_progress = burn_core::data::dataloader::Progress {
             items_processed: epoch,
             items_total: 3,
+            unit: "epochs".to_string(),
         };
         let dummy_iteration = Some(1);
 

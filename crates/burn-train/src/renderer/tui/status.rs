@@ -1,4 +1,4 @@
-use crate::renderer::ProgressType;
+use crate::renderer::OverallProgress;
 
 use super::TerminalFrame;
 use ratatui::{
@@ -10,7 +10,7 @@ use ratatui::{
 
 /// Show the training status with various information.
 pub(crate) struct StatusState {
-    progress_indicators: Vec<ProgressType>,
+    progress: Option<OverallProgress>,
     mode: Mode,
 }
 
@@ -23,7 +23,7 @@ enum Mode {
 impl Default for StatusState {
     fn default() -> Self {
         Self {
-            progress_indicators: vec![],
+            progress: None,
             mode: Mode::Train,
         }
     }
@@ -31,23 +31,23 @@ impl Default for StatusState {
 
 impl StatusState {
     /// Update the training information.
-    pub(crate) fn update_train(&mut self, progress_indicators: Vec<ProgressType>) {
-        self.progress_indicators = progress_indicators;
+    pub(crate) fn update_train(&mut self, progress: &OverallProgress) {
+        self.progress = Some(progress.clone());
         self.mode = Mode::Train;
     }
     /// Update the validation information.
-    pub(crate) fn update_valid(&mut self, progress_indicators: Vec<ProgressType>) {
-        self.progress_indicators = progress_indicators;
+    pub(crate) fn update_valid(&mut self, progress: &OverallProgress) {
+        self.progress = Some(progress.clone());
         self.mode = Mode::Valid;
     }
     /// Update the testing information.
-    pub(crate) fn update_test(&mut self, progress_indicators: Vec<ProgressType>) {
-        self.progress_indicators = progress_indicators;
+    pub(crate) fn update_test(&mut self, progress: &OverallProgress) {
+        self.progress = Some(progress.clone());
         self.mode = Mode::Evaluation;
     }
     /// Create a view.
     pub(crate) fn view(&self) -> StatusView {
-        StatusView::new(&self.progress_indicators, &self.mode)
+        StatusView::new(self.progress.as_ref(), &self.mode)
     }
 }
 
@@ -55,46 +55,51 @@ pub(crate) struct StatusView {
     lines: Vec<Vec<Span<'static>>>,
 }
 
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+    }
+}
+
 impl StatusView {
-    fn new(progress_indicators: &[ProgressType], mode: &Mode) -> Self {
+    fn new(progress: Option<&OverallProgress>, mode: &Mode) -> Self {
         let title = |title: &str| Span::from(format!(" {title} ")).bold().yellow();
         let value = |value: String| Span::from(value).italic();
-        let mode = match mode {
+        let mode_str = match mode {
             Mode::Valid => "Validating",
             Mode::Train => "Training",
             Mode::Evaluation => "Evaluation",
         };
 
-        let width = progress_indicators
-            .iter()
-            .map(|p| match p {
-                ProgressType::Detailed { tag, .. } => tag.len(),
-                ProgressType::Value { tag, .. } => tag.len(),
+        let width = progress
+            .map(|p| {
+                p.global_progress
+                    .unit
+                    .len()
+                    .max(p.split_progress.unit.len())
             })
-            .max()
-            .unwrap_or(4);
+            .unwrap_or(0)
+            .max("Mode".len());
 
         let mut lines = vec![vec![
             title(&format!("{: <width$} :", "Mode")),
-            value(mode.to_string()),
+            value(mode_str.to_string()),
         ]];
 
-        progress_indicators.iter().for_each(|p| match p {
-            ProgressType::Detailed { tag, progress } => lines.push(vec![
-                title(&format!("{: <width$} :", tag)),
-                value(format!(
-                    "{}/{}",
-                    progress.items_processed, progress.items_total
-                )),
-            ]),
-            ProgressType::Value {
-                tag,
-                value: num_items,
-            } => lines.push(vec![
-                title(&format!("{: <width$} :", tag)),
-                value(format!("{}", num_items)),
-            ]),
-        });
+        if let Some(p) = progress {
+            let g = &p.global_progress;
+            let s = &p.split_progress;
+            lines.push(vec![
+                title(&format!("{: <width$} :", capitalize(&g.unit))),
+                value(format!("{}/{}", g.items_processed, g.items_total)),
+            ]);
+            lines.push(vec![
+                title(&format!("{: <width$} :", capitalize(&s.unit))),
+                value(format!("{}/{}", s.items_processed, s.items_total)),
+            ]);
+        }
 
         Self { lines }
     }

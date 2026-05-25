@@ -116,6 +116,7 @@ pub enum MetricState {
 ///
 /// `global_progress` spans the full training run (e.g., epochs completed out of total),
 /// while `split_progress` tracks the current phase (e.g., batches within the current epoch).
+#[derive(Debug, Clone)]
 pub struct OverallProgress {
     /// Progress across the entire training run.
     pub global_progress: Progress,
@@ -124,6 +125,7 @@ pub struct OverallProgress {
 }
 
 impl OverallProgress {
+    /// Create a new overall progress snapshot.
     pub fn new(global_progress: Progress, split_progress: Progress) -> Self {
         Self {
             global_progress,

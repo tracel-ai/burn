@@ -2,7 +2,7 @@ use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::{
     logger::TrainingProgressLogger,
     metric::store::{EpochSummary, EventStoreClient, Split},
-    renderer::{TrainingProgress, cli::CliMetricsRenderer},
+    renderer::{OverallProgress, cli::CliMetricsRenderer},
 };
 use std::sync::Arc;
 
@@ -52,7 +52,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress: TrainingProgress = (&item).into();
+                let progress =
+                    OverallProgress::new(item.global_progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_train(&item, &metadata);
@@ -60,7 +61,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress, vec![]);
+                    logger.update_split(&progress);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {
@@ -97,7 +98,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress: TrainingProgress = (&item).into();
+                let progress =
+                    OverallProgress::new(item.global_progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_valid(&item, &metadata);
@@ -105,7 +107,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress, vec![]);
+                    logger.update_split(&progress);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {

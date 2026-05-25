@@ -107,6 +107,7 @@ where
         let mut progress = Progress {
             items_processed: starting_epoch,
             items_total: num_steps_total,
+            unit: "steps".to_string(),
         };
 
         let mut intermediary_update: Option<<RLC::Policy as Policy>::PolicyState> = None;

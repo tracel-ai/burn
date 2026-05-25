@@ -7,7 +7,6 @@ use crate::{
         Adaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, Numeric,
         store::{MetricsUpdate, NumericMetricUpdate},
     },
-    renderer::{EvaluationProgress, TrainingProgress},
 };
 
 pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
@@ -221,35 +220,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         }
         for metric in self.valid_numeric.iter_mut() {
             metric.clear();
-        }
-    }
-}
-
-impl<T> From<&TrainingItem<T>> for TrainingProgress {
-    fn from(item: &TrainingItem<T>) -> Self {
-        Self {
-            progress: Some(item.progress.clone()),
-            global_progress: item.global_progress.clone(),
-            iteration: item.iteration,
-        }
-    }
-}
-
-impl<T> From<&EvaluationItem<T>> for TrainingProgress {
-    fn from(item: &EvaluationItem<T>) -> Self {
-        Self {
-            progress: None,
-            global_progress: item.progress.clone(),
-            iteration: item.iteration,
-        }
-    }
-}
-
-impl<T> From<&EvaluationItem<T>> for EvaluationProgress {
-    fn from(item: &EvaluationItem<T>) -> Self {
-        Self {
-            progress: item.progress.clone(),
-            iteration: item.iteration,
         }
     }
 }

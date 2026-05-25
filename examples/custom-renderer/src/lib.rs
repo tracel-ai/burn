@@ -7,8 +7,8 @@ use burn::{
         Learner, SupervisedTraining,
         logger::{EvaluationProgressLogger, TrainingProgressLogger},
         renderer::{
-            EvaluationName, EvaluationProgress, MetricState, MetricsRenderer,
-            MetricsRendererEvaluation, MetricsRendererTraining, ProgressType, TrainingProgress,
+            EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+            MetricsRendererTraining, OverallProgress,
         },
     },
 };
@@ -45,7 +45,7 @@ impl TrainingProgressLogger for CustomRenderer {
 
     fn start_split(&mut self, _split: &str, _total_items: usize) {}
 
-    fn update_split(&mut self, progress: &TrainingProgress, _indicators: Vec<ProgressType>) {
+    fn update_split(&mut self, progress: &OverallProgress) {
         dbg!(progress);
     }
 
@@ -71,11 +71,7 @@ impl EvaluationProgressLogger for CustomRenderer {
 
     fn start_test(&mut self, _name: &str, _total_items: usize) {}
 
-    fn update_test_progress(
-        &mut self,
-        progress: &EvaluationProgress,
-        _indicators: Vec<ProgressType>,
-    ) {
+    fn update_test_progress(&mut self, progress: &OverallProgress) {
         dbg!(progress);
     }
 

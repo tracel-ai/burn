@@ -1,4 +1,4 @@
-use crate::renderer::{EvaluationProgress, ProgressType, TrainingProgress};
+use crate::renderer::OverallProgress;
 
 /// Trait for logging training progress at each step and end of epoch.
 ///
@@ -35,7 +35,7 @@ pub trait TrainingProgressLogger: Send {
     fn start_split(&mut self, split: &str, total_items: usize);
 
     /// Log the progress of the current training step.
-    fn update_split(&mut self, progress: &TrainingProgress, indicators: Vec<ProgressType>);
+    fn update_split(&mut self, progress: &OverallProgress);
 
     /// Called at the end of a training split.
     fn end_split(&mut self);
@@ -69,11 +69,7 @@ pub trait EvaluationProgressLogger: Send {
     fn start_test(&mut self, name: &str, total_items: usize);
 
     /// Log the progress of the current test step.
-    fn update_test_progress(
-        &mut self,
-        progress: &EvaluationProgress,
-        indicators: Vec<ProgressType>,
-    );
+    fn update_test_progress(&mut self, progress: &OverallProgress);
 
     /// Called at the end of a test split.
     fn end_test(&mut self);

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     EpisodeSummary, EvaluationItem, EventProcessorTraining, ItemLazy, LearnerSummary, RLMetrics,
     metric::store::{Event, EventStoreClient, MetricsUpdate},
-    renderer::{MetricState, MetricsRenderer, ProgressType, TrainingProgress},
+    renderer::{MetricState, MetricsRenderer, OverallProgress},
 };
 
 /// Event happening during reinforcement learning.
@@ -40,26 +40,6 @@ pub struct RLEventProcessor<TS: ItemLazy, ES: ItemLazy> {
     metrics: RLMetrics<TS, ES>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
-}
-
-impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
-    fn progress_indicators(&self, progress: &TrainingProgress) -> Vec<ProgressType> {
-        let indicators = vec![ProgressType::Detailed {
-            tag: String::from("Step"),
-            progress: progress.global_progress.clone(),
-        }];
-
-        indicators
-    }
-
-    fn progress_indicators_eval(&self, progress: &TrainingProgress) -> Vec<ProgressType> {
-        let indicators = vec![ProgressType::Detailed {
-            tag: String::from("Step"),
-            progress: progress.global_progress.clone(),
-        }];
-
-        indicators
-    }
 }
 
 impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
@@ -126,13 +106,12 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
             }
             RLEvent::TimeStep(item) => {
                 let item = item.sync();
-                let progress = (&item).into();
+                let progress = OverallProgress::new(item.progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_env_step(&item, &metadata);
                 self.process_update_train(update);
-                let status = self.progress_indicators(&progress);
-                self.renderer.update_split(&progress, status);
+                self.renderer.update_split(&progress);
             }
             RLEvent::EpisodeEnd(item) => {
                 let item = item.sync();
@@ -159,13 +138,12 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
             }
             AgentEvaluationEvent::EpisodeEnd(item) => {
                 let item = item.sync();
-                let progress = (&item).into();
+                let progress = OverallProgress::new(item.progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_episode_end_valid(&item, &metadata);
                 self.process_update_valid(update);
-                let status = self.progress_indicators_eval(&progress);
-                self.renderer.update_split(&progress, status);
+                self.renderer.update_split(&progress);
             }
             AgentEvaluationEvent::End => {} // no-op for now
         }

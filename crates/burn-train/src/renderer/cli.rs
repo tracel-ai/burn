@@ -1,8 +1,8 @@
 use crate::{
     logger::{EvaluationProgressLogger, TrainingProgressLogger},
     renderer::{
-        EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
-        MetricsRendererTraining, ProgressType, TrainingProgress,
+        MetricState, MetricsRenderer, MetricsRendererEvaluation, MetricsRendererTraining,
+        OverallProgress,
     },
 };
 
@@ -32,7 +32,7 @@ impl TrainingProgressLogger for CliMetricsRenderer {
         println!("Starting split '{split_name}' with {total_items} items.");
     }
 
-    fn update_split(&mut self, item: &TrainingProgress, _progress_indicators: Vec<ProgressType>) {
+    fn update_split(&mut self, item: &OverallProgress) {
         println!("{item:?}");
     }
 
@@ -56,11 +56,7 @@ impl EvaluationProgressLogger for CliMetricsRenderer {
         println!("Starting test '{name}' with {total_items} items.");
     }
 
-    fn update_test_progress(
-        &mut self,
-        progress: &EvaluationProgress,
-        _indicators: Vec<ProgressType>,
-    ) {
+    fn update_test_progress(&mut self, progress: &OverallProgress) {
         println!("{progress:?}");
     }
 

@@ -159,6 +159,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
             event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
             let mut iterator = dataloader_train.iter();
             let mut iteration = 0;
+            let unit: String = "epoch".to_string();
 
             while let Some(item) = iterator.next() {
                 iteration += 1;
@@ -172,7 +173,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 let item = TrainingItem::new(
                     item.item,
                     progress,
-                    Progress::new(epoch, num_epochs),
+                    Progress::new(epoch, num_epochs, unit.clone()),
                     Some(iteration),
                     Some(learner.lr_current()),
                 );
@@ -194,6 +195,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
             event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
+            let unit: String = "epoch".to_string();
 
             while let Some(item) = iterator.next() {
                 let progress = iterator.progress();
@@ -203,7 +205,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 let item = TrainingItem::new(
                     item,
                     progress,
-                    Progress::new(epoch, num_epochs),
+                    Progress::new(epoch, num_epochs, unit.clone()),
                     Some(iteration),
                     None,
                 );
