@@ -1,5 +1,5 @@
 use alloc::string::String;
-use core::marker::PhantomData;
+use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantScheme, QuantStore};
 
 use burn_backend::{Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
@@ -43,7 +43,19 @@ impl Device for FlexDevice {
     }
 }
 
-impl DeviceOps for FlexDevice {}
+impl DeviceOps for FlexDevice {
+    fn defaults(&self) -> DeviceSettings {
+        DeviceSettings::new(
+            DType::F32,
+            DType::I32,
+            DType::Bool(BoolStore::Native),
+            QuantConfig::new(
+                QuantScheme::default().with_store(QuantStore::Native),
+                Default::default(),
+            ),
+        )
+    }
+}
 
 impl core::fmt::Display for FlexDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -95,30 +107,14 @@ impl core::fmt::Debug for FlexDevice {
 /// requires_backend::<Flex<f64, i64>>();
 /// ```
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Flex<E = f32, I = i32> {
-    _e: PhantomData<E>,
-    _i: PhantomData<I>,
-}
+pub struct Flex {}
 
 impl BackendTypes for Flex {
     type Device = FlexDevice;
 
     type FloatTensorPrimitive = FlexTensor;
-    /// Default float element type. Determines the dtype for `.float()` conversions and
-    /// `Tensor::from_data` when no explicit dtype is provided.
-    /// Prefer explicit dtypes via `(&device, DType::F32)`.
-    type FloatElem = f32;
-
     type IntTensorPrimitive = FlexTensor;
-    /// Default int element type. Determines the dtype for `.int()` conversions and
-    /// `Tensor::from_data` when no explicit dtype is provided.
-    /// Set to i32 to match burn's ecosystem default (test suite, record settings, burn-remote).
-    /// Prefer explicit dtypes via `(&device, DType::I32)`.
-    type IntElem = i32;
-
     type BoolTensorPrimitive = FlexTensor;
-    type BoolElem = bool;
-
     type QuantizedTensorPrimitive = FlexQTensor;
 }
 

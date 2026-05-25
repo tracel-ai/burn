@@ -12,7 +12,7 @@ use crate::{
 
 use super::base::{expand, permute, unfold};
 
-impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
+impl BoolTensorOps<Self> for Candle {
     fn bool_empty(shape: Shape, device: &Device<Self>, _dtype: BoolDType) -> BoolTensor<Self> {
         super::base::empty(shape, device, candle_core::DType::U8)
     }

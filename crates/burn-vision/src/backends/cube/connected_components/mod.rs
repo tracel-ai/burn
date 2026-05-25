@@ -4,38 +4,42 @@ mod hardware_accelerated;
 /// to really use it in a general case. Needs more work to use as a normal tensor method.
 mod prefix_sum;
 
-use burn_core::tensor::Shape;
+use burn_core::{
+    backend::cubecl::dtype_to_storage_type,
+    tensor::{DType, Shape},
+};
 use burn_cubecl::{
-    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
-    ops::numeric::{full_client, zeros_client},
+    CubeBackend, CubeRuntime,
+    ops::numeric::{full_device_dtype, zeros_client},
     tensor::CubeTensor,
 };
+use cubecl::prelude::InputScalar;
 pub use hardware_accelerated::*;
 
-use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive};
+use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive, dispatch_int_dtype};
 
-pub(crate) fn stats_from_opts<R, F, I, BT>(
+pub(crate) fn stats_from_opts<R: CubeRuntime>(
     l: CubeTensor<R>,
     opts: ConnectedStatsOptions,
-) -> ConnectedStatsPrimitive<CubeBackend<R, F, I, BT>>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+    int_dtype: DType,
+) -> ConnectedStatsPrimitive<CubeBackend<R>> {
     let [height, width] = l.meta.shape().dims();
     let shape = Shape::new([height * width]);
-    let zeros = || {
-        zeros_client::<R>(
+    let zeros = || zeros_client::<R>(l.client.clone(), l.device.clone(), shape.clone(), int_dtype);
+
+    let max = dispatch_int_dtype!(int_dtype.into(), |I| InputScalar::new(
+        I::MAX,
+        dtype_to_storage_type(int_dtype)
+    ));
+    let max = || {
+        full_device_dtype::<R>(
             l.client.clone(),
-            l.device.clone(),
             shape.clone(),
-            I::dtype(),
+            l.device.clone(),
+            max,
+            int_dtype,
         )
     };
-    let max = I::max_value();
-    let max = || full_client::<R, I>(l.client.clone(), shape.clone(), l.device.clone(), max);
     let dummy = || {
         CubeTensor::new_contiguous(
             l.client.clone(),
@@ -57,7 +61,7 @@ where
             l.client.clone(),
             l.device.clone(),
             Shape::new([1]),
-            I::dtype(),
+            int_dtype,
         ),
     )
 }

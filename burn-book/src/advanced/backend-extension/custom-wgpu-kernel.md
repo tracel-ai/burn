@@ -200,8 +200,7 @@ the raw `WgpuBackend` type.
 
 ```rust, ignore
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for CubeBackend<WgpuRuntime, F, I, BT>
+impl Backend for CubeBackend<WgpuRuntime>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -441,8 +440,7 @@ operation nodes.
 The only remaining part is to implement our autodiff-decorated backend trait for our WGPU Backend.
 
 ```rust, ignore
-impl<F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
-    for Autodiff<CubeBackend<WgpuRuntime, F, I, BT>>
+impl AutodiffBackend for Autodiff<CubeBackend<WgpuRuntime>>
 {
 }
 ```

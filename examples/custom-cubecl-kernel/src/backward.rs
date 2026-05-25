@@ -13,12 +13,9 @@ use burn::{
     },
     tensor::Shape,
 };
-use burn_cubecl::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
+use burn_cubecl::{CubeBackend, CubeRuntime};
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
-    for Autodiff<CubeBackend<R, F, I, BT>>
-{
-}
+impl<R: CubeRuntime> AutodiffBackend for Autodiff<CubeBackend<R>> {}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {

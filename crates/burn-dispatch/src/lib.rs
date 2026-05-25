@@ -78,7 +78,7 @@ pub mod backends {
     pub use burn_rocm as rocm;
     #[cfg(feature = "rocm")]
     pub use burn_rocm::Rocm;
-    #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu as wgpu;
     #[cfg(wgpu_metal)]
     pub use burn_wgpu::Metal;
@@ -86,7 +86,7 @@ pub mod backends {
     pub use burn_wgpu::Vulkan;
     #[cfg(all(wgpu_webgpu, feature = "webgpu"))]
     pub use burn_wgpu::WebGpu;
-    #[cfg(wgpu_webgpu)]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu::Wgpu;
 
     #[cfg(feature = "flex")]
@@ -120,7 +120,7 @@ pub mod devices {
     pub use burn_cuda::CudaDevice;
     #[cfg(feature = "rocm")]
     pub use burn_rocm::RocmDevice;
-    #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu::WgpuDevice;
 
     #[cfg(feature = "flex")]

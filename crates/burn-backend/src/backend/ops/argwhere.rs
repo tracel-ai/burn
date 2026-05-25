@@ -1,7 +1,7 @@
 use crate::tensor::{Device, IntTensor};
-use crate::{Backend, TensorData, element::ElementConversion};
+use crate::{Backend, TensorData};
 use alloc::vec::Vec;
-use burn_std::{IntDType, Shape};
+use burn_std::{Element, ElementConversion, IntDType};
 
 /// Compute the indices of the elements that are non-zero, grouped by element.
 ///
@@ -25,12 +25,27 @@ pub fn argwhere_data<B: Backend>(
     device: &Device<B>,
     out_dtype: IntDType,
 ) -> IntTensor<B> {
+    let out = match out_dtype {
+        IntDType::I64 => argwhere_data_impl::<i64>(data),
+        IntDType::I32 => argwhere_data_impl::<i32>(data),
+        IntDType::I16 => argwhere_data_impl::<i16>(data),
+        IntDType::I8 => argwhere_data_impl::<i8>(data),
+        IntDType::U64 => argwhere_data_impl::<u64>(data),
+        IntDType::U32 => argwhere_data_impl::<u32>(data),
+        IntDType::U16 => argwhere_data_impl::<u16>(data),
+        IntDType::U8 => argwhere_data_impl::<u8>(data),
+    };
+
+    B::int_from_data(out, device)
+}
+
+fn argwhere_data_impl<I: Element>(data: TensorData) -> TensorData {
     let dims = &data.shape;
     let ndims = dims.len();
     let count_nonzero = data.iter::<bool>().filter(|&v| v).count();
 
     /// Converts a flat index into a vector of indices for the specified tensor shape
-    fn unravel_index<B: Backend>(index: usize, shape: &[usize]) -> Vec<B::IntElem> {
+    fn unravel_index<I: Element>(index: usize, shape: &[usize]) -> Vec<I> {
         shape
             .iter()
             .rev()
@@ -49,13 +64,9 @@ pub fn argwhere_data<B: Backend>(
         .iter::<bool>()
         .enumerate()
         .filter_map(|(index, v)| if v { Some(index) } else { None })
-        .map(|index| unravel_index::<B>(index, dims))
+        .map(|index| unravel_index::<I>(index, dims))
         .collect::<Vec<_>>()
         .concat();
 
-    B::int_from_data(
-        TensorData::new(indices, Shape::new([count_nonzero, ndims]))
-            .convert_dtype(out_dtype.into()),
-        device,
-    )
+    TensorData::new(indices, [count_nonzero, ndims])
 }

@@ -1,7 +1,7 @@
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
-    tensor::{DType, Device, Element},
+    tensor::{Device, DeviceConfig, Element},
 };
 
 use text_classification::{DbPediaDataset, training::ExperimentConfig};
@@ -19,7 +19,7 @@ pub fn launch(mut device: Device) {
     );
 
     device
-        .set_default_dtypes(ElemType::dtype(), DType::I32)
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
         .unwrap();
 
     text_classification::training::train::<DbPediaDataset>(

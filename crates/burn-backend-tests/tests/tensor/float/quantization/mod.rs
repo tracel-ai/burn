@@ -26,7 +26,9 @@ pub mod qtensor {
             let device = Default::default();
             TestTensor::from_data(floats, &device).quantize_dynamic(
                 &device
-                    .default_quant_scheme()
+                    .settings()
+                    .quantization
+                    .scheme
                     .with_value(QuantValue::Q8S)
                     .with_level(QuantLevel::block([16])),
             )
@@ -35,8 +37,13 @@ pub mod qtensor {
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> TestTensor<D> {
             let device = Default::default();
-            TestTensor::from_data(floats, &device)
-                .quantize_dynamic(&device.default_quant_scheme().with_value(QuantValue::Q8S))
+            TestTensor::from_data(floats, &device).quantize_dynamic(
+                &device
+                    .settings()
+                    .quantization
+                    .scheme
+                    .with_value(QuantValue::Q8S),
+            )
         }
     }
 }

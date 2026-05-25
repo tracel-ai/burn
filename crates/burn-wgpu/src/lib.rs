@@ -23,9 +23,9 @@ pub mod graphics {
     pub use cubecl::wgpu::{AutoGraphicsApi, Dx12, GraphicsApi, Metal, OpenGl, Vulkan, WebGpu};
 }
 
-#[cfg(feature = "cubecl-wgsl")]
+#[cfg(feature = "webgpu")]
 pub use cubecl::wgpu::WgslCompiler;
-#[cfg(feature = "cubecl-spirv")]
+#[cfg(feature = "vulkan")]
 pub use cubecl::wgpu::vulkan::VkSpirvCompiler;
 
 #[cfg(feature = "fusion")]
@@ -60,8 +60,7 @@ pub use cubecl::wgpu::vulkan::VkSpirvCompiler;
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<F = f32, I = i32, B = u32> =
-    burn_fusion::Fusion<CubeBackend<cubecl::wgpu::WgpuRuntime, F, I, B>>;
+pub type Wgpu = burn_fusion::Fusion<CubeBackend<cubecl::wgpu::WgpuRuntime>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -95,39 +94,37 @@ pub type Wgpu<F = f32, I = i32, B = u32> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<F = f32, I = i32, B = u32> = CubeBackend<cubecl::wgpu::WgpuRuntime, F, I, B>;
+pub type Wgpu = CubeBackend<cubecl::wgpu::WgpuRuntime>;
 
 #[cfg(feature = "vulkan")]
 /// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
-pub type Vulkan<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
+pub type Vulkan = Wgpu;
 
 #[cfg(feature = "webgpu")]
 /// Tensor backend that uses the wgpu crate to execute GPU compute shaders written in WGSL.
-pub type WebGpu<F = f32, I = i32, B = u32> = Wgpu<F, I, B>;
+pub type WebGpu = Wgpu;
 
 #[cfg(feature = "metal")]
 /// Tensor backend that leverages the Metal graphics API to execute GPU compute shaders compiled to MSL.
-pub type Metal<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
+pub type Metal = Wgpu;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{Backend, BoolStore, DType, QTensorPrimitive};
+    use burn_backend::{Backend, BoolStore, DType, DeviceOps};
 
     #[test]
     fn should_support_dtypes() {
         type B = Wgpu;
-        let device = Default::default();
+        let device = WgpuDevice::default();
+        let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F32));
         assert!(B::supports_dtype(&device, DType::I64));
         assert!(B::supports_dtype(&device, DType::I32));
         assert!(B::supports_dtype(&device, DType::U64));
         assert!(B::supports_dtype(&device, DType::U32));
-        assert!(B::supports_dtype(
-            &device,
-            DType::QFloat(CubeTensor::<WgpuRuntime>::default_scheme())
-        ));
+        assert!(B::supports_dtype(&device, DType::QFloat(scheme)));
         assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
 
         #[cfg(feature = "vulkan")]

@@ -8,23 +8,20 @@ use super::{
     },
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
+use crate::ops::interpolate::nearest_interpolate_backward;
 #[cfg(feature = "simd")]
 use crate::ops::simd::{
     avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
 };
 use crate::{
-    NdArray, SharedArray, element::FloatNdArrayElement, execute_with_int_dtype,
-    tensor::NdArrayTensor,
-};
-use crate::{
-    element::{IntNdArrayElement, QuantElement},
-    ops::interpolate::nearest_interpolate_backward,
+    NdArray, SharedArray, execute_with_int_dtype, execute_with_int_out_dtype, tensor::NdArrayTensor,
 };
 use burn_backend::{
-    ElementConversion, TensorMetadata,
+    TensorMetadata,
     ops::{attention::attention_fallback, *},
     tensor::FloatTensor,
 };
+use burn_std::IntDType;
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).
@@ -51,12 +48,7 @@ macro_rules! module_op {
     }};
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Self>
-    for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
+impl ModuleOps<Self> for NdArray {
     fn conv2d(
         x: NdArrayTensor,
         weight: NdArrayTensor,
@@ -219,17 +211,20 @@ where
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
-    ) -> MaxPool2dWithIndices<NdArray<E, I, Q>> {
-        module_op!(inp(x), opt(), E, |x| {
-            let (output, indices) = max_pool2d_with_indices::<E, I>(
-                x,
-                kernel_size,
-                stride,
-                padding,
-                dilation,
-                ceil_mode,
-            );
-            MaxPool2dWithIndices::new(output.into(), indices.into())
+        indices_dtype: IntDType,
+    ) -> MaxPool2dWithIndices<Self> {
+        execute_with_int_out_dtype!(indices_dtype, I, {
+            module_op!(inp(x), opt(), E, |x| {
+                let (output, indices) = max_pool2d_with_indices::<E, I>(
+                    x,
+                    kernel_size,
+                    stride,
+                    padding,
+                    dilation,
+                    ceil_mode,
+                );
+                MaxPool2dWithIndices::new(output.into(), indices.into())
+            })
         })
     }
 
@@ -242,13 +237,10 @@ where
         ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: NdArrayTensor,
-    ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
+    ) -> MaxPool2dBackward<Self> {
         execute_with_int_dtype!(indices, IntElem, |idx_s: SharedArray<IntElem>| {
-            // Convert indices from runtime dtype to the expected I type
-            // (pool indices are bounded by tensor dimensions, so conversion is safe)
-            let indices: SharedArray<I> = idx_s.mapv(|x| x.elem()).into_shared();
             module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
-                let output = max_pool2d_backward::<E, I>(
+                let output = max_pool2d_backward::<E, IntElem>(
                     x,
                     kernel_size,
                     stride,
@@ -256,7 +248,7 @@ where
                     dilation,
                     ceil_mode,
                     output_grad,
-                    indices,
+                    idx_s,
                 );
                 MaxPool2dBackward::new(output.into())
             })

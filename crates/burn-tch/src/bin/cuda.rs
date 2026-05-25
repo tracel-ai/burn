@@ -7,7 +7,7 @@ fn main() {
         "Could not detect valid CUDA configuration"
     );
 
-    type B = LibTorch<f32>;
+    type B = LibTorch;
     let device = LibTorchDevice::Cuda(0);
 
     // Creation of two tensors, the first with explicit values and the second one with ones, with the same shape as the first

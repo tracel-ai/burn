@@ -1,6 +1,6 @@
 use burn::{
     optim::decay::WeightDecayConfig,
-    tensor::{DType, Device, DeviceIndex, Element},
+    tensor::{Device, DeviceConfig, DeviceIndex, Element},
 };
 use text_generation::{DbPediaDataset, training::ExperimentConfig};
 
@@ -23,7 +23,7 @@ fn main() {
     };
 
     device
-        .set_default_dtypes(Elem::dtype(), DType::I64)
+        .configure(DeviceConfig::default().float_dtype(Elem::dtype()))
         .unwrap();
 
     text_generation::training::train::<DbPediaDataset>(

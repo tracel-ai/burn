@@ -6,7 +6,7 @@ use crate::{
     tensor,
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> ActivationOps<Self> for Candle<F, I> {
+impl ActivationOps<Self> for Candle {
     fn gelu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.gelu().unwrap())
     }

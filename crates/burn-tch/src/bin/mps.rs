@@ -4,7 +4,7 @@ use burn_tch::{LibTorch, LibTorchDevice};
 fn main() {
     assert!(tch::utils::has_mps(), "Could not detect MPS");
 
-    type B = LibTorch<f32>;
+    type B = LibTorch;
     let device = LibTorchDevice::Mps;
 
     // Creation of two tensors, the first with explicit values and the second one with ones, with the same shape as the first
