@@ -112,7 +112,7 @@ impl<P: Policy> PolicyState for EpsilonGreedyPolicyState<P> {
 
 #[derive(Clone, Debug)]
 pub struct EpsilonGreedyPolicy<P: Policy> {
-    pub inner_policy: P,
+    inner_policy: P,
     eps_start: f64,
     eps_end: f64,
     eps_decay: f64,
@@ -128,6 +128,14 @@ impl<P: Policy> EpsilonGreedyPolicy<P> {
             eps_decay,
             step: 0,
         }
+    }
+
+    pub fn inner_policy(&self) -> P {
+        self.inner_policy.clone()
+    }
+
+    pub fn set_inner_policy(&mut self, policy: P) {
+        self.inner_policy = policy;
     }
 
     fn get_threshold(&self) -> f64 {

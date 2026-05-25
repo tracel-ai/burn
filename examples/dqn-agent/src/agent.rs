@@ -214,6 +214,14 @@ impl<M: DiscreteActionModel> DQN<M> {
     pub fn new(policy: M) -> Self {
         Self { model: policy }
     }
+
+    pub fn model(&self) -> M {
+        self.model.clone()
+    }
+
+    pub fn set_model(&mut self, model: M) {
+        self.model = model;
+    }
 }
 
 #[derive(Clone)]
@@ -477,10 +485,10 @@ where
     }
 
     fn policy(&self) -> Self::InnerPolicy {
-        // TODO: charles; cleaner
-        let valid_module = self.agent.inner_policy.model.valid();
         let mut policy = self.agent.clone();
-        policy.inner_policy.model = valid_module;
+        let mut inner_policy = policy.inner_policy();
+        inner_policy.set_model(policy.inner_policy().model().valid());
+        policy.set_inner_policy(inner_policy);
         policy
     }
 
