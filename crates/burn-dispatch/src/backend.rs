@@ -99,13 +99,9 @@ impl Backend for Dispatch {
             #[cfg(any(feature = "ndarray", default_backend))]
             DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
             #[cfg(feature = "tch")]
-<<<<<<< HEAD
             DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
-=======
-            DispatchDeviceId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
             #[cfg(feature = "remote")]
             DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
->>>>>>> main
             _ => unreachable!("No backend feature enabled."),
         }
     }

@@ -27,7 +27,7 @@ macro_rules! backend_matrix {
             [Wgpu, feature = "wgpu"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
             [Flex, feature = "flex"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
             [NdArray, any(feature = "ndarray", default_backend)] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [LibTorch, feature = "tch"], [Remote, feature = "remote"]];
-            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [Remote, feature = "remote"]]
+            [LibTorch, feature = "tch"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [Remote, feature = "remote"]];
             [Remote, feature = "remote"] => [[Cpu, feature = "cpu"], [Cuda, feature = "cuda"], [Rocm, feature = "rocm"], [Wgpu, feature = "wgpu"], [Flex, feature = "flex"], [NdArray, any(feature = "ndarray", default_backend)], [LibTorch, feature = "tch"]]
         }
     };
@@ -40,12 +40,17 @@ macro_rules! with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {
             Some($crate::CheckpointingStrategy::Balanced) => {
-                type $B =
-                    Autodiff<$Backend, burn_autodiff::checkpoint::strategy::BalancedCheckpointing>;
+                type $B = $crate::backends::Autodiff<
+                    $crate::backends::$Backend,
+                    burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
+                >;
                 $body
             }
             Some($crate::CheckpointingStrategy::None) => {
-                type $B = Autodiff<$Backend, burn_autodiff::checkpoint::strategy::NoCheckpointing>;
+                type $B = $crate::backends::Autodiff<
+                    $crate::backends::$Backend,
+                    burn_autodiff::checkpoint::strategy::NoCheckpointing,
+                >;
                 $body
             }
             None => unreachable!("Should only be called with autodiff."),
@@ -76,7 +81,7 @@ macro_rules! dispatch_device_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     $body
                 }
             )*
@@ -92,7 +97,7 @@ macro_rules! dispatch_device_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
-                    type B = Autodiff<$Backend>;
+                    type B = $crate::backends::Autodiff<$crate::backends::$Backend>;
                     $body
                 }
             )*
@@ -123,7 +128,7 @@ macro_rules! to_device_arms {
                 ($crate::DispatchTensorKind::$B1(t), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
-                            $B1::$to_device(t.$inner_fn(), d)
+                            $crate::backends::$B1::$to_device(t.$inner_fn(), d)
                         )),
                         checkpointing: $tensor.checkpointing,
                     }
@@ -136,8 +141,8 @@ macro_rules! to_device_arms {
                 $(
                     #[cfg(all($src_cfg, $dst_cfg))]
                     ($crate::DispatchTensorKind::$B1(t), $crate::DispatchDevice::$B2($device_ident)) => {
-                        type B1 = $B1;
-                        type B2 = $B2;
+                        type B1 = $crate::backends::$B1;
+                        type B2 = $crate::backends::$B2;
                         let $inner = t.$inner_fn();
 
                         $crate::DispatchTensor {
@@ -162,7 +167,7 @@ macro_rules! to_device_arms {
 
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::$kind(
-                            $B1::$to_device(t.$inner_fn(), d)
+                            <$crate::backends::$B1>::$to_device(t.$inner_fn(), d)
                         )),
                         checkpointing: Some(device_ad.checkpointing),
                     }
@@ -176,8 +181,8 @@ macro_rules! to_device_arms {
                     ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::Autodiff(device_ad))
                     if matches!(&*device_ad.inner, $crate::DispatchDevice::$B2(_)) => {
                         let $crate::DispatchDevice::$B2($device_ident) = &*device_ad.inner else { unreachable!() };
-                        type B1 = $B1;
-                        type B2 = $B2;
+                        type B1 = $crate::backends::$B1;
+                        type B2 = $crate::backends::$B2;
                         let $inner = tensor.$inner_fn();
 
                         $crate::DispatchTensor {
@@ -239,7 +244,7 @@ macro_rules! float_to_device_arms {
                 ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::Float(
-                            $B1::$to_device(kind.float(), d)
+                            $crate::backends::$B1::$to_device(kind.float(), d)
                         )),
                         checkpointing: $tensor.checkpointing,
                     }
@@ -252,8 +257,8 @@ macro_rules! float_to_device_arms {
                 $(
                     #[cfg(all($src_cfg, $dst_cfg))]
                     ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B2($device_ident)) => {
-                        type B1 = $B1;
-                        type B2 = $B2;
+                        type B1 = $crate::backends::$B1;
+                        type B2 = $crate::backends::$B2;
                         let $inner = kind.float();
 
                         $crate::DispatchTensor {
@@ -341,7 +346,7 @@ macro_rules! creation_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend(
                             $crate::BackendTensor::$kind($body)
@@ -424,7 +429,7 @@ macro_rules! unary_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $inner = $inner.$inner_kind();
 
                     #[cfg(feature = "autodiff")]
@@ -464,7 +469,7 @@ macro_rules! unary_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $inner = $inner.$inner_kind();
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body)),
@@ -488,7 +493,7 @@ macro_rules! unary_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $inner = $inner.$inner_kind();
                     $body
                 }
@@ -542,7 +547,7 @@ macro_rules! unary_float_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $inner = unary_float_arms!(@unwrap $mode, $inner, $inner_kind);
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend(
@@ -603,7 +608,7 @@ macro_rules! unary_float_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend($inner) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $inner = unary_float_arms!(@unwrap $mode, $inner, $inner_kind);
                     $body
                 }
@@ -700,7 +705,7 @@ macro_rules! binary_op_arms {
             $(
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $lhs_inner = $lhs_inner.$lhs_kind();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
                     $crate::DispatchTensor {
@@ -767,7 +772,7 @@ macro_rules! binary_float_arms {
             $(
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $lhs_inner = $lhs_inner.float();
                     let $rhs_inner = $rhs_inner.float();
                     $crate::DispatchTensor {
@@ -825,7 +830,7 @@ macro_rules! binary_float_arms {
 
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $lhs_inner = $lhs_inner.float();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
                     $crate::DispatchTensor {
@@ -853,7 +858,7 @@ macro_rules! binary_float_arms {
             $(
                 #[cfg($cfg)]
                 ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
                     let $lhs_inner = $lhs_inner.$lhs_kind();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
                     $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body))
@@ -932,7 +937,7 @@ macro_rules! multi_op_arm {
         [ $( $opt_out:ident ),* ],
         $body:expr
     ) => {{
-        type B = $Backend;
+        type B = $crate::backends::$Backend;
 
         // Required inputs
         $(
@@ -1311,7 +1316,7 @@ macro_rules! vec_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend(_) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
 
                     let $inner = unwrap_vec!($Backend, $tensors, $inner_kind);
                     $crate::DispatchTensor {
@@ -1329,7 +1334,7 @@ macro_rules! vec_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend(_) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
 
                     let $inner = unwrap_vec!($Backend, $tensors, $inner_kind);
                     $crate::DispatchTensor {
@@ -1366,7 +1371,7 @@ macro_rules! transaction_op_arms {
                     $(
                     #[cfg($cfg)]
                     $crate::DispatchTensorKind::$Backend(_) => {
-                        type B = $Backend;
+                        type B = $crate::backends::$Backend;
 
                         // Unwrap vec
                         let floats = unwrap_vec!(@autodiff $Backend, $tx.read_floats, autodiff_inner);
@@ -1385,7 +1390,7 @@ macro_rules! transaction_op_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensorKind::$Backend(_) => {
-                    type B = $Backend;
+                    type B = $crate::backends::$Backend;
 
                     // Unwrap vec
                     let floats = unwrap_vec!($Backend, $tx.read_floats, float);

@@ -451,6 +451,8 @@ impl DeviceOps for DispatchDevice {
             Self::NdArray(device) => device.defaults(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.defaults(),
+            #[cfg(feature = "remote")]
+            Self::Remote(device) => device.defaults(),
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.defaults(),
         }
