@@ -32,13 +32,12 @@ tracing = [
 cubecl-backend = ["cubecl", "burn-cubecl"]
 fusion = ["burn-fusion", "burn-core/fusion"]
 
-# TODO: should remove backend crate deps and use re-exported types from burn-core
 cuda = ["cubecl-backend", "burn-core/cuda"]
 rocm = ["cubecl-backend", "burn-core/rocm"]
 wgpu = ["cubecl-backend", "burn-core/wgpu"]
-vulkan = ["wgpu", "burn-core/vulkan"]
-webgpu = ["wgpu", "burn-core/webgpu"]
-metal = ["wgpu", "burn-core/metal"]
+vulkan = ["cubecl-backend", "burn-core/vulkan"]
+webgpu = ["cubecl-backend", "burn-core/webgpu"]
+metal = ["cubecl-backend", "burn-core/metal"]
 cpu = ["cubecl-backend", "burn-core/cpu"]
 flex = ["burn-core/flex"]
 tch = ["burn-core/tch"]

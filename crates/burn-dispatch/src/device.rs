@@ -274,11 +274,11 @@ impl Default for DispatchDevice {
         #[cfg(feature = "vulkan")]
         return Self::Vulkan(burn_wgpu::WgpuDevice::default());
 
-        #[cfg(feature = "wgpu")]
-        return Self::Wgpu(burn_wgpu::WgpuDevice::default());
-
         #[cfg(feature = "webgpu")]
         return Self::WebGpu(burn_wgpu::WgpuDevice::default());
+
+        #[cfg(feature = "wgpu")]
+        return Self::Wgpu(burn_wgpu::WgpuDevice::default());
 
         #[cfg(feature = "cpu")]
         return Self::Cpu(CpuDevice);
@@ -591,10 +591,34 @@ impl From<RocmDevice> for DispatchDevice {
 
 // A bare `WgpuDevice` maps to the auto-compiler [`DispatchDevice::Wgpu`] variant. To target a
 // specific wgpu specialization (Metal, Vulkan, WebGpu) construct the variant explicitly.
-#[cfg(feature = "wgpu")]
+#[cfg(all(
+    feature = "wgpu",
+    not(any(feature = "metal", feature = "vulkan", feature = "webgpu"))
+))]
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
         DispatchDevice::Wgpu(device)
+    }
+}
+
+#[cfg(all(feature = "metal", not(any(feature = "vulkan", feature = "webgpu"))))]
+impl From<WgpuDevice> for DispatchDevice {
+    fn from(device: WgpuDevice) -> Self {
+        DispatchDevice::Metal(device)
+    }
+}
+
+#[cfg(all(feature = "vulkan", not(any(feature = "metal", feature = "webgpu"))))]
+impl From<WgpuDevice> for DispatchDevice {
+    fn from(device: WgpuDevice) -> Self {
+        DispatchDevice::Vulkan(device)
+    }
+}
+
+#[cfg(all(feature = "webgpu", not(any(feature = "metal", feature = "vulkan"))))]
+impl From<WgpuDevice> for DispatchDevice {
+    fn from(device: WgpuDevice) -> Self {
+        DispatchDevice::WebGpu(device)
     }
 }
 

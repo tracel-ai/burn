@@ -56,6 +56,7 @@ pub mod quantization;
 pub mod cubecl;
 
 #[cfg(any(
+    feature = "cubecl-wgpu",
     feature = "cubecl-metal",
     feature = "cubecl-vulkan",
     feature = "cubecl-webgpu"
