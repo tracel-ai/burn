@@ -2,12 +2,6 @@ use burn_std::{ComplexDType, ComplexElement, ExecutionError, Scalar, Shape, Tens
 
 use crate::{Backend, BackendTypes, TensorMetadata, ops::ComplexTensorOps, tensor::Device};
 
-pub trait CBT: BackendTypes {
-    /// a complex element in interleaved layout
-    type ComplexScalar: ComplexElement;
-
-    type ComplexTensorPrimitive: TensorMetadata + 'static;
-}
 
 /// The layout of the complex tensor. Used to define shared behavior only meant
 /// to be used for a specific layout (such as butterfly operations).

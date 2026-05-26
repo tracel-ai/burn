@@ -23,6 +23,13 @@ pub struct AutodiffTensor<B: BackendTypes> {
     pub rc: NodeRefCount,
 }
 
+impl<B: BackendTypes> AutodiffTensor<B> {
+    /// Returns the inner autodiff tensor primitive.
+    pub fn primitive(&self) -> &B::FloatTensorPrimitive {
+        &self.primitive
+    }
+}
+
 impl<B: BackendTypes> TensorMetadata for AutodiffTensor<B> {
     fn dtype(&self) -> burn_std::DType {
         self.primitive.dtype()

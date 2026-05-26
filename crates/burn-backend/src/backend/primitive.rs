@@ -21,6 +21,11 @@ impl<E: Clone + Send + Sync + 'static> UnimplementedTensorPrimitive<E> {
     pub fn device(&self) -> ! {
         unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
     }
+
+    /// Stub to make it compatible with backend decorators
+    pub fn primitive(&self) -> ! {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
 }
 
 impl<E: Clone + Send + Sync + 'static> TensorMetadata
