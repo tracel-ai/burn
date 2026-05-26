@@ -161,8 +161,11 @@ impl Default for NmsOptions {
 #[cfg(feature = "flex")]
 use burn_core::backend::Flex;
 
-#[cfg(feature = "webgpu")]
+#[cfg(feature = "wgpu")]
 use burn_core::backend::Wgpu;
+
+#[cfg(feature = "webgpu")]
+use burn_core::backend::WebGpu;
 
 #[cfg(feature = "vulkan")]
 use burn_core::backend::Vulkan;
@@ -185,7 +188,8 @@ use burn_core::backend::LibTorch;
 /// Vision capable backend, implemented by each backend
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
@@ -197,7 +201,8 @@ pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
@@ -287,7 +292,8 @@ pub trait BoolVisionOps: Backend {
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
@@ -326,7 +332,8 @@ pub trait IntVisionOps: Backend {
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),

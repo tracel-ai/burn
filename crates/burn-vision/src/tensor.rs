@@ -69,6 +69,7 @@ impl ConnectedComponents for Tensor<2, Bool> {
         connectivity: Connectivity,
         options: ConnectedStatsOptions,
     ) -> (Tensor<2, Int>, ConnectedStats) {
+        println!("Tensor::connected_components_with_stats");
         let settings = self.device().settings();
         let (labels, area, left, top, right, bottom, max_label) =
             <Dispatch as BoolVisionOps>::connected_components_with_stats(

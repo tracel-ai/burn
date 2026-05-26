@@ -55,11 +55,7 @@ pub mod quantization;
 #[cfg(feature = "cubecl")]
 pub mod cubecl;
 
-#[cfg(any(
-    feature = "cubecl-metal",
-    feature = "cubecl-vulkan",
-    feature = "cubecl-webgpu"
-))]
+#[cfg(feature = "cubecl-wgpu")]
 mod cube_wgpu {
     use crate::backend::DeviceOps;
     use burn_std::{BoolStore, DType, DeviceSettings};
