@@ -324,11 +324,103 @@ macro_rules! float_to_device_arms {
     }};
 }
 
+/// Match arm generator for `complex_to_device`.
+///
+/// Similar to `to_device_arms`, but complex tensors are checked for autodiff support.
+macro_rules! complex_to_device_arms {
+    (
+        $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
+        $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
+    ) => {
+        match ($tensor.kind, $device) {
+            #[cfg(feature = "autodiff")]
+            ($crate::DispatchTensorKind::Autodiff(kind), $crate::DispatchDevice::Autodiff(device)) => {
+                let ckp = $tensor.checkpointing;
+                complex_to_device_arms!(
+                    @autodiff
+                    *kind, &**device, ckp, $to_device;
+                    $([$B1, $src_cfg]);*
+                )
+
+            }
+            // --- Same backend to_device ---
+            $(
+                #[cfg($src_cfg)]
+                ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B1(d)) => {
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::Complex(
+                            <inst!($B1)>::$to_device(kind.complex(), d)
+                        )),
+                        checkpointing: $tensor.checkpointing,
+                    }
+                }
+            )*
+
+            // --- Cross backend arms ---
+            // This loop generates the grid of combinations
+            $(
+                $(
+                    #[cfg(all($src_cfg, $dst_cfg))]
+                    ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B2($device_ident)) => {
+                        type B1 = inst!($B1);
+                        type B2 = inst!($B2);
+                        let $inner = kind.complex();
+
+                        $crate::DispatchTensor {
+                            kind: $crate::DispatchTensorKind::$B2($crate::BackendTensor::Complex($body)),
+                            checkpointing: $tensor.checkpointing,
+                        }
+                    }
+                )+
+            )*
+            #[cfg(feature = "autodiff")]
+            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
+        }
+    };
+
+    // Autodiff(DispatchTensor)
+    (
+        @autodiff
+        $tensor:expr, $device:expr, $ckp:expr, $to_device:ident;
+        $( [$B1:ident, $src_cfg:meta] );*
+    ) => {{
+        match ($tensor, $device) {
+            // --- Same backend to_device ---
+            $(
+                #[cfg($src_cfg)]
+                ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
+                    let kind = $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new($crate::DispatchTensorKind::$B1($crate::BackendTensor::Autodiff(
+                        with_autodiff_backend!($B1, $ckp, |B| {
+                            B::$to_device(tensor.autodiff(), d)
+                        })
+                    ))));
+                    $crate::DispatchTensor {kind, checkpointing: $ckp}
+                }
+            )*
+            // TODO: should be possible
+            (_, _) => unimplemented!("Autodiff tensor cannot be moved between backends.")
+        }
+    }};
+}
+
 /// Handles float tensor movement between devices (that might support autodiff).
 macro_rules! float_to_device {
     ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
         backend_matrix!(
             float_to_device_arms,
+            $tensor,
+            $device,
+            $to_device,
+            |$inner, $device_ident| $body
+        )
+    };
+}
+
+/// Handles complex tensor movement between devices (that might support autodiff).
+macro_rules! complex_to_device {
+    ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
+        backend_matrix!(
+            complex_to_device_arms,
             $tensor,
             $device,
             $to_device,
@@ -437,7 +529,8 @@ macro_rules! wrap_float {
 }
 
 /// Wrap the result in the backend tensor kind, handling complex -> autodiff.
-#[cfg(all(feature = "autodiff", feature = "complex"))]
+//#[cfg(all(feature = "autodiff", feature = "complex"))]
+#[cfg(feature = "autodiff")]
 macro_rules! wrap_complex {
     (
         @wrap_autodiff Float,
@@ -702,11 +795,11 @@ macro_rules! unary_float_arms {
     (@unwrap_ad ref, $inner:ident) => { $inner.as_autodiff() };
 
 }
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 /// Match arm generator for `unary_complex`.
 ///
 /// Similar to `unary_op_arms`, but complex tensors are checked for autodiff support.
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 macro_rules! unary_complex_arms {
     (
         $mode:ident, // `owned` or `ref`
@@ -872,7 +965,7 @@ macro_rules! unary_float {
     };
 }
 
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 /// Backend dispatch for complex unary operations (that might support autodiff).
 ///
 /// When the return `=> Kind` is not provided, the operation output is not wrapped in a dispatch tensor (e.g., `into_data(..)`)
@@ -1126,7 +1219,7 @@ macro_rules! binary_float_arms {
 
 }
 
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 macro_rules! binary_complex_arms {
     // (float, float) binary op
     (
@@ -1309,10 +1402,10 @@ macro_rules! binary_float {
         )
     };
 }
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 /// Backend dispatch for binary operations.
 /// Automatically verifies that both tensors reside on the same backend.
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 macro_rules! binary_complex {
     (($lhs:expr, $lhs_kind:ident), ($rhs:expr, $rhs_kind:ident), |$lhs_inner:ident, $rhs_inner:ident| $body:expr => $kind:ident) => {
         complex_backend_list!(
@@ -1653,9 +1746,9 @@ macro_rules! multi_op {
         )
     };
 }
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 /// High-level macro for complex module operations (e.g., conv2d) and multi-tensor operations.
-/// Handles variable numbers of required/optional inputs and wraps multiple outputs.
+// Handles variable numbers of required/optional inputs and wraps multiple outputs.
 ///
 /// Usage:
 /// ```ignore
@@ -1666,7 +1759,7 @@ macro_rules! multi_op {
 ///     B::conv2d(x, weight, bias, options)
 /// )
 /// ```
-#[cfg(feature = "complex")]
+//#[cfg(feature = "complex")]
 macro_rules! complex_multi_op {
     // --- Single output shorthands ---
     // Automatically wraps body in tuple and extracts .0

@@ -727,7 +727,7 @@ impl<const D: usize> Tensor<D, Float>
     /// }
     /// ```
     pub fn atan2(self, other: Self) -> Self {
-        Tensor::new(Float::atan2(self.primitive, other.primitive))
+        Tensor::new(atan2_impl(self.primitive, other.primitive))
     }
 }
 
@@ -1090,28 +1090,6 @@ where
     pub fn atanh(self) -> Self {
         Tensor::new(K::atanh(self.primitive))
     }
-
-    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
-    ///
-    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
-    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example() {
-    ///     let device = Default::default();
-    ///
-    ///     let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
-    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
-    /// }
-    /// ```
-    pub fn atan2(self, other: Self) -> Self {
-        Tensor::new(K::atan2(self.primitive, other.primitive))
-    }
 }
 
 // =========================================================================
@@ -1235,7 +1213,7 @@ fn cross_impl(p: BridgeTensor, other: BridgeTensor, dim: usize) -> BridgeTensor 
     ))
 }
 
-fn powf_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+pub(crate) fn powf_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
     let (lkind, lhs) = lhs.into_parts();
     let (rkind, rhs) = rhs.into_parts();
     match (lkind, rkind) {
@@ -1264,7 +1242,7 @@ fn powf_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
     }
 }
 
-fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
+pub(crate) fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
     let (kind, lhs) = p.into_parts();
     match kind {
         BridgeKind::Float => BridgeTensor::float(Dispatch::float_powf_scalar(lhs, rhs)),
@@ -1274,6 +1252,31 @@ fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         },
         _ => panic!("Should be Float primitive kind"),
     }
+}
+
+pub(crate) fn atan2_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    let (lkind, lhs) = lhs.into_parts();
+    let (rkind, rhs) = rhs.into_parts();
+    let (lhs,rhs)=match (lkind, rkind) {
+        (BridgeKind::Float, BridgeKind::Float) => {
+            (lhs, rhs)
+        }
+        (BridgeKind::QFloat, BridgeKind::QFloat) =>{
+            let dtype =Dispatch::float_device(&lhs).settings().float_dtype.into();
+            (Dispatch::dequantize(lhs, dtype),
+             Dispatch::dequantize(rhs, dtype))
+        },
+        (BridgeKind::QFloat, BridgeKind::Float) => {
+            let dtype = rhs.dtype();
+            (Dispatch::dequantize(lhs, dtype.into()), rhs)
+        }
+        (BridgeKind::Float, BridgeKind::QFloat) => {
+            let dtype = lhs.dtype();
+            (lhs, Dispatch::dequantize(rhs, dtype.into()))
+        }
+        _ => panic!("Should be Float primitive kind"),
+    };
+    BridgeTensor::float(Dispatch::float_atan2(lhs, rhs))
 }
 
 #[cfg(feature = "distributed")]

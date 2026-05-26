@@ -22,7 +22,7 @@ fn main() {
     let mut webgpu = cfg!(feature = "webgpu");
 
     let complex = cfg!(feature = "complex");
-    let autodiff = cfg!(feature = "autodiff");
+    let mut autodiff = cfg!(feature = "autodiff");
     let fusion = cfg!(feature = "fusion");
 
     // Detect which single wgpu backend is enabled
@@ -61,7 +61,7 @@ fn main() {
                 "cargo:warning=Backend Decorators that don't support complex values are enabled: [{}]. This will result in complile time errors.",
                 enabled.join(", "),
             );
-            
+            autodiff = false;
             
         }
     }

@@ -1,8 +1,7 @@
 use super::{RouterTensor, RunnerChannel, RunnerClient, get_client};
 use alloc::{format, string::String};
 use burn_backend::{
-    Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive,
-    quantization::QuantScheme,
+    Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive, UnimplementedTensorPrimitive, quantization::QuantScheme
 };
 use burn_std::Complex;
 use core::marker::PhantomData;
@@ -58,7 +57,7 @@ impl<R: RunnerChannel> BackendTypes for BackendRouter<R> {
 
     type ComplexScalar = Complex<R::FloatElem>;
 
-    type ComplexTensorPrimitive = RouterTensor<R::Client>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<R::Client>;
 
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
 

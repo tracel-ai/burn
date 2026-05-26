@@ -61,7 +61,7 @@ distributed = [
 
 # Backends
 cuda = ["burn-cuda"]
-flex = ["burn-flex", "complex"]
+flex = ["burn-flex"]
 rocm = ["burn-rocm"]
 ndarray = [] # default
 tch = ["burn-tch"]
@@ -74,7 +74,7 @@ autodiff = ["burn-autodiff"]
 remote = ["std", "burn-remote"]
 remote-server = ["remote", "burn-remote/server"]
 # until interleaved complex support is available globally
-complex = []
+#complex = []
 
 # Backend features
 autotune = [

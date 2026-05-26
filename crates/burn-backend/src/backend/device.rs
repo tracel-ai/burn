@@ -346,7 +346,7 @@ fn initialize_unchecked<D: DeviceOps>(
     DeviceSettingsRegistry::init(device, settings)
 }
 
-/// For use with types where support for backend is either not yet implemented or not supported, such as interleaved complex values and eventaully quaternions
+/// For use with types where ops exist outside of the core backend and support for the dype is not yet universal.
 pub trait TypedDevice<B: BackendTypes> {
     /// Gets the device of the tensor.
     ///

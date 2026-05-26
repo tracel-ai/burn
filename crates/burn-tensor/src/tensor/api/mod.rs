@@ -31,3 +31,6 @@ pub use transaction::*;
 mod extension;
 #[cfg(feature = "extension")]
 pub use extension::*;
+
+pub (crate) use float::{atan2_impl, powf_impl, powf_scalar_impl};
+pub (crate) use bool::{bool_not_impl, bool_and_impl, bool_or_impl};

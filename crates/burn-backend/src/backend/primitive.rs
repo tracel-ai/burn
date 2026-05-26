@@ -12,19 +12,19 @@ pub enum TensorPrimitive<B: BackendTypes> {
 }
 
 /// a Placeholder primitive for tensor types that are not yet supported by a backend.
-#[derive(Debug, Clone)]
-pub struct UnimplementedTensorPrimitive<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> {
+#[derive(Clone)]
+pub struct UnimplementedTensorPrimitive<E: Clone + Send + Sync + 'static> {
     _elem: core::marker::PhantomData<E>,
 }
 
-impl<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> UnimplementedTensorPrimitive<E> {
+impl<E: Clone + Send + Sync + 'static> UnimplementedTensorPrimitive<E> {
     /// Stub method that panics with a message indicating that the given tensor type is not yet supported for the backend associated with the device.
     pub fn device(&self) -> ! {
         unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
     }
 }
 
-impl<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> TensorMetadata
+impl<E: Clone + Send + Sync + 'static> TensorMetadata
     for UnimplementedTensorPrimitive<E>
 {
     fn dtype(&self) -> DType {
@@ -33,6 +33,13 @@ impl<E: alloc::fmt::Debug + Clone + Send + Sync + 'static> TensorMetadata
 
     fn shape(&self) -> Shape {
         unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+}
+
+
+impl<E: Clone + Send + Sync + 'static> core::fmt::Debug for UnimplementedTensorPrimitive<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "placeholder tensor primitive for {}", core::any::type_name::<E>())
     }
 }
 

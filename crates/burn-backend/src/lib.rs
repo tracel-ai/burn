@@ -16,10 +16,10 @@ pub use backend::*;
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
 pub use burn_std::{
-    AllocationProperty, BoolDType, BoolStore, Bytes, DType, DataError, DeviceHandle, Distribution,
+    AllocationProperty,ComplexDType, BoolDType, BoolStore, Bytes, DType, DataError, DeviceHandle, Distribution,
     DistributionSampler, DistributionSamplerKind, Element, ElementConversion, ElementEq,
     ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar, TensorData, Tolerance, bf16,
-    complex_utils, distribution, element, f16, stream_id::StreamId,
+    complex_utils, distribution, element, f16, stream_id::StreamId,Complex
 };
 
 /// Shape definition.

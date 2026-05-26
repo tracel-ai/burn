@@ -1,6 +1,5 @@
 use burn_std::{
-    ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice,
-    SplitTensorData, TensorData,
+    Complex, ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice, SplitTensorData, TensorData
 };
 
 use crate::{
@@ -105,7 +104,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         shape: Shape,
         distribution: Distribution,
         device: &Device<B>,
-        dtype: FloatDType,
+        dtype: ComplexDType,
     ) -> ComplexTensor<B>;
 
     /// Creates a new complex tensor with zeros.
@@ -147,8 +146,8 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the given shape and value.
-    fn complex_full(shape: Shape, fill_value: Scalar, device: &Device<B>) -> ComplexTensor<B> {
-        B::Layout::full(shape, fill_value, device)
+    fn complex_full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+        B::Layout::full(shape, fill_value, device, dtype)
     }
 
     /// Gets the shape of the tensor.
@@ -1082,17 +1081,24 @@ where
 {
     type OutTensorData = TensorData;
 
-    fn ones(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(TensorData::ones::<B::ComplexScalar, _>(shape), device)
+    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+        B::complex_from_interleaved_data(match dtype{
+            ComplexDType::Complex64 => TensorData::ones::<Complex<f64>, _>(shape),
+            ComplexDType::Complex32 => TensorData::ones::<Complex<f32>, _>(shape),
+        }, device)
     }
 
-    fn zeros(shape: Shape, device: &Device<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(TensorData::zeros::<B::ComplexScalar, _>(shape), device)
+    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+        B::complex_from_interleaved_data(match dtype{
+            ComplexDType::Complex64 => TensorData::zeros::<Complex<f64>, _>(shape),
+            ComplexDType::Complex32 => TensorData::zeros::<Complex<f32>, _>(shape),
+        }, device)
     }
 
-    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>) -> ComplexTensor<B> {
+    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+
         B::complex_from_interleaved_data(
-            TensorData::full::<B::ComplexScalar, _>(shape, fill_value.elem()),
+            TensorData::full_dtype(shape, fill_value, dtype.into()),
             device,
         )
     }

@@ -65,6 +65,17 @@ impl Scalar {
             Scalar::Complex(_) => None,
         }
     }
+
+    /// Converts the scalar to a complex scalar.
+    pub fn to_complex(self) -> Self {
+        match self {
+            Scalar::Float(x) => Scalar::Complex(Complex::new(x, 0.0)),
+            Scalar::Int(x) => Scalar::Complex(Complex::new(x as f64, 0.0)),
+            Scalar::UInt(x) => Scalar::Complex(Complex::new(x as f64, 0.0)),
+            Scalar::Bool(x) => Scalar::Complex(Complex::new(x as u8 as f64, 0.0)),
+            Scalar::Complex(_) => self,
+        }
+    }
 }
 
 macro_rules! impl_from_scalar {

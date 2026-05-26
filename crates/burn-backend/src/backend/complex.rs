@@ -125,7 +125,7 @@ pub trait DefaultComplexOps<B: ComplexTensorBackend> {
     type OutTensorData;
     fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
     fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
-    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>) -> ComplexTensor<B>;
+    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
     fn complex_into_data(
         tensor: ComplexTensor<B>,
     ) -> impl Future<Output = Result<Self::OutTensorData, ExecutionError>> + Send;

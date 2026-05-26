@@ -7,7 +7,7 @@ const fn complex_panic_message() -> &'static str {
 
 impl<B, C> ComplexTensorBackend for B
 where
-    B: Backend + BackendTypes<ComplexScalar = C, ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
+    B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
     C: core::fmt::Debug + Clone + Send + Sync + 'static,
 {
 
@@ -42,7 +42,7 @@ where
 
 impl<B, C> ComplexTensorOps<B> for B
 where
-    B: Backend + BackendTypes<ComplexScalar = C, ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
+    B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
     C: core::fmt::Debug + Clone + Send + Sync + 'static,
 {
     async fn complex_into_real_data(
@@ -81,7 +81,7 @@ where
         _shape: burn_std::Shape,
         _distribution: burn_std::Distribution,
         _device: &crate::tensor::Device<B>,
-        _dtype: burn_std::FloatDType,
+        _dtype: burn_std::ComplexDType,
     ) -> crate::ComplexTensor<B> {
         panic!("{}",complex_panic_message())
     }

@@ -7,7 +7,7 @@ use burn_backend::{
 use burn_backend::{Element, TensorData};
 
 use burn_std::cast::ToElement;
-use burn_std::{BoolDType, Complex, DType, FloatDType, Scalar, Slice, SplitTensorData};
+use burn_std::{BoolDType, Complex, ComplexDType, DType, Scalar, Slice, SplitTensorData};
 use num_traits::ToPrimitive;
 use num_traits::Zero;
 
@@ -304,15 +304,15 @@ impl ComplexTensorOps<Flex> for Flex {
         shape: burn_std::Shape,
         distribution: Distribution,
         _device: &Device<Flex>,
-        dtype: FloatDType,
+        dtype: ComplexDType,
     ) -> ComplexTensor<Flex> {
         let mut seed = crate::backend::SEED.lock().unwrap();
         let mut rng = seed.take().unwrap_or_else(crate::backend::get_seeded_rng);
         let data = match dtype {
-            FloatDType::F32 => {
+            ComplexDType::Complex32 => {
                 TensorData::random::<Complex<f32>, _, _>(shape, distribution, &mut rng)
             }
-            FloatDType::F64 => {
+            ComplexDType::Complex64 => {
                 TensorData::random::<Complex<f64>, _, _>(shape, distribution, &mut rng)
             }
             _ => panic!("select: unsupported dtype {:?}", dtype),

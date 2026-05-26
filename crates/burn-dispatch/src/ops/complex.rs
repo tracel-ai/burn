@@ -3,6 +3,7 @@ use burn_backend::{
     BoolDType, ComplexDType, ExecutionError, IntDType, Scalar, Shape, Slice, TensorData, TypedDevice, ops::ComplexTensorOps, tensor::{BoolTensor, ComplexTensor, IntTensor}
 };
 
+
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
 
@@ -29,13 +30,6 @@ impl ComplexTensorOps<Self> for Dispatch {
         unary_complex!(tensor, complex, |tensor| B::complex_into_data(tensor).await)
     }
 
-    fn complex_device(tensor: &ComplexTensor<Self>) -> DispatchDevice {
-        // println!("complex_device: {tensor:?}");
-        // let device = tensor.device();
-        // println!("  {device:?}");
-        // device
-        tensor.device()
-    }
 
     fn complex_to_device(
         tensor: ComplexTensor<Self>,
@@ -180,7 +174,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         value: ComplexTensor<Self>,
     ) -> ComplexTensor<Self> {
         multi_op!(
-            inputs[(tensor, float), (indices, int), (value, float)], => Complex,
+            inputs[(tensor, complex), (indices, int), (value, complex)], => Complex,
             B::complex_select_add(tensor, dim, indices, value)
         )
     }
@@ -194,7 +188,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         slices: &[Slice],
         value: ComplexTensor<Self>,
     ) -> ComplexTensor<Self> {
-        binary_complex!((tensor, float), (value, float), |tensor, value| B::complex_slice_assign(tensor, slices, value) => Complex)
+        binary_complex!((tensor, complex), (value, complex), |tensor, value| B::complex_slice_assign(tensor, slices, value) => Complex)
     }
 
     fn complex_mask_where(
@@ -203,7 +197,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         value: ComplexTensor<Self>,
     ) -> ComplexTensor<Self> {
         multi_op!(
-            inputs[(tensor, float), (mask, bool), (value, float)], => Complex,
+            inputs[(tensor, complex), (mask, bool), (value, complex)], => Complex,
             B::complex_mask_where(tensor, mask, value)
         )
     }
@@ -213,7 +207,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         mask: BoolTensor<Self>,
         value: Scalar,
     ) -> ComplexTensor<Self> {
-        binary_complex!((tensor, float), (mask, bool), |tensor, mask| B::complex_mask_fill(tensor, mask, value) => Complex)
+        binary_complex!((tensor, complex), (mask, bool), |tensor, mask| B::complex_mask_fill(tensor, mask, value) => Complex)
     }
 
     fn complex_equal(
@@ -221,7 +215,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         rhs: ComplexTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_equal(lhs, rhs, out_dtype) => Bool)
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_equal(lhs, rhs, out_dtype) => Bool)
     }
 
     fn complex_equal_elem(
@@ -363,7 +357,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         dtype: ComplexDType,
     ) -> ComplexTensor<Self> {
         creation_op!(Complex, device, |device| B::complex_full(
-            shape, fill_value, device
+            shape, fill_value, device, dtype
         ))
     }
 

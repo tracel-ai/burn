@@ -14,7 +14,7 @@ use burn_backend::element::Complex;
 use burn_backend::quantization::QuantScheme;
 use burn_backend::tensor::{Device, QuantizedTensor};
 use burn_backend::{
-    AutodiffBackend, Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive, TypedDevice, UnimplementedTensorPrimitive
+    AutodiffBackend, Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive, TypedDevice
 };
 
 #[cfg(feature = "autodiff")]
@@ -107,23 +107,23 @@ impl BackendTypes for Dispatch {
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
-    #[cfg(not(feature = "complex"))]
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<f32>>;
-    #[cfg(feature = "complex")]
+    // #[cfg(not(feature = "complex"))]
+    // type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<f32>>;
+    // #[cfg(feature = "complex")]
     type ComplexTensorPrimitive = DispatchTensor;
     // We still need this for split ops
     type ComplexScalar = Complex<f32>;
 }
 
 impl TypedDevice<Self> for Dispatch {
-    #[cfg(feature = "complex")]
+    //#[cfg(feature = "complex")]
     fn complex_device(tensor: &burn_backend::ComplexTensor<Self>) -> DispatchDevice {
         tensor.device()
     }
-    #[cfg(not(feature = "complex"))]
-    fn complex_device(_tensor: &burn_backend::ComplexTensor<Self>) -> DispatchDevice {
-        panic!("interleaved complex tensors not yet supported for the selected backend")
-    }
+    // #[cfg(not(feature = "complex"))]
+    // fn complex_device(_tensor: &burn_backend::ComplexTensor<Self>) -> DispatchDevice {
+    //     panic!("interleaved complex tensors not yet supported for the selected backend")
+    // }
 }
 
 impl Backend for Dispatch {

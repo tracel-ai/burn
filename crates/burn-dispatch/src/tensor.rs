@@ -1,10 +1,10 @@
 use crate::backends::*;
 
 use burn_backend::{
-    Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
+    Backend, BackendTypes, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme
 };
-#[cfg(feature = "complex")]
-use burn_backend::{BackendTypes, ComplexTensorBackend, tensor};
+//#[cfg(feature = "complex")]
+use burn_backend::{ComplexTensorBackend, tensor};
 
 use crate::CheckpointingStrategy;
 #[cfg(feature = "autodiff")]
@@ -15,24 +15,7 @@ use burn_backend::tensor::FloatTensor;
 // TODO: if we reduce the different associated types for float/int/bool/quantized tensor primitives down to a single
 // `B::TensorPrimitive` we can simplify this.
 
-#[cfg(not(feature = "complex"))]
-/// Tensor which points to a backend tensor primitive kind.
-#[derive(Clone, Debug)]
-pub enum BackendTensor<B: Backend> {
-    /// Float tensor handle.
-    Float(B::FloatTensorPrimitive),
-    /// Int tensor handle.
-    Int(B::IntTensorPrimitive),
-    /// Bool tensor handle.
-    Bool(B::BoolTensorPrimitive),
-    /// Quantized tensor handle.
-    Quantized(B::QuantizedTensorPrimitive),
-    #[cfg(feature = "autodiff")]
-    /// Autodiff float tensor handle.
-    Autodiff(FloatTensor<Autodiff<B>>),
-}
 
-#[cfg(feature = "complex")]
 /// Tensor which points to a backend tensor primitive kind.
 #[derive(Clone, Debug)]
 pub enum BackendTensor<B: BackendTypes> {
@@ -47,7 +30,7 @@ pub enum BackendTensor<B: BackendTypes> {
     #[cfg(feature = "autodiff")]
     /// Autodiff float tensor handle.
     Autodiff(FloatTensor<Autodiff<B>>),
-    #[cfg(feature = "complex")]
+    //#[cfg(feature = "complex")]
     /// Complex tensor handle.
     Complex(B::ComplexTensorPrimitive),
 }
@@ -62,7 +45,7 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
-            #[cfg(feature = "complex")]
+            //#[cfg(feature = "complex")]
             BackendTensor::Complex(_) => panic!("Should be float, got complex"),
         }
     }
@@ -75,7 +58,7 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
-            #[cfg(feature = "complex")]
+            //#[cfg(feature = "complex")]
             BackendTensor::Complex(_) => panic!("Should be float, got complex"),
         }
     }
@@ -89,7 +72,7 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be int, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be int, got autodiff"),
-            #[cfg(feature = "complex")]
+            //#[cfg(feature = "complex")]
             BackendTensor::Complex(_) => panic!("Should be int, got complex"),
         }
     }
@@ -103,7 +86,7 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(_) => panic!("Should be bool, got quantized"),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => panic!("Should be bool, got autodiff"),
-            #[cfg(feature = "complex")]
+            //#[cfg(feature = "complex")]
             BackendTensor::Complex(_) => panic!("Should be bool, got complex"),
         }
     }
@@ -143,7 +126,13 @@ impl<B: Backend> BackendTensor<B> {
             _ => unreachable!(),
         }
     }
-    #[cfg(not(feature = "complex"))]
+
+    pub fn complex(self) -> B::ComplexTensorPrimitive {
+        match self {
+            BackendTensor::Complex(tensor) => tensor,
+            _ => unreachable!(),
+        }
+    }
     /// Returns the backend device.
     pub(crate) fn device(&self) -> B::Device {
         match self {
@@ -153,26 +142,8 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(tensor) => B::q_device(tensor),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => B::float_device(&tensor.primitive),
-        }
-    }
-}
-#[cfg(feature = "complex")]
-impl<B: Backend> BackendTensor<B> {
-    pub(crate) fn device(&self) -> B::Device {
-        match self {
-            BackendTensor::Float(tensor) => B::float_device(tensor),
-            BackendTensor::Int(tensor) => B::int_device(tensor),
-            BackendTensor::Bool(tensor) => B::bool_device(tensor),
-            BackendTensor::Quantized(tensor) => B::q_device(tensor),
-            #[cfg(feature = "autodiff")]
-            BackendTensor::Autodiff(tensor) => B::float_device(&tensor.primitive),
+            //#[cfg(feature = "complex")]
             BackendTensor::Complex(tensor) => B::complex_device(tensor),
-        }
-    }
-    pub(crate) fn complex(self) -> B::ComplexTensorPrimitive {
-        match self {
-            BackendTensor::Complex(tensor) => tensor,
-            _ => unreachable!(),
         }
     }
 }
@@ -186,7 +157,7 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.dtype(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.dtype(),
-            #[cfg(feature = "complex")]
+            //#[cfg(feature = "complex")]
             BackendTensor::Complex(tensor) => tensor.dtype(),
         }
     }
@@ -199,7 +170,7 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
             BackendTensor::Quantized(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => tensor.shape(),
-            #[cfg(feature = "complex")]
+            //#[cfg(feature = "complex")]
             BackendTensor::Complex(tensor) => tensor.shape(),
         }
     }

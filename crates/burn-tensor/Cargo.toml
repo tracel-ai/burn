@@ -36,7 +36,7 @@ cubecl-cpu = ["burn-backend/cubecl-cpu"]
 # Backends
 cuda = ["burn-dispatch/cuda"]
 rocm = ["burn-dispatch/rocm"]
-flex = ["burn-dispatch/flex", "complex"]
+flex = ["burn-dispatch/flex"]#, "complex"]
 ndarray = ["burn-dispatch/ndarray"]
 tch = ["burn-dispatch/tch"]
 vulkan = ["burn-dispatch/vulkan"]
@@ -47,7 +47,7 @@ cpu = ["burn-dispatch/cpu"]
 autodiff = ["burn-dispatch/autodiff"]
 remote = ["std", "burn-dispatch/remote"]
 server = ["remote", "burn-dispatch/remote-server"]
-complex = []
+#complex = []
 
 # For backend extensions
 extension = []

@@ -269,7 +269,7 @@ impl BasicOps for ComplexKind {
 }
 
 /// Operations that are specific to complex tensors and have no analogue for real tensors.
-pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
+pub trait ComplexOnlyOps {
     /// Computes the complex conjugate of each element, negating the imaginary part.
     ///
     /// # Arguments
@@ -279,7 +279,7 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A new tensor where each element `a + bi` is replaced by `a - bi`.
-    fn conj(self) -> C::ComplexTensorPrimitive;
+    fn conj(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Computes the phase angle (argument) of each complex element, in radians.
     ///
@@ -291,7 +291,7 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
     ///
     /// A real-valued tensor containing the angle `atan2(im, re)` for each element,
     /// in the range `(-π, π]`.
-    fn phase(self) -> C::FloatTensorPrimitive;
+    fn phase(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Extracts the real part of each complex element.
     ///
@@ -302,7 +302,7 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A real-valued tensor containing the real component of each element.
-    fn real(self) -> C::FloatTensorPrimitive;
+    fn real(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Extracts the imaginary part of each complex element.
     ///
@@ -313,7 +313,7 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A real-valued tensor containing the imaginary component of each element.
-    fn imag(self) -> C::FloatTensorPrimitive;
+    fn imag(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Computes the magnitude (absolute value) of each complex element.
     ///
@@ -324,7 +324,7 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A real-valued tensor containing `sqrt(re² + im²)` for each element.
-    fn magnitude(self) -> C::FloatTensorPrimitive;
+    fn magnitude(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Creates a complex tensor by combining separate real and imaginary part tensors.
     ///
@@ -362,51 +362,51 @@ pub trait ComplexOnlyOps<C: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A complex tensor with the same shape as the inputs.
-    fn from_polar(magnitude: C::FloatTensorPrimitive, phase: C::FloatTensorPrimitive) -> Self;
+    fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> Self;
 }
 
 impl ComplexOnlyOps for ComplexKind {
-    fn conj(self) -> C::ComplexTensorPrimitive {
-        BridgeTensor::complex(burn_dispatch::DispatchTensor::from(C::conj(
-            self.into_primitive(),
+    fn conj(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(burn_dispatch::DispatchTensor::from(Dispatch::complex_conj(
+            tensor,
         )))
     }
-    fn phase(self) -> BridgeTensor {
-        BridgeTensor::complex(burn_dispatch::DispatchTensor::from(C::phase(
+    fn phase(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(burn_dispatch::DispatchTensor::from(Dispatch::complex_phase(
             self.into_primitive(),
         )))
     }
 
-    fn from_interleaved_data(data: TensorData, device: &Device) -> Tensor<D, ComplexKind> {
+    fn from_interleaved_data(data: TensorData, device: &Device) -> BridgeTensor {
         BridgeTensor::complex(burn_dispatch::DispatchTensor::from(
-            C::complex_from_interleaved_data(data, device.into()),
+            Dispatch::complex_complex_from_interleaved_data(data, device.into()),
         ))
     }
 
-    fn real(self) -> BridgeTensor {
+    fn real(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(burn_dispatch::DispatchTensor::complex_real(
             self.into_primitive(),
         ))
     }
 
-    fn imag(self) -> BridgeTensor {
+    fn imag(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(burn_dispatch::DispatchTensor::complex_imag(
             self.into_primitive(),
         ))
     }
 
-    fn magnitude(self) -> BridgeTensor {
-        C::abs(self.into_primitive())
+    fn magnitude(tensor: BridgeTensor) -> BridgeTensor {
+        Dispatch::complex_abs(self.into_primitive())
     }
 
     fn from_parts<T>(real: T, imag: T) -> Self
     where
         T: Into<TensorData>,
     {
-        Self::new(C::complex_from_parts(real.into(), imag.into()))
+        Dispatch::complex_from_parts(real.into(), imag.into())
     }
     fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> Self {
-        Self::new(C::complex_from_polar(magnitude, phase))
+        Dispatch::complex_from_polar(magnitude, phase)
     }
 }
 
