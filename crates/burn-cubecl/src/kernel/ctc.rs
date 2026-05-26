@@ -181,7 +181,7 @@ fn ctc_loss_kernel<F: Float, I: Numeric>(
     // to the active region after a sync. This avoids RAW hazards across stride
     // batches in the t-loop (a thread writing alpha[s] races with another
     // thread still reading alpha[s-1] or alpha[s-2] for its own s).
-    let mut alpha = Shared::<[F]>::new_slice(2 * alpha_cap);
+    let mut alpha = Shared::new_slice(2 * alpha_cap);
     // Sentinel for unreachable states. f16 caps at ~65504 magnitude, so we
     // can't go lower than `-6e4` without blowing past that range; WGSL also
     // rejects `f32(-inf)` as an identifier, so a real -inf literal isn't an
@@ -413,7 +413,7 @@ fn ctc_alpha_beta_kernel<F: Float, I: Numeric>(
     // reads are guarded by `s + 1 < l_prime_len` / `s + 2 < l_prime_len`, so the
     // residual alpha values sitting in the active row between phases are never
     // observed by beta (its boundary init overwrites every slot it reads).
-    let mut state = Shared::<[F]>::new_slice(2 * alpha_cap);
+    let mut state = Shared::new_slice(2 * alpha_cap);
     // Sentinel for unreachable states. See ctc_loss_kernel for the full
     // rationale: f16's 65504 magnitude cap forces the -6e4 floor, WGSL
     // rejects f32(-inf) literals, and the threshold catches sentinel drift.
