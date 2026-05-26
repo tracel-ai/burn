@@ -6,14 +6,44 @@ use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use burn_core::tensor::{Bool, Int};
 
 #[allow(unused)]
-#[cfg(all(test, feature = "flex", not(any(feature = "wgpu", feature = "cuda"))))]
+#[cfg(all(
+    test,
+    feature = "flex",
+    not(any(
+        feature = "wgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "webgpu",
+        feature = "cuda",
+        feature = "rocm",
+        feature = "cpu",
+        feature = "tch"
+    ))
+))]
 pub type TestDevice = burn_core::backend::FlexDevice;
 
-#[cfg(all(test, feature = "wgpu"))]
+#[cfg(all(
+    test,
+    any(
+        feature = "wgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "webgpu"
+    )
+))]
 pub type TestDevice = burn_core::backend::WgpuDevice;
 
 #[cfg(all(test, feature = "cuda"))]
 pub type TestDevice = burn_core::backend::CudaDevice;
+
+#[cfg(all(test, feature = "cpu"))]
+pub type TestDevice = burn_core::backend::CpuDevice;
+
+#[cfg(all(test, feature = "rocm"))]
+pub type TestDevice = burn_core::backend::RocmDevice;
+
+#[cfg(all(test, feature = "tch"))]
+pub type TestDevice = burn_core::backend::LibTorchDevice;
 
 pub use burn_core::tensor::Tensor;
 pub type TestTensorInt<const D: usize> = Tensor<D, Int>;

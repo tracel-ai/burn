@@ -1,6 +1,8 @@
 use burn_core::Tensor;
 use burn_core::data::dataloader::Progress;
+use burn_core::tensor::Device;
 use burn_rl::Policy;
+use burn_rl::ToObservation;
 use burn_rl::Transition;
 use burn_rl::{Environment, EnvironmentInit};
 
@@ -92,6 +94,8 @@ pub trait AgentEnvLoop<RLC: RLComponentsTypes> {
     fn update_policy(&mut self, update: RLC::PolicyState);
     /// Get the state of the runner's agent.
     fn policy(&self) -> RLC::PolicyState;
+    /// Returns the device on which the runner's agent runs.
+    fn device(&self) -> Device;
 }
 
 /// A simple, synchronized agent/environement interface.
@@ -103,6 +107,7 @@ pub struct AgentEnvBaseLoop<RLC: RLComponentsTypes> {
     current_reward: f64,
     run_num: usize,
     step_num: usize,
+    device: Device,
 }
 
 impl<RLC: RLComponentsTypes> AgentEnvBaseLoop<RLC> {
@@ -112,7 +117,9 @@ impl<RLC: RLComponentsTypes> AgentEnvBaseLoop<RLC> {
         agent: RLC::Policy,
         eval: bool,
         deterministic: bool,
+        device: &Device,
     ) -> Self {
+        let agent = agent.to_device(device);
         let mut env = env_init.init();
         env.reset();
 
@@ -124,6 +131,7 @@ impl<RLC: RLComponentsTypes> AgentEnvBaseLoop<RLC> {
             current_reward: 0.0,
             run_num: 0,
             step_num: 0,
+            device: device.clone(),
         }
     }
 }
@@ -143,7 +151,10 @@ where
         let device = Default::default();
         for _ in 0..num_steps {
             let state = self.env.state();
-            let (action, context) = self.agent.action(state.clone().into(), self.deterministic);
+            let (action, context) = self.agent.action(
+                state.clone().to_observation(&self.device),
+                self.deterministic,
+            );
 
             let step_result = self.env.step(RLC::Action::from(action.clone()));
 
@@ -260,6 +271,10 @@ where
     fn policy(&self) -> RLC::PolicyState {
         self.agent.state()
     }
+
+    fn device(&self) -> Device {
+        self.device.clone()
+    }
 }
 
 #[cfg(test)]
@@ -276,7 +291,13 @@ mod tests {
     fn setup(state: usize, eval: bool, deterministic: bool) -> AgentEnvBaseLoop<MockRLComponents> {
         let env_init = MockEnvInit;
         let agent = MockPolicy(state);
-        AgentEnvBaseLoop::<MockRLComponents>::new(env_init, agent, eval, deterministic)
+        AgentEnvBaseLoop::<MockRLComponents>::new(
+            env_init,
+            agent,
+            eval,
+            deterministic,
+            &Default::default(),
+        )
     }
 
     #[test]

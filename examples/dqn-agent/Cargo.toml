@@ -1,21 +1,17 @@
 [package]
 name = "dqn-agent"
 edition.workspace = true
-license.workspace = true
-readme.workspace = true
-version.workspace = true
+version = "0.22.0-pre.1"
 
 [features]
-default = ["burn/tui"]
-flex = ["burn/flex"]
+default = ["burn/default", "burn/tui"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-remote = ["burn/remote"]
-wgpu = ["burn/wgpu", "burn/default"]
-metal = ["burn/metal", "burn/default"]
+wgpu = ["burn/wgpu"]
+metal = ["burn/metal"]
 cuda = ["burn/cuda"]
-vulkan = ["burn/vulkan", "burn/default"]
-rocm = ["burn/rocm", "burn/default"]
+vulkan = ["burn/vulkan"]
+rocm = ["burn/rocm"]
 
 [dependencies]
 # Disable autotune default for now.
@@ -24,9 +20,8 @@ burn = { workspace = true, features = [
     "metrics",
     "std",
     "rl",
-    # "fusion",
+    "fusion",
     "flex",
-    # "autotune",
 ] }
 # Just for this example.
 gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }
