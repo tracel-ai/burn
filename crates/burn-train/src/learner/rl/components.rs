@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_rl::{Batchable, Environment, EnvironmentInit, Policy, PolicyLearner, PolicyState};
+use burn_rl::{
+    Batchable, Environment, EnvironmentInit, Policy, PolicyLearner, PolicyState, ToAction,
+    ToObservation,
+};
 
 use crate::{AgentEvaluationEvent, AsyncProcessorTraining, ItemLazy, RLEvent};
 
@@ -11,10 +14,10 @@ pub trait RLComponentsTypes {
     /// Specifies how to initialize the environment.
     type EnvInit: EnvironmentInit<Self::Env> + Send + 'static;
     /// The type of the environment state.
-    type State: Into<<Self::Policy as Policy>::Observation> + Clone + Send + 'static;
+    type State: ToObservation<<Self::Policy as Policy>::Observation> + Clone + Send + 'static;
     /// The type of the environment action.
     type Action: From<<Self::Policy as Policy>::Action>
-        + Into<<Self::Policy as Policy>::Action>
+        + ToAction<<Self::Policy as Policy>::Action>
         + Clone
         + Send
         + 'static;
@@ -66,9 +69,9 @@ where
     <A::InnerPolicy as Policy>::Action: Batchable + Clone + Send,
     <A::InnerPolicy as Policy>::ActionContext: ItemLazy + Clone + Send + 'static,
     <A::InnerPolicy as Policy>::PolicyState: Clone + Send,
-    E::State: Into<<A::InnerPolicy as Policy>::Observation> + Clone + Send + 'static,
+    E::State: ToObservation<<A::InnerPolicy as Policy>::Observation> + Clone + Send + 'static,
     E::Action: From<<A::InnerPolicy as Policy>::Action>
-        + Into<<A::InnerPolicy as Policy>::Action>
+        + ToAction<<A::InnerPolicy as Policy>::Action>
         + Clone
         + Send
         + 'static,

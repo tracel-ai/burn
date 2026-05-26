@@ -1,104 +1,40 @@
-#[cfg(feature = "flex")]
-mod flex {
-    use burn::backend::{Autodiff, Flex};
-    use dqn_agent::training;
+use burn::tensor::Device;
 
-    pub fn run() {
-        training::run::<Autodiff<Flex>>(Default::default());
-    }
-}
+#[allow(unreachable_code)]
+fn select_device() -> Device {
+    #[cfg(not(any(
+        feature = "tch-gpu",
+        feature = "tch-cpu",
+        feature = "wgpu",
+        feature = "metal",
+        feature = "vulkan",
+        feature = "rocm",
+        feature = "cuda",
+    )))]
+    return Device::flex();
 
-#[cfg(feature = "tch-gpu")]
-mod tch_gpu {
-    use burn::backend::{
-        Autodiff,
-        libtorch::{LibTorch, LibTorchDevice},
-    };
-    use dqn_agent::training;
+    #[cfg(all(feature = "tch-gpu", not(target_os = "macos")))]
+    return Device::libtorch_cuda(burn::tensor::DeviceIndex::Default);
 
-    pub fn run() {
-        #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
-        #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+    #[cfg(all(feature = "tch-gpu", target_os = "macos"))]
+    return Device::libtorch_mps();
 
-        training::run::<Autodiff<LibTorch>>(device);
-    }
-}
+    #[cfg(feature = "tch-cpu")]
+    return Device::libtorch();
 
-#[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
-mod wgpu {
-    use burn::backend::{
-        Autodiff,
-        wgpu::{Wgpu, WgpuDevice},
-    };
-    use dqn_agent::training;
+    #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
+    return Device::wgpu(burn::tensor::DeviceKind::DefaultDevice);
 
-    pub fn run() {
-        let device = WgpuDevice::default();
-        training::run::<Autodiff<Wgpu>>(device);
-    }
-}
+    #[cfg(feature = "cuda")]
+    return Device::cuda(burn::tensor::DeviceIndex::Default);
 
-#[cfg(feature = "cuda")]
-mod cuda {
-    use burn::backend::{Autodiff, Cuda};
-    use dqn_agent::training;
+    #[cfg(feature = "rocm")]
+    return Device::rocm(burn::tensor::DeviceIndex::Default);
 
-    pub fn run() {
-        let device = Default::default();
-        training::run::<Autodiff<Cuda>>(device);
-    }
-}
-
-#[cfg(feature = "rocm")]
-mod rocm {
-    use burn::backend::{Autodiff, Rocm};
-    use dqn_agent::training;
-
-    pub fn run() {
-        let device = Default::default();
-        training::run::<Autodiff<Rocm>>(device);
-    }
-}
-
-#[cfg(feature = "tch-cpu")]
-mod tch_cpu {
-    use burn::backend::{
-        Autodiff,
-        libtorch::{LibTorch, LibTorchDevice},
-    };
-    use dqn_agent::training;
-
-    pub fn run() {
-        let device = LibTorchDevice::Cpu;
-        training::run::<Autodiff<LibTorch>>(device);
-    }
-}
-
-#[cfg(feature = "remote")]
-mod remote {
-    use burn::backend::{Autodiff, RemoteBackend};
-    use dqn_agent::training;
-
-    pub fn run() {
-        training::run::<Autodiff<RemoteBackend>>(Default::default());
-    }
+    unreachable!("At least one backend will be selected.")
 }
 
 fn main() {
-    #[cfg(feature = "flex")]
-    flex::run();
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run();
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run();
-    #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
-    wgpu::run();
-    #[cfg(feature = "cuda")]
-    cuda::run();
-    #[cfg(feature = "rocm")]
-    rocm::run();
-    #[cfg(feature = "remote")]
-    remote::run();
+    let device = select_device();
+    dqn_agent::training::run(device.autodiff());
 }
