@@ -2980,7 +2980,11 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
     // Passing -1 as the size for a dimension means not changing the size of that dimension.
     fn into_shape(self, shape: &Shape) -> Shape {
         if self.len() < shape.num_dims() {
-            panic!("Broadcast arguments must be greater than the number of dimensions");
+            panic!(
+                "Broadcast arguments must be greater than the number of dimensions! got {}, need at least {}",
+                self.len(),
+                shape.num_dims()
+            );
         }
 
         // Zip the two shapes in reverse order and replace -1 with the actual dimension value.
@@ -2990,7 +2994,10 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
             .map(|x| {
                 let primitive = x.as_index();
                 if primitive < -1 || primitive == 0 {
-                    panic!("Broadcast arguments must be positive or -1");
+                    panic!(
+                        "Broadcast arguments must be positive or -1! Got {}",
+                        primitive
+                    );
                 }
                 primitive
             })
@@ -3002,7 +3009,10 @@ impl<const D1: usize, const D2: usize, E: AsIndex> BroadcastArgs<D1, D2> for [E;
             .collect();
 
         if new_shape.contains(&0) {
-            panic!("Cannot substitute -1 for a non-existing dimension");
+            panic!(
+                "Cannot substitute -1 for a non-existing dimension! Got {:?}",
+                new_shape
+            );
         }
 
         let new_shape: [usize; D2] = new_shape.try_into().unwrap();

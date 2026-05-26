@@ -8,7 +8,7 @@ const fn complex_panic_message() -> &'static str {
 impl<B, C> ComplexTensorBackend for B
 where
     B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
-    C: core::fmt::Debug + Clone + Send + Sync + 'static,
+    C: Clone + Send + Sync + 'static,
 {
 
     type InnerBackend = Self;
@@ -43,7 +43,7 @@ where
 impl<B, C> ComplexTensorOps<B> for B
 where
     B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
-    C: core::fmt::Debug + Clone + Send + Sync + 'static,
+    C: Clone + Send + Sync + 'static,
 {
     async fn complex_into_real_data(
         _tensor: crate::ComplexTensor<B>,

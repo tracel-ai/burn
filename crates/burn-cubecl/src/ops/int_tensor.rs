@@ -2,20 +2,17 @@ use self::unary_basic_int::BasicIntUnaryKind;
 use burn_backend::cubecl::dtype_to_storage_type;
 
 use super::{expand, numeric, permute, unfold};
+use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{
     BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily, launch_binop_int,
     launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
 };
 use crate::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
+    CubeBackend, CubeRuntime,
     kernel::{
         self,
         matmul::{MatmulStrategy, matmul},
     },
-};
-use crate::{
-    element::BoolElement,
-    kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
@@ -27,13 +24,7 @@ use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 
-impl<R, F, I, BT> IntTensorOps<Self> for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
     fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<Self> {
         let dtype = dtype.into();
         super::empty(shape, device, dtype)

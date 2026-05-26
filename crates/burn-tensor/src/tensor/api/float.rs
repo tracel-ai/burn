@@ -1180,17 +1180,13 @@ fn dequantize_impl(p: BridgeTensor) -> BridgeTensor {
 }
 
 fn is_nan_impl(p: BridgeTensor) -> BridgeTensor {
-    let out_dtype = Dispatch::float_device(p.as_dispatch())
-        .settings()
-        .bool_dtype;
-    BridgeTensor::bool(Dispatch::float_is_nan(p.into_float(), out_dtype))
+    let bool_dtype = p.device_settings().bool_dtype;
+    BridgeTensor::bool(Dispatch::float_is_nan(p.into_float(), bool_dtype))
 }
 
 fn is_inf_impl(p: BridgeTensor) -> BridgeTensor {
-    let out_dtype = Dispatch::float_device(p.as_dispatch())
-        .settings()
-        .bool_dtype;
-    BridgeTensor::bool(Dispatch::float_is_inf(p.into_float(), out_dtype))
+    let bool_dtype = p.device_settings().bool_dtype;
+    BridgeTensor::bool(Dispatch::float_is_inf(p.into_float(), bool_dtype))
 }
 
 fn grid_sample_2d_impl(

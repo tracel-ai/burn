@@ -161,8 +161,11 @@ impl Default for NmsOptions {
 #[cfg(feature = "flex")]
 use burn_core::backend::Flex;
 
-#[cfg(feature = "webgpu")]
+#[cfg(feature = "wgpu")]
 use burn_core::backend::Wgpu;
+
+#[cfg(feature = "webgpu")]
+use burn_core::backend::WebGpu;
 
 #[cfg(feature = "vulkan")]
 use burn_core::backend::Vulkan;
@@ -185,7 +188,8 @@ use burn_core::backend::LibTorch;
 /// Vision capable backend, implemented by each backend
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
@@ -197,7 +201,8 @@ pub trait VisionBackend: Backend + BoolVisionOps + IntVisionOps + FloatVisionOps
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
@@ -268,7 +273,7 @@ pub trait BoolVisionOps: Backend {
         let input = read_sync(Self::bool_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::bool_from_data(morph::<Self>(input, kernel, MorphOp::Erode, opts), &device)
+        Self::bool_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -281,13 +286,14 @@ pub trait BoolVisionOps: Backend {
         let input = read_sync(Self::bool_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::bool_from_data(morph::<Self>(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::bool_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
     }
 }
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
@@ -307,7 +313,7 @@ pub trait IntVisionOps: Backend {
         let input = read_sync(Self::int_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::int_from_data(morph::<Self>(input, kernel, MorphOp::Erode, opts), &device)
+        Self::int_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -320,13 +326,14 @@ pub trait IntVisionOps: Backend {
         let input = read_sync(Self::int_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::int_from_data(morph::<Self>(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::int_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
     }
 }
 
 #[backend_extension(
     Flex: cfg(feature = "flex"),
-    Wgpu: cfg(feature = "webgpu"),
+    Wgpu: cfg(feature = "wgpu"),
+    WebGpu: cfg(feature = "webgpu"),
     Vulkan: cfg(feature = "vulkan"),
     Metal: cfg(feature = "metal"),
     Cuda: cfg(feature = "cuda"),
@@ -346,7 +353,7 @@ pub trait FloatVisionOps: Backend {
         let input = read_sync(Self::float_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::float_from_data(morph::<Self>(input, kernel, MorphOp::Erode, opts), &device)
+        Self::float_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -359,7 +366,7 @@ pub trait FloatVisionOps: Backend {
         let input = read_sync(Self::float_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::float_from_data(morph::<Self>(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::float_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
     }
 
     /// Perform Non-Maximum Suppression on bounding boxes.

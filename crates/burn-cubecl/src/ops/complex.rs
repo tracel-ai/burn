@@ -1,19 +1,12 @@
-use burn_backend::{DeviceOps, TypedDevice, UnimplementedTensorPrimitive};
-use burn_std::Complex;
-use cubecl::server::ComputeServer;
+use burn_backend::{ComplexTensor, TypedDevice,};
 
-use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::{CubeBackend, CubeRuntime};
 
-impl<R, F, I, BT> TypedDevice<CubeBackend<R, F, I, BT>> for CubeBackend<R, F, I, BT>
+impl<R> TypedDevice<Self> for CubeBackend<R>
 where
     R: CubeRuntime,
-    R::Server: ComputeServer,
-    R::Device: DeviceOps,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
 {
-    fn complex_device(_tensor: &UnimplementedTensorPrimitive<Complex<F>>) -> R::CubeDevice {
+    fn complex_device(_tensor: &ComplexTensor<Self>) -> R::CubeDevice {
         panic!("Cube backend does not yet support interleaved complex tensors")
     }   
 }

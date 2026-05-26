@@ -1,7 +1,7 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{DType, QTensorPrimitive};
+use burn_backend::{DType, TensorMetadata};
 use burn_std::QuantLevel;
 use cubek::{
     matmul::{
@@ -99,7 +99,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             )
         }
         Some((data, scale)) => {
-            let scheme = *lhs.scheme();
+            let scheme = lhs.scheme();
             let data_dtype = data.dtype;
             let scale_dtype = scale.dtype;
             (
@@ -135,7 +135,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                     InputBinding::new(rhs.binding(), dtype_to_storage_type(rhs_dtype)),
                 )
             } else {
-                let scheme = *rhs.scheme();
+                let scheme = rhs.scheme();
                 let data_dtype = data.dtype;
                 let scale_dtype = scale.dtype;
                 (

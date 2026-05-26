@@ -1,5 +1,5 @@
 use burn_backend::{DType, FloatDType, IntDType, Shape, quantization::QuantScheme};
-use burn_backend::{Element, QTensorPrimitive, TensorData, TensorMetadata};
+use burn_backend::{Element, TensorData, TensorMetadata};
 use burn_std::BoolStore;
 
 use crate::{CandleDevice, element::CandleElement};
@@ -32,12 +32,6 @@ impl TensorMetadata for CandleTensor {
 
     fn rank(&self) -> usize {
         self.tensor.dims().len()
-    }
-}
-
-impl QTensorPrimitive for CandleTensor {
-    fn scheme(&self) -> &QuantScheme {
-        unimplemented!("Quantization is not supported")
     }
 }
 

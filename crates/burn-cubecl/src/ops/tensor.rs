@@ -1,14 +1,11 @@
 use super::{expand, numeric, permute, unfold};
 use crate::CubeBackend;
+use crate::CubeRuntime;
+use crate::kernel::matmul::{MatmulStrategy, matmul};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
-};
-use crate::{CubeRuntime, FloatElement, IntElement};
-use crate::{
-    element::BoolElement,
-    kernel::matmul::{MatmulStrategy, matmul},
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::ops::GridSampleOptions;
@@ -21,12 +18,9 @@ use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 
-impl<R, F, I, BT> FloatTensorOps<Self> for CubeBackend<R, F, I, BT>
+impl<R> FloatTensorOps<Self> for CubeBackend<R>
 where
     R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
 {
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",

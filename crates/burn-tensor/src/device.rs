@@ -2,11 +2,11 @@ pub use burn_std::{
     DeviceError, DeviceSettings, ExecutionError, backtrace::BackTrace, device::DeviceId,
 };
 
-use burn_backend::Backend;
+use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
-use burn_std::{FloatDType, IntDType, QuantScheme};
+use burn_std::{BoolDType, FloatDType, IntDType};
 
 use alloc::vec::Vec;
 use enumset::{EnumSet, EnumSetType};
@@ -336,54 +336,51 @@ impl Device {
     /// shipped to the server and executed there.
     #[cfg(feature = "remote")]
     pub fn remote(address: &str) -> Self {
-        Self::new(burn_dispatch::devices::RemoteDevice::new(address))
+        let device = burn_dispatch::devices::RemoteDevice::new(address);
+        device.connect(); // initializes the connection (required to get the device default settings)
+        Self::new(device)
     }
 
     /// WGPU device, selected via [`DeviceKind`].
     ///
-    /// The actual wgpu adapter (Vulkan / Metal / WebGPU) is picked by the
-    /// enabled Cargo features and, for [`DeviceKind::DefaultDevice`], by
-    /// `wgpu`'s adapter-selection heuristics (high-power GPU preferred, or
-    /// whatever `CUBECL_WGPU_DEFAULT_DEVICE` overrides it to).
+    /// This variant uses the runtime [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler)
+    /// to dispatch to the most appropriate shader language (WGSL, SPIR-V, or MSL) based on the
+    /// enabled features.
     ///
-    /// `Device::vulkan` / `Device::metal` / `Device::webgpu` are
-    /// equivalent calls (they exist only to make the intended backend
-    /// explicit at the call site — the underlying adapter is still picked by
-    /// enabled Cargo features).
-    #[cfg(any(
-        feature = "wgpu",
-        feature = "vulkan",
-        feature = "metal",
-        feature = "webgpu"
-    ))]
+    /// For [`DeviceKind::DefaultDevice`], the adapter is picked by `wgpu`'s
+    /// selection heuristics (high-power GPU preferred, or overridden by
+    /// `CUBECL_WGPU_DEFAULT_DEVICE`).
+    ///
+    /// `Device::vulkan`, `Device::metal`, and `Device::webgpu` also use the Wgpu runtime,
+    /// but bypass runtime dispatch by pinning specific compilers at compile time.
+    #[cfg(feature = "wgpu")]
     pub fn wgpu(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::Wgpu(wgpu_device(device_kind)))
     }
 
     /// Vulkan-backed WGPU device, selected via [`DeviceKind`].
     ///
-    /// Equivalent to [`Device::wgpu`]; provided so the caller's choice of
-    /// graphics API reads clearly at the call site. The actual adapter is
-    /// still determined by enabled Cargo features.
+    /// Pins the wgpu shader compiler to SPIR-V at compile time, avoiding
+    /// the runtime [`AutoCompiler`](burn_dispatch::backends::wgpu::AutoCompiler) dispatch.
     #[cfg(feature = "vulkan")]
     pub fn vulkan(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::Vulkan(wgpu_device(device_kind)))
     }
 
     /// Metal-backed WGPU device, selected via [`DeviceKind`].
     ///
-    /// See [`Device::vulkan`] — same shape, different feature gate.
+    /// Pins the wgpu shader compiler to MSL at compile time.
     #[cfg(feature = "metal")]
     pub fn metal(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::Metal(wgpu_device(device_kind)))
     }
 
     /// WebGPU-backed device, selected via [`DeviceKind`].
     ///
-    /// See [`Device::vulkan`] — same shape, different feature gate.
+    /// Pins the wgpu shader compiler to WGSL at compile time.
     #[cfg(feature = "webgpu")]
     pub fn webgpu(device_kind: DeviceKind) -> Self {
-        Self::new(wgpu_device(device_kind))
+        Self::new(DispatchDevice::WebGpu(wgpu_device(device_kind)))
     }
 
     /// Enables autodiff on this device.
@@ -509,12 +506,6 @@ impl Device {
         Dispatch::ad_enabled(self.as_dispatch())
     }
 
-    /// Returns the default [quantization scheme](QuantScheme) for this device.
-    pub fn default_quant_scheme(&self) -> QuantScheme {
-        // TODO: maybe in device settings?
-        Dispatch::default_quant_scheme(self.as_dispatch())
-    }
-
     /// Sets the current allocation mode to persistent.
     pub fn memory_persistent_allocations<
         Output: Send,
@@ -533,12 +524,12 @@ impl Device {
     /// Settings include the default float and integer data types used when creating
     /// tensors on this device.
     ///
-    /// See [`set_default_dtypes`](Device::set_default_dtypes) to configure them.
+    /// See [`configure`](Device::configure) to configure them.
     pub fn settings(&self) -> DeviceSettings {
         burn_backend::get_device_settings::<Dispatch>(self.as_dispatch())
     }
 
-    /// Sets the default float and integer data types for tensors created on this device.
+    /// Configures the [settings](DeviceSettings) for this device.
     ///
     /// This configures the dtype used when no explicit type is specified at tensor
     /// creation time.
@@ -559,19 +550,28 @@ impl Device {
     /// ```rust,ignore
     /// let device = Default::default();
     ///
-    /// device.set_default_dtypes(DType::F16, DType::I32)?;
+    /// device.configure((FloatDType::F16, IntDType::I32))?
     ///
     /// // Float tensors will now use F16
     /// let floats = Tensor::<2>::zeros([2, 3], &device);
     /// // Int tensors will now use I32
     /// let ints = Tensor::<2, Int>::zeros([2, 3], &device);
     /// ```
-    pub fn set_default_dtypes(
-        &mut self,
-        float_dtype: impl Into<FloatDType>,
-        int_dtype: impl Into<IntDType>,
-    ) -> Result<(), DeviceError> {
-        burn_backend::set_default_dtypes::<Dispatch>(self.as_dispatch(), float_dtype, int_dtype)
+    pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {
+        let mut config = config.into();
+
+        let defaults = self.as_dispatch().defaults();
+
+        let float_dtype = config.float_dtype.take().unwrap_or(defaults.float_dtype);
+        let int_dtype = config.int_dtype.take().unwrap_or(defaults.int_dtype);
+        let bool_dtype = config.bool_dtype.take().unwrap_or(defaults.bool_dtype);
+
+        burn_backend::set_default_dtypes::<Dispatch>(
+            self.as_dispatch(),
+            float_dtype,
+            int_dtype,
+            bool_dtype,
+        )
     }
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
@@ -582,31 +582,34 @@ impl Device {
         #[allow(clippy::never_loop)] // at least one backend is expected to be enabled.
         for device_type in filter.into() {
             #[allow(unused)]
-            let type_id = match device_type {
+            let type_ids: &[DispatchDeviceId] = match device_type {
                 #[cfg(feature = "cpu")]
-                DeviceType::Cpu => DispatchDeviceId::Cpu,
+                DeviceType::Cpu => &[DispatchDeviceId::Cpu],
                 #[cfg(feature = "cuda")]
-                DeviceType::Cuda => DispatchDeviceId::Cuda,
+                DeviceType::Cuda => &[DispatchDeviceId::Cuda],
                 #[cfg(feature = "rocm")]
-                DeviceType::Rocm => DispatchDeviceId::Rocm,
-                #[cfg(any(
-                    feature = "wgpu",
-                    feature = "metal",
-                    feature = "vulkan",
-                    feature = "webgpu"
-                ))]
-                DeviceType::Wgpu => DispatchDeviceId::Wgpu,
+                DeviceType::Rocm => &[DispatchDeviceId::Rocm],
+                #[cfg(feature = "wgpu")]
+                DeviceType::Wgpu => &[DispatchDeviceId::Wgpu],
+                #[cfg(feature = "metal")]
+                DeviceType::Metal => &[DispatchDeviceId::Metal],
+                #[cfg(feature = "vulkan")]
+                DeviceType::Vulkan => &[DispatchDeviceId::Vulkan],
+                #[cfg(feature = "webgpu")]
+                DeviceType::WebGpu => &[DispatchDeviceId::WebGpu],
                 #[cfg(feature = "flex")]
-                DeviceType::Flex => DispatchDeviceId::Flex,
+                DeviceType::Flex => &[DispatchDeviceId::Flex],
                 #[cfg(feature = "ndarray")]
-                DeviceType::NdArray => DispatchDeviceId::NdArray,
+                DeviceType::NdArray => &[DispatchDeviceId::NdArray],
                 #[cfg(feature = "tch")]
-                DeviceType::LibTorch => DispatchDeviceId::LibTorch,
+                DeviceType::LibTorch => &[DispatchDeviceId::LibTorch],
             };
 
             #[allow(unreachable_code)] // need to have one backend enabled, so it is reachable
-            for device in Dispatch::enumerate(type_id) {
-                devices.push(Device::new(device))
+            for type_id in type_ids {
+                for device in Dispatch::enumerate(*type_id) {
+                    devices.push(Device::new(device))
+                }
             }
         }
 
@@ -618,12 +621,7 @@ impl Device {
 ///
 /// Shared by [`Device::wgpu`], [`Device::vulkan`], [`Device::metal`], and
 /// [`Device::webgpu`], which differ only in which Cargo feature gates them.
-#[cfg(any(
-    feature = "wgpu",
-    feature = "vulkan",
-    feature = "metal",
-    feature = "webgpu"
-))]
+#[cfg(feature = "wgpu")]
 fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
     use burn_dispatch::devices::WgpuDevice;
     match device_kind {
@@ -650,17 +648,84 @@ pub enum DeviceType {
     Cuda,
     #[cfg(feature = "rocm")]
     Rocm,
-    #[cfg(any(
-        feature = "wgpu",
-        feature = "metal",
-        feature = "vulkan",
-        feature = "webgpu"
-    ))]
+    #[cfg(feature = "wgpu")]
     Wgpu,
+    #[cfg(feature = "metal")]
+    Metal,
+    #[cfg(feature = "vulkan")]
+    Vulkan,
+    #[cfg(feature = "webgpu")]
+    WebGpu,
     #[cfg(feature = "flex")]
     Flex,
     #[cfg(feature = "ndarray")]
     NdArray,
     #[cfg(feature = "tch")]
     LibTorch,
+}
+
+/// Configuration options used to initialize a device.
+///
+/// Unlike [`DeviceSettings`], this type represents partial user-provided
+/// configuration and does not require all settings to be specified.
+///
+/// Any unspecified options will be resolved to device-specific defaults
+/// when the device is initialized.
+///
+/// Use [`Device::configure`] to apply this configuration to a device.
+#[derive(new, Debug, Clone, Default)]
+pub struct DeviceConfig {
+    /// Default floating-point data type.
+    pub float_dtype: Option<FloatDType>,
+
+    /// Default integer data type.
+    pub int_dtype: Option<IntDType>,
+
+    /// Default boolean data type.
+    pub bool_dtype: Option<BoolDType>,
+    // TODO: maybe quantization, but for now we keep this as device defaults
+}
+
+impl DeviceConfig {
+    /// Sets the default floating-point data type for tensors created on the device.
+    pub fn float_dtype(mut self, dtype: impl Into<FloatDType>) -> Self {
+        self.float_dtype = Some(dtype.into());
+        self
+    }
+
+    /// Sets the default integer data type for tensors created on the device.
+    pub fn int_dtype(mut self, dtype: impl Into<IntDType>) -> Self {
+        self.int_dtype = Some(dtype.into());
+        self
+    }
+
+    /// Sets the default boolean data type storage precision for tensors created on the device.
+    pub fn bool_dtype(mut self, dtype: impl Into<BoolDType>) -> Self {
+        self.bool_dtype = Some(dtype.into());
+        self
+    }
+}
+
+impl From<FloatDType> for DeviceConfig {
+    fn from(value: FloatDType) -> Self {
+        DeviceConfig::new(Some(value), None, None)
+    }
+}
+
+impl From<IntDType> for DeviceConfig {
+    fn from(value: IntDType) -> Self {
+        DeviceConfig::new(None, Some(value), None)
+    }
+}
+
+impl From<BoolDType> for DeviceConfig {
+    fn from(value: BoolDType) -> Self {
+        DeviceConfig::new(None, None, Some(value))
+    }
+}
+
+impl From<(FloatDType, IntDType)> for DeviceConfig {
+    fn from(value: (FloatDType, IntDType)) -> Self {
+        DeviceConfig::new(Some(value.0), Some(value.1), None)
+    }
 }

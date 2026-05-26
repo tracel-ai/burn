@@ -22,21 +22,9 @@
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
-//! **Note:** WGPU-based backends (`metal`, `vulkan`, `webgpu`) are mutually exclusive.
-//! All other backends can be combined freely.
-//!
-//! ## WGPU Backend Exclusivity
-//!
-//! The WGPU-based backends (`metal`, `vulkan`, `webgpu`) are **mutually exclusive** due to
-//! the current automatic compile, which can only select one target at a time.
-//!
-//! Enable only **one** of these features in your `Cargo.toml`:
-//! - `metal`
-//! - `vulkan`
-//! - `webgpu`
-//!
-//! If multiple WGPU features are enabled, the build script will emit a warning and enable `webgpu` only
-//! to prevent unintended behavior.
+//! **Note:** All backends, including the WGPU-based ones (`wgpu`, `metal`, `vulkan`, `webgpu`),
+//! can be combined freely. Each enabled wgpu backend appears as its own
+//! [`DispatchDevice`] variant.
 
 #[macro_use]
 mod macros;
@@ -81,15 +69,15 @@ pub mod backends {
     pub use burn_rocm as rocm;
     #[cfg(feature = "rocm")]
     pub use burn_rocm::Rocm;
-    #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu as wgpu;
-    #[cfg(wgpu_metal)]
+    #[cfg(feature = "metal")]
     pub use burn_wgpu::Metal;
-    #[cfg(wgpu_vulkan)]
+    #[cfg(feature = "vulkan")]
     pub use burn_wgpu::Vulkan;
-    #[cfg(all(wgpu_webgpu, feature = "webgpu"))]
+    #[cfg(feature = "webgpu")]
     pub use burn_wgpu::WebGpu;
-    #[cfg(wgpu_webgpu)]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu::Wgpu;
 
     #[cfg(feature = "flex")]
@@ -123,7 +111,7 @@ pub mod devices {
     pub use burn_cuda::CudaDevice;
     #[cfg(feature = "rocm")]
     pub use burn_rocm::RocmDevice;
-    #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
+    #[cfg(feature = "wgpu")]
     pub use burn_wgpu::WgpuDevice;
 
     #[cfg(feature = "flex")]

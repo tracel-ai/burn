@@ -75,16 +75,34 @@ impl<C: ProtocolClient> ClientWorker<C> {
         let init_bytes: bytes::Bytes = rmp_serde::to_vec(&Task::Init(session_id))
             .expect("Can serialize tasks to bytes.")
             .into();
-        runtime
+
+        let device_settings = runtime
             .block_on(async {
                 stream_request
                     .send(Message::new(init_bytes.clone()))
                     .await?;
-                stream_response.send(Message::new(init_bytes)).await
+                stream_response.send(Message::new(init_bytes)).await?;
+
+                // Block on the very first frame to catch the Init response payload
+                let msg = stream_response
+                    .recv()
+                    .await?
+                    .expect("Server disconnected during connection initialization");
+
+                let response: TaskResponse = rmp_serde::from_slice(&msg.data)
+                    .expect("Can deserialize init handshake payload from server");
+
+                match response.content {
+                    TaskResponseContent::Init(settings) => Ok(settings),
+                    other => panic!("Expected Init handshake response, got: {:?}", other),
+                }
             })
-            .unwrap_or_else(|err| {
-                panic!("Failed to send session init to remote server at {address}: {err:?}")
+            .unwrap_or_else(|err: C::Error| {
+                panic!("Failed to initialize remote session at {address}: {err:?}")
             });
+
+        // Init device settings
+        device.settings.set(device_settings).unwrap();
 
         let state = Arc::new(tokio::sync::Mutex::new(ClientWorker::<C>::default()));
 

@@ -2,7 +2,7 @@ use burn_backend::{TensorMetadata, ops::FloatTensorOps};
 use burn_tch::{LibTorch, LibTorchDevice};
 
 fn main() {
-    type B = LibTorch<f32>;
+    type B = LibTorch;
     let device = LibTorchDevice::Cpu;
 
     // Creation of two tensors, the first with explicit values and the second one with ones, with the same shape as the first

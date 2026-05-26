@@ -39,12 +39,8 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized + BackendTypes {
     type InnerBackend: Backend<
             Device = Self::Device,
             FloatTensorPrimitive = Self::FloatTensorPrimitive,
-            FloatElem = Self::FloatElem,
             IntTensorPrimitive = Self::IntTensorPrimitive,
-            IntElem = Self::IntElem,
             BoolTensorPrimitive = Self::BoolTensorPrimitive,
-            BoolElem = Self::BoolElem,
-            ComplexScalar = Self::ComplexScalar,
         >;
 
     ///// Tensor primitive to be used for all complex operations.

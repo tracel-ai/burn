@@ -56,11 +56,10 @@ enum BackendKind {
     Cpu,
     Cuda,
     Rocm,
-    // metal/vulkan/wgpu could be merged eventually
-    // Only required at this time due to different default elem types
     Metal,
     Vulkan,
     Wgpu,
+    WebGpu,
     Flex,
     NdArray,
     LibTorch,
@@ -72,6 +71,7 @@ impl BackendKind {
             "Cpu" => Ok(BackendKind::Cpu),
             "Cuda" => Ok(BackendKind::Cuda),
             "Wgpu" => Ok(BackendKind::Wgpu),
+            "WebGpu" => Ok(BackendKind::WebGpu),
             "Metal" => Ok(BackendKind::Metal),
             "Rocm" => Ok(BackendKind::Rocm),
             "Vulkan" => Ok(BackendKind::Vulkan),

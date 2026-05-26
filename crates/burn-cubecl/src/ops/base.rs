@@ -1,7 +1,7 @@
 use crate::{CubeRuntime, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
+    DType, ExecutionError, Shape, TensorData,
     quantization::{QuantLevel, QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
@@ -309,7 +309,7 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
 
 /// Reshape a jit tensor to a new shape
 pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
-    let scheme = *tensor.scheme();
+    let scheme = tensor.scheme();
     let curr_shape = tensor.meta.shape();
 
     let shape_values = match scheme.store {

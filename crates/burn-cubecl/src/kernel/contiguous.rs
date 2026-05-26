@@ -1,5 +1,5 @@
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{DType, QTensorPrimitive, TensorMetadata};
+use burn_backend::{DType, TensorMetadata};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::MemoryLayoutStrategy;
 
@@ -73,7 +73,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
     strategy: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
     let scheme = tensor.scheme();
-    let output = empty_qtensor(tensor.shape(), *tensor.scheme(), &tensor.device, strategy);
+    let output = empty_qtensor(tensor.shape(), tensor.scheme(), &tensor.device, strategy);
     let (values, scales) = tensor.quantized_handles().unwrap();
     let (out_values, out_scales) = output.quantized_handles().unwrap();
 

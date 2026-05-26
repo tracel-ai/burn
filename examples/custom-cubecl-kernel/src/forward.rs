@@ -1,22 +1,18 @@
 use crate::{FloatTensor, kernel::fused_matmul_add_relu_kernel};
 
 use super::Backend;
-use burn::tensor::Shape;
-use burn_cubecl::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement,
-    kernel::into_contiguous, tensor::CubeTensor,
-};
+use burn::{backend::cubecl::dtype_to_storage_type, tensor::Shape};
+use burn_cubecl::{CubeBackend, CubeRuntime, kernel::into_contiguous, tensor::CubeTensor};
 use cubecl::{CubeCount, CubeDim};
 
 /// Implement our custom backend trait for the generic `CubeBackend`.
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> Backend for CubeBackend<R> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
         bias: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
+        let dtype = lhs.dtype;
         // Define cube dim, hardcoded for simplicity.
         let cube_dim = CubeDim { x: 16, y: 16, z: 1 };
 
@@ -45,9 +41,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
         let shape_out = Shape::from(shape_out);
 
         // Create a buffer for the output tensor.
-        let buffer = lhs
-            .client
-            .empty(shape_out.num_elements() * core::mem::size_of::<F>());
+        let buffer = lhs.client.empty(shape_out.num_elements() * dtype.size());
 
         // Create the output tensor primitive.
         let output = CubeTensor::new_contiguous(
@@ -55,7 +49,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
             lhs.device.clone(),
             shape_out,
             buffer,
-            F::dtype(),
+            dtype,
         );
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
@@ -66,7 +60,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
 
         // Execute lazily the kernel with the launch information and the given buffers. For
         // simplicity, no vectorization is performed
-        fused_matmul_add_relu_kernel::launch::<F, R>(
+        fused_matmul_add_relu_kernel::launch(
             &output.client,
             cube_count,
             cube_dim,
@@ -74,6 +68,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
             rhs.into_tensor_arg(),
             bias.into_tensor_arg(),
             output.clone().into_tensor_arg(),
+            dtype_to_storage_type(dtype),
         );
 
         // Return the output tensor.
@@ -81,9 +76,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for burn_fusion::Fusion<CubeBackend<R, F, I, BT>>
-{
+impl<R: CubeRuntime> Backend for burn_fusion::Fusion<CubeBackend<R>> {
     fn fused_matmul_add_relu(
         _lhs: FloatTensor<Self>,
         _rhs: FloatTensor<Self>,

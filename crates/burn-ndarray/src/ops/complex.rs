@@ -1,12 +1,12 @@
 use burn_backend::TypedDevice;
 
-use crate::{FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayTensor, QuantElement, SharedArray};
+use crate::NdArray;
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> TypedDevice<Self>
-    for NdArray<E, I, Q>
-    where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>> {
+
+
+impl TypedDevice<Self>
+    for NdArray
+    {
         fn complex_device(_tensor: &burn_backend::ComplexTensor<Self>) -> <Self as burn_backend::BackendTypes>::Device {
             panic!("NdArray backend does not yet support interleaved complex tensors")
     }

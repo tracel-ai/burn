@@ -22,7 +22,7 @@ specifying which functions should be supported.
 
 ```rust, ignore
 pub trait Backend: burn::tensor::backend::Backend {
-    fn my_new_function(tensor: B::TensorPrimitive<2>) -> B::TensorPrimitive<2> {
+    fn my_new_function(tensor: B::FloatTensorPrimitive) -> B::FloatTensorPrimitive {
         // You can define a basic implementation reusing the Burn Backend API.
         // This can be useful since all backends will now automatically support
         // your model. But performance can be improved for this new
@@ -34,8 +34,8 @@ pub trait Backend: burn::tensor::backend::Backend {
 You can then implement your new custom backend trait for any backend that you want to support:
 
 ```rust, ignore
-impl<E: TchElement> Backend for burn_tch::LibTorch<E> {
-   fn my_new_function(tensor: TchTensor<E, 2>) -> TchTensor<E, 2> {
+impl Backend for burn_tch::LibTorch {
+   fn my_new_function(tensor: TchTensor) -> TchTensor {
       // My Tch implementation
    }
 }
@@ -55,7 +55,7 @@ impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
 }
 
 impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
-   fn my_new_function(tensor: AutodiffTensor<E, 2>) -> AutodiffTensor<E, 2> {
+   fn my_new_function(tensor: AutodiffTensor) -> AutodiffTensor {
       // My own backward implementation, generic over my custom Backend trait.
       //
       // You can add a new method `my_new_function_backward` to your custom backend
@@ -63,8 +63,8 @@ impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
    }
 }
 
-impl<E: TchElement> Backend for burn_autodiff::Autodiff<burn_tch::LibTorch<E>> {
-   fn my_new_function(tensor: AutodiffTensor<E, 2>) -> AutodiffTensor<E, 2> {
+impl Backend for burn_autodiff::Autodiff<burn_tch::LibTorch> {
+   fn my_new_function(tensor: AutodiffTensor) -> AutodiffTensor {
       // My own backward implementation, generic over a backend implementation.
       //
       // This is another way to call a custom kernel for the backward pass that

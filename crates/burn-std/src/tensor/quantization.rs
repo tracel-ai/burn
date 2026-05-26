@@ -19,6 +19,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::{DType, Metadata, Shape, bytes::Bytes};
 
+/// Configuration for a device quantization behavior.
+///
+/// This configuration determines how tensors are quantized and how quantization rules
+/// propagate through operations on a given device. It is applied once during device
+/// initialization. See also the [device settings](crate::DeviceSettings).
+#[derive(new, Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct QuantConfig {
+    /// Defines how a tensor is quantized.
+    pub scheme: QuantScheme,
+    /// How quantization is propagated during computation.
+    pub propagation: QuantPropagation,
+    // NOTE: accumulation is currently unused, only scheme and propagation have an impact
+    // /// The precision used for the accumulation in various kernels.
+    // pub acc: QuantAcc,
+}
+
 #[derive(
     Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
 )]

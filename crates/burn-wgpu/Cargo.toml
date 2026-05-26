@@ -34,23 +34,16 @@ exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 template = ["burn-cubecl/template", "cubecl/template"]
 
 # Backends
-metal = ["cubecl-msl"]
-vulkan = ["cubecl-spirv"]
-webgpu = ["cubecl-wgsl"]
-
-# Compilers
-cubecl-msl = ["cubecl/wgpu-msl"]
-cubecl-spirv = ["cubecl/wgpu-spirv"]
-cubecl-wgsl = []
+metal = ["cubecl/metal", "burn-backend/cubecl-metal"]
+vulkan = ["cubecl/vulkan", "burn-backend/cubecl-vulkan"]
+webgpu = ["cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
 
 burn-cubecl = { workspace = true }
 burn-fusion = { workspace = true, optional = true, features = ["default"] }
-burn-backend = { workspace = true, features = [
-    "cubecl-wgpu",
-] }
+burn-backend = { workspace = true }
 
 
 [package.metadata.docs.rs]

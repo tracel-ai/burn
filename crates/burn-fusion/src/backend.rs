@@ -25,22 +25,10 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     type Device = B::Device;
 
     type FloatTensorPrimitive = FusionTensor<B::FusionRuntime>;
-
-    type FloatElem = B::FloatElem;
-
     type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
-
-    type IntElem = B::IntElem;
-
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
-
-    type BoolElem = B::BoolElem;
-
-    // type ComplexTensorPrimitive = FusionTensor<B::FusionRuntime>;
-
-    // type ComplexElem = B::ComplexElem;
-
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<FusionTensor<B::FusionRuntime>>;
 
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         B::supports_dtype(device, dtype)
@@ -53,10 +41,6 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
-
-    type ComplexScalar = B::ComplexScalar;
-
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<FusionTensor<B::FusionRuntime>>;
 }
 
 impl<B: FusionBackend> Backend for Fusion<B> {

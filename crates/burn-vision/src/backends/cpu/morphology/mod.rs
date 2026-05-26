@@ -1,15 +1,13 @@
 use std::fmt::Debug;
 
-use burn_core::backend::Backend;
 use burn_core::tensor::{
     Bool, BoolStore, DType, Device, Element, ElementLimits, Scalar, Shape, Tensor, TensorData,
-    cast::ToElement,
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
 use macerator::{Simd, VOrd};
 
-use crate::{BorderType, MorphOptions, Point, Size};
+use crate::{BorderType, MorphOptions, Point, Size, dispatch_bool_dtype};
 
 use super::MinMax;
 
@@ -36,7 +34,13 @@ pub enum MorphKernel<B: Element> {
     },
 }
 
-pub fn morph<B: Backend>(
+pub fn morph(input: TensorData, kernel: TensorData, op: MorphOp, opts: MorphOptions) -> TensorData {
+    dispatch_bool_dtype!(kernel.dtype.into(), |B| morph_impl::<B>(
+        input, kernel, op, opts
+    ))
+}
+
+fn morph_impl<B: Element>(
     input: TensorData,
     kernel: TensorData,
     op: MorphOp,
@@ -44,7 +48,7 @@ pub fn morph<B: Backend>(
 ) -> TensorData {
     let [kh, kw] = kernel.shape.dims();
 
-    let kernel = kernel.into_vec::<B::BoolElem>().unwrap();
+    let kernel = kernel.into_vec::<B>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
     let anchor = opts.anchor.unwrap_or(Point::new(kw / 2, kh / 2));
     let iter = opts.iterations;
@@ -101,10 +105,10 @@ pub fn morph<B: Backend>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn morph_typed<B: Backend, T: VOrd + MinMax + Element + ElementLimits>(
+fn morph_typed<B: Element, T: VOrd + MinMax + Element + ElementLimits>(
     mut input: TensorData,
     shape: Shape,
-    kernel: MorphKernel<B::BoolElem>,
+    kernel: MorphKernel<B>,
     op: MorphOp,
     iter: usize,
     btype: BorderType,
@@ -117,10 +121,10 @@ fn morph_typed<B: Backend, T: VOrd + MinMax + Element + ElementLimits>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn morph_bool<B: Backend>(
+fn morph_bool<B: Element>(
     mut input: TensorData,
     shape: Shape,
-    kernel: MorphKernel<B::BoolElem>,
+    kernel: MorphKernel<B>,
     op: MorphOp,
     iter: usize,
     btype: BorderType,

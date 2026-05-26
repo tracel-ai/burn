@@ -1,6 +1,6 @@
 #![recursion_limit = "256"]
 
-use burn::tensor::{DType, Device, Element};
+use burn::tensor::{Device, DeviceConfig, Element};
 use text_classification::AgNewsDataset;
 
 #[cfg(not(feature = "f16"))]
@@ -11,7 +11,7 @@ type ElemType = burn::tensor::f16;
 
 pub fn launch(mut device: Device) {
     device
-        .set_default_dtypes(ElemType::dtype(), DType::I32)
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
         .unwrap();
 
     text_classification::inference::infer::<AgNewsDataset>(

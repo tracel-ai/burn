@@ -27,13 +27,10 @@ impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     type Device = B::Device;
 
     type FloatTensorPrimitive = AutodiffTensor<B>;
-    type FloatElem = B::FloatElem;
 
     type IntTensorPrimitive = B::IntTensorPrimitive;
-    type IntElem = B::IntElem;
 
     type BoolTensorPrimitive = B::BoolTensorPrimitive;
-    type BoolElem = B::BoolElem;
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
@@ -48,8 +45,6 @@ impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
-
-    type ComplexScalar = B::ComplexScalar;
     
     type ComplexTensorPrimitive = UnimplementedTensorPrimitive<B::ComplexTensorPrimitive>;
 }

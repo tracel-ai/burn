@@ -4,7 +4,7 @@ pub use burn_std::{ExecutionError, backtrace::BackTrace};
 pub use crate::element::Element;
 use crate::{TypedDevice, ops::*};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use crate::{QTensorPrimitive, TensorData, TensorMetadata};
+use crate::{TensorData, TensorMetadata};
 use alloc::string::String;
 use enumset::{EnumSet, EnumSetType};
 
@@ -20,24 +20,16 @@ pub trait BackendTypes: Clone + core::fmt::Debug + 'static {
 
     /// Tensor primitive to be used for all float operations.
     type FloatTensorPrimitive: TensorMetadata + 'static;
-    /// Default float element type.
-    type FloatElem: Element + ElementComparison + bytemuck::Pod;
 
     /// Tensor primitive to be used for all int operations.
     type IntTensorPrimitive: TensorMetadata + 'static;
-    /// Int element type.
-    type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
     type BoolTensorPrimitive: TensorMetadata + 'static;
-    /// Tensor primitive to be used for all bool operations.
-    type BoolElem: Element;
 
     /// Tensor primitive to be used for all quantized operations.
-    type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
-
-    /// a complex element in interleaved layout
-    type ComplexScalar: ComplexElement;
+    type QuantizedTensorPrimitive: TensorMetadata + 'static;
+    
     /// a complex primitive used for interleaved operations (if the backend supports it)
     type ComplexTensorPrimitive: TensorMetadata + 'static;
 
@@ -185,7 +177,7 @@ pub trait Backend:
 /// Trait that allows a backend to support autodiff.
 pub trait AutodiffBackend: Backend {
     /// The inner backend type.
-    type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem, IntElem = Self::IntElem>;
+    type InnerBackend: Backend<Device = Self::Device>;
 
     /// Gradients type.
     type Gradients: Send;
