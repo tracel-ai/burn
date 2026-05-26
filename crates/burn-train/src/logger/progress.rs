@@ -44,7 +44,7 @@ pub trait TrainingProgressLogger: Send {
     fn end(&mut self);
 
     /// Log a custom counter event, such as the number of iterations accomplished (or more).
-    fn log_event(&mut self, event: ProgressEvent);
+    fn log_event_training(&mut self, event: ProgressEvent);
 }
 
 /// Trait for logging evaluation progress at each step and end of evaluation.
@@ -79,6 +79,9 @@ pub trait EvaluationProgressLogger: Send {
 
     /// Called at the end of evaluation.
     fn end_global_progress(&mut self);
+
+    /// Log a custom counter event, such as the number of iterations accomplished (or more).
+    fn log_event_evaluation(&mut self, event: ProgressEvent);
 }
 
 /// Two-level progress snapshot combining run-level and phase-level tracking.

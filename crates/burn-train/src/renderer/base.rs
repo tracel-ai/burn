@@ -5,7 +5,6 @@ use crate::{
     logger::{EvaluationProgressLogger, TrainingProgressLogger},
     metric::{MetricDefinition, MetricEntry, NumericEntry},
 };
-use burn_core::data::dataloader::Progress;
 
 /// Trait for rendering metrics.
 pub trait MetricsRendererTraining: Send + Sync {

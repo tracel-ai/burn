@@ -35,7 +35,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
-    #[config(default = 5)]
+    #[config(default = 2)]
     pub num_epochs: usize,
 
     #[config(default = 256)]
@@ -107,7 +107,7 @@ pub fn run(device: Device) {
             StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
         .with_progress_logger(
-            FileTrainingProgressLogger::new(format!("{ARTIFACT_DIR}/training_progress.log"))
+            FileTrainingProgressLogger::new(format!("./training_progress.log"))
                 .expect("Failed to create training progress log"),
         )
         .num_epochs(config.num_epochs)
@@ -138,7 +138,7 @@ pub fn run(device: Device) {
         .renderer(result.renderer)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .with_progress_logger(
-            FileEvaluationProgressLogger::new(format!("{ARTIFACT_DIR}/evaluation_progress.log"))
+            FileEvaluationProgressLogger::new(format!("./evaluation_progress.log"))
                 .expect("Failed to create evaluation progress log"),
         )
         .summary()

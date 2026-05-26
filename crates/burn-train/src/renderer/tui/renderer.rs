@@ -235,7 +235,7 @@ impl TrainingProgressLogger for TuiMetricsRendererWrapper {
 
     fn end(&mut self) {}
 
-    fn log_event(&mut self, event: ProgressEvent) {
+    fn log_event_training(&mut self, event: ProgressEvent) {
         self.send_event(TuiRendererEvent::CounterUpdate(event));
     }
 }
@@ -249,9 +249,15 @@ impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
         self.send_event(TuiRendererEvent::StatusUpdateTest(progress.clone()));
     }
 
-    fn end_test(&mut self) {}
+    fn end_test(&mut self) {
+        self.send_event(TuiRendererEvent::SplitEnd);
+    }
 
     fn end_global_progress(&mut self) {}
+
+    fn log_event_evaluation(&mut self, event: ProgressEvent) {
+        self.send_event(TuiRendererEvent::CounterUpdate(event));
+    }
 }
 
 impl Drop for TuiMetricsRendererWrapper {

@@ -78,7 +78,7 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
         self.write("[Training] end");
     }
 
-    fn log_event(&mut self, event: ProgressEvent) {
+    fn log_event_training(&mut self, event: ProgressEvent) {
         match event {
             ProgressEvent::Iteration => {
                 self.write(&format!("[event] iteration = {}", self.iterations));
@@ -104,13 +104,17 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 /// ```
 pub struct FileEvaluationProgressLogger {
     writer: File,
+    iterations: usize,
 }
 
 impl FileEvaluationProgressLogger {
     /// Opens (or creates) the file at `path` in append mode.
     pub fn new(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
-        Ok(Self { writer: file })
+        Ok(Self {
+            writer: file,
+            iterations: 0,
+        })
     }
 
     fn write(&mut self, line: &str) {
@@ -140,9 +144,20 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
 
     fn end_test(&mut self) {
         self.write("[Evaluation] test_end");
+        self.iterations = 0;
     }
 
     fn end_global_progress(&mut self) {
         self.write("[Evaluation] end");
+    }
+
+    fn log_event_evaluation(&mut self, event: ProgressEvent) {
+        match event {
+            ProgressEvent::Iteration => {
+                self.write(&format!("[event] iteration = {}", self.iterations));
+                self.iterations += 1;
+            }
+            _ => {}
+        }
     }
 }

@@ -54,7 +54,7 @@ impl TrainingProgressLogger for CustomRenderer {
 
     fn end(&mut self) {}
 
-    fn log_event(&mut self, event: ProgressEvent) {
+    fn log_event_training(&mut self, event: ProgressEvent) {
         dbg!(event);
     }
 }
@@ -83,6 +83,10 @@ impl EvaluationProgressLogger for CustomRenderer {
     fn end_test(&mut self) {}
 
     fn end_global_progress(&mut self) {}
+
+    fn log_event_evaluation(&mut self, event: ProgressEvent) {
+        dbg!(event);
+    }
 }
 
 pub fn run(device: impl Into<Device>) {
