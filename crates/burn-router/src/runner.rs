@@ -8,12 +8,14 @@ use crate::{
 };
 use alloc::boxed::Box;
 use alloc::sync::Arc;
-use burn_backend::{Backend, DType, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp};
+use burn_backend::{
+    Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp,
+};
 use burn_ir::{
     BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
     ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_std::{future::DynFut, stub::Mutex};
+use burn_std::{DeviceSettings, future::DynFut, stub::Mutex};
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
@@ -131,6 +133,11 @@ impl<B: BackendIr> Runner<B> {
             status: TensorStatus::ReadWrite,
             dtype,
         }
+    }
+
+    /// Get the device default settings.
+    pub fn device_settings(&self) -> DeviceSettings {
+        self.device.defaults()
     }
 }
 

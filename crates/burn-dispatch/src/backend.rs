@@ -92,8 +92,16 @@ impl Backend for Dispatch {
             DispatchDeviceId::Cpu => Cpu::device_count(backend_type_id),
             #[cfg(feature = "cuda")]
             DispatchDeviceId::Cuda => Cuda::device_count(backend_type_id),
+            #[cfg(feature = "metal")]
+            DispatchDeviceId::Metal => Metal::device_count(backend_type_id),
+            #[cfg(feature = "rocm")]
+            DispatchDeviceId::Rocm => Rocm::device_count(backend_type_id),
+            #[cfg(feature = "vulkan")]
+            DispatchDeviceId::Vulkan => Vulkan::device_count(backend_type_id),
             #[cfg(feature = "wgpu")]
             DispatchDeviceId::Wgpu => Wgpu::device_count(backend_type_id),
+            #[cfg(feature = "webgpu")]
+            DispatchDeviceId::WebGpu => WebGpu::device_count(backend_type_id),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(any(feature = "ndarray", default_backend))]
@@ -150,10 +158,16 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "cuda")]
                 DispatchTensorKind::Cuda(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "metal")]
+                DispatchTensorKind::Metal(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "vulkan")]
+                DispatchTensorKind::Vulkan(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "webgpu")]
+                DispatchTensorKind::WebGpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
                 #[cfg(any(feature = "ndarray", default_backend))]
@@ -187,16 +201,31 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Cuda(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "metal")]
+                DispatchTensorKind::Metal(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::Metal(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Rocm(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "vulkan")]
+                DispatchTensorKind::Vulkan(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::Vulkan(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Wgpu(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "webgpu")]
+                DispatchTensorKind::WebGpu(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::WebGpu(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff()
@@ -246,16 +275,31 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Cuda(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "metal")]
+                DispatchTensorKind::Metal(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::Metal(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Rocm(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "vulkan")]
+                DispatchTensorKind::Vulkan(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::Vulkan(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Wgpu(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "webgpu")]
+                DispatchTensorKind::WebGpu(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::WebGpu(crate::BackendTensor::Float(t))),
                 #[cfg(feature = "flex")]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff()
@@ -309,12 +353,24 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::Cuda(tensor), DispatchTensorKind::Cuda(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
+                #[cfg(feature = "metal")]
+                (DispatchTensorKind::Metal(tensor), DispatchTensorKind::Metal(grad)) => {
+                    tensor.as_autodiff().grad_replace(grads, grad.float())
+                }
                 #[cfg(feature = "rocm")]
                 (DispatchTensorKind::Rocm(tensor), DispatchTensorKind::Rocm(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
+                #[cfg(feature = "vulkan")]
+                (DispatchTensorKind::Vulkan(tensor), DispatchTensorKind::Vulkan(grad)) => {
+                    tensor.as_autodiff().grad_replace(grads, grad.float())
+                }
                 #[cfg(feature = "wgpu")]
                 (DispatchTensorKind::Wgpu(tensor), DispatchTensorKind::Wgpu(grad)) => {
+                    tensor.as_autodiff().grad_replace(grads, grad.float())
+                }
+                #[cfg(feature = "webgpu")]
+                (DispatchTensorKind::WebGpu(tensor), DispatchTensorKind::WebGpu(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
                 #[cfg(feature = "flex")]
@@ -356,12 +412,24 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cuda(tensor) => DispatchTensorKind::Cuda(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
+                #[cfg(feature = "metal")]
+                DispatchTensorKind::Metal(tensor) => DispatchTensorKind::Metal(
+                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                ),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => DispatchTensorKind::Rocm(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
+                #[cfg(feature = "vulkan")]
+                DispatchTensorKind::Vulkan(tensor) => DispatchTensorKind::Vulkan(
+                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                ),
                 #[cfg(feature = "wgpu")]
                 DispatchTensorKind::Wgpu(tensor) => DispatchTensorKind::Wgpu(
+                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                ),
+                #[cfg(feature = "webgpu")]
+                DispatchTensorKind::WebGpu(tensor) => DispatchTensorKind::WebGpu(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
                 #[cfg(feature = "flex")]
@@ -423,16 +491,34 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Cuda>::from_inner(tensor.float())),
                 )))
             }
+            #[cfg(feature = "metal")]
+            DispatchTensorKind::Metal(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Metal(
+                    crate::BackendTensor::Autodiff(Autodiff::<Metal>::from_inner(tensor.float())),
+                )))
+            }
             #[cfg(feature = "rocm")]
             DispatchTensorKind::Rocm(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Rocm(
                     crate::BackendTensor::Autodiff(Autodiff::<Rocm>::from_inner(tensor.float())),
                 )))
             }
+            #[cfg(feature = "vulkan")]
+            DispatchTensorKind::Vulkan(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Vulkan(
+                    crate::BackendTensor::Autodiff(Autodiff::<Vulkan>::from_inner(tensor.float())),
+                )))
+            }
             #[cfg(feature = "wgpu")]
             DispatchTensorKind::Wgpu(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Wgpu(
                     crate::BackendTensor::Autodiff(Autodiff::<Wgpu>::from_inner(tensor.float())),
+                )))
+            }
+            #[cfg(feature = "webgpu")]
+            DispatchTensorKind::WebGpu(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::WebGpu(
+                    crate::BackendTensor::Autodiff(Autodiff::<WebGpu>::from_inner(tensor.float())),
                 )))
             }
             #[cfg(feature = "flex")]
@@ -554,10 +640,16 @@ impl DispatchTensorKind {
             DispatchTensorKind::Cpu(tensor) => DispatchDevice::Cpu(tensor.device()),
             #[cfg(feature = "cuda")]
             DispatchTensorKind::Cuda(tensor) => DispatchDevice::Cuda(tensor.device()),
+            #[cfg(feature = "metal")]
+            DispatchTensorKind::Metal(tensor) => DispatchDevice::Metal(tensor.device()),
             #[cfg(feature = "rocm")]
             DispatchTensorKind::Rocm(tensor) => DispatchDevice::Rocm(tensor.device()),
+            #[cfg(feature = "vulkan")]
+            DispatchTensorKind::Vulkan(tensor) => DispatchDevice::Vulkan(tensor.device()),
             #[cfg(feature = "wgpu")]
             DispatchTensorKind::Wgpu(tensor) => DispatchDevice::Wgpu(tensor.device()),
+            #[cfg(feature = "webgpu")]
+            DispatchTensorKind::WebGpu(tensor) => DispatchDevice::WebGpu(tensor.device()),
             #[cfg(feature = "flex")]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
             #[cfg(any(feature = "ndarray", default_backend))]
@@ -603,13 +695,25 @@ impl Dispatch {
             DispatchDeviceId::Cuda => (0..Cuda::device_count(0))
                 .map(|i| CudaDevice::new(i).into())
                 .collect(),
+            #[cfg(feature = "metal")]
+            DispatchDeviceId::Metal => (0..Metal::device_count(0))
+                .map(|i| DispatchDevice::Metal(WgpuDevice::DiscreteGpu(i)))
+                .collect(),
             #[cfg(feature = "rocm")]
             DispatchDeviceId::Rocm => (0..Rocm::device_count(0))
                 .map(|i| RocmDevice::new(i).into())
                 .collect(),
+            #[cfg(feature = "vulkan")]
+            DispatchDeviceId::Vulkan => (0..Vulkan::device_count(0))
+                .map(|i| DispatchDevice::Vulkan(WgpuDevice::DiscreteGpu(i)))
+                .collect(),
             #[cfg(feature = "wgpu")]
             DispatchDeviceId::Wgpu => (0..Wgpu::device_count(0))
-                .map(|i| WgpuDevice::DiscreteGpu(i).into())
+                .map(|i| DispatchDevice::Wgpu(WgpuDevice::DiscreteGpu(i)))
+                .collect(),
+            #[cfg(feature = "webgpu")]
+            DispatchDeviceId::WebGpu => (0..WebGpu::device_count(0))
+                .map(|i| DispatchDevice::WebGpu(WgpuDevice::DiscreteGpu(i)))
                 .collect(),
             #[cfg(feature = "flex")]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],

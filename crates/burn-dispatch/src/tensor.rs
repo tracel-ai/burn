@@ -191,15 +191,25 @@ pub enum DispatchTensorKind {
     #[cfg(feature = "cuda")]
     Cuda(BackendTensor<Cuda>),
 
+    /// The [Metal backend](Metal) tensor.
+    #[cfg(feature = "metal")]
+    Metal(BackendTensor<Metal>),
+
     /// The [ROCm backend](Rocm) tensor.
     #[cfg(feature = "rocm")]
     Rocm(BackendTensor<Rocm>),
 
-    #[cfg_attr(wgpu_webgpu, doc = r#"The [WebGPU backend](Wgpu) tensor"#)]
-    #[cfg_attr(wgpu_vulkan, doc = r#"The [Vulkan backend](Vulkan) tensor"#)]
-    #[cfg_attr(wgpu_metal, doc = r#"The [Metal backend](Metal) tensor"#)]
+    /// The [Vulkan backend](Vulkan) tensor.
+    #[cfg(feature = "vulkan")]
+    Vulkan(BackendTensor<Vulkan>),
+
+    /// The [Wgpu backend](Wgpu) tensor.
     #[cfg(feature = "wgpu")]
     Wgpu(BackendTensor<Wgpu>),
+
+    /// The [WebGPU backend](Wgpu) tensor.
+    #[cfg(feature = "webgpu")]
+    WebGpu(BackendTensor<WebGpu>),
 
     /// The [Flex backend](Flex) tensor.
     #[cfg(feature = "flex")]
@@ -229,10 +239,16 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cpu(tensor) => tensor.dtype(),
             #[cfg(feature = "cuda")]
             Self::Cuda(tensor) => tensor.dtype(),
+            #[cfg(feature = "metal")]
+            Self::Metal(tensor) => tensor.dtype(),
             #[cfg(feature = "rocm")]
             Self::Rocm(tensor) => tensor.dtype(),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(tensor) => tensor.dtype(),
             #[cfg(feature = "wgpu")]
             Self::Wgpu(tensor) => tensor.dtype(),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(tensor) => tensor.dtype(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.dtype(),
             #[cfg(any(feature = "ndarray", default_backend))]
@@ -252,10 +268,16 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Cpu(tensor) => tensor.shape(),
             #[cfg(feature = "cuda")]
             Self::Cuda(tensor) => tensor.shape(),
-            #[cfg(wgpu_metal)]
+            #[cfg(feature = "metal")]
+            Self::Metal(tensor) => tensor.shape(),
+            #[cfg(feature = "rocm")]
             Self::Rocm(tensor) => tensor.shape(),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(tensor) => tensor.shape(),
             #[cfg(feature = "wgpu")]
             Self::Wgpu(tensor) => tensor.shape(),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(tensor) => tensor.shape(),
             #[cfg(feature = "flex")]
             Self::Flex(tensor) => tensor.shape(),
             #[cfg(any(feature = "ndarray", default_backend))]
