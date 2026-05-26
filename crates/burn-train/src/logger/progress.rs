@@ -105,8 +105,16 @@ impl OverallProgress {
         }
     }
 }
+/// A discrete event emitted during training or evaluation to signal progress milestones.
+///
+/// Implementations of [`TrainingProgressLogger`] and [`EvaluationProgressLogger`] receive these
+/// events to update counters or perform other bookkeeping at each milestone.
 #[derive(Debug)]
 pub enum ProgressEvent {
+    /// Signals the completion of one iteration (e.g., a batch or environment step).
     Iteration,
-    Episode,
+    /// Signals the end of one episode (specific to reinforcement learning).
+    EpisodeEnd,
+    EnvStep,
+    TrainStep,
 }

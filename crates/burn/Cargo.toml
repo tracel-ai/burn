@@ -23,6 +23,7 @@ workspace = true
 
 [features]
 default = [
+    "rl",
     "std",
     "optim",
     "burn-core/default",

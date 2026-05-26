@@ -232,7 +232,7 @@ where
             for (i, step) in trajectory.timesteps.iter().enumerate() {
                 // TODO : clean this.
                 if self.eval {
-                    processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
+                    processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
                         Progress::new(i, i, "steps".to_string()),
                         None,
@@ -445,7 +445,7 @@ where
             }
             for (i, step) in trajectory.timesteps.iter().enumerate() {
                 if self.eval {
-                    processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
+                    processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
                         Progress::new(i, i, "steps".to_string()),
                         None,

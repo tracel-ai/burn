@@ -14,6 +14,8 @@ pub(crate) struct StatusState {
     mode: Mode,
     iteration: usize,
     episode: usize,
+    trainStep: usize,
+    envStep: usize,
 }
 
 enum Mode {
@@ -29,6 +31,8 @@ impl Default for StatusState {
             mode: Mode::Train,
             iteration: 0,
             episode: 0,
+            trainStep: 0,
+            envStep: 0,
         }
     }
 }
@@ -53,7 +57,9 @@ impl StatusState {
     pub(crate) fn update_counter(&mut self, event: ProgressEvent) {
         match event {
             ProgressEvent::Iteration => self.iteration += 1,
-            ProgressEvent::Episode => self.episode += 1,
+            ProgressEvent::EpisodeEnd => self.episode += 1,
+            ProgressEvent::EnvStep => self.envStep += 1,
+            ProgressEvent::TrainStep => self.trainStep += 1,
         }
     }
 

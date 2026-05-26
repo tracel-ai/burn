@@ -224,7 +224,7 @@ where
                 steps.push(step.clone());
 
                 if self.eval {
-                    processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
+                    processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
                         Progress::new(steps.len() + 1, steps.len() + 1, "steps".to_string()),
                         None,
