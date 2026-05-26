@@ -1,7 +1,5 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
-use crate::logger::{
-    EvaluationProgressLogger, OverallProgress, ProgressEvent, TrainingProgressLogger,
-};
+use crate::logger::{EvaluationProgressLogger, OverallProgress, TrainingProgressLogger};
 use crate::metric::MetricMetadata;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
@@ -143,21 +141,16 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
 
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_test_progress(&progress);
-                    logger.log_event_evaluation(ProgressEvent::Iteration);
+                    logger.log_event_evaluation("Iteration".to_string());
                 }
                 self.renderer.update_test_progress(&progress);
-                self.renderer.log_event_evaluation(ProgressEvent::Iteration);
+                self.renderer.log_event_evaluation("Iteration".to_string());
             }
             EvaluatorEvent::EndTest => {
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_test();
                 }
                 self.renderer.end_test();
-            }
-            EvaluatorEvent::EndTest => {
-                if let Some(logger) = &mut self.progress_logger {
-                    logger.end_test();
-                }
             }
             EvaluatorEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {
@@ -235,10 +228,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(&progress);
-                    logger.log_event_training(ProgressEvent::Iteration);
+                    logger.log_event_training("Iteration".to_string());
                 }
                 self.renderer.update_split(&progress);
-                self.renderer.log_event_training(ProgressEvent::Iteration);
+                self.renderer.log_event_training("Iteration".to_string());
             }
             LearnerEvent::EndSplit(epoch) => {
                 self.store
@@ -312,10 +305,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 
                 if let Some(logger) = &mut self.progress_logger {
                     logger.update_split(&progress);
-                    logger.log_event_training(ProgressEvent::Iteration);
+                    logger.log_event_training("Iteration".to_string());
                 }
                 self.renderer.update_split(&progress);
-                self.renderer.log_event_training(ProgressEvent::Iteration);
+                self.renderer.log_event_training("iteration".to_string());
             }
             LearnerEvent::EndSplit(epoch) => {
                 self.store
@@ -329,8 +322,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.renderer.end_split();
                 self.metrics.end_epoch_valid();
             }
-            LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)
-            LearnerEvent::End(_) => {}      // no-op
             LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)
             LearnerEvent::End(_) => {}      // no-op
         }

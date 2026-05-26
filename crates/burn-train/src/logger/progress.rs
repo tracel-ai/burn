@@ -44,7 +44,7 @@ pub trait TrainingProgressLogger: Send {
     fn end(&mut self);
 
     /// Log a custom counter event, such as the number of iterations accomplished (or more).
-    fn log_event_training(&mut self, event: ProgressEvent);
+    fn log_event_training(&mut self, event: String);
 }
 
 /// Trait for logging evaluation progress at each step and end of evaluation.
@@ -81,7 +81,7 @@ pub trait EvaluationProgressLogger: Send {
     fn end_global_progress(&mut self);
 
     /// Log a custom counter event, such as the number of iterations accomplished (or more).
-    fn log_event_evaluation(&mut self, event: ProgressEvent);
+    fn log_event_evaluation(&mut self, event: String);
 }
 
 /// Two-level progress snapshot combining run-level and phase-level tracking.
@@ -104,17 +104,4 @@ impl OverallProgress {
             split_progress,
         }
     }
-}
-/// A discrete event emitted during training or evaluation to signal progress milestones.
-///
-/// Implementations of [`TrainingProgressLogger`] and [`EvaluationProgressLogger`] receive these
-/// events to update counters or perform other bookkeeping at each milestone.
-#[derive(Debug)]
-pub enum ProgressEvent {
-    /// Signals the completion of one iteration (e.g., a batch or environment step).
-    Iteration,
-    /// Signals the end of one episode (specific to reinforcement learning).
-    EpisodeEnd,
-    EnvStep,
-    TrainStep,
 }

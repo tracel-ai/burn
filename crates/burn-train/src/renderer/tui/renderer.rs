@@ -1,6 +1,4 @@
-use crate::logger::{
-    EvaluationProgressLogger, OverallProgress, ProgressEvent, TrainingProgressLogger,
-};
+use crate::logger::{EvaluationProgressLogger, OverallProgress, TrainingProgressLogger};
 use crate::metric::{MetricDefinition, MetricId};
 use crate::renderer::tui::TuiSplit;
 use crate::renderer::{EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation};
@@ -50,7 +48,7 @@ enum TuiRendererEvent {
         /// Interrupter reset.
         reset: bool,
     },
-    CounterUpdate(ProgressEvent),
+    CounterUpdate(String),
     SplitEnd,
     ManualClose,
     Close,
@@ -235,7 +233,7 @@ impl TrainingProgressLogger for TuiMetricsRendererWrapper {
 
     fn end(&mut self) {}
 
-    fn log_event_training(&mut self, event: ProgressEvent) {
+    fn log_event_training(&mut self, event: String) {
         self.send_event(TuiRendererEvent::CounterUpdate(event));
     }
 }
@@ -255,7 +253,7 @@ impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
 
     fn end_global_progress(&mut self) {}
 
-    fn log_event_evaluation(&mut self, event: ProgressEvent) {
+    fn log_event_evaluation(&mut self, event: String) {
         self.send_event(TuiRendererEvent::CounterUpdate(event));
     }
 }

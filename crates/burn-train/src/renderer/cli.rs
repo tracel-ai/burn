@@ -1,5 +1,5 @@
 use crate::{
-    logger::{EvaluationProgressLogger, OverallProgress, ProgressEvent, TrainingProgressLogger},
+    logger::{EvaluationProgressLogger, OverallProgress, TrainingProgressLogger},
     renderer::{MetricState, MetricsRenderer, MetricsRendererEvaluation, MetricsRendererTraining},
 };
 
@@ -43,7 +43,7 @@ impl TrainingProgressLogger for CliMetricsRenderer {
         println!("Training ended.");
     }
 
-    fn log_event_training(&mut self, _event: ProgressEvent) {}
+    fn log_event_training(&mut self, _event: String) {}
 }
 
 impl EvaluationProgressLogger for CliMetricsRenderer {
@@ -63,7 +63,7 @@ impl EvaluationProgressLogger for CliMetricsRenderer {
 
     fn end_global_progress(&mut self) {}
 
-    fn log_event_evaluation(&mut self, _event: ProgressEvent) {}
+    fn log_event_evaluation(&mut self, _event: String) {}
 }
 
 impl MetricsRendererEvaluation for CliMetricsRenderer {

@@ -1,4 +1,3 @@
-use burn::train::logger::ProgressEvent;
 use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
@@ -54,7 +53,7 @@ impl TrainingProgressLogger for CustomRenderer {
 
     fn end(&mut self) {}
 
-    fn log_event_training(&mut self, event: ProgressEvent) {
+    fn log_event_training(&mut self, event: String) {
         dbg!(event);
     }
 }
@@ -84,7 +83,7 @@ impl EvaluationProgressLogger for CustomRenderer {
 
     fn end_global_progress(&mut self) {}
 
-    fn log_event_evaluation(&mut self, event: ProgressEvent) {
+    fn log_event_evaluation(&mut self, event: String) {
         dbg!(event);
     }
 }

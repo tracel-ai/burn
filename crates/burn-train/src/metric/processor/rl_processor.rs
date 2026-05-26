@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     EpisodeSummary, EvaluationItem, EventProcessorTraining, ItemLazy, LearnerSummary, RLMetrics,
-    logger::{OverallProgress, ProgressEvent, TrainingProgressLogger},
+    logger::{OverallProgress, TrainingProgressLogger},
     metric::store::{Event, EventStoreClient, MetricsUpdate},
     renderer::{MetricState, MetricsRenderer},
 };
@@ -134,9 +134,9 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.log_event_training(ProgressEvent::TrainStep);
+                    logger.log_event_training("TrainStep".to_string());
                 }
-                self.renderer.log_event_training(ProgressEvent::TrainStep);
+                self.renderer.log_event_training("TrainStep".to_string());
             }
             RLEvent::EnvStep(item) => {
                 let item = item.sync();
@@ -148,10 +148,10 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
 
                 if let Some(logger) = &mut self.training_progress_logger {
                     logger.update_split(&progress);
-                    logger.log_event_training(ProgressEvent::EnvStep);
+                    logger.log_event_training("EnvStep".to_string());
                 }
                 self.renderer.update_split(&progress);
-                self.renderer.log_event_training(ProgressEvent::EnvStep);
+                self.renderer.log_event_training("EnvStep".to_string());
             }
             RLEvent::EpisodeEnd(item) => {
                 let item = item.sync();
@@ -161,9 +161,9 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.process_update_train(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.log_event_training(ProgressEvent::EpisodeEnd);
+                    logger.log_event_training("EpisodeEnd".to_string());
                 }
-                self.renderer.log_event_training(ProgressEvent::EpisodeEnd);
+                self.renderer.log_event_training("EpisodeEnd".to_string());
             }
             RLEvent::End(learner_summary) => {
                 if let Some(logger) = &mut self.training_progress_logger {
@@ -179,8 +179,10 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
         match event {
             AgentEvaluationEvent::Start(num_episodes) => {
                 if let Some(logger) = &mut self.training_progress_logger {
+                    logger.end_split(); // end training split if it was not already ended
                     logger.start_split("valid", num_episodes);
                 }
+                self.renderer.end_split(); // end training split if it was not already endedß
                 self.renderer.start_split("valid", num_episodes);
             }
             AgentEvaluationEvent::EnvStep(item) => {
@@ -191,9 +193,9 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 self.process_update_valid(update);
 
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.log_event_training(ProgressEvent::EnvStep);
+                    logger.log_event_training("EnvStep".to_string());
                 }
-                self.renderer.log_event_training(ProgressEvent::EnvStep);
+                self.renderer.log_event_training("EnvStep".to_string());
             }
             AgentEvaluationEvent::EpisodeEnd(item) => {
                 let item = item.sync();
@@ -205,17 +207,18 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
 
                 if let Some(logger) = &mut self.training_progress_logger {
                     logger.update_split(&progress);
-                    logger.log_event_training(ProgressEvent::EpisodeEnd);
+                    logger.log_event_training("EpisodeEnd".to_string());
                 }
                 self.renderer.update_test_progress(&progress);
-                self.renderer
-                    .log_event_evaluation(ProgressEvent::EpisodeEnd);
+                self.renderer.log_event_evaluation("EpisodeEnd".to_string());
             }
             AgentEvaluationEvent::End => {
                 if let Some(logger) = &mut self.training_progress_logger {
                     logger.end_split();
+                    logger.start_split("train", 0); // no total items for test, so we pass 0
                 }
                 self.renderer.end_split();
+                self.renderer.start_split("train", 0); // no total items for test, so we pass 0
             }
         }
     }
