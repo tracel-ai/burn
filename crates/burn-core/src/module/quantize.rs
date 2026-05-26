@@ -25,20 +25,22 @@ impl ModuleMapper for Quantizer {
 
 #[cfg(all(test, not(feature = "tch")))]
 mod tests {
-    use crate::TestDevice;
     use crate::module::{Module, Quantizer};
+    use crate::test_device;
     use crate::test_utils::SimpleLinear;
     use burn_tensor::{
-        Device, Tolerance,
+        Tolerance,
         quantization::{Calibration, QuantLevel, QuantParam, QuantValue},
     };
 
     #[test]
     fn should_quantize_module() {
-        let device = Device::new(TestDevice::default());
+        let device = test_device();
         let module = SimpleLinear::new(32, 32, &device);
         let scheme = device
-            .default_quant_scheme()
+            .settings()
+            .quantization
+            .scheme
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Tensor)
             .with_param(QuantParam::F32);

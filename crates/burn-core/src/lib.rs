@@ -38,7 +38,9 @@ extern crate alloc;
 // TODO: configurable device priority
 #[cfg(test)]
 #[allow(missing_docs)]
-pub type TestDevice = burn_tensor::NdArrayDevice;
+pub fn test_device() -> burn_tensor::Device {
+    burn_tensor::Device::ndarray()
+}
 
 #[cfg(test)]
 mod test_utils {
@@ -80,8 +82,8 @@ pub mod prelude {
         config::Config,
         module::Module,
         tensor::{
-            Bool, Device, ElementConversion, Float, Int, Shape, SliceArg, Tensor, TensorData,
-            cast::ToElement, s,
+            Bool, Device, DeviceIndex, DeviceKind, ElementConversion, Float, Int, Shape, SliceArg,
+            Tensor, TensorData, cast::ToElement, s,
         },
     };
     pub use burn_std::device::Device as DeviceOps;

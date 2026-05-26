@@ -13,6 +13,7 @@ use crate::{
         trace::{FuseResources, TensorView, block::FuseBlock},
     },
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
 use cubecl::{
@@ -85,7 +86,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
         for input in plan.handle_inputs.iter() {
             let elem: StorageType = match input {
-                HandleInput::Normal(h) => h.global_ir.dtype.into(),
+                HandleInput::Normal(h) => dtype_to_storage_type(h.global_ir.dtype),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
                     burn_std::DType::QFloat(scheme) => {
                         vector_sizes_quants(client, &mut quants_vector_sizes, scheme);
@@ -102,7 +103,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
         for r in plan.global_outputs.iter() {
-            let elem: StorageType = r.dtype.into();
+            let elem: StorageType = dtype_to_storage_type(r.dtype);
             let elem_size = elem.size();
 
             if ref_elem.1 >= elem_size {

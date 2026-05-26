@@ -4,7 +4,6 @@ use alloc::vec::Vec;
 use burn_backend::ops::TransactionPrimitive;
 use burn_dispatch::Dispatch;
 
-#[derive(Default)]
 /// A transaction can [read](Self::register) multiple tensors at once with a single operation improving
 /// compute utilization with optimized laziness.
 ///
@@ -20,16 +19,45 @@ use burn_dispatch::Dispatch;
 ///    .expect("Correct amount of tensor data");
 /// ```
 pub struct Transaction {
-    op: TransactionPrimitive<Dispatch>,
+    opaque: transaction_opaque::Opaque,
+}
+
+burn_std::obfuscate!(
+    type: TransactionPrimitive<Dispatch>,
+    module: transaction_opaque,
+    derives: [Send, Sync],
+);
+
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::from_op(TransactionPrimitive::<Dispatch>::default())
+    }
 }
 
 impl Transaction {
+    /// Crate-internal constructor wrapping a dispatch-level transaction.
+    pub(crate) fn from_op(op: TransactionPrimitive<Dispatch>) -> Self {
+        Self {
+            opaque: transaction_opaque::Opaque::new(op),
+        }
+    }
+
+    /// Crate-internal mutable borrow of the underlying transaction primitive.
+    pub(crate) fn as_op_mut(&mut self) -> &mut TransactionPrimitive<Dispatch> {
+        self.opaque.as_mut()
+    }
+
+    /// Crate-internal owning extraction of the underlying transaction primitive.
+    pub(crate) fn into_op(self) -> TransactionPrimitive<Dispatch> {
+        self.opaque.into_inner()
+    }
+
     /// Add a [tensor](Tensor) to the transaction to be read.
     pub fn register<const D: usize, K: crate::kind::Transaction>(
         mut self,
         tensor: Tensor<D, K>,
     ) -> Self {
-        K::register_transaction(&mut self.op, tensor.primitive);
+        K::register_transaction(self.as_op_mut(), tensor.primitive);
         self
     }
 
@@ -53,6 +81,6 @@ impl Transaction {
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were [registered](Self::register).
     pub async fn execute_async(self) -> Result<Vec<TensorData>, ExecutionError> {
-        self.op.execute_async().await
+        self.into_op().execute_async().await
     }
 }

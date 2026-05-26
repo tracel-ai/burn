@@ -7,6 +7,7 @@ use crate::{
     ops::{numeric::empty_device_dtype, swap_dims},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -99,7 +100,7 @@ pub(crate) fn cross<R: CubeRuntime>(
             lhs.into_linear_view_like(&output),
             rhs.into_linear_view_like(&output),
             output.clone().into_linear_view(),
-            dtype.into(),
+            dtype_to_storage_type(dtype),
         );
     };
 

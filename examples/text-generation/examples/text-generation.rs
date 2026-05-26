@@ -1,6 +1,6 @@
 use burn::{
     optim::decay::WeightDecayConfig,
-    tensor::{DType, Device, Element},
+    tensor::{Device, DeviceConfig, DeviceIndex, Element},
 };
 use text_generation::{DbPediaDataset, training::ExperimentConfig};
 
@@ -17,13 +17,13 @@ fn main() {
     );
 
     let mut device: Device = if cfg!(target_os = "macos") {
-        burn::backend::libtorch::LibTorchDevice::Mps.into()
+        Device::libtorch_mps()
     } else {
-        burn::backend::libtorch::LibTorchDevice::Cuda(0).into()
+        Device::libtorch_cuda(DeviceIndex::Default)
     };
 
     device
-        .set_default_dtypes(Elem::dtype(), DType::I64)
+        .configure(DeviceConfig::default().float_dtype(Elem::dtype()))
         .unwrap();
 
     text_generation::training::train::<DbPediaDataset>(

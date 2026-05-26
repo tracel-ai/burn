@@ -6,6 +6,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::tensor::IndexingUpdateOp;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
@@ -127,7 +128,10 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
             slice_size,
             k,
             working_units,
-            [tensor_dtype.into(), indices_dtype.into()],
+            [
+                dtype_to_storage_type(tensor_dtype),
+                dtype_to_storage_type(indices_dtype),
+            ],
         )
     }
 

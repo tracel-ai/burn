@@ -1,6 +1,7 @@
 use super::init_matmul_output;
 use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
-use burn_backend::{DType, QTensorPrimitive};
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::{DType, TensorMetadata};
 use burn_std::QuantLevel;
 use cubek::{
     matmul::{
@@ -94,11 +95,11 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             let lhs_dtype = lhs.dtype;
             (
                 lhs_dtype,
-                InputBinding::new(lhs.binding(), lhs_dtype.into()),
+                InputBinding::new(lhs.binding(), dtype_to_storage_type(lhs_dtype)),
             )
         }
         Some((data, scale)) => {
-            let scheme = *lhs.scheme();
+            let scheme = lhs.scheme();
             let data_dtype = data.dtype;
             let scale_dtype = scale.dtype;
             (
@@ -108,8 +109,8 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                     scale.binding(),
                     lhs.meta.shape().clone(),
                     scheme,
-                    data_dtype.into(),
-                    scale_dtype.into(),
+                    dtype_to_storage_type(data_dtype),
+                    dtype_to_storage_type(scale_dtype),
                 ),
             )
         }
@@ -120,7 +121,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
     let (rhs_dtype, rhs_handle) = match rhs_quant_handles {
         None => (
             lhs_dtype,
-            InputBinding::new(rhs.binding(), lhs_dtype.into()),
+            InputBinding::new(rhs.binding(), dtype_to_storage_type(lhs_dtype)),
         ),
         Some((data, scale)) => {
             // Extremely hacky fix to ensure naive can run in every case
@@ -131,10 +132,10 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                 let rhs_dtype = rhs.dtype;
                 (
                     lhs_dtype,
-                    InputBinding::new(rhs.binding(), rhs_dtype.into()),
+                    InputBinding::new(rhs.binding(), dtype_to_storage_type(rhs_dtype)),
                 )
             } else {
-                let scheme = *rhs.scheme();
+                let scheme = rhs.scheme();
                 let data_dtype = data.dtype;
                 let scale_dtype = scale.dtype;
                 (
@@ -144,8 +145,8 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                         scale.binding(),
                         rhs.meta.shape().clone(),
                         scheme,
-                        data_dtype.into(),
-                        scale_dtype.into(),
+                        dtype_to_storage_type(data_dtype),
+                        dtype_to_storage_type(scale_dtype),
                     ),
                 )
             }
@@ -153,9 +154,9 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
     };
 
     let mut dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
-        lhs: lhs_dtype.into(),
-        rhs: rhs_dtype.into(),
-        out: out_dtype.into(),
+        lhs: dtype_to_storage_type(lhs_dtype),
+        rhs: dtype_to_storage_type(rhs_dtype),
+        out: dtype_to_storage_type(out_dtype),
     });
 
     cubek::matmul::launch::launch_ref(

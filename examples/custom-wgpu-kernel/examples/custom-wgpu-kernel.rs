@@ -1,7 +1,4 @@
-use burn::{
-    backend::wgpu::WgpuDevice,
-    tensor::{Device, Distribution, Tensor, Tolerance},
-};
+use burn::tensor::{Device, Distribution, Tensor, Tolerance};
 use custom_wgpu_kernel::{matmul_add_relu_custom, matmul_add_relu_reference};
 
 fn inference(device: &Device) {
@@ -67,7 +64,7 @@ fn autodiff(device: &Device) {
 }
 
 fn main() {
-    let device = WgpuDevice::default().into();
+    let device = Device::default();
     inference(&device);
     autodiff(&device.autodiff());
 }

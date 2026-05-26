@@ -1,9 +1,9 @@
 #![recursion_limit = "131"]
-use burn::data::dataset::Dataset;
+use burn::{data::dataset::Dataset, prelude::*};
 use guide::inference;
 
 fn main() {
-    let device = burn::backend::wgpu::WgpuDevice::default();
+    let device = Device::wgpu(DeviceKind::DefaultDevice);
 
     // All the training artifacts are saved in this directory
     let artifact_dir = "/tmp/guide";

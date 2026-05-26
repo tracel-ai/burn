@@ -327,7 +327,11 @@ impl TensorCheck {
         if dim_indices.len() >= current_dims.len() {
             check = check.register(
                 "Squeeze",
-                TensorError::new("Attempted to squeeze too many dimensions!"),
+                TensorError::new("Attempted to squeeze too many dimensions!").details(format!(
+                    "Got {} dims, tensor has {}",
+                    dim_indices.len(),
+                    current_dims.len()
+                )),
             );
         }
 

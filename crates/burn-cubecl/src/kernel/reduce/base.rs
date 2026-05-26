@@ -5,6 +5,7 @@ use crate::{
     ops::numeric::{empty_device_contiguous_dtype, zeros_client},
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
@@ -31,7 +32,7 @@ pub struct SumAutotuneKey {
 fn supports_atomic_add<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType) -> bool {
     client
         .properties()
-        .atomic_type_usage(Type::atomic(dtype))
+        .atomic_type_usage(Type::atomic(dtype_to_elem_type(dtype)))
         .contains(AtomicUsage::Add)
 }
 
@@ -72,7 +73,7 @@ pub fn sum<Run: CubeRuntime>(
                 tensor.binding(),
                 output.clone().binding(),
                 cube_count,
-                dtype.into(),
+                dtype_to_elem_type(dtype),
             )?;
 
             Ok(output)
@@ -166,7 +167,10 @@ pub fn reduce_dim<Run: CubeRuntime>(
         ReduceOperationConfig::TopK(k) => k,
         _ => 1,
     };
-    let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));
+    let dtypes = config.precision(
+        dtype_to_elem_type(input.dtype),
+        output_dtype.map(dtype_to_elem_type),
+    );
     let client = input.client.clone();
     let output = init_reduce_output::<Run>(&input, dim, &dtypes, accumulator_len).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {
@@ -223,7 +227,7 @@ pub fn init_reduce_output<Run: CubeRuntime>(
             input.client.clone(),
             input.device.clone(),
             shape_out,
-            dtypes.output.elem_type().into(),
+            elem_type_to_dtype(dtypes.output.elem_type()),
         )
     })
 }

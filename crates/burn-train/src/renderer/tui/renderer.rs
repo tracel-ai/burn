@@ -9,7 +9,7 @@ use crate::{Interrupter, LearnerSummary};
 use ratatui::{
     Terminal,
     crossterm::{
-        event::{self, Event, KeyCode},
+        event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
         execute,
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
@@ -28,7 +28,7 @@ use std::{
 
 use super::{
     Callback, CallbackFn, ControlsView, MetricsView, PopupState, ProgressBarState, StatusState,
-    TextMetricsState, TuiGroup, TuiTag,
+    TextEventOutcome, TextMetricsState, TuiGroup, TuiTag,
 };
 
 /// The current terminal backend.
@@ -305,7 +305,7 @@ impl TuiMetricsRenderer {
         kill_signal: Sender<()>,
     ) -> Self {
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen).unwrap();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
         enable_raw_mode().unwrap();
         let terminal = Terminal::new(CrosstermBackend::new(stdout)).unwrap();
 
@@ -316,7 +316,7 @@ impl TuiMetricsRenderer {
             let previous_panic_hook = previous_panic_hook.clone();
             move |panic_info| {
                 let _ = disable_raw_mode();
-                let _ = execute!(io::stdout(), LeaveAlternateScreen);
+                let _ = execute!(io::stdout(), DisableMouseCapture, LeaveAlternateScreen);
                 previous_panic_hook(panic_info);
             }
         }));
@@ -424,45 +424,62 @@ impl TuiMetricsRenderer {
         Ok(())
     }
 
+    /// Dispatch a single user event to the popup / numeric / text components.
+    /// Returns `true` when something visible changed and a redraw is warranted.
+    /// The training loop ignores this (it is tick-gated); the post-training loop
+    /// uses it to skip redraws on inert events like mouse jitter.
+    fn dispatch_user_event(&mut self, event: &Event) -> bool {
+        let mut redraw = self.popup.on_event(event);
+        if self.popup.is_empty() {
+            redraw |= self.metrics_numeric.on_event(event);
+            redraw |= match self.metrics_text.on_event(event) {
+                TextEventOutcome::Clicked(name) => {
+                    self.metrics_numeric.select_by_name(&name);
+                    true
+                }
+                TextEventOutcome::HoverChanged => true,
+                TextEventOutcome::Ignored => false,
+            };
+        }
+        redraw
+    }
+
     fn handle_user_input(&mut self) -> Result<(), Box<dyn Error>> {
         while event::poll(Duration::from_secs(0))? {
             let event = event::read()?;
-            self.popup.on_event(&event);
+            let _ = self.dispatch_user_event(&event);
 
-            if self.popup.is_empty() {
-                self.metrics_numeric.on_event(&event);
-
-                if let Event::Key(key) = event
-                    && let KeyCode::Char('q') = key.code
-                {
-                    self.popup = PopupState::Full(
-                        "Quit".to_string(),
-                        vec![
-                            Callback::new(
-                                "Stop the training.",
-                                "Stop the training immediately. This will break from the \
-                                     training loop, but any remaining code after the loop will be \
-                                     executed.",
-                                's',
-                                QuitPopupAccept(self.interrupter.clone()),
-                            ),
-                            Callback::new(
-                                "Stop the training immediately.",
-                                "Kill the program. This will create a panic! which will make \
-                                     the current training fails. Any code following the training \
-                                     won't be executed.",
-                                'k',
-                                KillPopupAccept(self.kill_signal.clone()),
-                            ),
-                            Callback::new(
-                                "Cancel",
-                                "Cancel the action, continue the training.",
-                                'c',
-                                PopupCancel,
-                            ),
-                        ],
-                    );
-                }
+            if self.popup.is_empty()
+                && let Event::Key(key) = event
+                && let KeyCode::Char('q') = key.code
+            {
+                self.popup = PopupState::Full(
+                    "Quit".to_string(),
+                    vec![
+                        Callback::new(
+                            "Stop the training.",
+                            "Stop the training immediately. This will break from the \
+                                 training loop, but any remaining code after the loop will be \
+                                 executed.",
+                            's',
+                            QuitPopupAccept(self.interrupter.clone()),
+                        ),
+                        Callback::new(
+                            "Stop the training immediately.",
+                            "Kill the program. This will create a panic! which will make \
+                                 the current training fails. Any code following the training \
+                                 won't be executed.",
+                            'k',
+                            KillPopupAccept(self.kill_signal.clone()),
+                        ),
+                        Callback::new(
+                            "Cancel",
+                            "Cancel the action, continue the training.",
+                            'c',
+                            PopupCancel,
+                        ),
+                    ],
+                );
             }
         }
 
@@ -487,15 +504,21 @@ impl TuiMetricsRenderer {
             if let Ok(true) = event::poll(Duration::from_millis(MAX_REFRESH_RATE_MILLIS)) {
                 match event::read() {
                     Ok(event @ Event::Key(key)) => {
-                        if self.popup.is_empty() {
-                            self.metrics_numeric.on_event(&event);
-                            if let KeyCode::Char('q') = key.code {
-                                break;
-                            }
-                        } else {
-                            self.popup.on_event(&event);
+                        let redraw = self.dispatch_user_event(&event);
+                        if self.popup.is_empty()
+                            && let KeyCode::Char('q') = key.code
+                        {
+                            break;
                         }
-                        self.draw().ok();
+                        if redraw {
+                            self.draw().ok();
+                        }
+                    }
+
+                    Ok(event @ Event::Mouse(_)) => {
+                        if self.dispatch_user_event(&event) {
+                            self.draw().ok();
+                        }
                     }
 
                     Ok(Event::Resize(..)) => {
@@ -523,7 +546,11 @@ impl TuiMetricsRenderer {
             }
 
             disable_raw_mode()?;
-            execute!(self.terminal.backend_mut(), LeaveAlternateScreen)?;
+            execute!(
+                self.terminal.backend_mut(),
+                DisableMouseCapture,
+                LeaveAlternateScreen
+            )?;
             self.terminal.show_cursor()?;
 
             // Reinstall the previous panic hook

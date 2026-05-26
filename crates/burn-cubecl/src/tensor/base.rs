@@ -1,7 +1,8 @@
 use crate::CubeRuntime;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
+use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use burn_backend::quantization::QuantScheme;
-use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
+use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
@@ -37,7 +38,7 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
             val.handle.clone(),
             val.meta.shape().clone(),
             val.meta.strides().clone(),
-            val.dtype,
+            dtype_to_storage_type(val.dtype),
         )
     }
 }
@@ -111,19 +112,6 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     }
 }
 
-impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
-    fn scheme(&self) -> &QuantScheme {
-        if let DType::QFloat(scheme) = &self.dtype {
-            scheme
-        } else {
-            panic!(
-                "Quantization scheme is not valid for dtype {:?}",
-                self.dtype,
-            )
-        }
-    }
-}
-
 impl<R> CubeTensor<R>
 where
     R: CubeRuntime,
@@ -182,7 +170,7 @@ where
         );
         let handle = self
             .client
-            .to_client_tensor(desc, &client, self.dtype.into());
+            .to_client_tensor(desc, &client, dtype_to_elem_type(self.dtype));
 
         Self {
             client,

@@ -1,6 +1,6 @@
 use burn_backend::{
-    Bytes, DType, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorMetadata,
-    TensorPrimitive,
+    Bytes, DType, ExecutionError, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
+    get_device_settings,
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
@@ -13,8 +13,7 @@ use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy}
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
 use crate::{
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
-    element::BoolElement,
+    CubeBackend, CubeRuntime,
     kernel::{self, matmul::MatmulStrategy},
     tensor::{CubeTensor, QParams},
 };
@@ -155,13 +154,7 @@ fn new_quantized<R: CubeRuntime>(
     )
 }
 
-impl<R, F, I, BT> QTensorOps<Self> for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
+impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
@@ -279,9 +272,13 @@ where
     }
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
-        let (propagation, scheme) = match (&lhs, &rhs) {
-            (TensorPrimitive::QFloat(lhs), _) => (lhs.propagation(), *lhs.scheme()),
-            (_, TensorPrimitive::QFloat(rhs)) => (rhs.propagation(), *rhs.scheme()),
+        let (settings, scheme) = match (&lhs, &rhs) {
+            (TensorPrimitive::QFloat(lhs), _) => {
+                (get_device_settings::<Self>(&lhs.device), lhs.scheme())
+            }
+            (_, TensorPrimitive::QFloat(rhs)) => {
+                (get_device_settings::<Self>(&rhs.device), rhs.scheme())
+            }
             _ => unreachable!(),
         };
 
@@ -289,7 +286,7 @@ where
         let out_dtype = match (&lhs, &rhs) {
             (TensorPrimitive::Float(lhs), _) => lhs.dtype,
             (_, TensorPrimitive::Float(rhs)) => rhs.dtype,
-            _ => F::dtype(),
+            _ => settings.float_dtype.into(),
         };
 
         let (_lhs_dtype, lhs) = match lhs {
@@ -304,7 +301,7 @@ where
         let out =
             kernel::matmul::matmul(lhs, rhs, None, MatmulStrategy::default(), out_dtype).unwrap();
 
-        match propagation {
+        match settings.quantization.propagation {
             QuantPropagation::Propagate => {
                 TensorPrimitive::QFloat(Self::quantize_dynamic(out, &scheme))
             }

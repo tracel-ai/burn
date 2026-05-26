@@ -4,6 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, ops::ConvTransposeOptions};
 use cubecl::{
     calculate_cube_count_elemwise,
@@ -179,7 +180,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
             options.padding[1],
             options.groups,
         ),
-        dtype.into(),
+        dtype_to_storage_type(dtype),
     );
 
     Ok(output)

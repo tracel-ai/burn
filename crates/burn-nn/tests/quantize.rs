@@ -38,7 +38,9 @@ fn should_quantize_transformer() {
         TransformerEncoderConfig::new(128, 256, 2, 2).init(&device);
     let signal = Tensor::random([2, 32, 128], Distribution::Default, &device);
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([32]))
         .with_param(QuantParam::F32);
@@ -57,7 +59,9 @@ fn should_quantize_linear_128_256() {
     let transformer = LinearConfig::new(128, 256).with_bias(false).init(&device);
     let signal = Tensor::<2>::random([1, 128], Distribution::Default, &device);
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::Tensor)
         .with_param(QuantParam::F32);
@@ -78,7 +82,9 @@ fn should_quantize_linear() {
     // Default scheme should select supported QuantStore default
     // TODO: set native if dtype is supported by the test backend
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::Tensor)
         // .with_store(QuantStore::Native)
@@ -97,7 +103,9 @@ fn should_quantize_linear_weights() {
     let device = Default::default();
     let transformer = LinearConfig::new(32, 32).with_bias(false).init(&device);
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::Tensor)
         .with_param(QuantParam::F32);
@@ -116,7 +124,9 @@ fn should_quantize_linear_blocks() {
     let transformer = LinearConfig::new(32, 32).with_bias(false).init(&device);
     let signal = Tensor::<2>::random([1, 32], Distribution::Default, &device);
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([16]))
         // .with_store(QuantStore::Native)
@@ -135,7 +145,9 @@ fn should_quantize_linear_weights_blocks() {
     let device = Default::default();
     let transformer = LinearConfig::new(32, 32).with_bias(false).init(&device);
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([16]))
         // .with_store(QuantStore::Native)

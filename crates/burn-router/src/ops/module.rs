@@ -1,13 +1,13 @@
 use alloc::boxed::Box;
 
-use burn_backend::Element;
 use burn_backend::ops::{
     AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
     DeformConvOptions, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices,
     MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
-use burn_backend::tensor::{BoolTensor, FloatTensor, IntElem, IntTensor};
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_ir::*;
+use burn_std::IntDType;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient};
 
@@ -551,6 +551,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         padding: usize,
         dilation: usize,
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool1dWithIndices<Self> {
         let client = x.client.clone();
         let desc = MaxPool1dWithIndicesOpIr::create(
@@ -560,7 +561,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             padding,
             dilation,
             ceil_mode,
-            IntElem::<Self>::dtype(),
+            indices_dtype.into(),
             || client.create_empty_handle(),
         );
 
@@ -580,6 +581,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Self> {
         let client = x.client.clone();
         let desc = MaxPool2dWithIndicesOpIr::create(
@@ -589,7 +591,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             padding,
             dilation,
             ceil_mode,
-            IntElem::<Self>::dtype(),
+            indices_dtype.into(),
             || client.create_empty_handle(),
         );
 

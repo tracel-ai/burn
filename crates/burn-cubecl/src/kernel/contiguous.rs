@@ -1,4 +1,5 @@
-use burn_backend::{DType, QTensorPrimitive, TensorMetadata};
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::{DType, TensorMetadata};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::MemoryLayoutStrategy;
 
@@ -16,7 +17,11 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
 
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
 
-    let output = cubecl::std::tensor::into_contiguous(&client, tensor.binding(), dtype.into());
+    let output = cubecl::std::tensor::into_contiguous(
+        &client,
+        tensor.binding(),
+        dtype_to_storage_type(dtype),
+    );
 
     CubeTensor::new(
         client.clone(),
@@ -44,8 +49,11 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
 
     let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
 
-    let output =
-        cubecl::std::tensor::into_contiguous_pitched(&client, tensor.binding(), dtype.into());
+    let output = cubecl::std::tensor::into_contiguous_pitched(
+        &client,
+        tensor.binding(),
+        dtype_to_storage_type(dtype),
+    );
 
     CubeTensor::new(
         client.clone(),
@@ -65,7 +73,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
     strategy: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
     let scheme = tensor.scheme();
-    let output = empty_qtensor(tensor.shape(), *tensor.scheme(), &tensor.device, strategy);
+    let output = empty_qtensor(tensor.shape(), tensor.scheme(), &tensor.device, strategy);
     let (values, scales) = tensor.quantized_handles().unwrap();
     let (out_values, out_scales) = output.quantized_handles().unwrap();
 
@@ -80,7 +88,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 packed_dim,
                 tensor.meta.shape(),
                 scheme.num_quants(),
-                DType::U32.into(),
+                dtype_to_storage_type(DType::U32),
             );
         }
         // e2m1 is special because it has a native packed representation, `e2m1x2`.
@@ -93,7 +101,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 packed_dim,
                 tensor.meta.shape(),
                 scheme.num_quants(),
-                DType::U8.into(),
+                dtype_to_storage_type(DType::U8),
             );
         }
         _ => {
@@ -101,7 +109,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &client,
                 values.binding(),
                 out_values.binding(),
-                dtype_value.into(),
+                dtype_to_storage_type(dtype_value),
             );
         }
     }
@@ -110,7 +118,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         &client,
         scales.binding(),
         out_scales.binding(),
-        dtype_scales.into(),
+        dtype_to_storage_type(dtype_scales),
     );
 
     output

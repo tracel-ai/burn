@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use burn_core::tensor::Device;
+
 use crate::{
     Interrupter, LearnerSummaryConfig, OffPolicyConfig, RLCheckpointer, RLComponentsTypes, RLEvent,
     RLEventProcessorType, RLResult,
@@ -24,6 +26,8 @@ pub struct RLComponents<RLC: RLComponentsTypes> {
     pub event_store: Arc<EventStoreClient>,
     /// Config for creating a summary of the learning
     pub summary: Option<LearnerSummaryConfig>,
+    /// Device used for running inference during environmment sampling or validation.
+    pub inference_device: Device,
 }
 
 /// The strategy for reinforcement learning.

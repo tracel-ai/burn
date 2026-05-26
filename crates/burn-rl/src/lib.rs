@@ -19,6 +19,7 @@ pub(crate) mod tests {
     use crate::{Batchable, Policy, PolicyState};
 
     use burn_core::record::Record;
+    use burn_core::tensor::Device;
     use burn_core::{self as burn};
 
     /// Mock policy for testing
@@ -80,6 +81,10 @@ pub(crate) mod tests {
         }
 
         fn load_record(self, _record: <Self::PolicyState as PolicyState>::Record) -> Self {
+            self
+        }
+
+        fn to_device(self, _device: &Device) -> Self {
             self
         }
     }

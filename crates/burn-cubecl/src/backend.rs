@@ -1,4 +1,5 @@
-use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
+use crate::{CubeRuntime, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
 };
@@ -16,27 +17,17 @@ use burn_ir::{BackendIr, TensorHandle};
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
-pub struct CubeBackend<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> {
+pub struct CubeBackend<R: CubeRuntime> {
     _runtime: PhantomData<R>,
-    _float_elem: PhantomData<F>,
-    _int_elem: PhantomData<I>,
-    _bool_elem: PhantomData<BT>,
 }
 
-impl<R, F, I, BT> BackendTypes for CubeBackend<R, F, I, BT>
+impl<R> BackendTypes for CubeBackend<R>
 where
     R: CubeRuntime,
     R::Server: ComputeServer,
     R::Device: DeviceOps,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
 {
     type Device = R::Device;
-
-    type FloatElem = F;
-    type IntElem = I;
-    type BoolElem = BT;
 
     type FloatTensorPrimitive = CubeTensor<R>;
     type IntTensorPrimitive = CubeTensor<R>;
@@ -44,14 +35,11 @@ where
     type QuantizedTensorPrimitive = CubeTensor<R>;
 }
 
-impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>
+impl<R> Backend for CubeBackend<R>
 where
     R: CubeRuntime,
     R::Server: ComputeServer,
     R::Device: DeviceOps,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
 {
     fn name(device: &Self::Device) -> String {
         let client = R::client(device);
@@ -108,7 +96,7 @@ where
 
         let client = R::client(device);
 
-        let type_usage = client.properties().type_usage(dtype.into());
+        let type_usage = client.properties().type_usage(dtype_to_storage_type(dtype));
         // Same as `TypeUsage::all_scalar()`, but we make the usage explicit here
         type_usage.is_superset(
             TypeUsage::Buffer
@@ -128,7 +116,7 @@ where
         let client = R::client(device);
 
         let props = client.properties();
-        let storage = dtype.into();
+        let storage = dtype_to_storage_type(dtype);
         let usage = props.type_usage(storage);
 
         let mut out = DTypeUsageSet::new();
@@ -159,25 +147,19 @@ where
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt::Debug
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> core::fmt::Debug for CubeBackend<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CubeCLBackend")
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Clone
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> Clone for CubeBackend<R> {
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Default
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> Default for CubeBackend<R> {
     fn default() -> Self {
         Self::new()
     }
@@ -192,9 +174,7 @@ where
 }
 
 #[cfg(not(feature = "fusion"))]
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     type Handle = CubeTensor<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {

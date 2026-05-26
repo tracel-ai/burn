@@ -25,42 +25,11 @@ pub enum DType {
     QFloat(QuantScheme),
 }
 
-#[cfg(feature = "cubecl")]
-impl From<cubecl::ir::ElemType> for DType {
-    fn from(value: cubecl::ir::ElemType) -> Self {
-        match value {
-            cubecl::ir::ElemType::Float(float_kind) => match float_kind {
-                cubecl::ir::FloatKind::F16 => DType::F16,
-                cubecl::ir::FloatKind::BF16 => DType::BF16,
-                cubecl::ir::FloatKind::Flex32 => DType::Flex32,
-                cubecl::ir::FloatKind::F32 => DType::F32,
-                cubecl::ir::FloatKind::F64 => DType::F64,
-                cubecl::ir::FloatKind::TF32 => panic!("Not a valid DType for tensors."),
-                cubecl::ir::FloatKind::E2M1
-                | cubecl::ir::FloatKind::E2M3
-                | cubecl::ir::FloatKind::E3M2
-                | cubecl::ir::FloatKind::E4M3
-                | cubecl::ir::FloatKind::E5M2
-                | cubecl::ir::FloatKind::UE8M0 => {
-                    unimplemented!("Not yet supported, will be used for quantization")
-                }
-            },
-            cubecl::ir::ElemType::Int(int_kind) => match int_kind {
-                cubecl::ir::IntKind::I8 => DType::I8,
-                cubecl::ir::IntKind::I16 => DType::I16,
-                cubecl::ir::IntKind::I32 => DType::I32,
-                cubecl::ir::IntKind::I64 => DType::I64,
-            },
-            cubecl::ir::ElemType::UInt(uint_kind) => match uint_kind {
-                cubecl::ir::UIntKind::U8 => DType::U8,
-                cubecl::ir::UIntKind::U16 => DType::U16,
-                cubecl::ir::UIntKind::U32 => DType::U32,
-                cubecl::ir::UIntKind::U64 => DType::U64,
-            },
-            _ => panic!("Not a valid DType for tensors."),
-        }
-    }
-}
+// Conversions between `DType` and cubecl's `ElemType` / `StorageType` are
+// intentionally not implemented here so that `burn-std` does not depend on
+// `cubecl`. Backend code that needs them should call the named functions in
+// `burn_backend::cubecl` (e.g. `elem_type_to_dtype`, `dtype_to_elem_type`,
+// `dtype_to_storage_type`).
 
 impl DType {
     /// Returns the size of a type in bytes.
@@ -167,7 +136,7 @@ impl DType {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum FloatDType {
     F64,
     F32,
@@ -261,7 +230,7 @@ impl From<FloatDType> for DType {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum IntDType {
     I64,
     I32,

@@ -1,3 +1,4 @@
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     DType,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
@@ -143,7 +144,8 @@ fn reshape_input<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
 
     let mut input = if !is_spatial_contiguous(input.meta.shape(), input.meta.strides()) {
         let (client, device) = (input.client.clone(), input.device.clone());
-        let contiguous = into_contiguous_pitched(&client, input.binding(), dtype.into());
+        let contiguous =
+            into_contiguous_pitched(&client, input.binding(), dtype_to_storage_type(dtype));
         from_handle(client, device, contiguous, dtype)
     } else {
         input

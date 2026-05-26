@@ -1,7 +1,7 @@
 #[cfg(feature = "tch")]
 mod tch {
     use crate::{BoolVisionOps, FloatVisionOps, IntVisionOps, VisionBackend};
-    use burn_core::backend::{LibTorch, TchElement};
+    use burn_core::backend::LibTorch;
 
     impl BoolVisionOps for LibTorch {}
     impl IntVisionOps for LibTorch {}

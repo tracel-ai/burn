@@ -154,6 +154,11 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 }
                 self.renderer.end_test();
             }
+            EvaluatorEvent::EndTest => {
+                if let Some(logger) = &mut self.progress_logger {
+                    logger.end_test();
+                }
+            }
             EvaluatorEvent::End(summary) => {
                 if let Some(logger) = &mut self.progress_logger {
                     logger.end_global_progress();
@@ -324,6 +329,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.renderer.end_split();
                 self.metrics.end_epoch_valid();
             }
+            LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)
+            LearnerEvent::End(_) => {}      // no-op
             LearnerEvent::EndEpoch(_) => {} // update_epoch is handled in process_train(EndEpoch)
             LearnerEvent::End(_) => {}      // no-op
         }

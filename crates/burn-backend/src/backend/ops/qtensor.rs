@@ -5,8 +5,7 @@ use burn_std::{
 };
 
 use crate::{
-    Backend, ExecutionError, QTensorPrimitive, TensorData, TensorMetadata, TensorPrimitive,
-    get_device_settings,
+    Backend, ExecutionError, TensorData, TensorMetadata, TensorPrimitive, get_device_settings,
 };
 use crate::{
     Scalar,
@@ -60,8 +59,9 @@ macro_rules! dequant_op_flow {
     ) => {{
         // Heuristic: prioritize lhs scheme
         let scheme = $t1.scheme().clone();
-        let propagation = $t1.propagation();
-        let dtype = get_device_settings::<B>(&Self::q_device(&$t1)).float_dtype;
+        let settings = get_device_settings::<B>(&Self::q_device(&$t1));
+        let dtype = settings.float_dtype;
+        let propagation = settings.quantization.propagation;
 
         let t1_f = Self::dequantize($t1, dtype);
         let t2_f = Self::dequantize($t2, dtype);
@@ -80,8 +80,9 @@ macro_rules! dequant_op_flow {
         float_op $float_op:expr, $tensor:expr
     ) => {{
         let scheme = $tensor.scheme().clone();
-        let propagation = $tensor.propagation();
-        let dtype = get_device_settings::<B>(&Self::q_device(&$tensor)).float_dtype;
+        let settings = get_device_settings::<B>(&Self::q_device(&$tensor));
+        let dtype = settings.float_dtype;
+        let propagation = settings.quantization.propagation;
 
         let tensor_f = Self::dequantize($tensor, dtype);
         #[allow(clippy::redundant_closure_call)]
@@ -512,10 +513,10 @@ pub trait QTensorOps<B: Backend> {
         let lhs = match lhs {
             TensorPrimitive::Float(lhs) => lhs,
             TensorPrimitive::QFloat(lhs) => {
-                propagation = lhs.propagation();
-                scheme = *lhs.scheme();
-                let float_dtype = target_dtype
-                    .unwrap_or_else(|| get_device_settings::<B>(&Self::q_device(&lhs)).float_dtype);
+                let settings = get_device_settings::<B>(&Self::q_device(&lhs));
+                propagation = settings.quantization.propagation;
+                scheme = lhs.scheme();
+                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
 
                 Self::dequantize(lhs, float_dtype)
             }
@@ -523,10 +524,10 @@ pub trait QTensorOps<B: Backend> {
         let rhs = match rhs {
             TensorPrimitive::Float(rhs) => rhs,
             TensorPrimitive::QFloat(rhs) => {
-                propagation = rhs.propagation();
-                scheme = *rhs.scheme();
-                let float_dtype = target_dtype
-                    .unwrap_or_else(|| get_device_settings::<B>(&Self::q_device(&rhs)).float_dtype);
+                let settings = get_device_settings::<B>(&Self::q_device(&rhs));
+                propagation = settings.quantization.propagation;
+                scheme = rhs.scheme();
+                let float_dtype = target_dtype.unwrap_or(settings.float_dtype);
 
                 Self::dequantize(rhs, float_dtype)
             }
@@ -919,7 +920,7 @@ pub trait QTensorOps<B: Backend> {
     fn q_cat(tensors: Vec<QuantizedTensor<B>>, dim: usize) -> QuantizedTensor<B> {
         // Heuristic: prioritize first tensor scheme
         let first = tensors.first().unwrap();
-        let scheme = *first.scheme();
+        let scheme = first.scheme();
         let dtype = get_device_settings::<B>(&Self::q_device(first)).float_dtype;
 
         let tensor_f = tensors
@@ -1255,7 +1256,7 @@ pub trait QTensorOps<B: Backend> {
         descending: bool,
         out_dtype: IntDType,
     ) -> (QuantizedTensor<B>, IntTensor<B>) {
-        let scheme = *tensor.scheme();
+        let scheme = tensor.scheme();
         let dtype = get_device_settings::<B>(&Self::q_device(&tensor)).float_dtype;
 
         let tensor_f = Self::dequantize(tensor, dtype);

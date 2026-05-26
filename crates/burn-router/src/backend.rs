@@ -1,8 +1,6 @@
 use super::{RouterTensor, RunnerChannel, RunnerClient, get_client};
 use alloc::{format, string::String};
-use burn_backend::{
-    Backend, BackendTypes, DType, ExecutionError, QTensorPrimitive, quantization::QuantScheme,
-};
+use burn_backend::{Backend, BackendTypes, DType, ExecutionError};
 use core::marker::PhantomData;
 
 /// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).
@@ -28,32 +26,12 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
     }
 }
 
-impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
-    fn scheme(&self) -> &QuantScheme {
-        if let DType::QFloat(scheme) = &self.dtype {
-            scheme
-        } else {
-            // TODO: maybe `tensor.scheme()` should return an option
-            panic!("Expected quantized float dtype, got {:?}", self.dtype)
-        }
-    }
-}
-
 impl<R: RunnerChannel> BackendTypes for BackendRouter<R> {
     type Device = R::Device;
 
     type FloatTensorPrimitive = RouterTensor<R::Client>;
-
-    type FloatElem = R::FloatElem;
-
     type IntTensorPrimitive = RouterTensor<R::Client>;
-
-    type IntElem = R::IntElem;
-
     type BoolTensorPrimitive = RouterTensor<R::Client>;
-
-    type BoolElem = R::BoolElem;
-
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
 }
 

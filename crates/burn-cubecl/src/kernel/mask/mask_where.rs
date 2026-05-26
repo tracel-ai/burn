@@ -1,4 +1,5 @@
 use burn_backend::DType;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 use crate::{
@@ -89,7 +90,10 @@ pub fn mask_where<R: CubeRuntime>(
         value.into_linear_view_like(&output),
         mask.into_linear_view_like(&output),
         out,
-        [output.dtype.into(), dtype_bool.into()],
+        [
+            dtype_to_storage_type(output.dtype),
+            dtype_to_storage_type(dtype_bool),
+        ],
     );
 
     output

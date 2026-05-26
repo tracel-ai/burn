@@ -5,10 +5,10 @@ use std::{
 };
 
 use burn_core::{Tensor, data::dataloader::Progress, tensor::Device};
-use burn_rl::EnvironmentInit;
 use burn_rl::Policy;
 use burn_rl::Transition;
 use burn_rl::{AsyncPolicy, Environment};
+use burn_rl::{EnvironmentInit, ToObservation};
 
 use crate::{
     AgentEnvLoop, AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
@@ -38,6 +38,7 @@ pub struct AgentEnvAsyncLoop<RLC: RLComponentsTypes> {
     transition_receiver: Receiver<RLTimeStep<RLC>>,
     trajectory_receiver: Receiver<RLTrajectory<RLC>>,
     request_sender: Sender<RequestMessage>,
+    device: Device,
 }
 
 impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
@@ -69,7 +70,7 @@ impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
         let loop_trajectory_sender = trajectory_sender.unwrap_or(loop_trajectory_sender);
 
         let device = transition_device.clone();
-        let mut loop_agent = agent.clone();
+        let mut loop_agent = agent.clone().to_device(transition_device);
         let eval = config.eval;
 
         let mut current_steps = vec![];
@@ -83,7 +84,7 @@ impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
             loop {
                 let state = env.state();
                 let (action, context) =
-                    loop_agent.action(state.clone().into(), config.deterministic);
+                    loop_agent.action(state.clone().to_observation(&device), config.deterministic);
 
                 let env_action = RLC::Action::from(action);
                 let step_result = env.step(env_action.clone());
@@ -158,6 +159,7 @@ impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
             transition_receiver,
             trajectory_receiver,
             request_sender,
+            device: transition_device.clone(),
         }
     }
 }
@@ -285,10 +287,15 @@ where
 
     fn update_policy(&mut self, update: RLC::PolicyState) {
         self.agent.update(update);
+        self.agent.clone().to_device(&self.device);
     }
 
     fn policy(&self) -> RLC::PolicyState {
         self.agent.state()
+    }
+
+    fn device(&self) -> Device {
+        self.device.clone()
     }
 }
 
@@ -300,6 +307,7 @@ pub struct MultiAgentEnvLoop<RLC: RLComponentsTypes> {
     transition_receiver: Receiver<RLTimeStep<RLC>>,
     trajectory_receiver: Receiver<RLTrajectory<RLC>>,
     request_senders: Vec<Sender<RequestMessage>>,
+    device: Device,
 }
 
 impl<RLC: RLComponentsTypes> MultiAgentEnvLoop<RLC> {
@@ -349,6 +357,7 @@ impl<RLC: RLComponentsTypes> MultiAgentEnvLoop<RLC> {
             transition_receiver,
             trajectory_receiver,
             request_senders,
+            device: device.clone(),
         }
     }
 }
@@ -405,6 +414,7 @@ where
 
     fn update_policy(&mut self, update: RLC::PolicyState) {
         self.agent.update(update);
+        self.agent.clone().to_device(&self.device);
     }
 
     fn run_episodes(
@@ -497,6 +507,10 @@ where
 
     fn policy(&self) -> RLC::PolicyState {
         self.agent.state()
+    }
+
+    fn device(&self) -> Device {
+        self.device.clone()
     }
 }
 

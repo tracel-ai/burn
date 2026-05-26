@@ -1,6 +1,6 @@
-use crate::{LibTorch, TchTensor, element::TchElement};
+use crate::{IntoKind, LibTorch, TchTensor};
 use burn_backend::{
-    TensorMetadata,
+    IntDType, TensorMetadata,
     ops::{
         AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
@@ -9,7 +9,7 @@ use burn_backend::{
     tensor::{FloatTensor, IntTensor},
 };
 
-impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
+impl ModuleOps<Self> for LibTorch {
     fn embedding(weights: TchTensor, indices: TchTensor) -> TchTensor {
         // Workaround for MPS "Placeholder storage has not been allocated" error.
         // See: https://github.com/pytorch/pytorch/issues/123995
@@ -290,6 +290,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         padding: usize,
         dilation: usize,
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool1dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
@@ -300,7 +301,10 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             ceil_mode,
         );
 
-        MaxPool1dWithIndices::new(TchTensor::new(tensor), TchTensor::new(indices))
+        MaxPool1dWithIndices::new(
+            TchTensor::new(tensor),
+            TchTensor::new(indices.to_kind(indices_dtype.into_kind())),
+        )
     }
 
     fn max_pool2d(
@@ -330,6 +334,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
+        indices_dtype: IntDType,
     ) -> MaxPool2dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
@@ -340,7 +345,10 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             ceil_mode,
         );
 
-        MaxPool2dWithIndices::new(TchTensor::new(tensor), TchTensor::new(indices))
+        MaxPool2dWithIndices::new(
+            TchTensor::new(tensor),
+            TchTensor::new(indices.to_kind(indices_dtype.into_kind())),
+        )
     }
 
     fn max_pool2d_with_indices_backward(
@@ -610,7 +618,7 @@ mod tests {
         read_sync,
     };
 
-    type B = crate::LibTorch<f32>;
+    type B = crate::LibTorch;
 
     #[test]
     fn ctc_loss_uniform() {

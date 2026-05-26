@@ -5,6 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use crate::{kernel::utils::decompose_linear, ops::numeric::empty_device_dtype};
+use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     TensorMetadata,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
@@ -312,7 +313,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             shape_out,
             shape_out_c,
             options.padding.iter().any(|it| *it != 0),
-            out_dtype.into(),
+            dtype_to_storage_type(out_dtype),
         )
     };
 

@@ -2,10 +2,7 @@ use core::cmp::Ordering;
 use rand::Rng;
 
 use crate::distribution::Distribution;
-use crate::{BoolStore, DType, bf16, f16};
-
-#[cfg(feature = "cubecl")]
-use crate::flex32;
+use crate::{BoolStore, DType, bf16, f16, flex32};
 
 use super::cast::ToElement;
 
@@ -266,7 +263,6 @@ make_element!(
     dtype DType::BF16
 );
 
-#[cfg(feature = "cubecl")]
 make_element!(
     ty flex32,
     convert |elem: &dyn ToElement| flex32::from_f32(elem.to_f32()),

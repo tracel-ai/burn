@@ -12,7 +12,7 @@ use crate::{FlexTensor, Layout};
 
 /// Apply a float predicate element-wise, producing a boolean tensor.
 ///
-/// Delegates to [`crate::ops::comparison::make_bool_tensor`] for output
+/// Delegates to make_bool_tensor for output
 /// construction, so it shares the same `BoolDType` support (Native/U8 only,
 /// panics on U32).
 pub fn float_predicate<F32P, F64P>(

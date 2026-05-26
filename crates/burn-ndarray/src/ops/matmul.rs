@@ -113,7 +113,10 @@ impl Strides {
 fn output_shape(lsh: &[usize], rsh: &[usize]) -> (Shape, Strides, Strides, Strides) {
     let ndims = lsh.num_dims();
     if ndims < 2 {
-        panic!("Matrix multiplication requires an array with at least 2 dimensions.");
+        panic!(
+            "Matrix multiplication requires an array with at least 2 dimensions. Got Rank {}",
+            ndims
+        );
     }
 
     // Fetch matrix dimensions and check compatibility.
@@ -122,7 +125,10 @@ fn output_shape(lsh: &[usize], rsh: &[usize]) -> (Shape, Strides, Strides, Strid
     let r_rows = rsh[ndims - 2];
     let r_cols = rsh[ndims - 1];
     if l_cols != r_rows {
-        panic!("Dimensions are incompatible for matrix multiplication.");
+        panic!(
+            "Dimensions are incompatible for matrix multiplication: LHS columns ({}) != ({})",
+            l_cols, r_rows
+        );
     }
     // Set matrix dimensions of the output shape.
     let mut osh = vec![0; ndims];
@@ -349,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Dimensions are incompatible for matrix multiplication.")]
+    #[should_panic(expected = "Dimensions are incompatible for matrix multiplication: LHS columns")]
     fn test_output_shape_bad_matrix_dims() {
         output_shape(&[5, 3], &[4, 7]);
     }

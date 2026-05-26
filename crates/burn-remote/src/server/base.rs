@@ -10,7 +10,7 @@ use tokio_util::sync::CancellationToken;
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
 
-use crate::shared::{ComputeTask, Task};
+use crate::shared::{ComputeTask, ConnectionId, Task, TaskResponse, TaskResponseContent};
 
 use super::session::SessionManager;
 
@@ -74,6 +74,16 @@ where
                 return;
             }
         };
+
+        // Return the default device settings (required before creating any tensors)
+        let settings = session_manager.runner.device_settings();
+        let response = TaskResponse {
+            content: TaskResponseContent::Init(settings),
+            // Use a zero/empty ConnectionId for init handshakes
+            id: ConnectionId::new(0, burn_std::id::StreamId::current()),
+        };
+        let bytes = rmp_serde::to_vec(&response).unwrap();
+        socket.send(Message::new(bytes.into())).await.unwrap();
 
         let mut receiver = session_manager.register_responder(id).await;
 

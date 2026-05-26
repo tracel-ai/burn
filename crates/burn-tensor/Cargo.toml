@@ -27,10 +27,12 @@ std = [
 tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-dispatch/tracing"]
 distributed = ["std", "burn-backend/distributed", "burn-dispatch/distributed"]
 
-cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
+cubecl = ["burn-backend/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]
 cubecl-hip = ["burn-backend/cubecl-hip"]
-cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
+cubecl-metal = ["burn-backend/cubecl-metal"]
+cubecl-vulkan = ["burn-backend/cubecl-vulkan"]
+cubecl-webgpu = ["burn-backend/cubecl-webgpu"]
 cubecl-cpu = ["burn-backend/cubecl-cpu"]
 
 # Backends
@@ -39,12 +41,14 @@ rocm = ["burn-dispatch/rocm"]
 flex = ["burn-dispatch/flex"]
 ndarray = ["burn-dispatch/ndarray"]
 tch = ["burn-dispatch/tch"]
-vulkan = ["burn-dispatch/vulkan"]
-webgpu = ["burn-dispatch/webgpu"]
+vulkan = ["wgpu", "burn-dispatch/vulkan"]
+webgpu = ["wgpu", "burn-dispatch/webgpu"]
 wgpu = ["burn-dispatch/wgpu"]
-metal = ["burn-dispatch/metal"]
+metal = ["wgpu", "burn-dispatch/metal"]
 cpu = ["burn-dispatch/cpu"]
 autodiff = ["burn-dispatch/autodiff"]
+remote = ["std", "burn-dispatch/remote"]
+server = ["remote", "burn-dispatch/remote-server"]
 
 # For backend extensions
 extension = []

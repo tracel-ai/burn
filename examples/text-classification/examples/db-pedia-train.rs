@@ -1,7 +1,7 @@
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
-    tensor::{DType, Device, Element},
+    tensor::{Device, DeviceConfig, Element},
 };
 
 use text_classification::{DbPediaDataset, training::ExperimentConfig};
@@ -12,15 +12,14 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
-pub fn launch(device: impl Into<Device>) {
+pub fn launch(mut device: Device) {
     let config = ExperimentConfig::new(
         TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
     );
 
-    let mut device = device.into();
     device
-        .set_default_dtypes(ElemType::dtype(), DType::I32)
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
         .unwrap();
 
     text_classification::training::train::<DbPediaDataset>(
@@ -34,22 +33,22 @@ pub fn launch(device: impl Into<Device>) {
 
 #[cfg(feature = "flex")]
 mod flex {
-    use burn::backend::flex::FlexDevice;
+    use burn::tensor::Device;
 
     pub fn run() {
-        crate::launch(FlexDevice);
+        crate::launch(Device::flex());
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(DeviceIndex::Default);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
         crate::launch(device);
     }
@@ -57,19 +56,19 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::LibTorchDevice;
+    use burn::tensor::Device;
 
     pub fn run() {
-        crate::launch(LibTorchDevice::Cpu);
+        crate::launch(Device::libtorch());
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use burn::backend::wgpu::WgpuDevice;
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        crate::launch(WgpuDevice::default());
+        crate::launch(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 

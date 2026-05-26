@@ -7,21 +7,21 @@ pub use cubecl::cpu::CpuDevice;
 use cubecl::cpu::CpuRuntime;
 
 #[cfg(not(feature = "fusion"))]
-pub type Cpu<F = f32, I = i32> = CubeBackend<CpuRuntime, F, I, u8>;
+pub type Cpu = CubeBackend<CpuRuntime>;
 
 #[cfg(feature = "fusion")]
-pub type Cpu<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CpuRuntime, F, I, u8>>;
+pub type Cpu = burn_fusion::Fusion<CubeBackend<CpuRuntime>>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{Backend, BoolStore, DType, QTensorPrimitive};
-    use burn_cubecl::tensor::CubeTensor;
+    use burn_backend::{Backend, BoolStore, DType, DeviceOps};
 
     #[test]
     fn should_support_dtypes() {
         type B = Cpu;
-        let device = Default::default();
+        let device = CpuDevice::default();
+        let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F64));
         assert!(B::supports_dtype(&device, DType::F32));
@@ -35,10 +35,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U32));
         assert!(B::supports_dtype(&device, DType::U16));
         assert!(B::supports_dtype(&device, DType::U8));
-        assert!(B::supports_dtype(
-            &device,
-            DType::QFloat(CubeTensor::<CpuRuntime>::default_scheme())
-        ));
+        assert!(B::supports_dtype(&device, DType::QFloat(scheme)));
 
         // Currently not registered in supported types
         assert!(!B::supports_dtype(&device, DType::Flex32));

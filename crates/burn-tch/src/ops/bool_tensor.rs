@@ -1,6 +1,6 @@
 use super::TchOps;
 use crate::IntoKind;
-use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor};
 use burn_backend::BoolStore;
 use burn_backend::ExecutionError;
 use burn_backend::IntDType;
@@ -10,7 +10,7 @@ use burn_backend::tensor::IntTensor;
 use burn_backend::{BoolDType, FloatDType};
 use burn_backend::{Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
 
-impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
+impl BoolTensorOps<Self> for LibTorch {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             burn_backend::DType::Bool(BoolStore::Native) => {
