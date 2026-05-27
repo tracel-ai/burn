@@ -56,4 +56,7 @@ pub use device::*;
 #[cfg(feature = "server")]
 pub mod server;
 
+#[cfg(feature = "distributed")]
+pub mod distributed;
+
 pub(crate) use burn_backend::TensorPrimitive;

@@ -12,7 +12,7 @@ use burn_backend::{
 
 use crate::{Dispatch, DispatchDevice};
 
-macro_rules! dispatch_devices_arms {
+macro_rules! dispatch_distributed_devices_arms {
     (
         $device:expr,
         $devices:expr,
@@ -24,7 +24,7 @@ macro_rules! dispatch_devices_arms {
             #[cfg(feature = "autodiff")]
             $crate::DispatchDevice::Autodiff(inner) => {
                 // Recursively dispatch on inner
-                dispatch_devices_arms!(
+                dispatch_distributed_devices_arms!(
                     @autodiff
                     &**inner,
                     $devices,
@@ -41,7 +41,7 @@ macro_rules! dispatch_devices_arms {
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
-                    type B = inst!($Backend);
+                    type B = $crate::backends::$Backend;
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
@@ -54,6 +54,7 @@ macro_rules! dispatch_devices_arms {
                     $body
                 }
             )*
+            other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
     (
@@ -73,7 +74,7 @@ macro_rules! dispatch_devices_arms {
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
-                    type B = $crate::backends::Autodiff<inst!($Backend)>;
+                    type B = $crate::backends::Autodiff<$crate::backends::$Backend>;
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
@@ -86,17 +87,21 @@ macro_rules! dispatch_devices_arms {
                     $body
                 }
             )*
-            $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device.")
+            $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device."),
+            other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
 }
 
 /// Dispatches an operation body based on the provided devices.
-macro_rules! dispatch_devices {
+macro_rules! dispatch_distributed_devices {
     ($device:expr, $devices:expr, |$inner_devices:ident| $body:expr) => {
-        backend_list!(dispatch_devices_arms, $device, $devices, |$inner_devices| {
-            $body
-        })
+        distributed_backend_list!(
+            dispatch_distributed_devices_arms,
+            $device,
+            $devices,
+            |$inner_devices| { $body }
+        )
     };
 }
 
@@ -104,28 +109,30 @@ impl DistributedBackend for Dispatch {
     fn start_communication_server(devices: &[DispatchDevice], config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];
-            dispatch_devices!(first, devices, |inner_devices| {
+            dispatch_distributed_devices!(first, devices, |inner_devices| {
                 B::start_communication_server(&inner_devices, config)
             });
         }
     }
 
     fn close_communication_server(device: &DispatchDevice) {
-        dispatch_device!(device, |device| B::close_communication_server(device))
+        dispatch_device!(@distributed device, |device| {
+            B::close_communication_server(device)
+        })
     }
 
     fn register_sync_parameters(
         device: &DispatchDevice,
         sharded_param_ids: Vec<DistributedParams>,
     ) {
-        dispatch_device!(device, |device| B::register_sync_parameters(
+        dispatch_device!(@distributed device, |device| B::register_sync_parameters(
             device,
             sharded_param_ids,
         ))
     }
 
     fn submit_sync_collective(device: &DispatchDevice) {
-        dispatch_device!(device, |device| B::submit_sync_collective(device))
+        dispatch_device!(@distributed device, |device| B::submit_sync_collective(device))
     }
 
     fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
@@ -138,7 +145,7 @@ impl DistributedBackend for Dispatch {
         device_ids: Vec<DeviceId>,
     ) -> CollectiveTensor<Self> {
         // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
-        let tensor = unary_float!(tensor, float, |tensor| {
+        let tensor = unary_float!(@distributed tensor, float, |tensor| {
             let collective_tensor = B::all_reduce(tensor, op, device_ids);
             unsafe { collective_tensor.assume_resolved() }
         } => Float);
@@ -146,7 +153,7 @@ impl DistributedBackend for Dispatch {
     }
 
     fn sync_collective(device: &DispatchDevice) {
-        dispatch_device!(device, |device| B::sync_collective(device))
+        dispatch_device!(@distributed device, |device| B::sync_collective(device))
     }
 
     unsafe fn comm_device(_tensor: &TensorRef<Self>) -> DispatchDevice {

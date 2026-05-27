@@ -8,8 +8,7 @@ pub(crate) mod server;
 pub use api::*;
 pub use ops::*;
 
-use serde::{Deserialize, Serialize};
-
+pub use burn_std::distributed::*;
 /// A unique identifier for a parameter distributed across multiple devices.
 pub type DistributedParamId = burn_std::id::ParamId;
 
@@ -20,22 +19,6 @@ use crate::tensor::FloatTensor;
 pub struct DistributedParams {
     /// The tensor's [DistributedParamId].
     pub param_id: DistributedParamId,
-}
-
-/// The different ways to execute the reduce operation.
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
-pub enum ReduceOperation {
-    /// The sum of the values.
-    Sum,
-    /// The mean of the values.
-    Mean,
-}
-
-/// Parameter struct for setting up and getting parameters for distributed operations.
-#[derive(Clone)]
-pub struct DistributedConfig {
-    /// How to execute the all_reduce operation.
-    pub all_reduce_op: ReduceOperation,
 }
 
 /// A tensor handle used for a collective operation, that is not yet valid for use.
