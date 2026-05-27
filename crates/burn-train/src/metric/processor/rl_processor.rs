@@ -174,7 +174,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                     logger.end_split(); // end training split if it was not already ended
                     logger.start_split("valid", num_episodes);
                 }
-                self.renderer.end_split(); // end training split if it was not already endedß
+                self.renderer.end_split(); // end training split if it was not already ended
                 self.renderer.start_split("valid", num_episodes);
             }
             AgentEvaluationEvent::EnvStep(item) => {
