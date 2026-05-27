@@ -308,7 +308,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     logger.log_event_training("Iteration".to_string());
                 }
                 self.renderer.update_split(&progress);
-                self.renderer.log_event_training("iteration".to_string());
+                self.renderer.log_event_training("Iteration".to_string());
             }
             LearnerEvent::EndSplit(epoch) => {
                 self.store
