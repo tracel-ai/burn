@@ -60,14 +60,6 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
         }
     }
 
-    pub(crate) fn with_training_progress_logger(
-        mut self,
-        logger: Box<dyn TrainingProgressLogger>,
-    ) -> Self {
-        self.training_progress_logger = Some(logger);
-        self
-    }
-
     fn process_update_train(&mut self, update: MetricsUpdate) {
         self.store
             .add_event_train(crate::metric::store::Event::MetricsUpdate(update.clone()));
