@@ -10,11 +10,11 @@ use burn_core::data::dataloader::Progress;
 /// start(total_epochs, total_items)
 ///   for each epoch:
 ///     start_split("train", total_items_train)
-///       update_split(progress)  // called once per batch
+///       update_split(items_processed)  // called once per batch
 ///       ...
 ///     end_split()
 ///     start_split("valid", total_items_valid)
-///       update_split(progress)  // called once per batch
+///       update_split(items_processed)  // called once per batch
 ///       ...
 ///     end_split()
 ///     update_epoch(epoch)
@@ -22,6 +22,9 @@ use burn_core::data::dataloader::Progress;
 /// ```
 ///
 /// `end()` is called whether training completes normally or is interrupted early.
+///
+/// Implementors are responsible for tracking `total_items` and epoch state in order
+/// to reconstruct the full progress picture when `update_split` is called.
 pub trait TrainingProgressLogger: Send {
     /// Called once at the start of training, providing the total number of epochs.
     ///
@@ -35,7 +38,7 @@ pub trait TrainingProgressLogger: Send {
     fn start_split(&mut self, split: &str, total_items: usize);
 
     /// Log the progress of the current training step.
-    fn update_split(&mut self, progress: &OverallProgress);
+    fn update_split(&mut self, items_processed: usize);
 
     /// Called at the end of a training split.
     fn end_split(&mut self);
@@ -57,13 +60,16 @@ pub trait TrainingProgressLogger: Send {
 /// start_global_progress(total_tests)
 ///   for each test split:
 ///     start_test(name, total_items)
-///       update_test_progress(progress)  // called once per batch
+///       update_test_progress(items_processed)  // called once per batch
 ///       ...
 ///     end_test()
 /// end_global_progress()
 /// ```
 ///
 /// `end_global_progress()` is called whether evaluation completes normally or is interrupted early.
+///
+/// Implementors are responsible for tracking `total_tests` and `total_items` (stored from
+/// `start_global_progress` and `start_test`) to reconstruct the full progress picture.
 pub trait EvaluationProgressLogger: Send {
     /// Called once at the start of evaluation, providing the total number of test splits.
     fn start_global_progress(&mut self, total_tests: usize);
@@ -72,7 +78,7 @@ pub trait EvaluationProgressLogger: Send {
     fn start_test(&mut self, name: &str, total_items: usize);
 
     /// Log the progress of the current test step.
-    fn update_test_progress(&mut self, progress: &OverallProgress);
+    fn update_test_progress(&mut self, items_processed: usize);
 
     /// Called at the end of a test split.
     fn end_test(&mut self);

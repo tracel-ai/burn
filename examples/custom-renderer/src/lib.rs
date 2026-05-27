@@ -5,7 +5,7 @@ use burn::{
     tensor::Device,
     train::{
         Learner, SupervisedTraining,
-        logger::{EvaluationProgressLogger, OverallProgress, TrainingProgressLogger},
+        logger::{EvaluationProgressLogger, TrainingProgressLogger},
         renderer::{
             EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation,
             MetricsRendererTraining,
@@ -45,8 +45,8 @@ impl TrainingProgressLogger for CustomRenderer {
 
     fn start_split(&mut self, _split: &str, _total_items: usize) {}
 
-    fn update_split(&mut self, progress: &OverallProgress) {
-        dbg!(progress);
+    fn update_split(&mut self, items_processed: usize) {
+        dbg!(items_processed);
     }
 
     fn end_split(&mut self) {}
@@ -75,8 +75,8 @@ impl EvaluationProgressLogger for CustomRenderer {
 
     fn start_test(&mut self, _name: &str, _total_items: usize) {}
 
-    fn update_test_progress(&mut self, progress: &OverallProgress) {
-        dbg!(progress);
+    fn update_test_progress(&mut self, items_processed: usize) {
+        dbg!(items_processed);
     }
 
     fn end_test(&mut self) {}

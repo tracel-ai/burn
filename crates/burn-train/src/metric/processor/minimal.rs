@@ -1,6 +1,6 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::{
-    logger::{OverallProgress, TrainingProgressLogger},
+    logger::TrainingProgressLogger,
     metric::store::{EpochSummary, EventStoreClient, Split},
     renderer::cli::CliMetricsRenderer,
 };
@@ -52,7 +52,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress = OverallProgress::new(item.progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_train(&item, &metadata);
@@ -60,7 +59,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress);
+                    logger.update_split(item.progress.items_processed);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {
@@ -97,7 +96,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let progress = OverallProgress::new(item.progress.clone(), item.progress.clone());
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_valid(&item, &metadata);
@@ -105,7 +103,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 self.store
                     .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress);
+                    logger.update_split(item.progress.items_processed);
                 }
             }
             LearnerEvent::EndSplit(epoch) => {

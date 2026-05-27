@@ -1,5 +1,5 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
-use crate::logger::{EvaluationProgressLogger, OverallProgress, TrainingProgressLogger};
+use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::MetricMetadata;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
@@ -108,10 +108,6 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
             }
             EvaluatorEvent::ProcessedItem(name, item) => {
                 let item = item.sync();
-                let progress = OverallProgress::new(
-                    Progress::new(self.current_test, self.total_tests, "tests".to_string()),
-                    item.progress.clone(),
-                );
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_test(&item, &metadata);
@@ -140,10 +136,10 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     });
 
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_test_progress(&progress);
+                    logger.update_test_progress(item.progress.items_processed);
                     logger.log_event_evaluation("Iteration".to_string());
                 }
-                self.renderer.update_test_progress(&progress);
+                self.renderer.update_test_progress(item.progress.items_processed);
                 self.renderer.log_event_evaluation("Iteration".to_string());
             }
             EvaluatorEvent::EndTest => {
@@ -198,7 +194,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let item = item.sync();
                 let global_progress =
                     Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
-                let progress = OverallProgress::new(global_progress.clone(), item.progress.clone());
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     global_progress,
@@ -227,10 +222,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress);
+                    logger.update_split(item.progress.items_processed);
                     logger.log_event_training("Iteration".to_string());
                 }
-                self.renderer.update_split(&progress);
+                self.renderer.update_split(item.progress.items_processed);
                 self.renderer.log_event_training("Iteration".to_string());
             }
             LearnerEvent::EndSplit(epoch) => {
@@ -275,7 +270,6 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let item = item.sync();
                 let global_progress =
                     Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
-                let progress = OverallProgress::new(global_progress.clone(), item.progress.clone());
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     global_progress,
@@ -304,10 +298,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.update_split(&progress);
+                    logger.update_split(item.progress.items_processed);
                     logger.log_event_training("Iteration".to_string());
                 }
-                self.renderer.update_split(&progress);
+                self.renderer.update_split(item.progress.items_processed);
                 self.renderer.log_event_training("Iteration".to_string());
             }
             LearnerEvent::EndSplit(epoch) => {
