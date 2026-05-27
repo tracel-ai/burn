@@ -22,6 +22,9 @@ pub(crate) struct GradSyncContext {
     pub distributed_params: HashMap<NodeId, DistributedParams>,
 }
 
+/// Hook type executed when a gradient is registered.
+type OnRegisterHook = Box<dyn FnMut(&NodeId, &mut TensorContainer<GradID>) + Send + Sync>;
+
 /// Trait for registering distributed gradients.
 pub trait DistributedRegistration: Send + Sync {
     /// Performs distributed registration operations on the tensor with the corresponding [`NodeId`].
@@ -42,7 +45,7 @@ pub struct Gradients {
     container: TensorContainer<GradID>,
     /// Optional hook called after each gradient is registered, used to trigger
     /// distributed gradient synchronization operations.
-    on_register: Option<Box<dyn FnMut(&NodeId, &mut TensorContainer<GradID>) + Send + Sync>>,
+    on_register: Option<OnRegisterHook>,
 }
 
 impl Gradients {
@@ -55,7 +58,7 @@ impl Gradients {
     fn new_with_hook<B: Backend>(
         root_node: NodeRef,
         root_tensor: FloatTensor<B>,
-        on_register: Option<Box<dyn FnMut(&NodeId, &mut TensorContainer<GradID>) + Send + Sync>>,
+        on_register: Option<OnRegisterHook>,
     ) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
@@ -79,9 +82,7 @@ impl Gradients {
         root_tensor: FloatTensor<B>,
         mut reg: Box<dyn DistributedRegistration>,
     ) -> Self {
-        let on_register: Option<
-            Box<dyn FnMut(&NodeId, &mut TensorContainer<GradID>) + Send + Sync>,
-        > = Some(Box::new(move |id, container| {
+        let on_register: Option<OnRegisterHook> = Some(Box::new(move |id, container| {
             reg.on_register(id, container);
         }));
         Self::new_with_hook::<B>(root_node, root_tensor, on_register)

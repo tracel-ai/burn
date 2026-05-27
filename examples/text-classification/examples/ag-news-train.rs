@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 #[cfg(feature = "ddp")]
-use burn::tensor::backend::distributed::{DistributedBackend, DistributedConfig, ReduceOperation};
+use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -35,7 +35,7 @@ pub fn launch_multi() {
 }
 
 #[cfg(all(feature = "cuda", feature = "ddp"))]
-pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
+pub fn launch_multi() {
     let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
 
     devices.iter_mut().for_each(|d| {
