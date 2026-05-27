@@ -34,15 +34,13 @@ impl TrainingProgressLogger for CliMetricsRenderer {
         self.training_progress.global_progress =
             Progress::new(1, total_epochs, "epochs".to_string());
         if let Some(items) = total_items {
-            self.training_progress.split_progress =
-                Progress::new(0, items, "items".to_string());
+            self.training_progress.split_progress = Progress::new(0, items, "items".to_string());
         }
         println!("Starting training for {total_epochs} epochs.");
     }
 
     fn start_split(&mut self, split_name: &str, total_items: usize) {
-        self.training_progress.split_progress =
-            Progress::new(0, total_items, "items".to_string());
+        self.training_progress.split_progress = Progress::new(0, total_items, "items".to_string());
         println!("Starting split '{split_name}' with {total_items} items.");
     }
 
@@ -53,8 +51,7 @@ impl TrainingProgressLogger for CliMetricsRenderer {
 
         // For RL: global_progress.items_total == 0 means no epoch concept; mirror split.
         if self.training_progress.global_progress.items_total == 0 {
-            self.training_progress.global_progress =
-                self.training_progress.split_progress.clone();
+            self.training_progress.global_progress = self.training_progress.split_progress.clone();
         }
         println!("{:?}", self.training_progress);
     }
@@ -78,18 +75,15 @@ impl TrainingProgressLogger for CliMetricsRenderer {
 
 impl EvaluationProgressLogger for CliMetricsRenderer {
     fn start_global_progress(&mut self, total_tests: usize) {
-        self.eval_progress.global_progress =
-            Progress::new(0, total_tests, "tests".to_string());
+        self.eval_progress.global_progress = Progress::new(0, total_tests, "tests".to_string());
         println!("Starting evaluation with {total_tests} test(s).");
     }
 
     fn start_test(&mut self, name: &str, total_items: usize) {
         let current = self.eval_progress.global_progress.items_processed + 1;
         let total = self.eval_progress.global_progress.items_total;
-        self.eval_progress.global_progress =
-            Progress::new(current, total, "tests".to_string());
-        self.eval_progress.split_progress =
-            Progress::new(0, total_items, "items".to_string());
+        self.eval_progress.global_progress = Progress::new(current, total, "tests".to_string());
+        self.eval_progress.split_progress = Progress::new(0, total_items, "items".to_string());
         println!("Starting test '{name}' with {total_items} items.");
     }
 

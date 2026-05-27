@@ -139,7 +139,8 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     logger.update_test_progress(item.progress.items_processed);
                     logger.log_event_evaluation("Iteration".to_string());
                 }
-                self.renderer.update_test_progress(item.progress.items_processed);
+                self.renderer
+                    .update_test_progress(item.progress.items_processed);
                 self.renderer.log_event_evaluation("Iteration".to_string());
             }
             EvaluatorEvent::EndTest => {
