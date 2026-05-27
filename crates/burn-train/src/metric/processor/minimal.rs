@@ -9,7 +9,6 @@ use std::sync::Arc;
 /// An [event processor](EventProcessor) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Optionally logging training progress via a [TrainingProgressLogger].
-///   - Optionally logging training progress via a [TrainingProgressLogger].
 #[allow(dead_code)]
 pub(crate) struct MinimalEventProcessor<T: ItemLazy, V: ItemLazy> {
     metrics: MetricsTraining<T, V>,
