@@ -18,13 +18,13 @@ use burn_backend::Backend;
 use burn_backend::tensor::FloatTensor;
 
 #[cfg(feature = "distributed")]
-use crate::grads::DistributedContext;
+use crate::grads::GradSyncContext;
 
 struct TapeResult {
     tape: Vec<Vec<StepBoxed>>,
     checkpointer: Checkpointer,
     #[cfg(feature = "distributed")]
-    distributed: Option<DistributedContext>,
+    distributed: Option<GradSyncContext>,
 }
 
 #[derive(Default)]
@@ -165,7 +165,7 @@ impl AutodiffServer {
 
         let checkpointer = builder.build(NodeTree::new(tree));
         #[cfg(feature = "distributed")]
-        let distributed = Some(DistributedContext {
+        let distributed = Some(GradSyncContext {
             n_required_map,
             distributed_params,
         });

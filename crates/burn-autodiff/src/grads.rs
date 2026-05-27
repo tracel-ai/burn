@@ -17,7 +17,7 @@ use burn_backend::distributed::DistributedParams;
 pub type GradID = u64;
 
 #[cfg(feature = "distributed")]
-pub(crate) struct DistributedContext {
+pub(crate) struct GradSyncContext {
     pub n_required_map: HashMap<NodeId, usize>,
     pub distributed_params: HashMap<NodeId, DistributedParams>,
 }
@@ -34,7 +34,7 @@ pub(crate) enum BackwardMode {
     Standard,
     // Distributed registration hook.
     #[cfg(feature = "distributed")]
-    Distributed(Box<dyn FnOnce(DistributedContext) -> Box<dyn DistributedRegistration>>),
+    Distributed(Box<dyn FnOnce(GradSyncContext) -> Box<dyn DistributedRegistration>>),
 }
 
 /// Gradients container used during the backward pass.

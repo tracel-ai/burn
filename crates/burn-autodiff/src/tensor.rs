@@ -5,7 +5,7 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 #[cfg(feature = "distributed")]
-use crate::{distributed::DistributedGradientRegistration, grads::DistributedContext};
+use crate::{distributed::DistributedGradientRegistration, grads::GradSyncContext};
 use alloc::{boxed::Box, vec};
 use burn_backend::{Backend, TensorMetadata};
 
@@ -241,7 +241,7 @@ impl<B: DistributedBackend> AutodiffTensor<B> {
         let device_cloned = device.clone();
         let client = self.node.client.clone();
 
-        let mode = BackwardMode::Distributed(Box::new(|ctx: DistributedContext| {
+        let mode = BackwardMode::Distributed(Box::new(|ctx: GradSyncContext| {
             let registration = DistributedGradientRegistration::<B>::new(
                 ctx.n_required_map,
                 ctx.distributed_params,
