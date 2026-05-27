@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use burn_backend::{Backend, TensorMetadata, TensorPrimitive, tensor::FloatTensor};
 use burn_std::tensor::container::TensorContainer;
 
