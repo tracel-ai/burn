@@ -20,7 +20,7 @@ mod tests {
     #[test]
     fn should_support_dtypes() {
         type B = Cpu;
-        let device = CpuDevice::default();
+        let device = CpuDevice;
         let scheme = device.defaults().quantization.scheme;
 
         assert!(B::supports_dtype(&device, DType::F64));

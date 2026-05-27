@@ -6,13 +6,13 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
-use cubecl::std::tensor::layout::linear::LinearView;
+use cubecl::std::tensor::layout::linear::{LinearView, LinearViewMut};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch, address_type = "dynamic")]
 pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
-    input: &LinearView<Vector<I, N>>,
-    output: &mut LinearView<Vector<O, N>, ReadWrite>,
+    input: LinearView<'_, Vector<I, N>>,
+    mut output: LinearViewMut<'_, Vector<O, N>>,
     #[define(I, O)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {

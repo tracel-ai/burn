@@ -5,7 +5,11 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 
 pub(crate) trait BinaryOpFloatFamily: Send + Sync + 'static {
     type BinaryOp<C: Float, N: Size>: BinaryOpFloat<C, N>;
@@ -32,9 +36,9 @@ impl<T: Float, N: Size> BinaryOpFloat<T, N> for ArcTan2Op {
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_binop<C: Float, N: Size, O: BinaryOpFloatFamily>(
-    lhs: &LinearView<Vector<C, N>>,
-    rhs: &LinearView<Vector<C, N>>,
-    out: &mut LinearView<Vector<C, N>, ReadWrite>,
+    lhs: LinearView<'_, Vector<C, N>>,
+    rhs: LinearView<'_, Vector<C, N>>,
+    mut out: LinearViewMut<'_, Vector<C, N>>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
