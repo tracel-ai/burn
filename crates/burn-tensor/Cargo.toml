@@ -39,7 +39,7 @@ cubecl-cpu = ["burn-backend/cubecl-cpu"]
 # Backends
 cuda = ["burn-dispatch/cuda", "cubecl-cuda"]
 rocm = ["burn-dispatch/rocm", "cubecl-hip"]
-flex = ["burn-dispatch/flex"]#, "complex"]
+flex = ["burn-dispatch/flex"]
 ndarray = ["burn-dispatch/ndarray"]
 tch = ["burn-dispatch/tch"]
 wgpu = ["burn-dispatch/wgpu", "cubecl-wgpu"]

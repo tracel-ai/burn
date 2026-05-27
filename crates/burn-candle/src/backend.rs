@@ -3,8 +3,7 @@ use burn_backend::{
     UnimplementedTensorPrimitive, tensor::Device,
 };
 use burn_std::{
-    Complex,
-    BoolStore, DeviceSettings,
+    BoolStore, Complex, DeviceSettings,
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };

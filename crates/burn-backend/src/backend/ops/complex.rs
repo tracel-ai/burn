@@ -1,17 +1,21 @@
 use burn_std::{
-    Complex, ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice, SplitTensorData, TensorData
+    Complex, ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar,
+    Shape, Slice, SplitTensorData, TensorData,
 };
 
 use crate::{
-    BackendTypes, ComplexTensor, ComplexTensorBackend, DefaultComplexOps, InterleavedLayout, TensorMetadata,
+    BackendTypes, ComplexTensor, ComplexTensorBackend, DefaultComplexOps, InterleavedLayout,
+    TensorMetadata, TypedDevice,
     ops::IntTensorOps,
     tensor::{Device, FloatTensor, IntTensor},
 };
 
-
-
-
-pub trait ComplexTensorOps<B: ComplexTensorBackend> {
+/// Primitive complex tensor operations implemented by a backend.
+///
+/// This trait defines the low-level API used by higher-level complex tensor types.
+/// Implementations are responsible for device execution, shape semantics, dtype
+/// handling, and numerical behavior of each operation.
+pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
     /// Converts the tensor's real component to a data structure.
     ///
     /// # Arguments
@@ -64,16 +68,16 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         tensor: ComplexTensor<B>,
     ) -> impl Future<Output = Result<SplitTensorData, ExecutionError>> + Send;
 
-    /// Converts a real float tensor to a complex tensor with zero imaginary part.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The float tensor.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor with the same values as `tensor` and a zero imaginary part.
-    fn to_complex(tensor: FloatTensor<B>) -> ComplexTensor<B>;
+    // /// Converts a real float tensor to a complex tensor with zero imaginary part.
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `tensor` - The float tensor.
+    // ///
+    // /// # Returns
+    // ///
+    // /// A complex tensor with the same values as `tensor` and a zero imaginary part.
+    // fn to_complex(tensor: FloatTensor<B>) -> ComplexTensor<B>;
 
     // was going to add a norm function here, but float tensor ops doesn't have a hypot function
     // easy enough to add, but a bit out of scope for this PR
@@ -146,7 +150,12 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the given shape and value.
-    fn complex_full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
+    fn complex_full(
+        shape: Shape,
+        fill_value: Scalar,
+        device: &Device<B>,
+        dtype: ComplexDType,
+    ) -> ComplexTensor<B> {
         B::Layout::full(shape, fill_value, device, dtype)
     }
 
@@ -162,7 +171,6 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     fn complex_shape(tensor: &ComplexTensor<B>) -> Shape {
         tensor.shape()
     }
-
 
     /// Moves the tensor to the given device.
     ///
@@ -280,7 +288,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The complex conjugate of the tensor.
-    fn conj(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_conj(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Returns the real part of the complex tensor.
     ///
@@ -291,7 +299,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the real parts.
-    fn real(tensor: ComplexTensor<B>) -> FloatTensor<B>;
+    fn complex_real(tensor: ComplexTensor<B>) -> FloatTensor<B>;
 
     /// Returns the imaginary part of the complex tensor.
     ///
@@ -302,7 +310,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the imaginary parts.
-    fn imag(tensor: ComplexTensor<B>) -> FloatTensor<B>;
+    fn complex_imag(tensor: ComplexTensor<B>) -> FloatTensor<B>;
 
     /// Returns the magnitude (absolute value) of the complex tensor.
     ///
@@ -313,7 +321,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the magnitudes.
-    fn abs(tensor: ComplexTensor<B>) -> FloatTensor<B>;
+    fn complex_abs(tensor: ComplexTensor<B>) -> FloatTensor<B>;
 
     /// Returns the phase (argument) of the complex tensor.
     ///
@@ -336,32 +344,51 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the phases in radians.
-    fn phase(tensor: ComplexTensor<B>) -> FloatTensor<B> {
+    fn complex_phase(tensor: ComplexTensor<B>) -> FloatTensor<B> {
         Self::complex_arg(tensor)
     }
 
-    /// Creates a complex tensor from real and imaginary parts.
+    /// Creates a complex tensor from separate real and imaginary host buffers.
+    ///
+    /// Each output element is formed as `real[i] + imag[i] * i`.
     ///
     /// # Arguments
     ///
-    /// * `real` - The real part tensor.
-    /// * `imag` - The imaginary part tensor.
+    /// * `real` - Host data containing real parts.
+    /// * `imag` - Host data containing imaginary parts.
+    /// * `device` - Target device where the complex tensor is allocated.
     ///
     /// # Returns
     ///
-    /// A complex tensor constructed from the real and imaginary parts.
-    fn complex_from_parts(real: TensorData, imag: TensorData) -> ComplexTensor<B>;
+    /// A complex tensor allocated on `device` with values composed from `real` and `imag`.
+    ///
+    /// # Notes
+    ///
+    /// Backends are expected to require matching shape and element type between `real` and
+    /// `imag`. Mismatches may panic or otherwise fail according to backend validation rules.
+    fn complex_from_parts(
+        real: TensorData,
+        imag: TensorData,
+        device: &Device<B>,
+    ) -> ComplexTensor<B>;
 
-    /// Creates a complex tensor from magnitude and phase.
+    /// Creates a complex tensor from magnitude and phase (polar form).
+    ///
+    /// For each element, the conversion is:
+    /// `z = magnitude * (cos(phase) + i * sin(phase))`.
     ///
     /// # Arguments
     ///
-    /// * `magnitude` - The magnitude tensor.
-    /// * `phase` - The phase tensor (in radians).
+    /// * `magnitude` - Magnitude tensor (`|z|`).
+    /// * `phase` - Phase tensor (`arg(z)`), in radians.
     ///
     /// # Returns
     ///
     /// A complex tensor constructed from polar coordinates.
+    ///
+    /// # Notes
+    ///
+    /// `magnitude` and `phase` should be broadcast-compatible according to backend semantics.
     fn complex_from_polar(magnitude: FloatTensor<B>, phase: FloatTensor<B>) -> ComplexTensor<B>;
 
     // formula: e^(a + bi) = e^a (cos(b) + i*sin(b)) = from_polar(e^a, b)
@@ -443,16 +470,92 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The tangent of the tensor.
     fn complex_tan(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Complex inverse cosine function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex arccosine of `tensor`.
     fn complex_acos(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Complex inverse hyperbolic cosine function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex area hyperbolic cosine of `tensor`.
     fn complex_acosh(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Complex hyperbolic cosine function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex hyperbolic cosine of `tensor`.
+    fn complex_cosh(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        let device = B::complex_device(&tensor);
+        let two = Self::complex_full(
+            tensor.shape(),
+            Scalar::from(2.0_f32),
+            &device,
+            tensor.dtype().into(),
+        );
+        let exp_z = Self::complex_exp(tensor.clone());
+        let exp_neg_z = Self::complex_exp(Self::complex_neg(tensor));
+        Self::complex_div(Self::complex_add(exp_z, exp_neg_z), two)
+    }
+
+    /// Complex inverse sine function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex arcsine of `tensor`.
     fn complex_asin(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Complex inverse hyperbolic sine function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex area hyperbolic sine of `tensor`.
     fn complex_asinh(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Complex inverse tangent function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex arctangent of `tensor`.
     fn complex_atan(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Complex inverse hyperbolic tangent function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex area hyperbolic tangent of `tensor`.
     fn complex_atanh(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Complex select function.
@@ -1077,26 +1180,36 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
 
 impl<B> DefaultComplexOps<B> for InterleavedLayout
 where
-    B: ComplexTensorBackend + BackendTypes,
+    B: ComplexTensorBackend + BackendTypes + TypedDevice<B>,
 {
     type OutTensorData = TensorData;
 
     fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(match dtype{
-            ComplexDType::Complex64 => TensorData::ones::<Complex<f64>, _>(shape),
-            ComplexDType::Complex32 => TensorData::ones::<Complex<f32>, _>(shape),
-        }, device)
+        B::complex_from_interleaved_data(
+            match dtype {
+                ComplexDType::Complex64 => TensorData::ones::<Complex<f64>, _>(shape),
+                ComplexDType::Complex32 => TensorData::ones::<Complex<f32>, _>(shape),
+            },
+            device,
+        )
     }
 
     fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(match dtype{
-            ComplexDType::Complex64 => TensorData::zeros::<Complex<f64>, _>(shape),
-            ComplexDType::Complex32 => TensorData::zeros::<Complex<f32>, _>(shape),
-        }, device)
+        B::complex_from_interleaved_data(
+            match dtype {
+                ComplexDType::Complex64 => TensorData::zeros::<Complex<f64>, _>(shape),
+                ComplexDType::Complex32 => TensorData::zeros::<Complex<f32>, _>(shape),
+            },
+            device,
+        )
     }
 
-    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
-
+    fn full(
+        shape: Shape,
+        fill_value: Scalar,
+        device: &Device<B>,
+        dtype: ComplexDType,
+    ) -> ComplexTensor<B> {
         B::complex_from_interleaved_data(
             TensorData::full_dtype(shape, fill_value, dtype.into()),
             device,

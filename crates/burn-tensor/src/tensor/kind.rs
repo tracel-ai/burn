@@ -4,7 +4,7 @@
 #[cfg(feature = "extension")]
 pub use crate::bridge::BridgeTensor;
 
-pub use crate::bridge::{Bool, Float, Int, TensorKind, TensorKindId};
+pub use crate::bridge::{Bool, ComplexKind, Float, Int, TensorKind, TensorKindId};
 
 /// The base trait for any tensor kind.
 pub trait Basic: crate::ops::BasicOps {}
@@ -21,6 +21,10 @@ impl<K: Numeric + crate::ops::Ordered> Ordered for K {}
 /// Kinds that support float math operations.
 pub trait FloatMath: Numeric + crate::ops::FloatMathOps {}
 impl<K: Numeric + crate::ops::FloatMathOps> FloatMath for K {}
+
+/// Kinds that support complex math operations.
+pub trait ComplexMath: Numeric + crate::ops::ComplexOnlyOps {}
+impl<K: crate::ops::FloatMathOps + crate::ops::ComplexOnlyOps> ComplexMath for K {}
 
 /// Kinds that support transaction operations.
 pub trait Transaction: Basic + crate::ops::TransactionOp {}

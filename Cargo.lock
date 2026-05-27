@@ -802,7 +802,10 @@ dependencies = [
 name = "burn-complex"
 version = "0.22.0-pre.1"
 dependencies = [
+ "burn-core",
+ "burn-std",
  "burn-tensor",
+ "paste",
 ]
 
 [[package]]
@@ -1145,6 +1148,7 @@ dependencies = [
  "half",
  "hashbrown 0.16.1",
  "indicatif 0.18.3",
+ "ndarray 0.17.2",
  "num-complex",
  "num-traits",
  "paste",
@@ -1157,6 +1161,7 @@ dependencies = [
  "serial_test",
  "smallvec",
  "spin",
+ "tch",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",

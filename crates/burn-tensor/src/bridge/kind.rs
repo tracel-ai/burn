@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    TensorMetadata, TensorPrimitive, get_device_settings,
+    TensorMetadata, TensorPrimitive, TypedDevice, get_device_settings,
     ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
 };
 use burn_dispatch::{Dispatch, DispatchTensor};
@@ -362,7 +362,9 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(tensor) => Dispatch::int_device(tensor),
             BridgeTensorVariant::Float(tensor) => Dispatch::float_device(tensor),
             BridgeTensorVariant::QFloat(tensor) => Dispatch::q_device(tensor),
-            BridgeTensorVariant::Complex(dispatch_tensor) => Dispatch::complex_device(dispatch_tensor),
+            BridgeTensorVariant::Complex(dispatch_tensor) => {
+                Dispatch::complex_device(dispatch_tensor)
+            }
         };
 
         get_device_settings::<Dispatch>(&device)
@@ -371,11 +373,7 @@ impl BridgeTensor {
     pub(crate) fn into_complex(self) -> DispatchTensor {
         match self.into_variant() {
             BridgeTensorVariant::Complex(tensor) => tensor,
-            // Returns the dequantized float tensor.
-            BridgeTensorVariant::QFloat(tensor) => {
-                TensorPrimitive::<Dispatch>::QFloat(tensor).tensor()
-            }
-            _ => panic!("Should be Float primitive kind"),
+            _ => panic!("Should be Complex primitive kind"),
         }
     }
 }

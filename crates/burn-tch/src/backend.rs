@@ -121,7 +121,7 @@ impl BackendTypes for LibTorch {
     type BoolTensorPrimitive = TchTensor;
     type QuantizedTensorPrimitive = TchTensor;
     type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<f32>>;
-    
+
     fn dtype_usage(
         _device: &Self::Device,
         dtype: burn_backend::DType,
@@ -137,8 +137,6 @@ impl BackendTypes for LibTorch {
         // tch only supports one device for each backend
         1
     }
-
-    
 }
 
 impl Backend for LibTorch {

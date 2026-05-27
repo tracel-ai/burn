@@ -6,7 +6,6 @@ use burn_backend::{
 };
 use burn_backend::{Element, TensorData};
 
-use burn_std::cast::ToElement;
 use burn_std::{BoolDType, Complex, ComplexDType, DType, Scalar, Slice, SplitTensorData};
 use num_traits::ToPrimitive;
 use num_traits::Zero;
@@ -94,16 +93,15 @@ impl ComplexTensorOps<Flex> for Flex {
         ))
     }
 
-    fn to_complex(tensor: FloatTensor<Flex>) -> ComplexTensor<Flex> {
-        let interleaved_data =
-            burn_std::complex_utils::interleaved_data_from_real_data(tensor.into_data());
-        FlexTensor::from_data(interleaved_data)
-    }
+    // fn to_complex(tensor: FloatTensor<Flex>) -> ComplexTensor<Flex> {
+    //     let interleaved_data =
+    //         burn_std::complex_utils::interleaved_data_from_real_data(tensor.into_data());
+    //     FlexTensor::from_data(interleaved_data)
+    // }
 
     fn complex_squared_norm(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
         crate::c2r_unary_op!(tensor, |a| a.norm_sqr())
     }
-
 
     fn complex_to_device(
         tensor: ComplexTensor<Flex>,
@@ -128,20 +126,24 @@ impl ComplexTensorOps<Flex> for Flex {
         crate::c2c_binary_op!(lhs, rhs, |a, b| a / b)
     }
 
-    fn real(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
+    fn complex_real(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
         crate::c2r_unary_op!(tensor, |a| a.real)
     }
 
-    fn imag(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
+    fn complex_imag(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
         crate::c2r_unary_op!(tensor, |a| a.imag)
     }
 
-    fn abs(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
+    fn complex_abs(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
         crate::c2r_unary_op!(tensor, |a| a.norm())
     }
 
-    fn complex_from_parts(real: TensorData, imag: TensorData) -> ComplexTensor<Flex> {
-        <Flex as ComplexTensorBackend>::complex_from_parts_data(real, imag, &FlexDevice)
+    fn complex_from_parts(
+        real: TensorData,
+        imag: TensorData,
+        device: &Device<Flex>,
+    ) -> ComplexTensor<Flex> {
+        <Flex as ComplexTensorBackend>::complex_from_parts_data(real, imag, device)
     }
 
     fn complex_from_polar(
@@ -163,7 +165,7 @@ impl ComplexTensorOps<Flex> for Flex {
             |m, sin_p| m * sin_p,
             None,
         );
-        Self::complex_from_parts(real_part.into_data(), imag_part.into_data())
+        Self::complex_from_parts(real_part.into_data(), imag_part.into_data(), &FlexDevice)
     }
 
     fn complex_exp(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
@@ -315,7 +317,6 @@ impl ComplexTensorOps<Flex> for Flex {
             ComplexDType::Complex64 => {
                 TensorData::random::<Complex<f64>, _, _>(shape, distribution, &mut rng)
             }
-            _ => panic!("select: unsupported dtype {:?}", dtype),
         };
         *seed = Some(rng);
         FlexTensor::from_data(data)
@@ -337,7 +338,7 @@ impl ComplexTensorOps<Flex> for Flex {
         crate::c2c_unary_op!(tensor, |a| -a)
     }
 
-    fn conj(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+    fn complex_conj(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
         crate::c2c_unary_op!(tensor, |a| a.conj())
     }
 

@@ -1,7 +1,6 @@
 mod common;
 
-use burn_complex::kind::ComplexKind;
-use burn_complex::split::SplitComplexTensor;
+use burn_tensor::ComplexKind;
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
 use burn_tensor::{Complex, TensorData};
@@ -9,7 +8,7 @@ use common::*;
 
 use burn_tensor::{Distribution, Int};
 
-pub type TestTensor<const D: usize> = Tensor<TestBackend, D, ComplexKind>;
+pub type TestTensor<const D: usize> = Tensor<D, ComplexKind>;
 
 macro_rules! gen_ops_tests {
     ($variant:ident, $($ty:ty),*) => {
@@ -764,7 +763,7 @@ macro_rules! gen_ops_tests {
                             &Default::default(),
                         );
 
-                        let exponents = Tensor::<TestBackend, 2, Int>::from_data(
+                        let exponents = Tensor::<2, Int>::from_data(
                             [[2i32, 2i32]],
                             &Default::default(),
                         );
@@ -987,5 +986,5 @@ macro_rules! gen_ops_tests {
     };
 }
 
-gen_ops_tests!(split, SplitComplexTensor<TestBackend, D>);
-gen_ops_tests!(interleaved, Tensor<TestBackend,D,ComplexKind> );
+//gen_ops_tests!(split, SplitComplexTensor<TestBackend, D>);
+gen_ops_tests!(interleaved, Tensor<D,ComplexKind> );

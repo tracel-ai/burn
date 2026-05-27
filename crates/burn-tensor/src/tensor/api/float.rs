@@ -705,8 +705,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     }
 }
 
-impl<const D: usize> Tensor<D, Float>
-{
+impl<const D: usize> Tensor<D, Float> {
     /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
     ///
     #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
@@ -1253,15 +1252,15 @@ pub(crate) fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
 pub(crate) fn atan2_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
     let (lkind, lhs) = lhs.into_parts();
     let (rkind, rhs) = rhs.into_parts();
-    let (lhs,rhs)=match (lkind, rkind) {
-        (BridgeKind::Float, BridgeKind::Float) => {
-            (lhs, rhs)
+    let (lhs, rhs) = match (lkind, rkind) {
+        (BridgeKind::Float, BridgeKind::Float) => (lhs, rhs),
+        (BridgeKind::QFloat, BridgeKind::QFloat) => {
+            let dtype = lhs.dtype();
+            (
+                Dispatch::dequantize(lhs, dtype.into()),
+                Dispatch::dequantize(rhs, dtype.into()),
+            )
         }
-        (BridgeKind::QFloat, BridgeKind::QFloat) =>{
-            let dtype =Dispatch::float_device(&lhs).settings().float_dtype.into();
-            (Dispatch::dequantize(lhs, dtype),
-             Dispatch::dequantize(rhs, dtype))
-        },
         (BridgeKind::QFloat, BridgeKind::Float) => {
             let dtype = rhs.dtype();
             (Dispatch::dequantize(lhs, dtype.into()), rhs)

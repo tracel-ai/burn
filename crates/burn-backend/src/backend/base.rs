@@ -1,10 +1,10 @@
-use burn_std::{ComplexElement, DType, ElementComparison};
+use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
-pub use crate::element::Element;
-use crate::{TypedDevice, ops::*};
+pub use crate::element::{ComplexElement, Element};
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{TensorData, TensorMetadata};
+use crate::{TypedDevice, ops::*};
 use alloc::string::String;
 use enumset::{EnumSet, EnumSetType};
 
@@ -29,7 +29,7 @@ pub trait BackendTypes: Clone + core::fmt::Debug + 'static {
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + 'static;
-    
+
     /// a complex primitive used for interleaved operations (if the backend supports it)
     type ComplexTensorPrimitive: TensorMetadata + 'static;
 

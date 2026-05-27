@@ -110,8 +110,6 @@ impl Backend for Dispatch {
         dispatch_device!(device, |device| B::sync(device))
     }
 
-    
-
     fn ad_enabled(device: &Self::Device) -> bool {
         match device {
             #[cfg(feature = "autodiff")]
@@ -119,8 +117,6 @@ impl Backend for Dispatch {
             _ => false,
         }
     }
-
-    
 
     fn memory_persistent_allocations<
         Output: Send,
@@ -158,7 +154,6 @@ impl TypedDevice<Self> for Dispatch {
     //     panic!("interleaved complex tensors not yet supported for the selected backend")
     // }
 }
-
 
 #[cfg(feature = "autodiff")]
 impl AutodiffBackend for Dispatch {
@@ -650,8 +645,6 @@ impl AutodiffBackend for Dispatch {
 }
 
 impl DispatchTensorKind {
-    /// Need to gate these as 
-    #[cfg(not(feature = "complex"))]
     pub(crate) fn device(&self) -> DispatchDevice {
         match self {
             #[cfg(feature = "cpu")]
@@ -680,22 +673,10 @@ impl DispatchTensorKind {
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
     }
-    // open to other solutions
-    // sort of a hack to avoid having to implement complex tensor backend universally
-    #[cfg(feature = "complex")]
-    pub(crate) fn device(&self) -> DispatchDevice {
-        match self {
-            #[cfg(feature = "flex")]
-            DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
-            #[cfg(feature = "autodiff")]
-            DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
-            _ => panic!("Interleaved Complex values are not supported on the selected backend. Use SplitTensor"),
-        }
-    }
 }
 
 impl DispatchTensor {
-    pub fn device(&self) -> DispatchDevice {
+    pub(crate) fn device(&self) -> DispatchDevice {
         #[allow(unused_mut)]
         let mut device = self.kind.device();
 

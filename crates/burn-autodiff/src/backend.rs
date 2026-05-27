@@ -7,7 +7,9 @@ use alloc::{format, string::String};
 use core::marker::PhantomData;
 
 use burn_backend::{
-    UnimplementedTensorPrimitive, backend::{AutodiffBackend, Backend, BackendTypes, ExecutionError}, tensor::{BoolTensor, IntTensor, QuantizedTensor}
+    UnimplementedTensorPrimitive,
+    backend::{AutodiffBackend, Backend, BackendTypes, ExecutionError},
+    tensor::{BoolTensor, IntTensor, QuantizedTensor},
 };
 
 #[cfg(feature = "distributed")]
@@ -45,7 +47,7 @@ impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
-    
+
     type ComplexTensorPrimitive = UnimplementedTensorPrimitive<B::ComplexTensorPrimitive>;
 }
 

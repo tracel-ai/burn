@@ -5,6 +5,7 @@ mod base;
 mod bool;
 mod cartesian_grid;
 mod cast;
+mod complex;
 mod float;
 mod fmod;
 mod int;
@@ -32,5 +33,8 @@ mod extension;
 #[cfg(feature = "extension")]
 pub use extension::*;
 
-pub (crate) use float::{atan2_impl, powf_impl, powf_scalar_impl};
-pub (crate) use bool::{bool_not_impl, bool_and_impl, bool_or_impl};
+// needed by split tensor currently
+#[allow(unused)]
+pub(crate) use bool::{bool_and_impl, bool_not_impl, bool_or_impl};
+#[allow(unused)]
+pub(crate) use float::{atan2_impl, powf_impl, powf_scalar_impl};

@@ -1,13 +1,13 @@
 mod activation;
 mod bool_tensor;
+mod complex;
+#[cfg(feature = "distributed")]
+mod distributed;
 mod int_tensor;
 mod module;
 mod qtensor;
 mod tensor;
 mod transaction;
-mod complex;
-#[cfg(feature = "distributed")]
-mod distributed;
 
 pub(crate) mod base;
 pub use base::*;

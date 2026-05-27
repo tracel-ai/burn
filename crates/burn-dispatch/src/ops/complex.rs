@@ -1,12 +1,14 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    BoolDType, ComplexDType, ExecutionError, IntDType, Scalar, Shape, Slice, TensorData,
-    TypedDevice,ComplexTensorBackend,
+    BoolDType, ComplexDType, ExecutionError, Scalar, Shape, Slice, SplitTensorData, TensorData,
     ops::ComplexTensorOps,
-    tensor::{BoolTensor, ComplexTensor, IntTensor},
+    tensor::{BoolTensor, ComplexTensor, FloatTensor, IntTensor},
 };
 
-use crate::backends::*;
+//used in complex_to_device
+#[allow(unused_imports)]
+use burn_backend::ComplexTensorBackend;
+
 use crate::{Dispatch, DispatchDevice};
 
 impl ComplexTensorOps<Self> for Dispatch {
@@ -58,8 +60,7 @@ impl ComplexTensorOps<Self> for Dispatch {
     // }
 
     fn complex_add(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_add(lhs, rhs) => Complex)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_add(lhs, rhs) => Complex)
     }
 
     // fn complex_add_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
@@ -67,8 +68,7 @@ impl ComplexTensorOps<Self> for Dispatch {
     // }
 
     fn complex_sub(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_sub(lhs, rhs) => Complex)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_sub(lhs, rhs) => Complex)
     }
 
     // fn complex_sub_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
@@ -76,8 +76,7 @@ impl ComplexTensorOps<Self> for Dispatch {
     // }
 
     fn complex_mul(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_mul(lhs, rhs) => Complex)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_mul(lhs, rhs) => Complex)
     }
 
     // fn complex_mul_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
@@ -85,8 +84,7 @@ impl ComplexTensorOps<Self> for Dispatch {
     // }
 
     fn complex_div(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_div(lhs, rhs) => Complex)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_div(lhs, rhs) => Complex)
     }
 
     // fn complex_div_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
@@ -97,8 +95,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         lhs: ComplexTensor<Self>,
         rhs: ComplexTensor<Self>,
     ) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_remainder(lhs, rhs) => Complex)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_remainder(lhs, rhs) => Complex)
     }
 
     fn complex_remainder_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
@@ -106,8 +103,7 @@ impl ComplexTensorOps<Self> for Dispatch {
     }
 
     fn complex_matmul(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_matmul(lhs, rhs) => Complex)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_matmul(lhs, rhs) => Complex)
     }
 
     fn complex_swap_dims(
@@ -135,8 +131,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         tensor: ComplexTensor<Self>,
         indices: IntTensor<Self>,
     ) -> ComplexTensor<Self> {
-        //binary_complex!((tensor, float), (indices, int), |tensor, indices| B::complex_gather(dim, tensor, indices) => Complex)
-        todo!()
+        binary_complex!((tensor, complex), (indices, int), |tensor, indices| B::complex_gather(dim, tensor, indices) => Complex)
     }
 
     fn complex_scatter_add(
@@ -145,11 +140,10 @@ impl ComplexTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
         value: ComplexTensor<Self>,
     ) -> ComplexTensor<Self> {
-        // multi_op!(
-        //     inputs[(tensor, float), (indices, int), (value, float)], => Complex,
-        //     B::complex_scatter_add(dim, tensor, indices, value)
-        // )
-        todo!()
+        multi_op!(
+            inputs[(tensor, complex), (indices, int), (value, complex)], => Complex,
+            B::complex_scatter_add(dim, tensor, indices, value)
+        )
     }
 
     fn complex_scatter_nd(
@@ -158,19 +152,17 @@ impl ComplexTensorOps<Self> for Dispatch {
         values: ComplexTensor<Self>,
         reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> ComplexTensor<Self> {
-        // multi_op!(
-        //     inputs[(data, float), (indices, int), (values, float)], => Complex,
-        //     B::complex_scatter_nd(data, indices, values, reduction)
-        // )
-        todo!()
+        multi_op!(
+            inputs[(data, complex), (indices, int), (values, complex)], => Complex,
+            B::complex_scatter_nd(data, indices, values, reduction)
+        )
     }
 
     fn complex_gather_nd(
         data: ComplexTensor<Self>,
         indices: IntTensor<Self>,
     ) -> ComplexTensor<Self> {
-        //binary_complex!((data, float), (indices, int), |data, indices| B::complex_gather_nd(data, indices) => Complex)
-        todo!()
+        binary_complex!((data, complex), (indices, int), |data, indices| B::complex_gather_nd(data, indices) => Complex)
     }
 
     fn complex_select(
@@ -178,8 +170,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> ComplexTensor<Self> {
-        //binary_complex!((tensor, float), (indices, int), |tensor, indices| B::complex_select(tensor, dim, indices) => Complex)
-        todo!()
+        binary_complex!((tensor, complex), (indices, int), |tensor, indices| B::complex_select(tensor, dim, indices) => Complex)
     }
 
     fn complex_select_add(
@@ -188,11 +179,10 @@ impl ComplexTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
         value: ComplexTensor<Self>,
     ) -> ComplexTensor<Self> {
-        // multi_op!(
-        //     inputs[(tensor, complex), (indices, int), (value, complex)], => Complex,
-        //     B::complex_select_add(tensor, dim, indices, value)
-        // )
-        todo!()
+        multi_op!(
+            inputs[(tensor, complex), (indices, int), (value, complex)], => Complex,
+            B::complex_select_add(tensor, dim, indices, value)
+        )
     }
 
     fn complex_slice(tensor: ComplexTensor<Self>, slices: &[Slice]) -> ComplexTensor<Self> {
@@ -204,8 +194,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         slices: &[Slice],
         value: ComplexTensor<Self>,
     ) -> ComplexTensor<Self> {
-        //binary_complex!((tensor, complex), (value, complex), |tensor, value| B::complex_slice_assign(tensor, slices, value) => Complex)
-        todo!()
+        binary_complex!((tensor, complex), (value, complex), |tensor, value| B::complex_slice_assign(tensor, slices, value) => Complex)
     }
 
     fn complex_mask_where(
@@ -224,8 +213,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         mask: BoolTensor<Self>,
         value: Scalar,
     ) -> ComplexTensor<Self> {
-        //binary_complex!((tensor, complex), (mask, bool), |tensor, mask| B::complex_mask_fill(tensor, mask, value) => Complex)
-        todo!()
+        binary_complex!((tensor, complex), (mask, bool), |tensor, mask| B::complex_mask_fill(tensor, mask, value) => Complex)
     }
 
     fn complex_equal(
@@ -233,8 +221,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         rhs: ComplexTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        //binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_equal(lhs, rhs, out_dtype) => Bool)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_equal(lhs, rhs, out_dtype) => Bool)
     }
 
     fn complex_equal_elem(
@@ -277,9 +264,8 @@ impl ComplexTensorOps<Self> for Dispatch {
         unary_complex!(tensor, complex, |tensor| B::complex_log(tensor) => Complex)
     }
 
-    fn complex_powf(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_powf(lhs, rhs) => Complex)
-        todo!()
+    fn complex_powf(lhs: ComplexTensor<Self>, rhs: FloatTensor<Self>) -> ComplexTensor<Self> {
+        binary_complex!((lhs, complex), (rhs, float), |lhs, rhs| B::complex_powf(lhs, rhs) => Complex)
     }
 
     fn complex_sqrt(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
@@ -298,9 +284,9 @@ impl ComplexTensorOps<Self> for Dispatch {
         unary_complex!(tensor, complex, |tensor| B::complex_tan(tensor) => Complex)
     }
 
-    // fn complex_cosh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
-    //     unary_complex!(tensor, complex, |tensor| B::complex_cosh(tensor) => Complex)
-    // }
+    fn complex_cosh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_cosh(tensor) => Complex)
+    }
 
     // fn complex_sinh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
     //     unary_complex!(tensor, complex, |tensor| B::complex_sinh(tensor) => Complex)
@@ -355,7 +341,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         device: &DispatchDevice,
         dtype: ComplexDType,
     ) -> ComplexTensor<Self> {
-        complex_complex_creation_op!(Complex, device, |device| B::complex_zeros(
+        complex_creation_op!(Complex, device, |device| B::complex_zeros(
             shape, device, dtype
         ))
     }
@@ -402,8 +388,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         rhs: ComplexTensor<Self>,
         out_dtype: BoolDType,
     ) -> BoolTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, float), |lhs, rhs| B::complex_not_equal(lhs, rhs, out_dtype) => Bool)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_not_equal(lhs, rhs, out_dtype) => Bool)
     }
 
     fn complex_not_equal_elem(
@@ -427,8 +412,7 @@ impl ComplexTensorOps<Self> for Dispatch {
     }
 
     fn complex_powi(lhs: ComplexTensor<Self>, rhs: IntTensor<Self>) -> ComplexTensor<Self> {
-        //binary_complex!((lhs, float), (rhs, int), |lhs, rhs| B::complex_powi(lhs, rhs) => Complex)
-        todo!()
+        binary_complex!((lhs, complex), (rhs, int), |lhs, rhs| B::complex_powi(lhs, rhs) => Complex)
     }
 
     fn complex_powf_scalar(tensor: ComplexTensor<Self>, value: Scalar) -> ComplexTensor<Self> {
@@ -470,84 +454,104 @@ impl ComplexTensorOps<Self> for Dispatch {
     async fn complex_into_real_data(
         tensor: burn_backend::ComplexTensor<Self>,
     ) -> Result<TensorData, ExecutionError> {
-        todo!()
+        unary_complex!(tensor, complex, |tensor| B::complex_into_real_data(tensor)
+            .await)
     }
 
     async fn complex_into_imag_data(
         tensor: burn_backend::ComplexTensor<Self>,
     ) -> Result<TensorData, ExecutionError> {
-        todo!()
+        unary_complex!(tensor, complex, |tensor| B::complex_into_imag_data(tensor)
+            .await)
     }
 
     async fn complex_into_interleaved_data(
         tensor: burn_backend::ComplexTensor<Self>,
     ) -> Result<TensorData, ExecutionError> {
-        todo!()
+        unary_complex!(tensor, complex, |tensor| B::complex_into_interleaved_data(
+            tensor
+        )
+        .await)
     }
 
-    fn complex_into_split_data(
+    async fn complex_into_split_data(
         tensor: burn_backend::ComplexTensor<Self>,
-    ) -> impl Future<Output = Result<SplitTensorData, ExecutionError>> + Send {
-        todo!()
+    ) -> Result<SplitTensorData, ExecutionError> {
+        unary_complex!(tensor, complex, |tensor| B::complex_into_split_data(tensor)
+            .await)
     }
 
-    fn to_complex(
-        tensor: burn_backend::tensor::FloatTensor<Self>,
-    ) -> burn_backend::ComplexTensor<Self> {
-        todo!()
-    }
+    // fn to_complex(
+    //     tensor: burn_backend::tensor::FloatTensor<Self>,
+    // ) -> burn_backend::ComplexTensor<Self> {
+    //     unary_complex!(tensor, complex, |tensor| B::to_complex(tensor))
+    // }
 
     fn complex_squared_norm(
         tensor: burn_backend::ComplexTensor<Self>,
     ) -> burn_backend::tensor::FloatTensor<Self> {
-        todo!()
+        unary_complex!(tensor, complex, |tensor| B::complex_squared_norm(tensor) => Float)
     }
 
-    fn conj(tensor: burn_backend::ComplexTensor<Self>) -> burn_backend::ComplexTensor<Self> {
-        todo!()
+    fn complex_conj(
+        tensor: burn_backend::ComplexTensor<Self>,
+    ) -> burn_backend::ComplexTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_conj(tensor) => Complex)
     }
 
-    fn real(tensor: burn_backend::ComplexTensor<Self>) -> burn_backend::tensor::FloatTensor<Self> {
-        todo!()
+    fn complex_real(
+        tensor: burn_backend::ComplexTensor<Self>,
+    ) -> burn_backend::tensor::FloatTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_real(tensor) => Float)
     }
 
-    fn imag(tensor: burn_backend::ComplexTensor<Self>) -> burn_backend::tensor::FloatTensor<Self> {
-        todo!()
+    fn complex_imag(
+        tensor: burn_backend::ComplexTensor<Self>,
+    ) -> burn_backend::tensor::FloatTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_imag(tensor) => Float)
     }
 
-    fn abs(tensor: burn_backend::ComplexTensor<Self>) -> burn_backend::tensor::FloatTensor<Self> {
-        todo!()
+    fn complex_abs(
+        tensor: burn_backend::ComplexTensor<Self>,
+    ) -> burn_backend::tensor::FloatTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_abs(tensor) => Float)
     }
 
     fn complex_arg(
         tensor: burn_backend::ComplexTensor<Self>,
     ) -> burn_backend::tensor::FloatTensor<Self> {
-        todo!()
+        unary_complex!(tensor, complex, |tensor| B::complex_arg(tensor) => Float)
     }
 
-    fn complex_from_parts(real: TensorData, imag: TensorData) -> burn_backend::ComplexTensor<Self> {
-        todo!()
+    fn complex_from_parts(
+        real: TensorData,
+        imag: TensorData,
+        device: &DispatchDevice,
+    ) -> burn_backend::ComplexTensor<Self> {
+        complex_creation_op!(Complex, device, |device| B::complex_from_parts(
+            real, imag, device
+        ))
     }
 
     fn complex_from_polar(
         magnitude: burn_backend::tensor::FloatTensor<Self>,
         phase: burn_backend::tensor::FloatTensor<Self>,
     ) -> burn_backend::ComplexTensor<Self> {
-        todo!()
+        binary_float!((magnitude, float), (phase, float), |magnitude, phase| B::complex_from_polar(magnitude, phase) => Complex)
     }
 
     fn complex_powc(
         lhs: burn_backend::ComplexTensor<Self>,
         rhs: burn_backend::ComplexTensor<Self>,
     ) -> burn_backend::ComplexTensor<Self> {
-        todo!()
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_powc(lhs, rhs) => Complex)
     }
 
     fn complex_powc_scalar(
         lhs: burn_backend::ComplexTensor<Self>,
-        rhs: <Self>::ComplexScalar,
+        rhs: Scalar,
     ) -> burn_backend::ComplexTensor<Self> {
-        todo!()
+        unary_complex!(lhs, complex, |lhs| B::complex_powc_scalar(lhs, rhs) => Complex)
     }
 
     // fn complex_is_nan(tensor: ComplexTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {

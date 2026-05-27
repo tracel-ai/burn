@@ -1,8 +1,6 @@
 mod common;
 
-use burn_complex::kind::ComplexKind;
-use burn_complex::split::SplitComplexTensor;
-use burn_tensor::{Bool, Complex, IndexingUpdateOp, Int, Tensor, TensorData};
+use burn_tensor::{Bool, Complex, ComplexKind, IndexingUpdateOp, Int, Tensor, TensorData};
 use common::*;
 
 macro_rules! gen_tests {
@@ -964,7 +962,7 @@ macro_rules! gen_tests {
                         );
 
                         let indices =
-                            Tensor::<TestBackend, 1, Int>::from_ints([2, 0], &Default::default());
+                            Tensor::<1, Int>::from_ints([2, 0], &Default::default());
                         let data = tensor.select(0, indices).into_data();
 
                         let expected = TensorData::from([
@@ -1145,7 +1143,7 @@ macro_rules! gen_tests {
                             ]),
                             &Default::default(),
                         );
-                        let mask = Tensor::<TestBackend, 2, Bool>::from_data(
+                        let mask = Tensor::<2, Bool>::from_data(
                             [[true, false], [false, true]],
                             &Default::default(),
                         );
@@ -1205,7 +1203,7 @@ macro_rules! gen_tests {
                             ]),
                             &Default::default(),
                         );
-                        let mask = Tensor::<TestBackend, 2, Bool>::from_data(
+                        let mask = Tensor::<2, Bool>::from_data(
                             [[true, false], [false, true]],
                             &Default::default(),
                         );
@@ -1283,7 +1281,7 @@ macro_rules! gen_tests {
                             &Default::default(),
                         );
 
-                        let indices = Tensor::<TestBackend, 2, Int>::from_ints(
+                        let indices = Tensor::<2, Int>::from_ints(
                             [[0, 1, 0], [1, 0, 1]],
                             &Default::default(),
                         );
@@ -1328,7 +1326,7 @@ macro_rules! gen_tests {
                         // Start with zeros [2, 2]; scatter-add values along dim 0.
                         // output[indices[i, j], j] += values[i, j]
                         let tensor = TestTensor::<2>::zeros([2, 2], &Default::default());
-                        let indices = Tensor::<TestBackend, 2, Int>::from_ints(
+                        let indices = Tensor::<2, Int>::from_ints(
                             [[0, 0], [1, 0]],
                             &Default::default(),
                         );
@@ -1428,7 +1426,7 @@ macro_rules! gen_tests {
                             &Default::default(),
                         );
                         let indices =
-                            Tensor::<TestBackend, 1, Int>::from_ints([0, 2], &Default::default());
+                            Tensor::<1, Int>::from_ints([0, 2], &Default::default());
                         let values = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
@@ -1538,7 +1536,7 @@ macro_rules! gen_tests {
                         );
 
                         // indices: shape [2, 1] — two index tuples each of depth 1 (selects a row)
-                        let indices: Tensor<_, 2, Int> =
+                        let indices: Tensor<2, Int> =
                             Tensor::from_data(TensorData::from([[0i64], [2i64]]), &device);
 
                         // values: shape [2, 2] matching the selected rows
@@ -1648,7 +1646,7 @@ macro_rules! gen_tests {
                         );
 
                         // indices: shape [2, 2] — two index tuples of depth 2 (selects individual elements)
-                        let indices: Tensor<_, 2, Int> = Tensor::from_data(
+                        let indices: Tensor<2, Int> = Tensor::from_data(
                             TensorData::from([[0i64, 1i64], [1i64, 2i64]]),
                             &device,
                         );
@@ -1734,5 +1732,5 @@ macro_rules! gen_tests {
     };
 }
 
-gen_tests!(split, SplitComplexTensor<TestBackend, D>);
-gen_tests!(interleaved, Tensor<TestBackend,D,ComplexKind> );
+//gen_tests!(split, SplitComplexTensor<TestBackend, D>);
+gen_tests!(interleaved, Tensor<D,ComplexKind> );

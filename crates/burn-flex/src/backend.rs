@@ -1,7 +1,5 @@
 use alloc::string::String;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig, QuantScheme, QuantStore};
-use burn_std::Complex;
-use core::marker::PhantomData;
 
 use burn_backend::{Backend, BackendTypes, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};

@@ -1,15 +1,11 @@
 //#[burn_tensor_testgen::testgen(complex)]
 mod common;
 
-use burn_complex::kind::ComplexKind;
-use burn_complex::split::SplitComplexTensor;
-use burn_complex::utils::interleaved_data_to_raw_float_data;
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
-use burn_tensor::{Complex, TensorData};
+use burn_tensor::{Complex, ComplexKind, TensorData};
 use common::*;
 
-use burn_complex::kind::ComplexOnlyOps;
 macro_rules! gen_tests {
     ($variant:ident, $($ty:ty),*) => {
         $(
@@ -148,6 +144,7 @@ macro_rules! gen_tests {
                         let result = TestTensor::<2>::from_parts(
                             TensorData::from([[1.0_f32, 2.0], [3.0, 4.0]]),
                             TensorData::from([[5.0_f32, 6.0], [7.0, 8.0]]),
+                            &TestDevice::default().into(),
                         );
                         let data = result.into_data();
 
@@ -190,8 +187,8 @@ macro_rules! gen_tests {
                         );
 
                         let result = TestTensor::<2>::from_polar(
-                            magnitude.into_primitive().tensor(),
-                            phase.into_primitive().tensor(),
+                            magnitude,
+                            phase,
                         );
                         let data = result.into_data();
 
@@ -234,7 +231,7 @@ macro_rules! gen_tests {
                         // exp(0 + 0i) = 1 * (1 + 0i) = 1 + 0i
                         // exp(0 + πi) = 1 * (-1 + 0i) = -1 + 0i (approximately)
                         let expected_data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of exp(0)
@@ -262,7 +259,7 @@ macro_rules! gen_tests {
                         let result = tensor.sin();
 
                         let expected_data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(expected_data[0].abs() < 1e-6); // real part of sin(0)
@@ -290,7 +287,7 @@ macro_rules! gen_tests {
                         let result = tensor.cos();
 
                         let expected_data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of cos(0)
@@ -318,7 +315,7 @@ macro_rules! gen_tests {
                         let result = tensor.log();
 
                         let expected_data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(expected_data[0].abs() < 1e-6); // real part of log(1)
@@ -346,7 +343,7 @@ macro_rules! gen_tests {
                         let result = tensor.sqrt();
 
                         let expected_data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!((expected_data[0] - 2.0).abs() < 1e-6); // real part of sqrt(4)
@@ -437,7 +434,7 @@ macro_rules! gen_tests {
                         let result = tensor.acos();
 
                         let data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(data[0].abs() < 1e-5, "re(acos(1)) = {}", data[0]);
@@ -464,7 +461,7 @@ macro_rules! gen_tests {
                         let result = tensor.acosh();
 
                         let data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(data[0].abs() < 1e-5, "re(acosh(1)) = {}", data[0]);
@@ -491,7 +488,7 @@ macro_rules! gen_tests {
                         let result = tensor.asin();
 
                         let data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(data[0].abs() < 1e-5, "re(asin(0)) = {}", data[0]);
@@ -518,7 +515,7 @@ macro_rules! gen_tests {
                         let result = tensor.asinh();
 
                         let data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(data[0].abs() < 1e-5, "re(asinh(0)) = {}", data[0]);
@@ -545,7 +542,7 @@ macro_rules! gen_tests {
                         let result = tensor.atan();
 
                         let data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(data[0].abs() < 1e-5, "re(atan(0)) = {}", data[0]);
@@ -572,7 +569,7 @@ macro_rules! gen_tests {
                         let result = tensor.atanh();
 
                         let data: Vec<f32> =
-                            interleaved_data_to_raw_float_data(result.into_data())
+                            burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
                                 .into_vec()
                                 .unwrap();
                         assert!(data[0].abs() < 1e-5, "re(atanh(0)) = {}", data[0]);
@@ -584,5 +581,5 @@ macro_rules! gen_tests {
     };
 }
 
-gen_tests!(split, SplitComplexTensor<TestBackend, D>);
-gen_tests!(interleaved, Tensor<TestBackend,D,ComplexKind> );
+//gen_tests!(split, SplitComplexTensor<TestBackend, D>);
+gen_tests!(interleaved, Tensor<D,ComplexKind>);

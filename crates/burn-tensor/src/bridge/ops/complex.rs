@@ -1,12 +1,14 @@
 use alloc::vec::Vec;
 use burn_backend::ops::ComplexTensorOps;
-use burn_backend::{Backend, ComplexTensorBackend, Distribution, Scalar, TensorData};
+use burn_backend::{
+    ComplexTensorBackend, Distribution, Scalar, TensorData, TensorMetadata, TypedDevice,
+};
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
+use crate::Device;
 use crate::bridge::{BasicOps, Numeric};
 use crate::ops::{BridgeTensor, ComplexKind, FloatMathOps};
-use crate::{Device, Tensor};
 
 impl BasicOps for ComplexKind {
     fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
@@ -38,6 +40,7 @@ impl BasicOps for ComplexKind {
             shape,
             fill_value,
             device.as_dispatch(),
+            dtype.into(),
         ))
     }
 
@@ -62,7 +65,7 @@ impl BasicOps for ComplexKind {
     }
 
     fn device(tensor: &BridgeTensor) -> Device {
-        Device::new(Dispatch::complex_device(tensor.as_complex()))
+        Device::new(Dispatch::complex_device(tensor.as_dispatch()))
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {
@@ -76,7 +79,7 @@ impl BasicOps for ComplexKind {
         Dispatch::complex_into_interleaved_data(tensor.into_complex()).await
     }
 
-    fn from_data(data: TensorData, device: &Device, dtype: DType) -> BridgeTensor {
+    fn from_data(data: TensorData, device: &Device, _dtype: DType) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_from_interleaved_data(
             data,
             device.as_dispatch(),
@@ -91,31 +94,39 @@ impl BasicOps for ComplexKind {
         ))
     }
     fn equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let lhs = lhs.into_complex();
-        let out_dtype = Dispatch::complex_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::complex_equal(lhs, rhs.into_complex(), out_dtype))
+        let out_dtype = lhs.device_settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::complex_equal(
+            lhs.into_complex(),
+            rhs.into_complex(),
+            out_dtype,
+        ))
     }
 
     fn not_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        let lhs = lhs.into_complex();
-        let out_dtype = Dispatch::complex_device(&lhs).settings().bool_dtype;
+        let out_dtype = lhs.device_settings().bool_dtype;
         BridgeTensor::bool(Dispatch::complex_not_equal(
-            lhs,
+            lhs.into_complex(),
             rhs.into_complex(),
             out_dtype,
         ))
     }
 
     fn equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let lhs = lhs.into_complex();
-        let out_dtype = Dispatch::complex_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::complex_equal_elem(lhs, rhs.elem(), out_dtype))
+        let out_dtype = lhs.device_settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::complex_equal_elem(
+            lhs.into_complex(),
+            rhs,
+            out_dtype,
+        ))
     }
 
     fn not_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let lhs = lhs.into_complex();
-        let out_dtype = Dispatch::complex_device(&lhs).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::complex_not_equal_elem(lhs, rhs.elem(), out_dtype))
+        let out_dtype = lhs.device_settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::complex_not_equal_elem(
+            lhs.into_complex(),
+            rhs,
+            out_dtype,
+        ))
     }
 
     fn cat(tensors: Vec<BridgeTensor>, dim: usize) -> BridgeTensor {
@@ -126,27 +137,31 @@ impl BasicOps for ComplexKind {
     }
 
     fn any(tensor: BridgeTensor) -> BridgeTensor {
-        let tensor = tensor.into_complex();
-        let out_dtype = Dispatch::complex_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::complex_any(tensor, out_dtype))
+        let out_dtype = tensor.device_settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::complex_any(tensor.into_complex(), out_dtype))
     }
 
     fn any_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let tensor = tensor.into_complex();
-        let out_dtype = Dispatch::complex_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::complex_any_dim(tensor, dim, out_dtype))
+        let out_dtype = tensor.device_settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::complex_any_dim(
+            tensor.into_complex(),
+            dim,
+            out_dtype,
+        ))
     }
 
     fn all(tensor: BridgeTensor) -> BridgeTensor {
-        let tensor = tensor.into_complex();
-        let out_dtype = Dispatch::complex_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::complex_all(tensor, out_dtype))
+        let out_dtype = tensor.device_settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::complex_all(tensor.into_complex(), out_dtype))
     }
 
     fn all_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
-        let tensor = tensor.into_complex();
-        let out_dtype = Dispatch::complex_device(&tensor).settings().bool_dtype;
-        BridgeTensor::bool(Dispatch::complex_all_dim(tensor, dim, out_dtype))
+        let out_dtype = tensor.device_settings().bool_dtype;
+        BridgeTensor::bool(Dispatch::complex_all_dim(
+            tensor.into_complex(),
+            dim,
+            out_dtype,
+        ))
     }
 
     fn permute(tensor: BridgeTensor, axes: &[usize]) -> BridgeTensor {
@@ -269,7 +284,7 @@ impl BasicOps for ComplexKind {
 }
 
 /// Operations that are specific to complex tensors and have no analogue for real tensors.
-pub trait ComplexOnlyOps {
+pub(crate) trait ComplexOnlyOps: FloatMathOps {
     /// Computes the complex conjugate of each element, negating the imaginary part.
     ///
     /// # Arguments
@@ -336,7 +351,7 @@ pub trait ComplexOnlyOps {
     /// # Returns
     ///
     /// A complex tensor whose shape matches the input data.
-    fn from_parts<T>(real: T, imag: T) -> Self
+    fn from_parts<T>(real: T, imag: T, device: &Device) -> BridgeTensor
     where
         T: Into<TensorData>;
 
@@ -350,7 +365,7 @@ pub trait ComplexOnlyOps {
     /// # Returns
     ///
     /// A complex tensor whose element count is half the length of the flat data.
-    fn from_interleaved_data(data: TensorData, device: &Device) -> Self;
+    fn from_interleaved_data(data: TensorData, device: &Device) -> BridgeTensor;
 
     /// Creates a complex tensor from polar form, converting `(r, θ)` pairs to `r·cos θ + i·r·sin θ`.
     ///
@@ -362,51 +377,51 @@ pub trait ComplexOnlyOps {
     /// # Returns
     ///
     /// A complex tensor with the same shape as the inputs.
-    fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> Self;
+    fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> BridgeTensor;
 }
 
 impl ComplexOnlyOps for ComplexKind {
     fn conj(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::complex(burn_dispatch::DispatchTensor::from(Dispatch::complex_conj(
-            tensor,
-        )))
+        BridgeTensor::complex(Dispatch::complex_conj(tensor.into_complex()))
     }
     fn phase(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::complex(burn_dispatch::DispatchTensor::from(Dispatch::complex_phase(
-            self.into_primitive(),
-        )))
+        BridgeTensor::float(Dispatch::complex_phase(tensor.into_complex()))
     }
 
     fn from_interleaved_data(data: TensorData, device: &Device) -> BridgeTensor {
-        BridgeTensor::complex(burn_dispatch::DispatchTensor::from(
-            Dispatch::complex_complex_from_interleaved_data(data, device.into()),
+        BridgeTensor::complex(Dispatch::complex_from_interleaved_data(
+            data,
+            device.as_dispatch(),
         ))
     }
 
     fn real(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::complex(burn_dispatch::DispatchTensor::complex_real(
-            self.into_primitive(),
-        ))
+        BridgeTensor::float(Dispatch::complex_real(tensor.into_complex()))
     }
 
     fn imag(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::complex(burn_dispatch::DispatchTensor::complex_imag(
-            self.into_primitive(),
-        ))
+        BridgeTensor::float(Dispatch::complex_imag(tensor.into_complex()))
     }
 
     fn magnitude(tensor: BridgeTensor) -> BridgeTensor {
-        Dispatch::complex_abs(self.into_primitive())
+        BridgeTensor::float(Dispatch::complex_abs(tensor.into_complex()))
     }
 
-    fn from_parts<T>(real: T, imag: T) -> Self
+    fn from_parts<T>(real: T, imag: T, device: &Device) -> BridgeTensor
     where
         T: Into<TensorData>,
     {
-        Dispatch::complex_from_parts(real.into(), imag.into())
+        BridgeTensor::complex(Dispatch::complex_from_parts(
+            real.into(),
+            imag.into(),
+            device.as_dispatch(),
+        ))
     }
-    fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> Self {
-        Dispatch::complex_from_polar(magnitude, phase)
+    fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(Dispatch::complex_from_polar(
+            magnitude.into_float(),
+            phase.into_float(),
+        ))
     }
 }
 
@@ -420,7 +435,12 @@ impl Numeric for ComplexKind {
 
     fn add_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(lhs.shape(), rhs, &Dispatch::complex_device(&lhs));
+        let rhs_tensor = Dispatch::complex_full(
+            lhs.shape(),
+            rhs,
+            &Dispatch::complex_device(&lhs),
+            lhs.dtype().into(),
+        );
         BridgeTensor::complex(Dispatch::complex_add(lhs, rhs_tensor))
     }
 
@@ -433,7 +453,12 @@ impl Numeric for ComplexKind {
 
     fn sub_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(lhs.shape(), rhs, &Dispatch::complex_device(&lhs));
+        let rhs_tensor = Dispatch::complex_full(
+            lhs.shape(),
+            rhs,
+            &Dispatch::complex_device(&lhs),
+            lhs.dtype().into(),
+        );
         BridgeTensor::complex(Dispatch::complex_sub(lhs, rhs_tensor))
     }
 
@@ -446,7 +471,12 @@ impl Numeric for ComplexKind {
 
     fn mul_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(lhs.shape(), rhs, &Dispatch::complex_device(&lhs));
+        let rhs_tensor = Dispatch::complex_full(
+            lhs.shape(),
+            rhs,
+            &Dispatch::complex_device(&lhs),
+            lhs.dtype().into(),
+        );
         BridgeTensor::complex(Dispatch::complex_mul(lhs, rhs_tensor))
     }
 
@@ -459,7 +489,12 @@ impl Numeric for ComplexKind {
 
     fn div_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(lhs.shape(), rhs, &Dispatch::complex_device(&lhs));
+        let rhs_tensor = Dispatch::complex_full(
+            lhs.shape(),
+            rhs,
+            &Dispatch::complex_device(&lhs),
+            lhs.dtype().into(),
+        );
         BridgeTensor::complex(Dispatch::complex_div(lhs, rhs_tensor))
     }
 
@@ -471,10 +506,7 @@ impl Numeric for ComplexKind {
     }
 
     fn remainder_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        BridgeTensor::complex(Dispatch::complex_remainder_scalar(
-            lhs.into_complex(),
-            rhs.elem(),
-        ))
+        BridgeTensor::complex(Dispatch::complex_remainder_scalar(lhs.into_complex(), rhs))
     }
 
     fn neg(tensor: BridgeTensor) -> BridgeTensor {
@@ -506,10 +538,7 @@ impl Numeric for ComplexKind {
     }
 
     fn powi(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::complex(Dispatch::complex_powc(
-            lhs.into_complex(),
-            rhs.into_complex(),
-        ))
+        BridgeTensor::complex(Dispatch::complex_powi(lhs.into_complex(), rhs.into()))
     }
 
     fn powi_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
@@ -594,8 +623,9 @@ impl FloatMathOps for ComplexKind {
     fn cosh(tensor: BridgeTensor) -> BridgeTensor {
         let tensor = tensor.into_complex();
         let device = Dispatch::complex_device(&tensor);
+        let dtype = tensor.dtype().into();
         let shape = tensor.shape();
-        let two = Dispatch::complex_full(shape, Scalar::from(2.0_f32), &device);
+        let two = Dispatch::complex_full(shape, Scalar::from(2.0_f32), &device, dtype);
         let exp_z = Dispatch::complex_exp(tensor.clone());
         let exp_neg_z = Dispatch::complex_exp(Dispatch::complex_neg(tensor));
         BridgeTensor::complex(Dispatch::complex_div(
@@ -607,8 +637,9 @@ impl FloatMathOps for ComplexKind {
     fn sinh(tensor: BridgeTensor) -> BridgeTensor {
         let tensor = tensor.into_complex();
         let device = Dispatch::complex_device(&tensor);
+        let dtype = tensor.dtype().into();
         let shape = tensor.shape();
-        let two = Dispatch::complex_full(shape, Scalar::from(2.0_f32), &device);
+        let two = Dispatch::complex_full(shape, Scalar::from(2.0_f32), &device, dtype);
         let exp_z = Dispatch::complex_exp(tensor.clone());
         let exp_neg_z = Dispatch::complex_exp(Dispatch::complex_neg(tensor));
         BridgeTensor::complex(Dispatch::complex_div(

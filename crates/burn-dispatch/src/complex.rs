@@ -1,4 +1,4 @@
-use burn_backend::{CBT, ComplexTensorBackend, InterleavedLayout, TypedDevice, element::Complex};
+use burn_backend::{ComplexTensorBackend, InterleavedLayout};
 
 use crate::{Dispatch, DispatchDevice};
 
@@ -11,8 +11,8 @@ impl ComplexTensorBackend for Dispatch {
         data: burn_backend::TensorData,
         device: &DispatchDevice,
     ) -> burn_backend::ComplexTensor<Self> {
-        creation_op!(Complex, device, |device| {
-            burn_backend::complex_utils::interleaved_data_from_real_data(data)
+        complex_creation_op!(Complex, device, |device| {
+            B::complex_from_real_data(data, device)
         })
     }
 
@@ -20,8 +20,8 @@ impl ComplexTensorBackend for Dispatch {
         data: burn_backend::TensorData,
         device: &DispatchDevice,
     ) -> burn_backend::ComplexTensor<Self> {
-        creation_op!(Complex, device, |device| {
-            burn_backend::complex_utils::interleaved_data_from_imag_data(data)
+        complex_creation_op!(Complex, device, |device| {
+            B::complex_from_imag_data(data, device)
         })
     }
 
@@ -29,8 +29,9 @@ impl ComplexTensorBackend for Dispatch {
         data: burn_backend::TensorData,
         device: &DispatchDevice,
     ) -> burn_backend::ComplexTensor<Self> {
-        //creation_op!(Complex, device, |device| B::complex_from_data(data, device))
-        todo!()
+        complex_creation_op!(Complex, device, |device| B::complex_from_interleaved_data(
+            data, device
+        ))
     }
 
     fn complex_from_parts_data(
@@ -38,8 +39,8 @@ impl ComplexTensorBackend for Dispatch {
         imag_data: burn_backend::TensorData,
         device: &DispatchDevice,
     ) -> burn_backend::ComplexTensor<Self> {
-        creation_op!(Complex, device, |device| {
-            burn_backend::complex_utils::interleaved_data_from_parts_data(real_data, imag_data)
+        complex_creation_op!(Complex, device, |device| {
+            B::complex_from_parts_data(real_data, imag_data, device)
         })
     }
 }

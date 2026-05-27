@@ -9,7 +9,7 @@ use burn_backend::try_read_sync;
 use burn_backend::{
     Backend, BackendTypes, DTypeUsageSet, ExecutionError, TensorMetadata
 };
-use burn_backend::{CBT, ComplexTensor, ComplexTensorBackend, DefaultComplexOps, tensor::Device as BackendDevice};
+use burn_backend::{ComplexTensor, ComplexTensorBackend, DefaultComplexOps, tensor::Device as BackendDevice};
 use burn_dispatch::Dispatch;
 use burn_std::AsIndex;
 use burn_std::DType;
@@ -17,12 +17,13 @@ use burn_std::Distribution;
 use burn_std::Element;
 use burn_std::ElementConversion;
 use burn_std::SliceArg;
+use burn_std::complex_utils;
 use burn_std::complex_utils::real_to_complex_dtype;
 use burn_std::{Complex, ComplexElement, ElementComparison, Scalar, TensorData, cast::ToElement};
 use burn_std::{ComplexDType, FloatDType, IndexingUpdateOp, Shape, SplitTensorData};
 use bytemuck::Pod;
+use crate::bridge::BridgeKind;
 use crate::atan2_impl;
-use crate::bridge::ops::Numeric;
 
 #[derive(Debug, Clone)]
 pub struct SplitComplexTensor<const D: usize, K=Float> 
@@ -65,25 +66,22 @@ where K: Basic,
     }
 
     pub fn from_parts_data(real: TensorData, imag: TensorData, device: &Device) -> Self {
-        let real_tensor = K::from_data(real, device, real.dtype);
-        let imag_tensor = K::from_data(imag, device, imag.dtype);
+        let dtype = real.dtype;
+        let shape = &real.shape;
         assert_eq!(
-            real.shape(),
-            imag.shape(),
+            shape,
+            &imag.shape,
             "Real and imaginary parts must have the same shape"
         );
         assert_eq!(
-            real.dtype(),
-            imag.dtype(),
+            dtype,
+            imag.dtype,
             "Real and imaginary parts must have the same dtype"
         );
+        let real_tensor = K::from_data(real, device, dtype);
+        let imag_tensor = K::from_data(imag, device, dtype);
+        
         Self::new(real_tensor, imag_tensor)
-    }
-
-    pub fn squared_norm(self) -> Tensor<D, K> {
-        let real_sq = K::mul(self.real.clone(), self.real);
-        let imag_sq = K::mul(self.imag.clone(), self.imag);
-        Tensor::new(K::add(real_sq, imag_sq))
     }
 
     
@@ -139,7 +137,7 @@ where K: Basic,
         &self.imag
     }
     pub fn into_parts(self) -> (Tensor<D, K>, Tensor<D, K>) {
-        (self.real.into(), self.imag.into())
+        (Tensor::new(self.real), Tensor::new(self.imag))
     }
 }
 
@@ -157,6 +155,17 @@ where K: Basic,
     fn dtype(&self) -> burn_std::DType {
         burn_std::complex_utils::real_to_complex_dtype(self.inner_dtype())
     }
+    
+}
+
+impl<const D: usize, K> SplitComplexTensor<D, K>
+where K: Basic + Numeric,
+{
+    pub fn squared_norm(self) -> Tensor<D, K> {
+        let real_sq = K::mul(self.real.clone(), self.real);
+        let imag_sq = K::mul(self.imag.clone(), self.imag);
+        Tensor::new(K::add(real_sq, imag_sq))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -166,17 +175,12 @@ pub struct SplitBackend<B: Backend, const D: usize>(core::marker::PhantomData<B>
 impl<B: Backend, const D: usize> BackendTypes for SplitBackend<B, D> {
     type Device = B::Device;
 
-    type FloatTensorPrimitive = B::FloatTensorPrimitive;
-
-    type FloatElem = B::FloatElem;
+    type FloatTensorPrimitive = B::FloatTensorPrimitive;    
 
     type IntTensorPrimitive = B::IntTensorPrimitive;
 
-    type IntElem = B::IntElem;
 
     type BoolTensorPrimitive = B::BoolTensorPrimitive;
-
-    type BoolElem = B::BoolElem;
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
@@ -188,25 +192,31 @@ impl<B: Backend, const D: usize> BackendTypes for SplitBackend<B, D> {
         B::device_count(type_id)
     }
 
-    type ComplexScalar = Complex<B::FloatElem>;
-
     type ComplexTensorPrimitive = SplitComplexTensor<D,Float>;
 }
 
 impl<B, const D: usize> TypedDevice<Self> for SplitBackend<B, D>
 where
     B: Backend,
-    B::FloatElem: ElementComparison + Pod,
 {
     fn complex_device(tensor: &ComplexTensor<Self>) -> <Self as BackendTypes>::Device {
-        tensor.real.device().into()
+        //Need to figure out how to resolve the inner backends Device type
+        
+        let (kind, tensor) = tensor.real.as_parts();
+        match kind {
+            BridgeKind::Float => Device::new(Dispatch::float_device(tensor)),
+            //BridgeKind::QFloat => Device::new(Dispatch::q_device(tensor)),
+            _ => panic!("Should be Float primitive kind"),
+        };
+        todo!()
+        
     }
 }
 
-impl<B, const D: usize, F> ComplexTensorBackend for SplitBackend<B, D>
+impl<B, const D: usize> ComplexTensorBackend for SplitBackend<B, D>
 where
     B: Backend,
-    B: BackendTypes<FloatElem = F, ComplexScalar = Complex<F>>,
+    B: BackendTypes,
 {
     type InnerBackend = B;
     type Layout = SplitLayout<B>;
@@ -252,10 +262,10 @@ where
         )
     }
 
-    fn real(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
+    fn complex_real(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
         tensor.real.into()
     }
-    fn imag(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
+    fn complex_imag(tensor: ComplexTensor<SplitBackend<B, D>>) -> B::FloatTensorPrimitive {
         tensor.imag.into()
     }
 
@@ -398,8 +408,8 @@ where
         phase: B::FloatTensorPrimitive,
     ) -> ComplexTensor<SplitBackend<B, D>> {
         ComplexTensor::<SplitBackend<B, D>>::from_polar(
-            magnitude.into(),
-            phase.into(),
+            magnitude,
+            phase,
         )
     }
 
@@ -424,7 +434,7 @@ where
         shape: burn_std::Shape,
         distribution: burn_std::Distribution,
         device: &BackendDevice<B>,
-        dtype: FloatDType,
+        dtype: ComplexDType,
     ) -> ComplexTensor<SplitBackend<B, D>> {
         ComplexTensor::<Self>::random(shape, distribution, TensorCreationOptions::new(device.into()))
     }
@@ -811,7 +821,7 @@ where
         // );
         // // ComplexTensor<B> = Complex<T> via SplitLayout
         // <B as BackendTypes>::ComplexTensorPrimitive::new(real, imag)
-        unimplemented("placeholder")
+        unimplemented!("placeholder")
     }
 
     fn ones(shape: Shape, device: &BackendDevice<B>, _dtype: ComplexDType) -> ComplexTensor<B> {
@@ -821,7 +831,7 @@ where
         //     TensorData::ones(&shape),
         //     TensorData::zeros(&shape),
         // )
-            unimplemented("placeholder")
+            unimplemented!("placeholder")
         
     }
 
@@ -842,7 +852,7 @@ where
         //         )
         //     }
         // }
-        unimplemented("placeholder")
+        unimplemented!("placeholder")
     }
 
     async fn complex_into_data(
@@ -1828,10 +1838,10 @@ impl<const D: usize, K:Numeric> SplitComplexTensor<D,K>
         // Use the given dtype when provided, otherwise default device dtype
         let opt = options.into();
         let shape= shape.into();
-        //let dtype = opt.resolve_dtype::<Float>();
+        let dtype = complex_utils::complex_to_real_dtype(opt.resolve_dtype::<K>());
         Self::new(
-            K::random(shape.clone(), distribution, device.into(), dtype).into(),
-            K::random(shape, distribution, device.into(), dtype).into(),
+            K::random(shape.clone(), distribution, &opt.device, dtype).into(),
+            K::random(shape, distribution, &opt.device, dtype).into(),
         )
     }
 

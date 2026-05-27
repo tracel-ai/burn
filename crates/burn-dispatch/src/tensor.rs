@@ -2,11 +2,8 @@ use crate::backends::*;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::ComplexTensor;
-use burn_backend::{
-    Backend, BackendTypes, DType, Shape, TensorMetadata
-};
+use burn_backend::{Backend, BackendTypes, DType, Shape, TensorMetadata};
 //#[cfg(feature = "complex")]
-use burn_backend::{ComplexTensorBackend, tensor};
 
 use crate::CheckpointingStrategy;
 #[cfg(feature = "autodiff")]
@@ -16,7 +13,6 @@ use burn_backend::tensor::FloatTensor;
 
 // TODO: if we reduce the different associated types for float/int/bool/quantized tensor primitives down to a single
 // `B::TensorPrimitive` we can simplify this.
-
 
 /// Tensor which points to a backend tensor primitive kind.
 #[derive(Clone, Debug)]
@@ -112,7 +108,6 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
 
-
     ///TODO: Need to figure out how to return the inner autodiff tensor primitive;
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
@@ -160,7 +155,7 @@ impl<B: Backend> BackendTensor<B> {
             _ => unreachable!(),
         }
     }
-
+    /// Returns the inner complex tensor primitive.
     pub fn complex(self) -> B::ComplexTensorPrimitive {
         match self {
             BackendTensor::Complex(tensor) => tensor,
@@ -177,7 +172,11 @@ impl<B: Backend> BackendTensor<B> {
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => B::float_device(&tensor.primitive),
             #[cfg(feature = "autodiff")]
-            BackendTensor::AutodiffComplex(tensor) => B::complex_device(tensor.primitive()),
+            BackendTensor::AutodiffComplex(tensor) => {
+                // The unimplementedTensorPrimitive needs a placeholder that should never be reached at runtime
+                #[allow(unreachable_code)]
+                B::complex_device(tensor.primitive())
+            }
             //#[cfg(feature = "complex")]
             BackendTensor::Complex(tensor) => B::complex_device(tensor),
         }

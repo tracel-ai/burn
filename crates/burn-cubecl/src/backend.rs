@@ -4,7 +4,7 @@ use burn_backend::{
     Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
     UnimplementedTensorPrimitive,
 };
-use burn_std::{BoolStore, Complex, DType};
+use burn_std::{BoolStore, DType};
 use cubecl::{
     features::{MmaConfig, TypeUsage},
     server::ComputeServer,
@@ -94,8 +94,6 @@ where
         let client = R::client(&Default::default());
         client.device_count(type_id)
     }
-
-    
 }
 
 impl<R> Backend for CubeBackend<R>

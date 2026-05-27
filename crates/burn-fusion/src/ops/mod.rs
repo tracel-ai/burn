@@ -1,6 +1,7 @@
 mod activation;
 mod binary;
 mod bool_tensor;
+mod complex;
 #[cfg(feature = "distributed")]
 mod distributed;
 mod int_tensor;
@@ -9,7 +10,6 @@ mod qtensor;
 mod tensor;
 mod transaction;
 mod unary;
-mod complex;
 
 mod base;
 pub use base::NoOp;

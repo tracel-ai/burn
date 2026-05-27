@@ -44,7 +44,6 @@ impl<R: RunnerChannel> BackendTypes for BackendRouter<R> {
         // This is what was there before, not sure if it's actually correct
         1
     }
-
 }
 
 impl<R: RunnerChannel> Backend for BackendRouter<R> {

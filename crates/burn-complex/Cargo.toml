@@ -7,7 +7,8 @@ version.workspace = true
 
 
 [features]
-flex = [ "burn-tensor/flex" ]
+#default = ["burn-tensor/flex"]
+#flex = [ "burn-tensor/flex", "burn-core/flex" ]
 #no_std is a problem for later
 #std = ["burn-tensor/std", "num-complex/std", "num-traits/std"]
 
@@ -16,7 +17,10 @@ flex = [ "burn-tensor/flex" ]
 [dependencies]
 
 [dev-dependencies]
-burn-tensor = { workspace=true, default-features = false }
+burn-core = { workspace = true, features = ["flex", "extension"] }
+burn-std = { workspace = true }
+burn-tensor = { workspace=true, default-features = false, features= ["flex"] }
+paste = { workspace = true }
 #burn-tensor-testgen = { workspace=true, default-features = false }
 # burn-backend-tests = { workspace=true, default-features = false, features = [
 #     "std",

@@ -19,6 +19,8 @@ default = ["std", "cubecl-common/default"]
 doc = ["default"]
 std = ["cubecl-common/std", "num-traits/std", "rand/std"]
 tracing = ["cubecl-common/tracing"]
+tch = ["dep:tch"]
+ndarray = ["dep:ndarray"]
 
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
@@ -37,6 +39,10 @@ serde = { workspace = true }
 smallvec = { workspace = true, features = ["serde"] }
 spin = { workspace = true }
 thiserror = { workspace = true }
+
+# Some backends require trait impl for our complex element types, hence the below
+tch = { workspace = true, default-features = true, features = ["download-libtorch"], optional = true }
+ndarray = { workspace = true, optional = true }                             
 
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",

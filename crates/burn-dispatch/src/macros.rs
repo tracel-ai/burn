@@ -19,7 +19,6 @@ macro_rules! backend_list {
     };
 }
 
-
 /// Supplies a matrix of cross-backend combinations. Used for operations where the source and destination backends may differ.
 macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
@@ -43,30 +42,6 @@ macro_rules! backend_matrix {
 #[cfg(feature = "autodiff")]
 /// Helper to map the runtime strategy to the compile-time Autodiff generic.
 macro_rules! with_autodiff_backend {
-    ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
-        match $checkpointing {
-            Some($crate::CheckpointingStrategy::Balanced) => {
-                type $B = $crate::backends::Autodiff<
-                    $crate::backends::$Backend,
-                    burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
-                >;
-                $body
-            }
-            Some($crate::CheckpointingStrategy::None) => {
-                type $B = $crate::backends::Autodiff<
-                    $crate::backends::$Backend,
-                    burn_autodiff::checkpoint::strategy::NoCheckpointing,
-                >;
-                $body
-            }
-            None => unreachable!("Should only be called with autodiff."),
-        }
-    };
-}
-
-#[cfg(feature = "autodiff")]
-/// Helper to map the runtime strategy to the compile-time Autodiff generic.
-macro_rules! complex_with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {
             Some($crate::CheckpointingStrategy::Balanced) => {
@@ -328,8 +303,6 @@ macro_rules! float_to_device_arms {
     }};
 }
 
-
-
 /// Match arm generator for `complex_to_device`.
 ///
 /// Similar to `to_device_arms`, but complex tensors are checked for autodiff support.
@@ -503,7 +476,7 @@ macro_rules! creation_op_arms {
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
                     with_autodiff_backend!($Backend, $ckp, |B| {
-                        wrap_float!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
+                        wrap_floatlike!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
                     })
                 }
             )*
@@ -564,7 +537,7 @@ macro_rules! complex_creation_op_arms {
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend($inner) => {
                     with_autodiff_backend!($Backend, $ckp, |B| {
-                        wrap_complex!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
+                        wrap_floatlike!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
                     })
                 }
             )*
@@ -573,9 +546,9 @@ macro_rules! complex_creation_op_arms {
     }};
 }
 
-/// Wrap the result in the backend tensor kind, handling float -> autodiff.
+/// Wrap the result in the backend tensor kind, handling (float|complex) -> autodiff.
 #[cfg(feature = "autodiff")]
-macro_rules! wrap_float {
+macro_rules! wrap_floatlike {
     (
         @wrap_autodiff Float,
         $Backend:ident,
@@ -590,23 +563,6 @@ macro_rules! wrap_float {
         }
     };
 
-    (
-        @wrap_autodiff $other:ident,
-        $Backend:ident,
-        $ckp:expr,
-        $expr:expr
-    ) => {
-        $crate::DispatchTensor {
-            kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$other($expr)),
-            checkpointing: $ckp,
-        }
-    };
-}
-
-/// Wrap the result in the backend tensor kind, handling complex -> autodiff.
-//#[cfg(all(feature = "autodiff", feature = "complex"))]
-#[cfg(feature = "autodiff")]
-macro_rules! wrap_complex {
     (
         @wrap_autodiff Complex,
         $Backend:ident,
@@ -659,7 +615,7 @@ macro_rules! unary_op_arms {
                     #[cfg(feature = "autodiff")]
                     if checkpointing.is_some() {
                         with_autodiff_backend!($Backend, checkpointing, |B| {
-                            wrap_float!(@wrap_autodiff Float, $Backend, checkpointing, { $body })
+                            wrap_floatlike!(@wrap_autodiff Float, $Backend, checkpointing, { $body })
                         })
                     } else {
                         $crate::DispatchTensor {
@@ -799,7 +755,7 @@ macro_rules! unary_float_arms {
                 $crate::DispatchTensorKind::$Backend($inner) => {
                     with_autodiff_backend!($Backend, $ckp, |B| {
                         let $inner = unary_float_arms!(@unwrap_ad $mode, $inner);
-                        wrap_float!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
+                        wrap_floatlike!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
                     })
                 }
             )*
@@ -929,7 +885,7 @@ macro_rules! unary_complex_arms {
                 $crate::DispatchTensorKind::$Backend($inner) => {
                     with_autodiff_backend!($Backend, $ckp, |B| {
                         let $inner = unary_complex_arms!(@unwrap_ad $mode, $inner);
-                        wrap_complex!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
+                        wrap_floatlike!(@wrap_autodiff $kind, $Backend, $ckp, { $body })
                     })
                 }
             )*
@@ -1197,7 +1153,7 @@ macro_rules! binary_float_arms {
                             with_autodiff_backend!($Backend, checkpointing, |B| {
                                 let $lhs_inner = $lhs_inner.autodiff_float();
                                 let $rhs_inner = $rhs_inner.$rhs_kind();
-                                wrap_float!(
+                                wrap_floatlike!(
                                     @wrap_autodiff
                                     $kind,
                                     $Backend,
@@ -1271,7 +1227,7 @@ macro_rules! binary_float_arms {
                     with_autodiff_backend!($Backend, $ckp_lhs, |B| {
                         let $lhs_inner = $lhs_inner.$lhs_kind();
                         let $rhs_inner = $rhs_inner.$rhs_kind();
-                        wrap_float!(
+                        wrap_floatlike!(
                             @wrap_autodiff
                             $kind,
                             $Backend,
@@ -1296,11 +1252,11 @@ macro_rules! binary_float_arms {
 
 //#[cfg(feature = "complex")]
 macro_rules! binary_complex_arms {
-    // (float, float) binary op
+    // (complex, complex) binary op
     (
         $kind:ident,
-        ($lhs:expr, float),
-        ($rhs:expr, float),
+        ($lhs:expr, complex),
+        ($rhs:expr, complex),
         |$lhs_inner:ident, $rhs_inner:ident| $body:expr;
         $([$Backend:ident, $cfg:meta]),*
     ) => {{
@@ -1343,10 +1299,57 @@ macro_rules! binary_complex_arms {
             }
         }
     }};
-    // (float, any) binary op
+    // (complex, float) binary op
     (
         $kind:ident,
-        ($lhs:expr, float),
+        ($lhs:expr, complex),
+        ($rhs:expr, float),
+        |$lhs_inner:ident, $rhs_inner:ident| $body:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {{
+        #[cfg(feature = "autodiff")]
+        let checkpointing = $crate::validate_checkpointing($lhs.checkpointing, $rhs.checkpointing);
+        #[cfg(not(feature = "autodiff"))]
+        let checkpointing = $lhs.checkpointing;
+
+        match ($lhs.kind, $rhs.kind) {
+            // Autodiff arms first
+            #[cfg(feature = "autodiff")]
+            ($crate::DispatchTensorKind::Autodiff(lhs_inner), $crate::DispatchTensorKind::Autodiff(rhs_inner)) => {
+                // Recursively dispatch on inner
+                binary_complex_arms!(
+                    @autodiff
+                    $kind,
+                    (*lhs_inner, autodiff_complex, checkpointing),
+                    (*rhs_inner, autodiff_float, checkpointing),
+                    |$lhs_inner, $rhs_inner| $body;
+                    $([$Backend, $cfg]),*
+                )
+            },
+            $(
+                #[cfg($cfg)]
+                ($crate::DispatchTensorKind::$Backend($lhs_inner), $crate::DispatchTensorKind::$Backend($rhs_inner)) => {
+                    type B = $crate::backends::$Backend;
+                    let $lhs_inner = $lhs_inner.complex();
+                    let $rhs_inner = $rhs_inner.float();
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::$kind($body)),
+                        checkpointing,
+                    }
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            (lhs, rhs) => {
+                panic!(
+                    "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
+                );
+            }
+        }
+    }};
+    // (complex, any) binary op
+    (
+        $kind:ident,
+        ($lhs:expr, complex),
         ($rhs:expr, $rhs_kind:ident),
         |$lhs_inner:ident, $rhs_inner:ident| $body:expr;
         $([$Backend:ident, $cfg:meta]),*
@@ -1365,9 +1368,9 @@ macro_rules! binary_complex_arms {
                     match *lhs_inner {
                         $crate::DispatchTensorKind::$Backend($lhs_inner) => {
                             with_autodiff_backend!($Backend, checkpointing, |B| {
-                                let $lhs_inner = $lhs_inner.autodiff_float();
+                                let $lhs_inner = $lhs_inner.autodiff_complex();
                                 let $rhs_inner = $rhs_inner.$rhs_kind();
-                                wrap_complex!(  
+                                wrap_floatlike!(
                                     @wrap_autodiff
                                     $kind,
                                     $Backend,
@@ -1441,7 +1444,7 @@ macro_rules! binary_complex_arms {
                     with_autodiff_backend!($Backend, $ckp_lhs, |B| {
                         let $lhs_inner = $lhs_inner.$lhs_kind();
                         let $rhs_inner = $rhs_inner.$rhs_kind();
-                        wrap_float!(
+                        wrap_floatlike!(
                             @wrap_autodiff
                             $kind,
                             $Backend,
@@ -1560,6 +1563,10 @@ macro_rules! wrap_input_autodiff {
     ($Backend:ident, $inner:expr, float) => {
         $inner.autodiff_float()
     };
+    // Complex tensors: wrap with autodiff
+    ($Backend:ident, $inner:expr, complex) => {
+        $inner.autodiff_complex()
+    };
 }
 
 #[cfg(feature = "autodiff")]
@@ -1609,8 +1616,8 @@ macro_rules! multi_op_arm_autodiff {
 
             // Outputs and optional outputs
             (
-                $( wrap_float!(@wrap_autodiff $out_kind, $Backend, $ckp, $out) ),+,
-                $( $opt_out.map(|t| wrap_float!(@wrap_autodiff Float, $Backend, $ckp, t)) ),*
+                $( wrap_floatlike!(@wrap_autodiff $out_kind, $Backend, $ckp, $out) ),+,
+                $( $opt_out.map(|t| wrap_floatlike!(@wrap_autodiff Float, $Backend, $ckp, t)) ),*
             )
         })
     }};
@@ -1745,6 +1752,20 @@ macro_rules! multi_op {
     };
     (
         inputs[$( ($x:ident, $kind:ident) ),+],
+        => Complex,
+        $body:expr
+    ) => {
+        multi_op!(
+            inputs[$( ($x, $kind) ),+],
+            opt_inputs[],
+            outputs[(out, Complex)],
+            opt_outputs[],
+            { ($body,) }
+        )
+        .0
+    };
+    (
+        inputs[$( ($x:ident, $kind:ident) ),+],
         opt_inputs[ $(($opt_in:ident, $opt_kind:ident)),* ],
         => $out_kind:ident,
         $body:expr
@@ -1821,169 +1842,6 @@ macro_rules! multi_op {
         )
     };
 }
-//#[cfg(feature = "complex")]
-/// High-level macro for complex module operations (e.g., conv2d) and multi-tensor operations.
-// Handles variable numbers of required/optional inputs and wraps multiple outputs.
-///
-/// Usage:
-/// ```ignore
-/// complex_multi_op!(
-///     inputs[(x, float), (weight, float)],
-///     opt_inputs[(bias, float)],
-///     => ComplexKind,
-///     B::conv2d(x, weight, bias, options)
-/// )
-/// ```
-//#[cfg(feature = "complex")]
-macro_rules! complex_multi_op {
-    // --- Single output shorthands ---
-    // Automatically wraps body in tuple and extracts .0
-    (
-        inputs[$( ($x:ident, $kind:ident) ),+],
-        => Complex,
-        $body:expr
-    ) => {
-        complex_multi_op!(
-            inputs[$( ($x, $kind) ),+],
-            opt_inputs[],
-            outputs[(out, Complex)],
-            opt_outputs[],
-            { ($body,) }
-        )
-        .0
-    };
-    (
-        inputs[$( ($x:ident, $kind:ident) ),+],
-        opt_inputs[ $(($opt_in:ident, $opt_kind:ident)),* ],
-        => $out_kind:ident,
-        $body:expr
-    ) => {
-        complex_multi_op!(
-            inputs[$( ($x, $kind) ),+],
-            opt_inputs[ $(($opt_in, $opt_kind)),* ],
-            outputs[(out, $out_kind)],
-            opt_outputs[],
-            { ($body,) }
-        )
-        .0
-    };
-    // Int/Bool op specialization (not marked for autodiff)
-    (
-        inputs[$( ($x:ident, $kind:ident) ),+],
-        => $out_kind:ident,
-        $body:expr
-    ) => {
-        complex_backend_list!(
-            complex_multi_op_arms,
-            [ $(($x, $kind)),+ ],
-            [],
-            [ (out, $out_kind) ],
-            [],
-            { ($body,) }
-        ).0
-    };
-
-    // --- Required + optional for both inputs and outputs ---
-    (
-        inputs[ $(($x:ident, $kind:ident)),+ ],
-        opt_inputs[ $(($opt_in:ident, $opt_kind:ident)),* ],
-        outputs[ $( ($out:ident, $out_kind:ident) ),+ ],
-        opt_outputs[ $($opt_out:ident),* ],
-        $body:expr
-    ) => {
-        backend_list!(
-            complex_multi_op_arm_autodiff,
-            [ $(($x, $kind)),+ ],
-            [ $(($opt_in, $opt_kind)),* ],
-            [ $(($out, $out_kind)),+ ],
-            [ $($opt_out),* ],
-            $body
-        )
-    };
-
-    (
-        inputs[ $(($x:ident, $kind:ident)),+ ],
-        opt_inputs[ $(($opt_in:ident, $opt_kind:ident)),* ],
-        outputs[ $($out:ident),+ ],
-        $body:expr
-    ) => {
-        complex_multi_op!(
-            inputs[ $(($x, $kind)),+ ],
-            opt_inputs[ $(($opt_in, $opt_kind)),* ],
-            outputs[ $(($out, Complex)),+ ],
-            opt_outputs[],
-            $body
-        )
-    };
-
-    (
-        inputs[ $(($x:ident, $kind:ident)),+ ],
-        outputs[ $( ($out:ident, $out_kind:ident) ),+ ],
-        $body:expr
-    ) => {
-        complex_multi_op!(
-            inputs[ $(($x, $kind)),+ ],
-            opt_inputs[],
-            outputs[ $(($out, $out_kind)),+ ],
-            opt_outputs[],
-            $body
-        )
-    };
-}
-
-/// Match arm generator for `multi_op`.
-/// Determines the backend based on the first input and delegates to `multi_op_arm`
-/// to handle the repetition-heavy unwrapping and wrapping logic.
-macro_rules! complex_multi_op_arm_autodiff {
-    (
-        $inputs:tt,
-        $opt_inputs:tt,
-        $outputs:tt,
-        $opt_outputs:tt,
-        $body:expr;
-        $( [$Backend:ident, $cfg:meta] ),*
-    ) => {{
-        let first_input = &first_input!($inputs);
-        let checkpointing = first_input.checkpointing;
-        match &first_input.kind {
-            // Autodiff first
-            #[cfg(feature = "autodiff")]
-            $crate::DispatchTensorKind::Autodiff(inner) => {
-                match **inner {
-                    $(
-                        #[cfg($cfg)]
-                        $crate::DispatchTensorKind::$Backend(_) => {
-                            complex_multi_op_arm_autodiff!(
-                                $Backend,
-                                checkpointing,
-                                $inputs,
-                                $opt_inputs,
-                                $outputs,
-                                $opt_outputs,
-                                $body
-                            )
-                        }
-                    )*
-                    $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor.")
-                }
-            },
-            $(
-                #[cfg($cfg)]
-                $crate::DispatchTensorKind::$Backend(_) => {
-                    complex_multi_op_arm!(
-                        $Backend,
-                        checkpointing,
-                        $inputs,
-                        $opt_inputs,
-                        $outputs,
-                        $opt_outputs,
-                        $body
-                    )
-                }
-            )*
-        }
-    }};
-}
 
 /// Unwraps a `Vec<DispatchTensor>` for a known backend.
 macro_rules! unwrap_vec {
@@ -2037,7 +1895,7 @@ macro_rules! vec_op_arms {
                     $crate::DispatchTensorKind::$Backend(_) => {
                         with_autodiff_backend!($Backend, checkpointing, |B| {
                             let $inner = unwrap_vec!(@autodiff $Backend, $tensors, autodiff_float);
-                            wrap_float!( @wrap_autodiff Float, $Backend, checkpointing, { $body } )
+                            wrap_floatlike!( @wrap_autodiff Float, $Backend, checkpointing, { $body } )
                         })
                     }
                 )*

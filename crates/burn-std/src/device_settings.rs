@@ -56,7 +56,13 @@ impl DeviceSettings {
         bool_dtype: impl Into<BoolDType>,
         complex_dtype: impl Into<ComplexDType>,
     ) -> Self {
-        Self::new(float_dtype, int_dtype, bool_dtype, complex_dtype, Default::default())
+        Self::new(
+            float_dtype,
+            int_dtype,
+            bool_dtype,
+            complex_dtype,
+            Default::default(),
+        )
     }
 }
 

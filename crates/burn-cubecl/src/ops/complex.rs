@@ -1,4 +1,4 @@
-use burn_backend::{ComplexTensor, TypedDevice,};
+use burn_backend::{ComplexTensor, TypedDevice};
 
 use crate::{CubeBackend, CubeRuntime};
 
@@ -8,5 +8,5 @@ where
 {
     fn complex_device(_tensor: &ComplexTensor<Self>) -> R::CubeDevice {
         panic!("Cube backend does not yet support interleaved complex tensors")
-    }   
+    }
 }

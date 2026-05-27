@@ -129,8 +129,6 @@ impl Backend for NdArray {
         let mut seed = SEED.lock().unwrap();
         *seed = Some(rng);
     }
-
-    
 }
 
 impl BackendIr for NdArray {

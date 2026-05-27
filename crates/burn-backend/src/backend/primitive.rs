@@ -28,9 +28,7 @@ impl<E: Clone + Send + Sync + 'static> UnimplementedTensorPrimitive<E> {
     }
 }
 
-impl<E: Clone + Send + Sync + 'static> TensorMetadata
-    for UnimplementedTensorPrimitive<E>
-{
+impl<E: Clone + Send + Sync + 'static> TensorMetadata for UnimplementedTensorPrimitive<E> {
     fn dtype(&self) -> DType {
         unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
     }
@@ -40,10 +38,13 @@ impl<E: Clone + Send + Sync + 'static> TensorMetadata
     }
 }
 
-
 impl<E: Clone + Send + Sync + 'static> core::fmt::Debug for UnimplementedTensorPrimitive<E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "placeholder tensor primitive for {}", core::any::type_name::<E>())
+        write!(
+            f,
+            "placeholder tensor primitive for {}",
+            core::any::type_name::<E>()
+        )
     }
 }
 

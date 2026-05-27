@@ -3282,7 +3282,7 @@ fn display_fmt_impl(
         crate::ops::TensorKindId::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
         crate::ops::TensorKindId::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
         crate::ops::TensorKindId::Complex => {
-            <crate::ComplexKind as crate::ops::BasicOps>::device(primitive)
+            <crate::bridge::ComplexKind as crate::ops::BasicOps>::device(primitive)
         }
     };
     writeln!(f, "  device:  {:?},", device)?;

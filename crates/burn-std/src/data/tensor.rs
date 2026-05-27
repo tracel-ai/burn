@@ -475,8 +475,8 @@ impl TensorData {
                 Self::full::<u32, _>(shape, fill_value.elem()).into_bool_u32()
             }
             DType::QFloat(_) => unreachable!(),
-            DType::Complex64 => unreachable!("existence is pain"),
-            DType::Complex32 => unreachable!(),
+            DType::Complex64 => Self::full::<Complex<f64>, _>(shape, fill_value.elem()),
+            DType::Complex32 => Self::full::<Complex<f32>, _>(shape, fill_value.elem()),
         }
     }
 
