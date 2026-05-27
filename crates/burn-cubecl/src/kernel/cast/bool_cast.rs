@@ -8,14 +8,16 @@ use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_std::DType;
 use cubecl::{
-    CubeDim, calculate_cube_count_elemwise, num_traits::One, prelude::*,
-    std::tensor::layout::linear::LinearView,
+    CubeDim, calculate_cube_count_elemwise,
+    num_traits::One,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
-    input: &LinearView<Vector<B, N>>,
-    output: &mut LinearView<Vector<T, N>, ReadWrite>,
+    input: LinearView<'_, Vector<B, N>>,
+    mut output: LinearViewMut<'_, Vector<T, N>>,
     #[define(B, T)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {

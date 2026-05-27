@@ -288,7 +288,7 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
     #[comptime] tensor_pos: usize,
     #[comptime] level: QuantLevel,
     #[comptime] config: &FuseBlockConfig,
-) -> View<C, usize> {
+) -> View<'static, C, usize> {
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);

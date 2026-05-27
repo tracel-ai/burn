@@ -6,7 +6,11 @@ use crate::{
 };
 use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 
 pub(crate) trait FloatUnaryOpFamily: 'static + Send + Sync {
     type Options: LaunchArg;
@@ -22,8 +26,8 @@ pub(crate) trait FloatUnaryOp<F: Float, N: Size>: 'static + Send + Sync {
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
-    input: &LinearView<Vector<F, N>>,
-    output: &mut LinearView<Vector<F, N>, ReadWrite>,
+    input: LinearView<'_, Vector<F, N>>,
+    mut output: LinearViewMut<'_, Vector<F, N>>,
     options: &O::Options,
     #[define(F)] _dtype: StorageType,
 ) {

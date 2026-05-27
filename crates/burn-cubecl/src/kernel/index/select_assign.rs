@@ -13,7 +13,7 @@ use cubecl::{prelude::*, std::FastDivmod};
 #[cube(launch, address_type = "dynamic")]
 fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     tensor: &mut Tensor<F>,
-    indices: &LinearView<I>,
+    indices: LinearView<'_, I>,
     value: &Tensor<F>,
     value_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,

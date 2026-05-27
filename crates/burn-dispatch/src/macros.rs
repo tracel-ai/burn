@@ -1,44 +1,3 @@
-/// Resolves a backend identifier to its concrete `Backend`-impl type.
-///
-/// Now that element type parameters have been removed project-wide, this is a simple
-/// passthrough — kept so the dispatch macros stay agnostic to future signature changes.
-#[allow(unused_macros)]
-macro_rules! inst {
-    (Cpu) => {
-        $crate::backends::Cpu
-    };
-    (Cuda) => {
-        $crate::backends::Cuda
-    };
-    (Metal) => {
-        $crate::backends::Metal
-    };
-    (Rocm) => {
-        $crate::backends::Rocm
-    };
-    (Vulkan) => {
-        $crate::backends::Vulkan
-    };
-    (Wgpu) => {
-        $crate::backends::Wgpu
-    };
-    (WebGpu) => {
-        $crate::backends::WebGpu
-    };
-    (Flex) => {
-        $crate::backends::Flex
-    };
-    (NdArray) => {
-        $crate::backends::NdArray
-    };
-    (LibTorch) => {
-        $crate::backends::LibTorch
-    };
-    (Remote) => {
-        $crate::backends::Remote
-    };
-}
-
 /// Supplies a list of all supported backends and their corresponding feature flags
 /// to a callback macro. This centralizes the backend registry.
 macro_rules! backend_list {
@@ -82,7 +41,6 @@ macro_rules! backend_matrix {
 
 #[cfg(feature = "autodiff")]
 /// Helper to map the runtime strategy to the compile-time Autodiff generic.
-#[cfg(feature = "autodiff")]
 macro_rules! with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {

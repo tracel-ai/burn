@@ -1,6 +1,10 @@
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 
 use crate::{
     CubeRuntime,
@@ -11,9 +15,9 @@ use crate::{
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn mask_fill_kernel<T: Numeric, B: Int, N: Size>(
-    input: &LinearView<Vector<T, N>>,
-    mask: &LinearView<Vector<B, N>>,
-    output: &mut LinearView<Vector<T, N>, ReadWrite>,
+    input: LinearView<'_, Vector<T, N>>,
+    mask: LinearView<'_, Vector<B, N>>,
+    mut output: LinearViewMut<'_, Vector<T, N>>,
     value: InputScalar,
     #[define(T, B)] _dtypes: [StorageType; 2],
 ) {

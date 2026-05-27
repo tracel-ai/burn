@@ -10,7 +10,7 @@ use burn_std::{Metadata, SliceOps};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
-    std::{FastDivmod, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearViewMut},
 };
 use std::ops::Range;
 
@@ -59,7 +59,7 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_kernel<E: Numeric>(
     input: &Tensor<E>,
-    output: &mut LinearView<E, ReadWrite>,
+    mut output: LinearViewMut<'_, E>,
     out_shape: Sequence<FastDivmod<usize>>,
     indices: Sequence<usize>,
     #[define(E)] _dtype: StorageType,
@@ -128,7 +128,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_with_steps_kernel<E: Numeric>(
     input: &Tensor<E>,
-    output: &mut LinearView<E, ReadWrite>,
+    mut output: LinearViewMut<'_, E>,
     out_shape: Sequence<FastDivmod<usize>>,
     starts: Sequence<usize>,
     ends: Sequence<usize>,

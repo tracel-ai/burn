@@ -1,14 +1,3 @@
-// TODO: integrate w/ dispatch
-// #[cfg(feature = "remote")]
-// pub use burn_remote as remote;
-// #[cfg(feature = "remote")]
-// pub use burn_remote::RemoteBackend;
-
-// #[cfg(feature = "router")]
-// pub use burn_router::Router;
-// #[cfg(feature = "router")]
-// pub use burn_router as router;
-
 #[cfg(feature = "ir")]
 pub use burn_ir as ir;
 

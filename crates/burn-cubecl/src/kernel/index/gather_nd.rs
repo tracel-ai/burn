@@ -15,7 +15,7 @@ use cubecl::{CubeDim, calculate_cube_count_elemwise};
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn gather_nd_kernel<T: Numeric, I: Int>(
     data: &Tensor<T>,
-    indices: &LinearView<I>,
+    indices: LinearView<'_, I>,
     output: &mut Tensor<T>,
     output_shape: Sequence<FastDivmod<usize>>,
     data_slice_shape: Sequence<FastDivmod<usize>>,

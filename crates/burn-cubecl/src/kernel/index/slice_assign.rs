@@ -13,7 +13,7 @@ use cubecl::{
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_assign_kernel<E: Numeric, N: Size>(
     input: &mut Tensor<Vector<E, N>>,
-    value: &LinearView<Vector<E, N>>,
+    value: LinearView<'_, Vector<E, N>>,
     slice_shape: Sequence<FastDivmod<usize>>,
     slice_offsets: Sequence<usize>,
     #[define(E)] _dtype: StorageType,
@@ -49,7 +49,7 @@ fn slice_assign_kernel<E: Numeric, N: Size>(
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_assign_with_steps_kernel<E: Numeric>(
     input: &mut Tensor<E>,
-    value: &LinearView<E>,
+    value: LinearView<'_, E>,
     value_shape: Sequence<FastDivmod<usize>>,
     starts: Sequence<usize>,
     ends: Sequence<usize>,

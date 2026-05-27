@@ -2,7 +2,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{FastDivmod, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearViewMut},
 };
 
 use crate::{
@@ -32,7 +32,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
     bias: ComptimeOption<&[E]>,
-    output: &mut LinearView<E, ReadWrite>,
+    mut output: LinearViewMut<'_, E>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
     #[define(E)] _dtype: StorageType,

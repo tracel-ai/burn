@@ -1,6 +1,6 @@
 use derive_new::new;
 
-use burn_core::record::Record;
+use burn_core::{record::Record, tensor::Device};
 
 use crate::TransitionBatch;
 
@@ -22,6 +22,18 @@ pub trait PolicyState {
     fn into_record(self) -> Self::Record;
     /// Load the state from a record.
     fn load_record(&self, record: Self::Record) -> Self;
+}
+
+/// Defines how an environment's state is converted to a policy's observation.
+pub trait ToObservation<O> {
+    /// Convert an environment's state to a policy's observation, moving it to the given device if needed.
+    fn to_observation(&self, device: &Device) -> O;
+}
+
+/// Defines how an environment's action is converted to a policy's action.
+pub trait ToAction<A> {
+    /// Convert an environment's action to a policy's action, moving it to the given device if needed.
+    fn to_action(&self, device: &Device) -> A;
 }
 
 /// Trait for a RL policy.
@@ -52,6 +64,8 @@ pub trait Policy: Clone {
     /// Returns the current parameterization.
     fn state(&self) -> Self::PolicyState;
 
+    /// Loads the policy on the given device.
+    fn to_device(self, device: &Device) -> Self;
     /// Loads the policy parameters from a record.
     fn load_record(self, record: <Self::PolicyState as PolicyState>::Record) -> Self;
 }
@@ -95,13 +109,14 @@ where
         &mut self,
         input: LearnerTransitionBatch<Self::InnerPolicy>,
     ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy>::PolicyState>;
-    /// Returns the learner's current policy.
+    /// Returns the learner's current policy for validation.
     fn policy(&self) -> Self::InnerPolicy;
     /// Update the learner's policy.
     fn update_policy(&mut self, update: Self::InnerPolicy);
-
     /// Convert the learner's state into a record.
     fn record(&self) -> Self::Record;
     /// Load the learner's state from a record.
     fn load_record(self, record: Self::Record) -> Self;
+    /// Returns the device used for training.
+    fn device(&self) -> Device;
 }

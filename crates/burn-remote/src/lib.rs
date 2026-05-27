@@ -26,9 +26,7 @@ mod __client {
     /// ```rust, ignore
     /// use burn::{Device, server::{start, Channel}};
     ///
-    /// fn main() {
-    ///     start(Device::default(), Channel::WebSocket { port: 3000 });
-    /// }
+    /// start(Device::default(), Channel::WebSocket { port: 3000 });
     /// ```
     ///
     /// For backends that aren't part of `DispatchDevice` but implement

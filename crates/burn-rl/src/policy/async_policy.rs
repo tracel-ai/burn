@@ -7,6 +7,8 @@ use std::{
     thread::spawn,
 };
 
+use burn_core::tensor::Device;
+
 use crate::{ActionContext, Batchable, Policy, PolicyState};
 
 #[derive(Clone)]
@@ -125,6 +127,10 @@ where
         self.inner_policy.update(policy_update);
     }
 
+    pub fn policy_to_device(&mut self, device: &Device) {
+        self.inner_policy = self.inner_policy.clone().to_device(device);
+    }
+
     pub fn state(&self) -> P::PolicyState {
         self.inner_policy.state()
     }
@@ -158,6 +164,7 @@ enum InferenceMessage<P: Policy> {
     ActionMessage(ActionItem<P::Observation, P::Action, P::ActionContext>),
     ForwardMessage(ForwardItem<P::Observation, P::ActionDistribution>),
     PolicyUpdate(P::PolicyState),
+    ToDevice(Device),
     PolicyRequest(Sender<P::PolicyState>),
     IncrementAgents(usize),
     DecrementAgents(usize),
@@ -207,6 +214,7 @@ where
                         InferenceMessage::ActionMessage(item) => autobatcher.push_action(item),
                         InferenceMessage::ForwardMessage(item) => autobatcher.push_logits(item),
                         InferenceMessage::PolicyUpdate(update) => autobatcher.update_policy(update),
+                        InferenceMessage::ToDevice(device) => autobatcher.policy_to_device(&device),
                         InferenceMessage::PolicyRequest(sender) => sender
                             .send(autobatcher.state())
                             .expect("Autobatcher should be able to send current policy state."),
@@ -302,9 +310,17 @@ where
             .expect("AsyncPolicy should be able to receive policy state.")
     }
 
+    fn to_device(self, device: &Device) -> Self {
+        self.inference_state_sender
+            .send(InferenceMessage::ToDevice(device.clone()))
+            .expect("AsyncPolicy should be able to send policy state.");
+        self
+    }
+
     fn load_record(self, _record: <Self::PolicyState as PolicyState>::Record) -> Self {
-        // Not needed for now
-        todo!()
+        unimplemented!(
+            "Not implemented yet. Please load the record on the inner policy before creating an async policy."
+        )
     }
 }
 
