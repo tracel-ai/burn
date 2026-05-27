@@ -7,7 +7,9 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{TensorMetadata, bf16, f16};
 use cubecl::{
-    calculate_cube_count_elemwise, intrinsic, prelude::*, std::tensor::layout::linear::LinearView,
+    calculate_cube_count_elemwise, intrinsic,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
 pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
@@ -189,9 +191,9 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for BinaryMaxOp {
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_scalar_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
-    input: &LinearView<Vector<C, N>>,
+    input: LinearView<'_, Vector<C, N>>,
     scalar: InputScalar,
-    output: &mut LinearView<Vector<C, N>, ReadWrite>,
+    mut output: LinearViewMut<'_, Vector<C, N>>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -206,9 +208,9 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
-    lhs: &LinearView<Vector<C, N>>,
-    rhs: &LinearView<Vector<C, N>>,
-    out: &mut LinearView<Vector<C, N>, ReadWrite>,
+    lhs: LinearView<'_, Vector<C, N>>,
+    rhs: LinearView<'_, Vector<C, N>>,
+    mut out: LinearViewMut<'_, Vector<C, N>>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {

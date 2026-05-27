@@ -8,14 +8,14 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::std::tensor::layout::linear::LinearView;
+use cubecl::std::tensor::layout::linear::{LinearView, LinearViewMut};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn cross_kernel<E: Float>(
-    lhs: &LinearView<E>,
-    rhs: &LinearView<E>,
-    output: &mut LinearView<E, ReadWrite>,
+    lhs: LinearView<'_, E>,
+    rhs: LinearView<'_, E>,
+    mut output: LinearViewMut<'_, E>,
     #[define(E)] _dtype: StorageType,
 ) {
     // Each thread processes one 3-element vector

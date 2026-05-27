@@ -15,7 +15,7 @@ use cubecl::{
             view::{QuantizedView, run_with_quant_type},
         },
         tensor::{
-            View, ViewExpand,
+            View, ViewExpand, ViewMut,
             layout::{Coords1d, Coords2d, VirtualLayout},
         },
     },
@@ -121,7 +121,7 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn view_lhs<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> View<Lhs, BatchedCoords> {
+    ) -> View<'_, Lhs, BatchedCoords> {
         global_view(
             &state.inputs,
             &state.locals,
@@ -141,7 +141,7 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn view_rhs<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> View<Rhs, BatchedCoords> {
+    ) -> View<'_, Rhs, BatchedCoords> {
         global_view(
             &state.inputs,
             &state.locals,
@@ -161,7 +161,7 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn view_acc<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> ComptimeOption<View<EO, BatchedCoords>> {
+    ) -> ComptimeOption<View<'_, EO, BatchedCoords>> {
         match comptime![state.c.clone()] {
             Some(c) => {
                 let view = global_view(
@@ -190,8 +190,8 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn view_out<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
-        state: &mut Self::State<Lhs, Rhs, EO>,
-    ) -> View<EO, BatchedCoords, ReadWrite> {
+        state: &Self::State<Lhs, Rhs, EO>,
+    ) -> ViewMut<'_, EO, BatchedCoords> {
         let rank = comptime![state.config.rank];
 
         let shape_row = state.locals.ref_shape[rank - 2] as u32;
@@ -199,6 +199,9 @@ impl MatmulArgs for FusedMatmulArgs {
 
         let stride_row = state.locals.ref_strides[rank - 2];
         let stride_col = state.locals.ref_strides[rank - 1];
+
+        let mut outputs = state.outputs.clone();
+        let mut locals = state.locals.clone();
 
         let layout = GlobalLayout::new(
             VirtualLayout::new::<NoopLayout>(NoopLayout::new()),
@@ -212,12 +215,12 @@ impl MatmulArgs for FusedMatmulArgs {
         );
         let buffer = FusedOutput::new(
             &state.inputs,
-            &mut state.outputs,
-            &mut state.locals,
+            &mut outputs,
+            &mut locals,
             comptime![state.out.clone()],
             comptime![state.config.clone()],
         );
-        View::new_mut::<FusedOutput, Coords1d>(buffer, layout)
+        ViewMut::new::<FusedOutput, Coords1d>(buffer, layout)
     }
 
     fn batch_out<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
@@ -242,7 +245,7 @@ fn global_view<E: CubePrimitive>(
     #[comptime] arg: MatmulArg,
     #[comptime] config: FuseBlockConfig,
     #[comptime] layout_config: GlobalLayoutConfig,
-) -> View<E, BatchedCoords> {
+) -> View<'static, E, BatchedCoords> {
     let rank = comptime![config.rank];
     let data = comptime![arg.data().clone()];
     let data_tensor = match comptime![data.clone()] {
@@ -412,7 +415,7 @@ struct CreateQuantView<'a, E: Numeric, N: Size> {
 }
 
 impl<'a, E: Numeric, N: Size> RunWithQuantType for CreateQuantView<'a, E, N> {
-    type Output = ViewExpand<Vector<E, N>, BatchedCoords>;
+    type Output = ViewExpand<'static, Vector<E, N>, BatchedCoords>;
 
     fn execute<Q: Scalar, S: Scalar>(self) -> Self::Output {
         create_quant_view::expand::<E, N, Q, S>(
@@ -434,7 +437,7 @@ fn create_quant_view_dynamic<E: Numeric, N: Size>(
     scales_buf: GlobalInput,
     scales_layout: GlobalScaleLayout,
     #[comptime] scheme: QuantScheme,
-) -> View<Vector<E, N>, BatchedCoords> {
+) -> View<'static, Vector<E, N>, BatchedCoords> {
     intrinsic!(|scope| {
         let func = CreateQuantView {
             scope,
@@ -456,7 +459,7 @@ fn create_quant_view<E: Numeric, N: Size, Q: Scalar, S: Scalar>(
     scales_buf: GlobalInput,
     scales_layout: GlobalScaleLayout,
     #[comptime] scheme: QuantScheme,
-) -> View<Vector<E, N>, BatchedCoords> {
+) -> View<'static, Vector<E, N>, BatchedCoords> {
     let size!(NQ) = N::value().comptime() / scheme.num_quants();
 
     let data_view: View<Vector<Q, NQ>, BatchedCoords> =

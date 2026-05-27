@@ -2,14 +2,17 @@ use crate::{CubeRuntime, kernel::utils::address_type, tensor::CubeTensor};
 use crate::{kernel::utils::shape_divmod, ops::numeric::empty_device_dtype};
 use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    CubeDim, calculate_cube_count_elemwise,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 use cubecl::{prelude::*, std::FastDivmod};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn select_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<T>,
-    indices: &LinearView<I>,
-    output: &mut LinearView<T, ReadWrite>,
+    indices: LinearView<'_, I>,
+    mut output: LinearViewMut<'_, T>,
     out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],

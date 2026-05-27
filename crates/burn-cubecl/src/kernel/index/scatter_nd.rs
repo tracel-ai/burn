@@ -19,7 +19,7 @@ use cubecl::{prelude::*, std::FastDivmod};
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     data: &mut Tensor<T>,
-    indices: &LinearView<I>,
+    indices: LinearView<'_, I>,
     values: &Tensor<T>,
     data_slice_shape: Sequence<FastDivmod<usize>>,
     values_shape: Sequence<FastDivmod<usize>>,

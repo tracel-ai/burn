@@ -9,13 +9,13 @@ use burn_backend::{DType, TensorMetadata};
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{FastDivmod, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearViewMut},
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn flip_kernel<E: Numeric, Bool: Int>(
     input: &Tensor<E>,
-    output: &mut LinearView<E, ReadWrite>,
+    mut output: LinearViewMut<'_, E>,
     in_shape: Sequence<FastDivmod<usize>>,
     indices: Sequence<InputScalar>,
     #[define(E, Bool)] _dtypes: [StorageType; 2],

@@ -21,7 +21,10 @@ use cubecl::{
     features::AtomicUsage,
     ir::FloatKind,
     prelude::*,
-    std::{FastDivmod, tensor::layout::linear::LinearView},
+    std::{
+        FastDivmod,
+        tensor::layout::linear::{LinearView, LinearViewMut},
+    },
 };
 use cubek::{
     convolution::components::ConvSetupError,
@@ -304,7 +307,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     offset: &Tensor<F>,
     mask: ComptimeOption<&Tensor<F>>,
     columns: &Tensor<F>,
-    grad_offset: &mut LinearView<F, ReadWrite>,
+    mut grad_offset: LinearViewMut<'_, F>,
     grad_mask: ComptimeOption<&mut Tensor<F>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
@@ -570,7 +573,7 @@ struct DeformConv2dCol2ImgArgs {
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
     mask: ComptimeOption<&Tensor<F>>,
-    columns: &LinearView<F>,
+    columns: LinearView<'_, F>,
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgArgs,

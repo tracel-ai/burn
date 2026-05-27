@@ -6,16 +6,19 @@ use crate::{
 };
 use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::frontend::{ABSOLUTE_POS, Numeric, Tensor};
 use cubecl::std::{FastDivmod, tensor::index_offset_contiguous_fastdivmod};
 use cubecl::{CubeDim, std::tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    frontend::{ABSOLUTE_POS, Numeric, Tensor},
+    std::tensor::layout::linear::LinearViewMut,
+};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn gather_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<T>,
-    indices: &LinearView<I>,
-    output: &mut LinearView<T, ReadWrite>,
+    indices: LinearView<'_, I>,
+    mut output: LinearViewMut<'_, T>,
     in_strides: Sequence<usize>, // zeroed out for broadcast dims and `dim`
     out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
