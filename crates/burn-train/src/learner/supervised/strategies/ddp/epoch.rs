@@ -118,7 +118,12 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
                 }
             }
 
-            let item = TrainingItem::new(item.item, progress, Some(iteration), Some(learner.lr_current()));
+            let item = TrainingItem::new(
+                item.item,
+                progress,
+                Some(iteration),
+                Some(learner.lr_current()),
+            );
 
             {
                 let mut processor = processor.lock().unwrap();

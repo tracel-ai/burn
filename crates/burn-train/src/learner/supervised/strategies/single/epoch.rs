@@ -110,7 +110,12 @@ impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
                 None => learner.optimizer_step(item.grads),
             }
 
-            let item = TrainingItem::new(item.item, progress, Some(iteration), Some(learner.lr_current()));
+            let item = TrainingItem::new(
+                item.item,
+                progress,
+                Some(iteration),
+                Some(learner.lr_current()),
+            );
 
             processor.process_train(LearnerEvent::ProcessedItem(item));
 
