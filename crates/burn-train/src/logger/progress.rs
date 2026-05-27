@@ -63,7 +63,7 @@ pub trait TrainingProgressLogger: Send {
 /// end_global_progress()
 /// ```
 ///
-/// `end()` is called whether evaluation completes normally or is interrupted early.
+/// `end_global_progress()` is called whether evaluation completes normally or is interrupted early.
 pub trait EvaluationProgressLogger: Send {
     /// Called once at the start of evaluation, providing the total number of test splits.
     fn start_global_progress(&mut self, total_tests: usize);
