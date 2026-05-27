@@ -1,5 +1,5 @@
 use super::TerminalFrame;
-use crate::{logger::OverallProgress, renderer::tui::TuiSplit};
+use crate::{logger::ProgressSnapshot, renderer::tui::TuiSplit};
 use ratatui::{
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -35,27 +35,27 @@ impl ProgressBarState {
     }
 
     /// Update the training progress.
-    pub(crate) fn update_train(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_train(&mut self, progress: &ProgressSnapshot) {
         self.progress_total = calculate_progress(progress, 0, 0);
-        self.progress_task = progress.split_progress.items_processed as f64
-            / progress.split_progress.items_total as f64;
+        self.progress_task =
+            progress.split.items_processed as f64 / progress.split.items_total as f64;
         self.estimate.update(progress, self.starting_epoch);
         self.split = TuiSplit::Train;
     }
 
     /// Update the validation progress.
-    pub(crate) fn update_valid(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_valid(&mut self, progress: &ProgressSnapshot) {
         // We don't use the validation for the total progress yet.
-        self.progress_task = progress.split_progress.items_processed as f64
-            / progress.split_progress.items_total as f64;
+        self.progress_task =
+            progress.split.items_processed as f64 / progress.split.items_total as f64;
         self.split = TuiSplit::Valid;
     }
 
     /// Update the testing progress.
-    pub(crate) fn update_test(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_test(&mut self, progress: &ProgressSnapshot) {
         // We don't use the testing for the total progress yet.
-        self.progress_task = progress.split_progress.items_processed as f64
-            / progress.split_progress.items_total as f64;
+        self.progress_task =
+            progress.split.items_processed as f64 / progress.split.items_total as f64;
         self.split = TuiSplit::Test;
     }
 
@@ -173,7 +173,7 @@ impl ProgressEstimate {
         }
     }
 
-    fn update(&mut self, progress: &OverallProgress, starting_epoch: usize) {
+    fn update(&mut self, progress: &ProgressSnapshot, starting_epoch: usize) {
         if self.started_after_warmup.is_some() {
             self.progress = calculate_progress(progress, starting_epoch, self.warmup_num_items);
             return;
@@ -188,16 +188,16 @@ impl ProgressEstimate {
         }
 
         // When the training has started since at least 10 seconds and completed 10 iterations.
-        if progress.split_progress.items_processed >= WARMUP_NUM_ITERATION
+        if progress.split.items_processed >= WARMUP_NUM_ITERATION
             && self.started.elapsed() > Duration::from_secs(10)
         {
             self.init(progress, starting_epoch);
         }
     }
 
-    fn init(&mut self, progress: &OverallProgress, starting_epoch: usize) {
-        let epoch = progress.global_progress.items_processed - starting_epoch;
-        let local = &progress.split_progress;
+    fn init(&mut self, progress: &ProgressSnapshot, starting_epoch: usize) {
+        let epoch = progress.global.items_processed - starting_epoch;
+        let local = &progress.split;
 
         let epoch_items = (epoch - 1) * local.items_total;
         let iteration_items = local.items_processed;
@@ -209,13 +209,13 @@ impl ProgressEstimate {
 }
 
 fn calculate_progress(
-    progress: &OverallProgress,
+    progress: &ProgressSnapshot,
     starting_epoch: usize,
     ignore_num_items: usize,
 ) -> f64 {
-    let epoch_total = progress.global_progress.items_total - starting_epoch;
-    let epoch = progress.global_progress.items_processed - starting_epoch;
-    let local = &progress.split_progress;
+    let epoch_total = progress.global.items_total - starting_epoch;
+    let epoch = progress.global.items_processed - starting_epoch;
+    let local = &progress.split;
 
     let total_items = local.items_total * epoch_total;
     let epoch_items = (epoch - 1) * local.items_total;
@@ -268,9 +268,9 @@ mod tests {
 
     #[test]
     fn calculate_progress_for_eta() {
-        let progress = OverallProgress::new(
-            Progress::new(9, 10, "epochs".to_string()),
-            Progress::new(5, 10, "items".to_string()),
+        let progress = ProgressSnapshot::new(
+            Progress::new(9, 10, Some("epochs".to_string())),
+            Progress::new(5, 10, Some("items".to_string())),
         );
 
         let starting_epoch = 8;
@@ -282,9 +282,9 @@ mod tests {
 
     #[test]
     fn calculate_progress_for_eta_with_warmup() {
-        let progress = OverallProgress::new(
-            Progress::new(9, 10, "epochs".to_string()),
-            Progress::new(110, 1000, "items".to_string()),
+        let progress = ProgressSnapshot::new(
+            Progress::new(9, 10, Some("epochs".to_string())),
+            Progress::new(110, 1000, Some("items".to_string())),
         );
 
         let starting_epoch = 8;

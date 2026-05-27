@@ -14,7 +14,7 @@ pub struct Progress {
     pub items_total: usize,
 
     /// The unit of measurement for the progress (e.g., "items", "batches").
-    pub unit: String,
+    pub unit: Option<String>,
 }
 
 /// A data loader iterator that can be used to iterate over a data loader.

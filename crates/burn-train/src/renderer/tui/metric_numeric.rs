@@ -1,5 +1,5 @@
 use crate::{
-    logger::OverallProgress,
+    logger::ProgressSnapshot,
     metric::{MetricName, NumericEntry},
     renderer::tui::TuiTag,
 };
@@ -97,18 +97,18 @@ impl NumericMetricsState {
     }
 
     /// Update the state with the training progress.
-    pub(crate) fn update_progress_train(&mut self, progress: &OverallProgress) {
-        self.epoch = progress.global_progress.items_processed;
+    pub(crate) fn update_progress_train(&mut self, progress: &ProgressSnapshot) {
+        self.epoch = progress.global.items_processed;
 
         if self.num_samples_train.is_some() {
             return;
         }
 
-        self.num_samples_train = Some(progress.split_progress.items_total);
+        self.num_samples_train = Some(progress.split.items_total);
     }
 
     /// Update the state with the validation progress.
-    pub(crate) fn update_progress_valid(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_progress_valid(&mut self, progress: &ProgressSnapshot) {
         if self.num_samples_valid.is_some() {
             return;
         }
@@ -116,29 +116,29 @@ impl NumericMetricsState {
         // If num_samples_train is None, keep the default max_samples for validation.
         if let Some(num_sample_train) = self.num_samples_train {
             for (_, (_recent, full)) in self.data.iter_mut() {
-                let ratio = progress.split_progress.items_total as f64 / num_sample_train as f64;
+                let ratio = progress.split.items_total as f64 / num_sample_train as f64;
                 full.update_max_sample(TuiSplit::Valid, ratio);
             }
         }
 
-        self.epoch = progress.global_progress.items_processed;
-        self.num_samples_valid = Some(progress.split_progress.items_total);
+        self.epoch = progress.global.items_processed;
+        self.num_samples_valid = Some(progress.split.items_total);
     }
 
     /// Update the state with the testing progress.
-    pub(crate) fn update_progress_test(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_progress_test(&mut self, progress: &ProgressSnapshot) {
         if self.num_samples_test.is_some() {
             return;
         }
 
         if let Some(num_sample_train) = self.num_samples_train {
             for (_, (_recent, full)) in self.data.iter_mut() {
-                let ratio = progress.split_progress.items_total as f64 / num_sample_train as f64;
+                let ratio = progress.split.items_total as f64 / num_sample_train as f64;
                 full.update_max_sample(TuiSplit::Test, ratio);
             }
         }
 
-        self.num_samples_test = Some(progress.split_progress.items_total);
+        self.num_samples_test = Some(progress.split.items_total);
     }
 
     /// Create a view to display the numeric metrics.

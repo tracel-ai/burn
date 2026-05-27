@@ -46,7 +46,7 @@ pub trait TrainingProgressLogger: Send {
     /// Called at the end of training, whether it completed successfully or was interrupted.
     fn end(&mut self);
 
-    /// Log a custom counter event, such as the number of iterations accomplished (or more).
+    /// Log a custom named event that falls outside the standard training lifecycle callbacks.
     fn log_event_training(&mut self, event: String);
 }
 
@@ -86,7 +86,7 @@ pub trait EvaluationProgressLogger: Send {
     /// Called at the end of evaluation.
     fn end_global_progress(&mut self);
 
-    /// Log a custom counter event, such as the number of iterations accomplished (or more).
+    /// Log a custom named event that falls outside the standard evaluation lifecycle callbacks.
     fn log_event_evaluation(&mut self, event: String);
 }
 
@@ -95,19 +95,16 @@ pub trait EvaluationProgressLogger: Send {
 /// `global_progress` spans the full training run (e.g., epochs completed out of total),
 /// while `split_progress` tracks the current phase (e.g., batches within the current epoch).
 #[derive(Debug, Clone)]
-pub struct OverallProgress {
+pub struct ProgressSnapshot {
     /// Progress across the entire training run.
-    pub global_progress: Progress,
+    pub global: Progress,
     /// Progress within the current phase (epoch or evaluation split).
-    pub split_progress: Progress,
+    pub split: Progress,
 }
 
-impl OverallProgress {
+impl ProgressSnapshot {
     /// Create a new overall progress snapshot.
-    pub fn new(global_progress: Progress, split_progress: Progress) -> Self {
-        Self {
-            global_progress,
-            split_progress,
-        }
+    pub fn new(global: Progress, split: Progress) -> Self {
+        Self { global, split }
     }
 }

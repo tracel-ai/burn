@@ -35,7 +35,7 @@ impl Iterator for TrainingLoop {
         let progress = Progress {
             items_processed: self.next_iteration,
             items_total: self.total_iteration,
-            unit: "epochs".to_string(),
+            unit: Some("epochs".to_string()),
         };
 
         self.next_iteration += 1;

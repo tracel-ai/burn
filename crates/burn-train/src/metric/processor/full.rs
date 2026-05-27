@@ -4,7 +4,6 @@ use crate::metric::MetricMetadata;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
 use crate::renderer::{MetricState, MetricsRenderer};
-use burn_core::data::dataloader::Progress;
 use std::sync::Arc;
 
 /// An [event processor](EventProcessorTraining) that handles:
@@ -193,11 +192,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let global_progress =
-                    Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
-                    global_progress,
                     iteration: item.iteration,
                     lr: item.lr,
                 };
@@ -269,11 +265,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
-                let global_progress =
-                    Progress::new(self.current_epoch, self.total_epochs, "epochs".to_string());
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
-                    global_progress,
                     iteration: item.iteration,
                     lr: item.lr,
                 };

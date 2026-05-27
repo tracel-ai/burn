@@ -8,9 +8,6 @@ pub struct MetricMetadata {
     /// The current progress.
     pub progress: Progress,
 
-    /// The global progress of the training (e.g. epochs).
-    pub global_progress: Progress,
-
     /// The current iteration.
     pub iteration: Option<usize>,
 
@@ -26,12 +23,7 @@ impl MetricMetadata {
             progress: Progress {
                 items_processed: 1,
                 items_total: 1,
-                unit: "items".to_string(),
-            },
-            global_progress: Progress {
-                items_processed: 0,
-                items_total: 1,
-                unit: "global items".to_string(),
+                unit: Some("items".to_string()),
             },
             iteration: Some(0),
             lr: None,

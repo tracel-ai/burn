@@ -180,7 +180,7 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
 
 impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
     fn progress(&self) -> Progress {
-        let unit: String = "items".to_string();
+        let unit: Option<String> = Some("items".to_string());
 
         Progress::new(self.current_index, self.dataset.len(), unit)
     }

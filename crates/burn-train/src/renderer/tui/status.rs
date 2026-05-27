@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::logger::OverallProgress;
+use crate::logger::ProgressSnapshot;
 
 use super::TerminalFrame;
 use ratatui::{
@@ -12,7 +12,7 @@ use ratatui::{
 
 /// Show the training status with various information.
 pub(crate) struct StatusState {
-    progress: Option<OverallProgress>,
+    progress: Option<ProgressSnapshot>,
     mode: Mode,
     event_counters: BTreeMap<String, usize>,
 }
@@ -35,17 +35,17 @@ impl Default for StatusState {
 
 impl StatusState {
     /// Update the training information.
-    pub(crate) fn update_train(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_train(&mut self, progress: &ProgressSnapshot) {
         self.progress = Some(progress.clone());
         self.mode = Mode::Train;
     }
     /// Update the validation information.
-    pub(crate) fn update_valid(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_valid(&mut self, progress: &ProgressSnapshot) {
         self.progress = Some(progress.clone());
         self.mode = Mode::Valid;
     }
     /// Update the testing information.
-    pub(crate) fn update_test(&mut self, progress: &OverallProgress) {
+    pub(crate) fn update_test(&mut self, progress: &ProgressSnapshot) {
         self.progress = Some(progress.clone());
         self.mode = Mode::Evaluation;
     }
@@ -54,12 +54,10 @@ impl StatusState {
         *self.event_counters.entry(event).or_insert(0) += 1;
     }
 
-    /// Reset per-split counters at the end of a split.
+    /// Reset all counters at the end of a split.
     pub(crate) fn reset_counters(&mut self) {
-        for (key, val) in self.event_counters.iter_mut() {
-            if key != "TrainStep" && key != "EnvStep" {
-                *val = 0;
-            }
+        for val in self.event_counters.values_mut() {
+            *val = 0;
         }
     }
 
@@ -83,12 +81,10 @@ fn capitalize(s: &str) -> String {
 
 impl StatusView {
     fn new(
-        progress: Option<&OverallProgress>,
+        progress: Option<&ProgressSnapshot>,
         mode: &Mode,
         event_counters: &BTreeMap<String, usize>,
     ) -> Self {
-        let is_rl =
-            event_counters.contains_key("TrainStep") || event_counters.contains_key("EnvStep");
         let title = |title: &str| Span::from(format!(" {title} ")).bold().yellow();
         let value = |value: String| Span::from(value).italic();
         let mode_str = match mode {
@@ -97,28 +93,17 @@ impl StatusView {
             Mode::Evaluation => "Evaluation",
         };
 
-        let display_name: fn(&str) -> &str = |key| match key {
-            "EpisodeEnd" => "Episode",
-            k => k,
-        };
-
         let width = progress
             .map(|p| {
-                p.global_progress.unit.len().max(if is_rl {
-                    0
-                } else {
-                    p.split_progress.unit.len()
-                })
+                p.global
+                    .unit
+                    .as_deref()
+                    .map_or(0, |s| s.len())
+                    .max(p.split.unit.as_deref().map_or(0, |s| s.len()))
             })
             .unwrap_or(0)
             .max("Mode".len())
-            .max(
-                event_counters
-                    .keys()
-                    .map(|k| display_name(k).len())
-                    .max()
-                    .unwrap_or(0),
-            );
+            .max(event_counters.keys().map(|k| k.len()).max().unwrap_or(0));
 
         let mut lines = vec![vec![
             title(&format!("{: <width$} :", "Mode")),
@@ -126,23 +111,27 @@ impl StatusView {
         ]];
 
         if let Some(p) = progress {
-            let g = &p.global_progress;
+            let g = &p.global;
             lines.push(vec![
-                title(&format!("{: <width$} :", capitalize(&g.unit))),
+                title(&format!(
+                    "{: <width$} :",
+                    capitalize(g.unit.as_deref().unwrap_or(""))
+                )),
                 value(format!("{}/{}", g.items_processed, g.items_total)),
             ]);
-            if !is_rl {
-                let s = &p.split_progress;
-                lines.push(vec![
-                    title(&format!("{: <width$} :", capitalize(&s.unit))),
-                    value(format!("{}/{}", s.items_processed, s.items_total)),
-                ]);
-            }
+            let s = &p.split;
+            lines.push(vec![
+                title(&format!(
+                    "{: <width$} :",
+                    capitalize(s.unit.as_deref().unwrap_or(""))
+                )),
+                value(format!("{}/{}", s.items_processed, s.items_total)),
+            ]);
         }
 
         for (key, val) in event_counters {
             lines.push(vec![
-                title(&format!("{: <width$} :", display_name(key))),
+                title(&format!("{: <width$} :", key)),
                 value(format!("{val}")),
             ]);
         }

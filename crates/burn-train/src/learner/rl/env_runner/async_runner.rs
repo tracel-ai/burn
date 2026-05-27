@@ -236,7 +236,7 @@ where
                 if self.eval {
                     processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
-                        Progress::new(i, i, "steps".to_string()),
+                        Progress::new(i, i, Some("steps".to_string())),
                         None,
                     )));
 
@@ -250,7 +250,7 @@ where
                                 Progress::new(
                                     episode_num + 1,
                                     num_episodes,
-                                    "episodes".to_string(),
+                                    Some("episodes".to_string()),
                                 ),
                                 None,
                             ),
@@ -259,7 +259,7 @@ where
                 } else {
                     processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
-                        Progress::new(i, i, "steps".to_string()),
+                        Progress::new(i, i, Some("steps".to_string())),
                         None,
                     )));
 
@@ -269,7 +269,11 @@ where
                                 episode_length: step.ep_len,
                                 cum_reward: step.cum_reward,
                             },
-                            Progress::new(episode_num + 1, num_episodes, "episodes".to_string()),
+                            Progress::new(
+                                episode_num + 1,
+                                num_episodes,
+                                Some("episodes".to_string()),
+                            ),
                             None,
                         )));
                     }
@@ -457,7 +461,7 @@ where
                 if self.eval {
                     processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
-                        Progress::new(i, i, "steps".to_string()),
+                        Progress::new(i, i, Some("steps".to_string())),
                         None,
                     )));
 
@@ -471,7 +475,7 @@ where
                                 Progress::new(
                                     episode_num + 1,
                                     num_episodes,
-                                    "episodes".to_string(),
+                                    Some("episodes".to_string()),
                                 ),
                                 None,
                             ),
@@ -480,7 +484,7 @@ where
                 } else {
                     processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
-                        Progress::new(i, i, "steps".to_string()),
+                        Progress::new(i, i, Some("steps".to_string())),
                         None,
                     )));
 
@@ -490,7 +494,11 @@ where
                                 episode_length: step.ep_len,
                                 cum_reward: step.cum_reward,
                             },
-                            Progress::new(episode_num + 1, num_episodes, "episodes".to_string()),
+                            Progress::new(
+                                episode_num + 1,
+                                num_episodes,
+                                Some("episodes".to_string()),
+                            ),
                             None,
                         )));
                     }
@@ -593,7 +601,7 @@ mod tests {
         let mut progress = Progress {
             items_processed: 0,
             items_total: 1,
-            unit: "steps".to_string(),
+            unit: Some("steps".to_string()),
         };
 
         let steps = runner.run_steps(1, &mut processor, &interrupter, &mut progress);
@@ -610,7 +618,7 @@ mod tests {
         let mut progress = Progress {
             items_processed: 0,
             items_total: 1,
-            unit: "steps".to_string(),
+            unit: Some("steps".to_string()),
         };
 
         let trajectories = runner.run_episodes(1, &mut processor, &interrupter, &mut progress);
@@ -647,7 +655,7 @@ mod tests {
             let mut progress = Progress {
                 items_processed: 0,
                 items_total: 1,
-                unit: "steps".to_string(),
+                unit: Some("steps".to_string()),
             };
 
             // Kickstart tests by running some steps to make sure it's not a double batching edge case success.
@@ -687,7 +695,7 @@ mod tests {
             let mut progress = Progress {
                 items_processed: 0,
                 items_total: 1,
-                unit: "steps".to_string(),
+                unit: Some("steps".to_string()),
             };
 
             // Kickstart tests by running some episodes to make sure it's not a double batching edge case success.

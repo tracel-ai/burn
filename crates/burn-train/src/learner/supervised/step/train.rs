@@ -126,7 +126,7 @@ impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
 
         let mut items_total = 0;
         let mut items_processed = 0;
-        let unit: String = "items".to_string();
+        let unit: Option<String> = Some("items".to_string());
 
         for (i, worker) in self.workers.iter().enumerate() {
             let dataloader = &mut dataloaders[i];
