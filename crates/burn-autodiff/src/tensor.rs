@@ -1,9 +1,11 @@
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
-    grads::Gradients,
+    grads::{BackwardMode, Gradients},
     graph::{ComputingProperty, Node, NodeId, NodeRef, Parent, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
+#[cfg(feature = "distributed")]
+use crate::{distributed::DistributedGradientRegistration, grads::DistributedContext};
 use alloc::{boxed::Box, vec};
 use burn_backend::{Backend, TensorMetadata};
 
@@ -192,7 +194,7 @@ impl<B: Backend> AutodiffTensor<B> {
     pub fn backward(self) -> Gradients {
         let client = self.node.client.clone();
 
-        AutodiffClient::backward::<B>(&client, self)
+        AutodiffClient::backward::<B>(&client, self, BackwardMode::default())
     }
 
     pub fn grad(&self, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
@@ -236,10 +238,20 @@ impl<B: Backend> AutodiffTensor<B> {
 impl<B: DistributedBackend> AutodiffTensor<B> {
     pub fn backward(self) -> Gradients {
         let device = B::float_device(&self.primitive);
+        let device_cloned = device.clone();
         let client = self.node.client.clone();
 
-        let grads = AutodiffClient::backward::<B>(&client, self);
-        grads.sync_collective::<B>(&device);
+        let mode = BackwardMode::Distributed(Box::new(|ctx: DistributedContext| {
+            let registration = DistributedGradientRegistration::<B>::new(
+                ctx.n_required_map,
+                ctx.distributed_params,
+                device_cloned,
+            );
+            Box::new(registration)
+        }));
+
+        let grads = AutodiffClient::backward::<B>(&client, self, mode);
+        B::submit_sync_collective(&device);
         grads
     }
 }

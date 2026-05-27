@@ -1,33 +1,64 @@
 use burn_backend::{Backend, TensorMetadata, TensorPrimitive, tensor::FloatTensor};
 use burn_std::tensor::container::TensorContainer;
 
-#[cfg(feature = "distributed")]
-use crate::distributed::DistributedRegistration;
-#[cfg(feature = "distributed")]
-use burn_backend::distributed::DistributedBackend;
-
 use crate::{
     NodeId,
     graph::{NodeRef, Requirement},
     tensor::AutodiffTensor,
 };
 
+#[cfg(feature = "distributed")]
+use crate::collections::HashMap;
+#[cfg(feature = "distributed")]
+use burn_backend::distributed::DistributedParams;
+
 /// Gradient identifier.
 pub type GradID = u64;
+
+#[cfg(feature = "distributed")]
+pub(crate) struct DistributedContext {
+    pub n_required_map: HashMap<NodeId, usize>,
+    pub distributed_params: HashMap<NodeId, DistributedParams>,
+}
+
+/// Trait for registering distributed gradients.
+pub trait DistributedRegistration: Send + Sync {
+    /// Performs distributed registration operations on the tensor with the corresponding [`NodeId`].
+    fn on_register(&mut self, node_id: &NodeId, container: &mut TensorContainer<GradID>);
+}
+
+#[derive(Default)]
+pub(crate) enum BackwardMode {
+    #[default]
+    Standard,
+    // Distributed registration hook.
+    #[cfg(feature = "distributed")]
+    Distributed(Box<dyn FnOnce(DistributedContext) -> Box<dyn DistributedRegistration>>),
+}
 
 /// Gradients container used during the backward pass.
 pub struct Gradients {
     container: TensorContainer<GradID>,
-    #[cfg(feature = "distributed")]
-    distributed_registration: Option<Box<dyn DistributedRegistration + Send + Sync>>,
+    /// Optional hook called after each gradient is registered, used to trigger
+    /// distributed gradient synchronization operations.
+    on_register: Option<Box<dyn FnMut(&NodeId, &mut TensorContainer<GradID>) + Send + Sync>>,
 }
 
 impl Gradients {
-    #[cfg(not(feature = "distributed"))]
     /// Creates a new gradients container.
     pub fn new<B: Backend>(root_node: NodeRef, root_tensor: FloatTensor<B>) -> Self {
+        Self::new_with_hook::<B>(root_node, root_tensor, None)
+    }
+
+    /// Creates a new gradients container.
+    fn new_with_hook<B: Backend>(
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B>,
+        on_register: Option<Box<dyn FnMut(&NodeId, &mut TensorContainer<GradID>) + Send + Sync>>,
+    ) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
+            on_register,
         };
         gradients.register::<B>(
             root_node.id,
@@ -40,26 +71,19 @@ impl Gradients {
         gradients
     }
 
+    /// Creates a new gradients container with a registration hook for distributed gradients.
     #[cfg(feature = "distributed")]
-    /// Creates a new gradients container.
-    pub fn new<B: Backend>(
+    pub fn new_distributed<B: Backend>(
         root_node: NodeRef,
         root_tensor: FloatTensor<B>,
-        distributed_registration: Option<Box<dyn DistributedRegistration + Send + Sync>>,
+        mut reg: Box<dyn DistributedRegistration>,
     ) -> Self {
-        let mut gradients = Self {
-            container: TensorContainer::new(),
-            distributed_registration,
-        };
-        gradients.register::<B>(
-            root_node.id,
-            B::float_ones(
-                root_tensor.shape(),
-                &B::float_device(&root_tensor),
-                root_tensor.dtype().into(),
-            ),
-        );
-        gradients
+        let on_register: Option<
+            Box<dyn FnMut(&NodeId, &mut TensorContainer<GradID>) + Send + Sync>,
+        > = Some(Box::new(move |id, container| {
+            reg.on_register(id, container);
+        }));
+        Self::new_with_hook::<B>(root_node, root_tensor, on_register)
     }
 
     /// Consumes the gradients for a given tensor.
@@ -112,26 +136,8 @@ impl Gradients {
         self.container
             .register::<TensorPrimitive<B>>(node_id.value, TensorPrimitive::Float(out));
 
-        #[cfg(feature = "distributed")]
-        if self.is_distributed() {
-            self.distributed_registration
-                .as_mut()
-                .unwrap()
-                .on_register(&node_id, &mut self.container);
-        }
-    }
-
-    #[cfg(feature = "distributed")]
-    /// returns true if the gradients are distributed across devices.
-    pub fn is_distributed(&self) -> bool {
-        self.distributed_registration.is_some()
-    }
-
-    #[cfg(feature = "distributed")]
-    /// For distributed models, waits for collective operations to be completed so the gradients are synced across devices.
-    pub fn sync_collective<B: DistributedBackend>(&self, device: &B::Device) {
-        if self.is_distributed() {
-            B::submit_sync_collective(device);
+        if let Some(hook) = &mut self.on_register {
+            hook(&node_id, &mut self.container);
         }
     }
 }
