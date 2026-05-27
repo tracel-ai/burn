@@ -201,7 +201,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                     logger.update_split(&progress);
                     logger.log_event_training("EpisodeEnd".to_string());
                 }
-                self.renderer.update_train(&progress);
+                self.renderer.update_split(&progress);
                 self.renderer.log_event_training("EpisodeEnd".to_string());
             }
             AgentEvaluationEvent::End => {
