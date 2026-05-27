@@ -6,7 +6,7 @@
 use alloc::vec::Vec;
 use burn_backend::distributed::DistributedBackend;
 use burn_dispatch::Dispatch;
-pub use burn_std::distributed::DistributedConfig;
+pub use burn_std::distributed::*;
 
 use crate::Device;
 
