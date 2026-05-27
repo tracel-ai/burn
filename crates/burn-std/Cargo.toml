@@ -37,6 +37,10 @@ smallvec = { workspace = true, features = ["serde"] }
 spin = { workspace = true }
 thiserror = { workspace = true }
 
+# ParamId
+data-encoding = { workspace = true }
+uuid = { workspace = true }
+
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",

@@ -797,7 +797,7 @@ mod grad_distributed {
     ) -> ModuleBasic<B> {
         let mut module = module.clone().fork(&device);
         let (id, tensor, mapper) = module.weight_basic.consume();
-        let tensor = tensor.set_distributed(DistributedParamId::from(id.val()));
+        let tensor = tensor.set_distributed(id);
         module.weight_basic = Param::from_mapped_value(id, tensor, mapper);
         module
     }

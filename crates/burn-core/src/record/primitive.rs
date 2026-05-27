@@ -1,4 +1,4 @@
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{str::FromStr, string::String, vec, vec::Vec};
 use burn_tensor::Device;
 use core::{fmt, marker::PhantomData};
 
@@ -121,7 +121,7 @@ where
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let mut items = HashMap::with_capacity(self.len());
         self.into_iter().for_each(|(id, record)| {
-            items.insert(id.serialize(), record.into_item());
+            items.insert(id.to_string(), record.into_item());
         });
         items
     }
@@ -129,7 +129,7 @@ where
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         let mut record = HashMap::with_capacity(item.len());
         item.into_iter().for_each(|(id, item)| {
-            record.insert(ParamId::deserialize(&id), T::from_item(item, device));
+            record.insert(ParamId::from_str(&id).unwrap(), T::from_item(item, device));
         });
         record
     }
@@ -148,13 +148,13 @@ impl<const D: usize> Record for Param<Tensor<D>> {
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor, mapper) = self.consume();
         let tensor = mapper.on_save(tensor);
-        ParamSerde::new(id.serialize(), tensor.into_item())
+        ParamSerde::new(id.to_string(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         device.memory_persistent_allocations(item, |item| {
             Param::initialized(
-                ParamId::deserialize(&item.id),
+                ParamId::from_str(&item.id).unwrap(),
                 Tensor::from_item(item.param, device).require_grad(), // Same behavior as when we create a new
                                                                       // Param from a tensor.
             )
@@ -168,13 +168,13 @@ impl<const D: usize> Record for Param<Tensor<D, Int>> {
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor, mapper) = self.consume();
         let tensor = mapper.on_save(tensor);
-        ParamSerde::new(id.serialize(), tensor.into_item())
+        ParamSerde::new(id.to_string(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         device.memory_persistent_allocations(item, |item| {
             Param::initialized(
-                ParamId::deserialize(&item.id),
+                ParamId::from_str(&item.id).unwrap(),
                 Tensor::from_item(item.param, device),
             )
         })
@@ -187,13 +187,13 @@ impl<const D: usize> Record for Param<Tensor<D, Bool>> {
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor, mapper) = self.consume();
         let tensor = mapper.on_save(tensor);
-        ParamSerde::new(id.serialize(), tensor.into_item::<S>())
+        ParamSerde::new(id.to_string(), tensor.into_item::<S>())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         device.memory_persistent_allocations(item, |item| {
             Param::initialized(
-                ParamId::deserialize(&item.id),
+                ParamId::from_str(&item.id).unwrap(),
                 Tensor::from_item::<S>(item.param, device),
             )
         })

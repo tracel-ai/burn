@@ -8,24 +8,12 @@ pub(crate) mod server;
 pub use api::*;
 pub use ops::*;
 
-// TODO: should be removed I think!
-// instead of having a new `DistributedParamId`, we can keep `ParamId` only since it maps to the param id.
-// (in `ModuleSharder` the map_float impl simply calls `DistributedParamId::from(param_id)`).
-// and we don't need to query the tensor to get the param id. Simply, check *if* `tensor.is_distributed()`
-// and then afterwards , if t was distributed we can recover the state here since we have the param id.
 use serde::{Deserialize, Serialize};
 
-use crate::tensor::FloatTensor;
-
 /// A unique identifier for a parameter distributed across multiple devices.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DistributedParamId(u64);
+pub type DistributedParamId = burn_std::id::ParamId;
 
-impl From<u64> for DistributedParamId {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
+use crate::tensor::FloatTensor;
 
 /// Parameters for a tensor that is sharded across multiple devices.
 #[derive(Debug, Clone)]

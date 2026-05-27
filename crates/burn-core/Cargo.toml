@@ -97,9 +97,6 @@ burn-dispatch = { workspace = true, optional = true }
 burn-backend-extension = { workspace = true, optional = true }
 burn-ir = { workspace = true, optional = true }
 
-data-encoding = { workspace = true }
-uuid = { workspace = true }
-
 derive-new = { workspace = true }
 log = { workspace = true, optional = true }
 rand = { workspace = true }
