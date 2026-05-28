@@ -1,10 +1,20 @@
 use crate::{
-    Backend, BackendTypes, ComplexTensorBackend, InterleavedLayout, UnimplementedTensorPrimitive,
-    ops::ComplexTensorOps,
+    Backend, BackendTypes, ComplexTensorBackend, InterleavedLayout, TypedDevice,
+    UnimplementedTensorPrimitive, ops::ComplexTensorOps,
 };
 
 const fn complex_panic_message() -> &'static str {
     "Interleaved complex tensors are not implemented for this backend. Use split complex tensors instead"
+}
+
+impl<B, C> TypedDevice<B> for B
+where
+    B: BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
+    C: Clone + Send + Sync + 'static,
+{
+    fn complex_device(_tensor: &crate::ComplexTensor<B>) -> <B as BackendTypes>::Device {
+        panic!("{}", complex_panic_message())
+    }
 }
 
 impl<B, C> ComplexTensorBackend for B
