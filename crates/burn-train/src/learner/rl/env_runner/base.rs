@@ -182,7 +182,7 @@ where
 
             if !self.eval {
                 progress.items_processed += 1;
-                processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                processor.process_train(RLEvent::EnvStep(EvaluationItem::new(
                     context[0].clone(),
                     progress.clone(),
                     None,
@@ -235,9 +235,9 @@ where
                 steps.push(step.clone());
 
                 if self.eval {
-                    processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
+                    processor.process_valid(AgentEvaluationEvent::EnvStep(EvaluationItem::new(
                         step.action_context.clone(),
-                        Progress::new(steps.len() + 1, steps.len() + 1),
+                        Progress::new(steps.len() + 1, steps.len() + 1, Some("steps".to_string())),
                         None,
                     )));
 
@@ -248,7 +248,7 @@ where
                                     episode_length: step.ep_len,
                                     cum_reward: step.cum_reward,
                                 },
-                                Progress::new(ep + 1, num_episodes),
+                                Progress::new(ep + 1, num_episodes, Some("episodes".to_string())),
                                 None,
                             ),
                         ));
@@ -323,6 +323,7 @@ mod tests {
         let mut progress = Progress {
             items_processed: 0,
             items_total: 1,
+            unit: Some("steps".to_string()),
         };
 
         let steps = runner.run_steps(1, &mut processor, &interrupter, &mut progress);
@@ -339,6 +340,7 @@ mod tests {
         let mut progress = Progress {
             items_processed: 0,
             items_total: 1,
+            unit: Some("steps".to_string()),
         };
 
         let trajectories = runner.run_episodes(1, &mut processor, &interrupter, &mut progress);

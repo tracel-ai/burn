@@ -1,11 +1,10 @@
+use crate::logger::{EvaluationProgressLogger, ProgressSnapshot, TrainingProgressLogger};
 use crate::metric::{MetricDefinition, MetricId};
 use crate::renderer::tui::TuiSplit;
-use crate::renderer::{
-    EvaluationName, EvaluationProgress, MetricState, MetricsRenderer, MetricsRendererEvaluation,
-    ProgressType, TrainingProgress,
-};
+use crate::renderer::{EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation};
 use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
 use crate::{Interrupter, LearnerSummary};
+use burn_core::data::dataloader::Progress;
 use ratatui::{
     Terminal,
     crossterm::{
@@ -43,13 +42,15 @@ const MAX_REFRESH_RATE_MILLIS: u64 = 100;
 enum TuiRendererEvent {
     MetricRegistration(MetricDefinition),
     MetricsUpdate((TuiSplit, TuiGroup, MetricState)),
-    StatusUpdateTrain((TuiSplit, TrainingProgress, Vec<ProgressType>)),
-    StatusUpdateTest((EvaluationProgress, Vec<ProgressType>)),
+    StatusUpdateTrain((TuiSplit, ProgressSnapshot)),
+    StatusUpdateTest(ProgressSnapshot),
     ProcessEnd {
         summary: Option<LearnerSummary>,
         /// Interrupter reset.
         reset: bool,
     },
+    CounterUpdate(String),
+    SplitEnd,
     ManualClose,
     Close,
     Persistent,
@@ -61,6 +62,9 @@ pub struct TuiMetricsRendererWrapper {
     interrupter: Interrupter,
     handle_join: Option<JoinHandle<()>>,
     kill_signal: Arc<Mutex<Receiver<()>>>,
+    current_split: TuiSplit,
+    training_progress: ProgressSnapshot,
+    eval_progress: ProgressSnapshot,
 }
 
 impl TuiMetricsRendererWrapper {
@@ -104,11 +108,15 @@ impl TuiMetricsRendererWrapper {
             })
             .unwrap();
 
+        let init = Progress::new(0, 0, None);
         Self {
             sender,
             interrupter,
             handle_join: Some(handle_join),
             kill_signal: Arc::new(Mutex::new(kill_signal_receiver)),
+            current_split: TuiSplit::Train,
+            training_progress: ProgressSnapshot::new(init.clone(), init.clone()),
+            eval_progress: ProgressSnapshot::new(init.clone(), init),
         }
     }
 
@@ -155,13 +163,6 @@ impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
         )));
     }
 
-    fn render_test(&mut self, item: EvaluationProgress, progress_indicators: Vec<ProgressType>) {
-        self.send_event(TuiRendererEvent::StatusUpdateTest((
-            item,
-            progress_indicators,
-        )));
-    }
-
     fn on_test_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
         // Update the summary
         self.send_event(TuiRendererEvent::ProcessEnd {
@@ -200,22 +201,6 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
         )));
     }
 
-    fn render_train(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>) {
-        self.send_event(TuiRendererEvent::StatusUpdateTrain((
-            TuiSplit::Train,
-            item,
-            progress_indicators,
-        )));
-    }
-
-    fn render_valid(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>) {
-        self.send_event(TuiRendererEvent::StatusUpdateTrain((
-            TuiSplit::Valid,
-            item,
-            progress_indicators,
-        )));
-    }
-
     fn on_train_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
         // Reset for following steps.
         self.interrupter.reset();
@@ -225,6 +210,86 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
             reset: true,
         });
         Ok(())
+    }
+}
+
+impl TrainingProgressLogger for TuiMetricsRendererWrapper {
+    fn start(&mut self, total_epochs: usize, total_items: Option<usize>) {
+        self.training_progress.global = Progress::new(1, total_epochs, Some("epochs".to_string()));
+        if let Some(items) = total_items {
+            self.training_progress.split = Progress::new(0, items, Some("items".to_string()));
+        }
+    }
+
+    fn update_epoch(&mut self, epoch: usize) {
+        let total = self.training_progress.global.items_total;
+        let unit = self.training_progress.global.unit.clone();
+        self.training_progress.global = Progress::new(epoch + 1, total, unit);
+    }
+
+    fn start_split(&mut self, split: &str, total_items: usize) {
+        self.training_progress.split = Progress::new(0, total_items, Some("items".to_string()));
+        self.current_split = if split == "train" {
+            TuiSplit::Train
+        } else {
+            TuiSplit::Valid
+        };
+    }
+
+    fn update_split(&mut self, items_processed: usize) {
+        let total = self.training_progress.split.items_total;
+        let unit = self.training_progress.split.unit.clone();
+        self.training_progress.split = Progress::new(items_processed, total, unit);
+        if self.training_progress.global.items_total == 0 {
+            self.training_progress.global = self.training_progress.split.clone();
+        }
+        self.send_event(TuiRendererEvent::StatusUpdateTrain((
+            self.current_split,
+            self.training_progress.clone(),
+        )));
+    }
+
+    fn end_split(&mut self) {
+        self.send_event(TuiRendererEvent::SplitEnd);
+        self.current_split = TuiSplit::Train;
+    }
+
+    fn end(&mut self) {}
+
+    fn log_event_training(&mut self, event: String) {
+        self.send_event(TuiRendererEvent::CounterUpdate(event));
+    }
+}
+
+impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
+    fn start_global_progress(&mut self, total_tests: usize) {
+        self.eval_progress.global = Progress::new(0, total_tests, Some("tests".to_string()));
+    }
+
+    fn start_test(&mut self, _name: &str, total_items: usize) {
+        let current = self.eval_progress.global.items_processed + 1;
+        let total = self.eval_progress.global.items_total;
+        self.eval_progress.global = Progress::new(current, total, Some("tests".to_string()));
+        self.eval_progress.split = Progress::new(0, total_items, Some("items".to_string()));
+    }
+
+    fn update_test_progress(&mut self, items_processed: usize) {
+        let total = self.eval_progress.split.items_total;
+        let unit = self.eval_progress.split.unit.clone();
+        self.eval_progress.split = Progress::new(items_processed, total, unit);
+        self.send_event(TuiRendererEvent::StatusUpdateTest(
+            self.eval_progress.clone(),
+        ));
+    }
+
+    fn end_test(&mut self) {
+        self.send_event(TuiRendererEvent::SplitEnd);
+    }
+
+    fn end_global_progress(&mut self) {}
+
+    fn log_event_evaluation(&mut self, event: String) {
+        self.send_event(TuiRendererEvent::CounterUpdate(event));
     }
 }
 
@@ -317,23 +382,23 @@ impl TuiMetricsRenderer {
             TuiRendererEvent::MetricsUpdate((split, group, state)) => {
                 self.update_metric(split, group, state);
             }
-            TuiRendererEvent::StatusUpdateTrain((split, item, status)) => match split {
+            TuiRendererEvent::StatusUpdateTrain((split, item)) => match split {
                 TuiSplit::Train => {
                     self.progress.update_train(&item);
                     self.metrics_numeric.update_progress_train(&item);
-                    self.status.update_train(status);
+                    self.status.update_train(&item);
                 }
                 TuiSplit::Valid => {
                     self.progress.update_valid(&item);
                     self.metrics_numeric.update_progress_valid(&item);
-                    self.status.update_valid(status);
+                    self.status.update_valid(&item);
                 }
                 _ => (),
             },
-            TuiRendererEvent::StatusUpdateTest((item, status)) => {
+            TuiRendererEvent::StatusUpdateTest(item) => {
                 self.progress.update_test(&item);
                 self.metrics_numeric.update_progress_test(&item);
-                self.status.update_test(status);
+                self.status.update_test(&item);
             }
             TuiRendererEvent::ProcessEnd { summary, reset } => {
                 match (self.summary.take(), summary) {
@@ -347,6 +412,12 @@ impl TuiMetricsRenderer {
                 if reset {
                     self.interrupter.reset();
                 }
+            }
+            TuiRendererEvent::CounterUpdate(event) => {
+                self.status.update_counter(event);
+            }
+            TuiRendererEvent::SplitEnd => {
+                self.status.reset_counters();
             }
             TuiRendererEvent::ManualClose => self.manual_close = true,
             TuiRendererEvent::Persistent => self.persistent = true,
