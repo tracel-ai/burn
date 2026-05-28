@@ -147,9 +147,13 @@ impl burn_std::device::Device for RemoteDevice {
 
 impl DeviceOps for RemoteDevice {
     fn defaults(&self) -> DeviceSettings {
-        // Populated by `RemoteService::init` via the shared registry. Calling `defaults`
-        // before any client has been initialized for this device will panic — same
-        // contract as before the refactor.
+        // Lazy-connect on first access. Callers like `Device::configure` or
+        // `Device::default()`-driven dispatch can hit `defaults` before the user has
+        // triggered any op, so we need to establish the session here. `connect` is
+        // idempotent — a no-op once the client has been initialized for this device.
+        if !service::has_settings(self.id) {
+            self.connect();
+        }
         service::settings_for(self.id)
     }
 }

@@ -116,6 +116,18 @@ pub(crate) fn settings_for(id: u32) -> DeviceSettings {
         .expect("Remote service has not been initialized for this device yet")
 }
 
+/// Returns whether the device settings cell for `id` has been populated.
+///
+/// Used by `RemoteDevice::defaults` to decide whether a lazy-connect is needed before
+/// reading.
+pub(crate) fn has_settings(id: u32) -> bool {
+    let reg = registry().lock().unwrap();
+    reg.by_index
+        .get(&id)
+        .map(|e| e.settings.get().is_some())
+        .unwrap_or(false)
+}
+
 fn settings_cell(id: u32) -> Arc<OnceLock<DeviceSettings>> {
     registry()
         .lock()
