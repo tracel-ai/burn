@@ -64,7 +64,11 @@ fn min_max_calibration_range_per_block() {
 fn abs_mean_calibration_range_per_tensor() {
     let device = Default::default();
     let tensor = TestTensor::<1>::from_data([-0.9_f32, -0.3, 0.0, 0.6], &device);
-    let scheme = device.default_quant_scheme().with_value(QuantValue::Q2S);
+    let scheme = device
+        .settings()
+        .quantization
+        .scheme
+        .with_value(QuantValue::Q2S);
 
     let range = compute_range(&scheme, &tensor, &Calibration::AbsMean);
 
@@ -87,9 +91,10 @@ fn abs_mean_calibration_range_per_block() {
     let tensor =
         TestTensor::<2>::from_data([[-0.9_f32, -0.3, 0.0, 0.6], [0.1, 0.2, 0.3, 0.4]], &device);
     let scheme = device
-        .default_quant_scheme()
+        .settings()
+        .quantization
+        .scheme
         .with_value(QuantValue::Q2S)
-        .with_level(QuantLevel::block([4]));
 
     let range = compute_range(&scheme, &tensor, &Calibration::AbsMean);
 
