@@ -1,4 +1,9 @@
-use alloc::{str::FromStr, string::String, vec, vec::Vec};
+use alloc::{
+    str::FromStr,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use burn_tensor::Device;
 use core::{fmt, marker::PhantomData};
 
