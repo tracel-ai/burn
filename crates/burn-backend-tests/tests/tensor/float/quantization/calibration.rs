@@ -95,6 +95,7 @@ fn abs_mean_calibration_range_per_block() {
         .quantization
         .scheme
         .with_value(QuantValue::Q2S)
+        .with_level(QuantLevel::block([4]));
 
     let range = compute_range(&scheme, &tensor, &Calibration::AbsMean);
 
