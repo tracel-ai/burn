@@ -31,7 +31,7 @@ accelerate = ["candle-core/accelerate"]
 burn-backend = { workspace = true }
 # For rand utils and stub mutex
 burn-std = { workspace = true }
-bytemuck = { workspace = true }
+
 candle-core = { workspace = true }
 derive-new = { workspace = true }
 

@@ -118,10 +118,6 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
         into_tensor(handle.handle, handle.shape)
     }
 
-    // fn complex_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::ComplexTensor<Self> {
-    //     into_tensor(handle.handle, handle.shape)
-    // }
-
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
         tensor.into()
     }
@@ -137,10 +133,6 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor.into()
     }
-
-    // fn complex_tensor_handle(tensor: burn_tensor::ops::ComplexTensor<Self>) -> Self::Handle {
-    //     tensor.into()
-    // }
 }
 
 impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {

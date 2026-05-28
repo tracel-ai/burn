@@ -1,5 +1,4 @@
 use burn_backend::{Element, bf16, f16};
-use burn_std::ElementComparison;
 use cubecl::{
     CubeElement as CubeElem, flex32,
     prelude::{Float, Int, Numeric},
@@ -19,7 +18,7 @@ pub trait MatmulElement:
 }
 
 /// The float element type for the jit backend.
-pub trait FloatElement: MatmulElement + Float + ElementComparison + bytemuck::Pod {}
+pub trait FloatElement: MatmulElement + Float {}
 
 /// The int element type for the jit backend.
 pub trait IntElement:

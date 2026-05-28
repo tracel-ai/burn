@@ -1,16 +1,12 @@
 use std::borrow::Borrow;
 
 use burn_backend::{Element, bf16, f16};
-use burn_std::ElementComparison;
 use candle_core::{FloatDType, Tensor, WithDType};
 
 /// Candle element
 pub trait CandleElement: Element + WithDType {}
 /// Candle float element
-pub trait FloatCandleElement:
-    CandleElement + FloatDType + ElementComparison + bytemuck::Pod
-{
-}
+pub trait FloatCandleElement: CandleElement + FloatDType {}
 /// Candle int element
 pub trait IntCandleElement: CandleElement {}
 
