@@ -1244,11 +1244,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_all_dim(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        out_dtype: BoolDType,
-    ) -> BoolTensor<Self> {
+    fn int_all_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let desc = ReduceBoolDimOpIr::create(tensor.into_ir(), dim, out_dtype.into(), || {
             client.create_empty_handle()
@@ -1258,11 +1254,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_any_dim(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        out_dtype: BoolDType,
-    ) -> BoolTensor<Self> {
+    fn int_any_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let desc = ReduceBoolDimOpIr::create(tensor.into_ir(), dim, out_dtype.into(), || {
             client.create_empty_handle()
@@ -1292,10 +1284,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     ) -> (IntTensor<Self>, IntTensor<Self>) {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc =
-            SortWithIndicesOpIr::create(tensor.into_ir(), dim, descending, dtype, || {
-                client.create_empty_handle()
-            });
+        let desc = SortWithIndicesOpIr::create(tensor.into_ir(), dim, descending, dtype, || {
+            client.create_empty_handle()
+        });
         client
             .register(OperationIr::NumericInt(
                 desc.out.dtype,
@@ -1312,7 +1303,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             client.create_empty_handle()
         });
         client
-            .register(OperationIr::NumericInt(dtype, NumericOperationIr::ArgSort(desc)))
+            .register(OperationIr::NumericInt(
+                dtype,
+                NumericOperationIr::ArgSort(desc),
+            ))
             .output()
     }
 

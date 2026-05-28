@@ -951,12 +951,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 NumericOperationIr::ArgSort(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_argsort(
-                        tensor,
-                        desc.dim,
-                        desc.descending,
-                        desc.out.dtype.into(),
-                    );
+                    let output =
+                        B::float_argsort(tensor, desc.dim, desc.descending, desc.out.dtype.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
@@ -1884,10 +1880,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 ModuleOperationIr::LayerNorm(desc) => {
                     let input = handles.get_float_tensor::<B>(&desc.input);
                     let gamma = handles.get_float_tensor::<B>(&desc.gamma);
-                    let beta = desc
-                        .beta
-                        .as_ref()
-                        .map(|b| handles.get_float_tensor::<B>(b));
+                    let beta = desc.beta.as_ref().map(|b| handles.get_float_tensor::<B>(b));
                     let output = B::layer_norm(input, gamma, beta, f64::from_bits(desc.epsilon));
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }

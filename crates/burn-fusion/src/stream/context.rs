@@ -888,10 +888,12 @@ impl RelativeOps for ActivationOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ActivationOperationIr::LogSigmoid(desc) => ActivationOperationIr::LogSigmoid(UnaryOpIr {
-                input: desc.input.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
+            ActivationOperationIr::LogSigmoid(desc) => {
+                ActivationOperationIr::LogSigmoid(UnaryOpIr {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ActivationOperationIr::LogSigmoidBackward(desc) => {
                 ActivationOperationIr::LogSigmoidBackward(BinaryOpIr {
                     lhs: desc.lhs.to_relative(converter),

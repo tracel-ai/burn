@@ -307,12 +307,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         options: burn_backend::ops::GridSampleOptions,
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let desc = GridSample2dOpIr::create(
-            tensor.into_ir(),
-            grid.into_ir(),
-            options.into(),
-            || client.create_empty_handle(),
-        );
+        let desc =
+            GridSample2dOpIr::create(tensor.into_ir(), grid.into_ir(), options.into(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(OperationIr::Float(
@@ -1451,11 +1449,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn float_sort(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        descending: bool,
-    ) -> FloatTensor<Self> {
+    fn float_sort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let desc = SortOpIr::create(tensor.into_ir(), dim, descending, || {
             client.create_empty_handle()

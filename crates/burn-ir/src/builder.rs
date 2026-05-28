@@ -455,11 +455,7 @@ impl_ir_create!(
 
 impl ReduceBoolOpIr {
     /// Create a reduce-all/reduce-any IR (output is a 1-element bool tensor).
-    pub fn create(
-        input: TensorIr,
-        bool_dtype: DType,
-        new_id: impl FnOnce() -> TensorId,
-    ) -> Self {
+    pub fn create(input: TensorIr, bool_dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), [1].into(), bool_dtype);
         ReduceBoolOpIr { input, out }
     }

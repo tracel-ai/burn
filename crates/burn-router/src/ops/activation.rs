@@ -74,8 +74,7 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
 
     fn gelu_backward(x: FloatTensor<Self>, grad: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = x.client.clone();
-        let desc =
-            BinaryOpIr::create(x.into_ir(), grad.into_ir(), || client.create_empty_handle());
+        let desc = BinaryOpIr::create(x.into_ir(), grad.into_ir(), || client.create_empty_handle());
 
         client
             .register(OperationIr::Activation(
@@ -111,11 +110,7 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn hard_sigmoid(
-        tensor: FloatTensor<Self>,
-        alpha: Scalar,
-        beta: Scalar,
-    ) -> FloatTensor<Self> {
+    fn hard_sigmoid(tensor: FloatTensor<Self>, alpha: Scalar, beta: Scalar) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let desc = HardSigmoidOpIr::create(tensor.into_ir(), alpha.into(), beta.into(), || {
             client.create_empty_handle()
@@ -143,8 +138,7 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
 
     fn log_sigmoid_backward(x: FloatTensor<Self>, grad: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = x.client.clone();
-        let desc =
-            BinaryOpIr::create(x.into_ir(), grad.into_ir(), || client.create_empty_handle());
+        let desc = BinaryOpIr::create(x.into_ir(), grad.into_ir(), || client.create_empty_handle());
 
         client
             .register(OperationIr::Activation(

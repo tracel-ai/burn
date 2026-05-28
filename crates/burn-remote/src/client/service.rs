@@ -9,11 +9,7 @@ use burn_communication::{
     Address, CommunicationChannel, Message, ProtocolClient, data_service::TensorTransferId,
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use burn_std::{
-    DType, DeviceSettings,
-    backtrace::BackTrace,
-    id::StreamId,
-};
+use burn_std::{DType, DeviceSettings, backtrace::BackTrace, id::StreamId};
 use std::{
     collections::HashMap,
     str::FromStr,
@@ -181,12 +177,14 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
         // and the response-demux task can be spawned with an already-open stream.
         log::info!("Connecting to {address} ...");
         let (mut stream_request, mut stream_response) = runtime.block_on(async {
-            let request = C::connect(address.clone(), "request").await.unwrap_or_else(|err| {
-                panic!(
-                    "Failed to open remote 'request' channel to {address}: {err:?}. \
+            let request = C::connect(address.clone(), "request")
+                .await
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Failed to open remote 'request' channel to {address}: {err:?}. \
                      Is a `burn-remote` server running at that address?"
-                )
-            });
+                    )
+                });
             let response = C::connect(address.clone(), "response")
                 .await
                 .unwrap_or_else(|err| {
@@ -253,10 +251,9 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
                                 // Receiver dropped is fine (caller no longer cares).
                                 let _ = tx.send(response.content);
                             }
-                            None => log::warn!(
-                                "No pending callback for response id {:?}",
-                                response.id
-                            ),
+                            None => {
+                                log::warn!("No pending callback for response id {:?}", response.id)
+                            }
                         }
                     }
                     Ok(None) => {
@@ -333,10 +330,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// The actual request is sent here (after flushing batched ops), so submission order is
     /// preserved relative to subsequent service calls — the caller only awaits the
     /// resolution.
-    pub fn read_tensor(
-        &mut self,
-        tensor: TensorIr,
-    ) -> oneshot::Receiver<TaskResponseContent> {
+    pub fn read_tensor(&mut self, tensor: TensorIr) -> oneshot::Receiver<TaskResponseContent> {
         let connection_id = self.next_connection_id();
         let rx = self.register_callback(connection_id);
         self.send_compute_with_id(ComputeTask::ReadTensor(tensor), connection_id);
@@ -393,9 +387,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     }
 
     fn send_task(&mut self, task: Task) {
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&task)
-            .expect("Can serialize task")
-            .into();
+        let bytes: bytes::Bytes = rmp_serde::to_vec(&task).expect("Can serialize task").into();
         let runtime = &self.runtime;
         let stream = &mut self.stream_request;
         runtime
@@ -439,8 +431,7 @@ impl<C: ProtocolClient> Drop for RemoteService<C> {
 
         if !self.op_buffer.is_empty() {
             let ops = std::mem::take(&mut self.op_buffer);
-            let connection_id =
-                ConnectionId::new(self.position_counter, StreamId::current());
+            let connection_id = ConnectionId::new(self.position_counter, StreamId::current());
             self.position_counter += 1;
             let task = Task::Compute(ComputeTask::RegisterOperations(ops), connection_id);
             if let Ok(bytes) = rmp_serde::to_vec(&task) {

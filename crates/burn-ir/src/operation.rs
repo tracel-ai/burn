@@ -3256,27 +3256,21 @@ impl ModuleOperationIr {
             ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LayerNorm(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Unfold4d(repr) => Box::new([&repr.out].into_iter()),
-            ModuleOperationIr::ConvTranspose1dXBackward(repr) => {
-                Box::new([&repr.out].into_iter())
-            }
+            ModuleOperationIr::ConvTranspose1dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
             ModuleOperationIr::ConvTranspose1dBiasBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
-            ModuleOperationIr::ConvTranspose2dXBackward(repr) => {
-                Box::new([&repr.out].into_iter())
-            }
+            ModuleOperationIr::ConvTranspose2dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::ConvTranspose2dWeightBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
             ModuleOperationIr::ConvTranspose2dBiasBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
-            ModuleOperationIr::ConvTranspose3dXBackward(repr) => {
-                Box::new([&repr.out].into_iter())
-            }
+            ModuleOperationIr::ConvTranspose3dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::ConvTranspose3dWeightBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
@@ -3959,11 +3953,15 @@ impl ActivationOperationIr {
     fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {
             ActivationOperationIr::Relu(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::ReluBackward(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            ActivationOperationIr::ReluBackward(repr) => {
+                Box::new([&repr.lhs, &repr.rhs].into_iter())
+            }
             ActivationOperationIr::LeakyRelu(repr) => Box::new([&repr.lhs].into_iter()),
             ActivationOperationIr::PRelu(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             ActivationOperationIr::Gelu(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::GeluBackward(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            ActivationOperationIr::GeluBackward(repr) => {
+                Box::new([&repr.lhs, &repr.rhs].into_iter())
+            }
             ActivationOperationIr::Sigmoid(repr) => Box::new([&repr.input].into_iter()),
             ActivationOperationIr::SigmoidBackward(repr) => {
                 Box::new([&repr.lhs, &repr.rhs].into_iter())
@@ -4024,13 +4022,17 @@ impl ActivationOperationIr {
             ActivationOperationIr::HardSigmoid(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output)
             }
-            ActivationOperationIr::LogSigmoid(repr) => repr.input.mark_read_only(nodes, &mut output),
+            ActivationOperationIr::LogSigmoid(repr) => {
+                repr.input.mark_read_only(nodes, &mut output)
+            }
             ActivationOperationIr::LogSigmoidBackward(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
             ActivationOperationIr::Softmax(repr) => repr.input.mark_read_only(nodes, &mut output),
-            ActivationOperationIr::LogSoftmax(repr) => repr.input.mark_read_only(nodes, &mut output),
+            ActivationOperationIr::LogSoftmax(repr) => {
+                repr.input.mark_read_only(nodes, &mut output)
+            }
             ActivationOperationIr::Softmin(repr) => repr.input.mark_read_only(nodes, &mut output),
         }
         output

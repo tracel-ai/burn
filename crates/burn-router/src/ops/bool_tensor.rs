@@ -192,9 +192,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_not_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let desc = ScalarOpIr::create(lhs.into_ir(), rhs.into(), || {
-            client.create_empty_handle()
-        });
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs.into(), || client.create_empty_handle());
         client
             .register(OperationIr::BaseBool(BaseOperationIr::NotEqualElem(desc)))
             .output()
@@ -211,9 +209,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc = ReduceBoolOpIr::create(tensor.into_ir(), dtype, || {
-            client.create_empty_handle()
-        });
+        let desc = ReduceBoolOpIr::create(tensor.into_ir(), dtype, || client.create_empty_handle());
         client
             .register(OperationIr::BaseBool(BaseOperationIr::All(desc)))
             .output()
@@ -222,9 +218,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc = ReduceBoolOpIr::create(tensor.into_ir(), dtype, || {
-            client.create_empty_handle()
-        });
+        let desc = ReduceBoolOpIr::create(tensor.into_ir(), dtype, || client.create_empty_handle());
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Any(desc)))
             .output()
