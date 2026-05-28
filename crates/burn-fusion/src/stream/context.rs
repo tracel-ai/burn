@@ -574,6 +574,103 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::LayerNorm(desc) => ModuleOperationIr::LayerNorm(LayerNormOpIr {
+                input: desc.input.to_relative(converter),
+                gamma: desc.gamma.to_relative(converter),
+                beta: desc.beta.as_ref().map(|t| t.to_relative(converter)),
+                epsilon: desc.epsilon,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::Unfold4d(desc) => ModuleOperationIr::Unfold4d(Unfold4dOpIr {
+                x: desc.x.to_relative(converter),
+                kernel_size: desc.kernel_size,
+                options: desc.options.clone(),
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::ConvTranspose1dXBackward(desc) => {
+                ModuleOperationIr::ConvTranspose1dXBackward(ConvTranspose1dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::ConvTranspose1dWeightBackward(desc) => {
+                ModuleOperationIr::ConvTranspose1dWeightBackward(
+                    ConvTranspose1dWeightBackwardOpIr {
+                        x: desc.x.to_relative(converter),
+                        weight: desc.weight.to_relative(converter),
+                        output_grad: desc.output_grad.to_relative(converter),
+                        options: desc.options.clone(),
+                        out: desc.out.to_relative(converter),
+                    },
+                )
+            }
+            ModuleOperationIr::ConvTranspose1dBiasBackward(desc) => {
+                ModuleOperationIr::ConvTranspose1dBiasBackward(ConvTranspose1dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::ConvTranspose2dXBackward(desc) => {
+                ModuleOperationIr::ConvTranspose2dXBackward(ConvTranspose2dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::ConvTranspose2dWeightBackward(desc) => {
+                ModuleOperationIr::ConvTranspose2dWeightBackward(
+                    ConvTranspose2dWeightBackwardOpIr {
+                        x: desc.x.to_relative(converter),
+                        weight: desc.weight.to_relative(converter),
+                        output_grad: desc.output_grad.to_relative(converter),
+                        options: desc.options.clone(),
+                        out: desc.out.to_relative(converter),
+                    },
+                )
+            }
+            ModuleOperationIr::ConvTranspose2dBiasBackward(desc) => {
+                ModuleOperationIr::ConvTranspose2dBiasBackward(ConvTranspose2dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::ConvTranspose3dXBackward(desc) => {
+                ModuleOperationIr::ConvTranspose3dXBackward(ConvTranspose3dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::ConvTranspose3dWeightBackward(desc) => {
+                ModuleOperationIr::ConvTranspose3dWeightBackward(
+                    ConvTranspose3dWeightBackwardOpIr {
+                        x: desc.x.to_relative(converter),
+                        weight: desc.weight.to_relative(converter),
+                        output_grad: desc.output_grad.to_relative(converter),
+                        options: desc.options.clone(),
+                        out: desc.out.to_relative(converter),
+                    },
+                )
+            }
+            ModuleOperationIr::ConvTranspose3dBiasBackward(desc) => {
+                ModuleOperationIr::ConvTranspose3dBiasBackward(ConvTranspose3dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }
@@ -842,6 +939,11 @@ impl RelativeOps for BoolOperationIr {
                 out: desc.out.to_relative(converter),
             }),
             BoolOperationIr::Or(desc) => BoolOperationIr::Or(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BoolOperationIr::Xor(desc) => BoolOperationIr::Xor(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -1201,6 +1303,45 @@ impl RelativeOps for NumericOperationIr {
                 out: desc.out.to_relative(converter),
                 axis: desc.axis,
             }),
+            NumericOperationIr::Neg(desc) => NumericOperationIr::Neg(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Sign(desc) => NumericOperationIr::Sign(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::ClampMin(desc) => NumericOperationIr::ClampMin(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::ClampMax(desc) => NumericOperationIr::ClampMax(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Sort(desc) => NumericOperationIr::Sort(SortOpIr {
+                input: desc.input.to_relative(converter),
+                dim: desc.dim,
+                descending: desc.descending,
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::SortWithIndices(desc) => {
+                NumericOperationIr::SortWithIndices(SortWithIndicesOpIr {
+                    input: desc.input.to_relative(converter),
+                    dim: desc.dim,
+                    descending: desc.descending,
+                    out: desc.out.to_relative(converter),
+                    out_indices: desc.out_indices.to_relative(converter),
+                })
+            }
+            NumericOperationIr::ArgSort(desc) => NumericOperationIr::ArgSort(ArgSortOpIr {
+                input: desc.input.to_relative(converter),
+                dim: desc.dim,
+                descending: desc.descending,
+                out: desc.out.to_relative(converter),
+            }),
         }
     }
 }
@@ -1336,6 +1477,38 @@ impl RelativeOps for BaseOperationIr {
             BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
             BaseOperationIr::Ones(desc) => BaseOperationIr::Ones(desc.to_relative(converter)),
             BaseOperationIr::Zeros(desc) => BaseOperationIr::Zeros(desc.to_relative(converter)),
+            BaseOperationIr::NotEqual(desc) => BaseOperationIr::NotEqual(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::NotEqualElem(desc) => BaseOperationIr::NotEqualElem(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Transpose(desc) => BaseOperationIr::Transpose(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::All(desc) => BaseOperationIr::All(ReduceBoolOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Any(desc) => BaseOperationIr::Any(ReduceBoolOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::AllDim(desc) => BaseOperationIr::AllDim(ReduceBoolDimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::AnyDim(desc) => BaseOperationIr::AnyDim(ReduceBoolDimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
         }
     }
 }

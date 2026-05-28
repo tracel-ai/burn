@@ -453,6 +453,262 @@ impl_ir_create!(
     dtype = tensor.dtype
 );
 
+impl ReduceBoolOpIr {
+    /// Create a reduce-all/reduce-any IR (output is a 1-element bool tensor).
+    pub fn create(
+        input: TensorIr,
+        bool_dtype: DType,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        let out = TensorIr::uninit(new_id(), [1].into(), bool_dtype);
+        ReduceBoolOpIr { input, out }
+    }
+}
+
+impl ReduceBoolDimOpIr {
+    /// Create a per-dim reduce-all/reduce-any IR (output dtype is bool).
+    pub fn create(
+        input: TensorIr,
+        axis: usize,
+        bool_dtype: DType,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        let mut shape = input.shape.clone();
+        shape[axis] = 1;
+        let out = TensorIr::uninit(new_id(), shape, bool_dtype);
+        ReduceBoolDimOpIr { input, axis, out }
+    }
+}
+
+impl SortOpIr {
+    /// Create a sort IR (output preserves input shape and dtype).
+    pub fn create(
+        input: TensorIr,
+        dim: usize,
+        descending: bool,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        let out = TensorIr::uninit(new_id(), input.shape.clone(), input.dtype);
+        SortOpIr {
+            input,
+            dim,
+            descending,
+            out,
+        }
+    }
+}
+
+impl SortWithIndicesOpIr {
+    /// Create a sort-with-indices IR.
+    pub fn create(
+        input: TensorIr,
+        dim: usize,
+        descending: bool,
+        indices_dtype: DType,
+        mut new_id: impl FnMut() -> TensorId,
+    ) -> Self {
+        let shape = input.shape.clone();
+        let dtype = input.dtype;
+        let out = TensorIr::uninit(new_id(), shape.clone(), dtype);
+        let out_indices = TensorIr::uninit(new_id(), shape, indices_dtype);
+        SortWithIndicesOpIr {
+            input,
+            dim,
+            descending,
+            out,
+            out_indices,
+        }
+    }
+}
+
+impl ArgSortOpIr {
+    /// Create an argsort IR.
+    pub fn create(
+        input: TensorIr,
+        dim: usize,
+        descending: bool,
+        out_dtype: DType,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        let out = TensorIr::uninit(new_id(), input.shape.clone(), out_dtype);
+        ArgSortOpIr {
+            input,
+            dim,
+            descending,
+            out,
+        }
+    }
+}
+
+impl LayerNormOpIr {
+    /// Create a layer-norm IR. Epsilon is stored as `to_bits()` so the struct stays `Hash`.
+    pub fn create(
+        input: TensorIr,
+        gamma: TensorIr,
+        beta: Option<TensorIr>,
+        epsilon: f64,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        let dtype = output_dtype(
+            [
+                Some(&input.dtype),
+                Some(&gamma.dtype),
+                beta.as_ref().map(|b| &b.dtype),
+            ]
+            .iter()
+            .filter_map(|&d| d),
+        )
+        .unwrap();
+        let out = TensorIr::uninit(new_id(), input.shape.clone(), dtype);
+        LayerNormOpIr {
+            input,
+            gamma,
+            beta,
+            epsilon: epsilon.to_bits(),
+            out,
+        }
+    }
+}
+
+impl Unfold4dOpIr {
+    /// Create an unfold4d IR.
+    pub fn create(
+        x: TensorIr,
+        kernel_size: [usize; 2],
+        options: Unfold4dOptionsIr,
+        new_id: impl FnOnce() -> TensorId,
+    ) -> Self {
+        // Output shape mirrors the implementation in `unfold4d_using_unfold`:
+        // [N, C * kH * kW, num_blocks_h * num_blocks_w]
+        let dilation = options.dilation;
+        let padding = options.padding;
+        let stride = options.stride;
+        let weight_shape = Shape::from([
+            x.shape[1] * kernel_size[0] * kernel_size[1],
+            x.shape[1],
+            kernel_size[0],
+            kernel_size[1],
+        ]);
+        let conv_options = burn_backend::ops::ConvOptions::new(stride, padding, dilation, 1);
+        let out_shape = burn_backend::ops::conv::calculate_conv_output_shape(
+            &x.shape,
+            &weight_shape,
+            &conv_options.stride,
+            &conv_options.padding,
+            &conv_options.dilation,
+        )
+        .unwrap();
+        let shape = Shape::from([
+            x.shape[0],
+            x.shape[1] * kernel_size[0] * kernel_size[1],
+            out_shape[2] * out_shape[3],
+        ]);
+        let out = TensorIr::uninit(new_id(), shape, x.dtype);
+        Unfold4dOpIr {
+            x,
+            kernel_size,
+            options,
+            out,
+        }
+    }
+}
+
+impl_ir_create!(
+    ConvTranspose1dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: ConvTranspose1dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose1dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: ConvTranspose1dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose1dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose2dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: ConvTranspose2dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose2dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: ConvTranspose2dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose2dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose3dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: ConvTranspose3dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose3dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: ConvTranspose3dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    ConvTranspose3dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
+);
+
 impl_ir_create!(
     AvgPool1dOpIr {
         x: TensorIr,
