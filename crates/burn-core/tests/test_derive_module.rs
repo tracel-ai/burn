@@ -578,16 +578,11 @@ mod require_grad {
     }
 }
 
-/*
-TODO
-
 #[cfg(feature = "distributed")]
 mod grad_distributed {
-    use burn_std::device::{Device, DeviceId};
-    use burn_tensor::backend::distributed::DistributedBackend;
-    use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
-    use burn_tensor::{Device, Tolerance};
-    use burn_tensor::{TensorData, backend::AutodiffBackend};
+    use burn_tensor::TensorData;
+    use burn_tensor::distributed::{DistributedContext, ReduceOperation};
+    use burn_tensor::{Device, DeviceType, Tolerance};
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},
@@ -600,23 +595,19 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
-            weights.matmul(x)
-        });
+        compare_sync_gradients(ReduceOperation::Sum, |weights, x| weights.matmul(x));
     }
 
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
-            weights.matmul(x)
-        });
+        compare_sync_gradients(ReduceOperation::Mean, |weights, x| weights.matmul(x));
     }
 
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_residual() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
             let y = weights.clone().matmul(x);
             y.add(weights)
         });
@@ -625,7 +616,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_residual() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
             let y = weights.clone().matmul(x);
             y.add(weights)
         });
@@ -634,7 +625,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_activation() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
             let y = weights.clone().matmul(x);
             let y = y.add(weights);
             burn_tensor::activation::relu(y)
@@ -644,7 +635,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_activation() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
             let y = weights.clone().matmul(x);
             let y = y.add(weights);
             burn_tensor::activation::relu(y)
@@ -654,7 +645,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_diamond_graph() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
             let left = weights.clone().matmul(x.clone().mul_scalar(2));
             let right = weights.clone().matmul(x.clone().exp());
             Tensor::cat(vec![left, right], 0)
@@ -664,25 +655,25 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_diamond_graph() {
-        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
             let left = weights.clone().matmul(x.clone().mul_scalar(2));
             let right = weights.clone().matmul(x.clone().exp());
             Tensor::cat(vec![left, right], 0)
         });
     }
 
-    fn compare_sync_gradients<B: AutodiffBackend + DistributedBackend>(
+    fn compare_sync_gradient(
         op: ReduceOperation,
-        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
+        transformation: fn(Tensor<2>, Tensor<2>) -> Tensor<2>,
     ) {
-        use burn_tensor::backend::distributed::DistributedConfig;
+        use burn_tensor::distributed::DistributedConfig;
 
         const NUM_ITERATIONS: usize = 100;
         let type_id = 0u16;
 
-        let device_count = <B as Backend>::device_count(type_id);
-        let devices = create_devices::<Device<B>>(type_id, device_count);
-        let module = ModuleBasic::<B>::new(&devices[0]);
+        let devices = Device::enumerate(DeviceType::Cuda).autodiff();
+
+        let module = ModuleBasic::new(&devices[0]);
         let (synced_senders, synced_receivers): (
             Vec<Sender<TensorData>>,
             Vec<Receiver<TensorData>>,
@@ -697,7 +688,7 @@ mod grad_distributed {
             .unzip();
 
         let config = DistributedConfig { all_reduce_op: op };
-        B::start_communication_server(devices.as_slice(), config);
+        let context = DistributedContext::init(devices.clone(), config);
 
         let join_handles = spawn_peer_threads(
             &module,
@@ -710,7 +701,7 @@ mod grad_distributed {
 
         for _ in 0..NUM_ITERATIONS {
             let device = devices.first().unwrap();
-            let mut expected: Tensor<B::InnerBackend, 2> =
+            let mut expected: Tensor<2> =
                 Tensor::from_data(original_receivers.first().unwrap().recv().unwrap(), device);
             for r in original_receivers[1..].iter().by_ref() {
                 let data = r.recv().unwrap();
@@ -730,21 +721,15 @@ mod grad_distributed {
             handle.join().unwrap();
         }
 
-        B::close_communication_server(&devices[0]);
+        // DistributedContext goes out of scope -> close_communication_server
     }
 
-    fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
-        (0..count)
-            .map(|i| D::from_id(DeviceId::new(type_id, i as u16)))
-            .collect()
-    }
-
-    fn spawn_peer_threads<B: AutodiffBackend>(
-        module: &ModuleBasic<B>,
-        devices: &[Device<B>],
+    fn spawn_peer_threads(
+        module: &ModuleBasic,
+        devices: &[Device],
         synced_senders: Vec<Sender<TensorData>>,
         original_senders: Vec<Sender<TensorData>>,
-        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
+        transformation: fn(Tensor<2>, Tensor<2>) -> Tensor<2>,
         num_iter: usize,
     ) -> Vec<std::thread::JoinHandle<()>> {
         let mut handles = vec![];
@@ -769,12 +754,12 @@ mod grad_distributed {
         handles
     }
 
-    pub fn run_peer_sharded<B: AutodiffBackend>(
-        module: &ModuleBasic<B>,
+    pub fn run_peer_sharded(
+        module: &ModuleBasic,
         synced_sender: Sender<TensorData>,
         original_sender: Sender<TensorData>,
-        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
-        device: B::Device,
+        transformation: fn(Tensor<2>, Tensor<2>) -> Tensor<2>,
+        device: Device,
         num_iter: usize,
     ) {
         let mut module = module.clone().fork(&device);
@@ -791,10 +776,7 @@ mod grad_distributed {
         }
     }
 
-    fn set_distributed<B: AutodiffBackend>(
-        module: &ModuleBasic<B>,
-        device: &B::Device,
-    ) -> ModuleBasic<B> {
+    fn set_distributed(module: &ModuleBasic, device: &Device) -> ModuleBasic {
         let mut module = module.clone().fork(&device);
         let (id, tensor, mapper) = module.weight_basic.consume();
         let tensor = tensor.set_distributed(id);
@@ -802,13 +784,10 @@ mod grad_distributed {
         module
     }
 
-    fn calculate_grads<B: AutodiffBackend>(
-        module: &ModuleBasic<B>,
-        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
-    ) -> (
-        Option<Tensor<B::InnerBackend, 2>>,
-        Option<Tensor<B::InnerBackend, 2>>,
-    ) {
+    fn calculate_grads(
+        module: &ModuleBasic,
+        transformation: fn(Tensor<2>, Tensor<2>) -> Tensor<2>,
+    ) -> (Option<Tensor<2>>, Option<Tensor<2>>) {
         let device = module.weight_basic.device();
         let data = TensorData::random::<f32, _, _>(
             module.weight_basic.shape(),
@@ -832,4 +811,3 @@ mod grad_distributed {
         (grads_synced, grads_original)
     }
 }
-*/

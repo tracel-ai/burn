@@ -575,7 +575,7 @@ impl Device {
     }
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
-    pub fn enumerate(filter: impl Into<EnumSet<DeviceType>>) -> Vec<Device> {
+    pub fn enumerate(filter: impl Into<EnumSet<DeviceType>>) -> Devices {
         #[allow(unused)]
         let mut devices = Vec::new();
 
@@ -613,7 +613,7 @@ impl Device {
             }
         }
 
-        devices
+        Devices(devices)
     }
 }
 
@@ -727,5 +727,82 @@ impl From<BoolDType> for DeviceConfig {
 impl From<(FloatDType, IntDType)> for DeviceConfig {
     fn from(value: (FloatDType, IntDType)) -> Self {
         DeviceConfig::new(Some(value.0), Some(value.1), None)
+    }
+}
+
+/// A collection of [`Device`]s returned by [`Device::enumerate`].
+///
+/// This type provides bulk operations and transformations over multiple
+/// devices, such as enabling autodiff or configuring the device settings.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let mut devices = Device::enumerate(DeviceType::Cuda)
+///     .autodiff();
+///
+/// devices.configure(
+///     DeviceConfig::default().float_dtype(FloatDType::F16),
+/// )?;
+/// ```
+///
+/// `Devices` dereferences to a slice of [`Device`], so it can be iterated,
+/// indexed, and passed anywhere a `&[Device]` is expected.
+pub struct Devices(Vec<Device>);
+
+impl Devices {
+    /// Enables autodiff across all contained devices.
+    ///
+    /// Only first-order autodiff is supported. Calling this method on a device that
+    /// already has autodiff enabled will panic.
+    ///
+    /// See [`Device::autodiff`].
+    #[cfg(feature = "autodiff")]
+    pub fn autodiff(mut self) -> Self {
+        for device in &mut self.0 {
+            *device = core::mem::take(device).autodiff();
+        }
+
+        self
+    }
+
+    /// Configures the [settings](DeviceSettings) for all devices.
+    ///
+    /// This configures the dtype used when no explicit type is specified at tensor
+    /// creation time.
+    ///
+    /// Settings can only be initialized once per device, and must happen before any
+    /// tensor is created on the device. The first tensor operation will lock the device
+    /// to its defaults, causing subsequent initializations attempt to return
+    /// [`DeviceError::AlreadyInitialized`].
+    ///
+    /// See [`Device::configure`].
+    pub fn configure(&mut self, config: impl Into<DeviceConfig>) -> Result<(), DeviceError> {
+        let config = config.into();
+        for device in &mut self.0 {
+            device.configure(config.clone())?;
+        }
+        Ok(())
+    }
+
+    /// Returns the `Vec` of [`Device`]s.
+    pub fn into_vec(self) -> Vec<Device> {
+        self.0
+    }
+}
+
+// Loop over `&Devices` or `Devices` seamlessly
+impl IntoIterator for Devices {
+    type Item = Device;
+    type IntoIter = alloc::vec::IntoIter<Device>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl core::ops::Deref for Devices {
+    type Target = [Device];
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
