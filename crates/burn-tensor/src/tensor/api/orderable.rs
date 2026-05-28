@@ -14,12 +14,11 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Int, Tensor};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
+    ///   let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
     ///   let tensor = tensor.abs();
     ///   println!("{tensor}");
     ///   // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]

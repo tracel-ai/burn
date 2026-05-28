@@ -714,14 +714,13 @@ impl<const D: usize> Tensor<D, Float> {
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///     let device = Default::default();
     ///
-    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
-    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     let lhs = Tensor::<1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::<1>::from_data([1.0, -1.0, -1.0], &device);
     ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
     /// }
     /// ```
