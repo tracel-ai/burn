@@ -1851,7 +1851,7 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
-        into_data_sync_impl(self.primitive, K::id())
+        into_data_sync_impl(self.primitive, K::KIND)
     }
 
     /// Converts the data of the current tensor and returns any error that might have occurred since the
@@ -1863,7 +1863,7 @@ where
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
-        try_into_data_sync_impl(self.primitive, K::id())
+        try_into_data_sync_impl(self.primitive, K::KIND)
     }
 
     /// Converts the data of the current tensor.
@@ -1881,14 +1881,14 @@ where
     pub fn into_data_async(
         self,
     ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
-        into_data_async_impl(self.primitive, K::id())
+        into_data_async_impl(self.primitive, K::KIND)
     }
 
     /// Returns the data of the current tensor.
     pub fn to_data_async(
         &self,
     ) -> impl core::future::Future<Output = Result<TensorData, ExecutionError>> + Send {
-        into_data_async_impl(self.primitive.clone(), K::id())
+        into_data_async_impl(self.primitive.clone(), K::KIND)
     }
 
     /// Create a tensor from the given data on the given device.
@@ -2878,7 +2878,7 @@ where
     K: Basic,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        display_fmt_impl(&self.primitive, K::id(), K::name(), f)
+        display_fmt_impl(&self.primitive, K::KIND, K::name(), f)
     }
 }
 
@@ -3043,33 +3043,29 @@ where
 /// state-machine code lives here, compiled once inside `burn-tensor`.
 async fn into_data_async_impl(
     primitive: BridgeTensor,
-    kind: crate::ops::TensorKindId,
+    kind: crate::ops::Kind,
 ) -> Result<TensorData, ExecutionError> {
-    use crate::ops::{BasicOps, TensorKindId};
+    use crate::ops::{BasicOps, Kind};
     match kind {
-        TensorKindId::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
-        TensorKindId::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
-        TensorKindId::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
+        Kind::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
+        Kind::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
+        Kind::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
     }
 }
 
-fn slice_bridge_by_kind(
-    p: BridgeTensor,
-    slices: &[Slice],
-    kind: crate::ops::TensorKindId,
-) -> BridgeTensor {
-    use crate::ops::{BasicOps, TensorKindId};
+fn slice_bridge_by_kind(p: BridgeTensor, slices: &[Slice], kind: crate::ops::Kind) -> BridgeTensor {
+    use crate::ops::{BasicOps, Kind};
     match kind {
-        TensorKindId::Float => <crate::Float as BasicOps>::slice(p, slices),
-        TensorKindId::Int => <crate::Int as BasicOps>::slice(p, slices),
-        TensorKindId::Bool => <crate::Bool as BasicOps>::slice(p, slices),
+        Kind::Float => <crate::Float as BasicOps>::slice(p, slices),
+        Kind::Int => <crate::Int as BasicOps>::slice(p, slices),
+        Kind::Bool => <crate::Bool as BasicOps>::slice(p, slices),
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_inner(
     primitive: &BridgeTensor,
-    kind: crate::ops::TensorKindId,
+    kind: crate::ops::Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3108,7 +3104,7 @@ fn push_newline_indent_impl(acc: &mut String, indent: usize) {
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_outer(
     primitive: &BridgeTensor,
-    kind: crate::ops::TensorKindId,
+    kind: crate::ops::Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3142,7 +3138,7 @@ fn display_fmt_outer(
 #[allow(clippy::too_many_arguments)]
 fn display_fmt_recursive(
     primitive: &BridgeTensor,
-    kind: crate::ops::TensorKindId,
+    kind: crate::ops::Kind,
     acc: &mut String,
     depth: usize,
     multi_index: &mut [usize],
@@ -3239,7 +3235,7 @@ fn display_fmt_recursive(
 
 fn display_fmt_impl(
     primitive: &BridgeTensor,
-    kind: crate::ops::TensorKindId,
+    kind: crate::ops::Kind,
     kind_name: &str,
     f: &mut core::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
@@ -3271,11 +3267,9 @@ fn display_fmt_impl(
     }
     writeln!(f, "  shape:  {},", primitive.shape())?;
     let device = match kind {
-        crate::ops::TensorKindId::Float => {
-            <crate::Float as crate::ops::BasicOps>::device(primitive)
-        }
-        crate::ops::TensorKindId::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
-        crate::ops::TensorKindId::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
+        crate::ops::Kind::Float => <crate::Float as crate::ops::BasicOps>::device(primitive),
+        crate::ops::Kind::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
+        crate::ops::Kind::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
     };
     writeln!(f, "  device:  {:?},", device)?;
     writeln!(f, "  kind:  {:?},", kind_name)?;
@@ -3286,7 +3280,7 @@ fn display_fmt_impl(
 
 fn try_into_data_sync_impl(
     primitive: BridgeTensor,
-    kind: crate::ops::TensorKindId,
+    kind: crate::ops::Kind,
 ) -> Result<TensorData, ExecutionError> {
     crate::try_read_sync(into_data_async_impl(primitive, kind)).expect(
         "Failed to read tensor data synchronously.
@@ -3295,7 +3289,7 @@ fn try_into_data_sync_impl(
     )
 }
 
-fn into_data_sync_impl(primitive: BridgeTensor, kind: crate::ops::TensorKindId) -> TensorData {
+fn into_data_sync_impl(primitive: BridgeTensor, kind: crate::ops::Kind) -> TensorData {
     try_into_data_sync_impl(primitive, kind).expect(
         "Error while reading data: use `try_into_data` instead to catch the error at runtime",
     )
