@@ -50,12 +50,7 @@ impl<C: ProtocolClient> RunnerClient for RemoteClient<C> {
         let dtype = data.dtype;
         let id = service::new_tensor_id();
 
-        self.handle
-            .submit(move |s| s.register_tensor(id, data));
-        // `submit` only enqueues; force the runner to pick it up so subsequent ops on
-        // other devices (e.g., a cross-backend read on the original) don't deadlock
-        // waiting for data the registrar never delivered.
-        self.handle.flush_queue();
+        self.handle.submit(move |s| s.register_tensor(id, data));
 
         RouterTensor::new(id, shape, dtype, self.clone())
     }
@@ -252,4 +247,3 @@ impl<C: ProtocolClient> MultiBackendBridge for RemoteBridge<C> {
         tensor.change_backend(target_device)
     }
 }
-
