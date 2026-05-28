@@ -1,7 +1,7 @@
 use burn_backend::{
     Bytes, DType, ExecutionError, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
     get_device_settings,
-    ops::QTensorOps,
+    ops::{FloatTensorOps, QTensorOps},
     quantization::{
         QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
         QuantizationParametersPrimitive, params_shape,
@@ -263,8 +263,15 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         unimplemented!()
     }
 
-    fn q_slice(_tensor: QuantizedTensor<Self>, _slices: &[Slice]) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
+        // No native quantized slice kernel yet: dequantize, slice in float, then requantize.
+        let scheme = tensor.scheme();
+        let dtype = get_device_settings::<Self>(&Self::q_device(&tensor)).float_dtype;
+
+        let tensor_f = Self::dequantize(tensor, dtype);
+        let out_f = Self::float_slice(tensor_f, slices);
+
+        Self::quantize_dynamic(out_f, &scheme)
     }
 
     fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
