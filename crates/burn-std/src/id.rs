@@ -18,6 +18,7 @@ pub use cubecl_common::stream_id::StreamId;
 use core::hash::{BuildHasher, Hasher};
 
 use alloc::str::FromStr;
+use alloc::string::ToString;
 use data_encoding::BASE32_DNSSEC;
 use serde::{Deserialize, Serialize};
 
