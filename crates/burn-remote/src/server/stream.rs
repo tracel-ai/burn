@@ -48,9 +48,9 @@ where
         }
     }
 
-    pub async fn register_operation(&self, op: Box<OperationIr>) {
+    pub async fn register_operations(&self, ops: Vec<OperationIr>) {
         self.compute_sender
-            .send(ProcessorTask::RegisterOperation(op))
+            .send(ProcessorTask::RegisterOperations(ops))
             .await
             .unwrap();
     }

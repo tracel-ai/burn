@@ -25,7 +25,7 @@ where
 pub type Callback<M> = Sender<M>;
 
 pub enum ProcessorTask {
-    RegisterOperation(Box<OperationIr>),
+    RegisterOperations(Vec<OperationIr>),
     RegisterTensor(TensorId, TensorData),
     RegisterTensorRemote(TensorRemote, TensorId),
     ExposeTensorRemote {
@@ -55,8 +55,10 @@ where
         tokio::spawn(async move {
             while let Some(item) = task_rec.recv().await {
                 match item {
-                    ProcessorTask::RegisterOperation(op) => {
-                        runner.register_op(*op);
+                    ProcessorTask::RegisterOperations(ops) => {
+                        for op in ops {
+                            runner.register_op(op);
+                        }
                     }
                     ProcessorTask::Sync(id, callback) => {
                         let result = runner.sync();

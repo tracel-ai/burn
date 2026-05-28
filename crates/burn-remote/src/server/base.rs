@@ -141,8 +141,8 @@ where
                 };
 
             match task {
-                ComputeTask::RegisterOperation(op) => {
-                    stream.register_operation(op).await;
+                ComputeTask::RegisterOperations(ops) => {
+                    stream.register_operations(ops).await;
                 }
                 ComputeTask::RegisterTensor(id, data) => {
                     stream.register_tensor(id, data).await;

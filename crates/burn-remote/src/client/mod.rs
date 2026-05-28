@@ -1,7 +1,7 @@
 mod base;
 mod channel;
 mod runner;
-mod worker;
+mod service;
 
 pub use base::*;
 pub use channel::*;

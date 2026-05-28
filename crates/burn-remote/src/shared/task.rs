@@ -56,7 +56,10 @@ pub struct TensorRemote {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ComputeTask {
     Seed(u64),
-    RegisterOperation(Box<OperationIr>),
+    /// A batch of [`OperationIr`]s to register in order. The client batches ops between
+    /// barriers (reads, sync, register_tensor, etc.) to amortize websocket framing overhead;
+    /// the batch may contain a single op.
+    RegisterOperations(Vec<OperationIr>),
     RegisterTensor(TensorId, TensorData),
     RegisterTensorRemote(TensorRemote, TensorId),
     ExposeTensorRemote {
