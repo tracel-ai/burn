@@ -279,26 +279,17 @@ pub enum ModuleOperationIr {
     /// Operation corresponding to [unfold4d](burn_backend::ops::ModuleOps::unfold4d).
     Unfold4d(Unfold4dOpIr),
     /// Operation corresponding to
-    /// [conv_transpose1d_x_backward](burn_backend::ops::ModuleOps::conv_transpose1d_x_backward).
-    ConvTranspose1dXBackward(ConvTranspose1dXBackwardOpIr),
-    /// Operation corresponding to
     /// [conv_transpose1d_weight_backward](burn_backend::ops::ModuleOps::conv_transpose1d_weight_backward).
     ConvTranspose1dWeightBackward(ConvTranspose1dWeightBackwardOpIr),
     /// Operation corresponding to
     /// [conv_transpose1d_bias_backward](burn_backend::ops::ModuleOps::conv_transpose1d_bias_backward).
     ConvTranspose1dBiasBackward(ConvTranspose1dBiasBackwardOpIr),
     /// Operation corresponding to
-    /// [conv_transpose2d_x_backward](burn_backend::ops::ModuleOps::conv_transpose2d_x_backward).
-    ConvTranspose2dXBackward(ConvTranspose2dXBackwardOpIr),
-    /// Operation corresponding to
     /// [conv_transpose2d_weight_backward](burn_backend::ops::ModuleOps::conv_transpose2d_weight_backward).
     ConvTranspose2dWeightBackward(ConvTranspose2dWeightBackwardOpIr),
     /// Operation corresponding to
     /// [conv_transpose2d_bias_backward](burn_backend::ops::ModuleOps::conv_transpose2d_bias_backward).
     ConvTranspose2dBiasBackward(ConvTranspose2dBiasBackwardOpIr),
-    /// Operation corresponding to
-    /// [conv_transpose3d_x_backward](burn_backend::ops::ModuleOps::conv_transpose3d_x_backward).
-    ConvTranspose3dXBackward(ConvTranspose3dXBackwardOpIr),
     /// Operation corresponding to
     /// [conv_transpose3d_weight_backward](burn_backend::ops::ModuleOps::conv_transpose3d_weight_backward).
     ConvTranspose3dWeightBackward(ConvTranspose3dWeightBackwardOpIr),
@@ -456,12 +447,6 @@ pub enum BaseOperationIr {
     /// Int => [not_equal_elem](burn_backend::ops::IntTensorOps::int_not_equal_elem).
     /// Bool => [not_equal_elem](burn_backend::ops::BoolTensorOps::bool_not_equal_elem).
     NotEqualElem(ScalarOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [transpose](burn_backend::ops::FloatTensorOps::float_transpose).
-    /// Int => [transpose](burn_backend::ops::IntTensorOps::int_transpose).
-    /// Bool => [transpose](burn_backend::ops::BoolTensorOps::bool_transpose).
-    Transpose(UnaryOpIr),
     /// Reduce-`all` over the input tensor.
     ///
     /// Float/Int input is treated as a non-zero check; bool input is the value itself.
@@ -2157,7 +2142,6 @@ impl BaseOperationIr {
             BaseOperationIr::Zeros(_repr) => Box::new([].into_iter()),
             BaseOperationIr::NotEqual(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             BaseOperationIr::NotEqualElem(repr) => Box::new([&repr.lhs].into_iter()),
-            BaseOperationIr::Transpose(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::All(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Any(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::AllDim(repr) => Box::new([&repr.input].into_iter()),
@@ -2193,7 +2177,6 @@ impl BaseOperationIr {
             BaseOperationIr::Zeros(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::NotEqual(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::NotEqualElem(repr) => Box::new([&repr.out].into_iter()),
-            BaseOperationIr::Transpose(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::All(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Any(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::AllDim(repr) => Box::new([&repr.out].into_iter()),
@@ -2295,9 +2278,6 @@ impl BaseOperationIr {
             }
             BaseOperationIr::NotEqualElem(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
-            }
-            BaseOperationIr::Transpose(repr) => {
-                repr.input.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::All(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
@@ -3137,26 +3117,17 @@ impl ModuleOperationIr {
                 None => Box::new([&repr.input, &repr.gamma].into_iter()),
             },
             ModuleOperationIr::Unfold4d(repr) => Box::new([&repr.x].into_iter()),
-            ModuleOperationIr::ConvTranspose1dXBackward(repr) => {
-                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
-            }
             ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
                 Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
             }
             ModuleOperationIr::ConvTranspose1dBiasBackward(repr) => {
                 Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
             }
-            ModuleOperationIr::ConvTranspose2dXBackward(repr) => {
-                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
-            }
             ModuleOperationIr::ConvTranspose2dWeightBackward(repr) => {
                 Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
             }
             ModuleOperationIr::ConvTranspose2dBiasBackward(repr) => {
                 Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
-            }
-            ModuleOperationIr::ConvTranspose3dXBackward(repr) => {
-                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
             }
             ModuleOperationIr::ConvTranspose3dWeightBackward(repr) => {
                 Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
@@ -3256,21 +3227,18 @@ impl ModuleOperationIr {
             ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::LayerNorm(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Unfold4d(repr) => Box::new([&repr.out].into_iter()),
-            ModuleOperationIr::ConvTranspose1dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
             ModuleOperationIr::ConvTranspose1dBiasBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
-            ModuleOperationIr::ConvTranspose2dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::ConvTranspose2dWeightBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
             ModuleOperationIr::ConvTranspose2dBiasBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
-            ModuleOperationIr::ConvTranspose3dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::ConvTranspose3dWeightBackward(repr) => {
                 Box::new([&repr.out].into_iter())
             }
@@ -3533,11 +3501,6 @@ impl ModuleOperationIr {
             ModuleOperationIr::Unfold4d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
             }
-            ModuleOperationIr::ConvTranspose1dXBackward(repr) => {
-                repr.x.mark_read_only(nodes, &mut output);
-                repr.weight.mark_read_only(nodes, &mut output);
-                repr.output_grad.mark_read_only(nodes, &mut output);
-            }
             ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.weight.mark_read_only(nodes, &mut output);
@@ -3548,11 +3511,6 @@ impl ModuleOperationIr {
                 repr.bias.mark_read_only(nodes, &mut output);
                 repr.output_grad.mark_read_only(nodes, &mut output);
             }
-            ModuleOperationIr::ConvTranspose2dXBackward(repr) => {
-                repr.x.mark_read_only(nodes, &mut output);
-                repr.weight.mark_read_only(nodes, &mut output);
-                repr.output_grad.mark_read_only(nodes, &mut output);
-            }
             ModuleOperationIr::ConvTranspose2dWeightBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.weight.mark_read_only(nodes, &mut output);
@@ -3561,11 +3519,6 @@ impl ModuleOperationIr {
             ModuleOperationIr::ConvTranspose2dBiasBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.bias.mark_read_only(nodes, &mut output);
-                repr.output_grad.mark_read_only(nodes, &mut output);
-            }
-            ModuleOperationIr::ConvTranspose3dXBackward(repr) => {
-                repr.x.mark_read_only(nodes, &mut output);
-                repr.weight.mark_read_only(nodes, &mut output);
                 repr.output_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::ConvTranspose3dWeightBackward(repr) => {
@@ -3763,21 +3716,6 @@ pub struct Unfold4dOptionsIr {
     pub dilation: [usize; 2],
 }
 
-/// Operation IR for the input-gradient of `conv_transpose1d`.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ConvTranspose1dXBackwardOpIr {
-    /// Forward input.
-    pub x: TensorIr,
-    /// Convolution weights.
-    pub weight: TensorIr,
-    /// Upstream gradient.
-    pub output_grad: TensorIr,
-    /// Convolution options.
-    pub options: ConvTranspose1dOptionsIr,
-    /// Output: gradient w.r.t. `x`.
-    pub out: TensorIr,
-}
-
 /// Operation IR for the weight-gradient of `conv_transpose1d`.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct ConvTranspose1dWeightBackwardOpIr {
@@ -3806,21 +3744,6 @@ pub struct ConvTranspose1dBiasBackwardOpIr {
     pub out: TensorIr,
 }
 
-/// Operation IR for the input-gradient of `conv_transpose2d`.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ConvTranspose2dXBackwardOpIr {
-    /// Forward input.
-    pub x: TensorIr,
-    /// Convolution weights.
-    pub weight: TensorIr,
-    /// Upstream gradient.
-    pub output_grad: TensorIr,
-    /// Convolution options.
-    pub options: ConvTranspose2dOptionsIr,
-    /// Output: gradient w.r.t. `x`.
-    pub out: TensorIr,
-}
-
 /// Operation IR for the weight-gradient of `conv_transpose2d`.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct ConvTranspose2dWeightBackwardOpIr {
@@ -3846,21 +3769,6 @@ pub struct ConvTranspose2dBiasBackwardOpIr {
     /// Upstream gradient.
     pub output_grad: TensorIr,
     /// Output: gradient w.r.t. `bias`.
-    pub out: TensorIr,
-}
-
-/// Operation IR for the input-gradient of `conv_transpose3d`.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ConvTranspose3dXBackwardOpIr {
-    /// Forward input.
-    pub x: TensorIr,
-    /// Convolution weights.
-    pub weight: TensorIr,
-    /// Upstream gradient.
-    pub output_grad: TensorIr,
-    /// Convolution options.
-    pub options: ConvTranspose3dOptionsIr,
-    /// Output: gradient w.r.t. `x`.
     pub out: TensorIr,
 }
 

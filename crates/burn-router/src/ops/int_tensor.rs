@@ -1160,13 +1160,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_transpose(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        let client = tensor.client.clone();
-        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
-        client
-            .register(OperationIr::BaseInt(BaseOperationIr::Transpose(desc)))
-            .output()
-    }
 
     fn int_clamp_min(tensor: IntTensor<Self>, min: Scalar) -> IntTensor<Self> {
         let client = tensor.client.clone();

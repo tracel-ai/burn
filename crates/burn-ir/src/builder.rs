@@ -610,17 +610,6 @@ impl Unfold4dOpIr {
 }
 
 impl_ir_create!(
-    ConvTranspose1dXBackwardOpIr {
-        x: TensorIr,
-        weight: TensorIr,
-        output_grad: TensorIr,
-        options: ConvTranspose1dOptionsIr
-    },
-    shape = x.shape.clone(),
-    dtype = output_grad.dtype
-);
-
-impl_ir_create!(
     ConvTranspose1dWeightBackwardOpIr {
         x: TensorIr,
         weight: TensorIr,
@@ -642,17 +631,6 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
-    ConvTranspose2dXBackwardOpIr {
-        x: TensorIr,
-        weight: TensorIr,
-        output_grad: TensorIr,
-        options: ConvTranspose2dOptionsIr
-    },
-    shape = x.shape.clone(),
-    dtype = output_grad.dtype
-);
-
-impl_ir_create!(
     ConvTranspose2dWeightBackwardOpIr {
         x: TensorIr,
         weight: TensorIr,
@@ -670,17 +648,6 @@ impl_ir_create!(
         output_grad: TensorIr,
     },
     shape = bias.shape.clone(),
-    dtype = output_grad.dtype
-);
-
-impl_ir_create!(
-    ConvTranspose3dXBackwardOpIr {
-        x: TensorIr,
-        weight: TensorIr,
-        output_grad: TensorIr,
-        options: ConvTranspose3dOptionsIr
-    },
-    shape = x.shape.clone(),
     dtype = output_grad.dtype
 );
 

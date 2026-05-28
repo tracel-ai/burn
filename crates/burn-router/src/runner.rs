@@ -322,11 +322,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::NotEqualElem(desc) => {
                     scalar_float_cmp_ops!(handles, desc, B::float_not_equal_elem)
                 }
-                BaseOperationIr::Transpose(desc) => {
-                    let tensor = handles.get_float_tensor::<B>(&desc.input);
-                    let output = B::float_transpose(tensor);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
                 BaseOperationIr::All(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
                     let output = B::float_all(tensor, desc.out.dtype.into());
@@ -511,11 +506,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 BaseOperationIr::NotEqualElem(desc) => {
                     scalar_int_cmp_ops!(handles, desc, B::int_not_equal_elem)
-                }
-                BaseOperationIr::Transpose(desc) => {
-                    let tensor = handles.get_int_tensor::<B>(&desc.input);
-                    let output = B::int_transpose(tensor);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::All(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
@@ -703,11 +693,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::NotEqualElem(desc) => {
                     let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
                     let output = B::bool_not_equal_elem(lhs, desc.rhs.into());
-                    handles.register_bool_tensor::<B>(&desc.out.id, output);
-                }
-                BaseOperationIr::Transpose(desc) => {
-                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
-                    let output = B::bool_transpose(tensor);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::All(desc) => {
@@ -1894,16 +1879,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::unfold4d(x, desc.kernel_size, options);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationIr::ConvTranspose1dXBackward(desc) => {
-                    let weight = handles.get_float_tensor::<B>(&desc.weight);
-                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
-                    let output = B::conv_transpose1d_x_backward(
-                        weight,
-                        output_grad,
-                        desc.options.clone().into(),
-                    );
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
                 ModuleOperationIr::ConvTranspose1dWeightBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
@@ -1923,16 +1898,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::conv_transpose1d_bias_backward(x, bias, output_grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationIr::ConvTranspose2dXBackward(desc) => {
-                    let weight = handles.get_float_tensor::<B>(&desc.weight);
-                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
-                    let output = B::conv_transpose2d_x_backward(
-                        weight,
-                        output_grad,
-                        desc.options.clone().into(),
-                    );
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
                 ModuleOperationIr::ConvTranspose2dWeightBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
@@ -1950,16 +1915,6 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let bias = handles.get_float_tensor::<B>(&desc.bias);
                     let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
                     let output = B::conv_transpose2d_bias_backward(x, bias, output_grad);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
-                ModuleOperationIr::ConvTranspose3dXBackward(desc) => {
-                    let weight = handles.get_float_tensor::<B>(&desc.weight);
-                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
-                    let output = B::conv_transpose3d_x_backward(
-                        weight,
-                        output_grad,
-                        desc.options.clone().into(),
-                    );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 ModuleOperationIr::ConvTranspose3dWeightBackward(desc) => {

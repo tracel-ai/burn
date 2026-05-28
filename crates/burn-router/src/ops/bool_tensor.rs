@@ -198,14 +198,6 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn bool_transpose(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        let client = tensor.client.clone();
-        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
-        client
-            .register(OperationIr::BaseBool(BaseOperationIr::Transpose(desc)))
-            .output()
-    }
-
     fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;

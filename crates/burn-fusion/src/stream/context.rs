@@ -587,15 +587,6 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
-            ModuleOperationIr::ConvTranspose1dXBackward(desc) => {
-                ModuleOperationIr::ConvTranspose1dXBackward(ConvTranspose1dXBackwardOpIr {
-                    x: desc.x.to_relative(converter),
-                    weight: desc.weight.to_relative(converter),
-                    output_grad: desc.output_grad.to_relative(converter),
-                    options: desc.options.clone(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
             ModuleOperationIr::ConvTranspose1dWeightBackward(desc) => {
                 ModuleOperationIr::ConvTranspose1dWeightBackward(
                     ConvTranspose1dWeightBackwardOpIr {
@@ -615,15 +606,6 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationIr::ConvTranspose2dXBackward(desc) => {
-                ModuleOperationIr::ConvTranspose2dXBackward(ConvTranspose2dXBackwardOpIr {
-                    x: desc.x.to_relative(converter),
-                    weight: desc.weight.to_relative(converter),
-                    output_grad: desc.output_grad.to_relative(converter),
-                    options: desc.options.clone(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
             ModuleOperationIr::ConvTranspose2dWeightBackward(desc) => {
                 ModuleOperationIr::ConvTranspose2dWeightBackward(
                     ConvTranspose2dWeightBackwardOpIr {
@@ -640,15 +622,6 @@ impl RelativeOps for ModuleOperationIr {
                     x: desc.x.to_relative(converter),
                     bias: desc.bias.to_relative(converter),
                     output_grad: desc.output_grad.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            ModuleOperationIr::ConvTranspose3dXBackward(desc) => {
-                ModuleOperationIr::ConvTranspose3dXBackward(ConvTranspose3dXBackwardOpIr {
-                    x: desc.x.to_relative(converter),
-                    weight: desc.weight.to_relative(converter),
-                    output_grad: desc.output_grad.to_relative(converter),
-                    options: desc.options.clone(),
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -1487,10 +1460,6 @@ impl RelativeOps for BaseOperationIr {
             BaseOperationIr::NotEqualElem(desc) => BaseOperationIr::NotEqualElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            BaseOperationIr::Transpose(desc) => BaseOperationIr::Transpose(UnaryOpIr {
-                input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::All(desc) => BaseOperationIr::All(ReduceBoolOpIr {

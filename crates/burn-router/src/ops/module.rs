@@ -145,29 +145,6 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn conv_transpose1d_x_backward(
-        weight: FloatTensor<Self>,
-        output_grad: FloatTensor<Self>,
-        options: ConvTransposeOptions<1>,
-    ) -> FloatTensor<Self> {
-        let client = weight.client.clone();
-        // Output shape = input shape, but we don't have a forward `x` handle here. Use the
-        // weight tensor as a stand-in for the output's dtype provenance; the runner ignores
-        // the `x` field anyway.
-        let x = weight.clone();
-        let desc = ConvTranspose1dXBackwardOpIr::create(
-            x.into_ir(),
-            weight.into_ir(),
-            output_grad.into_ir(),
-            options.into(),
-            || client.create_empty_handle(),
-        );
-        client
-            .register(OperationIr::Module(
-                ModuleOperationIr::ConvTranspose1dXBackward(desc),
-            ))
-            .output()
-    }
 
     fn conv_transpose1d_weight_backward(
         x: FloatTensor<Self>,
@@ -209,27 +186,6 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn conv_transpose2d_x_backward(
-        weight: FloatTensor<Self>,
-        output_grad: FloatTensor<Self>,
-        options: ConvTransposeOptions<2>,
-    ) -> FloatTensor<Self> {
-        let client = weight.client.clone();
-        let x = weight.clone();
-        let desc = ConvTranspose2dXBackwardOpIr::create(
-            x.into_ir(),
-            weight.into_ir(),
-            output_grad.into_ir(),
-            options.into(),
-            || client.create_empty_handle(),
-        );
-        client
-            .register(OperationIr::Module(
-                ModuleOperationIr::ConvTranspose2dXBackward(desc),
-            ))
-            .output()
-    }
-
     fn conv_transpose2d_weight_backward(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -266,27 +222,6 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         client
             .register(OperationIr::Module(
                 ModuleOperationIr::ConvTranspose2dBiasBackward(desc),
-            ))
-            .output()
-    }
-
-    fn conv_transpose3d_x_backward(
-        weight: FloatTensor<Self>,
-        output_grad: FloatTensor<Self>,
-        options: ConvTransposeOptions<3>,
-    ) -> FloatTensor<Self> {
-        let client = weight.client.clone();
-        let x = weight.clone();
-        let desc = ConvTranspose3dXBackwardOpIr::create(
-            x.into_ir(),
-            weight.into_ir(),
-            output_grad.into_ir(),
-            options.into(),
-            || client.create_empty_handle(),
-        );
-        client
-            .register(OperationIr::Module(
-                ModuleOperationIr::ConvTranspose3dXBackward(desc),
             ))
             .output()
     }

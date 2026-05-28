@@ -1337,14 +1337,6 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn float_transpose(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        let client = tensor.client.clone();
-        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
-        client
-            .register(OperationIr::BaseFloat(BaseOperationIr::Transpose(desc)))
-            .output()
-    }
-
     fn float_clamp_min(tensor: FloatTensor<Self>, min: Scalar) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let desc = ScalarOpIr::create(tensor.into_ir(), min.into(), || {
