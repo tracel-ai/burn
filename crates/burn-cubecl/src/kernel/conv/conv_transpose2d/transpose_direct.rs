@@ -9,7 +9,7 @@ use burn_backend::{Shape, ops::ConvTransposeOptions};
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{FastDivmod, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearViewMut},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -29,7 +29,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
     bias: ComptimeOption<&[E]>,
-    output: &mut LinearView<E, ReadWrite>,
+    mut output: LinearViewMut<'_, E>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
     #[define(E)] _dtype: StorageType,

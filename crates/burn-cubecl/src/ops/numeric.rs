@@ -13,12 +13,11 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use cubecl::{client::ComputeClient, server::MemoryLayout};
 use cubecl::{
-    server::MemoryLayoutDescriptor,
-    std::{FastDivmod, tensor::layout::linear::LinearView},
+    calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearViewMut,
 };
+use cubecl::{client::ComputeClient, server::MemoryLayout};
+use cubecl::{server::MemoryLayoutDescriptor, std::FastDivmod};
 
 /// Creates a tensor filled with `value`
 pub fn full<R: CubeRuntime, E: CubeElement>(
@@ -60,7 +59,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
 
     #[cube(launch_unchecked, address_type = "dynamic")]
     pub fn full_kernel<C: Numeric, N: Size>(
-        tensor: &mut LinearView<Vector<C, N>, ReadWrite>,
+        mut tensor: LinearViewMut<'_, Vector<C, N>>,
         value: InputScalar,
         #[define(C)] _dtype: StorageType,
     ) {
@@ -376,7 +375,7 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
-    output: &mut LinearView<C, ReadWrite>,
+    mut output: LinearViewMut<'_, C>,
     shape: Sequence<FastDivmod<usize>>,
     #[comptime] dim: usize,
     #[define(C)] _dtype: StorageType,

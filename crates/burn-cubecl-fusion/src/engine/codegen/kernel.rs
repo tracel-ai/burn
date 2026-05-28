@@ -100,8 +100,8 @@ pub fn init_locals(
     #[comptime] config: &FuseBlockConfig,
 ) -> LocalArgs {
     comment!("Init locals begin");
-    let mut ref_shape = Array::<usize>::new(config.rank);
-    let mut ref_strides = Array::<usize>::new(config.rank);
+    let mut ref_shape = Array::new(config.rank);
+    let mut ref_strides = Array::new(config.rank);
 
     let locals = match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {

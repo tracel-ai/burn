@@ -819,6 +819,7 @@ impl From<ElemType> for FuseType {
                 FloatKind::F16 => Self::F16,
                 FloatKind::BF16 => Self::BF16,
                 FloatKind::F32 => Self::F32,
+                FloatKind::F64 => Self::F64,
                 FloatKind::Flex32 => Self::Flex32,
                 _ => panic!("Unsupported precision for fusion: {value}"),
             },
@@ -949,5 +950,36 @@ impl Display for MultiBlockPos {
             "block_local({}-{})",
             self.block_pos, self.block_local_pos
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fuse_type_roundtrips_through_elem_type() {
+        let all = [
+            FuseType::F64,
+            FuseType::F32,
+            FuseType::Flex32,
+            FuseType::F16,
+            FuseType::BF16,
+            FuseType::I64,
+            FuseType::I32,
+            FuseType::I16,
+            FuseType::I8,
+            FuseType::U64,
+            FuseType::U32,
+            FuseType::U16,
+            FuseType::U8,
+        ];
+        for ft in all {
+            assert_eq!(
+                FuseType::from(ft.into_elem()),
+                ft,
+                "round-trip failed for {ft:?}",
+            );
+        }
     }
 }

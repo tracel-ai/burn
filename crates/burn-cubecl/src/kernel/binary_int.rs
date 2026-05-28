@@ -6,7 +6,11 @@ use crate::{
 };
 use burn_backend::TensorMetadata;
 use burn_backend::cubecl::dtype_to_storage_type;
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
     type BinaryOp<C: Int, N: Size>: BinaryOpInt<C, N>;
@@ -81,9 +85,9 @@ impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
-    input: &LinearView<Vector<C, N>>,
+    input: LinearView<'_, Vector<C, N>>,
     scalar: InputScalar,
-    output: &mut LinearView<Vector<C, N>, ReadWrite>,
+    mut output: LinearViewMut<'_, Vector<C, N>>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -98,9 +102,9 @@ pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
-    lhs: &LinearView<Vector<C, N>>,
-    rhs: &LinearView<Vector<C, N>>,
-    out: &mut LinearView<Vector<C, N>, ReadWrite>,
+    lhs: LinearView<'_, Vector<C, N>>,
+    rhs: LinearView<'_, Vector<C, N>>,
+    mut out: LinearViewMut<'_, Vector<C, N>>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
