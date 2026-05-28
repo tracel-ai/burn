@@ -172,7 +172,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::WebGpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(all(feature = "flex", not(feature = "distributed")))]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(any(feature = "ndarray", default_backend))]
+                #[cfg(all(
+                    any(feature = "ndarray", default_backend),
+                    not(feature = "distributed")
+                ))]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
                 #[cfg(all(feature = "tch", not(feature = "distributed")))]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
@@ -546,7 +549,10 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(all(
+                any(feature = "ndarray", default_backend),
+                not(feature = "distributed")
+            ))]
             DispatchTensorKind::NdArray(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::NdArray(
                     crate::BackendTensor::Autodiff(Autodiff::<NdArray>::from_inner(tensor.float())),

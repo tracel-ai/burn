@@ -78,8 +78,8 @@ impl AutodiffServer {
         let grads = match mode {
             #[cfg(feature = "distributed")]
             BackwardMode::Distributed(factory) if tape_result.distributed.is_some() => {
-                let on_register = factory(tape_result.distributed.take().unwrap());
-                Gradients::new_distributed::<B>(root_node, root_tensor)
+                let on_register = factory(tape_result.distributed.clone().unwrap());
+                Gradients::new_distributed::<B>(root_node, root_tensor, on_register)
             }
             _ => Gradients::new::<B>(root_node, root_tensor),
         };

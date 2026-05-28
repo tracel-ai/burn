@@ -33,12 +33,13 @@ pub fn launch_multi() {
 
 #[cfg(all(feature = "cuda", feature = "ddp"))]
 pub fn launch_multi() {
-    let devices = Device::enumerate(burn::tensor::DeviceType::Cuda)
+    let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
+    devices
         .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
         .unwrap();
 
     launch(ExecutionStrategy::ddp(
-        devices,
+        devices.into_vec(),
         DistributedConfig {
             all_reduce_op: ReduceOperation::Mean,
         },
