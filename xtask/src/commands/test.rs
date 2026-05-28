@@ -176,8 +176,6 @@ pub(crate) fn handle_command(
                         "dqn-agent".to_string(),
                         // Requires wgpu runtime
                         "burn-cubecl-fusion".to_string(),
-                        // Backend tests are explicitly handled
-                        "burn-backend-tests".to_string(),
                     ]);
 
                     // Burn remote tests don't work on windows for now
@@ -187,8 +185,13 @@ pub(crate) fn handle_command(
                     };
 
                     set_burn_device("flex"); // default device for base tests
+                    // Backend tests are explicitly handled
+                    let mut args_workspace = args.clone();
+                    args_workspace
+                        .exclude
+                        .extend(vec!["burn-backend-tests".to_string()]);
                     base_commands::test::handle_command(
-                        args.clone().try_into().unwrap(),
+                        args_workspace.try_into().unwrap(),
                         env.clone(),
                         context.clone(),
                     )?;
