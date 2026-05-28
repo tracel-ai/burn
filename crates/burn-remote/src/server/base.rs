@@ -95,7 +95,7 @@ where
 
         // Reply with the device's default settings — the client uses these to fill in
         // `RemoteDevice::defaults` so it can resolve op dtypes without an extra RTT.
-        let settings = session_manager.runner.device_settings();
+        let settings = session_manager.device_settings();
         let init_response = TaskResponse {
             content: TaskResponseContent::Init(settings),
             // Zero connection id for handshake; the client doesn't route this through
@@ -213,13 +213,14 @@ where
 
     async fn handle_close(session_manager: &SessionManager<B, P>, session_id: SessionId) {
         // Ensure backend work for this session is fully drained before we forget the
-        // session — matches the old `ProcessorTask::Close` arm (sync + B::sync). Both
-        // are needed because `runner.sync()` flushes runner-side state and `B::sync`
-        // flushes the underlying device queue.
-        if let Err(err) = session_manager.runner.sync() {
+        // session. `runner.sync()` flushes the session's runner state; `B::sync` flushes
+        // the underlying device queue (which the next session may also use, so it's not
+        // strictly per-session, but it's cheap and matches the pre-refactor behavior).
+        let runner = session_manager.runner(session_id).await;
+        if let Err(err) = runner.sync() {
             log::warn!("runner.sync() at session {session_id} close failed: {err:?}");
         }
-        let device = session_manager.runner.device();
+        let device = runner.device();
         if let Err(err) = B::sync(&device) {
             log::warn!("B::sync(device) at session {session_id} close failed: {err:?}");
         }
@@ -238,7 +239,8 @@ where
         task: ComputeTask,
         conn_id: ConnectionId,
     ) -> Result<(), String> {
-        let runner = &sm.runner;
+        let runner = sm.runner(session_id).await;
+        let runner = &runner;
         let stream_id = conn_id.stream_id;
 
         match task {
