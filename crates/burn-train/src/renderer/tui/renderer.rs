@@ -82,10 +82,11 @@ impl TuiMetricsRendererWrapper {
 
                 let tick_rate = Duration::from_millis(MAX_REFRESH_RATE_MILLIS);
                 loop {
-                    match receiver.try_recv() {
+                    let remaining_time = tick_rate.saturating_sub(renderer.last_update.elapsed());
+                    match receiver.recv_timeout(remaining_time) {
                         Ok(event) => renderer.handle_event(event),
-                        Err(mpsc::TryRecvError::Empty) => (),
-                        Err(mpsc::TryRecvError::Disconnected) => {
+                        Err(mpsc::RecvTimeoutError::Timeout) => (),
+                        Err(mpsc::RecvTimeoutError::Disconnected) => {
                             log::error!("Renderer thread disconnected.");
                             break;
                         }
