@@ -4,7 +4,7 @@
 #[cfg(feature = "extension")]
 pub use crate::bridge::BridgeTensor;
 
-pub use crate::bridge::{Bool, Float, Int, TensorKind, TensorKindId};
+pub use crate::bridge::{Bool, Float, Int, Kind, TensorKind};
 
 /// The base trait for any tensor kind.
 pub trait Basic: crate::ops::BasicOps {}
