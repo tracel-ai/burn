@@ -8,11 +8,11 @@ use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, In
 use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
-    FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr,
-    MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
-    RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
-    ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
-    SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, GridSample2dOpIr,
+    InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr,
+    OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr,
+    RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
+    ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
@@ -296,6 +296,27 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .register(OperationIr::Float(
                 desc.out.dtype,
                 FloatOperationIr::Cross(desc),
+            ))
+            .output()
+    }
+
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: burn_backend::ops::GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = GridSample2dOpIr::create(
+            tensor.into_ir(),
+            grid.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Float(
+                desc.out.dtype,
+                FloatOperationIr::GridSample2d(desc),
             ))
             .output()
     }
@@ -1211,6 +1232,30 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             ))
             .outputs()
             .into()
+    }
+
+    fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MaxAbs(desc),
+            ))
+            .output()
+    }
+
+    fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());
+
+        client
+            .register(OperationIr::NumericFloat(
+                desc.out.dtype,
+                NumericOperationIr::MaxAbsDim(desc),
+            ))
+            .output()
     }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

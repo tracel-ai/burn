@@ -444,6 +444,16 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    HardSigmoidOpIr {
+        tensor: TensorIr,
+        alpha: ScalarIr,
+        beta: ScalarIr
+    },
+    shape = tensor.shape.clone(),
+    dtype = tensor.dtype
+);
+
+impl_ir_create!(
     AvgPool1dOpIr {
         x: TensorIr,
         kernel_size: usize,
@@ -658,6 +668,31 @@ impl_ir_create!(
         grid.shape[2]
     ]),
     dtype = tensor.dtype
+);
+
+impl_ir_create!(
+    EmbeddingOpIr {
+        weights: TensorIr,
+        indices: TensorIr,
+    },
+    shape = {
+        // weights: [n_embeddings, d_model]
+        // indices: [batch_size, seq_length]
+        // output:  [batch_size, seq_length, d_model]
+        let d_model = weights.shape[1];
+        Shape::from(alloc::vec![indices.shape[0], indices.shape[1], d_model])
+    },
+    dtype = weights.dtype
+);
+
+impl_ir_create!(
+    EmbeddingBackwardOpIr {
+        weights: TensorIr,
+        out_grad: TensorIr,
+        indices: TensorIr,
+    },
+    shape = weights.shape.clone(),
+    dtype = output_dtype([&weights.dtype, &out_grad.dtype]).unwrap()
 );
 
 impl_ir_create!(

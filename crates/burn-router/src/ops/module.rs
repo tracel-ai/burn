@@ -12,6 +12,37 @@ use burn_std::IntDType;
 use crate::{BackendRouter, RunnerChannel, RunnerClient};
 
 impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
+    fn embedding(weights: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        let client = weights.client.clone();
+        let desc = EmbeddingOpIr::create(weights.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Embedding(desc)))
+            .output()
+    }
+
+    fn embedding_backward(
+        weights: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> FloatTensor<Self> {
+        let client = weights.client.clone();
+        let desc = EmbeddingBackwardOpIr::create(
+            weights.into_ir(),
+            output_grad.into_ir(),
+            indices.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::EmbeddingBackward(
+                desc,
+            )))
+            .output()
+    }
+
     fn linear(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,

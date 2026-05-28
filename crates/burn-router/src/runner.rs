@@ -12,8 +12,9 @@ use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp,
 };
 use burn_ir::{
-    BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
-    ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
+    ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
+    HandleContainer, IntOperationIr, ModuleOperationIr, NumericOperationIr, OperationIr, TensorId,
+    TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut, stub::Mutex};
 
@@ -1711,6 +1712,83 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     );
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+            },
+            OperationIr::Activation(_dtype, op) => match op {
+                ActivationOperationIr::Relu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::relu(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ActivationOperationIr::ReluBackward(desc) => {
+                    let output = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::relu_backward(output, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LeakyRelu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.lhs);
+                    let result = B::leaky_relu(input, desc.rhs.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::PRelu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.lhs);
+                    let alpha = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::prelu(input, alpha);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Gelu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::gelu(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::GeluBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::gelu_backward(x, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Sigmoid(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::sigmoid(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::SigmoidBackward(desc) => {
+                    let output = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::sigmoid_backward(output, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::HardSigmoid(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.tensor);
+                    let result = B::hard_sigmoid(input, desc.alpha.into(), desc.beta.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LogSigmoid(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::log_sigmoid(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LogSigmoidBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::log_sigmoid_backward(x, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Softmax(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::softmax(input, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LogSoftmax(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::log_softmax(input, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Softmin(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::softmin(input, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
                 }
             },
             OperationIr::Custom(_) => {

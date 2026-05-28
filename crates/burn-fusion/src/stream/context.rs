@@ -175,6 +175,9 @@ impl RelativeOps for OperationIr {
             OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(ops) => OperationIr::Distributed(ops.to_relative(converter)),
+            OperationIr::Activation(dtype, ops) => {
+                OperationIr::Activation(*dtype, ops.to_relative(converter))
+            }
         }
     }
 }
@@ -728,6 +731,92 @@ impl RelativeOps for FloatOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+        }
+    }
+}
+
+impl RelativeOps for ActivationOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        match self {
+            ActivationOperationIr::Relu(desc) => ActivationOperationIr::Relu(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            ActivationOperationIr::ReluBackward(desc) => {
+                ActivationOperationIr::ReluBackward(BinaryOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ActivationOperationIr::LeakyRelu(desc) => {
+                ActivationOperationIr::LeakyRelu(ScalarOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ActivationOperationIr::PRelu(desc) => ActivationOperationIr::PRelu(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            ActivationOperationIr::Gelu(desc) => ActivationOperationIr::Gelu(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            ActivationOperationIr::GeluBackward(desc) => {
+                ActivationOperationIr::GeluBackward(BinaryOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ActivationOperationIr::Sigmoid(desc) => ActivationOperationIr::Sigmoid(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            ActivationOperationIr::SigmoidBackward(desc) => {
+                ActivationOperationIr::SigmoidBackward(BinaryOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ActivationOperationIr::HardSigmoid(desc) => {
+                ActivationOperationIr::HardSigmoid(HardSigmoidOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    alpha: desc.alpha.to_relative(converter),
+                    beta: desc.beta.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ActivationOperationIr::LogSigmoid(desc) => ActivationOperationIr::LogSigmoid(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            ActivationOperationIr::LogSigmoidBackward(desc) => {
+                ActivationOperationIr::LogSigmoidBackward(BinaryOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ActivationOperationIr::Softmax(desc) => ActivationOperationIr::Softmax(DimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
+            ActivationOperationIr::LogSoftmax(desc) => ActivationOperationIr::LogSoftmax(DimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
+            ActivationOperationIr::Softmin(desc) => ActivationOperationIr::Softmin(DimOpIr {
+                input: desc.input.to_relative(converter),
+                axis: desc.axis,
+                out: desc.out.to_relative(converter),
+            }),
         }
     }
 }
