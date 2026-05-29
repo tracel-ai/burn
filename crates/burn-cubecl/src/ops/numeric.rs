@@ -179,6 +179,8 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     println!("empty_device_dtype shape: {:?}", shape);
     let MemoryLayout { memory, strides } = client.empty_tensor(shape.clone(), dtype.size());
 
+    println!("memory size: {:?}", memory.size_in_used());
+
     CubeTensor::new(client, memory, Metadata::new(shape, strides), device, dtype)
 }
 
