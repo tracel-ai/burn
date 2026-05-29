@@ -172,9 +172,9 @@ fn compute_all_reduce(
 ) -> Vec<Tensor<1>> {
     let mut out = vec![];
     for tensor in tensors.clone() {
+        println!("in tensor: {}", tensor);
         let out_tensor = burn_tensor::module::all_reduce(tensor, op, devices.clone());
         let out_tensor = out_tensor.resolve();
-        println!("resolved");
         out.push(out_tensor);
     }
 

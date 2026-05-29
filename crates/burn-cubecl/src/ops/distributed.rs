@@ -20,8 +20,10 @@ impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
 
         let device = &tensor.device.clone();
         let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
+            println!("canmut");
             tensor
         } else {
+            println!("zeroo");
             let zeros_tensor = zeros_client::<R>(
                 tensor.client.clone(),
                 device.clone(),
