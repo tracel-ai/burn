@@ -111,6 +111,8 @@ macro_rules! dispatch_distributed_devices_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(inner) => {
+                    println!("{:?}", $device);
+                    println!("{:?}", $devices);
                     print_type_of($device);
                     print_type_of(&$device.clone());
                     $devices
