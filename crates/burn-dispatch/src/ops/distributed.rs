@@ -30,7 +30,7 @@ macro_rules! dispatch_distributed_devices_arms {
                         // Dynamically match against all possible backends passed to the macro
                         let inn = match &d {
                             #[cfg(feature = "autodiff")]
-                            $crate::DispatchDevice::Autodiff(d_inner) => d_inner.clone(),
+                            $crate::DispatchDevice::Autodiff(d_inner) => *d_inner.inner.clone(),
                             _ => unreachable!("All devices are expected to be of the same variant."),
                         };
                         println!("inn: {:?}", inn);
@@ -40,7 +40,7 @@ macro_rules! dispatch_distributed_devices_arms {
                     .collect::<Vec<_>>();
                 let inner_devices = inner_devices.as_slice();
                 println!("inn: {:?}", inner_devices);
-                println!("inner: {:?}", inner);
+                println!("inner: {:?}", *inner.inner);
                 // dispatch_distributed_devices_arms!(
                 //     @autodiff
                 //     &**inner,
