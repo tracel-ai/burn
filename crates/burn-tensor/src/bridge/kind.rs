@@ -18,9 +18,25 @@ pub struct Int;
 #[derive(Clone, Debug)]
 pub struct Bool;
 
+mod sealed {
+    pub trait Sealed {}
+}
+
+impl sealed::Sealed for Float {}
+impl sealed::Sealed for Int {}
+impl sealed::Sealed for Bool {}
+
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
-pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
+///
+/// # Notes
+/// This trait is intentionally sealed to keep the set of tensor kinds closed.
+///
+/// Although exposed publicly, tensor kinds are not meant to be extensible:
+/// the backend dispatch system, `DType`, and all tensor ops assume a fixed,
+/// closed set of tensor kinds (e.g. Float, Int, Bool), each mapping directly to a
+/// corresponding backend implementation.
+pub trait TensorKind: sealed::Sealed + Clone + Send + Sync + core::fmt::Debug {
     /// The tensor kind identifier.
     const KIND: Kind;
 
