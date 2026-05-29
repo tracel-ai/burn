@@ -78,9 +78,16 @@ fn should_diff_all_reduce_complex_1() {
     let grads_0 = out_tensor_0.backward();
     let grads_1 = out_tensor_1.backward();
 
+    println!("backwards");
+
     let grad_0 = in_tensor_0.grad(&grads_0).unwrap();
     let grad_1 = in_tensor_1.grad(&grads_1).unwrap();
 
+    println!("asserting");
+    println!("out : {out_tensor_0}");
+    println!("out1 : {out_tensor_1}");
+    println!("grad1 : {grad_1}");
+    println!("grad0 : {grad_0}");
     out_tensor_0
         .to_data()
         .assert_eq(&TensorData::from([6.0, 6.0]), false);
@@ -164,6 +171,7 @@ fn compute_all_reduce(
     for tensor in tensors.clone() {
         let out_tensor = burn_tensor::module::all_reduce(tensor, op, devices.clone());
         let out_tensor = out_tensor.resolve();
+        println!("resolved");
         out.push(out_tensor);
     }
 
