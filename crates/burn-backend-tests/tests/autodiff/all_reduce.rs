@@ -29,6 +29,7 @@ fn should_diff_all_reduce_sum() {
 #[serial]
 fn should_diff_all_reduce_mean() {
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
+    println!("{}", devices.len());
     if devices.len() < 2 {
         return;
     }
