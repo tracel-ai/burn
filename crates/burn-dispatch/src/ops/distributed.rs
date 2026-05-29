@@ -42,6 +42,8 @@ macro_rules! dispatch_distributed_devices_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(_) => {
+                    print_type_of($device);
+                    print_type_of(&$device.clone());
                     $devices
                         .iter().for_each(|d| print_type_of(d));
                     assert!(
@@ -77,6 +79,8 @@ macro_rules! dispatch_distributed_devices_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(_) => {
+                    print_type_of($device);
+                    print_type_of(&$device.clone());
                     $devices
                         .iter().for_each(|d| print_type_of(d));
                     assert!(

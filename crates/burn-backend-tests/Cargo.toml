@@ -19,6 +19,10 @@ proc-macro = true
 
 [features]
 default = [
+    # TODO: remove
+    "distributed",
+    # TODO: remove
+    "cuda",
     "burn-tensor/default",
     # Default
     # "ndarray",
