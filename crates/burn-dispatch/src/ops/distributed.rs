@@ -41,13 +41,13 @@ macro_rules! dispatch_distributed_devices_arms {
                 let inner_devices = inner_devices.as_slice();
                 println!("inn: {:?}", inner_devices);
                 println!("inner: {:?}", *inner.inner);
-                // dispatch_distributed_devices_arms!(
-                //     @autodiff
-                //     &**inner,
-                //     &*inner_devices,
-                //     |$inner_devices| $body;
-                //     $([$Backend, $cfg]),*
-                // )
+                dispatch_distributed_devices_arms!(
+                    @autodiff
+                    &**inner,
+                    &*inner_devices,
+                    |$inner_devices| $body;
+                    $([$Backend, $cfg]),*
+                )
             },
             $(
                 #[cfg($cfg)]
@@ -95,7 +95,7 @@ macro_rules! dispatch_distributed_devices_arms {
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
-                            let DispatchDevice::$Backend(dev) = *d.inner else {
+                            let DispatchDevice::$Backend(dev) = d else {
                                 unreachable!()
                             };
                             dev.clone()
