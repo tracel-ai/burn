@@ -26,9 +26,9 @@ use batch::OutgoingBatch;
 use pending::{PendingResponses, Responder};
 use writer::RequestWriter;
 
+use registry::settings_cell;
 pub use registry::{address_to_id, id_to_address};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
-use registry::settings_cell;
 
 /// Flush the outgoing task buffer when this many tasks have accumulated.
 ///

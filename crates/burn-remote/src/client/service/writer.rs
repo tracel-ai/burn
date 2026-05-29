@@ -50,7 +50,10 @@ impl RequestWriter {
     /// the writer is [`WRITE_QUEUE_CAP`] frames behind (socket backpressure), never on a
     /// healthy send.
     pub(crate) fn send(&self, runtime: &tokio::runtime::Runtime, frame: bytes::Bytes) {
-        let tx = self.tx.as_ref().expect("Writer channel present until shutdown");
+        let tx = self
+            .tx
+            .as_ref()
+            .expect("Writer channel present until shutdown");
         runtime
             .block_on(tx.send(frame))
             .expect("Remote request writer task alive");
