@@ -429,6 +429,8 @@ where
             .downcast::<FusionUtilities>()
             .expect("Can downcast to `FusionUtilities`");
         let id = CommunicationId::from(device_ids);
+        println!("devices: {:?}", utilities.initialized_comms.read().unwrap());
+
         if !utilities.initialized_comms.read().unwrap().contains(&id) {
             println!("fusion ensure_init flush");
 
