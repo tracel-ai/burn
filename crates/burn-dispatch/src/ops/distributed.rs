@@ -42,9 +42,11 @@ macro_rules! dispatch_distributed_devices_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(_) => {
+                    $devices
+                        .iter().for_each(|d| print_type_of(d));
                     assert!(
                         $devices
-                            .iter().for_each(|d| print_type_of(d))
+                            .iter()
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
@@ -75,9 +77,11 @@ macro_rules! dispatch_distributed_devices_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(_) => {
+                    $devices
+                        .iter().for_each(|d| print_type_of(d));
                     assert!(
                         $devices
-                            .iter().for_each(|d| print_type_of(d))
+                            .iter()
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
