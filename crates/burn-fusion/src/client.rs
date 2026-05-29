@@ -428,7 +428,7 @@ where
             .downcast::<FusionUtilities>()
             .expect("Can downcast to `FusionUtilities`");
         let id = CommunicationId::from(device_ids);
-        if utilities.initialized_comms.read().unwrap().contains(&id) {
+        if !utilities.initialized_comms.read().unwrap().contains(&id) {
             println!("fusion ensure_init flush");
 
             // Communication initialization is blocking for the server, so we need to flush right away to make sure other devices
