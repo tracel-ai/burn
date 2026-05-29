@@ -152,7 +152,7 @@ pub struct RemoteService<C: ProtocolClient> {
     stream_request: C::Channel,
     pending: PendingMap,
     settings: Arc<OnceLock<DeviceSettings>>,
-    op_buffer: Vec<OperationIr>,
+    op_buffer: Vec<(StreamId, OperationIr)>,
     position_counter: u64,
     session_id: SessionId,
     closed: bool,
@@ -293,15 +293,16 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
 impl<C: ProtocolClient> RemoteService<C> {
     /// Buffer an op for batched submission. Flushes automatically once the buffer reaches
     /// [`FLUSH_THRESHOLD`] entries.
-    pub fn register_op(&mut self, op: OperationIr) {
-        self.op_buffer.push(op);
+    pub fn register_op(&mut self, stream_id: StreamId, op: OperationIr) {
+        self.op_buffer.push((stream_id, op));
+
         if self.op_buffer.len() >= FLUSH_THRESHOLD {
             self.flush_ops();
         }
     }
 
-    pub fn register_tensor(&mut self, id: TensorId, data: TensorData) {
-        self.send_compute(ComputeTask::RegisterTensor(id, data));
+    pub fn register_tensor(&mut self, stream_id: StreamId, id: TensorId, data: TensorData) {
+        self.send_compute(ComputeTask::RegisterTensor(stream_id, id, data));
     }
 
     pub fn register_tensor_remote(&mut self, tensor: TensorRemote, new_id: TensorId) {
@@ -330,17 +331,21 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// The actual request is sent here (after flushing batched ops), so submission order is
     /// preserved relative to subsequent service calls — the caller only awaits the
     /// resolution.
-    pub fn read_tensor(&mut self, tensor: TensorIr) -> oneshot::Receiver<TaskResponseContent> {
+    pub fn read_tensor(
+        &mut self,
+        stream_id: StreamId,
+        tensor: TensorIr,
+    ) -> oneshot::Receiver<TaskResponseContent> {
         let connection_id = self.next_connection_id();
         let rx = self.register_callback(connection_id);
-        self.send_compute_with_id(ComputeTask::ReadTensor(tensor), connection_id);
+        self.send_compute_with_id(ComputeTask::ReadTensor(stream_id, tensor), connection_id);
         rx
     }
 
-    pub fn sync(&mut self) -> Result<(), ExecutionError> {
+    pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
         let connection_id = self.next_connection_id();
         let rx = self.register_callback(connection_id);
-        self.send_compute_with_id(ComputeTask::SyncBackend, connection_id);
+        self.send_compute_with_id(ComputeTask::SyncBackend(stream_id), connection_id);
         match self.runtime.block_on(rx) {
             Ok(TaskResponseContent::SyncBackend(res)) => res,
             Ok(other) => panic!("Invalid response for SyncBackend: {other:?}"),

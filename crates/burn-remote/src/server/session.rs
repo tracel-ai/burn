@@ -81,9 +81,9 @@ where
         session_id: SessionId,
     ) -> Result<mpsc::Receiver<TaskResponse>, String> {
         self.with_session(session_id, |s| {
-            s.receiver.take().ok_or_else(|| {
-                format!("Response receiver already taken for session {session_id}")
-            })
+            s.receiver
+                .take()
+                .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
         })
         .await
     }

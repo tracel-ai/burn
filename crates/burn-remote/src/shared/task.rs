@@ -59,16 +59,16 @@ pub enum ComputeTask {
     /// A batch of [`OperationIr`]s to register in order. The client batches ops between
     /// barriers (reads, sync, register_tensor, etc.) to amortize websocket framing overhead;
     /// the batch may contain a single op.
-    RegisterOperations(Vec<OperationIr>),
-    RegisterTensor(TensorId, TensorData),
+    RegisterOperations(Vec<(StreamId, OperationIr)>),
+    RegisterTensor(StreamId, TensorId, TensorData),
     RegisterTensorRemote(TensorRemote, TensorId),
     ExposeTensorRemote {
         tensor: TensorIr,
         count: u32,
         transfer_id: TensorTransferId,
     },
-    ReadTensor(TensorIr),
-    SyncBackend,
+    ReadTensor(StreamId, TensorIr),
+    SyncBackend(StreamId),
     DTypeUsage(DType),
 }
 

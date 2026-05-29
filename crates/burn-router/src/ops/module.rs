@@ -145,7 +145,6 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
-
     fn conv_transpose1d_weight_backward(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,

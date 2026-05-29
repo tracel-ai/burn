@@ -12,7 +12,9 @@ use burn_ir::BackendIr;
 use burn_router::RunnerClient;
 use burn_std::id::StreamId;
 
-use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponse, TaskResponseContent};
+use crate::shared::{
+    ComputeTask, ConnectionId, SessionId, Task, TaskResponse, TaskResponseContent,
+};
 
 use super::session::SessionManager;
 
@@ -202,9 +204,7 @@ where
                         // the failure surfaces to the client through the response (for
                         // read/sync/dtype tasks) or is logged here (for fire-and-forget
                         // tasks). The connection stays open so subsequent tasks can run.
-                        log::error!(
-                            "Compute task {conn_id:?} on session {sid} failed: {err}"
-                        );
+                        log::error!("Compute task {conn_id:?} on session {sid} failed: {err}");
                     }
                 }
             }
@@ -344,9 +344,7 @@ where
             })
             .await
             .map_err(|_| {
-                format!(
-                    "Response receiver dropped before result for {conn_id:?} could be sent"
-                )
+                format!("Response receiver dropped before result for {conn_id:?} could be sent")
             })
     }
 }

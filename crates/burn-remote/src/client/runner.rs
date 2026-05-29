@@ -1,6 +1,6 @@
 use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{TaskResponseContent, TensorRemote};
-use burn_backend::{DeviceId, DeviceOps, ExecutionError, TensorData};
+use burn_backend::{DeviceId, DeviceOps, ExecutionError, StreamId, TensorData};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
@@ -19,7 +19,8 @@ impl<C: ProtocolClient> RunnerClient for RemoteClient<C> {
     type Device = RemoteDevice;
 
     fn register_op(&self, op: burn_ir::OperationIr) {
-        self.handle.submit(move |s| s.register_op(op));
+        let stream_id = StreamId::current();
+        self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
     fn read_tensor_async(
@@ -28,9 +29,10 @@ impl<C: ProtocolClient> RunnerClient for RemoteClient<C> {
     ) -> DynFut<Result<TensorData, ExecutionError>> {
         // Issue the request synchronously so ordering is preserved relative to subsequent
         // submissions; the returned future just awaits the server's response.
+        let stream_id = StreamId::current();
         let rx = self
             .handle
-            .submit_blocking(move |s| s.read_tensor(tensor))
+            .submit_blocking(move |s| s.read_tensor(stream_id, tensor))
             .expect("Service call failed");
 
         Box::pin(async move {
@@ -50,7 +52,9 @@ impl<C: ProtocolClient> RunnerClient for RemoteClient<C> {
         let dtype = data.dtype;
         let id = service::new_tensor_id();
 
-        self.handle.submit(move |s| s.register_tensor(id, data));
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.register_tensor(stream_id, id, data));
 
         RouterTensor::new(id, shape, dtype, self.clone())
     }
@@ -60,8 +64,9 @@ impl<C: ProtocolClient> RunnerClient for RemoteClient<C> {
     }
 
     fn sync(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
         self.handle
-            .submit_blocking(|s| s.sync())
+            .submit_blocking(|s| s.sync(stream_id))
             .expect("Service call failed")
     }
 

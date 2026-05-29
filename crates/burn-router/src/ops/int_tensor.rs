@@ -1160,7 +1160,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-
     fn int_clamp_min(tensor: IntTensor<Self>, min: Scalar) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let desc = ScalarOpIr::create(tensor.into_ir(), min.into(), || {
