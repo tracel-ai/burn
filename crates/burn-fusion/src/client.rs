@@ -421,6 +421,7 @@ where
         B: FusionBackend<FusionRuntime = R> + DistributedBackend,
     {
         println!("fusion ensure_init");
+        println!("devices: {device_ids:?}");
 
         let utilities = self
             .server
