@@ -299,13 +299,26 @@ where
                 transfer_id,
             } => {
                 log::info!("Exposing tensor (transfer {transfer_id:?})");
-                // `read_tensor_async` is sync at construction (it locks handles, fetches
-                // the tensor primitive) and returns a future for the actual data read.
+                // Same shape as `ReadTensor`: the sync part of `read_tensor_async` runs
+                // inline to preserve stream ordering, but the readback + expose are
+                // detached so a cross-server hand-off doesn't stall this client's op
+                // registration on a GPU→host copy. A target that downloads before the
+                // expose lands simply blocks on the data service's `new_tensor_notify`,
+                // so there is no race.
                 let fut = StreamId::current().executes(|| runner.read_tensor_async(tensor));
-                let data = fut.await.map_err(|e| {
-                    format!("read_tensor_async for transfer {transfer_id:?} failed: {e:?}")
-                })?;
-                sm.data_service.expose_data(data, count, transfer_id).await;
+                let data_service = sm.data_service.clone();
+                tokio::spawn(async move {
+                    match fut.await {
+                        Ok(data) => {
+                            data_service.expose_data(data, count, transfer_id).await;
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "read_tensor_async for transfer {transfer_id:?} failed: {e:?}"
+                            );
+                        }
+                    }
+                });
                 Ok(())
             }
             ComputeTask::Seed(seed) => {
@@ -313,15 +326,32 @@ where
                 Ok(())
             }
             ComputeTask::ReadTensor(request_id, stream_id, tensor) => {
+                // `read_tensor_async` is sync at construction — it locks the context and
+                // captures the tensor's position in the command stream — and returns a
+                // future for the actual host readback. Run the sync part inline (so
+                // ordering vs. later ops is preserved), then detach the readback await
+                // onto its own task. Awaiting it inline would stall the request loop on
+                // the GPU→host copy and stop us registering subsequent ops, draining the
+                // device queue into a bubble. The client demuxes responses by request id,
+                // so out-of-order completion is fine.
                 let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
-                let data = fut.await;
-                Self::send_response(
-                    sm,
-                    session_id,
-                    request_id,
-                    TaskResponseContent::ReadTensor(data),
-                )
-                .await
+                let sender = sm.response_sender(session_id).await;
+                tokio::spawn(async move {
+                    let data = fut.await;
+                    if sender
+                        .send(TaskResponse {
+                            content: TaskResponseContent::ReadTensor(data),
+                            id: request_id,
+                        })
+                        .await
+                        .is_err()
+                    {
+                        log::warn!(
+                            "Response receiver dropped before read for request {request_id} could be sent"
+                        );
+                    }
+                });
+                Ok(())
             }
             ComputeTask::SyncBackend(request_id, stream_id) => {
                 let res = stream_id.executes(|| runner.sync());
