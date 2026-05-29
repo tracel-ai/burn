@@ -309,7 +309,9 @@ impl<C: ProtocolClient> RemoteService<C> {
     }
 
     pub fn register_tensor(&mut self, stream_id: StreamId, id: TensorId, data: TensorData) {
-        self.submit(Task::Compute(ComputeTask::RegisterTensor(stream_id, id, data)));
+        self.submit(Task::Compute(ComputeTask::RegisterTensor(
+            stream_id, id, data,
+        )));
     }
 
     /// Optimistic: the cross-server transfer task is buffered like any other. The next
@@ -317,7 +319,9 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// they wait — so as long as a barrier follows shortly, the source server has had
     /// time to expose the tensor before the target server starts downloading.
     pub fn register_tensor_remote(&mut self, tensor: TensorRemote, new_id: TensorId) {
-        self.submit(Task::Compute(ComputeTask::RegisterTensorRemote(tensor, new_id)));
+        self.submit(Task::Compute(ComputeTask::RegisterTensorRemote(
+            tensor, new_id,
+        )));
     }
 
     pub fn expose_tensor_remote(
@@ -420,10 +424,7 @@ impl<C: ProtocolClient> RemoteService<C> {
             .expect("Send to remote request stream failed");
     }
 
-    fn register_callback(
-        &self,
-        request_id: RequestId,
-    ) -> oneshot::Receiver<TaskResponseContent> {
+    fn register_callback(&self, request_id: RequestId) -> oneshot::Receiver<TaskResponseContent> {
         let (tx, rx) = oneshot::channel();
         let pending = self.pending.clone();
         self.runtime

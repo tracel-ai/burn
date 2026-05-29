@@ -220,8 +220,14 @@ where
                 }
             }
             if closed {
-                return;
+                break;
             }
+        }
+
+        if let Some(id) = session_id {
+            log::info!("Closing session {id}");
+        } else {
+            log::info!("Closing session (no id info)");
         }
     }
 
