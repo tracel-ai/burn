@@ -45,7 +45,11 @@ macro_rules! dispatch_distributed_devices_arms {
                     print_type_of($device);
                     print_type_of(&$device.clone());
                     $devices
-                        .iter().for_each(|d| print_type_of(d));
+                        .iter().for_each(|d| {
+                            print_type_of(d);
+                            println!("{:?}", discriminant(d));
+                            println!("{:?}", discriminant($device));
+                    });
                     assert!(
                         $devices
                             .iter()
@@ -82,7 +86,11 @@ macro_rules! dispatch_distributed_devices_arms {
                     print_type_of($device);
                     print_type_of(&$device.clone());
                     $devices
-                        .iter().for_each(|d| print_type_of(d));
+                        .iter().for_each(|d| {
+                            print_type_of(d);
+                            println!("{:?}", discriminant(d));
+                            println!("{:?}", discriminant($device));
+                    });
                     assert!(
                         $devices
                             .iter()
