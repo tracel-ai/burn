@@ -8,6 +8,7 @@ use serial_test::serial;
 #[test]
 #[serial]
 fn should_diff_all_reduce_sum() {
+    println!("SUM");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
     if devices.len() < 2 {
         return;
@@ -28,6 +29,7 @@ fn should_diff_all_reduce_sum() {
 #[test]
 #[serial]
 fn should_diff_all_reduce_mean() {
+    println!("MEAN");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
     println!("{}", devices.len());
     if devices.len() < 2 {
@@ -49,6 +51,7 @@ fn should_diff_all_reduce_mean() {
 #[test]
 #[serial]
 fn should_diff_all_reduce_complex_1() {
+    println!("COMPLEX");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
     if devices.len() < 2 {
         return;
@@ -95,6 +98,7 @@ fn should_diff_all_reduce_complex_1() {
 #[test]
 #[serial]
 fn should_diff_all_reduce_all_devices() {
+    println!("ALL");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
 
     let input = devices
