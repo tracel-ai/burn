@@ -6,9 +6,9 @@ use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
 use crate::Device;
 use crate::bridge::{BasicOps, Numeric};
-use crate::ops::{BridgeTensor, ComplexKind, FloatMathOps};
+use crate::ops::{BridgeTensor, Complex, FloatMathOps};
 
-impl BasicOps for ComplexKind {
+impl BasicOps for Complex {
     fn empty(shape: Shape, device: &Device, dtype: DType) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_zeros(
             shape,
@@ -390,7 +390,7 @@ pub(crate) trait ComplexOps: FloatMathOps {
     fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> BridgeTensor;
 }
 
-impl ComplexOps for ComplexKind {
+impl ComplexOps for Complex {
     fn conj(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_conj(tensor.into_complex()))
     }
@@ -442,7 +442,7 @@ impl ComplexOps for ComplexKind {
     }
 }
 
-impl Numeric for ComplexKind {
+impl Numeric for Complex {
     fn add(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_add(
             lhs.into_complex(),
@@ -596,7 +596,7 @@ impl Numeric for ComplexKind {
     }
 }
 
-impl FloatMathOps for ComplexKind {
+impl FloatMathOps for Complex {
     fn square(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_powf_scalar(
             tensor.into_complex(),

@@ -3,7 +3,7 @@ use burn_std::Element;
 use burn_std::Scalar;
 use burn_std::cast::ToElement;
 
-use crate::ComplexKind;
+use crate::Complex;
 use crate::Float;
 
 use crate::Tensor;
@@ -23,13 +23,14 @@ impl<const D: usize, K: Numeric + CompoundTensorKind> core::ops::Add<Self> for S
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::add(self, rhs)
+        //K::add(self., rhs)
+        todo!()
     }
 }
 
 // SplitTensor + Tensor<D, Float> — adds real tensor to the real part
 impl<const D: usize, K: Numeric + BasicOps> core::ops::Add<Tensor<D, K>>
-    for SplitTensor<D, ComplexKind>
+    for SplitTensor<D, Complex>
 {
     type Output = Self;
 
@@ -44,7 +45,7 @@ impl<const D: usize, K: Numeric + BasicOps> core::ops::Add<Tensor<D, K>>
 macro_rules! impl_complex_tensor_add_scalar {
     ($($t:ty),*) => {
         $(
-            impl<const D: usize> core::ops::Add<$t> for SplitTensor<D,ComplexKind> {
+            impl<const D: usize> core::ops::Add<$t> for SplitTensor<D,Complex> {
                 type Output = Self;
 
                 fn add(self, rhs: $t) -> Self::Output {
@@ -56,7 +57,7 @@ macro_rules! impl_complex_tensor_add_scalar {
 }
 impl_complex_tensor_add_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<const D: usize, E: Element> core::ops::Add<ComplexScalar<E>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, E: Element> core::ops::Add<ComplexScalar<E>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn add(self, rhs: ComplexScalar<E>) -> Self::Output {
@@ -64,7 +65,7 @@ impl<const D: usize, E: Element> core::ops::Add<ComplexScalar<E>> for SplitTenso
     }
 }
 // Tensor - tensor
-impl<const D: usize> core::ops::Sub<Self> for SplitTensor<D, ComplexKind> {
+impl<const D: usize> core::ops::Sub<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -73,7 +74,7 @@ impl<const D: usize> core::ops::Sub<Self> for SplitTensor<D, ComplexKind> {
 }
 
 // SplitTensor - Tensor<D, Float>
-impl<const D: usize, K: Numeric> core::ops::Sub<Tensor<D, K>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, K: Numeric> core::ops::Sub<Tensor<D, K>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn sub(self, rhs: Tensor<D, K>) -> Self::Output {
@@ -87,7 +88,7 @@ impl<const D: usize, K: Numeric> core::ops::Sub<Tensor<D, K>> for SplitTensor<D,
 macro_rules! impl_complex_tensor_sub_scalar {
     ($($t:ty),*) => {
         $(
-            impl<const D: usize> core::ops::Sub<$t> for SplitTensor<D,ComplexKind> {
+            impl<const D: usize> core::ops::Sub<$t> for SplitTensor<D,Complex> {
                 type Output = Self;
 
                 fn sub(self, rhs: $t) -> Self::Output {
@@ -99,7 +100,7 @@ macro_rules! impl_complex_tensor_sub_scalar {
 }
 impl_complex_tensor_sub_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<const D: usize, E: Element> core::ops::Sub<ComplexScalar<E>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, E: Element> core::ops::Sub<ComplexScalar<E>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn sub(self, rhs: ComplexScalar<E>) -> Self::Output {
@@ -108,7 +109,7 @@ impl<const D: usize, E: Element> core::ops::Sub<ComplexScalar<E>> for SplitTenso
 }
 
 // Tensor * tensor
-impl<const D: usize> core::ops::Mul<Self> for SplitTensor<D, ComplexKind> {
+impl<const D: usize> core::ops::Mul<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -117,7 +118,7 @@ impl<const D: usize> core::ops::Mul<Self> for SplitTensor<D, ComplexKind> {
 }
 
 // SplitTensor * Tensor<D, K>
-impl<const D: usize, K: Numeric> core::ops::Mul<Tensor<D, K>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, K: Numeric> core::ops::Mul<Tensor<D, K>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn mul(self, rhs: Tensor<D, K>) -> Self::Output {
@@ -131,7 +132,7 @@ impl<const D: usize, K: Numeric> core::ops::Mul<Tensor<D, K>> for SplitTensor<D,
 macro_rules! impl_complex_tensor_mul_scalar {
     ($($t:ty),*) => {
         $(
-            impl<const D: usize> core::ops::Mul<$t> for SplitTensor<D,ComplexKind> {
+            impl<const D: usize> core::ops::Mul<$t> for SplitTensor<D,Complex> {
                 type Output = Self;
 
                 fn mul(self, rhs: $t) -> Self::Output {
@@ -143,7 +144,7 @@ macro_rules! impl_complex_tensor_mul_scalar {
 }
 impl_complex_tensor_mul_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<const D: usize, E: Element> core::ops::Mul<ComplexScalar<E>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, E: Element> core::ops::Mul<ComplexScalar<E>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn mul(self, rhs: ComplexScalar<E>) -> Self::Output {
@@ -152,7 +153,7 @@ impl<const D: usize, E: Element> core::ops::Mul<ComplexScalar<E>> for SplitTenso
 }
 
 // Tensor / tensor
-impl<const D: usize> core::ops::Div<Self> for SplitTensor<D, ComplexKind> {
+impl<const D: usize> core::ops::Div<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -161,7 +162,7 @@ impl<const D: usize> core::ops::Div<Self> for SplitTensor<D, ComplexKind> {
 }
 
 // SplitTensor / Tensor<D, Float>
-impl<const D: usize, K: Numeric> core::ops::Div<Tensor<D, K>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, K: Numeric> core::ops::Div<Tensor<D, K>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn div(self, rhs: Tensor<D, K>) -> Self::Output {
@@ -175,7 +176,7 @@ impl<const D: usize, K: Numeric> core::ops::Div<Tensor<D, K>> for SplitTensor<D,
 macro_rules! impl_complex_tensor_div_scalar {
     ($($t:ty),*) => {
         $(
-            impl<const D: usize> core::ops::Div<$t> for SplitTensor<D,ComplexKind> {
+            impl<const D: usize> core::ops::Div<$t> for SplitTensor<D,Complex> {
                 type Output = Self;
 
                 fn div(self, rhs: $t) -> Self::Output {
@@ -187,7 +188,7 @@ macro_rules! impl_complex_tensor_div_scalar {
 }
 impl_complex_tensor_div_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<const D: usize, E: Element> core::ops::Div<ComplexScalar<E>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, E: Element> core::ops::Div<ComplexScalar<E>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn div(self, rhs: ComplexScalar<E>) -> Self::Output {
@@ -196,7 +197,7 @@ impl<const D: usize, E: Element> core::ops::Div<ComplexScalar<E>> for SplitTenso
 }
 
 // Tensor % tensor
-impl<const D: usize> core::ops::Rem<Self> for SplitTensor<D, ComplexKind> {
+impl<const D: usize> core::ops::Rem<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn rem(self, rhs: Self) -> Self::Output {
@@ -205,7 +206,7 @@ impl<const D: usize> core::ops::Rem<Self> for SplitTensor<D, ComplexKind> {
 }
 
 // SplitTensor % Tensor<D, Float>
-impl<const D: usize, K: Numeric> core::ops::Rem<Tensor<D, K>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, K: Numeric> core::ops::Rem<Tensor<D, K>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn rem(self, rhs: Tensor<D, K>) -> Self::Output {
@@ -219,7 +220,7 @@ impl<const D: usize, K: Numeric> core::ops::Rem<Tensor<D, K>> for SplitTensor<D,
 macro_rules! impl_complex_tensor_rem_scalar {
     ($($t:ty),*) => {
         $(
-            impl<const D: usize> core::ops::Rem<$t> for SplitTensor<D,ComplexKind> {
+            impl<const D: usize> core::ops::Rem<$t> for SplitTensor<D,Complex> {
                 type Output = Self;
 
                 fn rem(self, rhs: $t) -> Self::Output {
@@ -231,7 +232,7 @@ macro_rules! impl_complex_tensor_rem_scalar {
 }
 impl_complex_tensor_rem_scalar!(f32, f64, i32, i64, u32, u64);
 
-impl<const D: usize, E: Element> core::ops::Rem<ComplexScalar<E>> for SplitTensor<D, ComplexKind> {
+impl<const D: usize, E: Element> core::ops::Rem<ComplexScalar<E>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn rem(self, rhs: ComplexScalar<E>) -> Self::Output {
@@ -239,7 +240,7 @@ impl<const D: usize, E: Element> core::ops::Rem<ComplexScalar<E>> for SplitTenso
     }
 }
 
-impl<const D: usize> core::ops::Neg for SplitTensor<D, ComplexKind> {
+impl<const D: usize> core::ops::Neg for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {

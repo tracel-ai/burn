@@ -10,13 +10,14 @@ use crate::{Backend, BackendTypes, ops::ComplexTensorOps};
 ///
 /// Current layouts include interleaved complex values (real/imaginary pairs stored
 /// together), but additional layouts may be added in the future.
-pub trait Layout {}
+pub trait Layout: Clone + core::fmt::Debug + std::marker::Sync + std::marker::Send +'static {}
 
 /// Trait for compound tensors that are composed of multiple component tensors.
-pub trait SplitLayout<B: Backend>: Layout {
-    const COMPONENTS: usize;
+pub trait SplitLayout: Layout {
+    const COMP: usize;
 }
 
+#[derive(Clone, Debug)]
 /// Indicates that the underlying implementation uses a complex primitive type \[float,float\] like that found in the
 /// num_complex trait.
 pub struct InterleavedLayout {

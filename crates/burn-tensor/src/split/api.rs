@@ -9,8 +9,8 @@ use crate::{
     bool_or_impl,
     check::TensorCheck,
     kind::{Basic, Numeric},
-    ops::{BasicOps, CompoundTensorKind, FloatMathOps},
-    split::base::SplitTensor,
+    ops::{BasicOps, CompoundTensorKind, FloatMathOps}, split::base::SplitTensor,
+    //split::base::SplitTensor,
 };
 
 impl<const D: usize, K: CompoundTensorKind + Basic> SplitTensor<D, K> {

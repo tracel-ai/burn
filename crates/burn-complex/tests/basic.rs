@@ -1,6 +1,6 @@
 mod common;
 
-use burn_tensor::{Bool, ComplexKind, ComplexScalar, IndexingUpdateOp, Int, Tensor, TensorData};
+use burn_tensor::{Bool, Complex, ComplexScalar, IndexingUpdateOp, Int, Tensor, TensorData};
 use common::*;
 
 macro_rules! gen_tests {
@@ -18,29 +18,29 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
@@ -57,21 +57,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
@@ -84,11 +84,11 @@ macro_rules! gen_tests {
                     #[test]
                     fn test_complex_from_data() {
                         let data = TensorData::from([[
-                            Complex::<f32> {
+                            ComplexScalar::<f32> {
                                 real: 1.0,
                                 imag: 2.0,
                             },
-                            Complex::<f32> {
+                            ComplexScalar::<f32> {
                                 real: 3.0,
                                 imag: 4.0,
                             },
@@ -104,19 +104,19 @@ macro_rules! gen_tests {
                     fn test_complex_reshape() {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([[
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 },
@@ -129,21 +129,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                [Complex::<f32> {
+                                [ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 }],
-                                [Complex::<f32> {
+                                [ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 }],
                             ],
                             [
-                                [Complex::<f32> {
+                                [ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 }],
-                                [Complex::<f32> {
+                                [ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 }],
@@ -158,21 +158,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 4.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 6.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 7.0,
                                         imag: 8.0,
                                     },
@@ -186,21 +186,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 },
@@ -215,21 +215,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 4.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 6.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 7.0,
                                         imag: 8.0,
                                     },
@@ -242,21 +242,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 },
@@ -271,29 +271,29 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 5.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 6.0,
                                         imag: 6.0,
                                     },
@@ -305,11 +305,11 @@ macro_rules! gen_tests {
                         let data = tensor.slice([0..1, 1..3]).into_data();
 
                         let expected = TensorData::from([[
-                            Complex::<f32> {
+                            ComplexScalar::<f32> {
                                 real: 2.0,
                                 imag: 2.0,
                             },
-                            Complex::<f32> {
+                            ComplexScalar::<f32> {
                                 real: 3.0,
                                 imag: 3.0,
                             },
@@ -322,11 +322,11 @@ macro_rules! gen_tests {
                     fn test_complex_repeat_dim() {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([[
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -338,21 +338,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -366,11 +366,11 @@ macro_rules! gen_tests {
                     fn test_complex_cat() {
                         let t1 = TestTensor::<2>::from_data(
                             TensorData::from([[
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -379,11 +379,11 @@ macro_rules! gen_tests {
                         );
                         let t2 = TestTensor::<2>::from_data(
                             TensorData::from([[
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 },
@@ -395,21 +395,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 },
@@ -423,11 +423,11 @@ macro_rules! gen_tests {
                     fn test_complex_equal() {
                         let t1 = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -436,11 +436,11 @@ macro_rules! gen_tests {
                         );
                         let t2 = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
@@ -457,11 +457,11 @@ macro_rules! gen_tests {
                     fn test_complex_not_equal() {
                         let t1 = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -470,11 +470,11 @@ macro_rules! gen_tests {
                         );
                         let t2 = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
@@ -496,11 +496,11 @@ macro_rules! gen_tests {
 
                         let tensor = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
@@ -518,21 +518,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 0.0,
                                         imag: 0.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 0.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 0.0,
                                         imag: 0.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 0.0,
                                         imag: 0.0,
                                     },
@@ -552,11 +552,11 @@ macro_rules! gen_tests {
                     fn test_complex_all() {
                         let tensor = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 2.0,
                                 },
@@ -570,11 +570,11 @@ macro_rules! gen_tests {
 
                         let tensor = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
@@ -592,21 +592,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 0.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 0.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 0.0,
                                         imag: 0.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 0.0,
                                     },
@@ -627,21 +627,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 4.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 6.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 7.0,
                                         imag: 8.0,
                                     },
@@ -655,21 +655,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 },
@@ -683,11 +683,11 @@ macro_rules! gen_tests {
                     fn test_complex_expand() {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([[
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -700,31 +700,31 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -739,21 +739,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 4.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 6.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 7.0,
                                         imag: 8.0,
                                     },
@@ -766,21 +766,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 6.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 7.0,
                                     imag: 8.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -795,19 +795,19 @@ macro_rules! gen_tests {
                         // shape [4] -> unfold(0, size=2, step=1) -> shape [3, 2]
                         let tensor = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 2.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 4.0,
                                     imag: 0.0,
                                 },
@@ -820,31 +820,31 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 2.0,
                                     imag: 0.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 2.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 4.0,
                                     imag: 0.0,
                                 },
@@ -859,21 +859,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
@@ -883,11 +883,11 @@ macro_rules! gen_tests {
                         );
                         let values = TestTensor::<2>::from_data(
                             TensorData::from([[
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 9.0,
                                     imag: 9.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 8.0,
                                     imag: 8.0,
                                 },
@@ -899,21 +899,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 9.0,
                                     imag: 9.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 8.0,
                                     imag: 8.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 4.0,
                                     imag: 4.0,
                                 },
@@ -928,31 +928,31 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 4.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 6.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 7.0,
                                         imag: 8.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 9.0,
                                         imag: 10.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 11.0,
                                         imag: 12.0,
                                     },
@@ -967,21 +967,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 9.0,
                                     imag: 10.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 11.0,
                                     imag: 12.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -994,7 +994,7 @@ macro_rules! gen_tests {
                     #[test]
                     fn test_complex_full() {
                         // Fills via scalar; the real part is propagated (imag always 0 via ElementConversion).
-                        let fill = Complex::<f32> {
+                        let fill = ComplexScalar::<f32> {
                             real: 3.0,
                             imag: 0.0,
                         };
@@ -1003,21 +1003,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
@@ -1033,15 +1033,15 @@ macro_rules! gen_tests {
                         // so this exercises the real-part equality path.
                         let tensor = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
@@ -1050,7 +1050,7 @@ macro_rules! gen_tests {
                         );
 
                         let result = tensor
-                            .equal_elem(Complex::<f32> {
+                            .equal_elem(ComplexScalar::<f32> {
                                 real: 1.0,
                                 imag: 0.0,
                             })
@@ -1065,15 +1065,15 @@ macro_rules! gen_tests {
                         // so this exercises the real-part inequality path.
                         let tensor = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 0.0,
                                 },
@@ -1082,7 +1082,7 @@ macro_rules! gen_tests {
                         );
 
                         let result = tensor
-                            .not_equal_elem(Complex::<f32> {
+                            .not_equal_elem(ComplexScalar::<f32> {
                                 real: 1.0,
                                 imag: 0.0,
                             })
@@ -1096,21 +1096,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
@@ -1121,21 +1121,21 @@ macro_rules! gen_tests {
                         let source = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 9.0,
                                         imag: 9.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 9.0,
                                         imag: 9.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 9.0,
                                         imag: 9.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 9.0,
                                         imag: 9.0,
                                     },
@@ -1152,21 +1152,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 9.0,
                                     imag: 9.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 2.0,
                                     imag: 2.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 9.0,
                                     imag: 9.0,
                                 },
@@ -1181,21 +1181,21 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
@@ -1211,7 +1211,7 @@ macro_rules! gen_tests {
                         let data = tensor
                             .mask_fill(
                                 mask,
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
@@ -1220,21 +1220,21 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 2.0,
                                     imag: 2.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
@@ -1250,29 +1250,29 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 5.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 6.0,
                                         imag: 6.0,
                                     },
@@ -1289,29 +1289,29 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 1.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 5.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 4.0,
                                     imag: 4.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 2.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 6.0,
                                     imag: 6.0,
                                 },
@@ -1333,21 +1333,21 @@ macro_rules! gen_tests {
                         let values = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
@@ -1363,21 +1363,21 @@ macro_rules! gen_tests {
                         // out[0, 0] += 1+1i; out[0, 1] += 2+2i + 4+4i = 6+6i; out[1, 0] += 3+3i
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 1.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 6.0,
                                     imag: 6.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 0.0,
                                     imag: 0.0,
                                 },
@@ -1393,31 +1393,31 @@ macro_rules! gen_tests {
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 5.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 6.0,
                                         imag: 6.0,
                                     },
@@ -1430,21 +1430,21 @@ macro_rules! gen_tests {
                         let values = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 10.0,
                                         imag: 10.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 20.0,
                                         imag: 20.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 30.0,
                                         imag: 30.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 40.0,
                                         imag: 40.0,
                                     },
@@ -1459,31 +1459,31 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 11.0,
                                     imag: 11.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 22.0,
                                     imag: 22.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 4.0,
                                     imag: 4.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 35.0,
                                     imag: 35.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 46.0,
                                     imag: 46.0,
                                 },
@@ -1502,31 +1502,31 @@ macro_rules! gen_tests {
                         let data = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 5.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 6.0,
                                         imag: 6.0,
                                     },
@@ -1543,21 +1543,21 @@ macro_rules! gen_tests {
                         let values = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 10.0,
                                         imag: 10.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 20.0,
                                         imag: 20.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 30.0,
                                         imag: 30.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 40.0,
                                         imag: 40.0,
                                     },
@@ -1572,31 +1572,31 @@ macro_rules! gen_tests {
 
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 10.0,
                                     imag: 10.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 20.0,
                                     imag: 20.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 4.0,
                                     imag: 4.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 30.0,
                                     imag: 30.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 40.0,
                                     imag: 40.0,
                                 },
@@ -1614,29 +1614,29 @@ macro_rules! gen_tests {
                         let data = TestTensor::<2>::from_data(
                             TensorData::from([
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 1.0,
                                         imag: 1.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 2.0,
                                         imag: 2.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 3.0,
                                         imag: 3.0,
                                     },
                                 ],
                                 [
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 4.0,
                                         imag: 4.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 5.0,
                                         imag: 5.0,
                                     },
-                                    Complex::<f32> {
+                                    ComplexScalar::<f32> {
                                         real: 6.0,
                                         imag: 6.0,
                                     },
@@ -1654,11 +1654,11 @@ macro_rules! gen_tests {
                         // values: shape [2] — one scalar per index tuple
                         let values = TestTensor::<1>::from_data(
                             TensorData::from([
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 10.0,
                                     imag: 10.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 20.0,
                                     imag: 20.0,
                                 },
@@ -1673,29 +1673,29 @@ macro_rules! gen_tests {
                         // data[0,1] += (10+10i), data[1,2] += (20+20i)
                         let expected = TensorData::from([
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 1.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 12.0,
                                     imag: 12.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 3.0,
                                 },
                             ],
                             [
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 4.0,
                                     imag: 4.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 5.0,
                                     imag: 5.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 26.0,
                                     imag: 26.0,
                                 },
@@ -1710,11 +1710,11 @@ macro_rules! gen_tests {
                         let device = Default::default();
                         let tensor = TestTensor::<2>::from_data(
                             TensorData::from([[
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 1.0,
                                     imag: 2.0,
                                 },
-                                Complex::<f32> {
+                                ComplexScalar::<f32> {
                                     real: 3.0,
                                     imag: 4.0,
                                 },
@@ -1733,4 +1733,4 @@ macro_rules! gen_tests {
 }
 
 //gen_tests!(split, SplitComplexTensor<TestBackend, D>);
-gen_tests!(interleaved, Tensor<D,ComplexKind> );
+gen_tests!(interleaved, Tensor<D,Complex> );

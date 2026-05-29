@@ -1,5 +1,5 @@
 #![allow(clippy::single_range_in_vec_init)]
-use crate::bridge::ComplexKind;
+use crate::bridge::Complex;
 use crate::check::unwrap_shape_reshape;
 use crate::kind::Basic;
 use crate::ops::BridgeTensor;
@@ -3053,7 +3053,7 @@ async fn into_data_async_impl(
         TensorKindId::Float => <crate::Float as BasicOps>::into_data_async(primitive).await,
         TensorKindId::Int => <crate::Int as BasicOps>::into_data_async(primitive).await,
         TensorKindId::Bool => <crate::Bool as BasicOps>::into_data_async(primitive).await,
-        TensorKindId::Complex => <ComplexKind as BasicOps>::into_data_async(primitive).await,
+        TensorKindId::Complex => <Complex as BasicOps>::into_data_async(primitive).await,
     }
 }
 
@@ -3067,7 +3067,7 @@ fn slice_bridge_by_kind(
         TensorKindId::Float => <crate::Float as BasicOps>::slice(p, slices),
         TensorKindId::Int => <crate::Int as BasicOps>::slice(p, slices),
         TensorKindId::Bool => <crate::Bool as BasicOps>::slice(p, slices),
-        TensorKindId::Complex => <ComplexKind as BasicOps>::slice(p, slices),
+        TensorKindId::Complex => <Complex as BasicOps>::slice(p, slices),
     }
 }
 
@@ -3282,7 +3282,7 @@ fn display_fmt_impl(
         crate::ops::TensorKindId::Int => <crate::Int as crate::ops::BasicOps>::device(primitive),
         crate::ops::TensorKindId::Bool => <crate::Bool as crate::ops::BasicOps>::device(primitive),
         crate::ops::TensorKindId::Complex => {
-            <crate::bridge::ComplexKind as crate::ops::BasicOps>::device(primitive)
+            <crate::bridge::Complex as crate::ops::BasicOps>::device(primitive)
         }
     };
     writeln!(f, "  device:  {:?},", device)?;

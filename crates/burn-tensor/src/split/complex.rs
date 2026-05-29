@@ -5,25 +5,28 @@ use burn_std::{
 };
 
 use crate::{
-    Bool, BroadcastArgs, ComplexKind, Device, Float, Int, ReshapeArgs, Tensor,
+    Bool, BroadcastArgs, Complex, Device, Float, Int, ReshapeArgs, Tensor,
     TensorCreationOptions, atan2_impl, bool_and_impl, bool_or_impl,
     check::TensorCheck,
+    
     ops::{BasicOps, BridgeTensor, FloatMathOps, Numeric},
     split::base::{SplitPrimitive, SplitTensor},
 };
 
-pub struct SplitComplexLayout<B> {
-    _marker: core::marker::PhantomData<B>,
-}
+
+#[derive(Clone, Debug)]
+pub struct SplitComplexLayout;
+
+pub type SplitComplex = Complex;//<SplitComplexLayout>;
 
 mod backend;
 
-impl<B> Layout for SplitComplexLayout<B> {}
-impl<B: Backend> SplitLayout<B> for SplitComplexLayout<B> {
-    const COMPONENTS: usize = 2;
+impl Layout for SplitComplexLayout {}
+impl SplitLayout for SplitComplexLayout {
+    const COMP: usize = 2;
 }
 
-impl<const D: usize> SplitTensor<D, ComplexKind> {
+impl<const D: usize> SplitTensor<D, Complex> {
     pub fn new(real: BridgeTensor, imag: BridgeTensor) -> Self {
         assert_eq!(
             real.shape(),
@@ -151,7 +154,7 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
 }
 
 // ComplexOps
-impl<const D: usize> SplitTensor<D, ComplexKind> {
+impl<const D: usize> SplitTensor<D, Complex> {
     /// Returns the complex conjugate of each element.
     ///
     /// For a complex number `a + bi`, the conjugate is `a - bi`.
@@ -333,7 +336,7 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
 
 // Basic Operations that should be generic but I haven't yet figured out how to make them work in safe rust
 // Pretty much every operation that either creates a new tensor without a self argument, or potentially changes the rank
-impl<const D: usize> SplitTensor<D, ComplexKind> {
+impl<const D: usize> SplitTensor<D, Complex> {
     /// Create an empty complex tensor of the given shape.
     ///
     /// # Arguments
@@ -497,7 +500,7 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
         dim: I,
         size: usize,
         step: usize,
-    ) -> SplitTensor<D2, ComplexKind> {
+    ) -> SplitTensor<D2, Complex> {
         let dim = dim.expect_dim_index(D);
         let [real, imag] = self.components;
         SplitTensor::new(
@@ -522,7 +525,7 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
     pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(
         self,
         shape: S,
-    ) -> SplitTensor<D2, ComplexKind> {
+    ) -> SplitTensor<D2, Complex> {
         let shape = shape.into_shape(&self.shape());
         crate::check!(TensorCheck::expand::<D, D2>(
             "expand",
@@ -530,7 +533,7 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
             &shape,
         ));
         let [real, imag] = self.components;
-        SplitTensor::<D2, ComplexKind>::new(
+        SplitTensor::<D2, Complex>::new(
             Float::expand(real, shape.clone()),
             Float::expand(imag, shape),
         )
@@ -548,11 +551,11 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
     pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(
         self,
         shape: S,
-    ) -> SplitTensor<D2, ComplexKind> {
+    ) -> SplitTensor<D2, Complex> {
         // Convert reshape args to shape
         let shape = shape.into_shape::<D2>(self.shape());
         let [real, imag] = self.components;
-        SplitTensor::<D2, ComplexKind>::new(
+        SplitTensor::<D2, Complex>::new(
             Float::reshape(real, shape.clone()),
             Float::reshape(imag, shape),
         )
@@ -580,7 +583,7 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
     }
 }
 // Numeric operations that won't be the same universally
-impl<const D: usize> SplitTensor<D, ComplexKind> {
+impl<const D: usize> SplitTensor<D, Complex> {
     pub fn squared_norm(self) -> Tensor<D, Float> {
         let [real, imag] = self.components;
         let real_sq = Float::mul(real.clone(), real);
@@ -967,7 +970,7 @@ impl<const D: usize> SplitTensor<D, ComplexKind> {
         // Compute arg: atan2(imag, real)
         let arg = atan2_impl(imag, real);
 
-        SplitTensor::<D, ComplexKind>::new(norm.log().primitive, arg)
+        SplitTensor::<D, Complex>::new(norm.log().primitive, arg)
     }
     /// Applies element-wise complex square root.
     pub fn sqrt(self) -> Self {

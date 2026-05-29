@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    TensorMetadata, TensorPrimitive, get_device_settings,
-    ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
+    InterleavedLayout, Layout, SplitLayout, TensorMetadata, TensorPrimitive, get_device_settings, ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps, IntTensorOps, QTensorOps}
 };
 use burn_dispatch::{Dispatch, DispatchTensor};
 use burn_std::DeviceSettings;
@@ -20,7 +19,10 @@ pub struct Bool;
 
 /// A type-level representation of the kind of a complex tensor.
 #[derive(Clone, Debug)]
-pub struct ComplexKind;
+pub struct Complex;
+// <L: Layout = InterleavedLayout>{
+//     _layout: core::marker::PhantomData<L>,
+// }
 
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
@@ -36,10 +38,10 @@ pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
 
 /// A type-level representation of a compound tensor kind
 /// Metadata access is lazy.
-pub trait CompoundTensorKind: Clone + Send + Sync + core::fmt::Debug {
-    const COMPONENTS: usize;
-    type ComponentsArray: AsRef<[BridgeTensor]> + AsMut<[BridgeTensor]> + Clone;
+pub trait CompoundTensorKind {
     type Inner: TensorKind;
+     const COMPONENTS: usize;
+    type ComponentsArray: AsRef<[BridgeTensor]> + AsMut<[BridgeTensor]> + Clone;
     const INNER_KIND_ID: TensorKindId;
     fn inner_name() -> &'static str {
         Self::INNER_KIND_ID.as_str()
@@ -64,14 +66,15 @@ impl TensorKind for Bool {
     }
 }
 
-impl TensorKind for ComplexKind {
+impl TensorKind for Complex {
     fn id() -> TensorKindId {
         TensorKindId::Complex
     }
 }
 
-impl CompoundTensorKind for ComplexKind {
-    const COMPONENTS: usize = 2;
+
+
+impl CompoundTensorKind for Complex {
     type Inner = Float;
     type ComponentsArray = [BridgeTensor; Self::COMPONENTS];
     const INNER_KIND_ID: TensorKindId = TensorKindId::Float;
@@ -79,6 +82,8 @@ impl CompoundTensorKind for ComplexKind {
     fn inner_name() -> &'static str {
         Self::INNER_KIND_ID.as_str()
     }
+    
+    const COMPONENTS: usize=2;
 }
 
 /// Runtime identifier for a tensor kind.

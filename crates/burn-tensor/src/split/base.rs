@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_backend::{Backend, BackendTypes, DTypeUsageSet, TensorMetadata};
+use burn_backend::{Backend, BackendTypes, DTypeUsageSet, SplitLayout, TensorMetadata};
+use burn_dispatch::{Dispatch, DispatchTensor};
 
-use crate::ops::CompoundTensorKind;
+use crate::{Complex, ops::{BridgeTensor, CompoundTensorKind}, split::complex::SplitComplex};
 
 #[derive(Debug)]
 pub struct SplitTensor<const D: usize, K>
@@ -16,7 +17,6 @@ where
 impl<const D: usize, K> Clone for SplitTensor<D, K>
 where
     K: CompoundTensorKind,
-    K::ComponentsArray: Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -28,33 +28,44 @@ where
 
 #[derive(Debug, Clone)]
 /// A newtype that wraps a real backend B and exposes a split-layout backend.
-pub struct SplitBackend<B: Backend>(core::marker::PhantomData<B>);
+pub struct SplitBackend;
 
-impl<B: Backend> BackendTypes for SplitBackend<B> {
-    type Device = B::Device;
+impl BackendTypes for SplitBackend {
+    type Device = <Dispatch as BackendTypes>::Device;
 
-    type FloatTensorPrimitive = B::FloatTensorPrimitive;
+    type FloatTensorPrimitive = <Dispatch as BackendTypes>::FloatTensorPrimitive;
 
-    type IntTensorPrimitive = B::IntTensorPrimitive;
+    type IntTensorPrimitive = <Dispatch as BackendTypes>::IntTensorPrimitive;
 
-    type BoolTensorPrimitive = B::BoolTensorPrimitive;
+    type BoolTensorPrimitive = <Dispatch as BackendTypes>::BoolTensorPrimitive;
 
-    type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
+    type QuantizedTensorPrimitive = <Dispatch as BackendTypes>::QuantizedTensorPrimitive;
 
     fn dtype_usage(device: &Self::Device, dtype: burn_std::DType) -> DTypeUsageSet {
-        B::dtype_usage(device, dtype)
+        <Dispatch as BackendTypes>::dtype_usage(device, dtype)
     }
 
     fn device_count(type_id: u16) -> usize {
-        B::device_count(type_id)
+        <Dispatch as BackendTypes>::device_count(type_id)
     }
 
-    type ComplexTensorPrimitive = SplitPrimitive<B::FloatTensorPrimitive, 2>;
+    type ComplexTensorPrimitive = SplitPrimitive<<Dispatch as BackendTypes>::FloatTensorPrimitive, 2>;
 }
 
 // Needs to be public to avoid a compile time error related to the visibility of the associated type for the tensor primitive in BackendTypes
 #[derive(Debug, Clone)]
 pub struct SplitPrimitive<T, const N: usize>(pub(super) [T; N]);
+
+impl Into<SplitTensor<2, Complex>> for SplitPrimitive<DispatchTensor, 2>
+{
+    fn into(self) -> SplitTensor<2, Complex> {
+        let [left, right ] = self.0;
+        SplitTensor::new(
+            BridgeTensor::float(left),
+             BridgeTensor::float(right),
+        )
+    }
+}
 
 pub(crate) trait IsNotEmpty {
     const VALID: ();
