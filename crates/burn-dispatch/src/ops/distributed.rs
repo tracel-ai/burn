@@ -10,13 +10,6 @@ use burn_backend::{
     tensor::FloatTensor,
 };
 
-// TODO: REMOVE.
-use std::any::type_name;
-
-fn print_type_of<T>(_: &T) {
-    println!("{}", type_name::<T>());
-}
-
 use crate::{Dispatch, DispatchDevice};
 
 macro_rules! dispatch_distributed_devices_arms {
@@ -46,27 +39,19 @@ macro_rules! dispatch_distributed_devices_arms {
                     })
                     .collect::<Vec<_>>();
                 let inner_devices = inner_devices.as_slice();
-                dispatch_distributed_devices_arms!(
-                    @autodiff
-                    &**inner,
-                    &*inner_devices,
-                    |$inner_devices| $body;
-                    $([$Backend, $cfg]),*
-                )
+                println!("inn: {:?}", inner_devices);
+                println!("inner: {:?}", inner);
+                // dispatch_distributed_devices_arms!(
+                //     @autodiff
+                //     &**inner,
+                //     &*inner_devices,
+                //     |$inner_devices| $body;
+                //     $([$Backend, $cfg]),*
+                // )
             },
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(_) => {
-                    // print_type_of($device);
-                    // print_type_of(&$device.clone());
-                    // $devices
-                    //     .iter().for_each(|d| {
-                    //         print_type_of(d);
-                    //         println!("{:?}", d);
-                    //         println!("{:?}", $device);
-                    //         println!("{:?}", discriminant(d));
-                    //         println!("{:?}", discriminant($device));
-                    // });
                     assert!(
                         $devices
                             .iter()
@@ -74,15 +59,15 @@ macro_rules! dispatch_distributed_devices_arms {
                         "All devices are expected to be of the same variant."
                     );
                     type B = $crate::backends::$Backend;
-                    // let $inner_devices = $devices
-                    //     .iter()
-                    //     .map(|d| {
-                    //         let DispatchDevice::$Backend(dev) = d else {
-                    //             unreachable!()
-                    //         };
-                    //         dev.clone()
-                    //     })
-                    //     .collect::<Vec<_>>();
+                    let $inner_devices = $devices
+                        .iter()
+                        .map(|d| {
+                            let DispatchDevice::$Backend(dev) = d else {
+                                unreachable!()
+                            };
+                            dev.clone()
+                        })
+                        .collect::<Vec<_>>();
                     $body
                 }
             )*
@@ -96,56 +81,24 @@ macro_rules! dispatch_distributed_devices_arms {
         |$inner_devices:ident| $body:expr;
         $([$Backend:ident, $cfg:meta]),*
     ) => {
-        // macro_rules! __inner_match {
-        //     ($val:expr) => {
-        //         match $val {
-        //             $(
-        //                 #[$cfg]
-        //                 $crate::DispatchDevice::$Backend(device_ident) => device_ident.clone(),
-        //             )*
-        //             _ => unreachable!("Invalid backend device mapping"),
-        //         }
-        //     };
-        // }
         match $device {
             $(
                 #[cfg($cfg)]
-                $crate::DispatchDevice::$Backend(inner) => {
-                    println!("{:?}", $device);
-                    println!("{:?}", $devices);
-                    print_type_of($device);
-                    print_type_of(&$device.clone());
-                    $devices
-                        .iter().for_each(|d| {
-                            print_type_of(d);
-                            println!("{:?}", d);
-                            println!("{:?}", $device);
-                            // println!("{:?}", discriminant(d));
-                            println!("{:?}", discriminant($device));
-                    });
-                    // assert!(
-                    //     $devices
-                    //         .iter()
-                    //         .all(|d| discriminant(d) == discriminant($device)),
-                    //     "All devices are expected to be of the same variant."
-                    // );
+                $crate::DispatchDevice::$Backend(_) => {
+                    assert!(
+                        $devices
+                            .iter()
+                            .all(|d| discriminant(d) == discriminant($device)),
+                        "All devices are expected to be of the same variant."
+                    );
                     type B = $crate::backends::Autodiff<$crate::backends::$Backend>;
-                    // let $inner_devices = $devices.clone();
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
-                            let inn = d.inner.clone();
-                            println!("{:?}", inn);
-                            inn
-
-                            // match &d.inner.clone() {
-                            //     $(
-                            //         #[cfg($cfg)]
-                            //         $crate::DispatchDevice::$Backend(device_ident) => device_ident.clone(),
-                            //     )*
-                            //     // Handle the fallback if it's nested autodiff or unsupported
-                            //     _ => unreachable!("Invalid backend device mapping"),
-                            // }
+                            let DispatchDevice::$Backend(dev) = *d.inner else {
+                                unreachable!()
+                            };
+                            dev.clone()
                         })
                         .collect::<Vec<_>>();
                     $body
@@ -153,18 +106,6 @@ macro_rules! dispatch_distributed_devices_arms {
             )*
             $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device."),
             other => panic!("Distributed operations are not supported for device {other:?}"),
-        }
-    };
-}
-
-macro_rules! __inner_match {
-    ($val:expr, $([$Backend:ident, $cfg:meta]),*) => {
-        match $val {
-            $(
-                #[$cfg]
-                $crate::DispatchDevice::$Backend(device_ident) => device_ident.clone(),
-            )*
-            _ => unreachable!("Invalid backend device mapping"),
         }
     };
 }
@@ -184,11 +125,11 @@ macro_rules! dispatch_distributed_devices {
 }
 
 impl DistributedBackend for Dispatch {
-    fn start_communication_server(devices: &[Self::Device], config: DistributedConfig) {
+    fn start_communication_server(devices: &[DispatchDevice], config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];
             dispatch_distributed_devices!(@distributed first, devices, |inner_devices| {
-                // B::start_communication_server(&inner_devices, config)
+                B::start_communication_server(&inner_devices, config)
             });
         }
     }
