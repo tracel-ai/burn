@@ -7,6 +7,13 @@ use serial_test::serial;
 
 #[test]
 #[serial]
+fn size_mismatch() {
+    let device = Device::cuda(0).autodiff();
+    let in_tensor = TestTensor::<1>::from_data([2.0, 5.0], &device).require_grad();
+}
+
+#[test]
+#[serial]
 fn should_diff_all_reduce_sum() {
     println!("SUM");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
