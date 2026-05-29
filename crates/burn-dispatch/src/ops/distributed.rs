@@ -40,6 +40,8 @@ macro_rules! dispatch_distributed_devices_arms {
                             $crate::DispatchDevice::Autodiff(d_inner) => d_inner.clone(),
                             _ => unreachable!("All devices are expected to be of the same variant."),
                         };
+                        println!("inn: {:?}", inn);
+                        println!("inner: {:?}", inner);
                         inn
                     })
                     .collect::<Vec<_>>();
@@ -126,11 +128,15 @@ macro_rules! dispatch_distributed_devices_arms {
                     //     "All devices are expected to be of the same variant."
                     // );
                     type B = $crate::backends::Autodiff<$crate::backends::$Backend>;
-                    let $inner_devices = $devices.clone();
+                    // let $inner_devices = $devices.clone();
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
-                            // match &d {
+                            let inn = d.inner.clone();
+                            println!("{:?}", inn);
+                            inn
+
+                            // match &d.inner.clone() {
                             //     $(
                             //         #[cfg($cfg)]
                             //         $crate::DispatchDevice::$Backend(device_ident) => device_ident.clone(),
