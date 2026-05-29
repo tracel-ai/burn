@@ -37,6 +37,7 @@ impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
         };
 
         let mut client = R::client(device);
+        println!("elemtype : {}", dtype_to_elem_type(out_tensor.dtype),);
         client.all_reduce(
             out_tensor.handle.clone(),
             out_tensor.handle.clone(),
