@@ -19,6 +19,8 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
     ) -> CollectiveTensor<Self> {
+        println!("fusion all_reduce");
+
         #[derive(new, Debug)]
         struct AllReduceOps<B: FusionBackend> {
             desc: AllReduceOpIr,
@@ -56,6 +58,8 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
     }
 
     fn sync_collective(device: &Device<Self>) {
+        println!("fusion sync_collective 1");
+
         let client = get_client::<B>(device);
         client.sync_collective::<B>(device);
     }

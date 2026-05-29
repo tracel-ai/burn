@@ -407,6 +407,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R> + DistributedBackend,
     {
+        println!("fusion sync_collective");
         // Ensure that all operations are resolved before calling sync_collective.
         self.sync(|| ());
         B::sync_collective(device)
@@ -419,6 +420,8 @@ where
     where
         B: FusionBackend<FusionRuntime = R> + DistributedBackend,
     {
+        println!("fusion ensure_init");
+
         let utilities = self
             .server
             .utilities()
@@ -426,6 +429,8 @@ where
             .expect("Can downcast to `FusionUtilities`");
         let id = CommunicationId::from(device_ids);
         if utilities.initialized_comms.read().unwrap().contains(&id) {
+            println!("fusion ensure_init flush");
+
             // Communication initialization is blocking for the server, so we need to flush right away to make sure other devices
             // aren't waiting indefinitely on this initialization call.
             // This is already handled by cubecl, but since fusion adds another layer of streams and asynchronous submits,

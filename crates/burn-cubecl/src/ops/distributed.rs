@@ -16,6 +16,8 @@ impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
     ) -> CollectiveTensor<Self> {
+        println!("cube all_reduce");
+
         let device = &tensor.device.clone();
         let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
             tensor
@@ -46,6 +48,8 @@ impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
     }
 
     fn sync_collective(device: &Device<Self>) {
+        println!("cube sync_collective");
+
         let client = R::client(device);
         client.sync_collective();
     }
