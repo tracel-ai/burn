@@ -1,11 +1,10 @@
 use burn_std::{
-    Complex, ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar,
-    Shape, Slice, SplitTensorData, TensorData,
+    ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice,
+    SplitTensorData, TensorData,
 };
 
 use crate::{
-    BackendTypes, ComplexTensor, ComplexTensorBackend, DefaultComplexOps, InterleavedLayout,
-    TensorMetadata, TypedDevice,
+    BackendTypes, ComplexTensor, ComplexTensorBackend, TensorMetadata,
     ops::IntTensorOps,
     tensor::{Device, FloatTensor, IntTensor},
 };
@@ -15,7 +14,18 @@ use crate::{
 /// This trait defines the low-level API used by higher-level complex tensor types.
 /// Implementations are responsible for device execution, shape semantics, dtype
 /// handling, and numerical behavior of each operation.
-pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
+pub trait ComplexTensorOps<B: ComplexTensorBackend> {
+    /// Gets the device of the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The device of the tensor.
+    fn complex_device(tensor: &ComplexTensor<B>) -> B::Device;
+
     /// Converts the tensor's real component to a data structure.
     ///
     /// # Arguments
@@ -121,9 +131,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
     /// # Returns
     ///
     /// The tensor with the given shape and zeros.
-    fn complex_zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
-        B::Layout::zeros(shape, device, dtype)
-    }
+    fn complex_zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
 
     /// Creates a new complex tensor with ones.
     ///
@@ -135,9 +143,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
     /// # Returns
     ///
     /// The tensor with the given shape and ones.
-    fn complex_ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
-        B::Layout::ones(shape, device, dtype)
-    }
+    fn complex_ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
 
     /// Creates a new complex tensor with the given shape and a single value.
     ///
@@ -155,9 +161,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
         fill_value: Scalar,
         device: &Device<B>,
         dtype: ComplexDType,
-    ) -> ComplexTensor<B> {
-        B::Layout::full(shape, fill_value, device, dtype)
-    }
+    ) -> ComplexTensor<B>;
 
     /// Gets the shape of the tensor.
     ///
@@ -195,7 +199,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
     /// The data structure with the tensor's data.
     fn complex_into_data(
         tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<OutTensorData<B>, ExecutionError>> + Send;
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     /// Reshapes the tensor.
     ///
@@ -502,7 +506,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
     ///
     /// The element-wise complex hyperbolic cosine of `tensor`.
     fn complex_cosh(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
-        let device = B::complex_device(&tensor);
+        let device = Self::complex_device(&tensor);
         let two = Self::complex_full(
             tensor.shape(),
             Scalar::from(2.0_f32),
@@ -1177,50 +1181,3 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend + TypedDevice<B>> {
     /// of all elements up to and including that position along the dimension.
     fn complex_cumprod(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
 }
-
-impl<B> DefaultComplexOps<B> for InterleavedLayout
-where
-    B: ComplexTensorBackend + BackendTypes + TypedDevice<B>,
-{
-    type OutTensorData = TensorData;
-
-    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(
-            match dtype {
-                ComplexDType::Complex64 => TensorData::ones::<Complex<f64>, _>(shape),
-                ComplexDType::Complex32 => TensorData::ones::<Complex<f32>, _>(shape),
-            },
-            device,
-        )
-    }
-
-    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(
-            match dtype {
-                ComplexDType::Complex64 => TensorData::zeros::<Complex<f64>, _>(shape),
-                ComplexDType::Complex32 => TensorData::zeros::<Complex<f32>, _>(shape),
-            },
-            device,
-        )
-    }
-
-    fn full(
-        shape: Shape,
-        fill_value: Scalar,
-        device: &Device<B>,
-        dtype: ComplexDType,
-    ) -> ComplexTensor<B> {
-        B::complex_from_interleaved_data(
-            TensorData::full_dtype(shape, fill_value, dtype.into()),
-            device,
-        )
-    }
-
-    async fn complex_into_data(
-        tensor: ComplexTensor<B>,
-    ) -> Result<Self::OutTensorData, ExecutionError> {
-        B::complex_into_interleaved_data(tensor).await
-    }
-}
-pub(crate) type OutTensorData<B> =
-    <<B as ComplexTensorBackend>::Layout as DefaultComplexOps<B>>::OutTensorData;

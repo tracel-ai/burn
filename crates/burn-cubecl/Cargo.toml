@@ -64,7 +64,6 @@ burn-cubecl-fusion = { workspace = true, optional = true }
 burn-fusion = { workspace = true, optional = true }
 burn-ir = { workspace = true }
 burn-std = { workspace = true }
-bytemuck = { workspace = true }
 burn-backend = { workspace = true, features = [
     "cubecl",
 ] }

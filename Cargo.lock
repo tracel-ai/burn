@@ -841,7 +841,6 @@ dependencies = [
  "burn-fusion",
  "burn-ir",
  "burn-std",
- "bytemuck",
  "cubecl",
  "cubek",
  "derive-new",

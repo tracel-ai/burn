@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
-use cubecl_common::bytes::Bytes;
 
-use crate::{DType, SplitTensorData, TensorData};
+use crate::{DType, TensorData};
 
 /// Converts a real float `TensorData` into interleaved complex `TensorData` by inserting zero
 /// imaginary parts.
@@ -211,7 +210,7 @@ pub fn interleaved_data_to_imag_data(interleaved: TensorData) -> TensorData {
 ///
 /// A [`SplitTensorData`] containing the real and imaginary byte buffers with the same shape.
 #[inline]
-pub fn split_from_interleaved_data(interleaved: TensorData) -> SplitTensorData {
+pub fn split_from_interleaved_data(interleaved: TensorData) -> (TensorData, TensorData) {
     let real_dtype = complex_to_real_dtype(interleaved.dtype);
     let real_elem_size = real_dtype.size();
     let complex_elem_size = interleaved.dtype.size(); // This should be 2 * real_elem_size
@@ -226,12 +225,10 @@ pub fn split_from_interleaved_data(interleaved: TensorData) -> SplitTensorData {
         imag_bytes.extend_from_slice(&chunk[real_elem_size..]);
     }
 
-    SplitTensorData {
-        real_bytes: Bytes::from_bytes_vec(real_bytes),
-        imag_bytes: Bytes::from_bytes_vec(imag_bytes),
-        shape: interleaved.shape,
-        dtype: real_dtype,
-    }
+    (
+        TensorData::from_bytes_vec(real_bytes, interleaved.shape.clone(), real_dtype),
+        TensorData::from_bytes_vec(imag_bytes, interleaved.shape, real_dtype),
+    )
 }
 
 /// Maps a real float [`DType`] to the corresponding complex [`DType`].
@@ -258,10 +255,10 @@ pub const fn real_to_complex_dtype(real_data: DType) -> DType {
 ///
 /// # Panics
 ///
-/// Panics if `real_data` is not a supported complex dtype.
+/// Panics if `complex_dtype` is not a supported complex dtype.
 #[inline(always)]
-pub const fn complex_to_real_dtype(real_data: DType) -> DType {
-    match real_data {
+pub const fn complex_to_real_dtype(complex_dtype: DType) -> DType {
+    match complex_dtype {
         DType::Complex32 => DType::F32,
         DType::Complex64 => DType::F64,
         _ => panic!("c2r: Unsupported dtype"),

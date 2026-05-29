@@ -27,8 +27,8 @@ pub fn cat(tensors: Vec<FlexTensor>, dim: usize) -> FlexTensor {
         DType::U32 => cat_impl::<u32>(tensors, dim),
         DType::U16 => cat_impl::<u16>(tensors, dim),
         DType::U8 | DType::Bool(_) => cat_impl::<u8>(tensors, dim),
-        DType::Complex32 => cat_impl::<burn_std::Complex<f32>>(tensors, dim),
-        DType::Complex64 => cat_impl::<burn_std::Complex<f64>>(tensors, dim),
+        DType::Complex32 => cat_impl::<burn_std::ComplexScalar<f32>>(tensors, dim),
+        DType::Complex64 => cat_impl::<burn_std::ComplexScalar<f64>>(tensors, dim),
         _ => panic!("cat: unsupported dtype {:?}", dtype),
     }
 }

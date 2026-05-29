@@ -1,6 +1,6 @@
-use burn_std::{ComplexDType, ExecutionError, Scalar, Shape, TensorData};
+use burn_std::TensorData;
 
-use crate::{Backend, BackendTypes, TypedDevice, ops::ComplexTensorOps, tensor::Device};
+use crate::{Backend, BackendTypes, ops::ComplexTensorOps};
 
 /// Describes the memory layout used by complex tensor primitives.
 ///
@@ -10,10 +10,11 @@ use crate::{Backend, BackendTypes, TypedDevice, ops::ComplexTensorOps, tensor::D
 ///
 /// Current layouts include interleaved complex values (real/imaginary pairs stored
 /// together), but additional layouts may be added in the future.
-pub trait Layout {
-    // /// The complex Tensor primitive type for this layout. For interleaved, this will be
-    // /// a tensor of Complex\<E\>,for split this will be a tuple tensor Complex\<FloatTensorPrimitive\<E\>, FloatTensorPrimitive\<E\>\>.
-    //type ComplexTensorPrimitive: TensorMetadata + 'static;
+pub trait Layout {}
+
+/// Trait for compound tensors that are composed of multiple component tensors.
+pub trait SplitLayout<B: Backend>: Layout {
+    const COMPONENTS: usize;
 }
 
 /// Indicates that the underlying implementation uses a complex primitive type \[float,float\] like that found in the
@@ -31,9 +32,7 @@ pub type ComplexTensor<B> = <B as BackendTypes>::ComplexTensorPrimitive;
 /// around a standard `Backend` implementation. For backends that don't yet natively support complex
 /// operations, a default implementation exists for any backend that sets the complex primitive to
 /// UnimplmentedTensorPrimitive.
-pub trait ComplexTensorBackend:
-    ComplexTensorOps<Self> + Sized + BackendTypes + TypedDevice<Self>
-{
+pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized + BackendTypes {
     /// The inner backend type.
     ///
     /// Must share all primitive types and device with `Self` so that operations
@@ -49,7 +48,7 @@ pub trait ComplexTensorBackend:
     //type ComplexTensorPrimitive: TensorMetadata + 'static;
 
     /// The underlying layout for the complex elements
-    type Layout: Layout + DefaultComplexOps<Self>;
+    type Layout: Layout;
 
     /// Creates a complex tensor from real-valued data, padding the imaginary part with zeros.
     ///
@@ -116,68 +115,4 @@ pub trait ComplexTensorBackend:
         imag_data: TensorData,
         device: &Self::Device,
     ) -> ComplexTensor<Self>;
-}
-
-/// Default construction and host-transfer operations for complex tensors.
-///
-/// This trait centralizes basic complex tensor behaviors that can vary by layout
-/// and backend implementation, while still exposing a consistent API to higher
-/// layers.
-///
-/// Implementors are expected to respect the provided complex dtype and allocate
-/// tensors on the requested device.
-pub trait DefaultComplexOps<B: ComplexTensorBackend> {
-    /// Backend-specific data type returned when materializing complex tensor data on host.
-    type OutTensorData;
-
-    /// Creates a complex tensor filled with one-valued complex numbers.
-    ///
-    /// Every element is initialized to `1 + 0i` using the requested complex dtype.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - Output tensor shape.
-    /// * `device` - Device where the tensor is allocated.
-    /// * `dtype` - Complex element dtype to use.
-    fn ones(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
-
-    /// Creates a complex tensor filled with zeros.
-    ///
-    /// Every element is initialized to `0 + 0i` using the requested complex dtype.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - Output tensor shape.
-    /// * `device` - Device where the tensor is allocated.
-    /// * `dtype` - Complex element dtype to use.
-    fn zeros(shape: Shape, device: &Device<B>, dtype: ComplexDType) -> ComplexTensor<B>;
-
-    /// Creates a complex tensor filled with a scalar value.
-    ///
-    /// Real scalars are promoted to complex values with zero imaginary component.
-    /// Implementations may also accept complex scalars depending on backend support.
-    ///
-    /// # Arguments
-    ///
-    /// * `shape` - Output tensor shape.
-    /// * `fill_value` - Scalar value used to initialize all elements.
-    /// * `device` - Device where the tensor is allocated.
-    /// * `dtype` - Complex element dtype to use.
-    fn full(
-        shape: Shape,
-        fill_value: Scalar,
-        device: &Device<B>,
-        dtype: ComplexDType,
-    ) -> ComplexTensor<B>;
-
-    /// Asynchronously materializes a complex tensor into host-accessible data.
-    ///
-    /// This operation may involve device-to-host transfer and synchronization.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`ExecutionError`] if the transfer or synchronization fails.
-    fn complex_into_data(
-        tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<Self::OutTensorData, ExecutionError>> + Send;
 }

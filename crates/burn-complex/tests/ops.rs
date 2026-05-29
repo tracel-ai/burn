@@ -3,7 +3,7 @@ mod common;
 
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
-use burn_tensor::{Complex, ComplexKind, TensorData};
+use burn_tensor::{ComplexKind, ComplexScalar, TensorData};
 use common::*;
 
 macro_rules! gen_tests {

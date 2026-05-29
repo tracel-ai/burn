@@ -8,7 +8,7 @@ use burn_backend::{
 };
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::stub::Mutex;
-use burn_std::{BoolStore, Complex, DeviceSettings, QuantConfig};
+use burn_std::{BoolStore, ComplexScalar, DeviceSettings, QuantConfig};
 use rand::SeedableRng;
 
 pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
@@ -64,7 +64,7 @@ impl BackendTypes for NdArray {
     type IntTensorPrimitive = NdArrayTensor;
     type BoolTensorPrimitive = NdArrayTensor;
     type QuantizedTensorPrimitive = NdArrayQTensor;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<f32>>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<ComplexScalar<f32>>;
 
     fn dtype_usage(_device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         match dtype {

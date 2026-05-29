@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::ops::ComplexTensorOps;
-use burn_backend::{
-    ComplexTensorBackend, Distribution, Scalar, TensorData, TensorMetadata, TypedDevice,
-};
+use burn_backend::{ComplexTensorBackend, Distribution, Scalar, TensorData, TensorMetadata};
 use burn_dispatch::Dispatch;
 use burn_std::{DType, ExecutionError, IndexingUpdateOp, Shape, Slice};
 
@@ -284,7 +282,7 @@ impl BasicOps for ComplexKind {
 }
 
 /// Operations that are specific to complex tensors and have no analogue for real tensors.
-pub(crate) trait ComplexOnlyOps: FloatMathOps {
+pub(crate) trait ComplexOps: FloatMathOps {
     /// Computes the complex conjugate of each element, negating the imaginary part.
     ///
     /// # Arguments
@@ -318,6 +316,18 @@ pub(crate) trait ComplexOnlyOps: FloatMathOps {
     ///
     /// A real-valued tensor containing the real component of each element.
     fn real(tensor: BridgeTensor) -> BridgeTensor;
+
+    /// Raises each complex element to the power of `exponent`, where the exponent can be a complex tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The base complex tensor.
+    /// * `exponent` - The exponent tensor, which can be complex. The operation is defined as `tensor^exponent = exp(exponent * log(tensor))`.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor where each element is the result of raising the corresponding element of `tensor` to the power of the corresponding element in `exponent`.
+    fn powc(tensor: BridgeTensor, exponent: BridgeTensor) -> BridgeTensor;
 
     /// Extracts the imaginary part of each complex element.
     ///
@@ -380,7 +390,7 @@ pub(crate) trait ComplexOnlyOps: FloatMathOps {
     fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> BridgeTensor;
 }
 
-impl ComplexOnlyOps for ComplexKind {
+impl ComplexOps for ComplexKind {
     fn conj(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_conj(tensor.into_complex()))
     }
@@ -421,6 +431,13 @@ impl ComplexOnlyOps for ComplexKind {
         BridgeTensor::complex(Dispatch::complex_from_polar(
             magnitude.into_float(),
             phase.into_float(),
+        ))
+    }
+
+    fn powc(tensor: BridgeTensor, exponent: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(Dispatch::complex_powc(
+            tensor.into_complex(),
+            exponent.into_complex(),
         ))
     }
 }

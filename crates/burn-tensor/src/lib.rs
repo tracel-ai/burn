@@ -39,6 +39,7 @@ extern crate alloc;
 
 mod bridge;
 
+pub mod split;
 mod tensor;
 //pub mod split_complex;
 

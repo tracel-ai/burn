@@ -22,7 +22,7 @@ pub use hashbrown::HashMap;
 #[cfg(not(feature = "std"))]
 use spin::{Lazy as LazyLock, Once as OnceLock};
 
-use crate::{Backend, BackendTypes, ComplexTensor};
+use crate::Backend;
 
 /// Device trait for all burn backend devices.
 pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debug + Device {
@@ -206,20 +206,6 @@ fn initialize_unchecked<D: DeviceOps>(
     settings: DeviceSettings,
 ) -> Result<(), DeviceError> {
     DeviceSettingsRegistry::init(device, settings)
-}
-
-/// For use with types where ops exist outside of the core backend and support for the dype is not yet universal.
-pub trait TypedDevice<B: BackendTypes> {
-    /// Gets the device of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The device of the tensor.
-    fn complex_device(tensor: &ComplexTensor<B>) -> B::Device;
 }
 
 #[cfg(all(test, feature = "std"))]

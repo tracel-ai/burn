@@ -3,7 +3,7 @@ mod common;
 use burn_tensor::ComplexKind;
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
-use burn_tensor::{Complex, TensorData};
+use burn_tensor::{ComplexScalar, TensorData};
 use common::*;
 
 use burn_tensor::{Distribution, Int};

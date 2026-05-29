@@ -2,7 +2,7 @@ use core::mem::size_of;
 
 use crate::{bf16, f16};
 
-use crate::Complex;
+use crate::ComplexScalar;
 
 /// A generic trait for converting a value to a number.
 /// Adapted from num_traits::ToPrimitive to support [bool].
@@ -137,11 +137,11 @@ pub trait ToElement {
     /// Converts the value of `self` to an `Complex<f32>`. If the element is itself not complex, the
     /// imaginary component will be initialized to zero. Overflows may map to positive
     /// or negative infinity.
-    fn to_complex32(&self) -> Complex<f32>;
+    fn to_complex32(&self) -> ComplexScalar<f32>;
     /// Converts the value of `self` to an `Complex<f64>`. If the element is itself not complex, the
     /// imaginary component will be initialized to zero. Overflows may map to positive
     /// or negative infinity.
-    fn to_complex64(&self) -> Complex<f64>;
+    fn to_complex64(&self) -> ComplexScalar<f64>;
 }
 
 macro_rules! impl_to_element_int_to_int {
@@ -219,12 +219,12 @@ macro_rules! impl_to_element_int {
                 *self != 0
             }
             #[inline]
-            fn to_complex32(&self) -> Complex<f32> {
-                Complex::<f32>::new(self.to_f32(), 0.0)
+            fn to_complex32(&self) -> ComplexScalar<f32> {
+                ComplexScalar::<f32>::new(self.to_f32(), 0.0)
             }
             #[inline]
-            fn to_complex64(&self) -> Complex<f64> {
-                Complex::<f64>::new(self.to_f64(), 0.0)
+            fn to_complex64(&self) -> ComplexScalar<f64> {
+                ComplexScalar::<f64>::new(self.to_f64(), 0.0)
             }
         }
     };
@@ -311,12 +311,12 @@ macro_rules! impl_to_element_uint {
                 *self != 0
             }
             #[inline]
-            fn to_complex32(&self) -> Complex<f32> {
-                Complex::<f32>::new(self.to_f32(), 0.0)
+            fn to_complex32(&self) -> ComplexScalar<f32> {
+                ComplexScalar::<f32>::new(self.to_f32(), 0.0)
             }
             #[inline]
-            fn to_complex64(&self) -> Complex<f64> {
-                Complex::<f64>::new(self.to_f64(), 0.0)
+            fn to_complex64(&self) -> ComplexScalar<f64> {
+                ComplexScalar::<f64>::new(self.to_f64(), 0.0)
             }
         }
     };
@@ -436,12 +436,12 @@ macro_rules! impl_to_element_float {
                 *self != 0.0
             }
             #[inline]
-            fn to_complex32(&self) -> Complex<f32> {
-                Complex::<f32>::new(self.to_f32(), 0.0)
+            fn to_complex32(&self) -> ComplexScalar<f32> {
+                ComplexScalar::<f32>::new(self.to_f32(), 0.0)
             }
             #[inline]
-            fn to_complex64(&self) -> Complex<f64> {
-                Complex::<f64>::new(self.to_f64(), 0.0)
+            fn to_complex64(&self) -> ComplexScalar<f64> {
+                ComplexScalar::<f64>::new(self.to_f64(), 0.0)
             }
         }
     };
@@ -501,12 +501,12 @@ impl ToElement for f16 {
     }
 
     #[inline]
-    fn to_complex32(&self) -> Complex<f32> {
-        Complex::<f32>::new(self.to_f32(), 0.0)
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
     }
     #[inline]
-    fn to_complex64(&self) -> Complex<f64> {
-        Complex::<f64>::new(self.to_f64(), 0.0)
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
     }
 }
 
@@ -561,12 +561,12 @@ impl ToElement for bf16 {
     }
 
     #[inline]
-    fn to_complex32(&self) -> Complex<f32> {
-        Complex::<f32>::new(self.to_f32(), 0.0)
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
     }
     #[inline]
-    fn to_complex64(&self) -> Complex<f64> {
-        Complex::<f64>::new(self.to_f64(), 0.0)
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
     }
 }
 
@@ -616,12 +616,12 @@ impl ToElement for crate::flex32 {
         *self != crate::flex32::from_f32(0.0)
     }
     #[inline]
-    fn to_complex32(&self) -> Complex<f32> {
-        Complex::<f32>::new(self.to_f32(), 0.0)
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
     }
     #[inline]
-    fn to_complex64(&self) -> Complex<f64> {
-        Complex::<f64>::new(self.to_f64(), 0.0)
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
     }
 }
 
@@ -671,12 +671,12 @@ impl ToElement for bool {
         *self
     }
     #[inline]
-    fn to_complex32(&self) -> Complex<f32> {
-        Complex::<f32>::new(self.to_f32(), 0.0)
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.to_f32(), 0.0)
     }
     #[inline]
-    fn to_complex64(&self) -> Complex<f64> {
-        Complex::<f64>::new(self.to_f64(), 0.0)
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.to_f64(), 0.0)
     }
 }
 

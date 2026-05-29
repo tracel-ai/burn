@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::Complex;
+use burn_std::ComplexScalar;
 use burn_std::ExecutionError;
 use burn_std::{SliceOps, stub::RwLock};
 use core::iter::repeat;
@@ -2819,8 +2819,8 @@ impl DataIterFmt {
                 burn_std::BoolStore::U32 => fmt_elem(self.next_elem::<u32>().to_bool()),
             },
             DType::QFloat(_) => todo!(), // unreachable but we should fix that
-            DType::Complex64 => fmt_elem(self.next_elem::<Complex<f64>>()),
-            DType::Complex32 => fmt_elem(self.next_elem::<Complex<f32>>()),
+            DType::Complex64 => fmt_elem(self.next_elem::<ComplexScalar<f64>>()),
+            DType::Complex32 => fmt_elem(self.next_elem::<ComplexScalar<f32>>()),
         }
     }
 

@@ -1,20 +1,12 @@
+use burn_std::TensorData;
+
 use crate::{
-    Backend, BackendTypes, ComplexTensorBackend, InterleavedLayout, TypedDevice,
-    UnimplementedTensorPrimitive, ops::ComplexTensorOps,
+    Backend, BackendTypes, ComplexTensorBackend, InterleavedLayout, UnimplementedTensorPrimitive,
+    ops::ComplexTensorOps,
 };
 
 const fn complex_panic_message() -> &'static str {
     "Interleaved complex tensors are not implemented for this backend. Use split complex tensors instead"
-}
-
-impl<B, C> TypedDevice<B> for B
-where
-    B: BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
-    C: Clone + Send + Sync + 'static,
-{
-    fn complex_device(_tensor: &crate::ComplexTensor<B>) -> <B as BackendTypes>::Device {
-        panic!("{}", complex_panic_message())
-    }
 }
 
 impl<B, C> ComplexTensorBackend for B
@@ -61,6 +53,10 @@ where
     B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
     C: Clone + Send + Sync + 'static,
 {
+    fn complex_device(_tensor: &crate::ComplexTensor<B>) -> <B as BackendTypes>::Device {
+        panic!("{}", complex_panic_message())
+    }
+
     async fn complex_into_real_data(
         _tensor: crate::ComplexTensor<B>,
     ) -> Result<burn_std::TensorData, burn_std::ExecutionError> {
@@ -111,7 +107,7 @@ where
 
     async fn complex_into_data(
         _tensor: crate::ComplexTensor<B>,
-    ) -> Result<super::OutTensorData<B>, burn_std::ExecutionError> {
+    ) -> Result<TensorData, burn_std::ExecutionError> {
         panic!("{}", complex_panic_message())
     }
 
@@ -509,6 +505,31 @@ where
     }
 
     fn complex_cumprod(_tensor: crate::ComplexTensor<B>, _dim: usize) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_zeros(
+        _shape: burn_std::Shape,
+        _device: &crate::tensor::Device<B>,
+        _dtype: burn_std::ComplexDType,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_ones(
+        _shape: burn_std::Shape,
+        _device: &crate::tensor::Device<B>,
+        _dtype: burn_std::ComplexDType,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_full(
+        _shape: burn_std::Shape,
+        _fill_value: burn_std::Scalar,
+        _device: &crate::tensor::Device<B>,
+        _dtype: burn_std::ComplexDType,
+    ) -> crate::ComplexTensor<B> {
         panic!("{}", complex_panic_message())
     }
 }

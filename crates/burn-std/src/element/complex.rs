@@ -20,25 +20,25 @@ use num_traits::Zero;
 use rand::Rng;
 #[cfg(feature = "ndarray")]
 mod ndarray {
-    use super::Complex;
+    use super::ComplexScalar;
     use ndarray::ScalarOperand;
-    impl<E: ScalarOperand> ScalarOperand for Complex<E> {}
+    impl<E: ScalarOperand> ScalarOperand for ComplexScalar<E> {}
 }
 
 #[cfg(feature = "tch")]
 mod tch {
-    use super::Complex;
+    use super::ComplexScalar;
     use tch::kind::Element as TchElement;
     // Not supported right now burn side, apparently supported for tch
-    impl<E: TchElement> TchElement for Complex<f16> {
+    impl<E: TchElement> TchElement for ComplexScalar<f16> {
         const KIND: tch::Kind = tch::Kind::ComplexHalf;
         const ZERO: Self = Self::new(0.0, 0.0);
     }
-    impl<E: TchElement> TchElement for Complex<f32> {
+    impl<E: TchElement> TchElement for ComplexScalar<f32> {
         const KIND: tch::Kind = tch::Kind::ComplexFloat;
         const ZERO: Self = Self::new(0.0, 0.0);
     }
-    impl<E: TchElement> TchElement for Complex<f64> {
+    impl<E: TchElement> TchElement for ComplexScalar<f64> {
         const KIND: tch::Kind = tch::Kind::ComplexDouble;
         const ZERO: Self = Self::new(0.0, 0.0);
     }
@@ -61,7 +61,7 @@ pub trait ComplexElement: Element {
     fn imag(&self) -> Self::InnerType;
 }
 
-impl<E: Element + ElementComparison + bytemuck::Pod> ComplexElement for Complex<E> {
+impl<E: Element + ElementComparison + bytemuck::Pod> ComplexElement for ComplexScalar<E> {
     type InnerType = E;
     #[inline]
     fn real(&self) -> Self::InnerType {
@@ -76,14 +76,14 @@ impl<E: Element + ElementComparison + bytemuck::Pod> ComplexElement for Complex<
 /// but with some burn specific modifications
 #[derive(Clone, PartialEq)]
 #[repr(C)]
-pub struct Complex<E> {
+pub struct ComplexScalar<E> {
     /// Real part of a complex number
     pub real: E,
     /// Imag part of a complex number
     pub imag: E,
 }
 
-impl<E> From<NumComplex<E>> for Complex<E> {
+impl<E> From<NumComplex<E>> for ComplexScalar<E> {
     fn from(c: NumComplex<E>) -> Self {
         Self {
             real: c.re,
@@ -93,14 +93,14 @@ impl<E> From<NumComplex<E>> for Complex<E> {
 }
 
 impl<E: Element + ElementComparison + bytemuck::Pod + Zero + core::ops::Add + core::iter::Sum>
-    core::iter::Sum for Complex<E>
+    core::iter::Sum for ComplexScalar<E>
 {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::new(E::zero(), E::zero()), |a, b| a + b)
     }
 }
 
-impl<E> core::iter::Product for Complex<E>
+impl<E> core::iter::Product for ComplexScalar<E>
 where
     E: Element
         + ElementComparison
@@ -118,13 +118,13 @@ where
     }
 }
 
-impl<E> From<Complex<E>> for NumComplex<E> {
-    fn from(val: Complex<E>) -> Self {
+impl<E> From<ComplexScalar<E>> for NumComplex<E> {
+    fn from(val: ComplexScalar<E>) -> Self {
         NumComplex::new(val.real, val.imag)
     }
 }
 
-impl<E: Num + core::marker::Copy> Num for Complex<E> {
+impl<E: Num + core::marker::Copy> Num for ComplexScalar<E> {
     type FromStrRadixErr = <NumComplex<E> as Num>::FromStrRadixErr;
 
     fn from_str_radix(str: &str, radix: u32) -> Result<Self, Self::FromStrRadixErr> {
@@ -132,7 +132,7 @@ impl<E: Num + core::marker::Copy> Num for Complex<E> {
     }
 }
 
-impl<E: core::fmt::Debug> core::fmt::Debug for Complex<E> {
+impl<E: core::fmt::Debug> core::fmt::Debug for ComplexScalar<E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
@@ -142,13 +142,13 @@ impl<E: core::fmt::Debug> core::fmt::Debug for Complex<E> {
     }
 }
 
-impl<E: Copy> Copy for Complex<E> {}
+impl<E: Copy> Copy for ComplexScalar<E> {}
 
-unsafe impl<E: bytemuck::Zeroable> Zeroable for Complex<E> {}
+unsafe impl<E: bytemuck::Zeroable> Zeroable for ComplexScalar<E> {}
 
-unsafe impl<E: bytemuck::Pod> bytemuck::Pod for Complex<E> {}
+unsafe impl<E: bytemuck::Pod> bytemuck::Pod for ComplexScalar<E> {}
 
-impl<E> Default for Complex<E>
+impl<E> Default for ComplexScalar<E>
 where
     E: Default,
 {
@@ -160,7 +160,7 @@ where
     }
 }
 
-impl<E: core::fmt::Display + Element + ElementComparison> core::fmt::Display for Complex<E> {
+impl<E: core::fmt::Display + Element + ElementComparison> core::fmt::Display for ComplexScalar<E> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.imag.cmp(&E::zeroed()).is_ge() {
             write!(f, "{}+{}i", self.real, self.imag)
@@ -170,7 +170,7 @@ impl<E: core::fmt::Display + Element + ElementComparison> core::fmt::Display for
     }
 }
 
-impl<E> AddAssign for Complex<E>
+impl<E> AddAssign for ComplexScalar<E>
 where
     E: AddAssign,
 {
@@ -180,7 +180,7 @@ where
     }
 }
 
-impl<E> Add for Complex<E>
+impl<E> Add for ComplexScalar<E>
 where
     E: Add<Output = E>,
 {
@@ -194,7 +194,7 @@ where
     }
 }
 
-impl<E: Neg<Output = E>> Neg for Complex<E> {
+impl<E: Neg<Output = E>> Neg for ComplexScalar<E> {
     type Output = Self;
     #[inline]
     fn neg(self) -> Self::Output {
@@ -205,7 +205,7 @@ impl<E: Neg<Output = E>> Neg for Complex<E> {
     }
 }
 
-impl<E: Sub<Output = E>> Sub for Complex<E> {
+impl<E: Sub<Output = E>> Sub for ComplexScalar<E> {
     type Output = Self;
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
@@ -216,7 +216,7 @@ impl<E: Sub<Output = E>> Sub for Complex<E> {
     }
 }
 
-impl<E: Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Copy> Mul for Complex<E> {
+impl<E: Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Copy> Mul for ComplexScalar<E> {
     type Output = Self;
     #[inline]
     fn mul(self, rhs: Self) -> Self::Output {
@@ -227,7 +227,7 @@ impl<E: Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Copy> Mul for Comp
     }
 }
 
-impl<E: Rem<Output = E>> Rem for Complex<E> {
+impl<E: Rem<Output = E>> Rem for ComplexScalar<E> {
     type Output = Self;
     #[inline]
     fn rem(self, rhs: Self) -> Self::Output {
@@ -240,7 +240,7 @@ impl<E: Rem<Output = E>> Rem for Complex<E> {
 
 // (a + i b) / (c + i d) == [(a + i b) * (c - i d)] / (c*c + d*d)
 //   == [(a*c + b*d) / (c*c + d*d)] + i [(b*c - a*d) / (c*c + d*d)]
-impl<E> Div for Complex<E>
+impl<E> Div for ComplexScalar<E>
 where
     E: Mul<Output = E> + Add<Output = E> + Div<Output = E> + Sub<Output = E> + Copy,
 {
@@ -254,7 +254,7 @@ where
     }
 }
 
-impl<E> ToElement for Complex<E>
+impl<E> ToElement for ComplexScalar<E>
 where
     E: ToElement,
 {
@@ -280,16 +280,16 @@ where
     }
 
     #[inline]
-    fn to_complex32(&self) -> Complex<f32> {
-        Complex::<f32>::new(self.real.to_f32(), self.imag.to_f32())
+    fn to_complex32(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.real.to_f32(), self.imag.to_f32())
     }
     #[inline]
-    fn to_complex64(&self) -> Complex<f64> {
-        Complex::<f64>::new(self.real.to_f64(), self.imag.to_f64())
+    fn to_complex64(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.real.to_f64(), self.imag.to_f64())
     }
 }
 
-impl<E: Neg<Output = E>> Complex<E> {
+impl<E: Neg<Output = E>> ComplexScalar<E> {
     /// Get the conjugate of the complex number
     #[inline]
     pub fn conj(self) -> Self {
@@ -300,7 +300,7 @@ impl<E: Neg<Output = E>> Complex<E> {
     }
 }
 
-impl<E> FromPrimitive for Complex<E>
+impl<E> FromPrimitive for ComplexScalar<E>
 where
     E: FromPrimitive + num_traits::identities::Zero,
 {
@@ -318,13 +318,13 @@ where
     }
 }
 
-impl<C> ElementConversion for Complex<C>
+impl<C> ElementConversion for ComplexScalar<C>
 where
     C: Element + ToElement,
 {
     #[inline(always)]
     fn from_elem<E: ToElement>(elem: E) -> Self {
-        Complex::<C> {
+        ComplexScalar::<C> {
             real: C::from_elem(elem),
             imag: C::from_elem(0.0),
         }
@@ -335,7 +335,7 @@ where
     }
 }
 
-impl<E: Zero> Zero for Complex<E> {
+impl<E: Zero> Zero for ComplexScalar<E> {
     fn zero() -> Self {
         Self::new(E::zero(), E::zero())
     }
@@ -344,7 +344,7 @@ impl<E: Zero> Zero for Complex<E> {
     }
 }
 
-impl<E> One for Complex<E>
+impl<E> One for ComplexScalar<E>
 where
     E: One + Zero + Mul<Output = E> + Copy + Sub<Output = E>,
 {
@@ -354,7 +354,7 @@ where
     }
 }
 
-impl<E> Complex<E> {
+impl<E> ComplexScalar<E> {
     /// Create a new complex number from real and imaginary parts
     #[inline]
     pub fn new(real: E, imag: E) -> Self {
@@ -372,7 +372,7 @@ impl<E> Complex<E> {
     }
 }
 
-impl<E> Complex<E>
+impl<E> ComplexScalar<E>
 where
     E: num_traits::Float,
 {
@@ -385,7 +385,7 @@ where
     pub fn exp(self) -> Self {
         // formula: e^(a + bi) = e^a (cos(b) + i*sin(b)) = from_polar(e^a, b)
 
-        let Complex { real, mut imag } = self;
+        let ComplexScalar { real, mut imag } = self;
         // Treat the corner cases +∞, -∞, and NaN
         if real.is_infinite() {
             if real < E::zero() {
@@ -505,7 +505,7 @@ where
     /// Raises `self` to a complex power.
     #[inline]
     pub fn powc(self, exp: Self) -> Self {
-        if exp == Complex::<E>::new(E::zero(), E::zero()) {
+        if exp == ComplexScalar::<E>::new(E::zero(), E::zero()) {
             return Self::one();
         }
         // formula: x^y = exp(y * ln(x))
@@ -700,7 +700,7 @@ where
     }
 }
 
-impl<E: Element + ElementComparison + bytemuck::Pod> Element for Complex<E> {
+impl<E: Element + ElementComparison + bytemuck::Pod> Element for ComplexScalar<E> {
     #[inline(always)]
     fn dtype() -> DType {
         match E::dtype() {
@@ -711,7 +711,7 @@ impl<E: Element + ElementComparison + bytemuck::Pod> Element for Complex<E> {
     }
 }
 
-impl<E> Complex<E>
+impl<E> ComplexScalar<E>
 where
     E: num_traits::identities::Zero,
 {
@@ -725,13 +725,13 @@ where
     }
 }
 
-impl<E: ElementRandom> ElementRandom for Complex<E> {
+impl<E: ElementRandom> ElementRandom for ComplexScalar<E> {
     fn random<R: Rng>(distribution: Distribution, rng: &mut R) -> Self {
-        Complex::<E>::new(E::random(distribution, rng), E::random(distribution, rng))
+        ComplexScalar::<E>::new(E::random(distribution, rng), E::random(distribution, rng))
     }
 }
 
-impl<E: ElementEq> ElementEq for Complex<E> {
+impl<E: ElementEq> ElementEq for ComplexScalar<E> {
     fn eq(&self, other: &Self) -> bool {
         self.real.eq(&other.real) && self.imag.eq(&other.imag)
     }
@@ -741,16 +741,16 @@ macro_rules! to_complex {
     (
         $type:ident
     ) => {
-        impl ToComplex<Complex<f32>> for $type {
+        impl ToComplex<ComplexScalar<f32>> for $type {
             #[inline]
-            fn to_complex(&self) -> Complex<f32> {
-                Complex::<f32>::new(self.to_f32(), 0.0)
+            fn to_complex(&self) -> ComplexScalar<f32> {
+                ComplexScalar::<f32>::new(self.to_f32(), 0.0)
             }
         }
-        impl ToComplex<Complex<f64>> for $type {
+        impl ToComplex<ComplexScalar<f64>> for $type {
             #[inline]
-            fn to_complex(&self) -> Complex<f64> {
-                Complex::<f64>::new(self.to_f64(), 0.0)
+            fn to_complex(&self) -> ComplexScalar<f64> {
+                ComplexScalar::<f64>::new(self.to_f64(), 0.0)
             }
         }
     };
@@ -766,30 +766,30 @@ to_complex!(u16);
 to_complex!(u8);
 to_complex!(bool);
 
-impl ToComplex<Complex<f32>> for Complex<f64> {
+impl ToComplex<ComplexScalar<f32>> for ComplexScalar<f64> {
     #[inline]
-    fn to_complex(&self) -> Complex<f32> {
-        Complex::<f32>::new(self.real as f32, self.imag as f32)
+    fn to_complex(&self) -> ComplexScalar<f32> {
+        ComplexScalar::<f32>::new(self.real as f32, self.imag as f32)
     }
 }
 
-impl ToComplex<Complex<f64>> for Complex<f32> {
+impl ToComplex<ComplexScalar<f64>> for ComplexScalar<f32> {
     #[inline]
-    fn to_complex(&self) -> Complex<f64> {
-        Complex::<f64>::new(self.real as f64, self.imag as f64)
+    fn to_complex(&self) -> ComplexScalar<f64> {
+        ComplexScalar::<f64>::new(self.real as f64, self.imag as f64)
     }
 }
 
-impl ToComplex<Complex<f32>> for Complex<f32> {
+impl ToComplex<ComplexScalar<f32>> for ComplexScalar<f32> {
     #[inline]
-    fn to_complex(&self) -> Complex<f32> {
+    fn to_complex(&self) -> ComplexScalar<f32> {
         *self
     }
 }
 
-impl ToComplex<Complex<f64>> for Complex<f64> {
+impl ToComplex<ComplexScalar<f64>> for ComplexScalar<f64> {
     #[inline]
-    fn to_complex(&self) -> Complex<f64> {
+    fn to_complex(&self) -> ComplexScalar<f64> {
         *self
     }
 }
@@ -801,44 +801,44 @@ pub(crate) mod tests {
 
     #[test]
     fn test_complex32_basic() {
-        let c = Complex::<f32>::new(3.0, 4.0);
+        let c = ComplexScalar::<f32>::new(3.0, 4.0);
         assert_eq!(c.real, 3.0);
         assert_eq!(c.imag, 4.0);
         assert_eq!(c.abs(), 5.0); // 3-4-5 triangle
-        assert_eq!(c.conj(), Complex::<f32>::new(3.0, -4.0));
+        assert_eq!(c.conj(), ComplexScalar::<f32>::new(3.0, -4.0));
     }
 
     #[test]
     fn test_complex64_basic() {
-        let c = Complex::<f64>::new(3.0, 4.0);
+        let c = ComplexScalar::<f64>::new(3.0, 4.0);
         assert_eq!(c.real, 3.0);
         assert_eq!(c.imag, 4.0);
         assert_eq!(c.abs(), 5.0); // 3-4-5 triangle
-        assert_eq!(c.conj(), Complex::<f64>::new(3.0, -4.0));
+        assert_eq!(c.conj(), ComplexScalar::<f64>::new(3.0, -4.0));
     }
 
     #[test]
     fn test_complex_element_traits() {
         // Test that our complex types implement Element trait
-        assert_eq!(Complex::<f32>::dtype(), DType::Complex32);
-        assert_eq!(Complex::<f64>::dtype(), DType::Complex64);
+        assert_eq!(ComplexScalar::<f32>::dtype(), DType::Complex32);
+        assert_eq!(ComplexScalar::<f64>::dtype(), DType::Complex64);
 
         // Test conversion
-        let c32 = Complex::<f32>::new(1.0, 2.0);
-        let c64: Complex<f64> = c32.to_complex();
+        let c32 = ComplexScalar::<f32>::new(1.0, 2.0);
+        let c64: ComplexScalar<f64> = c32.to_complex();
         assert_eq!(c64.real, 1.0);
         assert_eq!(c64.imag, 2.0);
     }
 
     #[test]
     fn test_complex_display() {
-        let c1 = Complex::<f32>::new(3.0, 4.0);
+        let c1 = ComplexScalar::<f32>::new(3.0, 4.0);
         assert_eq!(alloc::format!("{}", c1), "3+4i");
 
-        let c2 = Complex::<f32>::new(3.0, -4.0);
+        let c2 = ComplexScalar::<f32>::new(3.0, -4.0);
         assert_eq!(alloc::format!("{}", c2), "3-4i");
 
-        let c3 = Complex::<f64>::new(-3.0, 4.0);
+        let c3 = ComplexScalar::<f64>::new(-3.0, 4.0);
         assert_eq!(alloc::format!("{}", c3), "-3+4i");
     }
 }

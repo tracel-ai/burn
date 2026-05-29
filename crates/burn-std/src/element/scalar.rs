@@ -5,7 +5,7 @@ use num_traits::ToPrimitive;
 #[allow(unused_imports)]
 use num_traits::Float;
 
-use crate::{Complex, Element, ElementConversion};
+use crate::{ComplexScalar, Element, ElementConversion};
 
 /// A scalar element.
 #[derive(Clone, Copy, Debug)]
@@ -15,7 +15,7 @@ pub enum Scalar {
     Int(i64),
     UInt(u64),
     Bool(bool),
-    Complex(Complex<f64>),
+    Complex(ComplexScalar<f64>),
 }
 
 impl Scalar {
@@ -69,10 +69,10 @@ impl Scalar {
     /// Converts the scalar to a complex scalar.
     pub fn to_complex(self) -> Self {
         match self {
-            Scalar::Float(x) => Scalar::Complex(Complex::new(x, 0.0)),
-            Scalar::Int(x) => Scalar::Complex(Complex::new(x as f64, 0.0)),
-            Scalar::UInt(x) => Scalar::Complex(Complex::new(x as f64, 0.0)),
-            Scalar::Bool(x) => Scalar::Complex(Complex::new(x as u8 as f64, 0.0)),
+            Scalar::Float(x) => Scalar::Complex(ComplexScalar::new(x, 0.0)),
+            Scalar::Int(x) => Scalar::Complex(ComplexScalar::new(x as f64, 0.0)),
+            Scalar::UInt(x) => Scalar::Complex(ComplexScalar::new(x as f64, 0.0)),
+            Scalar::Bool(x) => Scalar::Complex(ComplexScalar::new(x as u8 as f64, 0.0)),
             Scalar::Complex(_) => self,
         }
     }

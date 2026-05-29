@@ -2,7 +2,7 @@ use crate::IntoKind;
 
 use super::TchTensor;
 use burn_backend::backend::{Backend, BackendTypes, DeviceId, DeviceOps, ExecutionError};
-use burn_backend::element::Complex;
+use burn_backend::element::ComplexScalar;
 use burn_backend::ops::IntTensorOps;
 use burn_backend::{BoolStore, DType, DeviceSettings, UnimplementedTensorPrimitive};
 
@@ -120,7 +120,7 @@ impl BackendTypes for LibTorch {
     type IntTensorPrimitive = TchTensor;
     type BoolTensorPrimitive = TchTensor;
     type QuantizedTensorPrimitive = TchTensor;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<f32>>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<ComplexScalar<f32>>;
 
     fn dtype_usage(
         _device: &Self::Device,

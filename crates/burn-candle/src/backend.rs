@@ -3,7 +3,7 @@ use burn_backend::{
     UnimplementedTensorPrimitive, tensor::Device,
 };
 use burn_std::{
-    BoolStore, Complex, DeviceSettings,
+    BoolStore, ComplexScalar, DeviceSettings,
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
@@ -205,7 +205,7 @@ impl BackendTypes for Candle {
 
     type QuantizedTensorPrimitive = CandleTensor;
 
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<Complex<f32>>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<ComplexScalar<f32>>;
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         if dtype.try_into_dtype().is_ok() {

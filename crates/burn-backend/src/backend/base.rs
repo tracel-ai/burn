@@ -2,9 +2,9 @@ use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
 pub use crate::element::{ComplexElement, Element};
+use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{TensorData, TensorMetadata};
-use crate::{TypedDevice, ops::*};
 use alloc::string::String;
 use enumset::{EnumSet, EnumSetType};
 
@@ -119,7 +119,6 @@ pub trait Backend:
     + Sized
     + Send
     + Sync
-    + TypedDevice<Self>
     + core::fmt::Debug
     + 'static
 {

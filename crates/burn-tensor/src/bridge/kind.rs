@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    TensorMetadata, TensorPrimitive, TypedDevice, get_device_settings,
-    ops::{BoolTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
+    TensorMetadata, TensorPrimitive, get_device_settings,
+    ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
 };
 use burn_dispatch::{Dispatch, DispatchTensor};
 use burn_std::DeviceSettings;
@@ -34,6 +34,18 @@ pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
     fn id() -> TensorKindId;
 }
 
+/// A type-level representation of a compound tensor kind
+/// Metadata access is lazy.
+pub trait CompoundTensorKind: Clone + Send + Sync + core::fmt::Debug {
+    const COMPONENTS: usize;
+    type ComponentsArray: AsRef<[BridgeTensor]> + AsMut<[BridgeTensor]> + Clone;
+    type Inner: TensorKind;
+    const INNER_KIND_ID: TensorKindId;
+    fn inner_name() -> &'static str {
+        Self::INNER_KIND_ID.as_str()
+    }
+}
+
 impl TensorKind for Float {
     fn id() -> TensorKindId {
         TensorKindId::Float
@@ -55,6 +67,17 @@ impl TensorKind for Bool {
 impl TensorKind for ComplexKind {
     fn id() -> TensorKindId {
         TensorKindId::Complex
+    }
+}
+
+impl CompoundTensorKind for ComplexKind {
+    const COMPONENTS: usize = 2;
+    type Inner = Float;
+    type ComponentsArray = [BridgeTensor; Self::COMPONENTS];
+    const INNER_KIND_ID: TensorKindId = TensorKindId::Float;
+
+    fn inner_name() -> &'static str {
+        Self::INNER_KIND_ID.as_str()
     }
 }
 

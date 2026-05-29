@@ -1,6 +1,6 @@
 mod common;
 
-use burn_tensor::{Bool, Complex, ComplexKind, IndexingUpdateOp, Int, Tensor, TensorData};
+use burn_tensor::{Bool, ComplexKind, ComplexScalar, IndexingUpdateOp, Int, Tensor, TensorData};
 use common::*;
 
 macro_rules! gen_tests {

@@ -2,7 +2,7 @@ use crate::backends::*;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::ComplexTensor;
-use burn_backend::{Backend, BackendTypes, DType, Shape, TensorMetadata};
+use burn_backend::{Backend, BackendTypes, ComplexTensorBackend, DType, Shape, TensorMetadata};
 //#[cfg(feature = "complex")]
 
 use crate::CheckpointingStrategy;
@@ -36,7 +36,7 @@ pub enum BackendTensor<B: BackendTypes> {
     Complex(B::ComplexTensorPrimitive),
 }
 
-impl<B: Backend> BackendTensor<B> {
+impl<B: Backend + ComplexTensorBackend> BackendTensor<B> {
     /// Returns the inner float tensor primitive.
     pub fn float(self) -> B::FloatTensorPrimitive {
         match self {

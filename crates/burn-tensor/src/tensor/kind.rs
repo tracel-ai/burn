@@ -23,8 +23,8 @@ pub trait FloatMath: Numeric + crate::ops::FloatMathOps {}
 impl<K: Numeric + crate::ops::FloatMathOps> FloatMath for K {}
 
 /// Kinds that support complex math operations.
-pub trait ComplexMath: Numeric + crate::ops::ComplexOnlyOps {}
-impl<K: crate::ops::FloatMathOps + crate::ops::ComplexOnlyOps> ComplexMath for K {}
+pub trait ComplexMath: Numeric + crate::ops::ComplexOps {}
+impl<K: crate::ops::FloatMathOps + crate::ops::ComplexOps> ComplexMath for K {}
 
 /// Kinds that support transaction operations.
 pub trait Transaction: Basic + crate::ops::TransactionOp {}

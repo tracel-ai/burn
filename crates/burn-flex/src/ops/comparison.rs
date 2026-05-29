@@ -957,7 +957,7 @@ pub(crate) fn reduce_bool_dim(
         }
         //#[cfg(feature = "complex")]")]
         DType::Complex32 => {
-            let data: &[burn_std::Complex<f32>] = tensor.storage();
+            let data: &[burn_std::ComplexScalar<f32>] = tensor.storage();
             reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
                 let c = data[idx];
                 c.real != 0.0 || c.imag != 0.0
@@ -965,7 +965,7 @@ pub(crate) fn reduce_bool_dim(
         }
         //#[cfg(feature = "complex")]")]
         DType::Complex64 => {
-            let data: &[burn_std::Complex<f64>] = tensor.storage();
+            let data: &[burn_std::ComplexScalar<f64>] = tensor.storage();
             reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
                 let c = data[idx];
                 c.real != 0.0 || c.imag != 0.0

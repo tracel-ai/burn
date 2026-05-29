@@ -22,6 +22,11 @@ where
         Self::new(K::conj(self.primitive))
     }
 
+    //TODO: Docs and test
+    pub fn powc(self, exponent: Self) -> Self {
+        Self::new(K::powc(self.primitive, exponent.primitive))
+    }
+
     /// Returns the phase (argument) of each complex element.
     ///
     #[cfg_attr(doc, doc = r#"$y_i = \arg\(x_i\)$"#)]

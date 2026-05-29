@@ -10,7 +10,6 @@ use alloc::vec::Vec;
 ))]
 use alloc::vec;
 
-use burn_backend::TypedDevice;
 use burn_backend::{AutodiffBackend, Backend, BackendTypes, DType, ExecutionError};
 
 #[cfg(feature = "autodiff")]
@@ -142,17 +141,6 @@ impl Backend for Dispatch {
     {
         dispatch_device!(device, |device| B::staging(data, device))
     }
-}
-
-impl TypedDevice<Self> for Dispatch {
-    //#[cfg(feature = "complex")]
-    fn complex_device(tensor: &burn_backend::ComplexTensor<Self>) -> DispatchDevice {
-        tensor.device()
-    }
-    // #[cfg(not(feature = "complex"))]
-    // fn complex_device(_tensor: &burn_backend::ComplexTensor<Self>) -> DispatchDevice {
-    //     panic!("interleaved complex tensors not yet supported for the selected backend")
-    // }
 }
 
 #[cfg(feature = "autodiff")]
