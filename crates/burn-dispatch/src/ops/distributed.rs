@@ -10,6 +10,13 @@ use burn_backend::{
     tensor::FloatTensor,
 };
 
+// TODO: REMOVE.
+use std::any::type_name;
+
+fn print_type_of<T>(_: &T) {
+    println!("{}", type_name::<T>());
+}
+
 use crate::{Dispatch, DispatchDevice};
 
 macro_rules! dispatch_distributed_devices_arms {
@@ -37,7 +44,7 @@ macro_rules! dispatch_distributed_devices_arms {
                 $crate::DispatchDevice::$Backend(_) => {
                     assert!(
                         $devices
-                            .iter()
+                            .iter().foreach(|d| print_type_of(d))
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
@@ -70,7 +77,7 @@ macro_rules! dispatch_distributed_devices_arms {
                 $crate::DispatchDevice::$Backend(_) => {
                     assert!(
                         $devices
-                            .iter()
+                            .iter().foreach(|d| print_type_of(d))
                             .all(|d| discriminant(d) == discriminant($device)),
                         "All devices are expected to be of the same variant."
                     );
