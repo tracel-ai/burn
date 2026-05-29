@@ -38,6 +38,9 @@ impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
 
         let mut client = R::client(device);
         println!("elemtype : {}", dtype_to_elem_type(out_tensor.dtype),);
+        println!("out_tensor off start: {:?}", out_tensor.handle.offset_start);
+        println!("out_tensor off end: {:?}", out_tensor.handle.offset_end);
+        println!("out_tensor size: {}", out_tensor.handle.size());
         client.all_reduce(
             out_tensor.handle.clone(),
             out_tensor.handle.clone(),

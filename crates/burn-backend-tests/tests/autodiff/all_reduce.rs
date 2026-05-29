@@ -88,6 +88,9 @@ fn should_diff_all_reduce_complex_1() {
     println!("out1 : {out_tensor_1}");
     println!("grad1 : {grad_1}");
     println!("grad0 : {grad_0}");
+
+    out_tensor_0.device().sync().unwrap();
+
     out_tensor_0
         .to_data()
         .assert_eq(&TensorData::from([6.0, 6.0]), false);
