@@ -1,5 +1,8 @@
 use super::*;
-use burn_tensor::{Device, DeviceType, TensorData, distributed::ReduceOperation};
+use burn_tensor::{
+    Device, DeviceType, TensorData,
+    distributed::{DistributedConfig, DistributedContext, ReduceOperation},
+};
 use serial_test::serial;
 
 #[test]
@@ -111,10 +114,14 @@ fn compare_gradients(
     expected_grads: &[f32],
 ) {
     for out in outputs {
+        println!("out : {out}");
+        println!("expected : {expected_output:?}");
         out.to_data()
             .assert_eq(&TensorData::from(expected_output), false);
     }
     for grad in grads {
+        println!("grad : {grad}");
+        println!("expected : {expected_grads:?}");
         grad.to_data()
             .assert_eq(&TensorData::from(expected_grads), false);
     }
@@ -125,6 +132,9 @@ fn compute_gradients(
     op: ReduceOperation,
     devices: Vec<Device>,
 ) -> (Vec<Tensor<1>>, Vec<Tensor<1>>) {
+    let config = DistributedConfig { all_reduce_op: op };
+    let _context = DistributedContext::init(devices.clone(), config);
+
     let out = compute_all_reduce(tensors.clone(), op, devices);
 
     let mut all_grads = vec![];
