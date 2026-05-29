@@ -12,9 +12,7 @@ use burn_ir::BackendIr;
 use burn_router::RunnerClient;
 use burn_std::id::StreamId;
 
-use crate::shared::{
-    ComputeTask, ConnectionId, SessionId, Task, TaskResponse, TaskResponseContent,
-};
+use crate::shared::{ComputeTask, RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
 
 use super::session::SessionManager;
 
@@ -23,9 +21,10 @@ use super::session::SessionManager;
 /// Compute tasks are processed **inline** on the request-handling task: there is no
 /// per-stream worker thread and no compute-side mpsc channel. The
 /// [`SessionManager`] only owns the per-session response queue (one `mpsc::Sender` per
-/// session, drained by the response-writing task). The client-side stream id riding on
-/// each [`ConnectionId`] is threaded through to the runner via [`StreamId::executes`], so
-/// stream-aware backends (fusion, etc.) see the right stream context per op.
+/// session, drained by the response-writing task). The stream id carried on each task
+/// (`RegisterOperation`, `RegisterTensor`, `ReadTensor`, `SyncBackend`) is threaded
+/// through to the runner via [`StreamId::executes`], so stream-aware backends (fusion,
+/// etc.) see the right stream context per op.
 pub struct RemoteServer<B, P>
 where
     B: BackendIr,
@@ -100,9 +99,10 @@ where
         let settings = session_manager.device_settings();
         let init_response = TaskResponse {
             content: TaskResponseContent::Init(settings),
-            // Zero connection id for handshake; the client doesn't route this through
-            // its normal callback map.
-            id: ConnectionId::new(0, StreamId::current()),
+            // Placeholder id for the handshake; the client reads this response inline
+            // before the response-demux task starts, so it never goes through the
+            // pending-callback map.
+            id: 0,
         };
         let bytes = match rmp_serde::to_vec(&init_response) {
             Ok(b) => b,
@@ -134,7 +134,7 @@ where
                 Ok(b) => b,
                 Err(err) => {
                     log::error!(
-                        "Failed to encode response for connection {:?}: {err:?}",
+                        "Failed to encode response for request {:?}: {err:?}",
                         response.id
                     );
                     continue;
@@ -189,7 +189,7 @@ where
                     Self::handle_close(&session_manager, id).await;
                     return;
                 }
-                Task::Compute(compute, conn_id) => {
+                Task::Compute(compute) => {
                     let Some(sid) = session_id else {
                         log::error!(
                             "Compute task received before session Init; closing request stream"
@@ -198,13 +198,13 @@ where
                     };
 
                     if let Err(err) =
-                        Self::process_compute(&session_manager, sid, compute, conn_id).await
+                        Self::process_compute(&session_manager, sid, compute).await
                     {
                         // A single task failing shouldn't tear down the connection —
                         // the failure surfaces to the client through the response (for
                         // read/sync/dtype tasks) or is logged here (for fire-and-forget
                         // tasks). The connection stays open so subsequent tasks can run.
-                        log::error!("Compute task {conn_id:?} on session {sid} failed: {err}");
+                        log::error!("Compute task on session {sid} failed: {err}");
                     }
                 }
             }
@@ -230,29 +230,25 @@ where
     /// Execute a single [`ComputeTask`] inline.
     ///
     /// Sync work is wrapped in [`StreamId::executes`] so the runner's thread-local stream
-    /// id matches the one the client assigned to this op. Async work (data-service
-    /// transfers, `read_tensor_async`) runs without a stream context — the relevant
-    /// stream id is captured into the future at construction time via `executes`.
+    /// id matches the one the client assigned to this op. Response-producing tasks carry
+    /// their own [`RequestId`] for routing the response back to the right pending
+    /// callback on the client. Async work (data-service transfers, `read_tensor_async`)
+    /// runs without a stream context — the relevant stream id is captured into the future
+    /// at construction time via `executes`.
     async fn process_compute(
         sm: &SessionManager<B, P>,
         session_id: SessionId,
         task: ComputeTask,
-        conn_id: ConnectionId,
     ) -> Result<(), String> {
         let runner = sm.runner(session_id).await;
         let runner = &runner;
-        let stream_id = conn_id.stream_id;
 
         match task {
-            ComputeTask::RegisterOperations(ops) => {
-                stream_id.executes(|| {
-                    for op in ops {
-                        runner.register_op(op);
-                    }
-                });
+            ComputeTask::RegisterOperation(stream_id, op) => {
+                stream_id.executes(|| runner.register_op(op));
                 Ok(())
             }
-            ComputeTask::RegisterTensor(id, data) => {
+            ComputeTask::RegisterTensor(stream_id, id, data) => {
                 stream_id.executes(|| runner.register_tensor_data_id(id, data));
                 Ok(())
             }
@@ -272,7 +268,9 @@ where
                             remote.transfer_id, remote.address,
                         )
                     })?;
-                stream_id.executes(|| runner.register_tensor_data_id(new_id, data));
+                // No client-side stream context for cross-server transfers; use the
+                // current thread's stream id (this task's tokio worker).
+                StreamId::current().executes(|| runner.register_tensor_data_id(new_id, data));
                 Ok(())
             }
             ComputeTask::ExposeTensorRemote {
@@ -283,9 +281,7 @@ where
                 log::info!("Exposing tensor (transfer {transfer_id:?})");
                 // `read_tensor_async` is sync at construction (it locks handles, fetches
                 // the tensor primitive) and returns a future for the actual data read.
-                // The stream id matters for the construction step on stream-aware
-                // backends.
-                let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
+                let fut = StreamId::current().executes(|| runner.read_tensor_async(tensor));
                 let data = fut.await.map_err(|e| {
                     format!("read_tensor_async for transfer {transfer_id:?} failed: {e:?}")
                 })?;
@@ -293,36 +289,36 @@ where
                 Ok(())
             }
             ComputeTask::Seed(seed) => {
-                stream_id.executes(|| runner.seed(seed));
+                runner.seed(seed);
                 Ok(())
             }
-            ComputeTask::ReadTensor(tensor) => {
+            ComputeTask::ReadTensor(request_id, stream_id, tensor) => {
                 let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
                 let data = fut.await;
                 Self::send_response(
                     sm,
                     session_id,
-                    conn_id,
+                    request_id,
                     TaskResponseContent::ReadTensor(data),
                 )
                 .await
             }
-            ComputeTask::SyncBackend => {
+            ComputeTask::SyncBackend(request_id, stream_id) => {
                 let res = stream_id.executes(|| runner.sync());
                 Self::send_response(
                     sm,
                     session_id,
-                    conn_id,
+                    request_id,
                     TaskResponseContent::SyncBackend(res),
                 )
                 .await
             }
-            ComputeTask::DTypeUsage(dtype) => {
-                let res = stream_id.executes(|| runner.dtype_usage(dtype));
+            ComputeTask::DTypeUsage(request_id, dtype) => {
+                let res = runner.dtype_usage(dtype);
                 Self::send_response(
                     sm,
                     session_id,
-                    conn_id,
+                    request_id,
                     TaskResponseContent::DTypeUsage(res),
                 )
                 .await
@@ -333,18 +329,20 @@ where
     async fn send_response(
         sm: &SessionManager<B, P>,
         session_id: SessionId,
-        conn_id: ConnectionId,
+        request_id: RequestId,
         content: TaskResponseContent,
     ) -> Result<(), String> {
         let sender = sm.response_sender(session_id).await;
         sender
             .send(TaskResponse {
                 content,
-                id: conn_id,
+                id: request_id,
             })
             .await
             .map_err(|_| {
-                format!("Response receiver dropped before result for {conn_id:?} could be sent")
+                format!(
+                    "Response receiver dropped before result for request {request_id} could be sent"
+                )
             })
     }
 }

@@ -8,12 +8,14 @@ use burn_std::{
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-#[allow(missing_docs)]
-#[derive(new, Serialize, Deserialize, Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
-pub struct ConnectionId {
-    pub position: u64,
-    pub stream_id: StreamId,
-}
+/// Routing id for a request that expects a response.
+///
+/// Only the response-producing compute tasks ([`ComputeTask::ReadTensor`],
+/// [`ComputeTask::SyncBackend`], [`ComputeTask::DTypeUsage`]) carry a `RequestId`; the
+/// server echoes it on its [`TaskResponse`] so the client demultiplexes responses back
+/// to the right pending callback. Fire-and-forget tasks have no id because no response
+/// ever comes back.
+pub type RequestId = u64;
 
 /// Unique identifier that can represent a session.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
@@ -40,7 +42,7 @@ impl SessionId {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Task {
-    Compute(ComputeTask, ConnectionId),
+    Compute(ComputeTask),
     Init(SessionId),
     Close(SessionId),
 }
@@ -56,10 +58,12 @@ pub struct TensorRemote {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ComputeTask {
     Seed(u64),
-    /// A batch of [`OperationIr`]s to register in order. The client batches ops between
-    /// barriers (reads, sync, register_tensor, etc.) to amortize websocket framing overhead;
-    /// the batch may contain a single op.
-    RegisterOperations(Vec<(StreamId, OperationIr)>),
+    /// A single [`OperationIr`] tagged with the stream it was issued on.
+    ///
+    /// Each op is sent independently — batching across streams would lose stream
+    /// identity, and the server-side backend (fusion, etc.) handles any batching of
+    /// its own.
+    RegisterOperation(StreamId, OperationIr),
     RegisterTensor(StreamId, TensorId, TensorData),
     RegisterTensorRemote(TensorRemote, TensorId),
     ExposeTensorRemote {
@@ -67,16 +71,16 @@ pub enum ComputeTask {
         count: u32,
         transfer_id: TensorTransferId,
     },
-    ReadTensor(StreamId, TensorIr),
-    SyncBackend(StreamId),
-    DTypeUsage(DType),
+    ReadTensor(RequestId, StreamId, TensorIr),
+    SyncBackend(RequestId, StreamId),
+    DTypeUsage(RequestId, DType),
 }
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskResponse {
     pub content: TaskResponseContent,
-    pub id: ConnectionId,
+    pub id: RequestId,
 }
 
 #[allow(missing_docs)]

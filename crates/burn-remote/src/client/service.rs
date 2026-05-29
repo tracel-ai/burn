@@ -1,5 +1,5 @@
 use crate::shared::{
-    ComputeTask, ConnectionId, SessionId, Task, TaskResponse, TaskResponseContent, TensorRemote,
+    ComputeTask, RequestId, SessionId, Task, TaskResponse, TaskResponseContent, TensorRemote,
 };
 use burn_backend::{
     DTypeUsageSet, ExecutionError, TensorData,
@@ -30,13 +30,6 @@ static TENSOR_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub(crate) fn new_tensor_id() -> TensorId {
     TensorId::new(TENSOR_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
-
-/// Flush the op batch when this many ops have accumulated without a barrier.
-///
-/// A barrier (read, sync, register_tensor, …) always flushes the batch, but a workload that
-/// produces ops without ever syncing would otherwise grow unbounded. Sized so a typical
-/// batch fits in one ~MB websocket frame.
-const FLUSH_THRESHOLD: usize = 256;
 
 /// Global registry mapping a network address to a stable `u32` (the `index_id` carried by
 /// `RemoteDevice` → `DeviceId`) and to the cell holding the device's settings.
@@ -135,14 +128,14 @@ fn settings_cell(id: u32) -> Arc<OnceLock<DeviceSettings>> {
         .clone()
 }
 
-type PendingMap = Arc<AsyncMutex<HashMap<ConnectionId, oneshot::Sender<TaskResponseContent>>>>;
+type PendingMap = Arc<AsyncMutex<HashMap<RequestId, oneshot::Sender<TaskResponseContent>>>>;
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
 /// `RemoteService` lives behind a [`DeviceHandle`](burn_backend::DeviceHandle); every call
 /// from the `RunnerClient` shim hops onto the runner thread via `submit` /
-/// `submit_blocking`, so the service has exclusive access to the connection, the callback
-/// map, and the op batch buffer without any locking on its own state.
+/// `submit_blocking`, so the service has exclusive access to the connection and the
+/// callback map without any locking on its own state.
 ///
 /// All tokio work — connecting, sending bytes, awaiting responses, spawning the
 /// response-demux task — happens inside the runtime owned by this struct. The caller never
@@ -152,8 +145,7 @@ pub struct RemoteService<C: ProtocolClient> {
     stream_request: C::Channel,
     pending: PendingMap,
     settings: Arc<OnceLock<DeviceSettings>>,
-    op_buffer: Vec<(StreamId, OperationIr)>,
-    position_counter: u64,
+    request_counter: RequestId,
     session_id: SessionId,
     closed: bool,
 }
@@ -232,7 +224,7 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
         let pending: PendingMap = Arc::new(AsyncMutex::new(HashMap::new()));
 
         // Response-demux task: each TaskResponse is routed to its pending callback by
-        // ConnectionId. Lives on the service runtime; dies when the runtime drops.
+        // RequestId. Lives on the service runtime; dies when the runtime drops.
         let pending_clone = pending.clone();
         runtime.spawn(async move {
             loop {
@@ -273,8 +265,7 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
             stream_request,
             pending,
             settings: cell,
-            op_buffer: Vec::new(),
-            position_counter: 0,
+            request_counter: 0,
             session_id,
             closed: false,
         }
@@ -291,14 +282,12 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
 }
 
 impl<C: ProtocolClient> RemoteService<C> {
-    /// Buffer an op for batched submission. Flushes automatically once the buffer reaches
-    /// [`FLUSH_THRESHOLD`] entries.
+    /// Send a single op to the server, tagged with the stream it was issued on.
+    ///
+    /// Each op crosses the wire on its own — batching across streams would lose stream
+    /// identity, and any same-stream batching is the server backend's responsibility.
     pub fn register_op(&mut self, stream_id: StreamId, op: OperationIr) {
-        self.op_buffer.push((stream_id, op));
-
-        if self.op_buffer.len() >= FLUSH_THRESHOLD {
-            self.flush_ops();
-        }
+        self.send_compute(ComputeTask::RegisterOperation(stream_id, op));
     }
 
     pub fn register_tensor(&mut self, stream_id: StreamId, id: TensorId, data: TensorData) {
@@ -328,24 +317,23 @@ impl<C: ProtocolClient> RemoteService<C> {
 
     /// Initiate a tensor read. The future resolves when the server response arrives.
     ///
-    /// The actual request is sent here (after flushing batched ops), so submission order is
-    /// preserved relative to subsequent service calls — the caller only awaits the
-    /// resolution.
+    /// The request id rides on the task itself; the server echoes it back so the
+    /// response-demux task can hand the response to the right pending callback.
     pub fn read_tensor(
         &mut self,
         stream_id: StreamId,
         tensor: TensorIr,
     ) -> oneshot::Receiver<TaskResponseContent> {
-        let connection_id = self.next_connection_id();
-        let rx = self.register_callback(connection_id);
-        self.send_compute_with_id(ComputeTask::ReadTensor(stream_id, tensor), connection_id);
+        let request_id = self.next_request_id();
+        let rx = self.register_callback(request_id);
+        self.send_compute(ComputeTask::ReadTensor(request_id, stream_id, tensor));
         rx
     }
 
     pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
-        let connection_id = self.next_connection_id();
-        let rx = self.register_callback(connection_id);
-        self.send_compute_with_id(ComputeTask::SyncBackend(stream_id), connection_id);
+        let request_id = self.next_request_id();
+        let rx = self.register_callback(request_id);
+        self.send_compute(ComputeTask::SyncBackend(request_id, stream_id));
         match self.runtime.block_on(rx) {
             Ok(TaskResponseContent::SyncBackend(res)) => res,
             Ok(other) => panic!("Invalid response for SyncBackend: {other:?}"),
@@ -357,9 +345,9 @@ impl<C: ProtocolClient> RemoteService<C> {
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {
-        let connection_id = self.next_connection_id();
-        let rx = self.register_callback(connection_id);
-        self.send_compute_with_id(ComputeTask::DTypeUsage(dtype), connection_id);
+        let request_id = self.next_request_id();
+        let rx = self.register_callback(request_id);
+        self.send_compute(ComputeTask::DTypeUsage(request_id, dtype));
         match self.runtime.block_on(rx) {
             Ok(TaskResponseContent::DTypeUsage(set)) => set,
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
@@ -367,28 +355,8 @@ impl<C: ProtocolClient> RemoteService<C> {
         }
     }
 
-    /// Flush the batched op buffer as a single `RegisterOperations` task.
-    fn flush_ops(&mut self) {
-        if self.op_buffer.is_empty() {
-            return;
-        }
-        let ops = std::mem::take(&mut self.op_buffer);
-        let connection_id = self.next_connection_id();
-        self.send_task(Task::Compute(
-            ComputeTask::RegisterOperations(ops),
-            connection_id,
-        ));
-    }
-
-    /// Flush any batched ops, then send `task` with a fresh connection id.
     fn send_compute(&mut self, task: ComputeTask) {
-        let connection_id = self.next_connection_id();
-        self.send_compute_with_id(task, connection_id);
-    }
-
-    fn send_compute_with_id(&mut self, task: ComputeTask, connection_id: ConnectionId) {
-        self.flush_ops();
-        self.send_task(Task::Compute(task, connection_id));
+        self.send_task(Task::Compute(task));
     }
 
     fn send_task(&mut self, task: Task) {
@@ -402,23 +370,19 @@ impl<C: ProtocolClient> RemoteService<C> {
 
     fn register_callback(
         &self,
-        connection_id: ConnectionId,
+        request_id: RequestId,
     ) -> oneshot::Receiver<TaskResponseContent> {
         let (tx, rx) = oneshot::channel();
         let pending = self.pending.clone();
         self.runtime
-            .block_on(async move { pending.lock().await.insert(connection_id, tx) });
+            .block_on(async move { pending.lock().await.insert(request_id, tx) });
         rx
     }
 
-    fn next_position(&mut self) -> u64 {
-        let pos = self.position_counter;
-        self.position_counter += 1;
-        pos
-    }
-
-    fn next_connection_id(&mut self) -> ConnectionId {
-        ConnectionId::new(self.next_position(), StreamId::current())
+    fn next_request_id(&mut self) -> RequestId {
+        let id = self.request_counter;
+        self.request_counter += 1;
+        id
     }
 }
 
@@ -429,20 +393,10 @@ impl<C: ProtocolClient> Drop for RemoteService<C> {
         }
         self.closed = true;
 
-        // Best-effort flush + close on teardown. Don't panic — we may already be in the
-        // middle of a graceful shutdown where the stream is gone.
+        // Best-effort close on teardown. Don't panic — we may already be in the middle
+        // of a graceful shutdown where the stream is gone.
         let runtime = &self.runtime;
         let stream = &mut self.stream_request;
-
-        if !self.op_buffer.is_empty() {
-            let ops = std::mem::take(&mut self.op_buffer);
-            let connection_id = ConnectionId::new(self.position_counter, StreamId::current());
-            self.position_counter += 1;
-            let task = Task::Compute(ComputeTask::RegisterOperations(ops), connection_id);
-            if let Ok(bytes) = rmp_serde::to_vec(&task) {
-                let _ = runtime.block_on(stream.send(Message::new(bytes.into())));
-            }
-        }
 
         let close = Task::Close(self.session_id);
         if let Ok(bytes) = rmp_serde::to_vec(&close) {

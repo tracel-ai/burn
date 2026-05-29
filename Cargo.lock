@@ -1049,7 +1049,6 @@ dependencies = [
  "burn-std",
  "burn-tensor",
  "bytes",
- "derive-new",
  "futures-util",
  "log",
  "rmp-serde",
