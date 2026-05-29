@@ -64,7 +64,7 @@ fn should_diff_all_reduce_complex_1() {
     let config = DistributedConfig {
         all_reduce_op: ReduceOperation::Sum,
     };
-    let _context = DistributedContext::init(devices.clone(), config);
+    let _context = DistributedContext::init(vec![device_0.clone(), device_1.clone()], config);
     let [out_tensor_0, out_tensor_1] = &compute_all_reduce(
         vec![in_tensor_0.clone(), in_tensor_1.clone()],
         ReduceOperation::Sum,
