@@ -78,14 +78,16 @@ where
             }
         };
 
-        let session_id = match rmp_serde::from_slice::<Task>(&msg.data) {
-            Ok(Task::Init(id)) => id,
-            Ok(other) => {
-                log::error!(
-                    "Response handshake expected Task::Init, got {other:?}; closing stream"
-                );
-                return;
-            }
+        let session_id = match rmp_serde::from_slice::<Vec<Task>>(&msg.data) {
+            Ok(mut tasks) => match tasks.pop() {
+                Some(Task::Init(id)) if tasks.is_empty() => id,
+                other => {
+                    log::error!(
+                        "Response handshake expected a single Task::Init, got {other:?}; closing stream"
+                    );
+                    return;
+                }
+            },
             Err(err) => {
                 log::error!("Failed to decode response init handshake: {err:?}");
                 return;
@@ -171,42 +173,54 @@ where
                 }
             };
 
-            let task: Task = match rmp_serde::from_slice(&msg.data) {
+            let tasks: Vec<Task> = match rmp_serde::from_slice(&msg.data) {
                 Ok(t) => t,
                 Err(err) => {
-                    log::error!("Failed to decode request task: {err:?}; closing stream");
+                    log::error!("Failed to decode request batch: {err:?}; closing stream");
                     break;
                 }
             };
 
-            match task {
-                Task::Init(id) => {
-                    log::info!("Init requester for session {id}");
-                    session_id = Some(id);
-                }
-                Task::Close(id) => {
-                    log::info!("Close requested for session {id}");
-                    Self::handle_close(&session_manager, id).await;
-                    return;
-                }
-                Task::Compute(compute) => {
-                    let Some(sid) = session_id else {
-                        log::error!(
-                            "Compute task received before session Init; closing request stream"
-                        );
+            // Each websocket frame may carry a batch of tasks (the client buffers
+            // fire-and-forget tasks before sending). Process them in order — within a
+            // single batch a `Task::Close` short-circuits the rest, which matches the
+            // client side: once the client sends `Close`, it sends nothing after.
+            let mut closed = false;
+            for task in tasks {
+                match task {
+                    Task::Init(id) => {
+                        log::info!("Init requester for session {id}");
+                        session_id = Some(id);
+                    }
+                    Task::Close(id) => {
+                        log::info!("Close requested for session {id}");
+                        Self::handle_close(&session_manager, id).await;
+                        closed = true;
                         break;
-                    };
+                    }
+                    Task::Compute(compute) => {
+                        let Some(sid) = session_id else {
+                            log::error!(
+                                "Compute task received before session Init; closing request stream"
+                            );
+                            closed = true;
+                            break;
+                        };
 
-                    if let Err(err) =
-                        Self::process_compute(&session_manager, sid, compute).await
-                    {
-                        // A single task failing shouldn't tear down the connection —
-                        // the failure surfaces to the client through the response (for
-                        // read/sync/dtype tasks) or is logged here (for fire-and-forget
-                        // tasks). The connection stays open so subsequent tasks can run.
-                        log::error!("Compute task on session {sid} failed: {err}");
+                        if let Err(err) =
+                            Self::process_compute(&session_manager, sid, compute).await
+                        {
+                            // A single task failing shouldn't tear down the connection —
+                            // the failure surfaces to the client through the response (for
+                            // read/sync/dtype tasks) or is logged here (for fire-and-forget
+                            // tasks). The connection stays open so subsequent tasks can run.
+                            log::error!("Compute task on session {sid} failed: {err}");
+                        }
                     }
                 }
+            }
+            if closed {
+                return;
             }
         }
     }

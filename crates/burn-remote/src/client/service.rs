@@ -130,12 +130,28 @@ fn settings_cell(id: u32) -> Arc<OnceLock<DeviceSettings>> {
 
 type PendingMap = Arc<AsyncMutex<HashMap<RequestId, oneshot::Sender<TaskResponseContent>>>>;
 
+/// Flush the outgoing task buffer when this many tasks have accumulated.
+///
+/// This is wire-level batching only — every task in the batch still carries its own
+/// [`StreamId`] and any [`RequestId`] it needs, so the server sees the exact same
+/// per-task semantics it would if each task arrived in its own frame. The threshold
+/// caps memory and latency for chains of fire-and-forget submits that never hit a
+/// [`submit_blocking`](RemoteService::submit_blocking) barrier.
+const FLUSH_THRESHOLD: usize = 32;
+
 /// All the state owned by the device-runner thread for a single remote device.
 ///
 /// `RemoteService` lives behind a [`DeviceHandle`](burn_backend::DeviceHandle); every call
-/// from the `RunnerClient` shim hops onto the runner thread via `submit` /
-/// `submit_blocking`, so the service has exclusive access to the connection and the
-/// callback map without any locking on its own state.
+/// from the `RunnerClient` shim hops onto the runner thread via the device handle's
+/// `submit` / `submit_blocking`, so the service has exclusive access to the connection,
+/// the callback map, and the outgoing task buffer without any locking on its own state.
+///
+/// The service mirrors that submit-style API internally: fire-and-forget calls go
+/// through [`submit`](Self::submit) (push into [`task_buffer`](Self::task_buffer), flush
+/// once it reaches [`FLUSH_THRESHOLD`]), and response-producing calls go through
+/// [`submit_blocking`](Self::submit_blocking) (push, then flush right away so the
+/// request hits the wire before we await the oneshot). One `block_on(send)` per batch,
+/// not per task.
 ///
 /// All tokio work — connecting, sending bytes, awaiting responses, spawning the
 /// response-demux task — happens inside the runtime owned by this struct. The caller never
@@ -145,6 +161,7 @@ pub struct RemoteService<C: ProtocolClient> {
     stream_request: C::Channel,
     pending: PendingMap,
     settings: Arc<OnceLock<DeviceSettings>>,
+    task_buffer: Vec<Task>,
     request_counter: RequestId,
     session_id: SessionId,
     closed: bool,
@@ -189,7 +206,9 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
         });
 
         // Send the session-init handshake on both streams and wait for the device settings.
-        let init_bytes: bytes::Bytes = rmp_serde::to_vec(&Task::Init(session_id))
+        // Both streams use the same `Vec<Task>` wire format for client→server frames; the
+        // handshake is just a single-element batch.
+        let init_bytes: bytes::Bytes = rmp_serde::to_vec(&vec![Task::Init(session_id)])
             .expect("Can serialize Task::Init")
             .into();
 
@@ -265,6 +284,7 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
             stream_request,
             pending,
             settings: cell,
+            task_buffer: Vec::with_capacity(FLUSH_THRESHOLD),
             request_counter: 0,
             session_id,
             closed: false,
@@ -282,20 +302,22 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
 }
 
 impl<C: ProtocolClient> RemoteService<C> {
-    /// Send a single op to the server, tagged with the stream it was issued on.
-    ///
-    /// Each op crosses the wire on its own — batching across streams would lose stream
-    /// identity, and any same-stream batching is the server backend's responsibility.
+    /// Buffer a fire-and-forget op. The buffer is flushed automatically once it reaches
+    /// [`FLUSH_THRESHOLD`] entries.
     pub fn register_op(&mut self, stream_id: StreamId, op: OperationIr) {
-        self.send_compute(ComputeTask::RegisterOperation(stream_id, op));
+        self.submit(Task::Compute(ComputeTask::RegisterOperation(stream_id, op)));
     }
 
     pub fn register_tensor(&mut self, stream_id: StreamId, id: TensorId, data: TensorData) {
-        self.send_compute(ComputeTask::RegisterTensor(stream_id, id, data));
+        self.submit(Task::Compute(ComputeTask::RegisterTensor(stream_id, id, data)));
     }
 
+    /// Optimistic: the cross-server transfer task is buffered like any other. The next
+    /// op on this client will piggy-back the flush, and reads/syncs always flush before
+    /// they wait — so as long as a barrier follows shortly, the source server has had
+    /// time to expose the tensor before the target server starts downloading.
     pub fn register_tensor_remote(&mut self, tensor: TensorRemote, new_id: TensorId) {
-        self.send_compute(ComputeTask::RegisterTensorRemote(tensor, new_id));
+        self.submit(Task::Compute(ComputeTask::RegisterTensorRemote(tensor, new_id)));
     }
 
     pub fn expose_tensor_remote(
@@ -304,15 +326,15 @@ impl<C: ProtocolClient> RemoteService<C> {
         count: u32,
         transfer_id: TensorTransferId,
     ) {
-        self.send_compute(ComputeTask::ExposeTensorRemote {
+        self.submit(Task::Compute(ComputeTask::ExposeTensorRemote {
             tensor,
             count,
             transfer_id,
-        });
+        }));
     }
 
     pub fn seed(&mut self, seed: u64) {
-        self.send_compute(ComputeTask::Seed(seed));
+        self.submit(Task::Compute(ComputeTask::Seed(seed)));
     }
 
     /// Initiate a tensor read. The future resolves when the server response arrives.
@@ -326,14 +348,18 @@ impl<C: ProtocolClient> RemoteService<C> {
     ) -> oneshot::Receiver<TaskResponseContent> {
         let request_id = self.next_request_id();
         let rx = self.register_callback(request_id);
-        self.send_compute(ComputeTask::ReadTensor(request_id, stream_id, tensor));
+        self.submit_blocking(Task::Compute(ComputeTask::ReadTensor(
+            request_id, stream_id, tensor,
+        )));
         rx
     }
 
     pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
         let request_id = self.next_request_id();
         let rx = self.register_callback(request_id);
-        self.send_compute(ComputeTask::SyncBackend(request_id, stream_id));
+        self.submit_blocking(Task::Compute(ComputeTask::SyncBackend(
+            request_id, stream_id,
+        )));
         match self.runtime.block_on(rx) {
             Ok(TaskResponseContent::SyncBackend(res)) => res,
             Ok(other) => panic!("Invalid response for SyncBackend: {other:?}"),
@@ -347,7 +373,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {
         let request_id = self.next_request_id();
         let rx = self.register_callback(request_id);
-        self.send_compute(ComputeTask::DTypeUsage(request_id, dtype));
+        self.submit_blocking(Task::Compute(ComputeTask::DTypeUsage(request_id, dtype)));
         match self.runtime.block_on(rx) {
             Ok(TaskResponseContent::DTypeUsage(set)) => set,
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
@@ -355,12 +381,38 @@ impl<C: ProtocolClient> RemoteService<C> {
         }
     }
 
-    fn send_compute(&mut self, task: ComputeTask) {
-        self.send_task(Task::Compute(task));
+    /// Append a task to the outgoing buffer; flush only if we've hit the threshold.
+    ///
+    /// Use this for fire-and-forget tasks. The runner thread is single-threaded, so
+    /// pushing into the buffer is just a `Vec::push` — no locking, no tokio hop, no
+    /// network send.
+    fn submit(&mut self, task: Task) {
+        self.task_buffer.push(task);
+        if self.task_buffer.len() >= FLUSH_THRESHOLD {
+            self.flush();
+        }
     }
 
-    fn send_task(&mut self, task: Task) {
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&task).expect("Can serialize task").into();
+    /// Append a task and flush the buffer immediately.
+    ///
+    /// Use this when the caller is about to await a response — the request has to hit
+    /// the wire before there's anything for the server to reply to. The "blocking" is
+    /// just one `block_on(send)` for the whole batch, not per task.
+    fn submit_blocking(&mut self, task: Task) {
+        self.task_buffer.push(task);
+        self.flush();
+    }
+
+    /// Serialize and send whatever's currently in the buffer as a single websocket
+    /// frame. No-op when the buffer is empty.
+    fn flush(&mut self) {
+        if self.task_buffer.is_empty() {
+            return;
+        }
+        let batch = std::mem::take(&mut self.task_buffer);
+        let bytes: bytes::Bytes = rmp_serde::to_vec(&batch)
+            .expect("Can serialize task batch")
+            .into();
         let runtime = &self.runtime;
         let stream = &mut self.stream_request;
         runtime
@@ -393,13 +445,14 @@ impl<C: ProtocolClient> Drop for RemoteService<C> {
         }
         self.closed = true;
 
-        // Best-effort close on teardown. Don't panic — we may already be in the middle
-        // of a graceful shutdown where the stream is gone.
-        let runtime = &self.runtime;
-        let stream = &mut self.stream_request;
-
-        let close = Task::Close(self.session_id);
-        if let Ok(bytes) = rmp_serde::to_vec(&close) {
+        // Best-effort flush + close on teardown: append Close to whatever's still
+        // buffered and send it as one frame. Don't panic — we may already be in the
+        // middle of a graceful shutdown where the stream is gone.
+        self.task_buffer.push(Task::Close(self.session_id));
+        let batch = std::mem::take(&mut self.task_buffer);
+        if let Ok(bytes) = rmp_serde::to_vec(&batch) {
+            let runtime = &self.runtime;
+            let stream = &mut self.stream_request;
             let _ = runtime.block_on(stream.send(Message::new(bytes.into())));
         }
     }
