@@ -1,6 +1,7 @@
 use burn_backend::ops::ComplexTensorOps;
 use burn_std::{
-    AsIndex, ComplexScalar, DType, ElementConversion, IndexingUpdateOp, Scalar, Shape, SliceArg,
+    AsIndex, ComplexScalar, DType, Element, ElementConversion, IndexingUpdateOp, Scalar, Shape,
+    Slice, SliceArg, SliceOps,
 };
 
 use crate::{
@@ -319,6 +320,59 @@ impl<const D: usize> SplitTensor<D, Complex> {
     /// - If the number of slices exceeds the tensor's dimensions
     /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1) without negative step
     /// - If a step is zero
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Shape, s};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///
+    ///     // Single dimension slicing - no brackets needed!
+    ///     let tensor = Tensor::<1, burn_tensor::Int>::arange(0..10, &device);
+    ///     let slice = tensor.clone().slice(2..8);  // Simple range
+    ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![2, 3, 4, 5, 6, 7]);
+    ///
+    ///     // Using s! macro for single dimension with step
+    ///     let slice = tensor.clone().slice(s![0..10;2]);  // Every 2nd element
+    ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![0, 2, 4, 6, 8]);
+    ///
+    ///     // Reverse a dimension with negative step
+    ///     let slice = tensor.slice(s![..;-1]);  // Reverse entire tensor
+    ///     assert_eq!(slice.into_data().to_vec::<i32>().unwrap(), vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0]);
+    ///
+    ///     // Multi-dimensional slicing
+    ///     let tensor = Tensor::<2>::ones(Shape::new([4, 6]), &device);
+    ///
+    ///     // Array syntax for simple ranges
+    ///     let slice = tensor.clone().slice([1..3, 2..5]);
+    ///     assert_eq!(slice.dims(), [2, 3]);
+    ///
+    ///     // Advanced multi-dimensional with s! macro
+    ///     let slice = tensor.clone().slice(s![0..4;2, ..;-1]);  // Every 2nd row, reverse columns
+    ///     assert_eq!(slice.dims(), [2, 6]);
+    ///
+    ///     // Complex 3D example with mixed slice types
+    ///     let tensor = Tensor::<3>::ones(Shape::new([4, 6, 8]), &device);
+    ///     let slice = tensor.slice(s![1..3, ..;2, -3..]);  // Rows 1-2, every 2nd col, last 3 depth
+    ///     assert_eq!(slice.dims(), [2, 3, 3]);
+    ///
+    ///     // Using negative indices
+    ///     let tensor = Tensor::<2>::ones(Shape::new([4, 6]), &device);
+    ///     let slice = tensor.slice(s![-2.., ..-1]);  // Last 2 rows, all but last column
+    ///     assert_eq!(slice.dims(), [2, 5]);
+    /// }
+    /// ```
+    ///
+    /// # See Also
+    ///
+    /// - [`s!`] - The recommended macro for creating complex slice specifications
+    /// - [`slice_assign`](Self::slice_assign) - Assign values to a slice
+    /// - [`slice_fill`](Self::slice_fill) - Fill a slice with a constant value
+    /// - [`slice_dim`](Self::slice_dim) - Slice a single dimension
+    ///
+    /// [`s!`]: crate::s!
     pub fn slice<S>(self, slices: S) -> Self
     where
         S: SliceArg,
@@ -341,6 +395,146 @@ impl<const D: usize> SplitTensor<D, Complex> {
         }
         SplitBackend::complex_slice(self.into(), &slices).into()
     }
+
+    /// Fills a slice of the tensor with a constant value and returns the updated tensor.
+    ///
+    /// Like other slice methods, accepts both single slices and arrays. However, this method
+    /// currently **does not support stepped slicing** - use [`slice_assign`](Self::slice_assign)
+    /// with a constant tensor for stepped patterns.
+    ///
+    /// # Arguments
+    ///
+    /// * `slices` - Slice specification (same format as `slice` method, but no steps)
+    /// * `value` - The value to fill the slice with
+    ///
+    /// # Panics
+    ///
+    /// - If slices exceed tensor dimensions
+    /// - If any slice has a step != 1 (not yet supported)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, s};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///
+    ///     // Simple fill for a single dimension
+    ///     let mut tensor = Tensor::<1>::zeros([10], &device);
+    ///     tensor = tensor.slice_fill(2..5, 1.0);
+    ///     // Now tensor is [0, 0, 1, 1, 1, 0, 0, 0, 0, 0]
+    ///
+    ///     // Multi-dimensional fill
+    ///     let mut tensor = Tensor::<2>::zeros([4, 6], &device);
+    ///     tensor = tensor.slice_fill([1..3, 2..5], -1.0);
+    ///     // Fills the rectangle at rows 1-2, columns 2-4 with -1
+    ///
+    ///     // Using negative indices
+    ///     let mut tensor = Tensor::<1>::zeros([10], &device);
+    ///     tensor = tensor.slice_fill(-3.., 2.0);
+    ///     // Fills the last 3 elements with 2.0
+    ///
+    ///     // Complex multi-dimensional example
+    ///     let mut tensor = Tensor::<3>::ones([4, 6, 8], &device);
+    ///     tensor = tensor.slice_fill(s![1..3, .., -2..], 0.0);
+    ///     // Sets rows 1-2, all columns, last 2 in depth to 0
+    ///
+    ///     // Stepped slicing is supported
+    ///     let mut tensor = Tensor::<1>::zeros([10], &device);
+    ///     tensor = tensor.slice_fill(s![0..10;2], 1.0);
+    ///     // Now every 2nd element is 1: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+    /// }
+    /// ```
+    ///
+    /// # See Also
+    ///
+    /// - [`s!`] - The macro for creating slice specifications with steps
+    /// - [`slice`](Self::slice) - Extract a slice from a tensor
+    /// - [`slice_assign`](Self::slice_assign) - Assign tensor values to a slice
+    ///
+    /// [`s!`]: crate::s!
+    pub fn slice_fill<S, E: Element>(self, slices: S, value: E) -> Self
+    where
+        S: SliceArg,
+    {
+        let shape = self.shape();
+        let slices = slices.into_slices(&shape);
+
+        crate::check!(TensorCheck::slice::<D>(&shape, &slices));
+
+        let slice_shape = shape.slice(&slices).unwrap();
+        let value = SplitTensor::<1, Complex>::from_data([value], (&self.device(), self.dtype()));
+        let value = value.expand(slice_shape);
+        self.slice_assign(&slices, value)
+    }
+
+    /// Returns a new tensor with the specified dimension sliced.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim`: The dimension to slice.
+    /// * `slice`: The slice specification for the dimension. Can be a range (e.g., `2..5`),
+    ///   slice with step (via `s!` macro, e.g., `s![0..10;2]`), or any type that implements `Into<Slice>`.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the specified dimension sliced.
+    ///
+    /// # Panics
+    ///
+    /// If the slice is out of bounds for the specified dimension.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use burn_tensor::{Tensor, s};
+    /// #
+    /// # fn example() {
+    /// #     let device = Default::default();
+    ///     let tensor = Tensor::<3>::zeros([3, 4, 5], &device);
+    ///
+    ///     // Simple range slicing
+    ///     let sliced = tensor.clone().slice_dim(1, 1..3);
+    ///     assert_eq!(sliced.shape().as_slice(), [3, 2, 5]);
+    ///
+    ///     // Slicing with step - take every 2nd element
+    ///     let sliced = tensor.clone().slice_dim(2, s![0..5;2]);
+    ///     assert_eq!(sliced.shape().as_slice(), [3, 4, 3]); // Takes indices 0, 2, 4
+    ///
+    ///     // Reverse slicing with negative step
+    ///     let sliced = tensor.clone().slice_dim(1, s![..;-1]);
+    ///     assert_eq!(sliced.shape().as_slice(), [3, 4, 5]); // Reverses dimension 1
+    ///
+    ///     // Select from index 2 with step 3
+    ///     let sliced = tensor.clone().slice_dim(0, s![2..;3]);
+    ///     assert_eq!(sliced.shape().as_slice(), [1, 4, 5]); // Takes only index 2
+    ///
+    ///     // Select single index (reduces dimension to size 1)
+    ///     let sliced = tensor.slice_dim(0, 1);
+    ///     assert_eq!(sliced.shape().as_slice(), [1, 4, 5]);
+    /// # }
+    /// ```
+    ///
+    /// # See Also
+    ///
+    /// - [`slice`](Self::slice) - Slice multiple dimensions simultaneously
+    /// - [`s!`] - The macro for creating complex slice specifications
+    ///
+    /// [`s!`]: crate::s!
+    pub fn slice_dim<S>(self, dim: usize, slice: S) -> Self
+    where
+        S: Into<Slice>,
+    {
+        crate::check!(TensorCheck::check_dim::<D>(dim));
+        let slice: Slice = slice.into();
+
+        let mut slices = vec![Slice::full(); D];
+        slices[dim] = slice;
+
+        self.slice(&slices)
+    }
+
     /// Assigns values to a slice of the complex tensor and returns the updated tensor.
     ///
     /// # Arguments

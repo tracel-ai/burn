@@ -1,7 +1,6 @@
-
 use burn_tensor::Device;
 use burn_tensor::Tolerance;
-use burn_tensor::{ComplexScalar, TensorData};
+use burn_tensor::{ComplexScalar, Float, Tensor, TensorData};
 
 #[test]
 fn test_complex_conj() {
@@ -166,9 +165,9 @@ fn test_complex_from_parts() {
 #[test]
 fn test_complex_from_polar() {
     let magnitude =
-        FloatTensor::<2>::from_data(TensorData::from([[1.0_f32, 2.0]]), &Default::default());
+        Tensor::<2, Float>::from_data(TensorData::from([[1.0_f32, 2.0]]), &Default::default());
 
-    let phase = FloatTensor::<2>::from_data(
+    let phase = Tensor::<2, Float>::from_data(
         TensorData::from([[0.0_f32, std::f32::consts::FRAC_PI_2]]), // 0 and π/2 radians
         &Default::default(),
     );
@@ -592,4 +591,3 @@ fn test_complex_atanh() {
     assert!(data[0].abs() < 1e-5, "re(atanh(0)) = {}", data[0]);
     assert!(data[1].abs() < 1e-5, "im(atanh(0)) = {}", data[1]);
 }
-

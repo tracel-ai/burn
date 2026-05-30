@@ -173,7 +173,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub async fn into_interleaved_data(self) -> Result<TensorData, ExecutionError> {
@@ -217,6 +217,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///    // 2.64608933e-18-4.32139183e-02i],
     ///    //  [-7.49735280e-02+2.99204278e-02i,  5.50067930e-19-8.98329102e-03i,
     ///    //  9.29602961e+01+5.18329310e+01i]]
+    /// }
     /// ```
     pub fn powc(self, exponent: Self) -> Self {
         SplitBackend::complex_powc(self.into(), exponent.into()).into()
@@ -333,7 +334,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub async fn into_data_async(self) -> Result<TensorData, ExecutionError> {
@@ -345,7 +346,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn try_into_data(self) -> Result<TensorData, ExecutionError> {
@@ -360,7 +361,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn into_data(self) -> TensorData {
@@ -373,7 +374,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///
     /// # Note
     ///
-    /// For better performance, prefer using a [Transaction](burn_std::Transaction) when reading multiple
+    /// For better performance, prefer using a [Transaction](crate::Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
     pub fn to_data(&self) -> TensorData {

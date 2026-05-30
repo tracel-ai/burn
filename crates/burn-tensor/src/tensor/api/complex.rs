@@ -53,6 +53,7 @@ where
     ///    // 2.64608933e-18-4.32139183e-02i],
     ///    //  [-7.49735280e-02+2.99204278e-02i,  5.50067930e-19-8.98329102e-03i,
     ///    //  9.29602961e+01+5.18329310e+01i]]
+    /// }
     /// ```
     pub fn powc(self, exponent: Self) -> Self {
         Self::new(K::powc(self.primitive, exponent.primitive))

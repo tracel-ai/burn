@@ -195,7 +195,7 @@ pub fn interleaved_data_to_imag_data(interleaved: TensorData) -> TensorData {
     TensorData::from_bytes_vec(real_bytes, interleaved.shape.clone(), real_dtype)
 }
 
-/// Splits an interleaved complex `TensorData` into a [`SplitTensorData`] containing separate
+/// Splits an interleaved complex `TensorData` into a TensorData tuple containing separate
 /// real and imaginary byte buffers.
 ///
 /// Each complex element `[r, i]` is split so that `r` goes into `real_bytes` and `i` into
@@ -208,7 +208,7 @@ pub fn interleaved_data_to_imag_data(interleaved: TensorData) -> TensorData {
 ///
 /// # Returns
 ///
-/// A [`SplitTensorData`] containing the real and imaginary byte buffers with the same shape.
+/// A tuple containing the real and imaginary byte buffers with the same shape.
 #[inline]
 pub fn split_from_interleaved_data(interleaved: TensorData) -> (TensorData, TensorData) {
     let real_dtype = complex_to_real_dtype(interleaved.dtype);
