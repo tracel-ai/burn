@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    BoolDType, ComplexDType, ExecutionError, Scalar, Shape, Slice, SplitTensorData, TensorData,
+    BoolDType, ComplexDType, ExecutionError, Scalar, Shape, Slice, TensorData,
     ops::ComplexTensorOps,
     tensor::{BoolTensor, ComplexTensor, FloatTensor, IntTensor},
 };
@@ -473,7 +473,7 @@ impl ComplexTensorOps<Self> for Dispatch {
 
     async fn complex_into_split_data(
         tensor: burn_backend::ComplexTensor<Self>,
-    ) -> Result<SplitTensorData, ExecutionError> {
+    ) -> Result<(TensorData, TensorData), ExecutionError> {
         unary_complex!(tensor, complex, |tensor| B::complex_into_split_data(tensor)
             .await)
     }

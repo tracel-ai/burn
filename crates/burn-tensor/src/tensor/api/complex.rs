@@ -1,7 +1,17 @@
 use burn_std::TensorData;
 
-use crate::{Device, Float, Tensor, kind::ComplexMath};
+use crate::{Complex, Device, Float, Tensor, TensorCreationOptions, kind::ComplexMath};
 
+impl<const D: usize> Tensor<D, Complex> {
+    /// Creates a complex tensor from interleaved host data.
+    pub fn from_complex<A: Into<TensorData>>(complexes: A, device: &Device) -> Self {
+        let out_dtype = device.settings().complex_dtype;
+        Self::from_data(
+            complexes.into(),
+            TensorCreationOptions::new(device.clone()).with_dtype(out_dtype.into()),
+        )
+    }
+}
 impl<const D: usize, K> Tensor<D, K>
 where
     K: ComplexMath,
@@ -22,7 +32,28 @@ where
         Self::new(K::conj(self.primitive))
     }
 
-    //TODO: Docs and test
+    /// Applies element wise power operation with a complex Tensor exponent.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to apply the power operation with.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor,ComplexScalar, Shape, Int};
+    ///
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor1 = Tensor::<2, Complex>::from_ints([[ComplexScalar::new(1.0, -2.0), ComplexScalar::new(3.0, 4.0), ComplexScalar::new(0.0, -1.0)], [ComplexScalar::new(1.0, -2.0), ComplexScalar::new(0.0, -1.0), ComplexScalar::new(2.0, 2.0)]], &device);
+    ///    let tensor2 = Tensor::<2, Complex>::from_complex([[ComplexScalar::new(5.0, -1.0), ComplexScalar::new(2.0, 3.0), ComplexScalar::new(1.0, -2.0)], [ComplexScalar::new(1.0, -3.0), ComplexScalar::new(1.0, -3.0), ComplexScalar::new(6.0, 2.0)]], &device);
+    ///    let tensor = tensor1.powc(tensor2);
+    ///    println!("{tensor}");
+    ///    // [[ 1.84452120e+01-1.05764765e+00i,  1.42600948e+00+6.02434630e-01i,
+    ///    // 2.64608933e-18-4.32139183e-02i],
+    ///    //  [-7.49735280e-02+2.99204278e-02i,  5.50067930e-19-8.98329102e-03i,
+    ///    //  9.29602961e+01+5.18329310e+01i]]
+    /// ```
     pub fn powc(self, exponent: Self) -> Self {
         Self::new(K::powc(self.primitive, exponent.primitive))
     }

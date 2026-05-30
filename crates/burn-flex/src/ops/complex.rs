@@ -4,7 +4,7 @@ use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{ComplexTensor, ComplexTensorBackend, Distribution, InterleavedLayout};
 use burn_backend::{Element, TensorData};
 
-use burn_std::{BoolDType, ComplexDType, ComplexScalar, DType, Scalar, Slice, SplitTensorData};
+use burn_std::{BoolDType, ComplexDType, ComplexScalar, DType, Scalar, Slice};
 use num_traits::ToPrimitive;
 use num_traits::{One, Zero};
 
@@ -82,7 +82,7 @@ impl ComplexTensorOps<Flex> for Flex {
 
     async fn complex_into_split_data(
         tensor: ComplexTensor<Flex>,
-    ) -> Result<SplitTensorData, burn_backend::ExecutionError> {
+    ) -> Result<(TensorData, TensorData), burn_backend::ExecutionError> {
         Ok(burn_std::complex_utils::split_from_interleaved_data(
             tensor.into_data(),
         ))

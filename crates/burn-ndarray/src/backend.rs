@@ -3,7 +3,9 @@ use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps, UnimplementedTensorPrimitive};
+use burn_backend::{
+    Backend, BackendTypes, DType, DeviceId, DeviceOps, UnimplementedTensorPrimitive,
+};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::stub::Mutex;
 use burn_std::{BoolStore, DeviceSettings, QuantConfig};

@@ -33,9 +33,6 @@ pub struct TensorData {
     pub dtype: DType,
 }
 
-///Type alias for a Tuple of TensorData
-pub type SplitTensorData = (TensorData, TensorData);
-
 // For backward compatibility with shape `Vec<usize>`
 mod shape_inner {
     use crate::SmallVec;

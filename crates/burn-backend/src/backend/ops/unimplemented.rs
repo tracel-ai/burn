@@ -77,7 +77,7 @@ where
 
     async fn complex_into_split_data(
         _tensor: crate::ComplexTensor<B>,
-    ) -> Result<burn_std::SplitTensorData, burn_std::ExecutionError> {
+    ) -> Result<(TensorData, TensorData), burn_std::ExecutionError> {
         panic!("{}", complex_panic_message())
     }
 

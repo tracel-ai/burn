@@ -1,7 +1,6 @@
 use burn_backend::ops::ComplexTensorOps;
 use burn_std::ComplexScalar;
 use burn_std::Element;
-use burn_std::Scalar;
 use burn_std::cast::ToElement;
 
 use crate::Complex;

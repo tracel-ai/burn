@@ -1,4 +1,6 @@
-use burn_backend::{Backend, BackendTypes, DTypeUsageSet, Layout, SplitLayout, try_read_sync};
+use burn_backend::{
+    Backend, BackendTypes, Layout, SplitLayout, ops::ComplexTensorOps, try_read_sync,
+};
 use burn_dispatch::DispatchTensor;
 use burn_std::{
     AsIndex, ComplexScalar, Distribution, Element, ElementConversion, ExecutionError, Scalar,
@@ -10,7 +12,7 @@ use crate::{
     atan2_impl, bool_and_impl, bool_or_impl,
     check::TensorCheck,
     ops::{BasicOps, BridgeTensor, FloatMathOps, Numeric},
-    split::base::{SplitPrimitive, SplitTensor},
+    split::base::{SplitBackend, SplitPrimitive, SplitTensor},
 };
 
 #[derive(Clone, Debug)]
@@ -26,6 +28,11 @@ impl SplitLayout for SplitComplexLayout {
 }
 
 impl<const D: usize> SplitTensor<D, Complex> {
+    /// Creates a complex tensor from separate real and imaginary tensor components.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the two components do not have the same shape or dtype.
     pub fn new(real: BridgeTensor, imag: BridgeTensor) -> Self {
         assert_eq!(
             real.shape(),
@@ -43,17 +50,27 @@ impl<const D: usize> SplitTensor<D, Complex> {
         }
     }
 
+    /// Converts this split complex tensor into its backend primitive representation.
     pub(crate) fn to_primitive(self) -> SplitPrimitive<DispatchTensor, 2> {
         let [real, imag] = self.components;
         SplitPrimitive([real.into(), imag.into()])
     }
+
+    /// Returns the public complex dtype of this tensor.
     pub fn dtype(&self) -> burn_std::DType {
         burn_std::complex_utils::real_to_complex_dtype(self.inner_dtype())
     }
+
+    /// Returns the underlying real dtype used by the split tensor components.
     pub fn inner_dtype(&self) -> burn_std::DType {
         self.components[0].dtype()
     }
 
+    /// Creates a complex tensor from separate real and imaginary tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the real and imaginary data do not have the same shape or dtype.
     pub fn from_parts_data(real: TensorData, imag: TensorData, device: &Device) -> Self {
         let dtype = real.dtype;
         let shape = &real.shape;
@@ -71,6 +88,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
         Self::new(real_tensor, imag_tensor)
     }
 
+    /// Creates a complex tensor from real-valued data, filling the imaginary part with zeros.
     pub fn from_real_data(data: TensorData, device: &Device) -> Self {
         let shape = data.shape.clone();
         let dtype = data.dtype;
@@ -87,6 +105,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
         }
     }
 
+    /// Creates a complex tensor from imaginary-valued data, filling the real part with zeros.
     pub fn from_imag_data(data: TensorData, device: &Device) -> Self {
         let shape = data.shape.clone();
         let dtype = data.dtype;
@@ -99,6 +118,11 @@ impl<const D: usize> SplitTensor<D, Complex> {
         }
     }
 
+    /// Creates a complex tensor from a tuple of real and imaginary tensor data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the real and imaginary data do not have the same shape or dtype.
     pub fn from_split_data(data: (TensorData, TensorData), device: &Device) -> Self {
         let (real, imag) = data;
         let shape = &real.shape;
@@ -120,20 +144,30 @@ impl<const D: usize> SplitTensor<D, Complex> {
             ],
         }
     }
+
+    /// Returns the real component as a float tensor, consuming the complex tensor.
     pub fn real(self) -> Tensor<D, Float> {
         let [real, _imag] = self.components;
         Tensor::new(real)
     }
+
+    /// Returns the imaginary component as a float tensor, consuming the complex tensor.
     pub fn imag(self) -> Tensor<D, Float> {
         let [_real, imag] = self.components;
         Tensor::new(imag)
     }
+
+    /// Returns a shared reference to the real component tensor.
     pub fn real_ref(&self) -> &BridgeTensor {
         &self.components[0]
     }
+
+    /// Returns a shared reference to the imaginary component tensor.
     pub fn imag_ref(&self) -> &BridgeTensor {
         &self.components[1]
     }
+
+    /// Splits this complex tensor into its real and imaginary float tensor parts.
     pub fn into_parts(self) -> (Tensor<D, Float>, Tensor<D, Float>) {
         let [real, imag] = self.components;
         (Tensor::new(real), Tensor::new(imag))
@@ -166,6 +200,10 @@ impl<const D: usize> SplitTensor<D, Complex> {
         // conj(a + bi) = a - bi
         let [real, imag] = self.components;
         SplitTensor::new(real, Float::neg(imag))
+    }
+
+    pub fn powc(self, exponent: Self) -> Self {
+        SplitBackend::complex_powc(self.into(), exponent.into()).into()
     }
 
     pub fn from_real(tensor: Tensor<D, Float>) -> Self {
@@ -656,7 +694,11 @@ impl<const D: usize> SplitTensor<D, Complex> {
         let device = self.device();
         let shape = self.shape();
         let scalar_complex = rhs.elem::<ComplexScalar<f64>>();
-        let scalar_tensor = Self::full(shape, scalar_complex, TensorCreationOptions::new(device).with_dtype(self.dtype()));
+        let scalar_tensor = Self::full(
+            shape,
+            scalar_complex,
+            TensorCreationOptions::new(device).with_dtype(self.dtype()),
+        );
         self.div(scalar_tensor)
     }
 
@@ -725,7 +767,11 @@ impl<const D: usize> SplitTensor<D, Complex> {
         let device = self.device();
         let shape = self.shape();
         let scalar_complex = rhs.elem::<ComplexScalar<f64>>();
-        let scalar_tensor = Self::full(shape, scalar_complex, TensorCreationOptions::new(device).with_dtype(self.dtype()));
+        let scalar_tensor = Self::full(
+            shape,
+            scalar_complex,
+            TensorCreationOptions::new(device).with_dtype(self.dtype()),
+        );
         self.mul(scalar_tensor)
     }
 
@@ -919,51 +965,13 @@ impl<const D: usize> SplitTensor<D, Complex> {
 
     /// Applies element-wise complex arctangent.
     pub fn atan(self) -> Self {
-        // atan(z) = (-i/2) * ln((1 + i*z) / (1 - i*z))
-        let device = self.device();
-        let shape = self.shape();
-
-        let ones = Self::ones(
-            shape,
-            TensorCreationOptions::new(device)
-                .with_dtype(burn_std::complex_utils::real_to_complex_dtype(self.dtype())),
-        );
-        let [real, imag] = self.components;
-        // i*z = (-imag, real)
-        let i_z = SplitTensor::new(Float::neg(imag), real);
-        // 1 + i*z and 1 - i*z
-        // ln((1 + i*z) / (1 - i*z))
-        let [log_ratio_real, log_ratio_imag] = ((ones.clone() + i_z.clone()) / (ones - i_z))
-            .log()
-            .components;
-        // (-i/2) * log_ratio: -i*(a+bi) = (b, -a), then /2
-        SplitTensor::new(
-            Float::div_scalar(log_ratio_imag, burn_std::Scalar::Float(2.0)),
-            Float::neg(Float::div_scalar(
-                log_ratio_real,
-                burn_std::Scalar::Float(2.0),
-            )),
-        )
+        SplitBackend::complex_atan(self.into()).into()
     }
 
     /// Applies element-wise complex hyperbolic arctangent.
     pub fn atanh(self) -> Self {
         // atanh(z) = (1/2) * ln((1 + z) / (1 - z))
-        let device = self.device();
-        let shape = self.shape();
-        let fdtype = self.inner_dtype();
-        let ones = Self::ones(
-            shape,
-            TensorCreationOptions::new(device)
-                .with_dtype(burn_std::complex_utils::real_to_complex_dtype(fdtype)),
-        );
-        let one_plus_z = ones.clone() + self.clone();
-        let one_minus_z = ones - self;
-        let [log_ratio_real, log_ratio_imag] = (one_plus_z / one_minus_z).log().components;
-        SplitTensor::new(
-            Float::div_scalar(log_ratio_real, burn_std::Scalar::Float(2.0)),
-            Float::div_scalar(log_ratio_imag, burn_std::Scalar::Float(2.0)),
-        )
+        SplitBackend::complex_atanh(self.into()).into()
     }
 
     /// Applies element-wise complex natural logarithm.

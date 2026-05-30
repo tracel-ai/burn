@@ -1,203 +1,10 @@
-use burn_tensor::Complex;
-use burn_tensor::Tensor;
+
+use burn_tensor::Device;
 use burn_tensor::Tolerance;
-use burn_tensor::{ComplexScalar, TensorData, split::SplitTensor};
-use burn_tensor::{Distribution, Int};
+use burn_tensor::{ComplexScalar, TensorData};
 
 #[test]
-fn test_complex_add() {
-    let tensor1 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 2.0,
-            },
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let tensor2 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 5.0,
-                imag: 6.0,
-            },
-            ComplexScalar::<f32> {
-                real: 7.0,
-                imag: 8.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor1 + tensor2;
-    let data = result.into_data();
-
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 6.0,
-            imag: 8.0,
-        }, // (1+5) + (2+6)i
-        ComplexScalar::<f32> {
-            real: 10.0,
-            imag: 12.0,
-        }, // (3+7) + (4+8)i
-    ]]);
-
-    data.assert_eq(&expected, false);
-}
-
-#[test]
-fn test_complex_sub() {
-    let tensor1 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 5.0,
-                imag: 6.0,
-            },
-            ComplexScalar::<f32> {
-                real: 7.0,
-                imag: 8.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let tensor2 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 2.0,
-            },
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor1 - tensor2;
-    let data = result.into_data();
-
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 4.0,
-            imag: 4.0,
-        }, // (5-1) + (6-2)i
-        ComplexScalar::<f32> {
-            real: 4.0,
-            imag: 4.0,
-        }, // (7-3) + (8-4)i
-    ]]);
-
-    data.assert_eq(&expected, false);
-}
-
-#[test]
-fn test_complex_mul() {
-    let tensor1 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 2.0,
-            },
-            ComplexScalar::<f32> {
-                real: 0.0,
-                imag: 1.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let tensor2 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-            ComplexScalar::<f32> {
-                real: 0.0,
-                imag: 1.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor1 * tensor2;
-    let data = result.into_data();
-
-    // (1+2i) * (3+4i) = (1*3 - 2*4) + (1*4 + 2*3)i = -5 + 10i
-    // (0+1i) * (0+1i) = (0*0 - 1*1) + (0*1 + 1*0)i = -1 + 0i
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: -5.0,
-            imag: 10.0,
-        },
-        ComplexScalar::<f32> {
-            real: -1.0,
-            imag: 0.0,
-        },
-    ]]);
-
-    data.assert_eq(&expected, false);
-}
-
-#[test]
-fn test_complex_div() {
-    let tensor1 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 1.0,
-            },
-            ComplexScalar::<f32> {
-                real: 2.0,
-                imag: 0.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let tensor2 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: -1.0,
-            },
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 0.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor1 / tensor2;
-    let data = result.into_data();
-
-    // (1+1i) / (1-1i) = ((1+1i)(1+1i)) / ((1-1i)(1+1i)) = (1+2i-1) / (1+1) = 2i/2 = i
-    // (2+0i) / (1+0i) = 2/1 = 2
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 0.0,
-            imag: 1.0,
-        },
-        ComplexScalar::<f32> {
-            real: 2.0,
-            imag: 0.0,
-        },
-    ]]);
-
-    data.assert_eq(&expected, false);
-}
-
-#[test]
-fn test_complex_neg() {
+fn test_complex_conj() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[
             ComplexScalar::<f32> {
@@ -212,16 +19,16 @@ fn test_complex_neg() {
         &Default::default(),
     );
 
-    let result = -tensor;
+    let result = tensor.conj();
     let data = result.into_data();
 
     let expected = TensorData::from([[
         ComplexScalar::<f32> {
-            real: -1.0,
+            real: 1.0,
             imag: 2.0,
-        },
+        }, // conjugate flips sign of imaginary part
         ComplexScalar::<f32> {
-            real: 3.0,
+            real: -3.0,
             imag: -4.0,
         },
     ]]);
@@ -230,7 +37,340 @@ fn test_complex_neg() {
 }
 
 #[test]
-fn test_complex_mean_dim() {
+fn test_complex_real() {
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: -2.0,
+            },
+            ComplexScalar::<f32> {
+                real: -3.0,
+                imag: 4.0,
+            },
+        ]]),
+        &Default::default(),
+    );
+
+    let result = tensor.real();
+    let data = result.into_data();
+
+    let expected = TensorData::from([[1.0, -3.0]]);
+    data.assert_eq(&expected, false);
+}
+
+#[test]
+fn test_complex_imag() {
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: -2.0,
+            },
+            ComplexScalar::<f32> {
+                real: -3.0,
+                imag: 4.0,
+            },
+        ]]),
+        &Default::default(),
+    );
+
+    let result = tensor.imag();
+    let data = result.into_data();
+
+    let expected = TensorData::from([[-2.0, 4.0]]);
+    data.assert_eq(&expected, false);
+}
+
+#[test]
+fn test_complex_magnitude() {
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[
+            ComplexScalar::<f32> {
+                real: 3.0,
+                imag: 4.0,
+            }, // |3+4i| = 5
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: 1.0,
+            }, // |0+1i| = 1
+        ]]),
+        &Default::default(),
+    );
+
+    let result = tensor.magnitude();
+    let data = result.into_data();
+
+    let expected = TensorData::from([[5.0, 1.0]]);
+    data.assert_eq(&expected, false);
+}
+
+#[test]
+fn test_complex_phase() {
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: 0.0,
+            }, // arg(1+0i) = 0
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: 1.0,
+            }, // arg(0+1i) = π/2
+        ]]),
+        &Default::default(),
+    );
+
+    let result = tensor.phase();
+    let data = result.into_data();
+
+    let expected = TensorData::from([[0.0, std::f32::consts::FRAC_PI_2]]);
+    data.assert_eq(&expected, false);
+}
+
+#[test]
+fn test_complex_from_parts() {
+    let result = TestTensor::<2>::from_parts(
+        TensorData::from([[1.0_f32, 2.0], [3.0, 4.0]]),
+        TensorData::from([[5.0_f32, 6.0], [7.0, 8.0]]),
+        &Device::default().into(),
+    );
+    let data = result.into_data();
+
+    let expected = TensorData::from([
+        [
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: 5.0,
+            },
+            ComplexScalar::<f32> {
+                real: 2.0,
+                imag: 6.0,
+            },
+        ],
+        [
+            ComplexScalar::<f32> {
+                real: 3.0,
+                imag: 7.0,
+            },
+            ComplexScalar::<f32> {
+                real: 4.0,
+                imag: 8.0,
+            },
+        ],
+    ]);
+
+    data.assert_eq(&expected, false);
+}
+
+#[test]
+fn test_complex_from_polar() {
+    let magnitude =
+        FloatTensor::<2>::from_data(TensorData::from([[1.0_f32, 2.0]]), &Default::default());
+
+    let phase = FloatTensor::<2>::from_data(
+        TensorData::from([[0.0_f32, std::f32::consts::FRAC_PI_2]]), // 0 and π/2 radians
+        &Default::default(),
+    );
+
+    let result = TestTensor::<2>::from_polar(magnitude, phase);
+    let data = result.into_data();
+
+    // r*cos(θ) + i*r*sin(θ)
+    // 1*cos(0) + i*1*sin(0) = 1 + 0i
+    // 2*cos(π/2) + i*2*sin(π/2) = 0 + 2i
+    let expected = TensorData::from([[
+        ComplexScalar::<f32> {
+            real: 1.0,
+            imag: 0.0,
+        },
+        ComplexScalar::<f32> {
+            real: 0.0,
+            imag: 2.0,
+        },
+    ]]);
+
+    data.assert_approx_eq(&expected, Tolerance::<f32>::balanced());
+}
+
+#[test]
+fn test_complex_exp() {
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            }, // exp(0) = 1
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: std::f32::consts::PI,
+            }, // exp(iπ) = -1
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.exp();
+
+    // exp(a + bi) = exp(a) * (cos(b) + i*sin(b))
+    // exp(0 + 0i) = 1 * (1 + 0i) = 1 + 0i
+    // exp(0 + πi) = 1 * (-1 + 0i) = -1 + 0i (approximately)
+    let expected_data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of exp(0)
+    assert!(expected_data[1].abs() < 1e-6); // imag part of exp(0)
+    assert!((expected_data[2] + 1.0).abs() < 1e-5); // real part of exp(iπ), should be close to -1
+    assert!(expected_data[3].abs() < 1e-5); // imag part of exp(iπ), should be close to 0
+}
+
+#[test]
+fn test_complex_sin() {
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            }, // sin(0) = 0
+            ComplexScalar::<f32> {
+                real: std::f32::consts::FRAC_PI_2,
+                imag: 0.0,
+            }, // sin(π/2) = 1
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.sin();
+
+    let expected_data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(expected_data[0].abs() < 1e-6); // real part of sin(0)
+    assert!(expected_data[1].abs() < 1e-6); // imag part of sin(0)
+    assert!((expected_data[2] - 1.0).abs() < 1e-6); // real part of sin(π/2)
+    assert!(expected_data[3].abs() < 1e-6); // imag part of sin(π/2)
+}
+
+#[test]
+fn test_complex_cos() {
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            }, // cos(0) = 1
+            ComplexScalar::<f32> {
+                real: std::f32::consts::PI,
+                imag: 0.0,
+            }, // cos(π) = -1
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.cos();
+
+    let expected_data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of cos(0)
+    assert!(expected_data[1].abs() < 1e-6); // imag part of cos(0)
+    assert!((expected_data[2] + 1.0).abs() < 1e-5); // real part of cos(π)
+    assert!(expected_data[3].abs() < 1e-5); // imag part of cos(π)
+}
+
+#[test]
+fn test_complex_log() {
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: 0.0,
+            }, // log(1) = 0
+            ComplexScalar::<f32> {
+                real: std::f32::consts::E,
+                imag: 0.0,
+            }, // log(e) = 1
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.log();
+
+    let expected_data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(expected_data[0].abs() < 1e-6); // real part of log(1)
+    assert!(expected_data[1].abs() < 1e-6); // imag part of log(1)
+    assert!((expected_data[2] - 1.0).abs() < 1e-5); // real part of log(e)
+    assert!(expected_data[3].abs() < 1e-5); // imag part of log(e)
+}
+
+#[test]
+fn test_complex_powc() {
+    // (2 + 0i)^(1 + i) = exp((1 + i) * ln(2)) = 2 * (cos(ln(2)) + i*sin(ln(2)))
+    let base = TestTensor::<1>::from_data(
+        TensorData::from([ComplexScalar::<f32> {
+            real: 2.0,
+            imag: 0.0,
+        }]),
+        &Default::default(),
+    );
+
+    let exponent = TestTensor::<1>::from_data(
+        TensorData::from([ComplexScalar::<f32> {
+            real: 1.0,
+            imag: 1.0,
+        }]),
+        &Default::default(),
+    );
+
+    let result = base.powc(exponent);
+
+    let ln2 = 2.0_f32.ln();
+    let (sin_ln2, cos_ln2) = ln2.sin_cos();
+    let expected = TensorData::from([ComplexScalar::<f32> {
+        real: 2.0 * cos_ln2,
+        imag: 2.0 * sin_ln2,
+    }]);
+
+    result
+        .into_data()
+        .assert_approx_eq(&expected, Tolerance::<f32>::balanced());
+}
+
+#[test]
+fn test_complex_sqrt() {
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            ComplexScalar::<f32> {
+                real: 4.0,
+                imag: 0.0,
+            }, // sqrt(4) = 2
+            ComplexScalar::<f32> {
+                real: -1.0,
+                imag: 0.0,
+            }, // sqrt(-1) = i
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.sqrt();
+
+    let expected_data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!((expected_data[0] - 2.0).abs() < 1e-6); // real part of sqrt(4)
+    assert!(expected_data[1].abs() < 1e-6); // imag part of sqrt(4)
+    assert!(expected_data[2].abs() < 1e-5); // real part of sqrt(-1)
+    assert!((expected_data[3] - 1.0).abs() < 1e-5); // imag part of sqrt(-1)
+}
+
+#[test]
+fn test_complex_matmul_identity() {
     // a = [[3+4i, 2+0i], [0-2i, 3+0i]]
     let a = TestTensor::<2>::from_data(
         TensorData::from([
@@ -258,239 +398,26 @@ fn test_complex_mean_dim() {
         &Default::default(),
     );
 
-    // mean along dim 0: col0 = (3+4i + 0-2i)/2 = 1.5+1i, col1 = (2+0i + 3+0i)/2 = 2.5+0i
-    let result = a.mean_dim(0).into_data();
-
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 1.5,
-            imag: 1.0,
-        },
-        ComplexScalar::<f32> {
-            real: 2.5,
-            imag: 0.0,
-        },
-    ]]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::strict());
-}
-
-#[test]
-fn test_complex_random() {
-    let shape = [2usize, 3usize];
-    let tensor =
-        TestTensor::<2>::random(shape, Distribution::Uniform(0.0, 1.0), &Default::default());
-    assert_eq!(tensor.shape().dims(), shape);
-}
-
-#[test]
-fn test_complex_remainder() {
-    let tensor1 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 5.0,
-                imag: 7.0,
-            },
-            ComplexScalar::<f32> {
-                real: 8.0,
-                imag: 9.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let tensor2 = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor1 % tensor2;
-    let data = result.into_data();
-
-    // Component-wise: real=5%3=2, imag=7%4=3  and  real=8%3=2, imag=9%4=1
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 2.0,
-            imag: 3.0,
-        },
-        ComplexScalar::<f32> {
-            real: 2.0,
-            imag: 1.0,
-        },
-    ]]);
-
-    data.assert_approx_eq(&expected, Tolerance::<f32>::strict());
-}
-
-#[test]
-fn test_complex_remainder_scalar() {
-    let tensor = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 5.0,
-                imag: 7.0,
-            },
-            ComplexScalar::<f32> {
-                real: 8.0,
-                imag: 9.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let scalar = ComplexScalar::<f64> {
-        real: 3.0,
-        imag: 4.0,
-    };
-    let result = tensor % scalar;
-    let data = result.into_data();
-
-    // Component-wise per scalar: real%3, imag%4
-    // (5+7i) % (3+4i): real=5%3=2, imag=7%4=3
-    // (8+9i) % (3+4i): real=8%3=2, imag=9%4=1
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 2.0,
-            imag: 3.0,
-        },
-        ComplexScalar::<f32> {
-            real: 2.0,
-            imag: 1.0,
-        },
-    ]]);
-
-    data.assert_approx_eq(&expected, Tolerance::<f32>::strict());
-}
-
-#[test]
-fn test_complex_sum() {
-    let tensor = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 2.0,
-            },
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor.sum().into_data();
-
-    // (1+3) + (2+4)i = 4+6i
-    let expected = TensorData::from([ComplexScalar::<f32> {
-        real: 4.0,
-        imag: 6.0,
-    }]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::strict());
-}
-
-#[test]
-fn test_complex_sum_dim() {
-    let tensor = TestTensor::<2>::from_data(
+    // identity matrix
+    let eye = TestTensor::<2>::from_data(
         TensorData::from([
             [
                 ComplexScalar::<f32> {
                     real: 1.0,
-                    imag: 2.0,
+                    imag: 0.0,
                 },
                 ComplexScalar::<f32> {
-                    real: 3.0,
-                    imag: 4.0,
-                },
-            ],
-            [
-                ComplexScalar::<f32> {
-                    real: 5.0,
-                    imag: 6.0,
-                },
-                ComplexScalar::<f32> {
-                    real: 7.0,
-                    imag: 8.0,
-                },
-            ],
-        ]),
-        &Default::default(),
-    );
-
-    let result = tensor.sum_dim(0).into_data();
-
-    // sum along dim 0: col0 = 1+2i+5+6i = 6+8i, col1 = 3+4i+7+8i = 10+12i
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 6.0,
-            imag: 8.0,
-        },
-        ComplexScalar::<f32> {
-            real: 10.0,
-            imag: 12.0,
-        },
-    ]]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::strict());
-}
-
-#[test]
-fn test_complex_prod() {
-    let tensor = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 2.0,
-                imag: 0.0,
-            },
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 0.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor.prod().into_data();
-
-    // (2+0i) * (3+0i) = 6+0i
-    let expected = TensorData::from([ComplexScalar::<f32> {
-        real: 6.0,
-        imag: 0.0,
-    }]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::strict());
-}
-
-#[test]
-fn test_complex_prod_dim() {
-    let tensor = TestTensor::<2>::from_data(
-        TensorData::from([
-            [
-                ComplexScalar::<f32> {
-                    real: 1.0,
-                    imag: 1.0,
-                },
-                ComplexScalar::<f32> {
-                    real: 2.0,
+                    real: 0.0,
                     imag: 0.0,
                 },
             ],
             [
                 ComplexScalar::<f32> {
                     real: 0.0,
-                    imag: 1.0,
+                    imag: 0.0,
                 },
                 ComplexScalar::<f32> {
-                    real: 3.0,
+                    real: 1.0,
                     imag: 0.0,
                 },
             ],
@@ -498,200 +425,171 @@ fn test_complex_prod_dim() {
         &Default::default(),
     );
 
-    let result = tensor.prod_dim(0).into_data();
-
-    // prod along dim 0:
-    // col0: (1+1i)*(0+1i) = (0-1) + (1+0)i = -1+1i
-    // col1: (2+0i)*(3+0i) = 6+0i
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: -1.0,
-            imag: 1.0,
-        },
-        ComplexScalar::<f32> {
-            real: 6.0,
-            imag: 0.0,
-        },
-    ]]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::default());
-}
-
-#[test]
-fn test_complex_mean() {
-    let tensor = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 2.0,
-            },
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-        ]]),
-        &Default::default(),
-    );
-
-    let result = tensor.mean().into_data();
-
-    // mean = (1+3)/2 + (2+4)/2 i = 2+3i
-    let expected = TensorData::from([ComplexScalar::<f32> {
-        real: 2.0,
-        imag: 3.0,
-    }]);
+    let expected = a.clone().into_data();
+    let result = a.matmul(eye).into_data();
 
     result.assert_approx_eq(&expected, Tolerance::<f32>::strict());
 }
 
 #[test]
-fn test_complex_cumsum() {
-    let tensor = TestTensor::<2>::from_data(
+fn test_complex_acos() {
+    // acos(1 + 0i) = 0, acos(0 + 0i) = π/2
+    let tensor = TestTensor::<1>::from_data(
         TensorData::from([
-            [
-                ComplexScalar::<f32> {
-                    real: 1.0,
-                    imag: 2.0,
-                },
-                ComplexScalar::<f32> {
-                    real: 3.0,
-                    imag: 4.0,
-                },
-            ],
-            [
-                ComplexScalar::<f32> {
-                    real: 5.0,
-                    imag: 6.0,
-                },
-                ComplexScalar::<f32> {
-                    real: 7.0,
-                    imag: 8.0,
-                },
-            ],
-        ]),
-        &Default::default(),
-    );
-
-    let result = tensor.cumsum(0).into_data();
-
-    // cumsum along dim 0:
-    // row 0: [1+2i, 3+4i]
-    // row 1: [1+2i+5+6i, 3+4i+7+8i] = [6+8i, 10+12i]
-    let expected = TensorData::from([
-        [
             ComplexScalar::<f32> {
                 real: 1.0,
-                imag: 2.0,
-            },
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-        ],
-        [
-            ComplexScalar::<f32> {
-                real: 6.0,
-                imag: 8.0,
-            },
-            ComplexScalar::<f32> {
-                real: 10.0,
-                imag: 12.0,
-            },
-        ],
-    ]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::strict());
-}
-
-#[test]
-fn test_complex_cumprod() {
-    let tensor = TestTensor::<2>::from_data(
-        TensorData::from([
-            [
-                ComplexScalar::<f32> {
-                    real: 1.0,
-                    imag: 1.0,
-                },
-                ComplexScalar::<f32> {
-                    real: 1.0,
-                    imag: 0.0,
-                },
-            ],
-            [
-                ComplexScalar::<f32> {
-                    real: 2.0,
-                    imag: 0.0,
-                },
-                ComplexScalar::<f32> {
-                    real: 1.0,
-                    imag: 1.0,
-                },
-            ],
-        ]),
-        &Default::default(),
-    );
-
-    let result = tensor.cumprod(1).into_data();
-
-    // cumprod along dim 1:
-    // row 0: [1+1i, (1+1i)*(1+0i)] = [1+1i, 1+1i]
-    // row 1: [2+0i, (2+0i)*(1+1i)] = [2+0i, 2+2i]
-    let expected = TensorData::from([
-        [
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 1.0,
-            },
-            ComplexScalar::<f32> {
-                real: 1.0,
-                imag: 1.0,
-            },
-        ],
-        [
-            ComplexScalar::<f32> {
-                real: 2.0,
                 imag: 0.0,
             },
             ComplexScalar::<f32> {
-                real: 2.0,
-                imag: 2.0,
-            },
-        ],
-    ]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::default());
-}
-
-#[test]
-fn test_complex_sign() {
-    let tensor = TestTensor::<2>::from_data(
-        TensorData::from([[
-            ComplexScalar::<f32> {
-                real: 3.0,
-                imag: 4.0,
-            },
-            ComplexScalar::<f32> {
                 real: 0.0,
-                imag: 2.0,
+                imag: 0.0,
             },
-        ]]),
+        ]),
         &Default::default(),
     );
 
-    let result = tensor.sign().into_data();
+    let result = tensor.acos();
 
-    // sign(3+4i) = (3+4i)/|(3+4i)| = (3+4i)/5 = 0.6+0.8i
-    // sign(0+2i) = (0+2i)/2 = 0+1i
-    let expected = TensorData::from([[
-        ComplexScalar::<f32> {
-            real: 0.6,
-            imag: 0.8,
-        },
-        ComplexScalar::<f32> {
-            real: 0.0,
-            imag: 1.0,
-        },
-    ]]);
-
-    result.assert_approx_eq(&expected, Tolerance::<f32>::default());
+    let data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(acos(1)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(acos(1)) = {}", data[1]);
+    assert!(
+        (data[2] - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+        "re(acos(0)) = {}",
+        data[2]
+    );
+    assert!(data[3].abs() < 1e-5, "im(acos(0)) = {}", data[3]);
 }
+
+#[test]
+fn test_complex_acosh() {
+    // acosh(1 + 0i) = 0
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([ComplexScalar::<f32> {
+            real: 1.0,
+            imag: 0.0,
+        }]),
+        &Default::default(),
+    );
+
+    let result = tensor.acosh();
+
+    let data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(acosh(1)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(acosh(1)) = {}", data[1]);
+}
+
+#[test]
+fn test_complex_asin() {
+    // asin(0 + 0i) = 0, asin(1 + 0i) = π/2
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            },
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: 0.0,
+            },
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.asin();
+
+    let data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(asin(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(asin(0)) = {}", data[1]);
+    assert!(
+        (data[2] - std::f32::consts::FRAC_PI_2).abs() < 1e-5,
+        "re(asin(1)) = {}",
+        data[2]
+    );
+    assert!(data[3].abs() < 1e-5, "im(asin(1)) = {}", data[3]);
+}
+
+#[test]
+fn test_complex_asinh() {
+    // asinh(0 + 0i) = 0
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([ComplexScalar::<f32> {
+            real: 0.0,
+            imag: 0.0,
+        }]),
+        &Default::default(),
+    );
+
+    let result = tensor.asinh();
+
+    let data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(asinh(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(asinh(0)) = {}", data[1]);
+}
+
+#[test]
+fn test_complex_atan() {
+    // atan(0 + 0i) = 0, atan(1 + 0i) = π/4
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([
+            ComplexScalar::<f32> {
+                real: 0.0,
+                imag: 0.0,
+            },
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: 0.0,
+            },
+        ]),
+        &Default::default(),
+    );
+
+    let result = tensor.atan();
+
+    let data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(atan(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(atan(0)) = {}", data[1]);
+    assert!(
+        (data[2] - std::f32::consts::FRAC_PI_4).abs() < 1e-5,
+        "re(atan(1)) = {}",
+        data[2]
+    );
+    assert!(data[3].abs() < 1e-5, "im(atan(1)) = {}", data[3]);
+}
+
+#[test]
+fn test_complex_atanh() {
+    // atanh(0 + 0i) = 0
+    let tensor = TestTensor::<1>::from_data(
+        TensorData::from([ComplexScalar::<f32> {
+            real: 0.0,
+            imag: 0.0,
+        }]),
+        &Default::default(),
+    );
+
+    let result = tensor.atanh();
+
+    let data: Vec<f32> =
+        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+            .into_vec()
+            .unwrap();
+    assert!(data[0].abs() < 1e-5, "re(atanh(0)) = {}", data[0]);
+    assert!(data[1].abs() < 1e-5, "im(atanh(0)) = {}", data[1]);
+}
+

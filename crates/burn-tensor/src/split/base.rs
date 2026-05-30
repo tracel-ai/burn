@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use burn_backend::{BackendTypes, DTypeUsageSet, TensorMetadata};
+use burn_backend::{BackendTypes, TensorMetadata};
 use burn_dispatch::{Dispatch, DispatchTensor};
 
 use crate::{

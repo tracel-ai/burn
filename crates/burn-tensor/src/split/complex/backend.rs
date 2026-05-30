@@ -9,8 +9,8 @@ use burn_backend::{
 };
 use burn_dispatch::Dispatch;
 use burn_std::{
-    ComplexScalar, Distribution, IndexingUpdateOp, Scalar, Shape, SplitTensorData, TensorData,
-    cast::ToElement, complex_utils::complex_to_real_dtype,
+    ComplexScalar, Distribution, IndexingUpdateOp, Scalar, Shape, TensorData, cast::ToElement,
+    complex_utils::complex_to_real_dtype,
 };
 
 impl ComplexTensorBackend for SplitBackend {
@@ -179,7 +179,7 @@ impl ComplexTensorOps<Self> for SplitBackend {
 
     async fn complex_into_split_data(
         tensor: ComplexTensor<Self>,
-    ) -> Result<SplitTensorData, ExecutionError> {
+    ) -> Result<(TensorData, TensorData), ExecutionError> {
         let [real, imag] = tensor.0;
         let real_data = Dispatch::float_into_data(real).await?;
         let imag_data = Dispatch::float_into_data(imag).await?;
@@ -1019,7 +1019,10 @@ impl ComplexTensorOps<Self> for SplitBackend {
         device: &Device<Dispatch>,
         dtype: ComplexDType,
     ) -> ComplexTensor<Self> {
-        let ComplexScalar::<f64> { real: fill_re, imag: fill_im } = fill_value.to_complex().elem();
+        let ComplexScalar::<f64> {
+            real: fill_re,
+            imag: fill_im,
+        } = fill_value.to_complex().elem();
 
         let dtype = burn_std::complex_utils::complex_to_real_dtype(dtype.into());
         SplitPrimitive::<FloatTensor<Dispatch>, 2>([

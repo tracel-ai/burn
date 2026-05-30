@@ -1,5 +1,6 @@
 use burn_backend::{
-    BackTrace, Backend, BackendTypes, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError, UnimplementedTensorPrimitive, tensor::Device
+    BackTrace, Backend, BackendTypes, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError,
+    UnimplementedTensorPrimitive, tensor::Device,
 };
 use burn_std::{
     BoolStore, DeviceSettings,

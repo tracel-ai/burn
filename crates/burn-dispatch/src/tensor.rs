@@ -2,7 +2,7 @@ use crate::backends::*;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::ComplexTensor;
-use burn_backend::{Backend, BackendTypes, ComplexTensorBackend, DType, Shape, TensorMetadata};
+use burn_backend::{Backend, ComplexTensorBackend, DType, Shape, TensorMetadata};
 //#[cfg(feature = "complex")]
 
 use crate::CheckpointingStrategy;

@@ -6,7 +6,7 @@ macro_rules! gen_tests {
         $(
             paste::paste! {
                 mod [<$variant:snake>] {
-                    
+
                     mod basic {
                         use crate::FloatTensor;
                         type TestTensor<const D: usize> = $ty;

@@ -1,6 +1,6 @@
 use burn_std::{
     ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice,
-    SplitTensorData, TensorData,
+    TensorData,
 };
 
 use crate::{
@@ -76,7 +76,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// A tuple of data structures containing the real and imaginary parts of the tensor's data.
     fn complex_into_split_data(
         tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<SplitTensorData, ExecutionError>> + Send;
+    ) -> impl Future<Output = Result<(TensorData, TensorData), ExecutionError>> + Send;
 
     // /// Converts a real float tensor to a complex tensor with zero imaginary part.
     // ///
