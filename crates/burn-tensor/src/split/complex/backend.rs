@@ -153,7 +153,7 @@ impl ComplexTensorOps<Self> for SplitBackend
         let real_data = Dispatch::float_into_data(real).await?;
         let imag_data = Dispatch::float_into_data(imag).await?;
         let element_size = real_data.dtype.size();
-        let mut interleaved_bytes = Vec::with_capacity(real_data.bytes.len() * 2);
+        let mut interleaved_bytes = alloc::vec::Vec::with_capacity(real_data.bytes.len() * 2);
         for (real_chunk, imag_chunk) in real_data
             .bytes
             .chunks_exact(element_size)
@@ -656,8 +656,8 @@ impl ComplexTensorOps<Self> for SplitBackend
         ])
     }
 
-    fn complex_cat(tensors: Vec<ComplexTensor<Self>>, dim: usize) -> ComplexTensor<Self> {
-        let (reals, imags): (Vec<_>, Vec<_>) = tensors
+    fn complex_cat(tensors: alloc::vec::Vec<ComplexTensor<Self>>, dim: usize) -> ComplexTensor<Self> {
+        let (reals, imags): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) = tensors
             .into_iter()
             .map(|t| {
                 let [real, imag] = t.0;

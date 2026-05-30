@@ -1,4 +1,5 @@
 use burn_backend::{Backend, BackendTypes, DTypeUsageSet, Layout, SplitLayout, try_read_sync};
+use burn_dispatch::DispatchTensor;
 use burn_std::{
     AsIndex, ComplexScalar, Distribution, Element, ElementConversion, ExecutionError, Scalar,
     Shape, TensorData,
@@ -23,7 +24,7 @@ mod backend;
 
 impl Layout for SplitComplexLayout {}
 impl SplitLayout for SplitComplexLayout {
-    const COMP: usize = 2;
+    const COMPONENTS: usize = 2;
 }
 
 impl<const D: usize> SplitTensor<D, Complex> {
@@ -42,6 +43,11 @@ impl<const D: usize> SplitTensor<D, Complex> {
             _kind: core::marker::PhantomData,
             components: [real, imag],
         }
+    }
+
+    pub(crate) fn to_primitive(self) -> SplitPrimitive<DispatchTensor, 2> {
+        let [real, imag] = self.components;
+        SplitPrimitive([real.into(), imag.into()])
     }
     pub fn dtype(&self) -> burn_std::DType {
         burn_std::complex_utils::real_to_complex_dtype(self.inner_dtype())
@@ -162,6 +168,13 @@ impl<const D: usize> SplitTensor<D, Complex> {
         // conj(a + bi) = a - bi
         let [real, imag] = self.components;
         SplitTensor::new(real, Float::neg(imag))
+    }
+
+    pub fn from_real(tensor: Tensor<D, Float>) -> Self {
+        let shape = tensor.shape();
+        let dtype = tensor.dtype();
+        let device = tensor.device();
+        Self::new(tensor.primitive, Float::zeros(shape, &device, dtype)) 
     }
 
     /// Returns the argument (phase angle) of each element, in radians.
@@ -427,7 +440,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///     println!("{concat}");
     /// }
     /// ```
-    pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
+    pub fn cat(tensors: alloc::vec::Vec<Self>, dim: usize) -> Self {
         //crate::check!(TensorCheck::cat(tensors.as_slice(), dim));
 
         // Filter out tensors with size 0 along the concatenation dimension.
@@ -438,7 +451,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
         let device = first_tensor.device();
         let mut shape = first_tensor.shape();
 
-        let (non_empty_reals, non_empty_imags): (Vec<_>, Vec<_>) = tensors
+        let (non_empty_reals, non_empty_imags): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) = tensors
             .into_iter()
             .filter(|t| t.shape()[dim] > 0)
             .map(|t| {

@@ -1,15 +1,11 @@
-use std::ptr;
 
+use burn_backend::ops::ComplexTensorOps;
 use burn_std::{
-    AsIndex, ComplexScalar, DType, Element, ElementConversion, IndexingUpdateOp, Shape, SliceArg,
+    AsIndex, ComplexScalar, DType, Element, ElementConversion, IndexingUpdateOp, ReshapeAnalysis::Split, Scalar, Shape, SliceArg, dtype
 };
 
 use crate::{
-    Bool, BroadcastArgs, Device, Int, ReshapeArgs, Tensor, TensorCreationOptions, bool_and_impl,
-    bool_or_impl,
-    check::TensorCheck,
-    kind::{Basic, Numeric},
-    ops::{BasicOps, CompoundTensorKind, FloatMathOps}, split::base::SplitTensor,
+    Bool, BroadcastArgs, Complex, Device, Float, Int, ReshapeArgs, Tensor, TensorCreationOptions, bool_and_impl, bool_or_impl, check::TensorCheck, kind::{Basic, Numeric}, ops::{BasicOps, BridgeTensor, CompoundTensorKind, FloatMathOps}, split::base::{SplitBackend, SplitTensor}
     //split::base::SplitTensor,
 };
 
@@ -22,10 +18,7 @@ impl<const D: usize, K: CompoundTensorKind + Basic> SplitTensor<D, K> {
     }
 }
 //BasicOps
-impl<const D: usize, K> SplitTensor<D, K>
-where
-    K: Basic + CompoundTensorKind,
-    K::Inner: Basic,
+impl<const D: usize> SplitTensor<D, Complex>
 {
     /// Select complex tensor elements along the given dimension corresponding to the given indices.
     ///
@@ -33,9 +26,8 @@ where
     ///
     /// * `dim` - The dimension to select from.
     /// * `indices` - The indices of the elements to select.
-    pub fn select(mut self, dim: usize, indices: Tensor<1, Int>) -> Self {
-        let indices = indices.primitive;
-        crate::split_tensor_unary_body!(K, select, self, dim, indices)
+    pub fn select(self, dim: usize, indices: Tensor<1, Int>) -> Self {
+        SplitBackend::complex_select(self.into(), dim, indices.primitive.into()).into()
     }
 
     /// Returns the dimensions of the current tensor.
@@ -88,38 +80,28 @@ where
     ///
     /// If `update` is not `IndexingUpdateOp::Add`. Other operations are currently not implemented.
     pub fn select_assign(
-        mut self,
+        self,
         dim: usize,
         indices: Tensor<1, Int>,
-        mut values: Self,
+        values: Self,
         update: IndexingUpdateOp,
     ) -> Self {
-        let indices = indices.primitive;
-
-        let lhs_slice = self.components.as_mut();
-        let rhs_slice = values.components.as_mut();
-        debug_assert_eq!(lhs_slice.len(), rhs_slice.len());
-        if let Some(((lhs_last, lhs_head), (rhs_last, rhs_head))) =
-            lhs_slice.split_last_mut().zip(rhs_slice.split_last_mut())
-        {
-            for (lhs_comp, rhs_comp) in lhs_head.iter_mut().zip(rhs_head.iter_mut()) {
-                crate::overwrite_in_place!(lhs_comp, rhs_comp, |lhs, rhs| {
-                    K::Inner::select_assign(lhs, dim, indices.clone(), rhs, update)
-                });
+        
+        match update {
+            IndexingUpdateOp::Add => {
+                SplitBackend::complex_select_add(self.into(), dim, indices.primitive.into(), values.into()).into()
+                
             }
-            crate::overwrite_in_place!(lhs_last, rhs_last, |lhs, rhs| {
-                K::Inner::select_assign(lhs, dim, indices, rhs, update)
-            });
+            _ => unimplemented!("Only IndexingUpdateOp::Add is currently implemented for select_assign.")
         }
-        self
     }
 
     /// Transpose the complex tensor.
     ///
     /// For a 2D tensor, this is the standard matrix transpose. For `D > 2`, the transpose is
     /// applied on the last two dimensions.
-    pub fn transpose(mut self) -> Self {
-        crate::split_tensor_unary_body!(K, transpose, self)
+    pub fn transpose(self) -> Self {
+        SplitBackend::complex_transpose(self.into()).into()
     }
 
     /// Swaps two dimensions of a complex tensor.
@@ -128,18 +110,18 @@ where
     ///
     /// * `dim1` - The first dimension to swap.
     /// * `dim2` - The second dimension to swap.
-    pub fn swap_dims(mut self, dim1: usize, dim2: usize) -> Self {
-        crate::split_tensor_unary_body!(K, swap_dims, self, dim1, dim2)
+    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Self {
+        SplitBackend::complex_swap_dims(self.into(), dim1, dim2).into()
     }
 
     /// Returns the device of the current complex tensor.
     pub fn device(&self) -> Device {
-        K::device(&self.components.as_ref()[0])
+        Float::device(&self.components.as_ref()[0])
     }
 
     /// Move the complex tensor to the given device.
-    pub fn to_device(mut self, device: &Device) -> Self {
-        crate::split_tensor_unary_body!(K, to_device, self, device)
+    pub fn to_device(self, device: &Device) -> Self {
+        SplitBackend::complex_to_device(self.into(), device.as_dispatch()).into()
     }
 
     /// Repeat the complex tensor along the given dimension.
@@ -147,39 +129,17 @@ where
     /// # Arguments
     /// - `dim`: The dimension to repeat.
     /// - `times`: The number of times to repeat the tensor along the given dimension.
-    pub fn repeat_dim(mut self, dim: usize, times: usize) -> Self {
-        crate::split_tensor_unary_body!(K, repeat_dim, self, dim, times)
+    pub fn repeat_dim(self, dim: usize, times: usize) -> Self {
+        SplitBackend::complex_repeat_dim(self.into(), dim, times).into()
     }
     /// Applies element-wise equal comparison.
     ///
     /// # Returns
     ///
     /// A boolean tensor that is `true` where the two complex elements are equal and `false` elsewhere.
-    pub fn equal(mut self, mut rhs: Self) -> Tensor<D, Bool> {
-        let lhs_slice = self.components.as_mut();
-        let rhs_slice = rhs.components.as_mut();
-
-        debug_assert_eq!(lhs_slice.len(), rhs_slice.len());
-
-        // 1. Isolate the first pair to initialize our accumulator tensor.
-        let mut acc = if let Some((lhs_first, rhs_first)) =
-            lhs_slice.first_mut().zip(rhs_slice.first_mut())
-        {
-            unsafe { K::Inner::equal(core::ptr::read(lhs_first), core::ptr::read(rhs_first)) }
-        } else {
-            // the compile time check on compound tensor len should prevent this from ever being possible
-            unreachable!("Cannot check equality on a CompoundTensor with 0 components.");
-        };
-
-        // 2. Loop through the remaining pairs and fold them into the accumulator
-        if lhs_slice.len() > 1 {
-            for (lhs_comp, rhs_comp) in lhs_slice[1..].iter_mut().zip(rhs_slice[1..].iter_mut()) {
-                acc = bool_and_impl(acc, unsafe {
-                    K::Inner::equal(core::ptr::read(lhs_comp), core::ptr::read(rhs_comp))
-                });
-            }
-        }
-        Tensor::new(acc)
+    pub fn equal(self, rhs: Self) -> Tensor<D, Bool> {
+        let out_dtype = self.device().settings().bool_dtype;
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_equal(self.into(), rhs.into(), out_dtype).into()))
     }
 
     /// Applies element-wise non-equality comparison.
@@ -187,32 +147,9 @@ where
     /// # Returns
     ///
     /// A boolean tensor that is `true` where the two complex elements are not equal and `false` elsewhere.
-    pub fn not_equal(mut self, mut rhs: Self) -> Tensor<D, Bool> {
-        let lhs_slice = self.components.as_mut();
-        let rhs_slice = rhs.components.as_mut();
-
-        debug_assert_eq!(lhs_slice.len(), rhs_slice.len());
-
-        // 1. Isolate the first pair to initialize our accumulator tensor.
-        //    This avoids needing an "empty" or "dummy" starting boolean tensor.
-        let mut acc = if let Some((lhs_first, rhs_first)) =
-            lhs_slice.first_mut().zip(rhs_slice.first_mut())
-        {
-            unsafe { K::Inner::not_equal(core::ptr::read(lhs_first), core::ptr::read(rhs_first)) }
-        } else {
-            // the compile time check on compound tensor len should prevent this from ever being possible
-            unreachable!("Cannot check equality on a CompoundTensor with 0 components.");
-        };
-
-        // 2. Loop through the remaining pairs and fold them into the accumulator
-        if lhs_slice.len() > 1 {
-            for (lhs_comp, rhs_comp) in lhs_slice[1..].iter_mut().zip(rhs_slice[1..].iter_mut()) {
-                acc = bool_or_impl(acc, unsafe {
-                    K::Inner::not_equal(core::ptr::read(lhs_comp), core::ptr::read(rhs_comp))
-                });
-            }
-        }
-        Tensor::new(acc)
+    pub fn not_equal(self, rhs: Self) -> Tensor<D, Bool> {
+        let out_dtype = self.device().settings().bool_dtype;
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_not_equal(self.into(), rhs.into(), out_dtype).into()))
     }
 
     /// Tests if any element in the complex tensor evaluates to non-zero (i.e., true).
@@ -220,24 +157,12 @@ where
     /// # Returns
     ///
     /// A boolean tensor with a single element, `true` if any element is non-zero, `false` otherwise.
-    pub fn any(mut self) -> Tensor<1, Bool> {
-        let components = self.components.as_mut();
-
-        let mut acc = if let Some(first) = components.first_mut() {
-            unsafe { K::Inner::any(core::ptr::read(first)) }
-        } else {
-            // the compile time check on compound tensor len should prevent this from ever being possible
-            unreachable!("Cannot check equality on a CompoundTensor with 0 components.");
-        };
-
-        if components.len() > 1 {
-            for component in components[1..].iter_mut() {
-                acc = bool_or_impl(acc, unsafe { K::Inner::any(core::ptr::read(component)) });
-            }
-        }
-
-        Tensor::new(acc)
+    pub fn any(self) -> Tensor<1, Bool> {
+        let out_dtype = self.device().settings().bool_dtype;
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_any(self.into(), out_dtype).into()))
     }
+
+
 
     /// Tests if any element in the complex tensor evaluates to non-zero along a given dimension.
     ///
@@ -249,50 +174,21 @@ where
     ///
     /// A boolean tensor with the same shape as the input, except in the `dim` axis where
     /// the size is 1, containing `true` if any element along that dimension is non-zero.
-    pub fn any_dim(mut self, dim: usize) -> Tensor<D, Bool> {
-        let components = self.components.as_mut();
-
-        let mut acc = if let Some(first) = components.first_mut() {
-            unsafe { K::Inner::any_dim(core::ptr::read(first), dim) }
-        } else {
-            // the compile time check on compound tensor len should prevent this from ever being possible
-            unreachable!("Cannot check equality on a CompoundTensor with 0 components.");
-        };
-
-        if components.len() > 1 {
-            for component in components[1..].iter_mut() {
-                acc = bool_or_impl(acc, unsafe {
-                    K::Inner::any_dim(core::ptr::read(component), dim)
-                });
-            }
-        }
-
-        Tensor::new(acc)
+    pub fn any_dim(self, dim: usize) -> Tensor<D, Bool> {
+        let dtype = self.device().settings().bool_dtype;
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_any_dim(self.into(), dim, dtype).into()))
     }
+
 
     /// Tests if all elements in the complex tensor evaluate to non-zero (i.e., true).
     ///
     /// # Returns
     ///
     /// A boolean tensor with a single element, `true` if all elements are non-zero, `false` otherwise.
-    pub fn all(mut self) -> Tensor<1, Bool> {
-        let components = self.components.as_mut();
-
-        let mut acc = if let Some(first) = components.first_mut() {
-            unsafe { K::not_equal_elem(ptr::read(first), burn_std::Scalar::Float(0.0)) }
-        } else {
-            panic!("Cannot compute all on a CompoundTensor with 0 components.");
-        };
-
-        if components.len() > 1 {
-            for component in components[1..].iter_mut() {
-                acc = bool_and_impl(acc, unsafe {
-                    K::not_equal_elem(ptr::read(component), burn_std::Scalar::Float(0.0))
-                });
-            }
-        }
-
-        Tensor::<1, Bool>::new(acc).all()
+    pub fn all(self) -> Tensor<1, Bool> {
+        let dtype = self.device().settings().bool_dtype;
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_all(self.into(), dtype)))
+        
     }
 
     /// Tests if all elements in the complex tensor evaluate to non-zero along a given dimension.
@@ -305,26 +201,11 @@ where
     ///
     /// A boolean tensor with the same shape as the input, except in the `dim` axis where
     /// the size is 1, containing `true` if all elements along that dimension are non-zero.
-    pub fn all_dim(mut self, dim: usize) -> Tensor<D, Bool> {
-        let components = self.components.as_mut();
-
-        let mut acc = if let Some(first) = components.first_mut() {
-            unsafe { K::not_equal_elem(ptr::read(first), burn_std::Scalar::Float(0.0)) }
-        } else {
-            // the compile time check on compound tensor len should prevent this from ever being possible
-            unreachable!("Cannot compute all_dim on a CompoundTensor with 0 components.");
-        };
-
-        if components.len() > 1 {
-            for component in components[1..].iter_mut() {
-                acc = bool_and_impl(acc, unsafe {
-                    K::not_equal_elem(ptr::read(component), burn_std::Scalar::Float(0.0))
-                });
-            }
-        }
-
-        Tensor::<D, Bool>::new(K::all_dim(acc, dim))
+    pub fn all_dim(self, dim: usize) -> Tensor<D, Bool> {
+        let dtype = self.device().settings().bool_dtype;
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_all_dim(self.into(), dim, dtype)))
     }
+
 
     /// Permute the dimensions of the complex tensor.
     ///
@@ -339,7 +220,7 @@ where
     /// # Returns
     ///
     /// The tensor with the dimensions permuted.
-    pub fn permute<Dim>(mut self, axes: [Dim; D]) -> Self
+    pub fn permute<Dim>(self, axes: [Dim; D]) -> Self
     where
         Dim: AsIndex,
     {
@@ -354,10 +235,8 @@ where
         if no_op {
             self
         } else {
-            let device = self.device();
-            let _dtype = inner_dtype::<K>(&device);
-            let _shape = self.shape();
-            crate::split_tensor_unary_body!(K, permute, self, &fixed_axes)
+            crate::check!(TensorCheck::permute(fixed_axes));
+            SplitBackend::complex_permute(self.into(), &fixed_axes).into()
         }
     }
 
@@ -367,7 +246,7 @@ where
     ///
     /// * `axes` - The dimensions to reverse. The values must be unique and in the range of the
     ///   number of dimensions. Negative values are used as an offset from the end.
-    pub fn flip<const N: usize>(mut self, axes: [isize; N]) -> Self {
+    pub fn flip<const N: usize>(self, axes: [isize; N]) -> Self {
         // Convert the axes to usize and handle negative values without using vector
         let mut transformed_axes: [usize; N] = [0; N];
         for (i, &x) in axes.iter().enumerate() {
@@ -380,9 +259,58 @@ where
 
         // Check if the axes are valid
         crate::check!(TensorCheck::flip(D, &transformed_axes));
-        crate::split_tensor_unary_body!(K::Inner, flip, self, &transformed_axes)
+        SplitBackend::complex_flip(self.into(), &transformed_axes).into()
     }
 
+    /// Returns a tensor containing the elements selected from the given slices.
+    ///
+    /// This method provides flexible tensor slicing with support for various range types,
+    /// negative indices, and stepped slicing. The method accepts both single slices and
+    /// arrays of slices, with the [`s!`] macro providing convenient syntax for complex patterns.
+    ///
+    /// # Arguments
+    ///
+    /// * `slices` - Can be:
+    ///   - A single range for 1D slicing (e.g., `0..5`, `..`, `2..`)
+    ///   - An array of ranges (e.g., `[0..2, 1..4]`)
+    ///   - The [`s!`] macro output for advanced slicing with steps
+    ///   - a `&Vec<Slice>` or `&[Slice]`
+    ///
+    /// # Behavior
+    ///
+    /// - Supports partial and full slicing in any number of dimensions
+    /// - Handles negative indices by wrapping from the end (-1 is the last element)
+    /// - Automatically clamps ranges that exceed tensor dimensions
+    /// - Supports stepped slicing for selecting every nth element
+    /// - Negative steps reverse the selection order
+    ///
+    /// # Panics
+    ///
+    /// - If the number of slices exceeds the tensor's dimensions
+    /// - If a range is descending (e.g., 2..1) or empty (e.g., 1..1) without negative step
+    /// - If a step is zero
+    pub fn slice<S>(self, slices: S) -> Self
+    where
+        S: SliceArg,
+    {
+        let shape = self.shape();
+        let slices = slices.into_slices(&shape);
+
+        // Validate slices
+        crate::check!(TensorCheck::slice::<D>(&shape, &slices));
+
+        // Calculate output shape and check for empty slices
+        let mut output_dims = shape.clone();
+        for (dim, slice) in slices.iter().enumerate() {
+            output_dims[dim] = slice.output_size(shape[dim]);
+        }
+
+        // Return empty tensor if any dimension is 0 (empty slice)
+        if output_dims.contains(&0) {
+            return Self::empty(output_dims, &self.device());
+        }
+        SplitBackend::complex_slice(self.into(), &slices).into()
+    }
     /// Assigns values to a slice of the complex tensor and returns the updated tensor.
     ///
     /// # Arguments
@@ -412,37 +340,12 @@ where
             return self;
         }
 
-        let values_shape = values.shape();
-        for (i, slice) in slices
-            .iter()
-            .enumerate()
-            .take(slices.len().min(shape.num_dims()))
-        {
-            let range = slice.to_range(shape[i]);
-            assert!(
-                range.end <= shape[i],
-                "slice_assign: range ({}..{}) exceeds tensor size {} at dim {}",
-                range.start,
-                range.end,
-                shape[i],
-                i,
-            );
-            let expected = range.end - range.start;
-            assert_eq!(
-                values_shape[i], expected,
-                "slice_assign: values shape {} does not match slice length {} at dim {}",
-                values_shape[i], expected, i,
-            );
-        }
-
-        // crate::split_tensor_binary_body!(
-        //     kind: K,
-        //     lhs: self,
-        //     rhs: values,
-        //     args:(slice),
-        //     op: |comp_self, comp_values| K::slice_assign(comp_self, slice, comp_values)
-        // )
-        todo!()
+        crate::check!(TensorCheck::slice_assign::<D>(
+            &shape,
+            &values.shape(),
+            &slices
+        ));
+        SplitBackend::complex_slice_assign(self.into(), &slices, values.into()).into()
     }
 
     /// Update the complex tensor with the value tensor where the mask is true.
@@ -454,16 +357,8 @@ where
     ///
     /// * `mask` - A boolean tensor with the same shape as the input tensor.
     /// * `source` - The complex tensor to use for replacement where the mask is true.
-    pub fn mask_where(mut self, mask: Tensor<D, Bool>, mut source: Self) -> Self {
-        let mask_ref = mask.primitive;
-
-        crate::split_tensor_binary_body!(
-            kind: K::Inner,
-            lhs: self,
-            rhs: source,
-            args:(mask_ref),
-            op: |comp_self, comp_source| K::Inner::mask_where(comp_self, mask_ref, comp_source)
-        )
+    pub fn mask_where(self, mask: Tensor<D, Bool>, source: Self) -> Self {
+        SplitBackend::complex_mask_where(self.into(), mask.primitive.into(), source.into()).into()
     }
 
     /// Gather complex tensor elements corresponding to the given indices from the specified dimension.
@@ -478,27 +373,14 @@ where
     ///
     /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn gather(mut self, dim: usize, indices: Tensor<D, Int>) -> Self {
+    pub fn gather(self, dim: usize, indices: Tensor<D, Int>) -> Self {
         crate::check!(TensorCheck::gather::<D>(
             dim,
             &self.shape(),
             &indices.shape()
         ));
         let indices = indices.primitive;
-        {
-            let components_slice = self.components.as_mut();
-            if let Some((last, head)) = components_slice.split_last_mut() {
-                for component in head {
-                    *component = K::Inner::gather(
-                        dim,
-                        unsafe { core::ptr::read(component) },
-                        indices.clone(),
-                    );
-                }
-                *last = K::Inner::gather(dim, unsafe { core::ptr::read(last) }, indices);
-            }
-            self
-        }
+        SplitBackend::complex_gather(dim, self.into(),  indices.into()).into()
     }
 
     /// Assign the gathered elements corresponding to the given indices along the specified dimension
@@ -520,38 +402,25 @@ where
     ///
     /// If `update` is not `IndexingUpdateOp::Add`. Other operations are currently not implemented.
     pub fn scatter(
-        mut self,
+        self,
         dim: usize,
         indices: Tensor<D, Int>,
-        mut values: Self,
+        values: Self,
         update: burn_std::IndexingUpdateOp,
     ) -> Self {
-        let indices = indices.primitive;
-        let lhs_slice = self.components.as_mut();
-        let rhs_slice = values.components.as_mut();
-        debug_assert_eq!(lhs_slice.len(), rhs_slice.len());
-        if let Some(((lhs_last, lhs_head), (rhs_last, rhs_head))) =
-            lhs_slice.split_last_mut().zip(rhs_slice.split_last_mut())
-        {
-            for (lhs_comp, rhs_comp) in lhs_head.iter_mut().zip(rhs_head.iter_mut()) {
-                *lhs_comp = K::Inner::select_assign(
-                    unsafe { core::ptr::read(lhs_comp) },
-                    dim,
-                    indices.clone(),
-                    unsafe { core::ptr::read(rhs_comp) },
-                    update,
-                );
+        crate::check!(TensorCheck::scatter::<D>(
+            dim,
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+        match update {
+            IndexingUpdateOp::Add => {
+                SplitBackend::complex_scatter_add(dim, self.into(),  indices.primitive.into(), values.into()).into()
+                
             }
-
-            *lhs_last = K::Inner::select_assign(
-                unsafe { core::ptr::read(lhs_last) },
-                dim,
-                indices.clone(),
-                unsafe { core::ptr::read(rhs_last) },
-                update,
-            );
+            _ => unimplemented!("Only IndexingUpdateOp::Add is currently implemented for scatter.")
         }
-        self
     }
 
     /// Create a complex tensor of the given shape where each element is equal to the provided value.
@@ -562,19 +431,14 @@ where
     /// * `fill_value` - The complex value to fill the tensor with.
     /// * `options` - Options to control creation, including device and dtype.
     pub fn full<S: Into<Shape>, E: ElementConversion>(
-        _shape: S,
-        _fill_value: E,
-        _options: impl Into<TensorCreationOptions>,
+        shape: S,
+        fill_value: E,
+        options: impl Into<TensorCreationOptions>,
     ) -> Self {
-        //TODO: figure out how to map dtype so that it doesn't just assume Complex<f64>
-        // let e = E::elem::<Complex<f64>>(fill_value);
-        // let shape = shape.into();
-        // SplitTensor::from_parts_data(
-        //     TensorData::full(&shape, e.real()),
-        //     TensorData::full(&shape, e.imag()),
-        //     &options.into().device,
-        // )
-        todo!()
+        let options = options.into();
+        let device = options.device;
+        let fill_value = Scalar::Complex(fill_value.elem::<ComplexScalar<f64>>());
+        SplitBackend::complex_full(shape.into(), fill_value, device.as_dispatch(), device.settings().complex_dtype).into()
     }
 
     /// Multi-dimensional scatter: update the complex tensor at locations given by `indices`
@@ -597,7 +461,7 @@ where
     pub fn scatter_nd<const M: usize, const DV: usize>(
         self,
         indices: Tensor<M, Int>,
-        values: SplitTensor<DV, K>,
+        values: SplitTensor<DV, Complex>,
         _update: IndexingUpdateOp,
     ) -> Self {
         crate::check!(TensorCheck::scatter_nd::<D, M, DV>(
@@ -605,31 +469,9 @@ where
             &indices.shape(),
             &values.shape()
         ));
-        let _components = self.components;
-        let _values_components = values.components;
+        
 
-        // for component in 0..components.len()-1 {
-        //     components[component] = K::scatter_nd(
-        //         components[component],
-        //         indices.primitive.clone(),
-        //         values_components[component],
-        //         update.clone(),
-        //     );
-        // }
-
-        // let last = components.len()-1;
-        // components[last] = K::scatter_nd(
-        //     components[last],
-        //     indices.primitive,
-        //     values_components[last],
-        //     update,
-        // );
-
-        // Self {
-        //     _kind: core::marker::PhantomData,
-        //     components,
-        // }
-        todo!()
+        SplitBackend::complex_scatter_nd(self.into(), indices.primitive.into(), values.into(), _update).into()
     }
 
     /// Multi-dimensional gather: collect complex slices from the tensor at multi-index
@@ -646,7 +488,7 @@ where
     pub fn gather_nd<const M: usize, const DV: usize>(
         self,
         indices: Tensor<M, Int>,
-    ) -> SplitTensor<DV, K> {
+    ) -> SplitTensor<DV, Complex> {
         let _indices = indices.primitive;
         //crate::check!(TensorCheck::gather_nd::<D, M, DV>(&indices.shape()));
         //crate::split_tensor_unary_body!(K,gather_nd,self,indices)
@@ -663,9 +505,7 @@ fn inner_dtype<K: CompoundTensorKind>(device: &Device) -> DType {
     }
 }
 //impl<B, F> Numeric<B> for SplitTensor<F>
-impl<const D: usize, K: Numeric + BasicOps + CompoundTensorKind> SplitTensor<D, K>
-where
-    K::Inner: Numeric,
+impl<const D: usize> SplitTensor<D, Complex>
 {
     /// Applies element-wise addition operation.
     ///
@@ -675,14 +515,8 @@ where
     ///
     /// * `rhs` - The complex tensor to add.
     #[allow(clippy::should_implement_trait)]
-    pub fn add(mut self, mut rhs: Self) -> Self {
-        crate::split_tensor_binary_body!(
-            kind: K,
-            lhs: self,
-            rhs: rhs,
-            args: (),
-            op: |comp_self, comp_rhs| K::add(comp_self, comp_rhs)
-        )
+    pub fn add(self, rhs: Self) -> Self {
+        SplitBackend::complex_add(self.into(), rhs.into()).into()
     }
 
     /// Applies element-wise addition operation with a scalar.
@@ -693,10 +527,10 @@ where
     ///
     /// * `rhs` - The complex scalar to add, element-wise.
     pub fn add_scalar(self, rhs: burn_std::Scalar) -> Self {
-        let device = self.device();
+        let device =&self.device();
         let shape = self.shape();
         let scalar_complex = rhs.elem::<ComplexScalar<f64>>();
-        let scalar_tensor = Self::full(shape, scalar_complex, &device);
+        let scalar_tensor = Self::full(shape, scalar_complex, device);
         self.add(scalar_tensor)
     }
 
@@ -708,14 +542,8 @@ where
     ///
     /// * `rhs` - The complex tensor to subtract.
     #[allow(clippy::should_implement_trait)]
-    pub fn sub(mut self, mut rhs: Self) -> Self {
-        crate::split_tensor_binary_body!(
-            kind: K,
-            lhs: self,
-            rhs: rhs,
-            args: (),
-            op: |comp_self, comp_rhs| K::sub(comp_self, comp_rhs)
-        )
+    pub fn sub(self, rhs: Self) -> Self {
+        SplitBackend::complex_sub(self.into(), rhs.into()).into()
     }
 
     /// Applies element-wise subtraction operation with a scalar.
@@ -737,13 +565,13 @@ where
     ///
     /// `y = -x`
     #[allow(clippy::should_implement_trait)]
-    pub fn neg(mut self) -> Self {
-        crate::split_tensor_unary_body!(K, neg, self)
+    pub fn neg(self) -> Self {
+        SplitBackend::complex_neg(self.into()).into()
     }
 
     /// Aggregate all elements in the complex tensor with the sum operation.
-    pub fn sum(mut self) -> Self {
-        crate::split_tensor_unary_body!(K, sum, self)
+    pub fn sum(self) -> Self {
+        SplitBackend::complex_sum(self.into()).into()
     }
 
     /// Aggregate all elements along the given dimension in the complex tensor with the sum operation.
@@ -751,13 +579,13 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to aggregate the elements.
-    pub fn sum_dim(mut self, dim: usize) -> Self {
-        crate::split_tensor_unary_body!(K, sum_dim, self, dim)
+    pub fn sum_dim(self, dim: usize) -> Self {
+        SplitBackend::complex_sum_dim(self.into(), dim).into()
     }
 
     /// Aggregate all elements in the complex tensor with the mean operation.
-    pub fn mean(mut self) -> Self {
-        crate::split_tensor_unary_body!(K, mean, self)
+    pub fn mean(self) -> Self {
+        SplitBackend::complex_mean(self.into()).into()
     }
 
     /// Aggregate all elements along the given dimension in the complex tensor with the mean operation.
@@ -765,8 +593,8 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to aggregate the elements.
-    pub fn mean_dim(mut self, dim: usize) -> Self {
-        crate::split_tensor_unary_body!(K, mean_dim, self, dim)
+    pub fn mean_dim(self, dim: usize) -> Self {
+        SplitBackend::complex_mean_dim(self.into(), dim).into()
     }
 
     /// Computes the cumulative sum of complex elements along the given dimension.
@@ -774,88 +602,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative sum.
-    pub fn cumsum(mut self, dim: usize) -> Self {
-        crate::split_tensor_unary_body!(K, cumsum, self, dim)
+    pub fn cumsum(self, dim: usize) -> Self {
+        SplitBackend::complex_cumsum(self.into(), dim).into()
     }
-}
-
-#[macro_export]
-macro_rules! split_tensor_unary_body {
-    ($kind:ty, $func:ident, $self:expr $(, $arg_expr:expr)*) => {{
-        let components_slice = $self.components.as_mut();
-
-        if let Some((last, head)) = components_slice.split_last_mut() {
-            // 1. Loop through all components except the last one
-            for component in head {
-
-                *component = <$kind>::$func(
-                    unsafe { core::ptr::read(component) }
-                    $(, (&$arg_expr).clone())*
-                );
-            }
-
-            // 2. Handle the last component, consuming the original arguments
-
-            *last = <$kind>::$func(
-                unsafe { core::ptr::read(last) }
-                $(, $arg_expr)*
-            );
-        }
-
-        $self
-    }};
-}
-
-#[macro_export]
-macro_rules! split_tensor_binary_body {
-    (
-        kind: $kind:path,
-        lhs: $lhs:expr,
-        rhs: $rhs:expr,
-        args: ($($arg:ident),*),
-        op: |$l_placeholder:ident, $r_placeholder:ident| $op_expr:expr
-    ) => {{
-        let lhs_slice = $lhs.components.as_mut();
-        let rhs_slice = $rhs.components.as_mut();
-
-        debug_assert_eq!(lhs_slice.len(), rhs_slice.len());
-
-        if let Some(((lhs_last, lhs_head), (rhs_last, rhs_head))) =
-            lhs_slice.split_last_mut().zip(rhs_slice.split_last_mut())
-        {
-            // 1. Process all intermediate elements
-            for (lhs_comp, rhs_comp) in lhs_head.iter_mut().zip(rhs_head.iter_mut()) {
-                unsafe {
-                    let $l_placeholder = core::ptr::read(lhs_comp);
-                    let $r_placeholder = core::ptr::read(rhs_comp);
-
-                    // Safely creates local clones of args ONLY if args are present
-                    $( let $arg = $arg.clone(); )*
-
-                    core::ptr::write(lhs_comp, $op_expr);
-                }
-            }
-
-            // 2. Process the final elements, safely consuming the original values
-            unsafe {
-                let $l_placeholder = core::ptr::read(lhs_last);
-                let $r_placeholder = core::ptr::read(rhs_last);
-
-                core::ptr::write(lhs_last, $op_expr);
-            }
-        }
-
-        $lhs
-    }};
-}
-
-#[macro_export]
-macro_rules! overwrite_in_place {
-    ($lhs_slot:expr, $rhs_slot:expr, |$l_val:ident, $r_val:ident| $op:expr) => {
-        unsafe {
-            let $l_val = core::ptr::read($lhs_slot);
-            let $r_val = core::ptr::read($rhs_slot);
-            core::ptr::write($lhs_slot, $op);
-        }
-    };
 }

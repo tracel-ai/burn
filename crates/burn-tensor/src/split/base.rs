@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use burn_backend::{Backend, BackendTypes, DTypeUsageSet, SplitLayout, TensorMetadata};
 use burn_dispatch::{Dispatch, DispatchTensor};
@@ -54,11 +54,12 @@ impl BackendTypes for SplitBackend {
 
 // Needs to be public to avoid a compile time error related to the visibility of the associated type for the tensor primitive in BackendTypes
 #[derive(Debug, Clone)]
-pub struct SplitPrimitive<T, const N: usize>(pub(super) [T; N]);
+pub struct SplitPrimitive<T, const N: usize>(pub(super) [T; N]) where [(); N]: IsNotEmpty;
 
-impl Into<SplitTensor<2, Complex>> for SplitPrimitive<DispatchTensor, 2>
+
+impl< const D: usize> Into<SplitTensor<D, Complex>> for SplitPrimitive<DispatchTensor, 2>
 {
-    fn into(self) -> SplitTensor<2, Complex> {
+    fn into(self) -> SplitTensor<D, Complex> {
         let [left, right ] = self.0;
         SplitTensor::new(
             BridgeTensor::float(left),
@@ -66,6 +67,16 @@ impl Into<SplitTensor<2, Complex>> for SplitPrimitive<DispatchTensor, 2>
         )
     }
 }
+
+impl<const D: usize> Into<SplitPrimitive<DispatchTensor, 2>> for SplitTensor<D, Complex>
+{
+    fn into(self) -> SplitPrimitive<DispatchTensor, 2> {
+        let [left, right ] = self.components;
+        SplitPrimitive([left.into(), right.into()])
+    }
+}
+             
+
 
 pub(crate) trait IsNotEmpty {
     const VALID: ();

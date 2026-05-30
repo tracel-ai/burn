@@ -1,3 +1,4 @@
+use burn_backend::ops::ComplexTensorOps;
 use burn_std::ComplexScalar;
 use burn_std::Element;
 use burn_std::Scalar;
@@ -9,35 +10,31 @@ use crate::Float;
 use crate::Tensor;
 
 use crate::kind::Numeric;
-use crate::ops::BasicOps;
 
-use crate::ops::CompoundTensorKind;
 
 use crate::ops::Numeric as _;
+use crate::split::base::SplitBackend;
 use crate::split::base::SplitTensor;
 
 // Ideally we can separate out the numeric ops to those that aren't generalizable (i.e isn't just a series of linear ops) from those that are
 
 // SplitTensor + SplitTensor
-impl<const D: usize, K: Numeric + CompoundTensorKind> core::ops::Add<Self> for SplitTensor<D, K> {
+impl<const D: usize> core::ops::Add<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        //K::add(self., rhs)
-        todo!()
+        SplitBackend::complex_add(self.into(), rhs.into()).into()
     }
 }
 
 // SplitTensor + Tensor<D, Float> — adds real tensor to the real part
-impl<const D: usize, K: Numeric + BasicOps> core::ops::Add<Tensor<D, K>>
+impl<const D: usize> core::ops::Add<Tensor<D, Float>>
     for SplitTensor<D, Complex>
 {
     type Output = Self;
 
-    fn add(self, rhs: Tensor<D, K>) -> Self::Output {
-        let prim = rhs.primitive;
-        let [real, imag] = self.components;
-        SplitTensor::new(K::add(real, prim), imag)
+    fn add(self, rhs: Tensor<D, Float>) -> Self::Output {
+        self + Self::from_real(rhs.into())
     }
 }
 
@@ -69,18 +66,16 @@ impl<const D: usize> core::ops::Sub<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::sub(self, rhs)
+        SplitBackend::complex_sub(self.into(), rhs.into()).into()
     }
 }
 
 // SplitTensor - Tensor<D, Float>
-impl<const D: usize, K: Numeric> core::ops::Sub<Tensor<D, K>> for SplitTensor<D, Complex> {
+impl<const D: usize> core::ops::Sub<Tensor<D, Float>> for SplitTensor<D, Complex> {
     type Output = Self;
 
-    fn sub(self, rhs: Tensor<D, K>) -> Self::Output {
-        let prim = rhs.primitive;
-        let [real, imag] = self.components;
-        SplitTensor::new(K::sub(real, prim), imag)
+    fn sub(self, rhs: Tensor<D, Float>) -> Self::Output {
+        self + Self::from_real(rhs.into())
     }
 }
 
@@ -157,15 +152,15 @@ impl<const D: usize> core::ops::Div<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
-        Self::div(self, rhs)
+        SplitBackend::complex_div(self.into(), rhs.into()).into()
     }
 }
 
 // SplitTensor / Tensor<D, Float>
-impl<const D: usize, K: Numeric> core::ops::Div<Tensor<D, K>> for SplitTensor<D, Complex> {
+impl<const D: usize> core::ops::Div<Tensor<D, Float>> for SplitTensor<D, Complex> {
     type Output = Self;
 
-    fn div(self, rhs: Tensor<D, K>) -> Self::Output {
+    fn div(self, rhs: Tensor<D, Float>) -> Self::Output {
         let prim = rhs.primitive;
         let [real, imag] = self.components;
         SplitTensor::new(Float::div(real, prim.clone()), Float::div(imag, prim))
@@ -201,18 +196,18 @@ impl<const D: usize> core::ops::Rem<Self> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn rem(self, rhs: Self) -> Self::Output {
-        Self::remainder(self, rhs)
+        SplitBackend::complex_remainder(self.into(), rhs.into()).into()
     }
 }
 
 // SplitTensor % Tensor<D, Float>
-impl<const D: usize, K: Numeric> core::ops::Rem<Tensor<D, K>> for SplitTensor<D, Complex> {
+impl<const D: usize> core::ops::Rem<Tensor<D, Float>> for SplitTensor<D, Complex> {
     type Output = Self;
 
-    fn rem(self, rhs: Tensor<D, K>) -> Self::Output {
+    fn rem(self, rhs: Tensor<D, Float>) -> Self::Output {
         let rhs = rhs.primitive;
         let [real, imag] = self.components;
-        SplitTensor::new(K::remainder(real, rhs.clone()), K::remainder(imag, rhs))
+        SplitTensor::new(Float::remainder(real, rhs.clone()), Float::remainder(imag, rhs))
     }
 }
 
