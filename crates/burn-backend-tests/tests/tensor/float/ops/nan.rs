@@ -20,4 +20,12 @@ fn contains_nan() {
 
     let with_nan = TestTensor::<2>::from([[0.0, f32::NAN, 2.0], [3.0, 4.0, 5.0]]);
     assert!(with_nan.contains_nan().into_scalar::<bool>());
+
+    // Regression guard: a finite tensor must never be reported as containing NaN,
+    // even when its magnitude is large. The previous `sum().is_nan()` implementation
+    // could overflow the reduction on narrow-exponent floats (e.g. f16) and turn a
+    // finite tensor into a NaN sum, producing a false positive.
+    let device = Default::default();
+    let large_finite = TestTensor::<1>::ones([4096], &device) * 60000.0;
+    assert!(!large_finite.contains_nan().into_scalar::<bool>());
 }
