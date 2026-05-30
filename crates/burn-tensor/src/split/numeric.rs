@@ -71,7 +71,7 @@ impl<const D: usize> core::ops::Sub<Tensor<D, Float>> for SplitTensor<D, Complex
     type Output = Self;
 
     fn sub(self, rhs: Tensor<D, Float>) -> Self::Output {
-        self + Self::from_real(rhs)
+        self - Self::from_real(rhs)
     }
 }
 

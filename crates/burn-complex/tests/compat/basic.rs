@@ -1,6 +1,4 @@
-use burn_tensor::{
-    Bool, Complex, ComplexScalar, IndexingUpdateOp, Int, Tensor, TensorData, split::SplitTensor,
-};
+use burn_tensor::{Bool, ComplexScalar, IndexingUpdateOp, Int, Tensor, TensorData};
 
 #[test]
 fn test_complex_zeros() {

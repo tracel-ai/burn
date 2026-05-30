@@ -365,6 +365,20 @@ pub(crate) trait ComplexOps: FloatMathOps {
     where
         T: Into<TensorData>;
 
+    /// Creates a complex tensor by combining separate real and imaginary part tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `real` - The real parts, as anything that can be converted into `TensorData`.
+    /// * `imag` - The imaginary parts, as anything that can be converted into `TensorData`.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor whose shape matches the input data.
+    fn from_real<T>(real: T, device: &Device) -> BridgeTensor
+    where
+        T: Into<TensorData>;
+
     /// Creates a complex tensor from interleaved `[re₀, im₀, re₁, im₁, …]` data.
     ///
     /// # Arguments
@@ -438,6 +452,16 @@ impl ComplexOps for Complex {
         BridgeTensor::complex(Dispatch::complex_powc(
             tensor.into_complex(),
             exponent.into_complex(),
+        ))
+    }
+
+    fn from_real<T>(real: T, device: &Device) -> BridgeTensor
+    where
+        T: Into<TensorData>,
+    {
+        BridgeTensor::complex(Dispatch::complex_from_real_data(
+            real.into(),
+            device.as_dispatch(),
         ))
     }
 }

@@ -1,4 +1,4 @@
-use burn_tensor::{Complex, Float, Tensor, split::SplitTensor};
+use burn_tensor::{Complex, Float, SplitTensor, Tensor};
 pub type FloatTensor<const D: usize> = Tensor<D, Float>;
 
 macro_rules! gen_tests {
@@ -8,17 +8,14 @@ macro_rules! gen_tests {
                 mod [<$variant:snake>] {
 
                     mod basic {
-                        use crate::FloatTensor;
                         type TestTensor<const D: usize> = $ty;
                         include!("compat/basic.rs");
                     }
                     mod numeric {
-                        use crate::FloatTensor;
                         type TestTensor<const D: usize> = $ty;
                         include!("compat/numeric.rs");
                     }
                     mod ops {
-                        use crate::FloatTensor;
                         type TestTensor<const D: usize> = $ty;
                         include!("compat/ops.rs");
                     }

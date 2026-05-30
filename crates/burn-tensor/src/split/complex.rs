@@ -45,7 +45,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
     }
     #[allow(unused)]
     /// Converts this split complex tensor into its backend primitive representation.
-    pub(crate) fn to_primitive(self) -> SplitPrimitive<DispatchTensor, 2> {
+    pub(crate) fn into_primitive(self) -> SplitPrimitive<DispatchTensor, 2> {
         let [real, imag] = self.components;
         SplitPrimitive([real.into(), imag.into()])
     }

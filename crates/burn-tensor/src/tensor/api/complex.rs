@@ -177,6 +177,14 @@ where
         Self::new(K::from_interleaved_data(data, device))
     }
 
+    /// Create a Complex Tensor from a float tensor representing the real part, filling the imaginary part with zeros.
+    pub fn from_real<T>(real: T, device: &Device) -> Self
+    where
+        T: Into<TensorData>,
+    {
+        Self::new(K::from_real(real.into(), device))
+    }
+
     /// Creates a complex tensor from magnitude and phase (polar form).
     ///
     /// # Arguments
@@ -206,3 +214,25 @@ where
         Self::new(K::from_polar(magnitude.primitive, phase.primitive))
     }
 }
+
+//for some reason, implementing sub causes a compilation error originating from order
+// saying there are multiple implementations satisfying the constraints.
+// // Complex Tensor + Float Tensor
+// impl<const D: usize> core::ops::Add<Tensor<D, Float>> for Tensor<D, Complex> {
+//     type Output = Self;
+
+//     fn add(self, rhs: Tensor<D, Float>) -> Self::Output {
+//         let device = self.device();
+//         self + Tensor::<D, Complex>::from_real(rhs.into_data(), &device)
+//     }
+// }
+
+// // Complex Tensor + Float Tensor
+// impl<const D: usize> core::ops::Sub<Tensor<D, Float>> for Tensor<D, Complex> {
+//     type Output = Self;
+
+//     fn sub(self, rhs: Tensor<D, Float>) -> Self::Output {
+//         let device = self.device();
+//         self - Tensor::<D, Complex>::from_real(rhs.into_data(), &device)
+//     }
+// }
