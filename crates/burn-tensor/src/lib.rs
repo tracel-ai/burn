@@ -39,10 +39,10 @@ extern crate alloc;
 
 mod bridge;
 
-pub mod split;
+mod split;
 mod tensor;
-//pub mod split_complex;
 
+pub use split::*;
 pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 

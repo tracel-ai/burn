@@ -16,9 +16,7 @@ pub trait Layout:
 }
 
 /// Trait for compound tensors that are composed of multiple component tensors.
-pub trait SplitLayout: Layout {
-    const COMPONENTS: usize;
-}
+pub trait SplitLayout: Layout {}
 
 #[derive(Clone, Debug)]
 /// Indicates that the underlying implementation uses a complex primitive type \[float,float\] like that found in the

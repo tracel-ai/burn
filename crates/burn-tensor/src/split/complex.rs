@@ -1,6 +1,4 @@
-use burn_backend::{
-    Backend, BackendTypes, Layout, SplitLayout, ops::ComplexTensorOps, try_read_sync,
-};
+use burn_backend::{Layout, SplitLayout, ops::ComplexTensorOps, try_read_sync};
 use burn_dispatch::DispatchTensor;
 use burn_std::{
     AsIndex, ComplexScalar, Distribution, Element, ElementConversion, ExecutionError, Scalar,
@@ -18,14 +16,10 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct SplitComplexLayout;
 
-pub type SplitComplex = Complex; //<SplitComplexLayout>;
-
 mod backend;
 
 impl Layout for SplitComplexLayout {}
-impl SplitLayout for SplitComplexLayout {
-    const COMPONENTS: usize = 2;
-}
+impl SplitLayout for SplitComplexLayout {}
 
 impl<const D: usize> SplitTensor<D, Complex> {
     /// Creates a complex tensor from separate real and imaginary tensor components.
@@ -49,7 +43,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
             components: [real, imag],
         }
     }
-
+    #[allow(unused)]
     /// Converts this split complex tensor into its backend primitive representation.
     pub(crate) fn to_primitive(self) -> SplitPrimitive<DispatchTensor, 2> {
         let [real, imag] = self.components;
@@ -202,10 +196,32 @@ impl<const D: usize> SplitTensor<D, Complex> {
         SplitTensor::new(real, Float::neg(imag))
     }
 
+    /// Applies element wise power operation with a complex Tensor exponent.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The tensor to apply the power operation with.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor,ComplexScalar, Shape, Int};
+    ///
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor1 = Tensor::<2, Complex>::from_ints([[ComplexScalar::new(1.0, -2.0), ComplexScalar::new(3.0, 4.0), ComplexScalar::new(0.0, -1.0)], [ComplexScalar::new(1.0, -2.0), ComplexScalar::new(0.0, -1.0), ComplexScalar::new(2.0, 2.0)]], &device);
+    ///    let tensor2 = Tensor::<2, Complex>::from_complex([[ComplexScalar::new(5.0, -1.0), ComplexScalar::new(2.0, 3.0), ComplexScalar::new(1.0, -2.0)], [ComplexScalar::new(1.0, -3.0), ComplexScalar::new(1.0, -3.0), ComplexScalar::new(6.0, 2.0)]], &device);
+    ///    let tensor = tensor1.powc(tensor2);
+    ///    println!("{tensor}");
+    ///    // [[ 1.84452120e+01-1.05764765e+00i,  1.42600948e+00+6.02434630e-01i,
+    ///    // 2.64608933e-18-4.32139183e-02i],
+    ///    //  [-7.49735280e-02+2.99204278e-02i,  5.50067930e-19-8.98329102e-03i,
+    ///    //  9.29602961e+01+5.18329310e+01i]]
+    /// ```
     pub fn powc(self, exponent: Self) -> Self {
         SplitBackend::complex_powc(self.into(), exponent.into()).into()
     }
-
+    /// Create a Complex Tensor from a float tensor representing the real part, filling the imaginary part with zeros.
     pub fn from_real(tensor: Tensor<D, Float>) -> Self {
         let shape = tensor.shape();
         let dtype = tensor.dtype();
@@ -399,6 +415,20 @@ impl<const D: usize> SplitTensor<D, Complex> {
         Self::zeros(shape, &opt.device)
     }
 
+    /// Create a tensor of the given shape where each element is one.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::<2>::ones(Shape::new([2, 3]), &device);
+    ///   println!("{tensor}");
+    ///   // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
+    /// }
+    /// ```
     pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let opt = options.into();
         let shape = shape.into();
@@ -410,6 +440,20 @@ impl<const D: usize> SplitTensor<D, Complex> {
         )
     }
 
+    /// Create a tensor of the given shape where each element is zero.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor = Tensor::<2>::zeros(Shape::new([2, 3]), &device);
+    ///    println!("{tensor}");
+    ///    // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    /// }
+    /// ```
     pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions>) -> Self {
         let opt = options.into();
         let shape = shape.into();
@@ -633,6 +677,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
 }
 // Numeric operations that won't be the same universally
 impl<const D: usize> SplitTensor<D, Complex> {
+    /// Helper function for computing the squared norm of a complex tensor, which is the sum of squares of the real and imaginary parts.
     pub fn squared_norm(self) -> Tensor<D, Float> {
         let [real, imag] = self.components;
         let real_sq = Float::mul(real.clone(), real);

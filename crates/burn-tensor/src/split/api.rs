@@ -1,26 +1,25 @@
 use burn_backend::ops::ComplexTensorOps;
 use burn_std::{
-    AsIndex, ComplexScalar, DType, Element, ElementConversion, IndexingUpdateOp, Scalar, Shape,
-    SliceArg,
+    AsIndex, ComplexScalar, DType, ElementConversion, IndexingUpdateOp, Scalar, Shape, SliceArg,
 };
 
 use crate::{
     Bool,
-    BroadcastArgs,
     Complex,
     Device,
     Float,
     Int,
-    ReshapeArgs,
     Tensor,
     TensorCreationOptions,
     check::TensorCheck,
-    kind::{Basic, Numeric},
-    ops::{BasicOps, BridgeTensor, CompoundTensorKind, FloatMathOps},
+    kind::Basic,
+    ops::{BasicOps, BridgeTensor, CompoundTensorKind},
     split::base::{SplitBackend, SplitTensor}, //split::base::SplitTensor,
 };
 
 impl<const D: usize, K: CompoundTensorKind + Basic> SplitTensor<D, K> {
+    #[allow(unused)]
+    /// Creates a split-layout tensor from an array of component tensors.
     fn from_components_array(components: K::ComponentsArray) -> Self {
         Self {
             _kind: core::marker::PhantomData,
@@ -541,7 +540,9 @@ impl<const D: usize> SplitTensor<D, Complex> {
     }
 }
 
-fn inner_dtype<K: CompoundTensorKind>(device: &Device) -> DType {
+#[allow(unused)]
+/// Helper function to get the inner dtype of a compound tensor kind for a given device.
+pub fn inner_dtype<K: CompoundTensorKind>(device: &Device) -> DType {
     match K::INNER_KIND_ID {
         crate::ops::Kind::Float => device.settings().float_dtype.into(),
         crate::ops::Kind::Int => device.settings().int_dtype.into(),

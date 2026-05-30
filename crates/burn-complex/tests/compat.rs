@@ -28,5 +28,5 @@ macro_rules! gen_tests {
     };
 }
 
-gen_tests!(split, burn_tensor::split::SplitTensor<D,burn_tensor::Complex> );
+gen_tests!(split, burn_tensor::SplitTensor<D,burn_tensor::Complex> );
 gen_tests!(interleaved, burn_tensor::Tensor<D,burn_tensor::Complex>);

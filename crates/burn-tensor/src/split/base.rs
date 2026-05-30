@@ -8,6 +8,7 @@ use crate::{
     ops::{BridgeTensor, CompoundTensorKind},
 };
 
+/// A tensor type that represents compound elements as separate component tensors.
 #[derive(Debug)]
 pub struct SplitTensor<const D: usize, K>
 where
@@ -49,7 +50,9 @@ impl BackendTypes for SplitBackend {
 }
 
 // Needs to be public to avoid a compile time error related to the visibility of the associated type for the tensor primitive in BackendTypes
+/// A generic over the component tensors of a split-layout tensor. The components are stored as an array of tensors of the same primitive type
 #[derive(Debug, Clone)]
+#[allow(private_bounds)]
 pub struct SplitPrimitive<T, const N: usize>(pub(super) [T; N])
 where
     [(); N]: IsNotEmpty;
@@ -68,7 +71,9 @@ impl<const D: usize> From<SplitTensor<D, Complex>> for SplitPrimitive<DispatchTe
     }
 }
 
+#[allow(private_bounds)]
 pub(crate) trait IsNotEmpty {
+    #[allow(dead_code)]
     const VALID: ();
 }
 

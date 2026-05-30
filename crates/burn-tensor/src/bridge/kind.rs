@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    Layout, SplitLayout, TensorMetadata, TensorPrimitive, get_device_settings,
+    TensorMetadata, TensorPrimitive, get_device_settings,
     ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
 };
 use burn_dispatch::{Dispatch, DispatchTensor};
