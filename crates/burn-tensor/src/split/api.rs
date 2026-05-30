@@ -1,12 +1,23 @@
-
 use burn_backend::ops::ComplexTensorOps;
 use burn_std::{
-    AsIndex, ComplexScalar, DType, Element, ElementConversion, IndexingUpdateOp, ReshapeAnalysis::Split, Scalar, Shape, SliceArg, dtype
+    AsIndex, ComplexScalar, DType, Element, ElementConversion, IndexingUpdateOp, Scalar, Shape,
+    SliceArg,
 };
 
 use crate::{
-    Bool, BroadcastArgs, Complex, Device, Float, Int, ReshapeArgs, Tensor, TensorCreationOptions, bool_and_impl, bool_or_impl, check::TensorCheck, kind::{Basic, Numeric}, ops::{BasicOps, BridgeTensor, CompoundTensorKind, FloatMathOps}, split::base::{SplitBackend, SplitTensor}
-    //split::base::SplitTensor,
+    Bool,
+    BroadcastArgs,
+    Complex,
+    Device,
+    Float,
+    Int,
+    ReshapeArgs,
+    Tensor,
+    TensorCreationOptions,
+    check::TensorCheck,
+    kind::{Basic, Numeric},
+    ops::{BasicOps, BridgeTensor, CompoundTensorKind, FloatMathOps},
+    split::base::{SplitBackend, SplitTensor}, //split::base::SplitTensor,
 };
 
 impl<const D: usize, K: CompoundTensorKind + Basic> SplitTensor<D, K> {
@@ -18,8 +29,7 @@ impl<const D: usize, K: CompoundTensorKind + Basic> SplitTensor<D, K> {
     }
 }
 //BasicOps
-impl<const D: usize> SplitTensor<D, Complex>
-{
+impl<const D: usize> SplitTensor<D, Complex> {
     /// Select complex tensor elements along the given dimension corresponding to the given indices.
     ///
     /// # Arguments
@@ -86,13 +96,17 @@ impl<const D: usize> SplitTensor<D, Complex>
         values: Self,
         update: IndexingUpdateOp,
     ) -> Self {
-        
         match update {
-            IndexingUpdateOp::Add => {
-                SplitBackend::complex_select_add(self.into(), dim, indices.primitive.into(), values.into()).into()
-                
-            }
-            _ => unimplemented!("Only IndexingUpdateOp::Add is currently implemented for select_assign.")
+            IndexingUpdateOp::Add => SplitBackend::complex_select_add(
+                self.into(),
+                dim,
+                indices.primitive.into(),
+                values.into(),
+            )
+            .into(),
+            _ => unimplemented!(
+                "Only IndexingUpdateOp::Add is currently implemented for select_assign."
+            ),
         }
     }
 
@@ -139,7 +153,11 @@ impl<const D: usize> SplitTensor<D, Complex>
     /// A boolean tensor that is `true` where the two complex elements are equal and `false` elsewhere.
     pub fn equal(self, rhs: Self) -> Tensor<D, Bool> {
         let out_dtype = self.device().settings().bool_dtype;
-        Tensor::new(BridgeTensor::bool(SplitBackend::complex_equal(self.into(), rhs.into(), out_dtype).into()))
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_equal(
+            self.into(),
+            rhs.into(),
+            out_dtype,
+        )))
     }
 
     /// Applies element-wise non-equality comparison.
@@ -149,7 +167,11 @@ impl<const D: usize> SplitTensor<D, Complex>
     /// A boolean tensor that is `true` where the two complex elements are not equal and `false` elsewhere.
     pub fn not_equal(self, rhs: Self) -> Tensor<D, Bool> {
         let out_dtype = self.device().settings().bool_dtype;
-        Tensor::new(BridgeTensor::bool(SplitBackend::complex_not_equal(self.into(), rhs.into(), out_dtype).into()))
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_not_equal(
+            self.into(),
+            rhs.into(),
+            out_dtype,
+        )))
     }
 
     /// Tests if any element in the complex tensor evaluates to non-zero (i.e., true).
@@ -159,10 +181,11 @@ impl<const D: usize> SplitTensor<D, Complex>
     /// A boolean tensor with a single element, `true` if any element is non-zero, `false` otherwise.
     pub fn any(self) -> Tensor<1, Bool> {
         let out_dtype = self.device().settings().bool_dtype;
-        Tensor::new(BridgeTensor::bool(SplitBackend::complex_any(self.into(), out_dtype).into()))
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_any(
+            self.into(),
+            out_dtype,
+        )))
     }
-
-
 
     /// Tests if any element in the complex tensor evaluates to non-zero along a given dimension.
     ///
@@ -176,9 +199,12 @@ impl<const D: usize> SplitTensor<D, Complex>
     /// the size is 1, containing `true` if any element along that dimension is non-zero.
     pub fn any_dim(self, dim: usize) -> Tensor<D, Bool> {
         let dtype = self.device().settings().bool_dtype;
-        Tensor::new(BridgeTensor::bool(SplitBackend::complex_any_dim(self.into(), dim, dtype).into()))
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_any_dim(
+            self.into(),
+            dim,
+            dtype,
+        )))
     }
-
 
     /// Tests if all elements in the complex tensor evaluate to non-zero (i.e., true).
     ///
@@ -187,8 +213,10 @@ impl<const D: usize> SplitTensor<D, Complex>
     /// A boolean tensor with a single element, `true` if all elements are non-zero, `false` otherwise.
     pub fn all(self) -> Tensor<1, Bool> {
         let dtype = self.device().settings().bool_dtype;
-        Tensor::new(BridgeTensor::bool(SplitBackend::complex_all(self.into(), dtype)))
-        
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_all(
+            self.into(),
+            dtype,
+        )))
     }
 
     /// Tests if all elements in the complex tensor evaluate to non-zero along a given dimension.
@@ -203,9 +231,12 @@ impl<const D: usize> SplitTensor<D, Complex>
     /// the size is 1, containing `true` if all elements along that dimension are non-zero.
     pub fn all_dim(self, dim: usize) -> Tensor<D, Bool> {
         let dtype = self.device().settings().bool_dtype;
-        Tensor::new(BridgeTensor::bool(SplitBackend::complex_all_dim(self.into(), dim, dtype)))
+        Tensor::new(BridgeTensor::bool(SplitBackend::complex_all_dim(
+            self.into(),
+            dim,
+            dtype,
+        )))
     }
-
 
     /// Permute the dimensions of the complex tensor.
     ///
@@ -380,7 +411,7 @@ impl<const D: usize> SplitTensor<D, Complex>
             &indices.shape()
         ));
         let indices = indices.primitive;
-        SplitBackend::complex_gather(dim, self.into(),  indices.into()).into()
+        SplitBackend::complex_gather(dim, self.into(), indices.into()).into()
     }
 
     /// Assign the gathered elements corresponding to the given indices along the specified dimension
@@ -415,11 +446,14 @@ impl<const D: usize> SplitTensor<D, Complex>
             &values.shape()
         ));
         match update {
-            IndexingUpdateOp::Add => {
-                SplitBackend::complex_scatter_add(dim, self.into(),  indices.primitive.into(), values.into()).into()
-                
-            }
-            _ => unimplemented!("Only IndexingUpdateOp::Add is currently implemented for scatter.")
+            IndexingUpdateOp::Add => SplitBackend::complex_scatter_add(
+                dim,
+                self.into(),
+                indices.primitive.into(),
+                values.into(),
+            )
+            .into(),
+            _ => unimplemented!("Only IndexingUpdateOp::Add is currently implemented for scatter."),
         }
     }
 
@@ -438,7 +472,13 @@ impl<const D: usize> SplitTensor<D, Complex>
         let options = options.into();
         let device = options.device;
         let fill_value = Scalar::Complex(fill_value.elem::<ComplexScalar<f64>>());
-        SplitBackend::complex_full(shape.into(), fill_value, device.as_dispatch(), device.settings().complex_dtype).into()
+        SplitBackend::complex_full(
+            shape.into(),
+            fill_value,
+            device.as_dispatch(),
+            device.settings().complex_dtype,
+        )
+        .into()
     }
 
     /// Multi-dimensional scatter: update the complex tensor at locations given by `indices`
@@ -469,9 +509,14 @@ impl<const D: usize> SplitTensor<D, Complex>
             &indices.shape(),
             &values.shape()
         ));
-        
 
-        SplitBackend::complex_scatter_nd(self.into(), indices.primitive.into(), values.into(), _update).into()
+        SplitBackend::complex_scatter_nd(
+            self.into(),
+            indices.primitive.into(),
+            values.into(),
+            _update,
+        )
+        .into()
     }
 
     /// Multi-dimensional gather: collect complex slices from the tensor at multi-index
@@ -498,15 +543,14 @@ impl<const D: usize> SplitTensor<D, Complex>
 
 fn inner_dtype<K: CompoundTensorKind>(device: &Device) -> DType {
     match K::INNER_KIND_ID {
-        crate::ops::TensorKindId::Float => device.settings().float_dtype.into(),
-        crate::ops::TensorKindId::Int => device.settings().int_dtype.into(),
-        crate::ops::TensorKindId::Bool => device.settings().bool_dtype.into(),
-        crate::ops::TensorKindId::Complex => device.settings().complex_dtype.into(),
+        crate::ops::Kind::Float => device.settings().float_dtype.into(),
+        crate::ops::Kind::Int => device.settings().int_dtype.into(),
+        crate::ops::Kind::Bool => device.settings().bool_dtype.into(),
+        crate::ops::Kind::Complex => device.settings().complex_dtype.into(),
     }
 }
 //impl<B, F> Numeric<B> for SplitTensor<F>
-impl<const D: usize> SplitTensor<D, Complex>
-{
+impl<const D: usize> SplitTensor<D, Complex> {
     /// Applies element-wise addition operation.
     ///
     /// `y = x2 + x1`
@@ -527,7 +571,7 @@ impl<const D: usize> SplitTensor<D, Complex>
     ///
     /// * `rhs` - The complex scalar to add, element-wise.
     pub fn add_scalar(self, rhs: burn_std::Scalar) -> Self {
-        let device =&self.device();
+        let device = &self.device();
         let shape = self.shape();
         let scalar_complex = rhs.elem::<ComplexScalar<f64>>();
         let scalar_tensor = Self::full(shape, scalar_complex, device);

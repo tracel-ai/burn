@@ -32,7 +32,6 @@ distributed = ["burn-ir/distributed"]
 burn-ir = { workspace = true }
 burn-backend = { workspace = true }
 burn-std = { workspace = true }
-bytemuck = { workspace = true }
 hashbrown = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }

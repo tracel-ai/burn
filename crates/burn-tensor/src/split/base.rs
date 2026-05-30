@@ -1,9 +1,12 @@
 use core::marker::PhantomData;
 
-use burn_backend::{Backend, BackendTypes, DTypeUsageSet, SplitLayout, TensorMetadata};
+use burn_backend::{BackendTypes, DTypeUsageSet, TensorMetadata};
 use burn_dispatch::{Dispatch, DispatchTensor};
 
-use crate::{Complex, ops::{BridgeTensor, CompoundTensorKind}, split::complex::SplitComplex};
+use crate::{
+    Complex,
+    ops::{BridgeTensor, CompoundTensorKind},
+};
 
 #[derive(Debug)]
 pub struct SplitTensor<const D: usize, K>
@@ -49,34 +52,29 @@ impl BackendTypes for SplitBackend {
         <Dispatch as BackendTypes>::device_count(type_id)
     }
 
-    type ComplexTensorPrimitive = SplitPrimitive<<Dispatch as BackendTypes>::FloatTensorPrimitive, 2>;
+    type ComplexTensorPrimitive =
+        SplitPrimitive<<Dispatch as BackendTypes>::FloatTensorPrimitive, 2>;
 }
 
 // Needs to be public to avoid a compile time error related to the visibility of the associated type for the tensor primitive in BackendTypes
 #[derive(Debug, Clone)]
-pub struct SplitPrimitive<T, const N: usize>(pub(super) [T; N]) where [(); N]: IsNotEmpty;
+pub struct SplitPrimitive<T, const N: usize>(pub(super) [T; N])
+where
+    [(); N]: IsNotEmpty;
 
-
-impl< const D: usize> Into<SplitTensor<D, Complex>> for SplitPrimitive<DispatchTensor, 2>
-{
-    fn into(self) -> SplitTensor<D, Complex> {
-        let [left, right ] = self.0;
-        SplitTensor::new(
-            BridgeTensor::float(left),
-             BridgeTensor::float(right),
-        )
+impl<const D: usize> From<SplitPrimitive<DispatchTensor, 2>> for SplitTensor<D, Complex> {
+    fn from(val: SplitPrimitive<DispatchTensor, 2>) -> Self {
+        let [left, right] = val.0;
+        SplitTensor::new(BridgeTensor::float(left), BridgeTensor::float(right))
     }
 }
 
-impl<const D: usize> Into<SplitPrimitive<DispatchTensor, 2>> for SplitTensor<D, Complex>
-{
-    fn into(self) -> SplitPrimitive<DispatchTensor, 2> {
-        let [left, right ] = self.components;
+impl<const D: usize> From<SplitTensor<D, Complex>> for SplitPrimitive<DispatchTensor, 2> {
+    fn from(val: SplitTensor<D, Complex>) -> Self {
+        let [left, right] = val.components;
         SplitPrimitive([left.into(), right.into()])
     }
 }
-             
-
 
 pub(crate) trait IsNotEmpty {
     const VALID: ();

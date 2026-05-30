@@ -1,10 +1,11 @@
 use crate::split::{
     base::{SplitBackend, SplitPrimitive},
-    complex::{SplitComplexLayout},
+    complex::SplitComplexLayout,
 };
 use burn_backend::{
-    Backend, BackendTypes, ComplexDType, ComplexTensor, ComplexTensorBackend, ExecutionError,
-    TensorMetadata, ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps}, tensor::{BoolTensor, Device, FloatTensor, IntTensor},
+    ComplexDType, ComplexTensor, ComplexTensorBackend, ExecutionError, TensorMetadata,
+    ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps},
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_dispatch::Dispatch;
 use burn_std::{
@@ -12,8 +13,7 @@ use burn_std::{
     cast::ToElement, complex_utils::complex_to_real_dtype,
 };
 
-impl ComplexTensorBackend for SplitBackend
-{
+impl ComplexTensorBackend for SplitBackend {
     type InnerBackend = Dispatch;
     type Layout = SplitComplexLayout;
 
@@ -39,7 +39,10 @@ impl ComplexTensorBackend for SplitBackend
         ])
     }
     // Should these be a result
-    fn complex_from_interleaved_data(data: TensorData, device: &Device<Dispatch>) -> ComplexTensor<Self> {
+    fn complex_from_interleaved_data(
+        data: TensorData,
+        device: &Device<Dispatch>,
+    ) -> ComplexTensor<Self> {
         let data = burn_std::complex_utils::split_from_interleaved_data(data);
         SplitPrimitive::<FloatTensor<Dispatch>, 2>([
             Dispatch::float_from_data(data.0, device),
@@ -58,8 +61,7 @@ impl ComplexTensorBackend for SplitBackend
     }
 }
 
-impl ComplexTensorOps<Self> for SplitBackend
-{
+impl ComplexTensorOps<Self> for SplitBackend {
     // fn to_complex(tensor: FloatTensor<Dispatch>) -> ComplexTensor<Self> {
     //     let shape = tensor.shape().clone();
     //     let dtype = tensor.dtype().into();
@@ -87,8 +89,10 @@ impl ComplexTensorOps<Self> for SplitBackend
             imag: rhs_im,
         } = rhs.to_complex().elem::<ComplexScalar<f64>>();
 
-        let real_cmp = Dispatch::float_not_equal_elem(lhs_re, Scalar::Float(rhs_re.to_f64()), out_dtype);
-        let imag_cmp = Dispatch::float_not_equal_elem(lhs_im, Scalar::Float(rhs_im.to_f64()), out_dtype);
+        let real_cmp =
+            Dispatch::float_not_equal_elem(lhs_re, Scalar::Float(rhs_re.to_f64()), out_dtype);
+        let imag_cmp =
+            Dispatch::float_not_equal_elem(lhs_im, Scalar::Float(rhs_im.to_f64()), out_dtype);
         Dispatch::bool_or(real_cmp, imag_cmp)
     }
 
@@ -103,8 +107,10 @@ impl ComplexTensorOps<Self> for SplitBackend
             imag: rhs_im,
         } = rhs.to_complex().elem::<ComplexScalar<f64>>();
 
-        let real_cmp = Dispatch::float_equal_elem(lhs_re, Scalar::Float(rhs_re.to_f64()), out_dtype);
-        let imag_cmp = Dispatch::float_equal_elem(lhs_im, Scalar::Float(rhs_im.to_f64()), out_dtype);
+        let real_cmp =
+            Dispatch::float_equal_elem(lhs_re, Scalar::Float(rhs_re.to_f64()), out_dtype);
+        let imag_cmp =
+            Dispatch::float_equal_elem(lhs_im, Scalar::Float(rhs_im.to_f64()), out_dtype);
         Dispatch::bool_and(real_cmp, imag_cmp)
     }
 
@@ -187,7 +193,10 @@ impl ComplexTensorOps<Self> for SplitBackend
         let [lhs_re, lhs_im] = lhs.0;
         let [rhs_re, rhs_im] = rhs.0;
         ComplexTensor::<Self> {
-            0: [Dispatch::float_add(lhs_re, rhs_re), Dispatch::float_add(lhs_im, rhs_im)],
+            0: [
+                Dispatch::float_add(lhs_re, rhs_re),
+                Dispatch::float_add(lhs_im, rhs_im),
+            ],
         }
     }
 
@@ -195,7 +204,10 @@ impl ComplexTensorOps<Self> for SplitBackend
         let [lhs_re, lhs_im] = lhs.0;
         let [rhs_re, rhs_im] = rhs.0;
         ComplexTensor::<Self> {
-            0: [Dispatch::float_sub(lhs_re, rhs_re), Dispatch::float_sub(lhs_im, rhs_im)],
+            0: [
+                Dispatch::float_sub(lhs_re, rhs_re),
+                Dispatch::float_sub(lhs_im, rhs_im),
+            ],
         }
     }
 
@@ -208,7 +220,10 @@ impl ComplexTensorOps<Self> for SplitBackend
                     Dispatch::float_mul(lhs_re.clone(), rhs_re.clone()),
                     Dispatch::float_mul(lhs_im.clone(), rhs_im.clone()),
                 ),
-                Dispatch::float_add(Dispatch::float_mul(lhs_re, rhs_im), Dispatch::float_mul(rhs_re, lhs_im)),
+                Dispatch::float_add(
+                    Dispatch::float_mul(lhs_re, rhs_im),
+                    Dispatch::float_mul(rhs_re, lhs_im),
+                ),
             ],
         }
     }
@@ -230,7 +245,10 @@ impl ComplexTensorOps<Self> for SplitBackend
                     norm_sqr.clone(),
                 ),
                 Dispatch::float_div(
-                    Dispatch::float_sub(Dispatch::float_mul(lhs_im, rhs_re), Dispatch::float_mul(lhs_re, rhs_im)),
+                    Dispatch::float_sub(
+                        Dispatch::float_mul(lhs_im, rhs_re),
+                        Dispatch::float_mul(lhs_re, rhs_im),
+                    ),
                     norm_sqr,
                 ),
             ],
@@ -283,10 +301,7 @@ impl ComplexTensorOps<Self> for SplitBackend
         // Compute arg: atan2(imag, real)
         let arg = Dispatch::float_atan2(imag, real);
 
-        SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            Dispatch::float_log(norm),
-            arg,
-        ])
+        SplitPrimitive::<FloatTensor<Dispatch>, 2>([Dispatch::float_log(norm), arg])
     }
 
     fn complex_squared_norm(tensor: ComplexTensor<Self>) -> FloatTensor<Dispatch> {
@@ -391,10 +406,7 @@ impl ComplexTensorOps<Self> for SplitBackend
     fn complex_conj(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
         // conj(a + bi) = a - bi
         let [real, imag] = tensor.0;
-        SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            real,
-            Dispatch::float_neg(imag),
-        ])
+        SplitPrimitive::<FloatTensor<Dispatch>, 2>([real, Dispatch::float_neg(imag)])
     }
 
     fn complex_arg(tensor: ComplexTensor<Self>) -> FloatTensor<Dispatch> {
@@ -424,7 +436,10 @@ impl ComplexTensorOps<Self> for SplitBackend
         // sin(a + bi) = sin(a)*cosh(b) + i*cos(a)*sinh(b)
         let [real, imag] = tensor.0;
         SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            Dispatch::float_mul(Dispatch::float_sin(real.clone()), Dispatch::float_cosh(imag.clone())),
+            Dispatch::float_mul(
+                Dispatch::float_sin(real.clone()),
+                Dispatch::float_cosh(imag.clone()),
+            ),
             Dispatch::float_mul(Dispatch::float_cos(real), Dispatch::float_sinh(imag)),
         ])
     }
@@ -433,8 +448,14 @@ impl ComplexTensorOps<Self> for SplitBackend
         // cos(a + bi) = cos(a)*cosh(b) - i*sin(a)*sinh(b)
         let [real, imag] = tensor.0;
         SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            Dispatch::float_mul(Dispatch::float_cos(real.clone()), Dispatch::float_cosh(imag.clone())),
-            Dispatch::float_neg(Dispatch::float_mul(Dispatch::float_sin(real), Dispatch::float_sinh(imag))),
+            Dispatch::float_mul(
+                Dispatch::float_cos(real.clone()),
+                Dispatch::float_cosh(imag.clone()),
+            ),
+            Dispatch::float_neg(Dispatch::float_mul(
+                Dispatch::float_sin(real),
+                Dispatch::float_sinh(imag),
+            )),
         ])
     }
 
@@ -475,18 +496,12 @@ impl ComplexTensorOps<Self> for SplitBackend
         // i * sqrt(1 - z²): multiply by i via (-imag, real)
         let [sqrt_real, sqrt_imag] = SplitBackend::complex_sqrt(one_minus_z_sq).0;
         let i_sqrt =
-            SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-                Dispatch::float_neg(sqrt_imag),
-                sqrt_real,
-            ]);
+            SplitPrimitive::<FloatTensor<Dispatch>, 2>([Dispatch::float_neg(sqrt_imag), sqrt_real]);
         // z + i*sqrt(1 - z²)
         let inner = SplitBackend::complex_add(tensor, i_sqrt);
         // -i * ln(inner): multiply by -i via (imag, -real)
         let [log_real, log_imag] = SplitBackend::complex_log(inner).0;
-        SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            log_imag,
-            Dispatch::float_neg(log_real),
-        ])
+        SplitPrimitive::<FloatTensor<Dispatch>, 2>([log_imag, Dispatch::float_neg(log_real)])
     }
 
     fn complex_acosh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
@@ -522,10 +537,7 @@ impl ComplexTensorOps<Self> for SplitBackend
         let z_sq = SplitBackend::complex_mul(tensor.clone(), tensor.clone());
         // i*z = (-imag, real)
         let [real, imag] = tensor.0;
-        let i_z = SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            Dispatch::float_neg(imag),
-            real,
-        ]);
+        let i_z = SplitPrimitive::<FloatTensor<Dispatch>, 2>([Dispatch::float_neg(imag), real]);
         // 1 - z²
         let one_minus_z_sq = SplitBackend::complex_sub(ones, z_sq);
         // i*z + sqrt(1 - z²)
@@ -534,10 +546,7 @@ impl ComplexTensorOps<Self> for SplitBackend
         // -i * ln(inner): (imag, -real)
         let log_inner = SplitBackend::complex_log(inner);
         let [real, imag] = log_inner.0;
-        SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            imag,
-            Dispatch::float_neg(real),
-        ])
+        SplitPrimitive::<FloatTensor<Dispatch>, 2>([imag, Dispatch::float_neg(real)])
     }
 
     fn complex_asinh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
@@ -570,23 +579,21 @@ impl ComplexTensorOps<Self> for SplitBackend
             Dispatch::float_zeros(shape, &device, fdtype),
         ]);
         // i*z = (-imag, real)
-        let i_z = SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            Dispatch::float_neg(imag),
-            real,
-        ]);
+        let i_z = SplitPrimitive::<FloatTensor<Dispatch>, 2>([Dispatch::float_neg(imag), real]);
         // 1 + i*z and 1 - i*z
         let one_plus_i_z = SplitBackend::complex_add(ones.clone(), i_z.clone());
         let one_minus_i_z = SplitBackend::complex_sub(ones, i_z);
         // ln((1 + i*z) / (1 - i*z))
-        let log_ratio = SplitBackend::complex_log(SplitBackend::complex_div(
-            one_plus_i_z,
-            one_minus_i_z,
-        ));
+        let log_ratio =
+            SplitBackend::complex_log(SplitBackend::complex_div(one_plus_i_z, one_minus_i_z));
         let [log_ratio_real, log_ratio_imag] = log_ratio.0;
         // (-i/2) * log_ratio: -i*(a+bi) = (b, -a), then /2
         SplitPrimitive::<FloatTensor<Dispatch>, 2>([
             Dispatch::float_div_scalar(log_ratio_imag, Scalar::Float(2.0)),
-            Dispatch::float_neg(Dispatch::float_div_scalar(log_ratio_real, Scalar::Float(2.0))),
+            Dispatch::float_neg(Dispatch::float_div_scalar(
+                log_ratio_real,
+                Scalar::Float(2.0),
+            )),
         ])
     }
 
@@ -656,7 +663,10 @@ impl ComplexTensorOps<Self> for SplitBackend
         ])
     }
 
-    fn complex_cat(tensors: alloc::vec::Vec<ComplexTensor<Self>>, dim: usize) -> ComplexTensor<Self> {
+    fn complex_cat(
+        tensors: alloc::vec::Vec<ComplexTensor<Self>>,
+        dim: usize,
+    ) -> ComplexTensor<Self> {
         let (reals, imags): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) = tensors
             .into_iter()
             .map(|t| {
@@ -928,17 +938,16 @@ impl ComplexTensorOps<Self> for SplitBackend
             rhs.to_complex().elem::<ComplexScalar<f64>>();
         let ln_z = SplitBackend::complex_log(lhs);
         let [ln_z_re, ln_z_im] = ln_z.0;
-        let c_ln_z =
-            SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-                Dispatch::float_sub(
-                    Dispatch::float_mul_scalar(ln_z_re.clone(), Scalar::Float(a)),
-                    Dispatch::float_mul_scalar(ln_z_im.clone(), Scalar::Float(b)),
-                ),
-                Dispatch::float_add(
-                    Dispatch::float_mul_scalar(ln_z_re, Scalar::Float(b)),
-                    Dispatch::float_mul_scalar(ln_z_im, Scalar::Float(a)),
-                ),
-            ]);
+        let c_ln_z = SplitPrimitive::<FloatTensor<Dispatch>, 2>([
+            Dispatch::float_sub(
+                Dispatch::float_mul_scalar(ln_z_re.clone(), Scalar::Float(a)),
+                Dispatch::float_mul_scalar(ln_z_im.clone(), Scalar::Float(b)),
+            ),
+            Dispatch::float_add(
+                Dispatch::float_mul_scalar(ln_z_re, Scalar::Float(b)),
+                Dispatch::float_mul_scalar(ln_z_im, Scalar::Float(a)),
+            ),
+        ]);
         SplitBackend::complex_exp(c_ln_z)
     }
 
@@ -946,22 +955,20 @@ impl ComplexTensorOps<Self> for SplitBackend
         // z^w = exp(w * ln(z)) where w is a real tensor
         let log_z = SplitBackend::complex_log(lhs);
         let [log_z_re, log_z_im] = log_z.0;
-        let w_log_z =
-            SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-                Dispatch::float_mul(rhs.clone(), log_z_re),
-                Dispatch::float_mul(rhs, log_z_im),
-            ]);
+        let w_log_z = SplitPrimitive::<FloatTensor<Dispatch>, 2>([
+            Dispatch::float_mul(rhs.clone(), log_z_re),
+            Dispatch::float_mul(rhs, log_z_im),
+        ]);
         SplitBackend::complex_exp(w_log_z)
     }
 
     fn complex_powf_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
         // z^w = exp(w * ln(z)) where w is a real scalar
         let [log_z_re, log_z_im] = SplitBackend::complex_log(lhs).0;
-        let w_log_z =
-            SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-                Dispatch::float_mul_scalar(log_z_re, rhs),
-                Dispatch::float_mul_scalar(log_z_im, rhs),
-            ]);
+        let w_log_z = SplitPrimitive::<FloatTensor<Dispatch>, 2>([
+            Dispatch::float_mul_scalar(log_z_re, rhs),
+            Dispatch::float_mul_scalar(log_z_im, rhs),
+        ]);
         SplitBackend::complex_exp(w_log_z)
     }
 
@@ -1018,9 +1025,7 @@ impl ComplexTensorOps<Self> for SplitBackend
         ])
     }
 
-    async fn complex_into_data(
-        tensor: ComplexTensor<Self>,
-    ) -> Result<TensorData, ExecutionError> {
+    async fn complex_into_data(tensor: ComplexTensor<Self>) -> Result<TensorData, ExecutionError> {
         let [real, imag] = tensor.0;
         Ok(burn_std::complex_utils::interleaved_data_from_parts_data(
             Dispatch::float_into_data(real).await?,

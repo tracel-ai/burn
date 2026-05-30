@@ -6,19 +6,17 @@ use burn_std::{
 };
 
 use crate::{
-    Bool, BroadcastArgs, Complex, Device, Float, Int, ReshapeArgs, Tensor,
-    TensorCreationOptions, atan2_impl, bool_and_impl, bool_or_impl,
+    Bool, BroadcastArgs, Complex, Device, Float, Int, ReshapeArgs, Tensor, TensorCreationOptions,
+    atan2_impl, bool_and_impl, bool_or_impl,
     check::TensorCheck,
-    
     ops::{BasicOps, BridgeTensor, FloatMathOps, Numeric},
     split::base::{SplitPrimitive, SplitTensor},
 };
 
-
 #[derive(Clone, Debug)]
 pub struct SplitComplexLayout;
 
-pub type SplitComplex = Complex;//<SplitComplexLayout>;
+pub type SplitComplex = Complex; //<SplitComplexLayout>;
 
 mod backend;
 
@@ -174,7 +172,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
         let shape = tensor.shape();
         let dtype = tensor.dtype();
         let device = tensor.device();
-        Self::new(tensor.primitive, Float::zeros(shape, &device, dtype)) 
+        Self::new(tensor.primitive, Float::zeros(shape, &device, dtype))
     }
 
     /// Returns the argument (phase angle) of each element, in radians.

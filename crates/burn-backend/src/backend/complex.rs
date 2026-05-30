@@ -10,7 +10,10 @@ use crate::{Backend, BackendTypes, ops::ComplexTensorOps};
 ///
 /// Current layouts include interleaved complex values (real/imaginary pairs stored
 /// together), but additional layouts may be added in the future.
-pub trait Layout: Clone + core::fmt::Debug + core::marker::Sync + core::marker::Send +'static {}
+pub trait Layout:
+    Clone + core::fmt::Debug + core::marker::Sync + core::marker::Send + 'static
+{
+}
 
 /// Trait for compound tensors that are composed of multiple component tensors.
 pub trait SplitLayout: Layout {

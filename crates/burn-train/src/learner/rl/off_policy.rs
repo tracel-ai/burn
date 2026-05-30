@@ -105,6 +105,7 @@ where
         let mut progress = Progress {
             items_processed: starting_epoch,
             items_total: num_steps_total,
+            unit: Some("steps".to_string()),
         };
 
         let mut intermediary_update: Option<<RLC::Policy as Policy>::PolicyState> = None;
@@ -157,6 +158,10 @@ where
             }
 
             if valid_next > previous_steps && valid_next <= progress.items_processed {
+                event_processor.process_valid(crate::AgentEvaluationEvent::Start(
+                    self.config.eval_episodes,
+                ));
+
                 env_runner_valid.update_policy(learner_agent.policy().state());
                 env_runner_valid.run_episodes(
                     self.config.eval_episodes,
@@ -175,6 +180,8 @@ where
                 }
 
                 valid_next += self.config.eval_interval;
+
+                event_processor.process_valid(crate::AgentEvaluationEvent::End);
             }
         }
 

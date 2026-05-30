@@ -70,7 +70,9 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
         // Event processor start training
         training_components
             .event_processor
-            .process_train(RLEvent::Start);
+            .process_train(RLEvent::Start {
+                total_items: training_components.num_steps,
+            });
 
         // Training loop
         let (policy, mut event_processor) = self.train_loop(

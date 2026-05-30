@@ -11,7 +11,6 @@ use crate::Tensor;
 
 use crate::kind::Numeric;
 
-
 use crate::ops::Numeric as _;
 use crate::split::base::SplitBackend;
 use crate::split::base::SplitTensor;
@@ -28,13 +27,11 @@ impl<const D: usize> core::ops::Add<Self> for SplitTensor<D, Complex> {
 }
 
 // SplitTensor + Tensor<D, Float> — adds real tensor to the real part
-impl<const D: usize> core::ops::Add<Tensor<D, Float>>
-    for SplitTensor<D, Complex>
-{
+impl<const D: usize> core::ops::Add<Tensor<D, Float>> for SplitTensor<D, Complex> {
     type Output = Self;
 
     fn add(self, rhs: Tensor<D, Float>) -> Self::Output {
-        self + Self::from_real(rhs.into())
+        self + Self::from_real(rhs)
     }
 }
 
@@ -75,7 +72,7 @@ impl<const D: usize> core::ops::Sub<Tensor<D, Float>> for SplitTensor<D, Complex
     type Output = Self;
 
     fn sub(self, rhs: Tensor<D, Float>) -> Self::Output {
-        self + Self::from_real(rhs.into())
+        self + Self::from_real(rhs)
     }
 }
 
@@ -207,7 +204,10 @@ impl<const D: usize> core::ops::Rem<Tensor<D, Float>> for SplitTensor<D, Complex
     fn rem(self, rhs: Tensor<D, Float>) -> Self::Output {
         let rhs = rhs.primitive;
         let [real, imag] = self.components;
-        SplitTensor::new(Float::remainder(real, rhs.clone()), Float::remainder(imag, rhs))
+        SplitTensor::new(
+            Float::remainder(real, rhs.clone()),
+            Float::remainder(imag, rhs),
+        )
     }
 }
 

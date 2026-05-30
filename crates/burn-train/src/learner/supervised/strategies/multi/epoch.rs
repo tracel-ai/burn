@@ -117,7 +117,6 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
                 let item = TrainingItem::new(
                     item,
                     progress.clone(),
-                    global_progress.clone(),
                     Some(iteration),
                     Some(learner.lr_current()),
                 );
@@ -192,7 +191,6 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
                 let item = TrainingItem::new(
                     item,
                     progress.clone(),
-                    global_progress.clone(),
                     Some(iteration),
                     Some(learner.lr_current()),
                 );

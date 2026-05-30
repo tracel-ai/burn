@@ -171,7 +171,8 @@ where
             .map(|(index, dataloader)| {
                 let dataloader_cloned = dataloader.clone();
                 let sender_cloned = sender.clone();
-                progresses.push(Progress::new(0, dataloader_cloned.num_items()));
+                let unit: Option<String> = Some("items".to_string());
+                progresses.push(Progress::new(0, dataloader_cloned.num_items(), unit));
 
                 std::thread::Builder::new()
                     .name(std::format!("dataloader-{index}"))
@@ -247,13 +248,14 @@ impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterato
     fn progress(&self) -> Progress {
         let mut items_total = 0;
         let mut items_processed = 0;
+        let unit: Option<String> = Some("items".to_string());
 
         for progress in self.progresses.iter() {
             items_total += progress.items_total;
             items_processed += progress.items_processed;
         }
 
-        Progress::new(items_processed, items_total)
+        Progress::new(items_processed, items_total, unit)
     }
 }
 
