@@ -529,7 +529,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
         crate::check!(TensorCheck::check_dim::<D>(dim));
         let slice: Slice = slice.into();
 
-        let mut slices = vec![Slice::full(); D];
+        let mut slices = alloc::vec![Slice::full(); D];
         slices[dim] = slice;
 
         self.slice(&slices)
