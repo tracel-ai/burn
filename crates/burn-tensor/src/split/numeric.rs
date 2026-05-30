@@ -43,7 +43,7 @@ macro_rules! impl_complex_tensor_add_scalar {
                 type Output = Self;
 
                 fn add(self, rhs: $t) -> Self::Output {
-                    Self::add_scalar(self, burn_std::Scalar::Float(rhs as f64))
+                    Self::add_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
                 }
             }
         )*
@@ -84,7 +84,7 @@ macro_rules! impl_complex_tensor_sub_scalar {
                 type Output = Self;
 
                 fn sub(self, rhs: $t) -> Self::Output {
-                    Self::sub_scalar(self, burn_std::Scalar::Float(rhs as f64))
+                    Self::sub_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
                 }
             }
         )*
@@ -128,7 +128,7 @@ macro_rules! impl_complex_tensor_mul_scalar {
                 type Output = Self;
 
                 fn mul(self, rhs: $t) -> Self::Output {
-                    Self::mul_scalar(self, burn_std::Scalar::Float(rhs as f64))
+                    Self::mul_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
                 }
             }
         )*
@@ -172,7 +172,7 @@ macro_rules! impl_complex_tensor_div_scalar {
                 type Output = Self;
 
                 fn div(self, rhs: $t) -> Self::Output {
-                    Self::div_scalar(self, burn_std::Scalar::Float(rhs as f64))
+                    Self::div_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
                 }
             }
         )*
@@ -184,7 +184,7 @@ impl<const D: usize, E: Element> core::ops::Div<ComplexScalar<E>> for SplitTenso
     type Output = Self;
 
     fn div(self, rhs: ComplexScalar<E>) -> Self::Output {
-        Self::div_scalar(self, Scalar::Complex(rhs.to_complex64()))
+        Self::div_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
     }
 }
 
@@ -219,7 +219,7 @@ macro_rules! impl_complex_tensor_rem_scalar {
                 type Output = Self;
 
                 fn rem(self, rhs: $t) -> Self::Output {
-                    Self::remainder_scalar(self, burn_std::Scalar::Float(rhs as f64))
+                    Self::remainder_scalar(self, burn_std::Scalar::Complex(rhs.to_complex64()))
                 }
             }
         )*

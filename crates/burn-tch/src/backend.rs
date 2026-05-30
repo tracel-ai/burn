@@ -2,7 +2,6 @@ use crate::IntoKind;
 
 use super::TchTensor;
 use burn_backend::backend::{Backend, BackendTypes, DeviceId, DeviceOps, ExecutionError};
-use burn_backend::element::ComplexScalar;
 use burn_backend::ops::IntTensorOps;
 use burn_backend::{BoolStore, DType, DeviceSettings, UnimplementedTensorPrimitive};
 
@@ -120,23 +119,7 @@ impl BackendTypes for LibTorch {
     type IntTensorPrimitive = TchTensor;
     type BoolTensorPrimitive = TchTensor;
     type QuantizedTensorPrimitive = TchTensor;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<ComplexScalar<f32>>;
-
-    fn dtype_usage(
-        _device: &Self::Device,
-        dtype: burn_backend::DType,
-    ) -> burn_backend::DTypeUsageSet {
-        if dtype.try_into_kind().is_ok() {
-            burn_backend::DTypeUsage::general()
-        } else {
-            burn_backend::DTypeUsageSet::empty()
-        }
-    }
-
-    fn device_count(_: u16) -> usize {
-        // tch only supports one device for each backend
-        1
-    }
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<TchTensor>;
 }
 
 impl Backend for LibTorch {
@@ -177,5 +160,23 @@ impl Backend for LibTorch {
         };
 
         Ok(())
+    }
+
+    fn dtype_usage(
+        _device: &Self::Device,
+        dtype: burn_backend::DType,
+    ) -> burn_backend::DTypeUsageSet {
+        if dtype.try_into_kind().is_ok() {
+            burn_backend::DTypeUsage::general()
+        } else {
+            burn_backend::DTypeUsageSet::empty()
+        }
+    }
+
+    fn device_count(type_id: u16) -> usize {
+        match type_id {
+            0 => tch::Cuda::device_count() as usize,
+            _ => 1,
+        }
     }
 }

@@ -3,12 +3,10 @@ use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{
-    Backend, BackendTypes, DType, DeviceId, DeviceOps, UnimplementedTensorPrimitive,
-};
+use burn_backend::{Backend, BackendTypes, DType, DeviceId, DeviceOps, UnimplementedTensorPrimitive};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::stub::Mutex;
-use burn_std::{BoolStore, ComplexScalar, DeviceSettings, QuantConfig};
+use burn_std::{BoolStore, DeviceSettings, QuantConfig};
 use rand::SeedableRng;
 
 pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
@@ -64,7 +62,23 @@ impl BackendTypes for NdArray {
     type IntTensorPrimitive = NdArrayTensor;
     type BoolTensorPrimitive = NdArrayTensor;
     type QuantizedTensorPrimitive = NdArrayQTensor;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<ComplexScalar<f32>>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<NdArrayTensor>;
+}
+
+impl Backend for NdArray {
+    fn ad_enabled(_device: &Self::Device) -> bool {
+        false
+    }
+
+    fn name(_device: &Self::Device) -> String {
+        String::from("ndarray")
+    }
+
+    fn seed(_device: &Self::Device, seed: u64) {
+        let rng = NdArrayRng::seed_from_u64(seed);
+        let mut seed = SEED.lock().unwrap();
+        *seed = Some(rng);
+    }
 
     fn dtype_usage(_device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         match dtype {
@@ -79,6 +93,8 @@ impl BackendTypes for NdArray {
             | DType::U32
             | DType::U16
             | DType::U8
+            | DType::Complex32
+            | DType::Complex64
             | DType::Bool(BoolStore::Native) => burn_backend::DTypeUsage::general(),
             DType::F16 | DType::BF16 | DType::Bool(_) => burn_backend::DTypeUsageSet::empty(),
             DType::QFloat(scheme) => {
@@ -104,30 +120,11 @@ impl BackendTypes for NdArray {
                     _scheme => burn_backend::DTypeUsageSet::empty(),
                 }
             }
-            DType::Complex32 | DType::Complex64 => {
-                unimplemented!("interleaved complex elements not yet supported for ndarray")
-            }
         }
     }
 
     fn device_count(_: u16) -> usize {
         1
-    }
-}
-
-impl Backend for NdArray {
-    fn ad_enabled(_device: &Self::Device) -> bool {
-        false
-    }
-
-    fn name(_device: &Self::Device) -> String {
-        String::from("ndarray")
-    }
-
-    fn seed(_device: &Self::Device, seed: u64) {
-        let rng = NdArrayRng::seed_from_u64(seed);
-        let mut seed = SEED.lock().unwrap();
-        *seed = Some(rng);
     }
 }
 

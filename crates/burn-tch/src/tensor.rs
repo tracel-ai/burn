@@ -434,7 +434,7 @@ fn f_copy_data<T: TchElement>(
 mod tests {
     use super::*;
     use burn_backend::ops::FloatTensorOps;
-    use burn_backend::{BackendTypes, quantization::QuantScheme, read_sync};
+    use burn_backend::{Backend, quantization::QuantScheme, read_sync};
 
     type B = crate::LibTorch;
 

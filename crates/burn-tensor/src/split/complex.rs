@@ -656,7 +656,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
         let device = self.device();
         let shape = self.shape();
         let scalar_complex = rhs.elem::<ComplexScalar<f64>>();
-        let scalar_tensor = Self::full(shape, scalar_complex, TensorCreationOptions::new(device));
+        let scalar_tensor = Self::full(shape, scalar_complex, TensorCreationOptions::new(device).with_dtype(self.dtype()));
         self.div(scalar_tensor)
     }
 
@@ -725,7 +725,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
         let device = self.device();
         let shape = self.shape();
         let scalar_complex = rhs.elem::<ComplexScalar<f64>>();
-        let scalar_tensor = Self::full(shape, scalar_complex, TensorCreationOptions::new(device));
+        let scalar_tensor = Self::full(shape, scalar_complex, TensorCreationOptions::new(device).with_dtype(self.dtype()));
         self.mul(scalar_tensor)
     }
 
@@ -748,8 +748,6 @@ impl<const D: usize> SplitTensor<D, Complex> {
         let [mut log_z_real, mut log_z_imag] = self.log().components;
 
         log_z_real = Float::mul(other.primitive.clone(), log_z_real);
-        log_z_imag = Float::mul(other.primitive.clone(), log_z_imag);
-
         log_z_imag = Float::mul(other.primitive, log_z_imag);
 
         Self {
@@ -1017,28 +1015,21 @@ impl<const D: usize> SplitTensor<D, Complex> {
         SplitTensor::new(Float::div(real, abs.clone()), Float::div(imag, abs))
     }
 }
-#[derive(Debug, Clone)]
-/// A newtype that wraps a real backend B and exposes a split-layout complex backend.
-pub struct SplitBackend<B: Backend>(core::marker::PhantomData<B>);
+// #[derive(Debug, Clone)]
+// /// A newtype that wraps a real backend B and exposes a split-layout complex backend.
+// pub struct SplitBackend;
 
-impl<B: Backend> BackendTypes for SplitBackend<B> {
-    type Device = B::Device;
+// impl BackendTypes for SplitBackend<B> {
+//     type Device = B::Device;
 
-    type FloatTensorPrimitive = B::FloatTensorPrimitive;
+//     type FloatTensorPrimitive = B::FloatTensorPrimitive;
 
-    type IntTensorPrimitive = B::IntTensorPrimitive;
+//     type IntTensorPrimitive = B::IntTensorPrimitive;
 
-    type BoolTensorPrimitive = B::BoolTensorPrimitive;
+//     type BoolTensorPrimitive = B::BoolTensorPrimitive;
 
-    type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
+//     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
-    type ComplexTensorPrimitive = SplitPrimitive<B::FloatTensorPrimitive, 2>;
+//     type ComplexTensorPrimitive = SplitPrimitive<B::FloatTensorPrimitive, 2>;
 
-    fn dtype_usage(device: &Self::Device, dtype: burn_std::DType) -> DTypeUsageSet {
-        B::dtype_usage(device, dtype)
-    }
-
-    fn device_count(type_id: u16) -> usize {
-        B::device_count(type_id)
-    }
-}
+// }

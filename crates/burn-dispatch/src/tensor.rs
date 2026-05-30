@@ -16,7 +16,7 @@ use burn_backend::tensor::FloatTensor;
 
 /// Tensor which points to a backend tensor primitive kind.
 #[derive(Clone, Debug)]
-pub enum BackendTensor<B: BackendTypes> {
+pub enum BackendTensor<B: Backend> {
     /// Float tensor handle.
     Float(B::FloatTensorPrimitive),
     /// Int tensor handle.

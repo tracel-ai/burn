@@ -58,41 +58,6 @@ impl BackendTypes for Dispatch {
     type BoolTensorPrimitive = DispatchTensor;
     type QuantizedTensorPrimitive = DispatchTensor;
     type ComplexTensorPrimitive = DispatchTensor;
-
-    fn device_count(type_id: u16) -> usize {
-        let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
-        match dispatch_id {
-            #[cfg(feature = "cpu")]
-            DispatchDeviceId::Cpu => Cpu::device_count(backend_type_id),
-            #[cfg(feature = "cuda")]
-            DispatchDeviceId::Cuda => Cuda::device_count(backend_type_id),
-            #[cfg(feature = "metal")]
-            DispatchDeviceId::Metal => Metal::device_count(backend_type_id),
-            #[cfg(feature = "rocm")]
-            DispatchDeviceId::Rocm => Rocm::device_count(backend_type_id),
-            #[cfg(feature = "vulkan")]
-            DispatchDeviceId::Vulkan => Vulkan::device_count(backend_type_id),
-            #[cfg(feature = "wgpu")]
-            DispatchDeviceId::Wgpu => Wgpu::device_count(backend_type_id),
-            #[cfg(feature = "webgpu")]
-            DispatchDeviceId::WebGpu => WebGpu::device_count(backend_type_id),
-            #[cfg(feature = "flex")]
-            DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
-            #[cfg(any(feature = "ndarray", default_backend))]
-            DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
-            #[cfg(feature = "tch")]
-            DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
-            #[cfg(feature = "remote")]
-            DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
-            _ => unreachable!("No backend feature enabled."),
-        }
-    }
-    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
-        dispatch_device!(device, |device| B::dtype_usage(device, dtype))
-    }
-    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
-        dispatch_device!(device, |device| B::supports_dtype(device, dtype))
-    }
 }
 
 impl Backend for Dispatch {
@@ -133,6 +98,41 @@ impl Backend for Dispatch {
 
     fn memory_cleanup(device: &Self::Device) {
         dispatch_device!(device, |device| B::memory_cleanup(device))
+    }
+
+    fn device_count(type_id: u16) -> usize {
+        let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
+        match dispatch_id {
+            #[cfg(feature = "cpu")]
+            DispatchDeviceId::Cpu => Cpu::device_count(backend_type_id),
+            #[cfg(feature = "cuda")]
+            DispatchDeviceId::Cuda => Cuda::device_count(backend_type_id),
+            #[cfg(feature = "metal")]
+            DispatchDeviceId::Metal => Metal::device_count(backend_type_id),
+            #[cfg(feature = "rocm")]
+            DispatchDeviceId::Rocm => Rocm::device_count(backend_type_id),
+            #[cfg(feature = "vulkan")]
+            DispatchDeviceId::Vulkan => Vulkan::device_count(backend_type_id),
+            #[cfg(feature = "wgpu")]
+            DispatchDeviceId::Wgpu => Wgpu::device_count(backend_type_id),
+            #[cfg(feature = "webgpu")]
+            DispatchDeviceId::WebGpu => WebGpu::device_count(backend_type_id),
+            #[cfg(feature = "flex")]
+            DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
+            #[cfg(any(feature = "ndarray", default_backend))]
+            DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
+            #[cfg(feature = "tch")]
+            DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
+            #[cfg(feature = "remote")]
+            DispatchDeviceId::Remote => Remote::device_count(backend_type_id),
+            _ => unreachable!("No backend feature enabled."),
+        }
+    }
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
+        dispatch_device!(device, |device| B::dtype_usage(device, dtype))
+    }
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
 
     fn staging<'a, Iter>(data: Iter, device: &Self::Device)

@@ -1,9 +1,8 @@
 use burn_backend::{
-    BackTrace, Backend, BackendTypes, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError,
-    UnimplementedTensorPrimitive, tensor::Device,
+    BackTrace, Backend, BackendTypes, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError, UnimplementedTensorPrimitive, tensor::Device
 };
 use burn_std::{
-    BoolStore, ComplexScalar, DeviceSettings,
+    BoolStore, DeviceSettings,
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
@@ -205,19 +204,7 @@ impl BackendTypes for Candle {
 
     type QuantizedTensorPrimitive = CandleTensor;
 
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<ComplexScalar<f32>>;
-
-    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
-        if dtype.try_into_dtype().is_ok() {
-            burn_backend::DTypeUsage::general()
-        } else {
-            burn_backend::DTypeUsageSet::empty()
-        }
-    }
-
-    fn device_count(_: u16) -> usize {
-        1
-    }
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CandleTensor>;
 }
 
 impl Backend for Candle {
@@ -265,6 +252,18 @@ impl Backend for Candle {
         }
 
         Ok(())
+    }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
+        if dtype.try_into_dtype().is_ok() {
+            burn_backend::DTypeUsage::general()
+        } else {
+            burn_backend::DTypeUsageSet::empty()
+        }
+    }
+
+    fn device_count(_: u16) -> usize {
+        1
     }
 }
 

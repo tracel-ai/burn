@@ -1,8 +1,7 @@
 use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
-    UnimplementedTensorPrimitive,
+    Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData, UnimplementedTensorPrimitive,
 };
 use burn_std::{BoolStore, DType};
 use cubecl::{
@@ -34,7 +33,60 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<R>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CubeTensor<R>>;
+}
+
+impl<R> Backend for CubeBackend<R>
+where
+    R: CubeRuntime,
+    R::Server: ComputeServer,
+    R::Device: DeviceOps,
+{
+    fn name(device: &Self::Device) -> String {
+        let client = R::client(device);
+        format!("cubecl<{}>", R::name(&client))
+    }
+
+    fn seed(_device: &Self::Device, seed: u64) {
+        cubek::random::seed(seed);
+    }
+
+    fn ad_enabled(_device: &Self::Device) -> bool {
+        false
+    }
+
+    fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = R::client(device);
+        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
+            reason: format!("{err}"),
+        })
+    }
+
+    fn memory_persistent_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
+        device: &Self::Device,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        let client = R::client(device);
+        client.memory_persistent_allocation(input, func).unwrap()
+    }
+
+    fn memory_cleanup(device: &Self::Device) {
+        let client = R::client(device);
+        client.memory_cleanup();
+    }
+
+    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
+    where
+        Iter: Iterator<Item = &'a mut TensorData>,
+    {
+        let client = R::client(device);
+        client.staging(data.map(|td| &mut td.bytes), false);
+    }
 
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         // Right now no cubecl backend actually works with native bool, even if
@@ -93,59 +145,6 @@ where
     fn device_count(type_id: u16) -> usize {
         let client = R::client(&Default::default());
         client.device_count(type_id)
-    }
-}
-
-impl<R> Backend for CubeBackend<R>
-where
-    R: CubeRuntime,
-    R::Server: ComputeServer,
-    R::Device: DeviceOps,
-{
-    fn name(device: &Self::Device) -> String {
-        let client = R::client(device);
-        format!("cubecl<{}>", R::name(&client))
-    }
-
-    fn seed(_device: &Self::Device, seed: u64) {
-        cubek::random::seed(seed);
-    }
-
-    fn ad_enabled(_device: &Self::Device) -> bool {
-        false
-    }
-
-    fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
-        let client = R::client(device);
-        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
-            reason: format!("{err}"),
-        })
-    }
-
-    fn memory_persistent_allocations<
-        Output: Send,
-        Input: Send,
-        Func: Fn(Input) -> Output + Send,
-    >(
-        device: &Self::Device,
-        input: Input,
-        func: Func,
-    ) -> Output {
-        let client = R::client(device);
-        client.memory_persistent_allocation(input, func).unwrap()
-    }
-
-    fn memory_cleanup(device: &Self::Device) {
-        let client = R::client(device);
-        client.memory_cleanup();
-    }
-
-    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
-    where
-        Iter: Iterator<Item = &'a mut TensorData>,
-    {
-        let client = R::client(device);
-        client.staging(data.map(|td| &mut td.bytes), false);
     }
 }
 

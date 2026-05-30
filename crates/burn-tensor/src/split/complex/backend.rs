@@ -159,14 +159,16 @@ impl ComplexTensorOps<Self> for SplitBackend {
         let real_data = Dispatch::float_into_data(real).await?;
         let imag_data = Dispatch::float_into_data(imag).await?;
         let element_size = real_data.dtype.size();
-        let mut interleaved_bytes = alloc::vec::Vec::with_capacity(real_data.bytes.len() * 2);
-        for (real_chunk, imag_chunk) in real_data
+        let mut interleaved_bytes = alloc::vec![0u8; real_data.bytes.len() * 2];
+        for ((real_chunk, imag_chunk), dst_chunk) in real_data
             .bytes
             .chunks_exact(element_size)
             .zip(imag_data.bytes.chunks_exact(element_size))
+            .zip(interleaved_bytes.chunks_exact_mut(element_size * 2))
         {
-            interleaved_bytes.extend_from_slice(real_chunk);
-            interleaved_bytes.extend_from_slice(imag_chunk);
+            let (dst_real, dst_imag) = dst_chunk.split_at_mut(element_size);
+            dst_real.copy_from_slice(real_chunk);
+            dst_imag.copy_from_slice(imag_chunk);
         }
         Ok(TensorData::from_bytes_vec(
             interleaved_bytes,
@@ -291,17 +293,18 @@ impl ComplexTensorOps<Self> for SplitBackend {
         // formula: ln(z) = ln|z| + i*arg(z)
         // where |z| = sqrt(real^2 + imag^2) and arg(z) = atan2(imag, real)
 
-        // Compute norm: sqrt(real^2 + imag^2)
+        // Compute norm^2: real^2 + imag^2
         let [real, imag] = tensor.0;
         let real_sq = Dispatch::float_mul(real.clone(), real.clone());
         let imag_sq = Dispatch::float_mul(imag.clone(), imag.clone());
         let norm_sq = Dispatch::float_add(real_sq, imag_sq);
-        let norm = Dispatch::float_sqrt(norm_sq);
+        // ln|z| = ln(sqrt(norm^2)) = 0.5 * ln(norm^2), which avoids one sqrt.
+        let log_abs = Dispatch::float_mul_scalar(Dispatch::float_log(norm_sq), Scalar::Float(0.5));
 
         // Compute arg: atan2(imag, real)
         let arg = Dispatch::float_atan2(imag, real);
 
-        SplitPrimitive::<FloatTensor<Dispatch>, 2>([Dispatch::float_log(norm), arg])
+        SplitPrimitive::<FloatTensor<Dispatch>, 2>([log_abs, arg])
     }
 
     fn complex_squared_norm(tensor: ComplexTensor<Self>) -> FloatTensor<Dispatch> {
@@ -1016,12 +1019,12 @@ impl ComplexTensorOps<Self> for SplitBackend {
         device: &Device<Dispatch>,
         dtype: ComplexDType,
     ) -> ComplexTensor<Self> {
-        let _fill_value = fill_value.to_complex();
+        let ComplexScalar::<f64> { real: fill_re, imag: fill_im } = fill_value.to_complex().elem();
 
         let dtype = burn_std::complex_utils::complex_to_real_dtype(dtype.into());
         SplitPrimitive::<FloatTensor<Dispatch>, 2>([
-            Dispatch::float_zeros(shape.clone(), device, dtype.into()),
-            Dispatch::float_zeros(shape, device, dtype.into()),
+            Dispatch::float_full(shape.clone(), Scalar::Float(fill_re), device, dtype.into()),
+            Dispatch::float_full(shape, Scalar::Float(fill_im), device, dtype.into()),
         ])
     }
 

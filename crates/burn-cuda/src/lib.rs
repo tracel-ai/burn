@@ -15,7 +15,7 @@ pub type Cuda = burn_fusion::Fusion<CubeBackend<CudaRuntime>>;
 #[cfg(all(test, not(target_os = "macos")))]
 mod tests {
     use super::*;
-    use burn_backend::{BackendTypes, BoolStore, DType, DeviceOps};
+    use burn_backend::{Backend, BoolStore, DType, DeviceOps};
 
     #[test]
     fn should_support_dtypes() {

@@ -118,6 +118,18 @@ impl BackendTypes for Flex {
     type BoolTensorPrimitive = FlexTensor;
     type QuantizedTensorPrimitive = FlexQTensor;
     type ComplexTensorPrimitive = FlexTensor;
+}
+
+impl Backend for Flex {
+    fn name(_device: &Self::Device) -> String {
+        "flex".into()
+    }
+
+    fn seed(_device: &Self::Device, seed: u64) {
+        let rng = FlexRng::seed_from_u64(seed);
+        let mut seed_lock = SEED.lock().unwrap();
+        *seed_lock = Some(rng);
+    }
 
     fn device_count(_type_id: u16) -> usize {
         1
@@ -147,18 +159,6 @@ impl BackendTypes for Flex {
             DType::QFloat(_) => DTypeUsage::Storage.into(),
             _ => DTypeUsageSet::empty(),
         }
-    }
-}
-
-impl Backend for Flex {
-    fn name(_device: &Self::Device) -> String {
-        "flex".into()
-    }
-
-    fn seed(_device: &Self::Device, seed: u64) {
-        let rng = FlexRng::seed_from_u64(seed);
-        let mut seed_lock = SEED.lock().unwrap();
-        *seed_lock = Some(rng);
     }
 }
 

@@ -100,7 +100,7 @@ pub type Metal = WgpuInner<MslCompiler>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{BackendTypes, BoolStore, DType, DeviceOps};
+    use burn_backend::{Backend, BoolStore, DType, DeviceOps};
 
     #[test]
     fn should_support_dtypes() {

@@ -44,14 +44,6 @@ impl BackendTypes for SplitBackend {
 
     type QuantizedTensorPrimitive = <Dispatch as BackendTypes>::QuantizedTensorPrimitive;
 
-    fn dtype_usage(device: &Self::Device, dtype: burn_std::DType) -> DTypeUsageSet {
-        <Dispatch as BackendTypes>::dtype_usage(device, dtype)
-    }
-
-    fn device_count(type_id: u16) -> usize {
-        <Dispatch as BackendTypes>::device_count(type_id)
-    }
-
     type ComplexTensorPrimitive =
         SplitPrimitive<<Dispatch as BackendTypes>::FloatTensorPrimitive, 2>;
 }
