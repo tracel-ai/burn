@@ -668,7 +668,7 @@ impl<const D: usize> SplitTensor<D, Complex> {
             shape.into(),
             fill_value,
             device.as_dispatch(),
-            device.settings().complex_dtype,
+            cdtype_helper(&device),
         )
         .into()
     }
@@ -733,6 +733,12 @@ impl<const D: usize> SplitTensor<D, Complex> {
     }
 }
 
+fn cdtype_helper(device: &Device) -> burn_std::ComplexDType {
+    device.settings().get_complex_dtype().unwrap_or(
+        burn_std::complex_utils::real_to_complex_dtype(device.settings().float_dtype.into()).into(),
+    )
+}
+
 #[allow(unused)]
 /// Helper function to get the inner dtype of a compound tensor kind for a given device.
 pub fn inner_dtype<K: CompoundTensorKind>(device: &Device) -> DType {
@@ -740,7 +746,7 @@ pub fn inner_dtype<K: CompoundTensorKind>(device: &Device) -> DType {
         crate::ops::Kind::Float => device.settings().float_dtype.into(),
         crate::ops::Kind::Int => device.settings().int_dtype.into(),
         crate::ops::Kind::Bool => device.settings().bool_dtype.into(),
-        crate::ops::Kind::Complex => device.settings().complex_dtype.into(),
+        crate::ops::Kind::Complex => cdtype_helper(device).into(),
     }
 }
 //impl<B, F> Numeric<B> for SplitTensor<F>

@@ -1,6 +1,6 @@
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
-use burn_tensor::{ComplexScalar, TensorData};
+use burn_tensor::{ComplexScalar, TensorData, Float};
 use burn_tensor::{Distribution, Int};
 
 #[test]
@@ -96,6 +96,48 @@ fn test_complex_sub() {
 
     data.assert_eq(&expected, false);
 }
+
+// #[test]
+// fn test_complex_sub_float() {
+//     let tensor1 = TestTensor::<2>::from_data(
+//         TensorData::from([[
+//             ComplexScalar::<f32> {
+//                 real: 5.0,
+//                 imag: 6.0,
+//             },
+//             ComplexScalar::<f32> {
+//                 real: 7.0,
+//                 imag: 8.0,
+//             },
+//         ]]),
+//         &Default::default(),
+//     );
+
+//     let tensor2 = Tensor::<2, Float>::from_data(
+//         TensorData::from([[
+//             1.0, -3.0,
+//         ]]),
+//         &Default::default(),
+//     );
+      
+    
+
+//     let result = tensor1 - tensor2;
+//     let data = result.into_data();
+
+//     let expected = TensorData::from([[
+//         ComplexScalar::<f32> {
+//             real: 4.0,
+//             imag: 4.0,
+//         }, // (5-1) + (6-2)i
+//         ComplexScalar::<f32> {
+//             real: 4.0,
+//             imag: 4.0,
+//         }, // (7-3) + (8-4)i
+//     ]]);
+
+//     data.assert_eq(&expected, false);
+// }
 
 #[test]
 fn test_complex_mul() {

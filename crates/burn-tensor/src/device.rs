@@ -6,7 +6,7 @@ use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
-use burn_std::{BoolDType, ComplexDType, FloatDType, IntDType};
+use burn_std::{BoolDType, ComplexDType, DType, FloatDType, IntDType};
 
 use alloc::vec::Vec;
 use enumset::{EnumSet, EnumSetType};
@@ -565,10 +565,7 @@ impl Device {
         let float_dtype = config.float_dtype.take().unwrap_or(defaults.float_dtype);
         let int_dtype = config.int_dtype.take().unwrap_or(defaults.int_dtype);
         let bool_dtype = config.bool_dtype.take().unwrap_or(defaults.bool_dtype);
-        let complex_dtype = config
-            .complex_dtype
-            .take()
-            .unwrap_or(defaults.complex_dtype);
+        let complex_dtype = config.complex_dtype.map(DType::from);
 
         burn_backend::set_default_dtypes::<Dispatch>(
             self.as_dispatch(),

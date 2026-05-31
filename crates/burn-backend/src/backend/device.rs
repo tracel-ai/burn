@@ -182,17 +182,23 @@ pub fn set_default_dtypes<B: Backend>(
     float_dtype: impl Into<FloatDType>,
     int_dtype: impl Into<IntDType>,
     bool_dtype: impl Into<BoolDType>,
-    complex_dtype: impl Into<ComplexDType>,
+    complex_dtype: impl TryInto<ComplexDType>,
 ) -> Result<(), DeviceError> {
     let float_dtype = float_dtype.into();
     let int_dtype = int_dtype.into();
     let bool_dtype = bool_dtype.into();
-    let complex_dtype = complex_dtype.into();
+    let complex_dtype = complex_dtype.try_into().ok();
     check_dtype_support::<B>(device, float_dtype)?;
     check_dtype_support::<B>(device, int_dtype)?;
     check_dtype_support::<B>(device, bool_dtype)?;
-    check_dtype_support::<B>(device, complex_dtype)?;
-
+    // implementing TryFrom<Option<ComplexDType>> for ComplexDType would be more ergonomic,
+    // but that makes passing None at call sites ambiguous.
+    let complex_dtype = if let Some(complex_dtype) = complex_dtype {
+        check_dtype_support::<B>(device, complex_dtype)?;
+        Some(DType::from(complex_dtype))
+    } else {
+        None
+    };
     let q_config = device.defaults().quantization;
     let settings = DeviceSettings::new(float_dtype, int_dtype, bool_dtype, complex_dtype, q_config);
 

@@ -83,7 +83,7 @@ mod cube_wgpu {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
-                DType::Complex32,
+                None,
                 Default::default(),
             )
         }
@@ -102,7 +102,7 @@ mod cube_cuda {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
-                DType::Complex32,
+                None,
                 Default::default(),
             )
         }
@@ -121,7 +121,7 @@ mod cube_cpu {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
-                DType::Complex32,
+                None,
                 Default::default(),
             )
         }
@@ -140,7 +140,7 @@ mod cube_hip {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
-                DType::Complex32,
+                None,
                 Default::default(),
             )
         }

@@ -5,7 +5,7 @@ use crate::{Complex, Device, Float, Tensor, TensorCreationOptions, kind::Complex
 impl<const D: usize> Tensor<D, Complex> {
     /// Creates a complex tensor from interleaved host data.
     pub fn from_complex<A: Into<TensorData>>(complexes: A, device: &Device) -> Self {
-        let out_dtype = device.settings().complex_dtype;
+        let out_dtype = device.settings().complex_dtype();
         Self::from_data(
             complexes.into(),
             TensorCreationOptions::new(device.clone()).with_dtype(out_dtype.into()),

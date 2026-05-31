@@ -28,7 +28,7 @@ impl DeviceOps for NdArrayDevice {
             DType::F32,
             DType::I64,
             DType::Bool(BoolStore::Native),
-            DType::Complex32,
+            None,
             QuantConfig::new(
                 QuantScheme::default().with_store(QuantStore::Native),
                 Default::default(),
