@@ -154,13 +154,13 @@ impl AutodiffBackend for Dispatch {
         match kind {
             DispatchTensorKind::Autodiff(tensor) => match *tensor {
                 #[cfg(feature = "cpu")]
-                DispatchTensorKind::Cpu(tensor) => tensor.autodiff().backward(),
+                DispatchTensorKind::Cpu(tensor) => tensor.autodiff_float().backward(),
                 #[cfg(feature = "cuda")]
-                DispatchTensorKind::Cuda(tensor) => tensor.autodiff().backward(),
+                DispatchTensorKind::Cuda(tensor) => tensor.autodiff_float().backward(),
                 #[cfg(feature = "metal")]
-                DispatchTensorKind::Metal(tensor) => tensor.autodiff().backward(),
+                DispatchTensorKind::Metal(tensor) => tensor.autodiff_float().backward(),
                 #[cfg(feature = "rocm")]
-                DispatchTensorKind::Rocm(tensor) => tensor.autodiff().backward(),
+                DispatchTensorKind::Rocm(tensor) => tensor.autodiff_float().backward(),
                 #[cfg(feature = "vulkan")]
                 DispatchTensorKind::Vulkan(tensor) => tensor.autodiff_float().backward(),
                 #[cfg(feature = "wgpu")]
@@ -405,19 +405,19 @@ impl AutodiffBackend for Dispatch {
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
                 #[cfg(feature = "cpu")]
                 DispatchTensorKind::Cpu(tensor) => DispatchTensorKind::Cpu(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff_float().primitive),
                 ),
                 #[cfg(feature = "cuda")]
                 DispatchTensorKind::Cuda(tensor) => DispatchTensorKind::Cuda(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff_float().primitive),
                 ),
                 #[cfg(feature = "metal")]
                 DispatchTensorKind::Metal(tensor) => DispatchTensorKind::Metal(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff_float().primitive),
                 ),
                 #[cfg(feature = "rocm")]
                 DispatchTensorKind::Rocm(tensor) => DispatchTensorKind::Rocm(
-                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                    crate::BackendTensor::Float(tensor.autodiff_float().primitive),
                 ),
                 #[cfg(feature = "vulkan")]
                 DispatchTensorKind::Vulkan(tensor) => DispatchTensorKind::Vulkan(
