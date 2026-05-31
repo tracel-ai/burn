@@ -41,11 +41,11 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::{Tensor,ComplexScalar, Shape, Int};
+    /// use burn_tensor::{Tensor, Complex, ComplexScalar, Shape, Int};
     ///
     /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor1 = Tensor::<2, Complex>::from_ints([[ComplexScalar::new(1.0, -2.0), ComplexScalar::new(3.0, 4.0), ComplexScalar::new(0.0, -1.0)], [ComplexScalar::new(1.0, -2.0), ComplexScalar::new(0.0, -1.0), ComplexScalar::new(2.0, 2.0)]], &device);
+    ///    let tensor1 = Tensor::<2, Complex>::from_complex([[ComplexScalar::new(1.0, -2.0), ComplexScalar::new(3.0, 4.0), ComplexScalar::new(0.0, -1.0)], [ComplexScalar::new(1.0, -2.0), ComplexScalar::new(0.0, -1.0), ComplexScalar::new(2.0, 2.0)]], &device);
     ///    let tensor2 = Tensor::<2, Complex>::from_complex([[ComplexScalar::new(5.0, -1.0), ComplexScalar::new(2.0, 3.0), ComplexScalar::new(1.0, -2.0)], [ComplexScalar::new(1.0, -3.0), ComplexScalar::new(1.0, -3.0), ComplexScalar::new(6.0, 2.0)]], &device);
     ///    let tensor = tensor1.powc(tensor2);
     ///    println!("{tensor}");
@@ -218,7 +218,7 @@ where
 
 //for some reason, implementing sub causes a compilation error originating from order
 // saying there are multiple implementations satisfying the constraints.
-// // Complex Tensor + Float Tensor
+// Complex Tensor + Float Tensor
 // impl<const D: usize> core::ops::Add<Tensor<D, Float>> for Tensor<D, Complex> {
 //     type Output = Self;
 

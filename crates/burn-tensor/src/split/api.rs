@@ -44,12 +44,11 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///
     /// # Example
     /// ```rust
-    /// use burn_std::backend::Backend;
-    /// use burn_std::Tensor;
+    /// use burn_tensor::{SplitTensor, Complex};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
+    ///   let tensor = SplitTensor::<3, Complex>::ones([2, 3, 4], &device);
     ///   let dims = tensor.dims(); // [2, 3, 4]
     ///   println!("{dims:?}");
     /// }
@@ -62,12 +61,12 @@ impl<const D: usize> SplitTensor<D, Complex> {
     ///
     /// # Example
     /// ```rust
-    /// use burn_std::backend::Backend;
-    /// use burn_std::Tensor;
+    /// use burn_tensor::SplitTensor;
+    /// use burn_tensor::Complex;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example() {
     ///    let device = Default::default();
-    ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
+    ///    let tensor = SplitTensor::<3, Complex>::ones([2, 3, 4], &device);
     ///    // Shape { dims: [2, 3, 4] }
     ///    let shape = tensor.shape();
     /// }
