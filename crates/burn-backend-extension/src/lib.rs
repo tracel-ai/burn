@@ -157,17 +157,18 @@ struct OperationArg {
     kind: ArgKind,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 enum OutputKind {
     Tensor(TensorKind),
-    Custom(syn::Type),
+    Custom(Type),
 }
 
 #[derive(Debug, Clone)]
 enum OperationOutput {
     Tensor(TensorKind),
     Tuple(Vec<OutputKind>),
-    Custom(syn::Type),
+    Custom(Type),
 }
 
 struct Operation {
@@ -290,7 +291,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
             }
             ReturnType::Type(_, ty) => {
                 // TODO: expand support for vec and maybe nested containers
-                if let syn::Type::Tuple(tup) = ty.as_ref() {
+                if let Type::Tuple(tup) = ty.as_ref() {
                     let elements = tup
                         .elems
                         .iter()
