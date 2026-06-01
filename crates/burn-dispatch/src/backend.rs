@@ -652,15 +652,20 @@ impl AutodiffBackend for Dispatch {
         } = tensor;
 
         match kind {
-            #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(tensor) => {
-                tensor.as_autodiff().node.distributed_params.clone()
-            }
+            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+                #[cfg(feature = "cuda")]
+                DispatchTensorKind::Cuda(tensor) => {
+                    tensor.as_autodiff().node.distributed_params.clone()
+                }
 
-            DispatchTensorKind::Autodiff(_) => {
-                panic!("Autodiff should not wrap an autodiff tensor.")
-            }
-            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+                other => {
+                    panic!("Distributed operations are not supported for tensor kind {other:?}")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
         }
     }
 
@@ -672,15 +677,20 @@ impl AutodiffBackend for Dispatch {
         } = tensor;
 
         match kind {
-            #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(tensor) => {
-                tensor.as_autodiff().node.distributed_params.is_some()
-            }
+            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+                #[cfg(feature = "cuda")]
+                DispatchTensorKind::Cuda(tensor) => {
+                    tensor.as_autodiff().node.distributed_params.is_some()
+                }
 
-            DispatchTensorKind::Autodiff(_) => {
-                panic!("Autodiff should not wrap an autodiff tensor.")
-            }
-            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+                other => {
+                    panic!("Distributed operations are not supported for tensor kind {other:?}")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
         }
     }
 }
