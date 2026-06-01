@@ -249,14 +249,23 @@ impl<C: ProtocolClient> RemoteService<C> {
         self.submit_compute(ComputeTask::RegisterTensor(stream_id, id, data));
     }
 
-    /// Optimistic: the cross-server transfer task is buffered like any other. The next
-    /// op on this client will piggy-back the flush, and reads/syncs always flush before
-    /// they wait — so as long as a barrier follows shortly, the source server has had
-    /// time to expose the tensor before the target server starts downloading.
+    /// Register a tensor produced by a cross-server transfer, flushing immediately.
+    ///
+    /// This is a coordination point with no following barrier on this client — the caller
+    /// (`change_backend`) switches to the target client right after submitting it — so we
+    /// flush right away instead of relying on a later op to piggy-back the flush. Otherwise
+    /// the task would sit buffered below [`FLUSH_THRESHOLD`] and the target server would
+    /// never start the download.
     pub fn register_tensor_remote(&mut self, tensor: TensorRemote, new_id: TensorId) {
         self.submit_compute(ComputeTask::RegisterTensorRemote(tensor, new_id));
+        self.flush();
     }
 
+    /// Expose a tensor for a cross-server transfer, flushing immediately.
+    ///
+    /// Flushed for the same reason as [`register_tensor_remote`](Self::register_tensor_remote):
+    /// the source server must actually receive the expose so the target server's download can
+    /// complete, and the caller has no later barrier on this client to carry the flush.
     pub fn expose_tensor_remote(
         &mut self,
         tensor: TensorIr,
@@ -268,6 +277,7 @@ impl<C: ProtocolClient> RemoteService<C> {
             count,
             transfer_id,
         });
+        self.flush();
     }
 
     pub fn seed(&mut self, seed: u64) {

@@ -72,6 +72,14 @@ where
         self.with_session(session_id, |s| s.runner.clone()).await
     }
 
+    /// Get a clone of the [`Runner`] for `session_id` only if the session already exists,
+    /// without creating one. Used on the close path so a `Close` for an unknown or
+    /// already-removed session doesn't resurrect a phantom runner just to drop it.
+    pub async fn try_runner(&self, session_id: SessionId) -> Option<Runner<B>> {
+        let sessions = self.sessions.lock().await;
+        sessions.get(&session_id).map(|s| s.runner.clone())
+    }
+
     /// Take the response receiver for `session_id`.
     ///
     /// Returns `Err` if a responder has already been registered for this session — the

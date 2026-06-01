@@ -201,9 +201,11 @@ impl<C: ProtocolClient> RemoteTensorHandle<C> {
         self.client.handle.submit(move |s| {
             s.expose_tensor_remote(tensor, 1, transfer_id);
         });
-        // Flush so the source server actually receives the expose before the target
-        // server starts trying to download. `submit` alone only enqueues; the runner
-        // wouldn't drain the queue until 32 ops accumulated.
+        // `submit` only enqueues the closure on the device-runner queue; the runner
+        // wouldn't drain it until 32 ops accumulated. `flush_queue` forces the runner
+        // thread to run the closure now, and `expose_tensor_remote` itself flushes the
+        // service batch onto the wire — so the source server receives the expose before
+        // the target server starts trying to download.
         self.client.handle.flush_queue();
 
         let target_client = get_client::<RemoteChannel<C>>(target_device);
@@ -219,6 +221,8 @@ impl<C: ProtocolClient> RemoteTensorHandle<C> {
                 new_id,
             );
         });
+        // Same as the source side: drain the closure queue so it runs now and
+        // `register_tensor_remote` flushes the registration onto the target's wire.
         target_client.handle.flush_queue();
 
         self.tensor.id = new_id;

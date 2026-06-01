@@ -159,6 +159,9 @@ where
     ) {
         log::info!("[Request Handler] On new connection.");
         let mut session_id: Option<SessionId> = None;
+        // Whether we already ran `handle_close` for this session via an explicit `Task::Close`.
+        // If not, we close on the way out so an abrupt disconnect doesn't leak the session.
+        let mut session_closed = false;
 
         loop {
             let msg = match socket.recv().await {
@@ -195,6 +198,7 @@ where
                     Task::Close(id) => {
                         log::info!("Close requested for session {id}");
                         Self::handle_close(&session_manager, id).await;
+                        session_closed = true;
                         closed = true;
                         break;
                     }
@@ -224,19 +228,31 @@ where
             }
         }
 
-        if let Some(id) = session_id {
-            log::info!("Closing session {id}");
-        } else {
-            log::info!("Closing session (no id info)");
+        match session_id {
+            Some(id) if !session_closed => {
+                // The request stream ended without an explicit `Close` (client crash,
+                // dropped socket, decode/stream error). Tear the session down here so its
+                // runner, handle container, and response queue aren't leaked, and the
+                // response writer's queue closes so its task exits too.
+                log::info!("Request stream for session {id} ended without Close; cleaning up");
+                Self::handle_close(&session_manager, id).await;
+            }
+            Some(id) => log::info!("Closing session {id}"),
+            None => log::info!("Closing session (no id info)"),
         }
     }
 
     async fn handle_close(session_manager: &SessionManager<B, P>, session_id: SessionId) {
+        // A `Close` for an unknown or already-removed session is a no-op: don't resurrect a
+        // fresh runner (allocating a new handle container + backend device state) just to
+        // sync and immediately drop it.
+        let Some(runner) = session_manager.try_runner(session_id).await else {
+            return;
+        };
         // Ensure backend work for this session is fully drained before we forget the
         // session. `runner.sync()` flushes the session's runner state; `B::sync` flushes
         // the underlying device queue (which the next session may also use, so it's not
         // strictly per-session, but it's cheap and matches the pre-refactor behavior).
-        let runner = session_manager.runner(session_id).await;
         if let Err(err) = runner.sync() {
             log::warn!("runner.sync() at session {session_id} close failed: {err:?}");
         }

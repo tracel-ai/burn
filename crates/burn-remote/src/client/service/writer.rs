@@ -50,13 +50,19 @@ impl RequestWriter {
     /// the writer is [`WRITE_QUEUE_CAP`] frames behind (socket backpressure), never on a
     /// healthy send.
     pub(crate) fn send(&self, runtime: &tokio::runtime::Runtime, frame: bytes::Bytes) {
-        let tx = self
-            .tx
-            .as_ref()
-            .expect("Writer channel present until shutdown");
-        runtime
-            .block_on(tx.send(frame))
-            .expect("Remote request writer task alive");
+        let Some(tx) = self.tx.as_ref() else {
+            log::warn!("Remote request writer already shut down; dropping outgoing frame");
+            return;
+        };
+        // The writer task exits if a socket send fails (server gone / connection reset),
+        // after which `tx.send` errors. Drop the frame with a warning rather than panicking
+        // here — `send` runs on the device-runner thread that executes user ops, so a panic
+        // would crash the caller's thread instead of surfacing a recoverable disconnect.
+        if runtime.block_on(tx.send(frame)).is_err() {
+            log::warn!(
+                "Remote request writer task has exited (server disconnected?); dropping outgoing frame"
+            );
+        }
     }
 
     /// Best-effort teardown: enqueue an optional final frame, drop the sender so the writer
