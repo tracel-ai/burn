@@ -3,20 +3,20 @@ use burn_backend::Scalar;
 use burn_backend::backend::ExecutionError;
 use burn_std::{BoolDType, IntDType};
 
-use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
+use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
 use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
 use burn_ir::{
-    ArgSortOpIr, BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr,
+    BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr,
     CrossOpIr, DimOpIr, FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr,
     GridSample2dOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr,
-    OperationIr, OperationOutput, PermuteOpIr, RandomOpIr, ReduceBoolDimOpIr, ReduceBoolOpIr,
+    OperationIr, OperationOutput, PermuteOpIr, RandomOpIr,
     ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr,
     ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr,
     SortWithIndicesOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
-impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
+impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
         let out = client.register_tensor_data(data);
@@ -1395,7 +1395,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_all(tensor: FloatTensor<Self>, out_dtype: burn_std::BoolDType) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let desc = ReduceBoolOpIr::create(tensor.into_ir(), out_dtype.into(), || {
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
             client.create_empty_handle()
         });
         client
@@ -1405,7 +1405,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_any(tensor: FloatTensor<Self>, out_dtype: burn_std::BoolDType) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let desc = ReduceBoolOpIr::create(tensor.into_ir(), out_dtype.into(), || {
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
             client.create_empty_handle()
         });
         client
@@ -1419,7 +1419,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let desc = ReduceBoolDimOpIr::create(tensor.into_ir(), dim, out_dtype.into(), || {
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
             client.create_empty_handle()
         });
         client
@@ -1433,7 +1433,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let desc = ReduceBoolDimOpIr::create(tensor.into_ir(), dim, out_dtype.into(), || {
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
             client.create_empty_handle()
         });
         client
@@ -1485,7 +1485,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc = ArgSortOpIr::create(tensor.into_ir(), dim, descending, out_dtype.into(), || {
+        let desc = SortOpIr::create_arg(tensor.into_ir(), dim, descending, out_dtype.into(), || {
             client.create_empty_handle()
         });
         client

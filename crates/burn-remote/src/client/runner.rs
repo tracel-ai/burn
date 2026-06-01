@@ -3,7 +3,7 @@ use crate::shared::{TaskResponseContent, TensorRemote};
 use burn_backend::{DeviceId, DeviceOps, ExecutionError, StreamId, TensorData};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
-use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
+use burn_router::{MultiBackendBridge, RouterTensor, RouterClient, get_client};
 use burn_std::DeviceSettings;
 use burn_std::{backtrace::BackTrace, future::DynFut};
 use std::sync::Mutex;
@@ -15,7 +15,7 @@ pub use service::{address_to_id, id_to_address};
 // crucial when registering operations or creating tensors. The `DeviceHandle` queue
 // preserves submission order, so `submit` is sufficient for cheap fire-and-forget ops; we
 // only `submit_blocking` for paths that need to read the service's response.
-impl<C: ProtocolClient> RunnerClient for RemoteClient<C> {
+impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
     type Device = RemoteDevice;
 
     fn register_op(&self, op: burn_ir::OperationIr) {
@@ -114,7 +114,7 @@ impl RemoteDevice {
 
     /// Forces the connection using the specified communication protocol channel.
     /// This is a no-op if the client is already initialized for this address.
-    pub fn connect_with_channel<R: burn_router::RunnerChannel<Device = Self>>(&self) {
+    pub fn connect_with_channel<R: burn_router::RouterChannel<Device = Self>>(&self) {
         // If the client doesn't exist yet, `get_client` forces initialization, which in
         // turn calls `RemoteService::init` and populates the settings for this device.
         get_client::<R>(self);

@@ -4,7 +4,7 @@ use burn_communication::ProtocolClient;
 
 /// A thin handle to a [`RemoteService`] running on its own device-runner thread.
 ///
-/// Every `RunnerClient` method delegates to `handle.submit` / `submit_blocking`, so all
+/// Every `RouterClient` method delegates to `handle.submit` / `submit_blocking`, so all
 /// connection state, the tokio runtime, the response-demux task, and the op batch buffer
 /// live on the service side.
 pub struct RemoteClient<C: ProtocolClient> {

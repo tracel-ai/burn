@@ -42,7 +42,7 @@ const FLUSH_THRESHOLD: usize = 32;
 /// All the state owned by the device-runner thread for a single remote device.
 ///
 /// `RemoteService` lives behind a [`DeviceHandle`](burn_backend::DeviceHandle); every call
-/// from the `RunnerClient` shim hops onto the runner thread via the device handle's
+/// from the `RouterClient` shim hops onto the runner thread via the device handle's
 /// `submit` / `submit_blocking`, so the service has exclusive access to the connection,
 /// the callback map, and the outgoing task buffer without any locking on its own state.
 ///

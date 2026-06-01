@@ -451,13 +451,13 @@ pub enum BaseOperationIr {
     ///
     /// Float/Int input is treated as a non-zero check; bool input is the value itself.
     /// Output is a single-element bool tensor.
-    All(ReduceBoolOpIr),
+    All(ReduceOpIr),
     /// Reduce-`any` over the input tensor.
-    Any(ReduceBoolOpIr),
+    Any(ReduceOpIr),
     /// Reduce-`all` along a dim.
-    AllDim(ReduceBoolDimOpIr),
+    AllDim(ReduceDimOpIr),
     /// Reduce-`any` along a dim.
-    AnyDim(ReduceBoolDimOpIr),
+    AnyDim(ReduceDimOpIr),
 }
 
 /// Numeric operations on int and float tensors.
@@ -717,7 +717,9 @@ pub enum NumericOperationIr {
     /// Sort along a dim, also returning the source indices.
     SortWithIndices(SortWithIndicesOpIr),
     /// Sort along a dim and return only the indices (i.e., the argsort).
-    ArgSort(ArgSortOpIr),
+    ///
+    /// Shares [`SortOpIr`] with [`Sort`](Self::Sort); only the output dtype differs.
+    ArgSort(SortOpIr),
 }
 
 /// Operation intermediate representation specific to an int tensor.
@@ -3615,27 +3617,6 @@ impl<O: core::fmt::Debug> OperationOutput<O> for Vec<O> {
     }
 }
 
-/// Operation IR for reduce-all/reduce-any on a tensor of arbitrary numeric/bool dtype.
-/// The output is a single-element bool tensor.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ReduceBoolOpIr {
-    /// Input tensor (any numeric or bool dtype).
-    pub input: TensorIr,
-    /// Output tensor (always bool dtype, shape `[1]`).
-    pub out: TensorIr,
-}
-
-/// Operation IR for reduce-all/reduce-any along a specified dim.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ReduceBoolDimOpIr {
-    /// Input tensor.
-    pub input: TensorIr,
-    /// Dim along which to reduce.
-    pub axis: usize,
-    /// Output tensor (bool dtype).
-    pub out: TensorIr,
-}
-
 /// Operation IR for sort along a dim. The output preserves the input shape/dtype.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SortOpIr {
@@ -3664,19 +3645,6 @@ pub struct SortWithIndicesOpIr {
     pub out_indices: TensorIr,
 }
 
-/// Operation IR for argsort: returns only the sorted indices.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ArgSortOpIr {
-    /// Input tensor.
-    pub input: TensorIr,
-    /// Dim along which to sort.
-    pub dim: usize,
-    /// Sort descending.
-    pub descending: bool,
-    /// Output tensor (int dtype).
-    pub out: TensorIr,
-}
-
 /// Operation IR for layer normalization with optional bias.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct LayerNormOpIr {
@@ -3686,8 +3654,8 @@ pub struct LayerNormOpIr {
     pub gamma: TensorIr,
     /// Optional shift (beta) parameter.
     pub beta: Option<TensorIr>,
-    /// Numerical-stability epsilon, bit-encoded for `Hash`/`PartialEq`.
-    pub epsilon: u64,
+    /// Numerical-stability epsilon.
+    pub epsilon: ScalarIr,
     /// Output tensor.
     pub out: TensorIr,
 }

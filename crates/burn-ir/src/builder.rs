@@ -150,6 +150,7 @@ fn output_dtype_mixed<'a, I: IntoIterator<Item = &'a DType>>(inputs: I) -> Resul
 ///
 /// Supports shape and dtype validation.
 macro_rules! impl_ir_create {
+    // Leaf: the default `create`, inferring the output dtype from the inputs.
     (@create_fn $op:ident { $( $field:ident : $ty:ty ),* $(,)? } , $shape:expr, $dtype:expr) => {
         #[doc = "Create a new operation IR from the given inputs."]
         #[doc = "`new_id` should generate a unique `TensorId` for the uninitialized output tensor."]
@@ -162,36 +163,52 @@ macro_rules! impl_ir_create {
         }
     };
 
-    // Case: simple op, single `create`
-    (
-        $op:ident { $( $field:ident : $ty:ty ),* $(,)? },
-        shape = $shape:expr,
-        dtype = $dtype:expr
-    ) => {
-        impl $op {
-            impl_ir_create!(@create_fn $op { $( $field : $ty ),* }, $shape, $dtype);
+    // Leaf: a single additional constructor that takes an explicit output dtype.
+    (@extra_fn $op:ident { $( $field:ident : $ty:ty ),* $(,)? } , $shape:expr, $dtype:expr, $fn_name:ident ( $extra:ident : $extra_ty:ty )) => {
+        #[doc = "Create a new operation IR from the given inputs and the given output dtype."]
+        #[allow(clippy::too_many_arguments)]
+        pub fn $fn_name($( $field : $ty ),*, $extra: $extra_ty, new_id: impl FnOnce() -> crate::TensorId) -> $op {
+            let shape = $shape;
+            let _ = $dtype; // still validates dtype if needed
+            let out = TensorIr::uninit(new_id(), shape, $extra);
+            $op { $( $field ),*, out }
         }
     };
 
-    // Case: op with one additional constructor that accepts an explicit output dtype
+    // Recursively emit each additional constructor in its own `impl` block. The field list is
+    // forwarded as an opaque token tree (`$fields`) so it is not iterated alongside the
+    // constructor list (the two repeat independently).
+    (@extras $op:ident $fields:tt, $shape:expr, $dtype:expr, $fn_name:ident ( $extra:ident : $extra_ty:ty ) $(, $rest_fn:ident ( $rest_extra:ident : $rest_extra_ty:ty ) )* $(,)?) => {
+        impl $op {
+            impl_ir_create!(@extra_fn $op $fields, $shape, $dtype, $fn_name ( $extra : $extra_ty ));
+        }
+        impl_ir_create!(@extras $op $fields, $shape, $dtype, $( $rest_fn ( $rest_extra : $rest_extra_ty ) ),*);
+    };
+    (@extras $op:ident $fields:tt, $shape:expr, $dtype:expr, $(,)?) => {};
+
+    // Case: simple op, single `create`
     (
-        $op:ident { $( $field:ident : $ty:ty ),* $(,)? },
+        $op:ident $fields:tt,
+        shape = $shape:expr,
+        dtype = $dtype:expr $(,)?
+    ) => {
+        impl $op {
+            impl_ir_create!(@create_fn $op $fields, $shape, $dtype);
+        }
+    };
+
+    // Case: op with one or more additional constructors that accept an explicit output dtype
+    (
+        $op:ident $fields:tt,
         shape = $shape:expr,
         dtype = $dtype:expr,
         $fn_name:ident ( $extra:ident : $extra_ty:ty )
+        $(, $rest_fn:ident ( $rest_extra:ident : $rest_extra_ty:ty ) )* $(,)?
     ) => {
         impl $op {
-            impl_ir_create!(@create_fn $op { $( $field : $ty ),* }, $shape, $dtype);
-
-            #[doc = "Create a new operation IR from the given inputs and the given output dtype."]
-            #[allow(clippy::too_many_arguments)]
-            pub fn $fn_name($( $field : $ty ),*, $extra: $extra_ty, new_id: impl FnOnce() -> crate::TensorId) -> Self {
-                let shape = $shape;
-                let _ = $dtype; // still validates dtype if needed
-                let out = TensorIr::uninit(new_id(), shape, $extra);
-                $op { $( $field ),*, out }
-            }
+            impl_ir_create!(@create_fn $op $fields, $shape, $dtype);
         }
+        impl_ir_create!(@extras $op $fields, $shape, $dtype, $fn_name ( $extra : $extra_ty ) $(, $rest_fn ( $rest_extra : $rest_extra_ty ) )*);
     };
 }
 
@@ -335,7 +352,9 @@ impl GatherNdOpIr {
 impl_ir_create!(
     ReduceOpIr { input: TensorIr },
     shape = [1].into(),
-    dtype = input.dtype
+    dtype = input.dtype,
+    // Additional constructor for reduce-all/reduce-any (bool output)
+    create_bool(bool_dtype: DType)
 );
 
 fn reduce_output_shape(mut output_shape: Shape, axis: usize, accumulator_len: usize) -> Shape {
@@ -353,7 +372,9 @@ impl_ir_create!(
     shape = reduce_output_shape(input.shape.clone(), axis, accumulator_len),
     dtype = input.dtype,
     // Additional constructor for argument reduction
-    create_arg(ind_dtype: DType)
+    create_arg(ind_dtype: DType),
+    // Additional constructor for reduce-all/reduce-any along a dim (bool output)
+    create_bool(bool_dtype: DType)
 );
 
 impl_ir_create!(
@@ -453,29 +474,6 @@ impl_ir_create!(
     dtype = tensor.dtype
 );
 
-impl ReduceBoolOpIr {
-    /// Create a reduce-all/reduce-any IR (output is a 1-element bool tensor).
-    pub fn create(input: TensorIr, bool_dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
-        let out = TensorIr::uninit(new_id(), [1].into(), bool_dtype);
-        ReduceBoolOpIr { input, out }
-    }
-}
-
-impl ReduceBoolDimOpIr {
-    /// Create a per-dim reduce-all/reduce-any IR (output dtype is bool).
-    pub fn create(
-        input: TensorIr,
-        axis: usize,
-        bool_dtype: DType,
-        new_id: impl FnOnce() -> TensorId,
-    ) -> Self {
-        let mut shape = input.shape.clone();
-        shape[axis] = 1;
-        let out = TensorIr::uninit(new_id(), shape, bool_dtype);
-        ReduceBoolDimOpIr { input, axis, out }
-    }
-}
-
 impl_ir_create!(
     SortOpIr {
         input: TensorIr,
@@ -483,7 +481,9 @@ impl_ir_create!(
         descending: bool
     },
     shape = input.shape.clone(),
-    dtype = input.dtype
+    dtype = input.dtype,
+    // Additional constructor for argsort (output is the indices tensor)
+    create_arg(ind_dtype: DType)
 );
 
 impl SortWithIndicesOpIr {
@@ -509,27 +509,8 @@ impl SortWithIndicesOpIr {
     }
 }
 
-impl ArgSortOpIr {
-    /// Create an argsort IR.
-    pub fn create(
-        input: TensorIr,
-        dim: usize,
-        descending: bool,
-        out_dtype: DType,
-        new_id: impl FnOnce() -> TensorId,
-    ) -> Self {
-        let out = TensorIr::uninit(new_id(), input.shape.clone(), out_dtype);
-        ArgSortOpIr {
-            input,
-            dim,
-            descending,
-            out,
-        }
-    }
-}
-
 impl LayerNormOpIr {
-    /// Create a layer-norm IR. Epsilon is stored as `to_bits()` so the struct stays `Hash`.
+    /// Create a layer-norm IR.
     pub fn create(
         input: TensorIr,
         gamma: TensorIr,
@@ -552,7 +533,7 @@ impl LayerNormOpIr {
             input,
             gamma,
             beta,
-            epsilon: epsilon.to_bits(),
+            epsilon: ScalarIr::Float(epsilon),
             out,
         }
     }

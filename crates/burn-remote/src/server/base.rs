@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
-use burn_router::{Runner, RunnerClient};
+use burn_router::{TensorInterpreter, RouterClient};
 use burn_std::id::StreamId;
 use tokio::sync::mpsc;
 
@@ -165,7 +165,7 @@ where
         let mut session_closed = false;
         // The session's runner + response sender, resolved once on the first compute task and
         // reused for the whole connection so we don't re-lock the sessions map per task.
-        let mut handles: Option<(Runner<B>, mpsc::Sender<TaskResponse>)> = None;
+        let mut handles: Option<(TensorInterpreter<B>, mpsc::Sender<TaskResponse>)> = None;
 
         loop {
             let msg = match socket.recv().await {
@@ -284,7 +284,7 @@ where
     /// at construction time via `executes`.
     async fn process_compute(
         sm: &SessionManager<B, P>,
-        runner: &Runner<B>,
+        runner: &TensorInterpreter<B>,
         sender: &mpsc::Sender<TaskResponse>,
         task: ComputeTask,
     ) -> Result<(), String> {

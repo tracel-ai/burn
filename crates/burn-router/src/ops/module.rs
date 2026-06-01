@@ -9,9 +9,9 @@ use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_ir::*;
 use burn_std::IntDType;
 
-use crate::{BackendRouter, RunnerChannel, RunnerClient};
+use crate::{BackendRouter, RouterChannel, RouterClient};
 
-impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
+impl<R: RouterChannel> ModuleOps<Self> for BackendRouter<R> {
     fn embedding(weights: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
         let client = weights.client.clone();
         let desc = EmbeddingOpIr::create(weights.into_ir(), indices.into_ir(), || {

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use burn_backend::Shape;
 use burn_communication::ProtocolClient;
 use burn_ir::TensorIr;
-use burn_router::{RouterTensor, RunnerChannel, get_client};
+use burn_router::{RouterTensor, RouterChannel, get_client};
 
 use super::{
     RemoteClient,
@@ -15,7 +15,7 @@ pub struct RemoteChannel<C: ProtocolClient> {
     _p: PhantomData<C>,
 }
 
-impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
+impl<C: ProtocolClient> RouterChannel for RemoteChannel<C> {
     type Device = RemoteDevice;
     type Bridge = RemoteBridge<C>;
     type Client = RemoteClient<C>;

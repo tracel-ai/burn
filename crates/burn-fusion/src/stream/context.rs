@@ -1309,7 +1309,7 @@ impl RelativeOps for NumericOperationIr {
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
-            NumericOperationIr::ArgSort(desc) => NumericOperationIr::ArgSort(ArgSortOpIr {
+            NumericOperationIr::ArgSort(desc) => NumericOperationIr::ArgSort(SortOpIr {
                 input: desc.input.to_relative(converter),
                 dim: desc.dim,
                 descending: desc.descending,
@@ -1460,22 +1460,24 @@ impl RelativeOps for BaseOperationIr {
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            BaseOperationIr::All(desc) => BaseOperationIr::All(ReduceBoolOpIr {
+            BaseOperationIr::All(desc) => BaseOperationIr::All(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            BaseOperationIr::Any(desc) => BaseOperationIr::Any(ReduceBoolOpIr {
+            BaseOperationIr::Any(desc) => BaseOperationIr::Any(ReduceOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            BaseOperationIr::AllDim(desc) => BaseOperationIr::AllDim(ReduceBoolDimOpIr {
+            BaseOperationIr::AllDim(desc) => BaseOperationIr::AllDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
-            BaseOperationIr::AnyDim(desc) => BaseOperationIr::AnyDim(ReduceBoolDimOpIr {
+            BaseOperationIr::AnyDim(desc) => BaseOperationIr::AnyDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
+                accumulator_len: desc.accumulator_len,
                 out: desc.out.to_relative(converter),
             }),
         }

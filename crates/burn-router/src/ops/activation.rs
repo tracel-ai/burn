@@ -1,11 +1,11 @@
-use crate::{BackendRouter, RunnerChannel, RunnerClient};
+use crate::{BackendRouter, RouterChannel, RouterClient};
 use burn_backend::{Scalar, ops::ActivationOps, tensor::FloatTensor};
 use burn_ir::{
     ActivationOperationIr, BinaryOpIr, DimOpIr, HardSigmoidOpIr, OperationIr, OperationOutput,
     ScalarOpIr, UnaryOpIr,
 };
 
-impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
+impl<R: RouterChannel> ActivationOps<Self> for BackendRouter<R> {
     fn relu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());

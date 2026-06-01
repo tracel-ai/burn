@@ -5,9 +5,9 @@ use burn_backend::{
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 
-use crate::{BackendRouter, RunnerChannel};
+use crate::{BackendRouter, RouterChannel};
 
-impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
+impl<R: RouterChannel> QTensorOps<Self> for BackendRouter<R> {
     fn q_from_data(_data: TensorData, _device: &Device<Self>) -> QuantizedTensor<Self> {
         unimplemented!()
     }
