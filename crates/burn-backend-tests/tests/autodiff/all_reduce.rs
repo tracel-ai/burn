@@ -120,10 +120,12 @@ fn compare_gradients(
     expected_grads: &[f32],
 ) {
     for out in outputs {
+        println!("out: {out}");
         out.to_data()
             .assert_eq(&TensorData::from(expected_output), false);
     }
     for grad in grads {
+        println!("grad: {grad}");
         grad.to_data()
             .assert_eq(&TensorData::from(expected_grads), false);
     }
