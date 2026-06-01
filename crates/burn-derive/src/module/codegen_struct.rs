@@ -377,17 +377,40 @@ pub(crate) fn parse_module_fields(
     generics: &mut ModuleGenerics,
 ) -> syn::Result<Vec<ModuleField>> {
     let mut fields = Vec::new();
+    let mut module_generics = HashSet::new();
+    let mut skip_generics = HashSet::new();
 
     match &ast.data {
         syn::Data::Struct(struct_data) => {
             for field in struct_data.fields.iter() {
                 let field_type = parse_module_field_type(field, generics)?;
+                if field_type.is_module {
+                    module_generics.extend(field_type.generic_idents.iter().cloned());
+                } else if matches!(field_type.attr, Some(ModuleFieldAttribute::Skip)) {
+                    skip_generics.extend(field_type.generic_idents.iter().cloned());
+                }
                 fields.push(ModuleField::new(field.clone(), field_type));
             }
         }
         syn::Data::Enum(_) => panic!("Only struct can be derived"),
         syn::Data::Union(_) => panic!("Only struct can be derived"),
     };
+
+    for ident in module_generics.intersection(&skip_generics) {
+        if let Some(param) = ast.generics.params.iter().find_map(|p| match p {
+            syn::GenericParam::Type(tp) if tp.ident == *ident => Some(tp),
+            _ => None,
+        }) {
+            return Err(syn::Error::new(
+                param.ident.span(),
+                format!(
+                    "Generic type `{ident}` should not be used on both a module field and a skipped field. \
+                     Consider removing `#[module(skip)]` or using a different type for one of the fields.",
+                ),
+            ));
+        }
+    }
+
     Ok(fields)
 }
 
