@@ -540,12 +540,6 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn contains_nan(self) -> Tensor<1, Bool> {
-        // Detect NaN element-wise, then reduce with `any`.
-        // A previous implementation used `self.sum().is_nan()`, but on narrow-exponent
-        // floats (e.g. f16) a finite tensor's sum can overflow and the reduction can then
-        // produce NaN (e.g. `Inf - Inf`), yielding a false positive even though no element
-        // is NaN. `is_nan()` is exact per-element and `any()` reduces a clean 0/1 mask, so
-        // this never false-positives on finite inputs.
         self.is_nan().any()
     }
 
