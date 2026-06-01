@@ -212,6 +212,7 @@ impl<B: DistributedBackend, C: CheckpointStrategy> AutodiffBackend for Autodiff<
         tensor: AutodiffTensor<B>,
         param_id: DistributedParamId,
     ) -> AutodiffTensor<B> {
+        println!("autodiff impl");
         tensor.grad_distributed(param_id)
     }
 
