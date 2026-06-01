@@ -238,8 +238,6 @@ pub trait BoolVisionOps: Backend {
     /// label of each pixel, along with stats collected for each component.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
-    // TODO: support struct return types that encapsulate tensors with `#[backend_extension]`
-    #[allow(clippy::type_complexity)]
     fn connected_components_with_stats(
         img: BoolTensor<Self>,
         connectivity: Connectivity,

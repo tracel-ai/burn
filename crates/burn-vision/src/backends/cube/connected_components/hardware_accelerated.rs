@@ -467,7 +467,6 @@ fn compact_stats<I: Int>(
     bottom_new[new_label as usize] = bottom[label as usize];
 }
 
-#[allow(clippy::type_complexity)]
 pub fn hardware_accelerated<R: CubeRuntime>(
     img: CubeTensor<R>,
     stats_opt: ConnectedStatsOptions,
