@@ -175,9 +175,7 @@ impl RelativeOps for OperationIr {
             OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(ops) => OperationIr::Distributed(ops.to_relative(converter)),
-            OperationIr::Activation(dtype, ops) => {
-                OperationIr::Activation(*dtype, ops.to_relative(converter))
-            }
+            OperationIr::Activation(ops) => OperationIr::Activation(ops.to_relative(converter)),
         }
     }
 }

@@ -9,8 +9,9 @@ use tokio_util::sync::CancellationToken;
 
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
-use burn_router::RunnerClient;
+use burn_router::{Runner, RunnerClient};
 use burn_std::id::StreamId;
+use tokio::sync::mpsc;
 
 use crate::shared::{ComputeTask, RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
 
@@ -162,6 +163,9 @@ where
         // Whether we already ran `handle_close` for this session via an explicit `Task::Close`.
         // If not, we close on the way out so an abrupt disconnect doesn't leak the session.
         let mut session_closed = false;
+        // The session's runner + response sender, resolved once on the first compute task and
+        // reused for the whole connection so we don't re-lock the sessions map per task.
+        let mut handles: Option<(Runner<B>, mpsc::Sender<TaskResponse>)> = None;
 
         loop {
             let msg = match socket.recv().await {
@@ -194,6 +198,8 @@ where
                     Task::Init(id) => {
                         log::info!("Init requester for session {id}");
                         session_id = Some(id);
+                        // Re-resolve handles for the new session on the next compute task.
+                        handles = None;
                     }
                     Task::Close(id) => {
                         log::info!("Close requested for session {id}");
@@ -211,8 +217,13 @@ where
                             break;
                         };
 
+                        if handles.is_none() {
+                            handles = Some(session_manager.session_handles(sid).await);
+                        }
+                        let (runner, sender) = handles.as_ref().unwrap();
+
                         if let Err(err) =
-                            Self::process_compute(&session_manager, sid, compute).await
+                            Self::process_compute(&session_manager, runner, sender, compute).await
                         {
                             // A single task failing shouldn't tear down the connection —
                             // the failure surfaces to the client through the response (for
@@ -273,12 +284,10 @@ where
     /// at construction time via `executes`.
     async fn process_compute(
         sm: &SessionManager<B, P>,
-        session_id: SessionId,
+        runner: &Runner<B>,
+        sender: &mpsc::Sender<TaskResponse>,
         task: ComputeTask,
     ) -> Result<(), String> {
-        let runner = sm.runner(session_id).await;
-        let runner = &runner;
-
         match task {
             ComputeTask::RegisterOperation(stream_id, op) => {
                 stream_id.executes(|| runner.register_op(op));
@@ -351,7 +360,7 @@ where
                 // device queue into a bubble. The client demuxes responses by request id,
                 // so out-of-order completion is fine.
                 let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
-                let sender = sm.response_sender(session_id).await;
+                let sender = sender.clone();
                 tokio::spawn(async move {
                     let data = fut.await;
                     if sender
@@ -371,34 +380,20 @@ where
             }
             ComputeTask::SyncBackend(request_id, stream_id) => {
                 let res = stream_id.executes(|| runner.sync());
-                Self::send_response(
-                    sm,
-                    session_id,
-                    request_id,
-                    TaskResponseContent::SyncBackend(res),
-                )
-                .await
+                Self::send_response(sender, request_id, TaskResponseContent::SyncBackend(res)).await
             }
             ComputeTask::DTypeUsage(request_id, dtype) => {
                 let res = runner.dtype_usage(dtype);
-                Self::send_response(
-                    sm,
-                    session_id,
-                    request_id,
-                    TaskResponseContent::DTypeUsage(res),
-                )
-                .await
+                Self::send_response(sender, request_id, TaskResponseContent::DTypeUsage(res)).await
             }
         }
     }
 
     async fn send_response(
-        sm: &SessionManager<B, P>,
-        session_id: SessionId,
+        sender: &mpsc::Sender<TaskResponse>,
         request_id: RequestId,
         content: TaskResponseContent,
     ) -> Result<(), String> {
-        let sender = sm.response_sender(session_id).await;
         sender
             .send(TaskResponse {
                 content,

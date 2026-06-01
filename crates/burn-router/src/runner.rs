@@ -1937,7 +1937,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
             },
-            OperationIr::Activation(_dtype, op) => match op {
+            OperationIr::Activation(op) => match op {
                 ActivationOperationIr::Relu(desc) => {
                     let input = handles.get_float_tensor::<B>(&desc.input);
                     let output = B::relu(input);

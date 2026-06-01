@@ -359,22 +359,14 @@ impl<C: ProtocolClient> RemoteService<C> {
         self.flush();
     }
 
-    /// Serialize whatever's currently buffered as a single frame and hand it to the writer
-    /// task. No-op when the buffer is empty.
+    /// Hand whatever's currently buffered to the writer task as one batch (the writer
+    /// serializes it off the runner thread). No-op when the buffer is empty.
     fn flush(&mut self) {
         if self.batch.is_empty() {
             return;
         }
-        let frame = serialize_batch(self.batch.take());
-        self.writer.send(&self.runtime, frame);
+        self.writer.send(&self.runtime, self.batch.take());
     }
-}
-
-/// Serialize a batch of tasks into a single wire frame.
-fn serialize_batch(batch: Vec<Task>) -> bytes::Bytes {
-    rmp_serde::to_vec(&batch)
-        .expect("Can serialize task batch")
-        .into()
 }
 
 impl<C: ProtocolClient> Drop for RemoteService<C> {
@@ -386,10 +378,8 @@ impl<C: ProtocolClient> Drop for RemoteService<C> {
 
         // Best-effort teardown: append Close to whatever's still buffered and let the
         // writer drain + flush it before we join the task, so the runtime isn't torn down
-        // mid-send. Serialization can't realistically fail, but don't panic in Drop if it
-        // does — pass `None` and still join.
+        // mid-send. Serialization happens in the writer task now, so Drop can't panic on it.
         self.batch.push(Task::Close(self.session_id));
-        let frame = rmp_serde::to_vec(&self.batch.take()).ok().map(Into::into);
-        self.writer.shutdown(&self.runtime, frame);
+        self.writer.shutdown(&self.runtime, Some(self.batch.take()));
     }
 }

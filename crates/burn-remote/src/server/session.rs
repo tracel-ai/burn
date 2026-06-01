@@ -59,17 +59,16 @@ where
         self.device.defaults()
     }
 
-    /// Get a clone of the response sender for `session_id`, creating the session on demand
-    /// if this is the first time we see this id.
-    pub async fn response_sender(&self, session_id: SessionId) -> mpsc::Sender<TaskResponse> {
-        self.with_session(session_id, |s| s.sender.clone()).await
-    }
-
-    /// Get a clone of the [`Runner`] owned by `session_id`. The handle container inside the
-    /// runner is per-session, so two concurrent sessions can never observe each other's
-    /// tensors.
-    pub async fn runner(&self, session_id: SessionId) -> Runner<B> {
-        self.with_session(session_id, |s| s.runner.clone()).await
+    /// Resolve both the [`Runner`] and the response sender for `session_id` in a single lock
+    /// acquisition, creating the session on demand. The request loop resolves these once per
+    /// connection and reuses them for every task, instead of re-locking the sessions map (and
+    /// re-cloning the runner) per task.
+    pub async fn session_handles(
+        &self,
+        session_id: SessionId,
+    ) -> (Runner<B>, mpsc::Sender<TaskResponse>) {
+        self.with_session(session_id, |s| (s.runner.clone(), s.sender.clone()))
+            .await
     }
 
     /// Get a clone of the [`Runner`] for `session_id` only if the session already exists,

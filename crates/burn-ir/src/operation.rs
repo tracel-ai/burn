@@ -94,7 +94,7 @@ pub enum OperationIr {
     /// Operation specific to a distributed tensor.
     Distributed(DistributedOperationIr),
     /// Activation function operation (relu, gelu, sigmoid, softmax, …).
-    Activation(DType, ActivationOperationIr),
+    Activation(ActivationOperationIr),
 }
 
 /// Operation intermediate representation specific to a float tensor.
@@ -2038,7 +2038,7 @@ impl OperationIr {
             OperationIr::Drop(repr) => Box::new([repr].into_iter()),
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.inputs(),
-            OperationIr::Activation(_dtype, repr) => repr.inputs(),
+            OperationIr::Activation(repr) => repr.inputs(),
         }
     }
 
@@ -2059,7 +2059,7 @@ impl OperationIr {
             OperationIr::Drop(_repr) => Box::new([].into_iter()),
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.outputs(),
-            OperationIr::Activation(_dtype, repr) => repr.outputs(),
+            OperationIr::Activation(repr) => repr.outputs(),
         }
     }
 
@@ -2100,7 +2100,7 @@ impl OperationIr {
             }
             #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.mark_read_only(nodes),
-            OperationIr::Activation(_dtype, repr) => repr.mark_read_only(nodes),
+            OperationIr::Activation(repr) => repr.mark_read_only(nodes),
         }
     }
 }
@@ -3857,92 +3857,51 @@ pub enum ActivationOperationIr {
     Softmin(DimOpIr),
 }
 
-impl ActivationOperationIr {
-    fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            ActivationOperationIr::Relu(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::ReluBackward(repr) => {
-                Box::new([&repr.lhs, &repr.rhs].into_iter())
+/// Generate [`ActivationOperationIr`]'s `inputs`/`outputs`/`mark_read_only` from a single
+/// variant → input-field table, so the three methods can't drift out of sync. The `out`
+/// field is implicit (every variant's op IR has one). Each entry lists the variant and the
+/// names of its input tensor fields (`input`, `lhs`/`rhs`, `tensor`, …).
+macro_rules! activation_ir_tensor_access {
+    ($( $variant:ident => [ $($field:ident),+ ] ),+ $(,)?) => {
+        impl ActivationOperationIr {
+            fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
+                match self {
+                    $( Self::$variant(repr) => Box::new([$(&repr.$field),+].into_iter()), )+
+                }
             }
-            ActivationOperationIr::LeakyRelu(repr) => Box::new([&repr.lhs].into_iter()),
-            ActivationOperationIr::PRelu(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
-            ActivationOperationIr::Gelu(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::GeluBackward(repr) => {
-                Box::new([&repr.lhs, &repr.rhs].into_iter())
-            }
-            ActivationOperationIr::Sigmoid(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::SigmoidBackward(repr) => {
-                Box::new([&repr.lhs, &repr.rhs].into_iter())
-            }
-            ActivationOperationIr::HardSigmoid(repr) => Box::new([&repr.tensor].into_iter()),
-            ActivationOperationIr::LogSigmoid(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::LogSigmoidBackward(repr) => {
-                Box::new([&repr.lhs, &repr.rhs].into_iter())
-            }
-            ActivationOperationIr::Softmax(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::LogSoftmax(repr) => Box::new([&repr.input].into_iter()),
-            ActivationOperationIr::Softmin(repr) => Box::new([&repr.input].into_iter()),
-        }
-    }
 
-    fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
-        match self {
-            ActivationOperationIr::Relu(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::ReluBackward(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::LeakyRelu(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::PRelu(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::Gelu(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::GeluBackward(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::Sigmoid(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::SigmoidBackward(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::HardSigmoid(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::LogSigmoid(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::LogSigmoidBackward(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::Softmax(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::LogSoftmax(repr) => Box::new([&repr.out].into_iter()),
-            ActivationOperationIr::Softmin(repr) => Box::new([&repr.out].into_iter()),
-        }
-    }
+            fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
+                match self {
+                    $( Self::$variant(repr) => Box::new([&repr.out].into_iter()), )+
+                }
+            }
 
-    fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
-        let mut output = Vec::new();
-        match self {
-            ActivationOperationIr::Relu(repr) => repr.input.mark_read_only(nodes, &mut output),
-            ActivationOperationIr::ReluBackward(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-                repr.rhs.mark_read_only(nodes, &mut output);
+            fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
+                let mut output = Vec::new();
+                match self {
+                    $( Self::$variant(repr) => {
+                        $( repr.$field.mark_read_only(nodes, &mut output); )+
+                    } )+
+                }
+                output
             }
-            ActivationOperationIr::LeakyRelu(repr) => repr.lhs.mark_read_only(nodes, &mut output),
-            ActivationOperationIr::PRelu(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-                repr.rhs.mark_read_only(nodes, &mut output);
-            }
-            ActivationOperationIr::Gelu(repr) => repr.input.mark_read_only(nodes, &mut output),
-            ActivationOperationIr::GeluBackward(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-                repr.rhs.mark_read_only(nodes, &mut output);
-            }
-            ActivationOperationIr::Sigmoid(repr) => repr.input.mark_read_only(nodes, &mut output),
-            ActivationOperationIr::SigmoidBackward(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-                repr.rhs.mark_read_only(nodes, &mut output);
-            }
-            ActivationOperationIr::HardSigmoid(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output)
-            }
-            ActivationOperationIr::LogSigmoid(repr) => {
-                repr.input.mark_read_only(nodes, &mut output)
-            }
-            ActivationOperationIr::LogSigmoidBackward(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-                repr.rhs.mark_read_only(nodes, &mut output);
-            }
-            ActivationOperationIr::Softmax(repr) => repr.input.mark_read_only(nodes, &mut output),
-            ActivationOperationIr::LogSoftmax(repr) => {
-                repr.input.mark_read_only(nodes, &mut output)
-            }
-            ActivationOperationIr::Softmin(repr) => repr.input.mark_read_only(nodes, &mut output),
         }
-        output
-    }
+    };
+}
+
+activation_ir_tensor_access! {
+    Relu => [input],
+    ReluBackward => [lhs, rhs],
+    LeakyRelu => [lhs],
+    PRelu => [lhs, rhs],
+    Gelu => [input],
+    GeluBackward => [lhs, rhs],
+    Sigmoid => [input],
+    SigmoidBackward => [lhs, rhs],
+    HardSigmoid => [tensor],
+    LogSigmoid => [input],
+    LogSigmoidBackward => [lhs, rhs],
+    Softmax => [input],
+    LogSoftmax => [input],
+    Softmin => [input],
 }
