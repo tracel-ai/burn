@@ -164,6 +164,7 @@ enum OutputKind {
     Custom(Type),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 enum OperationOutput {
     Tensor(TensorKind),
