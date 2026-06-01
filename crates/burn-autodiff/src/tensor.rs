@@ -228,8 +228,6 @@ impl<B: Backend> AutodiffTensor<B> {
             Some(DistributedParams { param_id }),
         )
         .into();
-        println!("grad_distributed: {}", self.node.id);
-        println!("grad_distributed: {}", param_id);
         let step = RootStep::new(self.node.clone());
 
         self.register_step(step, CheckpointerBuilder::default())
@@ -252,9 +250,7 @@ impl<B: DistributedBackend> AutodiffTensor<B> {
             Box::new(registration)
         }));
 
-        println!("Autodiff backward");
         let grads = AutodiffClient::backward::<B>(&client, self, mode);
-        println!("Autodiff sync_collective");
         B::submit_sync_collective(&device);
         grads
     }
