@@ -7,6 +7,7 @@ use burn_backend::{
 
 use crate::{
     CubeBackend, CubeRuntime,
+    kernel::into_contiguous,
     ops::numeric::{self, zeros_client},
 };
 
@@ -43,6 +44,10 @@ impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
         println!("out_tensor off start: {:?}", out_tensor.handle.offset_start);
         println!("out_tensor off end: {:?}", out_tensor.handle.offset_end);
         println!("out_tensor size: {}", out_tensor.handle.size_in_used());
+        println!(
+            "out_tensor size contig: {}",
+            into_contiguous(out_tensor.clone()).handle.size_in_used()
+        );
         client.all_reduce(
             out_tensor.handle.clone(),
             out_tensor.handle.clone(),

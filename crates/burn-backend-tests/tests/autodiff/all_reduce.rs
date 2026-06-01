@@ -123,7 +123,7 @@ fn should_diff_all_reduce_all_devices() {
         .enumerate()
         .map(|(i, device)| {
             let elem = i as f32;
-            TestTensor::<1>::from_data([elem, elem], device).require_grad()
+            TestTensor::<1>::from_data([elem, elem, elem, elem, elem], device).require_grad()
         })
         .collect();
 
