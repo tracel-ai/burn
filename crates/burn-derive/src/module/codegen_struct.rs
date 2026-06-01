@@ -397,13 +397,9 @@ pub(crate) fn parse_module_fields(
     };
 
     for ident in module_generics.intersection(&skip_generics) {
-        if let Some(param) = ast.generics.params.iter().find_map(|p| {
-            if let syn::GenericParam::Type(tp) = p {
-                if tp.ident == *ident {
-                    return Some(tp);
-                }
-            }
-            None
+        if let Some(param) = ast.generics.params.iter().find_map(|p| match p {
+            syn::GenericParam::Type(tp) if tp.ident == *ident => Some(tp),
+            _ => None,
         }) {
             return Err(syn::Error::new(
                 param.ident.span(),
