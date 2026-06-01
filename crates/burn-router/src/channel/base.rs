@@ -2,7 +2,7 @@ use alloc::string::String;
 use burn_backend::{DType, Shape, backend::DeviceOps};
 use burn_ir::TensorIr;
 
-use crate::{MultiBackendBridge, RouterTensor, RouterClient, get_client};
+use crate::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 
 /// Type alias for `<Br as MultiBackendBridge>::TensorHandle`.
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;

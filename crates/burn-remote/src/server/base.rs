@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
-use burn_router::{TensorInterpreter, RouterClient};
+use burn_router::{RouterClient, TensorInterpreter};
 use burn_std::id::StreamId;
 use tokio::sync::mpsc;
 

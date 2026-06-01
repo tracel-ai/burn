@@ -1,4 +1,4 @@
-use crate::{RouterTensor, RouterChannel};
+use crate::{RouterChannel, RouterTensor};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burn_backend::{

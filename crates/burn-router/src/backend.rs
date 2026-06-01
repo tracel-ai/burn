@@ -1,4 +1,4 @@
-use super::{RouterTensor, RouterChannel, RouterClient, get_client};
+use super::{RouterChannel, RouterClient, RouterTensor, get_client};
 use alloc::{format, string::String};
 use burn_backend::{Backend, BackendTypes, DType, ExecutionError};
 use core::marker::PhantomData;

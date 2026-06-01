@@ -201,7 +201,8 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc = ReduceOpIr::create_bool(tensor.into_ir(), dtype, || client.create_empty_handle());
+        let desc =
+            ReduceOpIr::create_bool(tensor.into_ir(), dtype, || client.create_empty_handle());
         client
             .register(OperationIr::BaseBool(BaseOperationIr::All(desc)))
             .output()
@@ -210,7 +211,8 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc = ReduceOpIr::create_bool(tensor.into_ir(), dtype, || client.create_empty_handle());
+        let desc =
+            ReduceOpIr::create_bool(tensor.into_ir(), dtype, || client.create_empty_handle());
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Any(desc)))
             .output()

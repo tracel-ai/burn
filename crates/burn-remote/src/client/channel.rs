@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use burn_backend::Shape;
 use burn_communication::ProtocolClient;
 use burn_ir::TensorIr;
-use burn_router::{RouterTensor, RouterChannel, get_client};
+use burn_router::{RouterChannel, RouterTensor, get_client};
 
 use super::{
     RemoteClient,

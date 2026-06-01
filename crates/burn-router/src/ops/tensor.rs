@@ -7,13 +7,12 @@ use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
 use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr,
-    CrossOpIr, DimOpIr, FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr,
-    GridSample2dOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr,
-    OperationIr, OperationOutput, PermuteOpIr, RandomOpIr,
-    ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr,
-    ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr,
-    SortWithIndicesOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
+    FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, GridSample2dOpIr,
+    InitOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr,
+    OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr,
+    RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr,
+    SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
@@ -1485,9 +1484,10 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
     ) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let desc = SortOpIr::create_arg(tensor.into_ir(), dim, descending, out_dtype.into(), || {
-            client.create_empty_handle()
-        });
+        let desc =
+            SortOpIr::create_arg(tensor.into_ir(), dim, descending, out_dtype.into(), || {
+                client.create_empty_handle()
+            });
         client
             .register(OperationIr::NumericFloat(
                 dtype,

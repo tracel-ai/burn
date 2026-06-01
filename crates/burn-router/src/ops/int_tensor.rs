@@ -6,13 +6,12 @@ use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
 use burn_backend::{Distribution, IntDType, Scalar, Shape, Slice, TensorData, ops::IntTensorOps};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr,
-    FlipOpIr, FullOpIr, GatherNdOpIr, GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr,
+    BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr,
+    FullOpIr, GatherNdOpIr, GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr,
     MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
-    RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr,
-    ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr,
-    SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr,
-    UnaryOpIr, UnfoldOpIr,
+    RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
+    ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {

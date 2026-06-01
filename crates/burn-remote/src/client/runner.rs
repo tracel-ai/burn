@@ -3,7 +3,7 @@ use crate::shared::{TaskResponseContent, TensorRemote};
 use burn_backend::{DeviceId, DeviceOps, ExecutionError, StreamId, TensorData};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
-use burn_router::{MultiBackendBridge, RouterTensor, RouterClient, get_client};
+use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::DeviceSettings;
 use burn_std::{backtrace::BackTrace, future::DynFut};
 use std::sync::Mutex;
