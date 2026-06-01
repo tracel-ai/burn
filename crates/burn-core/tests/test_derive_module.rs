@@ -668,7 +668,7 @@ mod grad_distributed {
     ) {
         use burn_tensor::distributed::DistributedConfig;
 
-        const NUM_ITERATIONS: usize = 1;
+        const NUM_ITERATIONS: usize = 100;
         let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
 
         let module = ModuleBasic::new(&devices[0]);
