@@ -5,7 +5,7 @@ use crate::{
 use bon::Builder;
 
 use burn_core::backend::{
-    Backend, ExtensionOutput, backend_extension,
+    Backend, ExtensionType, backend_extension,
     tensor::{BoolTensor, IntTensor},
 };
 use burn_core::tensor::{Int, IntDType, Scalar, Tensor, read_sync};
@@ -96,7 +96,7 @@ pub struct ConnectedStats {
     pub max_label: Tensor<1, Int>,
 }
 
-#[derive(ExtensionOutput)]
+#[derive(ExtensionType)]
 /// Primitive version of [`ConnectedStats`], to be returned by the backend
 pub struct ConnectedStatsPrimitive<B: Backend> {
     /// Total area of each component

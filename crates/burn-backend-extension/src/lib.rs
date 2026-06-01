@@ -308,7 +308,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                 } else if let Some(kind) = TensorKind::from_type(ty) {
                     OperationOutput::Tensor(kind)
                 } else {
-                    // ExtensionOutput
+                    // ExtensionType
                     OperationOutput::Custom(*ty.clone())
                 }
             }
@@ -485,7 +485,7 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
                     }
                     OutputKind::Custom(_) => {
                         quote! {
-                            burn::backend::ExtensionOutput::wrap_output(
+                            burn::backend::ExtensionType::map_type(
                                 _out.#idx,
                                 |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor),
                                 checkpointing,
@@ -497,7 +497,7 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
             quote! { (#(#elements),*) }
         }
         OperationOutput::Custom(_) => {
-            quote! { burn::backend::ExtensionOutput::wrap_output(_out, |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor), checkpointing) }
+            quote! { burn::backend::ExtensionType::map_type(_out, |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor), checkpointing) }
         }
     };
 
@@ -590,7 +590,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
                     }
                     OutputKind::Custom(_) => {
                         quote! {
-                            burn::backend::ExtensionOutput::wrap_output(
+                            burn::backend::ExtensionType::map_type(
                                 _out.#idx,
                                 |tensor| match tensor {
                                     burn::backend::BackendTensor::Float(t) => {
@@ -611,7 +611,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
                 quote! { (#(#elements),*) }
             }
             OperationOutput::Custom(_) => {
-                quote! { burn::backend::ExtensionOutput::wrap_output(_out, |tensor| match tensor {
+                quote! { burn::backend::ExtensionType::map_type(_out, |tensor| match tensor {
                     burn::backend::BackendTensor::Float(t) => {
                         burn::backend::DispatchTensorKind::Autodiff(
                             Box::new(burn::backend::DispatchTensorKind::#b_ident(
@@ -663,7 +663,7 @@ fn gen_tensor_wrap(
     }
 }
 
-/// Derive macro to implement `ExtensionOutput` for custom structures returned by backend extensions.
+/// Derive macro to implement `ExtensionType` for custom structures returned by backend extensions.
 ///
 /// When a custom backend extension operation needs to return multiple tensors or a mix of tensors
 /// and metadata (instead of a single tensor primitive or container of primitives), this macro automates
@@ -677,7 +677,7 @@ fn gen_tensor_wrap(
 /// # Example
 ///
 /// ```rust,ignore
-/// #[derive(ExtensionOutput)]
+/// #[derive(ExtensionType)]
 /// pub struct OperationOutput<B: Backend> {
 ///     pub bool: BoolTensor<B>,
 ///     pub int: IntTensor<B>,
@@ -685,7 +685,7 @@ fn gen_tensor_wrap(
 ///     pub count: usize, // Non-tensor field passes through automatically
 /// }
 /// ```
-#[proc_macro_derive(ExtensionOutput)]
+#[proc_macro_derive(ExtensionType)]
 pub fn derive_extension_output(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
@@ -712,14 +712,14 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
 
             quote! { #name { #( #field_mappings )* } }
         }
-        _ => panic!("ExtensionOutput derive only supports structs with named fields"),
+        _ => panic!("ExtensionType derive only supports structs with named fields"),
     };
 
     TokenStream::from(quote! {
-        impl #impl_generics burn::backend::ExtensionOutput<B> for #name #ty_generics #where_clause {
+        impl #impl_generics burn::backend::ExtensionType<B> for #name #ty_generics #where_clause {
             type Target = #name<burn::backend::Dispatch>;
 
-            fn wrap_output<F>(
+            fn map_type<F>(
                 self,
                 wrap_kind: F,
                 checkpointing: Option<burn::backend::CheckpointingStrategy>,
