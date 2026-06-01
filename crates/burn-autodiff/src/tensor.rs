@@ -250,7 +250,9 @@ impl<B: DistributedBackend> AutodiffTensor<B> {
             Box::new(registration)
         }));
 
+        println!("Autodiff backward");
         let grads = AutodiffClient::backward::<B>(&client, self, mode);
+        println!("Autodiff sync_collective");
         B::submit_sync_collective(&device);
         grads
     }

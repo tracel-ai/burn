@@ -44,6 +44,7 @@ impl<B: DistributedBackend> DistributedGradientRegistration<B> {
 impl<B: DistributedBackend> DistributedRegistration for DistributedGradientRegistration<B> {
     fn on_register(&mut self, id: &NodeId, container: &mut TensorContainer<GradID>) {
         if let Some(sharded_params) = self.sharded_parameters_map.get(id) {
+            println!("On register {id}");
             let n_required = self.n_required_map.get_mut(id).unwrap();
             *n_required -= 1;
 

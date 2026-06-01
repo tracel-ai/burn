@@ -101,6 +101,7 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                 let queued_tensors = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
                 if num_tensors == queued_tensors.len() {
+                    println!("LAunching sync:  {param_id}");
                     // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified until the end of the backward pass.
                     let device_ids = queued_tensors
                         .iter()

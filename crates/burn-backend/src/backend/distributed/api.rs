@@ -25,6 +25,7 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
 /// Get the distributed sync client for the given [DistributedBackend].
 pub fn get_distributed_sync_client<B: DistributedBackend>() -> Option<DistributedSyncClient<B>> {
     let typeid = TypeId::of::<B>();
+    println!("Getting distr sync server for {typeid:?}");
     let state_map = get_backend_client_map();
     state_map
         .get(&typeid)
@@ -34,6 +35,7 @@ pub fn get_distributed_sync_client<B: DistributedBackend>() -> Option<Distribute
 /// Remove the client form the map for the given [DistributedBackend].
 pub(crate) fn remove_distributed_sync_client<B: DistributedBackend>() {
     let typeid = TypeId::of::<B>();
+    println!("CLosing distr sync server for {typeid:?}");
     let mut state_map = get_backend_client_map();
     state_map.remove(&typeid);
 }
@@ -45,6 +47,7 @@ pub fn start_distributed_sync_server<B: DistributedBackend>(
 ) {
     if get_distributed_sync_client::<B>().is_none() {
         let typeid = TypeId::of::<B>();
+        println!("Creating distr sync server for {typeid:?}");
         let mut state_map = get_backend_client_map();
         let client = DistributedSyncClient::<B>::new(devices.len(), config);
         state_map.insert(typeid, Box::new(client.clone()));

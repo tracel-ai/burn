@@ -16,6 +16,10 @@ workspace = true
 
 [features]
 default = [
+    # TODO: remove
+    "cuda",
+    # TODO: remove
+    "distributed",
     "std",
     "burn-std/default",
     "burn-dataset?/default",
