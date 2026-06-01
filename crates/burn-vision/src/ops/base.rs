@@ -98,7 +98,6 @@ pub struct ConnectedStats {
 
 #[derive(ExtensionOutput)]
 /// Primitive version of [`ConnectedStats`], to be returned by the backend
-
 pub struct ConnectedStatsPrimitive<B: Backend> {
     /// Total area of each component
     pub area: IntTensor<B>,
