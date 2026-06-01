@@ -140,6 +140,12 @@ impl AutodiffServer {
             #[cfg(feature = "distributed")]
             step.distributed_params()
                 .and_then(|params| distributed_params.insert(id, params));
+            println!("breeadthSearch id: {id}");
+            #[cfg(feature = "distributed")]
+            println!(
+                "breeadthSearch distributed_params: {:?}",
+                step.distributed_params()
+            );
 
             if let Some(steps) = tape.get_mut(depth) {
                 let parents = step
