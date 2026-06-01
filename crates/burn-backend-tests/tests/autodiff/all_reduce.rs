@@ -7,15 +7,7 @@ use serial_test::serial;
 
 #[test]
 #[serial]
-fn size_mismatch() {
-    let device = Device::cuda(0).autodiff();
-    let in_tensor = TestTensor::<1>::from_data([2.0, 5.0], &device).require_grad();
-}
-
-#[test]
-#[serial]
 fn should_diff_all_reduce_sum() {
-    println!("SUM");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
     if devices.len() < 2 {
         return;
@@ -36,9 +28,7 @@ fn should_diff_all_reduce_sum() {
 #[test]
 #[serial]
 fn should_diff_all_reduce_mean() {
-    println!("MEAN");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
-    println!("{}", devices.len());
     if devices.len() < 2 {
         return;
     }
@@ -58,7 +48,6 @@ fn should_diff_all_reduce_mean() {
 #[test]
 #[serial]
 fn should_diff_all_reduce_complex_1() {
-    println!("COMPLEX");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
     if devices.len() < 2 {
         return;
@@ -85,16 +74,8 @@ fn should_diff_all_reduce_complex_1() {
     let grads_0 = out_tensor_0.backward();
     let grads_1 = out_tensor_1.backward();
 
-    println!("backwards");
-
     let grad_0 = in_tensor_0.grad(&grads_0).unwrap();
     let grad_1 = in_tensor_1.grad(&grads_1).unwrap();
-
-    println!("asserting");
-    println!("out : {out_tensor_0}");
-    println!("out1 : {out_tensor_1}");
-    println!("grad1 : {grad_1}");
-    println!("grad0 : {grad_0}");
 
     out_tensor_0.device().sync().unwrap();
 
@@ -115,7 +96,6 @@ fn should_diff_all_reduce_complex_1() {
 #[test]
 #[serial]
 fn should_diff_all_reduce_all_devices() {
-    println!("ALL");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
 
     let input = devices
@@ -140,14 +120,10 @@ fn compare_gradients(
     expected_grads: &[f32],
 ) {
     for out in outputs {
-        println!("out : {out}");
-        println!("expected : {expected_output:?}");
         out.to_data()
             .assert_eq(&TensorData::from(expected_output), false);
     }
     for grad in grads {
-        println!("grad : {grad}");
-        println!("expected : {expected_grads:?}");
         grad.to_data()
             .assert_eq(&TensorData::from(expected_grads), false);
     }
@@ -179,7 +155,6 @@ fn compute_all_reduce(
 ) -> Vec<Tensor<1>> {
     let mut out = vec![];
     for tensor in tensors.clone() {
-        // println!("in tensor: {}", tensor);
         let out_tensor = burn_tensor::module::all_reduce(tensor, op, devices.clone());
         let out_tensor = out_tensor.resolve();
         out.push(out_tensor);

@@ -56,7 +56,6 @@ pub fn full_device_dtype<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let empty = empty_device_dtype(client, device, shape, dtype);
-    println!("empty size: {}", empty.handle.size_in_used());
 
     #[cube(launch_unchecked, address_type = "dynamic")]
     pub fn full_kernel<C: Numeric, N: Size>(
@@ -174,12 +173,7 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    println!("empty_device_dtype dtype: {:?}", dtype);
-    println!("empty_device_dtype dtype size: {}", dtype.size());
-    println!("empty_device_dtype shape: {:?}", shape);
     let MemoryLayout { memory, strides } = client.empty_tensor(shape.clone(), dtype.size());
-
-    println!("memory size: {:?}", memory.size_in_used());
 
     CubeTensor::new(client, memory, Metadata::new(shape, strides), device, dtype)
 }
