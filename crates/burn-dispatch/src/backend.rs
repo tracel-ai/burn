@@ -613,19 +613,24 @@ impl AutodiffBackend for Dispatch {
         } = tensor;
 
         let kind = match kind {
-            #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(tensor) => {
-                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cuda(
-                    crate::BackendTensor::Autodiff(Autodiff::<Cuda>::set_distributed_params(
-                        tensor.as_autodiff().clone(),
-                        param_id,
-                    )),
-                )))
-            }
-            DispatchTensorKind::Autodiff(_) => {
-                panic!("Autodiff should not wrap an autodiff tensor.")
-            }
-            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
+            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+                #[cfg(feature = "cuda")]
+                DispatchTensorKind::Cuda(tensor) => {
+                    DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cuda(
+                        crate::BackendTensor::Autodiff(Autodiff::<Cuda>::set_distributed_params(
+                            tensor.as_autodiff().clone(),
+                            param_id,
+                        )),
+                    )))
+                }
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+                other => {
+                    panic!("Distributed operations are not supported for tensor kind {other:?}")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
         };
 
         let checkpointing = if let Some(strategy) = checkpointing {
