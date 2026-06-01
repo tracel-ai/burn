@@ -26,6 +26,8 @@ impl<B: DistributedBackend> DistributedGradientRegistration<B> {
     ) -> Self {
         // For DDP, we register the distributed parameters of the tensors' nodes used in the graph and the number of times they
         // appear as nodes to know when to launch gradients reducing.
+        println!("New distributed registration: {sharded_parameters_map:?}");
+        println!("New n_required: {n_required_map:?}");
         if !sharded_parameters_map.is_empty() {
             B::register_sync_parameters(
                 &device,
@@ -43,9 +45,9 @@ impl<B: DistributedBackend> DistributedGradientRegistration<B> {
 
 impl<B: DistributedBackend> DistributedRegistration for DistributedGradientRegistration<B> {
     fn on_register(&mut self, id: &NodeId, container: &mut TensorContainer<GradID>) {
-        println!("On register no_id");
+        println!("On register node_id: {id}");
         if let Some(sharded_params) = self.sharded_parameters_map.get(id) {
-            println!("On register {id}");
+            println!("On register {sharded_params:?}");
             let n_required = self.n_required_map.get_mut(id).unwrap();
             *n_required -= 1;
 

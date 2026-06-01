@@ -401,6 +401,8 @@ pub trait AutodiffModule: Module + Send + core::fmt::Debug {
 
     /// Wraps an inner module back into an auto-diff module.
     fn from_inner(module: Self) -> Self;
+
+    // TODO: grad_sharded
 }
 
 #[cfg(all(test, feature = "autodiff"))]
