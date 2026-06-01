@@ -404,7 +404,7 @@ pub(crate) fn parse_module_fields(
             return Err(syn::Error::new(
                 param.ident.span(),
                 format!(
-                    "Generic type `{ident}` is used in both a module field and a skipped field. \
+                    "Generic type `{ident}` should not be used on both a module field and a skipped field. \
                      Consider removing `#[module(skip)]` or using a different type for one of the fields.",
                 ),
             ));
