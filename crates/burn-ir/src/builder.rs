@@ -476,23 +476,15 @@ impl ReduceBoolDimOpIr {
     }
 }
 
-impl SortOpIr {
-    /// Create a sort IR (output preserves input shape and dtype).
-    pub fn create(
+impl_ir_create!(
+    SortOpIr {
         input: TensorIr,
         dim: usize,
-        descending: bool,
-        new_id: impl FnOnce() -> TensorId,
-    ) -> Self {
-        let out = TensorIr::uninit(new_id(), input.shape.clone(), input.dtype);
-        SortOpIr {
-            input,
-            dim,
-            descending,
-            out,
-        }
-    }
-}
+        descending: bool
+    },
+    shape = input.shape.clone(),
+    dtype = input.dtype
+);
 
 impl SortWithIndicesOpIr {
     /// Create a sort-with-indices IR.
