@@ -651,8 +651,8 @@ impl AutodiffBackend for Dispatch {
             checkpointing: _,
         } = tensor;
 
-        match kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+        match &kind {
+            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(feature = "cuda")]
                 DispatchTensorKind::Cuda(tensor) => {
                     tensor.as_autodiff().node.distributed_params.clone()
@@ -676,8 +676,8 @@ impl AutodiffBackend for Dispatch {
             checkpointing: _,
         } = tensor;
 
-        match kind {
-            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+        match &kind {
+            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(feature = "cuda")]
                 DispatchTensorKind::Cuda(tensor) => {
                     tensor.as_autodiff().node.distributed_params.is_some()
