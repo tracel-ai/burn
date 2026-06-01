@@ -674,6 +674,15 @@ fn gen_tensor_wrap(
 /// - The struct must have named fields.
 /// - The struct must be generic over a `Backend` type parameter (`B`).
 ///
+/// # Field Attributes
+///
+/// By default, the macro inspects the type of each field:
+/// - **Tensor Primitives**: Automatically mapped.
+/// - **Other types**: Passed through unmodified.
+///
+/// To nest another custom struct that also implements `ExtensionType`, you must annotate it with
+/// `#[extension_type]` to tell the macro to traverse it recursively.
+///
 /// # Example
 ///
 /// ```rust,ignore
@@ -685,7 +694,7 @@ fn gen_tensor_wrap(
 ///     pub count: usize, // Non-tensor field passes through automatically
 /// }
 /// ```
-#[proc_macro_derive(ExtensionType)]
+#[proc_macro_derive(ExtensionType, attributes(extension_type))]
 pub fn derive_extension_output(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
@@ -696,11 +705,23 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
         syn::Fields::Named(fields) => {
             let field_mappings = fields.named.iter().map(|f| {
                 let f_name = &f.ident;
-                if let Some(tensor_kind) = TensorKind::from_type(&f.ty) {
+                let is_ext = f.attrs.iter().any(|attr| attr.path().is_ident("extension_type"));
+
+                if is_ext {
+                    // It's a nested extension type
+                    quote! {
+                        #f_name: self.#f_name.map_type(
+                            &map_kind,
+                            checkpointing
+                        ),
+                    }
+                }
+                else if let Some(tensor_kind) = TensorKind::from_type(&f.ty) {
+                    // Tensor primitive
                     let variant_ident = tensor_kind.variant();
                     quote! {
                         #f_name: burn::backend::DispatchTensor {
-                            kind: wrap_kind(burn::backend::BackendTensor::#variant_ident(self.#f_name)),
+                            kind: map_kind(burn::backend::BackendTensor::#variant_ident(self.#f_name)),
                             checkpointing,
                         },
                     }
@@ -721,7 +742,7 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
 
             fn map_type<F>(
                 self,
-                wrap_kind: F,
+                map_kind: F,
                 checkpointing: Option<burn::backend::CheckpointingStrategy>,
             ) -> Self::Target
             where
