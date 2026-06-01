@@ -50,7 +50,7 @@ macro_rules! dispatch_distributed_devices_arms {
                         .iter()
                         .map(|d| {
                             let DispatchDevice::$Backend(dev) = d else {
-                                panic!("All devices are expected to be of the same variant.")
+                                unreachable!("All devices are expected to be of the same variant.")
                             };
                             dev.clone()
                         })
@@ -77,7 +77,7 @@ macro_rules! dispatch_distributed_devices_arms {
                         .iter()
                         .map(|d| {
                             let DispatchDevice::$Backend(dev) = d else {
-                                panic!("All devices are expected to be of the same variant.")
+                                unreachable!("All devices are expected to be of the same variant.")
                             };
                             dev.clone()
                         })
@@ -93,15 +93,13 @@ macro_rules! dispatch_distributed_devices_arms {
 
 /// Dispatches an operation body based on the provided devices.
 macro_rules! dispatch_distributed_devices {
-    (@distributed $device:expr, $devices:expr, |$inner_devices:ident| $body:expr) => {
-        dispatch_distributed_devices!(@internal distributed_backend_list,
+    ($device:expr, $devices:expr, |$inner_devices:ident| $body:expr) => {
+        distributed_backend_list!(
+            dispatch_distributed_devices_arms,
             $device,
             $devices,
             |$inner_devices| $body
         )
-    };
-    (@internal $list_macro:ident, $device:expr, $devices:expr, |$inner_devices:ident| $body:expr) => {
-        $list_macro!(dispatch_distributed_devices_arms, $device, $devices, |$inner_devices| $body)
     };
 }
 
@@ -109,7 +107,7 @@ impl DistributedBackend for Dispatch {
     fn start_communication_server(devices: &[DispatchDevice], config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];
-            dispatch_distributed_devices!(@distributed first, devices, |inner_devices| {
+            dispatch_distributed_devices!(first, devices, |inner_devices| {
                 B::start_communication_server(&inner_devices, config)
             });
         }
