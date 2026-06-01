@@ -334,7 +334,6 @@ pub trait AutodiffBackend: Backend {
         tensor: FloatTensor<Self>,
         _param_id: DistributedParamId,
     ) -> FloatTensor<Self> {
-        println!("default impl");
         tensor
     }
 
