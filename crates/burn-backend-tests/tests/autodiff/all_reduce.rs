@@ -110,7 +110,7 @@ fn should_diff_all_reduce_all_devices() {
     let value: f32 = devices.iter().enumerate().map(|(i, _)| i as f32).sum();
     let grad_value = devices.len() as f32;
     let (output, grads) = compute_gradients(input, ReduceOperation::Sum, devices);
-    compare_gradients(output, grads, &[value, value], &[grad_value, grad_value]);
+    compare_gradients(output, grads, &[value; 5], &[grad_value; 5]);
 }
 
 fn compare_gradients(

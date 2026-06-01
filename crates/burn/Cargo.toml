@@ -23,6 +23,10 @@ workspace = true
 
 [features]
 default = [
+    # TODO: remove
+    "distributed",
+    # TODO: remove
+    "cuda",
     "std",
     "optim",
     "burn-core/default",
