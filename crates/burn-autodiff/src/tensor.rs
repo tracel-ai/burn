@@ -228,6 +228,8 @@ impl<B: Backend> AutodiffTensor<B> {
             Some(DistributedParams { param_id }),
         )
         .into();
+        println!("grad_distributed: {}", self.node.id);
+        println!("grad_distributed: {}", param_id);
         let step = RootStep::new(self.node.clone());
 
         self.register_step(step, CheckpointerBuilder::default())
