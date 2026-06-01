@@ -6,6 +6,10 @@ use crate::module::{
 use alloc::{format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
+impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {}
+impl<const D: usize> super::sealed::Sealed for Tensor<D, Int> {}
+impl<const D: usize> super::sealed::Sealed for Tensor<D, Bool> {}
+
 impl<const D: usize> Parameter for Tensor<D, Float> {
     fn device(&self) -> Device {
         Tensor::device(self)
@@ -17,6 +21,18 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
 
     fn set_require_grad(self, require_grad: bool) -> Self {
         Tensor::set_require_grad(self, require_grad)
+    }
+
+    fn shape(&self) -> burn_std::Shape {
+        Tensor::shape(self)
+    }
+
+    fn load_to_device(self, device: &Device) -> Self {
+        if self.device() != *device {
+            Tensor::to_device(self, device).detach()
+        } else {
+            self
+        }
     }
 }
 
@@ -32,6 +48,18 @@ impl<const D: usize> Parameter for Tensor<D, Int> {
     fn set_require_grad(self, _require_grad: bool) -> Self {
         self
     }
+
+    fn shape(&self) -> burn_std::Shape {
+        Tensor::shape(self)
+    }
+
+    fn load_to_device(self, device: &Device) -> Self {
+        if self.device() != *device {
+            Tensor::to_device(self, device)
+        } else {
+            self
+        }
+    }
 }
 
 impl<const D: usize> Parameter for Tensor<D, Bool> {
@@ -45,6 +73,18 @@ impl<const D: usize> Parameter for Tensor<D, Bool> {
 
     fn set_require_grad(self, _require_grad: bool) -> Self {
         self
+    }
+
+    fn shape(&self) -> burn_std::Shape {
+        Tensor::shape(self)
+    }
+
+    fn load_to_device(self, device: &Device) -> Self {
+        if self.device() != *device {
+            Tensor::to_device(self, device)
+        } else {
+            self
+        }
     }
 }
 
@@ -62,28 +102,6 @@ impl<const D: usize> Param<Tensor<D>> {
         Param::initialized(ParamId::new(), value.require_grad())
     }
 
-    /// The shape of the parameter, **without triggering initialization**.
-    ///
-    /// This is critical for shape validation during loading: when applying tensors to an
-    /// uninitialized parameter, we need to validate the shape without triggering the
-    /// initialization function (which would allocate an unnecessary tensor).
-    ///
-    /// Use this instead of [crate::tensor::Tensor::shape] when you need the shape but want to
-    /// preserve lazy initialization.
-    pub fn lazy_shape(&self) -> burn_tensor::Shape {
-        let initialization = match &self.initialization {
-            Some(init) => init,
-            None => return self.shape(),
-        };
-
-        let init = initialization.read().unwrap();
-
-        match init.as_ref() {
-            Some(value) => value.shape.clone(),
-            None => self.shape(),
-        }
-    }
-
     /// Create a new parameter from data.
     pub fn from_data<T>(data: T, device: &Device) -> Self
     where
@@ -96,176 +114,6 @@ impl<const D: usize> Param<Tensor<D>> {
             let value = Tensor::from_data(data, device);
             Param::initialized(ParamId::new(), value.require_grad())
         })
-    }
-
-    /// Transform a parameter for loading by applying load transformations.
-    ///
-    /// This method is used to restore a parameter from a tensor (typically during deserialization).
-    /// It ensures the tensor is moved to the expected device, applies the param mapper's
-    /// `on_load` transformation, and preserves the autodiff settings (require_grad).
-    pub fn transform_for_load(self, tensor: Tensor<D>, param_id: ParamId) -> Self {
-        let mut new_tensor = tensor;
-
-        let mapper = self.param_mapper.clone();
-
-        let expected_device = self.lazy_device();
-        let expected_require_grad = self.lazy_is_require_grad();
-
-        // Make sure we load the tensor into the same module device.
-        if new_tensor.device() != expected_device {
-            new_tensor = new_tensor.to_device(&expected_device).detach();
-        }
-
-        new_tensor = mapper.on_load(new_tensor);
-
-        // Make sure we load the tensor with the same autodiff setting.
-        new_tensor = new_tensor.set_require_grad(expected_require_grad);
-
-        let mut loaded = Self::initialized(param_id, new_tensor);
-        loaded.param_mapper = mapper;
-        loaded
-    }
-
-    /// Transform a parameter for saving by applying save transformations.
-    ///
-    /// This method is used to prepare a parameter for saving (typically during serialization).
-    /// It applies the param mapper's `on_save` transformation, which can be used
-    /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn transform_for_save(&self) -> Self {
-        let mut tensor = self.val();
-        let mapper = self.param_mapper.clone();
-
-        tensor = mapper.on_save(tensor);
-
-        Self::initialized(self.id, tensor)
-    }
-}
-
-impl<const D: usize> Param<Tensor<D, Int>> {
-    /// The shape of the parameter, **without triggering initialization**.
-    ///
-    /// This is critical for shape validation during loading: when applying tensors to an
-    /// uninitialized parameter, we need to validate the shape without triggering the
-    /// initialization function (which would allocate an unnecessary tensor).
-    ///
-    /// Use this instead of [crate::tensor::Tensor::shape] when you need the shape but want to
-    /// preserve lazy initialization.
-    pub fn lazy_shape(&self) -> burn_tensor::Shape {
-        let initialization = match &self.initialization {
-            Some(init) => init,
-            None => return self.shape(),
-        };
-
-        let init = initialization.read().unwrap();
-
-        match init.as_ref() {
-            Some(value) => value.shape.clone(),
-            None => self.shape(),
-        }
-    }
-
-    /// Transform a parameter for loading by applying load transformations.
-    ///
-    /// This method is used to restore a parameter from a tensor (typically during deserialization).
-    /// It ensures the tensor is moved to the expected device and applies the param mapper's
-    /// `on_load` transformation.
-    pub fn transform_for_load(self, tensor: Tensor<D, Int>, param_id: ParamId) -> Self {
-        let mut new_tensor = tensor;
-
-        let mapper = self.param_mapper.clone();
-
-        let expected_device = self.lazy_device();
-
-        // Make sure we load the tensor into the same module device.
-        if new_tensor.device() != expected_device {
-            new_tensor = new_tensor.to_device(&expected_device);
-        }
-
-        new_tensor = mapper.on_load(new_tensor);
-
-        let mut loaded = Self::initialized(param_id, new_tensor);
-        loaded.param_mapper = mapper;
-        loaded
-    }
-
-    /// Transform a parameter for saving by applying save transformations.
-    ///
-    /// This method is used to prepare a parameter for saving (typically during serialization).
-    /// It applies the param mapper's `on_save` transformation, which can be used
-    /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn transform_for_save(&self) -> Self {
-        let mut tensor = self.val();
-        let mapper = self.param_mapper.clone();
-
-        tensor = mapper.on_save(tensor);
-
-        Self::initialized(self.id, tensor)
-    }
-}
-
-impl<const D: usize> Param<Tensor<D, Bool>> {
-    /// The shape of the parameter, **without triggering initialization**.
-    ///
-    /// This is critical for shape validation during loading: when applying tensors to an
-    /// uninitialized parameter, we need to validate the shape without triggering the
-    /// initialization function (which would allocate an unnecessary tensor).
-    ///
-    /// **Returns:**
-    /// - For uninitialized params: the shape from the `Uninitialized` struct
-    /// - For initialized params: the actual shape from the tensor
-    ///
-    /// Use this instead of [crate::tensor::Tensor::shape] when you need the shape but want to
-    /// preserve lazy initialization.
-    pub fn lazy_shape(&self) -> burn_tensor::Shape {
-        let initialization = match &self.initialization {
-            Some(init) => init,
-            None => return self.shape(),
-        };
-
-        let init = initialization.read().unwrap();
-
-        match init.as_ref() {
-            Some(value) => value.shape.clone(),
-            None => self.shape(),
-        }
-    }
-
-    /// Transform a parameter for loading by applying load transformations.
-    ///
-    /// This method is used to restore a parameter from a tensor (typically during deserialization).
-    /// It ensures the tensor is moved to the expected device and applies the param mapper's
-    /// `on_load` transformation.
-    pub fn transform_for_load(self, tensor: Tensor<D, Bool>, param_id: ParamId) -> Self {
-        let mut new_tensor = tensor;
-
-        let mapper = self.param_mapper.clone();
-
-        let expected_device = self.lazy_device();
-
-        // Make sure we load the tensor into the same module device.
-        if new_tensor.device() != expected_device {
-            new_tensor = new_tensor.to_device(&expected_device);
-        }
-
-        new_tensor = mapper.on_load(new_tensor);
-
-        let mut loaded = Self::initialized(param_id, new_tensor);
-        loaded.param_mapper = mapper;
-        loaded
-    }
-
-    /// Transform a parameter for saving by applying save transformations.
-    ///
-    /// This method is used to prepare a parameter for saving (typically during serialization).
-    /// It applies the param mapper's `on_save` transformation, which can be used
-    /// to modify the tensor before serialization (e.g., quantization, precision conversion).
-    pub fn transform_for_save(&self) -> Self {
-        let mut tensor = self.val();
-        let mapper = self.param_mapper.clone();
-
-        tensor = mapper.on_save(tensor);
-
-        Self::initialized(self.id, tensor)
     }
 }
 

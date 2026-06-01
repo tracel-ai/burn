@@ -5,7 +5,7 @@ use burn_std::DType;
 use crate::{
     Tensor,
     kind::Basic,
-    ops::{BridgeKind, BridgeTensor, TensorKindId},
+    ops::{BridgeKind, BridgeTensor, Kind},
 };
 
 impl<const D: usize, K> Tensor<D, K>
@@ -33,13 +33,11 @@ where
     /// (e.g. passing an int [`BridgeTensor`] when `K` is [`Float`](crate::Float).
     pub fn from_bridge(tensor: BridgeTensor) -> Self {
         let dtype = tensor.dtype();
-        match (tensor.kind(), K::id()) {
-            (BridgeKind::Bool, TensorKindId::Bool) if dtype.is_bool() => Self::new(tensor),
-            (BridgeKind::Int, TensorKindId::Int) if dtype.is_int() || dtype.is_uint() => {
-                Self::new(tensor)
-            }
-            (BridgeKind::Float, TensorKindId::Float) if dtype.is_float() => Self::new(tensor),
-            (BridgeKind::QFloat, TensorKindId::Float) if matches!(dtype, DType::QFloat(_)) => {
+        match (tensor.kind(), K::KIND) {
+            (BridgeKind::Bool, Kind::Bool) if dtype.is_bool() => Self::new(tensor),
+            (BridgeKind::Int, Kind::Int) if dtype.is_int() || dtype.is_uint() => Self::new(tensor),
+            (BridgeKind::Float, Kind::Float) if dtype.is_float() => Self::new(tensor),
+            (BridgeKind::QFloat, Kind::Float) if matches!(dtype, DType::QFloat(_)) => {
                 Self::new(tensor)
             }
             (_, kind) => panic!("Expected kind {kind:?}, got dtype {dtype:?}"),
@@ -51,15 +49,13 @@ where
     /// # Panics
     /// Panis if the primitive dtype does not match the tensor kind `K`.
     pub fn from_primitive(tensor: DispatchTensor) -> Self {
-        match (tensor.dtype(), K::id()) {
-            (DType::QFloat(_), TensorKindId::Float) => Self::new(BridgeTensor::qfloat(tensor)),
-            (dtype, TensorKindId::Float) if dtype.is_float() => {
-                Self::new(BridgeTensor::float(tensor))
-            }
-            (dtype, TensorKindId::Int) if dtype.is_int() || dtype.is_uint() => {
+        match (tensor.dtype(), K::KIND) {
+            (DType::QFloat(_), Kind::Float) => Self::new(BridgeTensor::qfloat(tensor)),
+            (dtype, Kind::Float) if dtype.is_float() => Self::new(BridgeTensor::float(tensor)),
+            (dtype, Kind::Int) if dtype.is_int() || dtype.is_uint() => {
                 Self::new(BridgeTensor::int(tensor))
             }
-            (dtype, TensorKindId::Bool) if dtype.is_bool() => Self::new(BridgeTensor::bool(tensor)),
+            (dtype, Kind::Bool) if dtype.is_bool() => Self::new(BridgeTensor::bool(tensor)),
             (dtype, kind) => panic!("Expected kind {kind:?}, got dtype {dtype:?}"),
         }
     }
