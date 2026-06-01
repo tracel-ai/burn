@@ -39,7 +39,7 @@ impl SessionId {
     }
 }
 
-#[allow(missing_docs)]
+#[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Task {
     Compute(ComputeTask),
@@ -54,7 +54,7 @@ pub struct TensorRemote {
     pub address: Address,
 }
 
-#[allow(missing_docs)]
+#[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ComputeTask {
     Seed(u64),

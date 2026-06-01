@@ -22,7 +22,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::ReluBackward(desc)))
+            .register(OperationIr::Activation(
+                ActivationOperationIr::ReluBackward(desc),
+            ))
             .output()
     }
 
@@ -33,7 +35,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::LeakyRelu(desc)))
+            .register(OperationIr::Activation(ActivationOperationIr::LeakyRelu(
+                desc,
+            )))
             .output()
     }
 
@@ -62,7 +66,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         let desc = BinaryOpIr::create(x.into_ir(), grad.into_ir(), || client.create_empty_handle());
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::GeluBackward(desc)))
+            .register(OperationIr::Activation(
+                ActivationOperationIr::GeluBackward(desc),
+            ))
             .output()
     }
 
@@ -71,7 +77,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::Sigmoid(desc)))
+            .register(OperationIr::Activation(ActivationOperationIr::Sigmoid(
+                desc,
+            )))
             .output()
     }
 
@@ -82,7 +90,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::SigmoidBackward(desc)))
+            .register(OperationIr::Activation(
+                ActivationOperationIr::SigmoidBackward(desc),
+            ))
             .output()
     }
 
@@ -93,7 +103,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::HardSigmoid(desc)))
+            .register(OperationIr::Activation(ActivationOperationIr::HardSigmoid(
+                desc,
+            )))
             .output()
     }
 
@@ -102,7 +114,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::LogSigmoid(desc)))
+            .register(OperationIr::Activation(ActivationOperationIr::LogSigmoid(
+                desc,
+            )))
             .output()
     }
 
@@ -111,7 +125,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         let desc = BinaryOpIr::create(x.into_ir(), grad.into_ir(), || client.create_empty_handle());
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::LogSigmoidBackward(desc)))
+            .register(OperationIr::Activation(
+                ActivationOperationIr::LogSigmoidBackward(desc),
+            ))
             .output()
     }
 
@@ -120,7 +136,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::Softmax(desc)))
+            .register(OperationIr::Activation(ActivationOperationIr::Softmax(
+                desc,
+            )))
             .output()
     }
 
@@ -129,7 +147,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::LogSoftmax(desc)))
+            .register(OperationIr::Activation(ActivationOperationIr::LogSoftmax(
+                desc,
+            )))
             .output()
     }
 
@@ -138,7 +158,9 @@ impl<R: RunnerChannel> ActivationOps<Self> for BackendRouter<R> {
         let desc = DimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());
 
         client
-            .register(OperationIr::Activation(ActivationOperationIr::Softmin(desc)))
+            .register(OperationIr::Activation(ActivationOperationIr::Softmin(
+                desc,
+            )))
             .output()
     }
 }
