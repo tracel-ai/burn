@@ -26,8 +26,11 @@ macro_rules! distributed_backend_list {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
             $($extra)*;
-            // Right now, only the cubecl CudaServer actually implements the distributed communication
-            [Cuda, feature = "cuda"]
+            // The cubecl CudaServer implements the distributed communication directly; the remote
+            // backend forwards the collective operations to its server (which runs a real
+            // distributed backend).
+            [Cuda, feature = "cuda"],
+            [Remote, feature = "remote"]
         }
     };
 }
