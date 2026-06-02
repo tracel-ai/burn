@@ -1,6 +1,4 @@
 use burn_core as burn;
-#[cfg(feature = "distributed")]
-use burn_core::tensor::backend::distributed::DistributedParamId;
 
 use super::{SimpleOptimizer, record::AdaptorRecord};
 use crate::{
@@ -217,7 +215,7 @@ where
             }
             #[cfg(feature = "distributed")]
             if is_distributed {
-                tensor = tensor.set_distributed(DistributedParamId::from(id.val()))
+                tensor = tensor.set_distributed(id)
             }
 
             tensor
