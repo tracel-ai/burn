@@ -5,6 +5,8 @@ use burn_tensor::{
 };
 use serial_test::serial;
 
+// TODO
+
 #[test]
 #[serial]
 fn should_diff_all_reduce_sum() {
@@ -72,6 +74,10 @@ fn should_diff_all_reduce_complex_1() {
     let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
     let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
 
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Sum,
+    };
+    let _context = DistributedContext::init(vec![device_0.clone(), device_1.clone()], config);
     let [out_tensor_0, out_tensor_1] = &compute_all_reduce(
         vec![in_tensor_0.clone(), in_tensor_1.clone()],
         ReduceOperation::Sum,

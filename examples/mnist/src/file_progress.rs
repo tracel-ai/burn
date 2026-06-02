@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{File, OpenOptions},
     io::Write,
     path::Path,
@@ -21,13 +22,17 @@ use burn::train::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 /// ```
 pub struct FileTrainingProgressLogger {
     writer: File,
+    event_counters: HashMap<String, usize>,
 }
 
 impl FileTrainingProgressLogger {
     /// Opens (or creates) the file at `path` in append mode.
     pub fn new(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
-        Ok(Self { writer: file })
+        Ok(Self {
+            writer: file,
+            event_counters: HashMap::new(),
+        })
     }
 
     fn write(&mut self, line: &str) {
@@ -65,10 +70,20 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 
     fn end_split(&mut self) {
         self.write("[Training] split_end");
+        self.event_counters.values_mut().for_each(|v| *v = 0);
     }
 
     fn end(&mut self) {
         self.write("[Training] end");
+    }
+
+    fn log_event_training(&mut self, event: String) {
+        let count = {
+            let c = self.event_counters.entry(event.clone()).or_insert(0);
+            *c += 1;
+            *c
+        };
+        self.write(&format!("[event] {event} = {count}"));
     }
 }
 
@@ -87,13 +102,17 @@ impl TrainingProgressLogger for FileTrainingProgressLogger {
 /// ```
 pub struct FileEvaluationProgressLogger {
     writer: File,
+    event_counters: HashMap<String, usize>,
 }
 
 impl FileEvaluationProgressLogger {
     /// Opens (or creates) the file at `path` in append mode.
     pub fn new(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
-        Ok(Self { writer: file })
+        Ok(Self {
+            writer: file,
+            event_counters: HashMap::new(),
+        })
     }
 
     fn write(&mut self, line: &str) {
@@ -104,7 +123,7 @@ impl FileEvaluationProgressLogger {
 }
 
 impl EvaluationProgressLogger for FileEvaluationProgressLogger {
-    fn start(&mut self, total_tests: usize) {
+    fn start_global_progress(&mut self, total_tests: usize) {
         self.write(&format!("[Evaluation] start  total_tests={total_tests}"));
     }
 
@@ -114,7 +133,7 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
         ));
     }
 
-    fn update_test(&mut self, items_processed: usize) {
+    fn update_test_progress(&mut self, items_processed: usize) {
         self.write(&format!(
             "[Evaluation] test_update  items_processed={items_processed}"
         ));
@@ -122,9 +141,19 @@ impl EvaluationProgressLogger for FileEvaluationProgressLogger {
 
     fn end_test(&mut self) {
         self.write("[Evaluation] test_end");
+        self.event_counters.values_mut().for_each(|v| *v = 0);
     }
 
-    fn end(&mut self) {
+    fn end_global_progress(&mut self) {
         self.write("[Evaluation] end");
+    }
+
+    fn log_event_evaluation(&mut self, event: String) {
+        let count = {
+            let c = self.event_counters.entry(event.clone()).or_insert(0);
+            *c += 1;
+            *c
+        };
+        self.write(&format!("[event] {event} = {count}"));
     }
 }

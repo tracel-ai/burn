@@ -540,12 +540,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn contains_nan(self) -> Tensor<1, Bool> {
-        // Summing the tensor will result in NaN if the tensor contains any NaN values
-        // This is faster than checking each element individually
-        // because it rolls up the NaN values into a single value
-        let sum = self.sum();
-
-        sum.is_nan()
+        self.is_nan().any()
     }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).

@@ -3,6 +3,7 @@
 //! "A new Direct Connected Component Labeling and Analysis Algorithms for GPUs",
 //! DASIP, 2018
 
+use crate::ConnectedStatsPrimitive;
 use crate::{
     ConnectedStatsOptions, Connectivity, backends::cube::connected_components::stats_from_opts,
 };
@@ -466,24 +467,12 @@ fn compact_stats<I: Int>(
     bottom_new[new_label as usize] = bottom[label as usize];
 }
 
-#[allow(clippy::type_complexity)]
 pub fn hardware_accelerated<R: CubeRuntime>(
     img: CubeTensor<R>,
     stats_opt: ConnectedStatsOptions,
     connectivity: Connectivity,
     int_dtype: DType,
-) -> Result<
-    (
-        CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
-        CubeTensor<R>,
-    ),
-    String,
-> {
+) -> Result<(CubeTensor<R>, ConnectedStatsPrimitive<CubeBackend<R>>), String> {
     let client = img.client.clone();
     let device = img.device.clone();
     let dtypes = [
@@ -578,22 +567,22 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                 cube_dim,
                 img.clone().into_tensor_arg(),
                 labels.clone().into_tensor_arg(),
-                stats.0.clone().into_tensor_arg(),
-                stats.1.clone().into_tensor_arg(),
-                stats.2.clone().into_tensor_arg(),
-                stats.3.clone().into_tensor_arg(),
-                stats.4.clone().into_tensor_arg(),
-                stats.5.clone().into_tensor_arg(),
+                stats.area.clone().into_tensor_arg(),
+                stats.top.clone().into_tensor_arg(),
+                stats.left.clone().into_tensor_arg(),
+                stats.right.clone().into_tensor_arg(),
+                stats.bottom.clone().into_tensor_arg(),
+                stats.max_label.clone().into_tensor_arg(),
                 stats_opt,
                 dtypes,
             )
         };
         if stats_opt.compact_labels {
-            let max_label = CubeBackend::<R>::int_max(stats.5);
+            let max_label = CubeBackend::<R>::int_max(stats.max_label);
             let max_label = into_data_sync::<R>(max_label);
             let max_label = ToElement::to_usize(&max_label.iter::<i32>().next().unwrap());
             let sliced = kernel::slice::<R>(
-                stats.0.clone(),
+                stats.area.clone(),
                 #[allow(clippy::single_range_in_vec_init)]
                 &[0..(max_label + 1).next_multiple_of(4)],
             );
@@ -604,7 +593,8 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                 (cols as u32).div_ceil(cube_dim.x),
                 (rows as u32).div_ceil(cube_dim.y),
             );
-            stats.5 = zeros_client::<R>(client.clone(), device.clone(), Shape::new([1]), int_dtype);
+            stats.max_label =
+                zeros_client::<R>(client.clone(), device.clone(), Shape::new([1]), int_dtype);
             unsafe {
                 compact_labels::launch_unchecked(
                     &client,
@@ -612,7 +602,7 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                     cube_dim,
                     labels.clone().into_tensor_arg(),
                     relabel.clone().into_tensor_arg(),
-                    stats.5.clone().into_tensor_arg(),
+                    stats.max_label.clone().into_tensor_arg(),
                     int_storage,
                 )
             };
@@ -624,16 +614,16 @@ pub fn hardware_accelerated<R: CubeRuntime>(
                     &client,
                     cube_count,
                     cube_dim,
-                    stats.0.copy().into_tensor_arg(),
-                    stats.0.clone().into_tensor_arg(),
-                    stats.1.copy().into_tensor_arg(),
-                    stats.1.clone().into_tensor_arg(),
-                    stats.2.copy().into_tensor_arg(),
-                    stats.2.clone().into_tensor_arg(),
-                    stats.3.copy().into_tensor_arg(),
-                    stats.3.clone().into_tensor_arg(),
-                    stats.4.copy().into_tensor_arg(),
-                    stats.4.clone().into_tensor_arg(),
+                    stats.area.copy().into_tensor_arg(),
+                    stats.area.clone().into_tensor_arg(),
+                    stats.top.copy().into_tensor_arg(),
+                    stats.top.clone().into_tensor_arg(),
+                    stats.left.copy().into_tensor_arg(),
+                    stats.left.clone().into_tensor_arg(),
+                    stats.right.copy().into_tensor_arg(),
+                    stats.right.clone().into_tensor_arg(),
+                    stats.bottom.copy().into_tensor_arg(),
+                    stats.bottom.clone().into_tensor_arg(),
                     relabel.into_tensor_arg(),
                     int_storage,
                 )
@@ -641,5 +631,5 @@ pub fn hardware_accelerated<R: CubeRuntime>(
         }
     }
 
-    Ok((labels, stats.0, stats.1, stats.2, stats.3, stats.4, stats.5))
+    Ok((labels, stats))
 }

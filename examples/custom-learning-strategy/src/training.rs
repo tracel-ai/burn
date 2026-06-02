@@ -1,5 +1,4 @@
 use crate::model::ModelConfig;
-use burn::data::dataloader::Progress;
 use burn::record::NoStdTrainingRecorder;
 use burn::train::{
     EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
@@ -171,7 +170,6 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 let item = TrainingItem::new(
                     item.item,
                     progress,
-                    Progress::new(epoch, num_epochs),
                     Some(iteration),
                     Some(learner.lr_current()),
                 );
@@ -199,13 +197,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 iteration += 1;
 
                 let item = model_valid.step(item);
-                let item = TrainingItem::new(
-                    item,
-                    progress,
-                    Progress::new(epoch, num_epochs),
-                    Some(iteration),
-                    None,
-                );
+                let item = TrainingItem::new(item, progress, Some(iteration), None);
 
                 event_processor.process_valid(LearnerEvent::ProcessedItem(item));
             }

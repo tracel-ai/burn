@@ -5,9 +5,10 @@ use burn::{
     tensor::Device,
     train::{
         Learner, SupervisedTraining,
+        logger::{EvaluationProgressLogger, TrainingProgressLogger},
         renderer::{
-            EvaluationName, EvaluationProgress, MetricState, MetricsRenderer,
-            MetricsRendererEvaluation, MetricsRendererTraining, ProgressType, TrainingProgress,
+            EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+            MetricsRendererTraining,
         },
     },
 };
@@ -35,13 +36,25 @@ impl MetricsRendererTraining for CustomRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}
+}
 
-    fn render_train(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
-        dbg!(item);
+impl TrainingProgressLogger for CustomRenderer {
+    fn start(&mut self, _total_epochs: usize, _total_items: Option<usize>) {}
+
+    fn update_epoch(&mut self, _epoch: usize) {}
+
+    fn start_split(&mut self, _split: &str, _total_items: usize) {}
+
+    fn update_split(&mut self, items_processed: usize) {
+        dbg!(items_processed);
     }
 
-    fn render_valid(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
-        dbg!(item);
+    fn end_split(&mut self) {}
+
+    fn end(&mut self) {}
+
+    fn log_event_training(&mut self, event: String) {
+        dbg!(event);
     }
 }
 
@@ -55,9 +68,23 @@ impl MetricsRenderer for CustomRenderer {
 
 impl MetricsRendererEvaluation for CustomRenderer {
     fn update_test(&mut self, _name: EvaluationName, _state: MetricState) {}
+}
 
-    fn render_test(&mut self, item: EvaluationProgress, _progress_indicators: Vec<ProgressType>) {
-        dbg!(item);
+impl EvaluationProgressLogger for CustomRenderer {
+    fn start_global_progress(&mut self, _total_tests: usize) {}
+
+    fn start_test(&mut self, _name: &str, _total_items: usize) {}
+
+    fn update_test_progress(&mut self, items_processed: usize) {
+        dbg!(items_processed);
+    }
+
+    fn end_test(&mut self) {}
+
+    fn end_global_progress(&mut self) {}
+
+    fn log_event_evaluation(&mut self, event: String) {
+        dbg!(event);
     }
 }
 

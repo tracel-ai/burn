@@ -18,39 +18,49 @@ pub struct Int;
 #[derive(Clone, Debug)]
 pub struct Bool;
 
+mod sealed {
+    pub trait Sealed {}
+}
+
+impl sealed::Sealed for Float {}
+impl sealed::Sealed for Int {}
+impl sealed::Sealed for Bool {}
+
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
-pub trait TensorKind: Clone + Send + Sync + core::fmt::Debug {
+///
+/// # Notes
+/// This trait is intentionally sealed to keep the set of tensor kinds closed.
+///
+/// Although exposed publicly, tensor kinds are not meant to be extensible:
+/// the backend dispatch system, `DType`, and all tensor ops assume a fixed,
+/// closed set of tensor kinds (e.g. Float, Int, Bool), each mapping directly to a
+/// corresponding backend implementation.
+pub trait TensorKind: sealed::Sealed + Clone + Send + Sync + core::fmt::Debug {
+    /// The tensor kind identifier.
+    const KIND: Kind;
+
     /// The name of the tensor kind.
     fn name() -> &'static str {
-        Self::id().as_str()
+        Self::KIND.as_str()
     }
-
-    /// The tensor kind identifier.
-    fn id() -> TensorKindId;
 }
 
 impl TensorKind for Float {
-    fn id() -> TensorKindId {
-        TensorKindId::Float
-    }
+    const KIND: Kind = Kind::Float;
 }
 
 impl TensorKind for Int {
-    fn id() -> TensorKindId {
-        TensorKindId::Int
-    }
+    const KIND: Kind = Kind::Int;
 }
 
 impl TensorKind for Bool {
-    fn id() -> TensorKindId {
-        TensorKindId::Bool
-    }
+    const KIND: Kind = Kind::Bool;
 }
 
-/// Runtime identifier for a tensor kind.
+/// Represents the kind of a [`Tensor`](crate::Tensor).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TensorKindId {
+pub enum Kind {
     /// A float tensor kind.
     Float,
     /// An integer tensor kind.
@@ -59,13 +69,13 @@ pub enum TensorKindId {
     Bool,
 }
 
-impl TensorKindId {
-    /// Get the string representation of the [`TensorKindId`].
+impl Kind {
+    /// Get the string representation of the [`Kind`].
     pub fn as_str(&self) -> &'static str {
         match self {
-            TensorKindId::Float => "Float",
-            TensorKindId::Int => "Int",
-            TensorKindId::Bool => "Bool",
+            Kind::Float => "Float",
+            Kind::Int => "Int",
+            Kind::Bool => "Bool",
         }
     }
 }

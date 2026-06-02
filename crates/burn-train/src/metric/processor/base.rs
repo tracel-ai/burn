@@ -81,9 +81,6 @@ pub struct TrainingItem<T> {
     /// The progress.
     pub progress: Progress,
 
-    /// The global progress of the training (e.g. epochs).
-    pub global_progress: Progress,
-
     /// The iteration, if it it different from the items processed.
     pub iteration: Option<usize>,
 
@@ -96,7 +93,6 @@ impl<T: ItemLazy> ItemLazy for TrainingItem<T> {
         TrainingItem {
             item: self.item.sync(),
             progress: self.progress,
-            global_progress: self.global_progress,
             iteration: self.iteration,
             lr: self.lr,
         }

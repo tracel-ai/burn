@@ -9,15 +9,15 @@ mod backend;
 mod bridge;
 mod channel;
 mod client;
+mod interpreter;
 mod ops;
-mod runner;
 mod tensor;
 
 pub use backend::*;
 pub use bridge::*;
 pub use channel::*;
 pub use client::*;
-pub use runner::*;
+pub use interpreter::*;
 pub use tensor::*;
 
 extern crate alloc;

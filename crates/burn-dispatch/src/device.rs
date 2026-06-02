@@ -291,6 +291,9 @@ impl Default for DispatchDevice {
         #[cfg(feature = "flex")]
         return Self::Flex(FlexDevice);
 
+        #[cfg(feature = "remote")]
+        return Self::Remote(RemoteDevice::default());
+
         #[cfg(any(feature = "ndarray", default_backend))]
         return Self::NdArray(NdArrayDevice::default());
     }

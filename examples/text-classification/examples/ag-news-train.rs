@@ -103,15 +103,14 @@ mod wgpu {
     }
 }
 
-// #[cfg(feature = "remote")]
-// mod remote {
-//     use crate::{ElemType, launch};
-//     use burn::backend::{Autodiff, RemoteBackend};
+#[cfg(feature = "remote")]
+mod remote {
+    use burn::tensor::{Device, DeviceKind};
 
-//     pub fn run() {
-//         launch::<Autodiff<RemoteBackend>>(ExecutionStrategy::SingleDevice(Default::default()));
-//     }
-// }
+    pub fn run() {
+        crate::launch_single(Device::remote("ws://localhost:3000"));
+    }
+}
 
 #[cfg(feature = "cuda")]
 mod cuda {

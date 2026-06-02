@@ -83,7 +83,21 @@ macro_rules! adaptive_avg_pool3d_typed {
 macro_rules! max_pool3d_backward_typed {
     ($fn_name:ident, $T:ty, $dtype:expr, $zero:expr, $add_fn:expr) => {
         pub fn $fn_name(x: FlexTensor, grad: FlexTensor, indices: FlexTensor) -> FlexTensor {
-            max_pool3d_backward_impl::<$T>(x, grad, indices, $dtype, $zero, $add_fn)
+            match indices.dtype() {
+                DType::I64 => {
+                    max_pool3d_backward_impl::<$T, i64>(x, grad, indices, $dtype, $zero, $add_fn)
+                }
+                DType::I32 => {
+                    max_pool3d_backward_impl::<$T, i32>(x, grad, indices, $dtype, $zero, $add_fn)
+                }
+                DType::I16 => {
+                    max_pool3d_backward_impl::<$T, i16>(x, grad, indices, $dtype, $zero, $add_fn)
+                }
+                DType::I8 => {
+                    max_pool3d_backward_impl::<$T, i8>(x, grad, indices, $dtype, $zero, $add_fn)
+                }
+                other => panic!("max_pool3d_backward: unsupported index dtype {other:?}",),
+            }
         }
     };
 }
@@ -1237,7 +1251,7 @@ max_pool3d_backward_typed!(
 );
 
 /// Generic max pool 3D backward implementation.
-fn max_pool3d_backward_impl<T>(
+fn max_pool3d_backward_impl<T, I>(
     x: FlexTensor,
     grad: FlexTensor,
     indices: FlexTensor,
@@ -1247,6 +1261,7 @@ fn max_pool3d_backward_impl<T>(
 ) -> FlexTensor
 where
     T: bytemuck::Pod + Copy + Send + Sync + Element,
+    I: bytemuck::Pod + Copy + Send + Sync + Element,
 {
     let x_shape = x.layout().shape();
     let grad = grad.to_contiguous();
@@ -1266,7 +1281,7 @@ where
     let spatial_out = out_d * out_h * out_w;
 
     let grad_data: &[T] = grad.storage();
-    let indices_data: &[i64] = indices.storage();
+    let indices_data: &[I] = indices.storage();
 
     // Accumulate gradients back to input positions
     let mut output = vec![zero; batch_size * channels * spatial_in];
@@ -1277,7 +1292,7 @@ where
             let out_offset = b * channels * spatial_in + c * spatial_in;
 
             for i in 0..spatial_out {
-                let idx = indices_data[grad_offset + i];
+                let idx = indices_data[grad_offset + i].elem::<i64>();
                 if idx >= 0 {
                     let input_idx = out_offset + idx as usize;
                     output[input_idx] = add_fn(output[input_idx], grad_data[grad_offset + i]);

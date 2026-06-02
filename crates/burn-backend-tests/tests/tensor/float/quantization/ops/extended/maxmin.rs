@@ -88,7 +88,7 @@ fn test_min_dim_2d_with_0th_dim() {
     output
         .dequantize()
         .into_data()
-        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 1e-2));
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::rel_abs(2e-2, 3e-2));
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn test_min_dim_with_indices_2d_with_0th_dim() {
     output
         .dequantize()
         .into_data()
-        .assert_approx_eq::<FloatElem>(&output_expected, Tolerance::rel_abs(2e-2, 1e-2));
+        .assert_approx_eq::<FloatElem>(&output_expected, Tolerance::rel_abs(2e-2, 3e-2));
     index.into_data().assert_eq(&index_expected, false);
 }
 

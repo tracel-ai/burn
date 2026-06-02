@@ -123,9 +123,8 @@ distributed = [
     "burn-train?/ddp",
     "burn-router?/distributed",
 ]
-# TODO: add to burn dispatch
-remote = ["burn-remote/client", "ir", "burn-core/remote"]
 router = ["burn-router", "ir"]
+remote = ["burn-core/remote"]
 server = ["burn-core/server"]
 
 candle = ["burn-candle"]
@@ -166,7 +165,6 @@ burn-cpu = { workspace = true, optional = true }
 burn-rocm = { workspace = true, optional = true }
 burn-flex = { workspace = true, optional = true }
 burn-ndarray = { workspace = true, optional = true }
-burn-remote = { workspace = true, optional = true }
 burn-router = { workspace = true, optional = true }
 burn-tch = { workspace = true, optional = true }
 burn-wgpu = { workspace = true, optional = true }
