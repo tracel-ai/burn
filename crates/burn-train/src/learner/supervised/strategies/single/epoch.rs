@@ -32,7 +32,7 @@ impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
         &self,
         learner: &Learner<LC>,
         global_progress: &Progress,
-        processor: &mut SupervisedTrainingEventProcessor<LC>,
+        processor: &mut SupervisedTrainingEventProcessor,
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;
@@ -75,7 +75,7 @@ impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
         &self,
         learner: &mut Learner<LC>,
         global_progress: &Progress,
-        processor: &mut SupervisedTrainingEventProcessor<LC>,
+        processor: &mut SupervisedTrainingEventProcessor,
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;

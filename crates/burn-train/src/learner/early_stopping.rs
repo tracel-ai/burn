@@ -271,10 +271,10 @@ mod tests {
         )
         .with_warmup_epochs(warmup);
         let mut store = LogEventStore::default();
-        let mut metrics = MetricsTraining::<f64, f64>::default();
+        let mut metrics = MetricsTraining::default();
 
         store.register_logger(InMemoryMetricLogger::default());
-        metrics.register_train_metric_numeric(loss);
+        metrics.register_train_metric_numeric::<f64, _>(loss);
 
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());

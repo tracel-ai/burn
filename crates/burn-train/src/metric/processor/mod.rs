@@ -44,7 +44,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn process_train(
-        processor: &mut MinimalEventProcessor<f64, f64>,
+        processor: &mut MinimalEventProcessor,
         value: f64,
         epoch: usize,
     ) {
@@ -63,7 +63,7 @@ pub(crate) mod test_utils {
         )));
     }
 
-    pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
+    pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor, epoch: usize) {
         processor.process_train(LearnerEvent::EndSplit(epoch));
         processor.process_valid(LearnerEvent::EndSplit(epoch));
     }

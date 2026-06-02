@@ -36,7 +36,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
         &self,
         learner: &mut Learner<LC>,
         global_progress: &Progress,
-        event_processor: &mut SupervisedTrainingEventProcessor<LC>,
+        event_processor: &mut SupervisedTrainingEventProcessor,
         interrupter: &Interrupter,
         devices: Vec<Device>,
         strategy: MultiDeviceOptim,
@@ -63,7 +63,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
         &self,
         learner: &mut Learner<LC>,
         global_progress: &Progress,
-        event_processor: &mut SupervisedTrainingEventProcessor<LC>,
+        event_processor: &mut SupervisedTrainingEventProcessor,
         interrupter: &Interrupter,
         devices: Vec<Device>,
     ) {
@@ -134,7 +134,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
         &self,
         learner: &mut Learner<LC>,
         global_progress: &Progress,
-        event_processor: &mut SupervisedTrainingEventProcessor<LC>,
+        event_processor: &mut SupervisedTrainingEventProcessor,
         interrupter: &Interrupter,
         devices: Vec<Device>,
     ) {

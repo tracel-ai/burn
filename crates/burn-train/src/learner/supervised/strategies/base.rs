@@ -115,7 +115,7 @@ pub struct TrainingComponents<LC: LearningComponentsTypes> {
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     /// An [EventProcessor](crate::EventProcessorTraining) that processes events happening during training and validation.
-    pub event_processor: SupervisedTrainingEventProcessor<LC>,
+    pub event_processor: SupervisedTrainingEventProcessor,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
     /// Config for creating a summary of the learning
@@ -184,5 +184,5 @@ pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>);
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor);
 }

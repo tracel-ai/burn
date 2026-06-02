@@ -1,4 +1,4 @@
-use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
+use super::{EventProcessorTraining, LearnerEvent, MetricsTraining};
 use crate::{
     logger::TrainingProgressLogger,
     metric::store::{EpochSummary, EventStoreClient, Split},
@@ -10,15 +10,15 @@ use std::sync::Arc;
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Optionally logging training progress via a [TrainingProgressLogger].
 #[allow(dead_code)]
-pub(crate) struct MinimalEventProcessor<T: ItemLazy, V: ItemLazy> {
-    metrics: MetricsTraining<T, V>,
+pub(crate) struct MinimalEventProcessor {
+    metrics: MetricsTraining,
     store: Arc<EventStoreClient>,
     progress_logger: Option<Box<dyn TrainingProgressLogger>>,
 }
 
 #[allow(dead_code)]
-impl<T: ItemLazy, V: ItemLazy> MinimalEventProcessor<T, V> {
-    pub(crate) fn new(metrics: MetricsTraining<T, V>, store: Arc<EventStoreClient>) -> Self {
+impl MinimalEventProcessor {
+    pub(crate) fn new(metrics: MetricsTraining, store: Arc<EventStoreClient>) -> Self {
         Self {
             metrics,
             store,
@@ -32,10 +32,8 @@ impl<T: ItemLazy, V: ItemLazy> MinimalEventProcessor<T, V> {
     }
 }
 
-impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>
-    for MinimalEventProcessor<T, V>
-{
-    fn process_train(&mut self, event: LearnerEvent<T>) {
+impl EventProcessorTraining<LearnerEvent, LearnerEvent> for MinimalEventProcessor {
+    fn process_train(&mut self, event: LearnerEvent) {
         match event {
             LearnerEvent::Start { total_epochs } => {
                 let definitions = self.metrics.metric_definitions();
@@ -86,7 +84,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
         }
     }
 
-    fn process_valid(&mut self, event: LearnerEvent<V>) {
+    fn process_valid(&mut self, event: LearnerEvent) {
         match event {
             LearnerEvent::Start { .. } => {} // no-op
             LearnerEvent::StartSplit(total_items) => {

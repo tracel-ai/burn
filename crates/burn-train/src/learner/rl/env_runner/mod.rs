@@ -283,15 +283,15 @@ pub(crate) mod tests {
 
     impl
         EventProcessorTraining<
-            RLEvent<(), MockActionContext>,
-            AgentEvaluationEvent<MockActionContext>,
+            RLEvent,
+            AgentEvaluationEvent,
         > for MockProcessor
     {
-        fn process_train(&mut self, _event: RLEvent<(), MockActionContext>) {
+        fn process_train(&mut self, _event: RLEvent) {
             // Mock process train
         }
 
-        fn process_valid(&mut self, _event: AgentEvaluationEvent<MockActionContext>) {
+        fn process_valid(&mut self, _event: AgentEvaluationEvent) {
             // Mock process valid
         }
 

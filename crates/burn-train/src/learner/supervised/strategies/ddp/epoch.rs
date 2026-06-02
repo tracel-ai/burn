@@ -32,7 +32,7 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
         &self,
         model: &<LC as LearningComponentsTypes>::Model,
         global_progress: &Progress,
-        processor: &mut SupervisedTrainingEventProcessor<LC>,
+        processor: &mut SupervisedTrainingEventProcessor,
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;
@@ -76,7 +76,7 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
         &self,
         learner: &mut Learner<LC>,
         global_progress: &Progress,
-        processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
+        processor: Arc<Mutex<SupervisedTrainingEventProcessor>>,
         interrupter: &Interrupter,
         peer_count: usize,
     ) {

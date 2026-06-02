@@ -37,7 +37,7 @@ pub struct RLTraining<RLC: RLComponentsTypes> {
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: RLMetrics<RLC::TrainingOutput, RLC::ActionContext>,
+    metrics: RLMetrics,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -192,7 +192,8 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     where
         RLC::TrainingOutput: Adaptor<Me::Input>,
     {
-        self.metrics.register_text_metric_train(metric);
+        self.metrics
+            .register_text_metric_train::<RLC::TrainingOutput, _>(metric);
         self
     }
 
@@ -203,7 +204,8 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         RLC::TrainingOutput: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_metric_train(metric);
+        self.metrics
+            .register_metric_train::<RLC::TrainingOutput, _>(metric);
         self
     }
 
@@ -212,8 +214,10 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     where
         RLC::ActionContext: Adaptor<Me::Input>,
     {
-        self.metrics.register_text_metric_agent(metric.clone());
-        self.metrics.register_text_metric_agent_valid(metric);
+        self.metrics
+            .register_text_metric_agent::<RLC::ActionContext, _>(metric.clone());
+        self.metrics
+            .register_text_metric_agent_valid::<RLC::ActionContext, _>(metric);
         self
     }
 
@@ -224,8 +228,10 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         RLC::ActionContext: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_agent_metric(metric.clone());
-        self.metrics.register_agent_metric_valid(metric);
+        self.metrics
+            .register_agent_metric::<RLC::ActionContext, _>(metric.clone());
+        self.metrics
+            .register_agent_metric_valid::<RLC::ActionContext, _>(metric);
         self
     }
 

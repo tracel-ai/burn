@@ -1,37 +1,40 @@
 use std::sync::Arc;
 
 use crate::{
-    EpisodeSummary, EvaluationItem, EventProcessorTraining, ItemLazy, LearnerSummary, RLMetrics,
+    EvaluationItem, EventProcessorTraining, LearnerSummary, RLMetrics,
     logger::TrainingProgressLogger,
     metric::store::{Event, EventStoreClient, MetricsUpdate},
     renderer::{MetricState, MetricsRenderer},
 };
 
 /// Event happening during reinforcement learning.
-pub enum RLEvent<TS, ES> {
+///
+/// The carried items are type-erased (see [`EvaluationItem::new`]) so this event
+/// and its processor are not generic over the agent's output types.
+pub enum RLEvent {
     /// Signal the start of the process (e.g., learning starts).
     Start {
         /// The total number of items to process during training (e.g., total number of environment steps).
         total_items: usize,
     },
     /// Signal an agent's training step.
-    TrainStep(EvaluationItem<TS>),
+    TrainStep(EvaluationItem),
     /// Signal a timestep of the agent-environment interface.
-    EnvStep(EvaluationItem<ES>),
+    EnvStep(EvaluationItem),
     /// Signal an episode end.
-    EpisodeEnd(EvaluationItem<EpisodeSummary>),
+    EpisodeEnd(EvaluationItem),
     /// Signal the end of the process (e.g., learning ends).
     End(Option<LearnerSummary>),
 }
 
 /// Event happening during evaluation of a reinforcement learning's agent.
-pub enum AgentEvaluationEvent<T> {
+pub enum AgentEvaluationEvent {
     /// Signal the start of the process (e.g., training start)
     Start(usize),
     /// Signal a timestep of the agent-environment interface.
-    EnvStep(EvaluationItem<T>),
+    EnvStep(EvaluationItem),
     /// Signal an episode end.
-    EpisodeEnd(EvaluationItem<EpisodeSummary>),
+    EpisodeEnd(EvaluationItem),
     /// Signal the end of the process (e.g., training end).
     End,
 }
@@ -39,16 +42,16 @@ pub enum AgentEvaluationEvent<T> {
 /// An [event processor](EventProcessorTraining) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
-pub struct RLEventProcessor<TS: ItemLazy, ES: ItemLazy> {
-    metrics: RLMetrics<TS, ES>,
+pub struct RLEventProcessor {
+    metrics: RLMetrics,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
     training_progress_logger: Option<Box<dyn TrainingProgressLogger>>,
 }
 
-impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
+impl RLEventProcessor {
     pub(crate) fn new(
-        metrics: RLMetrics<TS, ES>,
+        metrics: RLMetrics,
         renderer: Box<dyn MetricsRenderer>,
         store: Arc<EventStoreClient>,
     ) -> Self {
@@ -101,10 +104,8 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
     }
 }
 
-impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEvaluationEvent<ES>>
-    for RLEventProcessor<TS, ES>
-{
-    fn process_train(&mut self, event: RLEvent<TS, ES>) {
+impl EventProcessorTraining<RLEvent, AgentEvaluationEvent> for RLEventProcessor {
+    fn process_train(&mut self, event: RLEvent) {
         match event {
             RLEvent::Start { total_items } => {
                 let definitions = self.metrics.metric_definitions();
@@ -166,7 +167,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
         }
     }
 
-    fn process_valid(&mut self, event: AgentEvaluationEvent<ES>) {
+    fn process_valid(&mut self, event: AgentEvaluationEvent) {
         match event {
             AgentEvaluationEvent::Start(num_episodes) => {
                 if let Some(logger) = &mut self.training_progress_logger {

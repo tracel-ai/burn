@@ -61,7 +61,7 @@ where
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor) {
         // The reference model is always on the first device provided.
         let main_device = self.devices.first().unwrap();
         let train_total_items = dataloader_train.num_items();

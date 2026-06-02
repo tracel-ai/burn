@@ -90,11 +90,11 @@ mod tests {
             Direction::Lowest,
             Split::Train,
         );
-        let mut metrics = MetricsTraining::<f64, f64>::default();
+        let mut metrics = MetricsTraining::default();
         // Register an in memory logger.
         store.register_logger(InMemoryMetricLogger::default());
         // Register the loss metric.
-        metrics.register_train_metric_numeric(loss);
+        metrics.register_train_metric_numeric::<f64, _>(loss);
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
         processor.process_train(crate::LearnerEvent::Start { total_epochs: 0 });

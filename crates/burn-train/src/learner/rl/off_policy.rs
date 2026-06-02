@@ -65,7 +65,7 @@ where
         learner_agent: &mut RLC::LearningAgent,
         starting_epoch: usize,
         env_init: RLC::EnvInit,
-    ) -> (RLC::Policy, RLEventProcessorType<RLC>) {
+    ) -> (RLC::Policy, RLEventProcessorType) {
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;

@@ -27,10 +27,13 @@ pub struct EvaluatorBuilder<EC: EvaluatorComponentTypes> {
     summary_metrics: BTreeSet<String>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     interrupter: Interrupter,
-    metrics: MetricsEvaluation<TestOutput<EC>>,
+    metrics: MetricsEvaluation,
     directory: PathBuf,
     summary: bool,
     progress_logger: Option<Box<dyn EvaluationProgressLogger>>,
+    // The metric collection is no longer generic over the model output (it is
+    // type-erased), so keep `EC` anchored here for the builder's inference.
+    _components: core::marker::PhantomData<fn() -> EC>,
 }
 
 impl<M> EvaluatorBuilder<EvaluatorComponentTypesMarker<M>>
@@ -56,6 +59,7 @@ where
             metrics: MetricsEvaluation::default(),
             directory,
             progress_logger: None,
+            _components: core::marker::PhantomData,
         }
     }
 }
@@ -89,7 +93,8 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
         TestOutput<EC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_test_metric_numeric(metric);
+        self.metrics
+            .register_test_metric_numeric::<TestOutput<EC>, _>(metric);
         self
     }
 
@@ -100,7 +105,8 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
         TestOutput<EC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_test_metric(metric);
+        self.metrics
+            .register_test_metric::<TestOutput<EC>, _>(metric);
         self
     }
 

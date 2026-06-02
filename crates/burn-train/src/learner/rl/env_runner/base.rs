@@ -67,7 +67,7 @@ pub trait AgentEnvLoop<RLC: RLComponentsTypes> {
     fn run_steps(
         &mut self,
         num_steps: usize,
-        processor: &mut RLEventProcessorType<RLC>,
+        processor: &mut RLEventProcessorType,
         interrupter: &Interrupter,
         progress: &mut Progress,
     ) -> Vec<RLTimeStep<RLC>>;
@@ -86,7 +86,7 @@ pub trait AgentEnvLoop<RLC: RLComponentsTypes> {
     fn run_episodes(
         &mut self,
         num_episodes: usize,
-        processor: &mut RLEventProcessorType<RLC>,
+        processor: &mut RLEventProcessorType,
         interrupter: &Interrupter,
         progress: &mut Progress,
     ) -> Vec<RLTrajectory<RLC>>;
@@ -143,7 +143,7 @@ where
     fn run_steps(
         &mut self,
         num_steps: usize,
-        processor: &mut RLEventProcessorType<RLC>,
+        processor: &mut RLEventProcessorType,
         interrupter: &Interrupter,
         progress: &mut Progress,
     ) -> Vec<RLTimeStep<RLC>> {
@@ -221,7 +221,7 @@ where
     fn run_episodes(
         &mut self,
         num_episodes: usize,
-        processor: &mut RLEventProcessorType<RLC>,
+        processor: &mut RLEventProcessorType,
         interrupter: &Interrupter,
         progress: &mut Progress,
     ) -> Vec<RLTrajectory<RLC>> {

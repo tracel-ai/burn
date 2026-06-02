@@ -37,10 +37,10 @@ pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainingModelInput<LC>>>;
 /// A reference to the validation split [DataLoader](DataLoader).
 pub type ValidLoader<LC> = Arc<dyn DataLoader<InferenceModelInput<LC>>>;
 /// The event processor type for supervised learning.
-pub type SupervisedTrainingEventProcessor<LC> = AsyncProcessorTraining<
-    LearnerEvent<TrainingModelOutput<LC>>,
-    LearnerEvent<InferenceModelOutput<LC>>,
->;
+///
+/// Non-generic: [`LearnerEvent`] type-erases the model output, so a single
+/// instantiation is shared across all models.
+pub type SupervisedTrainingEventProcessor = AsyncProcessorTraining<LearnerEvent, LearnerEvent>;
 
 /// Structure to configure and launch supervised learning trainings.
 pub struct SupervisedTraining<LC>
@@ -60,7 +60,7 @@ where
     grad_accumulation: Option<usize>,
     grad_checkpointing: bool,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: MetricsTraining<TrainingModelOutput<LC>, InferenceModelOutput<LC>>,
+    metrics: MetricsTraining,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -210,7 +210,8 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     where
         TrainingModelOutput<LC>: Adaptor<Me::Input>,
     {
-        self.metrics.register_train_metric(metric);
+        self.metrics
+            .register_train_metric::<TrainingModelOutput<LC>, _>(metric);
         self
     }
 
@@ -219,7 +220,8 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     where
         InferenceModelOutput<LC>: Adaptor<Me::Input>,
     {
-        self.metrics.register_valid_metric(metric);
+        self.metrics
+            .register_valid_metric::<InferenceModelOutput<LC>, _>(metric);
         self
     }
 
@@ -257,7 +259,8 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         TrainingModelOutput<LC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_train_metric_numeric(metric);
+        self.metrics
+            .register_train_metric_numeric::<TrainingModelOutput<LC>, _>(metric);
         self
     }
 
@@ -267,7 +270,8 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         InferenceModelOutput<LC>: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_valid_metric_numeric(metric);
+        self.metrics
+            .register_valid_metric_numeric::<InferenceModelOutput<LC>, _>(metric);
         self
     }
 

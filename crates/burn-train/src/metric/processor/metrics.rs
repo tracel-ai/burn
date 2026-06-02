@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use super::{ItemLazy, TrainingItem};
+use core::any::Any;
+use core::marker::PhantomData;
+
+use super::TrainingItem;
 use crate::{
     EvaluationItem,
     metric::{
@@ -9,66 +12,46 @@ use crate::{
     },
 };
 
-pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
-    train: Vec<Box<dyn MetricUpdater<T>>>,
-    valid: Vec<Box<dyn MetricUpdater<V>>>,
-    train_numeric: Vec<Box<dyn NumericMetricUpdater<T>>>,
-    valid_numeric: Vec<Box<dyn NumericMetricUpdater<V>>>,
+#[derive(Default)]
+pub(crate) struct MetricsTraining {
+    train: Vec<Box<dyn MetricUpdater>>,
+    valid: Vec<Box<dyn MetricUpdater>>,
+    train_numeric: Vec<Box<dyn NumericMetricUpdater>>,
+    valid_numeric: Vec<Box<dyn NumericMetricUpdater>>,
     metric_definitions: HashMap<MetricId, MetricDefinition>,
 }
 
-pub(crate) struct MetricsEvaluation<T: ItemLazy> {
-    test: Vec<Box<dyn MetricUpdater<T>>>,
-    test_numeric: Vec<Box<dyn NumericMetricUpdater<T>>>,
+#[derive(Default)]
+pub(crate) struct MetricsEvaluation {
+    test: Vec<Box<dyn MetricUpdater>>,
+    test_numeric: Vec<Box<dyn NumericMetricUpdater>>,
     metric_definitions: HashMap<MetricId, MetricDefinition>,
 }
 
-impl<T: ItemLazy> Default for MetricsEvaluation<T> {
-    fn default() -> Self {
-        Self {
-            test: Default::default(),
-            test_numeric: Default::default(),
-            metric_definitions: HashMap::default(),
-        }
-    }
-}
-
-impl<T: ItemLazy, V: ItemLazy> Default for MetricsTraining<T, V> {
-    fn default() -> Self {
-        Self {
-            train: Vec::default(),
-            valid: Vec::default(),
-            train_numeric: Vec::default(),
-            valid_numeric: Vec::default(),
-            metric_definitions: HashMap::default(),
-        }
-    }
-}
-
-impl<T: ItemLazy> MetricsEvaluation<T> {
+impl MetricsEvaluation {
     /// Register a testing metric.
-    pub(crate) fn register_test_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_test_metric<T, Me: Metric + 'static>(&mut self, metric: Me)
     where
         T: Adaptor<Me::Input> + 'static,
     {
-        let metric = MetricWrapper::new(metric);
+        let metric = MetricWrapper::<T, _>::new(metric);
         self.register_definition(&metric);
         self.test.push(Box::new(metric))
     }
 
     /// Register a numeric testing metric.
-    pub(crate) fn register_test_metric_numeric<Me: Metric + Numeric + 'static>(
+    pub(crate) fn register_test_metric_numeric<T, Me: Metric + Numeric + 'static>(
         &mut self,
         metric: Me,
     ) where
         T: Adaptor<Me::Input> + 'static,
     {
-        let metric = MetricWrapper::new(metric);
+        let metric = MetricWrapper::<T, _>::new(metric);
         self.register_definition(&metric);
         self.test_numeric.push(Box::new(metric))
     }
 
-    fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {
+    fn register_definition<T, Me: Metric>(&mut self, metric: &MetricWrapper<T, Me>) {
         self.metric_definitions.insert(
             metric.id.clone(),
             MetricDefinition::new(metric.id.clone(), &metric.metric),
@@ -83,19 +66,19 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
     /// Update the testing information from the testing item.
     pub(crate) fn update_test(
         &mut self,
-        item: &EvaluationItem<T>,
+        item: &EvaluationItem,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.test.len());
         let mut entries_numeric = Vec::with_capacity(self.test_numeric.len());
 
         for metric in self.test.iter_mut() {
-            let state = metric.update(&item.item, metadata);
+            let state = metric.update(item.item.as_any(), metadata);
             entries.push(state);
         }
 
         for metric in self.test_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata);
+            let numeric_update = metric.update(item.item.as_any(), metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -103,51 +86,51 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
     }
 }
 
-impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
+impl MetricsTraining {
     /// Register a training metric.
-    pub(crate) fn register_train_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_train_metric<T, Me: Metric + 'static>(&mut self, metric: Me)
     where
         T: Adaptor<Me::Input> + 'static,
     {
-        let metric = MetricWrapper::new(metric);
+        let metric = MetricWrapper::<T, _>::new(metric);
         self.register_definition(&metric);
         self.train.push(Box::new(metric))
     }
 
     /// Register a validation metric.
-    pub(crate) fn register_valid_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_valid_metric<V, Me: Metric + 'static>(&mut self, metric: Me)
     where
         V: Adaptor<Me::Input> + 'static,
     {
-        let metric = MetricWrapper::new(metric);
+        let metric = MetricWrapper::<V, _>::new(metric);
         self.register_definition(&metric);
         self.valid.push(Box::new(metric))
     }
 
     /// Register a numeric training metric.
-    pub(crate) fn register_train_metric_numeric<Me: Metric + Numeric + 'static>(
+    pub(crate) fn register_train_metric_numeric<T, Me: Metric + Numeric + 'static>(
         &mut self,
         metric: Me,
     ) where
         T: Adaptor<Me::Input> + 'static,
     {
-        let metric = MetricWrapper::new(metric);
+        let metric = MetricWrapper::<T, _>::new(metric);
         self.register_definition(&metric);
         self.train_numeric.push(Box::new(metric))
     }
 
     /// Register a numeric validation metric.
-    pub(crate) fn register_valid_metric_numeric<Me>(&mut self, metric: Me)
+    pub(crate) fn register_valid_metric_numeric<V, Me>(&mut self, metric: Me)
     where
         V: Adaptor<Me::Input> + 'static,
         Me: Metric + Numeric + 'static,
     {
-        let metric = MetricWrapper::new(metric);
+        let metric = MetricWrapper::<V, _>::new(metric);
         self.register_definition(&metric);
         self.valid_numeric.push(Box::new(metric))
     }
 
-    fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {
+    fn register_definition<T, Me: Metric>(&mut self, metric: &MetricWrapper<T, Me>) {
         self.metric_definitions.insert(
             metric.id.clone(),
             MetricDefinition::new(metric.id.clone(), &metric.metric),
@@ -162,19 +145,19 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Update the training information from the training item.
     pub(crate) fn update_train(
         &mut self,
-        item: &TrainingItem<T>,
+        item: &TrainingItem,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
 
         for metric in self.train.iter_mut() {
-            let state = metric.update(&item.item, metadata);
+            let state = metric.update(item.item.as_any(), metadata);
             entries.push(state);
         }
 
         for metric in self.train_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata);
+            let numeric_update = metric.update(item.item.as_any(), metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -184,19 +167,19 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Update the training information from the validation item.
     pub(crate) fn update_valid(
         &mut self,
-        item: &TrainingItem<V>,
+        item: &TrainingItem,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.valid.len());
         let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
 
         for metric in self.valid.iter_mut() {
-            let state = metric.update(&item.item, metadata);
+            let state = metric.update(item.item.as_any(), metadata);
             entries.push(state);
         }
 
         for metric in self.valid_numeric.iter_mut() {
-            let numeric_update = metric.update(&item.item, metadata);
+            let numeric_update = metric.update(item.item.as_any(), metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -224,8 +207,8 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     }
 }
 
-impl<T> From<&TrainingItem<T>> for MetricMetadata {
-    fn from(item: &TrainingItem<T>) -> Self {
+impl From<&TrainingItem> for MetricMetadata {
+    fn from(item: &TrainingItem) -> Self {
         Self {
             progress: item.progress.clone(),
             iteration: item.iteration,
@@ -234,8 +217,8 @@ impl<T> From<&TrainingItem<T>> for MetricMetadata {
     }
 }
 
-impl<T> From<&EvaluationItem<T>> for MetricMetadata {
-    fn from(item: &EvaluationItem<T>) -> Self {
+impl From<&EvaluationItem> for MetricMetadata {
+    fn from(item: &EvaluationItem) -> Self {
         Self {
             progress: item.progress.clone(),
             iteration: item.iteration,
@@ -244,37 +227,50 @@ impl<T> From<&EvaluationItem<T>> for MetricMetadata {
     }
 }
 
-pub(crate) trait NumericMetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate;
+/// Type-erased metric updater. The concrete model output type is recovered via
+/// downcasting inside [`MetricWrapper`], so the metric collections and the whole
+/// event pipeline stay non-generic over the output type.
+pub(crate) trait NumericMetricUpdater: Send + Sync {
+    fn update(&mut self, item: &dyn Any, metadata: &MetricMetadata) -> NumericMetricUpdate;
     fn clear(&mut self);
 }
 
-pub(crate) trait MetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry;
+pub(crate) trait MetricUpdater: Send + Sync {
+    fn update(&mut self, item: &dyn Any, metadata: &MetricMetadata) -> MetricEntry;
     fn clear(&mut self);
 }
 
-pub(crate) struct MetricWrapper<M> {
+/// Binds a [`Metric`] to the concrete item type `T` it adapts from.
+///
+/// `T` is captured at registration (where the builder enforces
+/// `T: Adaptor<M::Input>`), and recovered by downcasting the erased item in
+/// `update`. `PhantomData<fn() -> T>` keeps the wrapper `Send + Sync` regardless
+/// of whether `T` is.
+pub(crate) struct MetricWrapper<T, M> {
     pub id: MetricId,
     pub metric: M,
+    _item: PhantomData<fn() -> T>,
 }
 
-impl<M: Metric> MetricWrapper<M> {
+impl<T, M: Metric> MetricWrapper<T, M> {
     pub fn new(metric: M) -> Self {
         Self {
             id: MetricId::new(metric.name()),
             metric,
+            _item: PhantomData,
         }
     }
 }
 
-impl<T, M> NumericMetricUpdater<T> for MetricWrapper<M>
+impl<T, M> NumericMetricUpdater for MetricWrapper<T, M>
 where
-    T: 'static,
+    T: Adaptor<M::Input> + 'static,
     M: Metric + Numeric + 'static,
-    T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate {
+    fn update(&mut self, item: &dyn Any, metadata: &MetricMetadata) -> NumericMetricUpdate {
+        let item = item
+            .downcast_ref::<T>()
+            .expect("the erased item type matches the registered metric input");
         let serialized_entry = self.metric.update(&item.adapt(), metadata);
         let update = MetricEntry::new(self.id.clone(), serialized_entry);
         let numeric = self.metric.value();
@@ -292,13 +288,15 @@ where
     }
 }
 
-impl<T, M> MetricUpdater<T> for MetricWrapper<M>
+impl<T, M> MetricUpdater for MetricWrapper<T, M>
 where
-    T: 'static,
+    T: Adaptor<M::Input> + 'static,
     M: Metric + 'static,
-    T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, item: &dyn Any, metadata: &MetricMetadata) -> MetricEntry {
+        let item = item
+            .downcast_ref::<T>()
+            .expect("the erased item type matches the registered metric input");
         let serialized_entry = self.metric.update(&item.adapt(), metadata);
         MetricEntry::new(self.id.clone(), serialized_entry)
     }

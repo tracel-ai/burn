@@ -9,8 +9,8 @@ pub struct AsyncProcessorTraining<ET, EV> {
 }
 
 /// Event processor for the model evaluation.
-pub struct AsyncProcessorEvaluation<P: EventProcessorEvaluation> {
-    sender: Sender<EvalMessage<P>>,
+pub struct AsyncProcessorEvaluation {
+    sender: Sender<EvalMessage>,
 }
 
 struct WorkerTraining<ET, EV, P: EventProcessorTraining<ET, EV>> {
@@ -20,7 +20,7 @@ struct WorkerTraining<ET, EV, P: EventProcessorTraining<ET, EV>> {
 
 struct WorkerEvaluation<P: EventProcessorEvaluation> {
     processor: P,
-    rec: Receiver<EvalMessage<P>>,
+    rec: Receiver<EvalMessage>,
 }
 
 impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> + 'static>
@@ -46,7 +46,7 @@ impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> +
     }
 }
 impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
-    pub fn start(processor: P, rec: Receiver<EvalMessage<P>>) {
+    pub fn start(processor: P, rec: Receiver<EvalMessage>) {
         let mut worker = Self { processor, rec };
 
         std::thread::Builder::new()
@@ -77,9 +77,9 @@ impl<ET: Send + 'static, EV: Send + 'static> AsyncProcessorTraining<ET, EV> {
     }
 }
 
-impl<P: EventProcessorEvaluation + 'static> AsyncProcessorEvaluation<P> {
+impl AsyncProcessorEvaluation {
     /// Create an event processor for model evaluation.
-    pub fn new(processor: P) -> Self {
+    pub fn new<P: EventProcessorEvaluation + 'static>(processor: P) -> Self {
         let (sender, rec) = async_channel::bounded(1);
 
         WorkerEvaluation::start(processor, rec);
@@ -94,8 +94,8 @@ enum Message<EventTrain, EventValid> {
     Renderer(Sender<Box<dyn crate::renderer::MetricsRenderer>>),
 }
 
-enum EvalMessage<P: EventProcessorEvaluation> {
-    Test(EvaluatorEvent<P::ItemTest>),
+enum EvalMessage {
+    Test(EvaluatorEvent),
     Renderer(Sender<Box<dyn crate::renderer::MetricsRenderer>>),
 }
 
@@ -121,10 +121,8 @@ impl<ET: Send, EV: Send> EventProcessorTraining<ET, EV> for AsyncProcessorTraini
     }
 }
 
-impl<P: EventProcessorEvaluation> EventProcessorEvaluation for AsyncProcessorEvaluation<P> {
-    type ItemTest = P::ItemTest;
-
-    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
+impl EventProcessorEvaluation for AsyncProcessorEvaluation {
+    fn process_test(&mut self, event: EvaluatorEvent) {
         self.sender.send_blocking(EvalMessage::Test(event)).unwrap();
     }
 

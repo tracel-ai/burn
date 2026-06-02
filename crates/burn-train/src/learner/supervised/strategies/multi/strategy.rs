@@ -25,7 +25,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MultiDevice
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor) {
         let main_device = self.devices.first().unwrap();
 
         // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy

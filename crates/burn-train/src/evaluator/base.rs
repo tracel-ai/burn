@@ -1,6 +1,5 @@
 use crate::{
-    AsyncProcessorEvaluation, EvaluationItem, FullEventProcessorEvaluation, InferenceStep,
-    Interrupter, LearnerSummaryConfig,
+    AsyncProcessorEvaluation, EvaluationItem, InferenceStep, Interrupter, LearnerSummaryConfig,
     evaluator::components::EvaluatorComponentTypes,
     metric::processor::{EvaluatorEvent, EventProcessorEvaluation},
     renderer::{EvaluationName, MetricsRenderer},
@@ -18,7 +17,7 @@ pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) model: EC::Model,
     pub(crate) interrupter: Interrupter,
     pub(crate) event_processor:
-        AsyncProcessorEvaluation<FullEventProcessorEvaluation<TestOutput<EC>>>,
+        AsyncProcessorEvaluation,
     /// Config for creating a summary of the evaluation
     pub summary: Option<LearnerSummaryConfig>,
 }

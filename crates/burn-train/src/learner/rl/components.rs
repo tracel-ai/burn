@@ -47,7 +47,7 @@ pub trait RLComponentsTypes {
         + Send
         + 'static;
     /// The output data of a training step.
-    type TrainingOutput: ItemLazy + Clone + Send;
+    type TrainingOutput: ItemLazy + Clone + Send + 'static;
 }
 
 /// Concrete type that implements the [RLComponentsTypes](RLComponentsTypes) trait.
@@ -62,7 +62,7 @@ where
     E: Environment + 'static,
     EI: EnvironmentInit<E> + Send + 'static,
     A: PolicyLearner + Send + 'static,
-    A::TrainContext: ItemLazy + Clone + Send,
+    A::TrainContext: ItemLazy + Clone + Send + 'static,
     A::InnerPolicy: Policy + Send,
     <A::InnerPolicy as Policy>::Observation: Batchable + Clone + Send,
     <A::InnerPolicy as Policy>::ActionDistribution: Batchable + Clone + Send,
@@ -93,10 +93,10 @@ where
 pub(crate) type RlPolicy<RLC> =
     <<RLC as RLComponentsTypes>::LearningAgent as PolicyLearner>::InnerPolicy;
 /// The event processor type for reinforcement learning.
-pub type RLEventProcessorType<RLC> = AsyncProcessorTraining<
-    RLEvent<<RLC as RLComponentsTypes>::TrainingOutput, <RLC as RLComponentsTypes>::ActionContext>,
-    AgentEvaluationEvent<<RLC as RLComponentsTypes>::ActionContext>,
->;
+///
+/// Non-generic: both [`RLEvent`] and [`AgentEvaluationEvent`] type-erase their
+/// items, so a single instantiation is shared across all agents.
+pub type RLEventProcessorType = AsyncProcessorTraining<RLEvent, AgentEvaluationEvent>;
 /// The record of the policy.
 pub type RLPolicyRecord<RLC> =
     <<<RLC as RLComponentsTypes>::Policy as Policy>::PolicyState as PolicyState>::Record;

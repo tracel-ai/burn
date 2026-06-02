@@ -21,7 +21,7 @@ pub struct RLComponents<RLC: RLComponentsTypes> {
     /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
     pub interrupter: Interrupter,
     /// An [EventProcessor](crate::EventProcessorTraining) that processes events happening during training and evaluation.
-    pub event_processor: RLEventProcessorType<RLC>,
+    pub event_processor: RLEventProcessorType,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
     /// Config for creating a summary of the learning
@@ -101,5 +101,5 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
         learner_agent: &mut RLC::LearningAgent,
         starting_epoch: usize,
         env_init: RLC::EnvInit,
-    ) -> (RLC::Policy, RLEventProcessorType<RLC>);
+    ) -> (RLC::Policy, RLEventProcessorType);
 }

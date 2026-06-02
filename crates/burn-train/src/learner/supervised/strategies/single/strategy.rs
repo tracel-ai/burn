@@ -51,7 +51,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDevic
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let train_total_items = dataloader_train.num_items();
         let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());

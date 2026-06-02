@@ -1,4 +1,4 @@
-use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
+use super::{EventProcessorTraining, LearnerEvent, MetricsTraining};
 use crate::logger::{EvaluationProgressLogger, TrainingProgressLogger};
 use crate::metric::MetricMetadata;
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
@@ -9,8 +9,8 @@ use std::sync::Arc;
 /// An [event processor](EventProcessorTraining) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
-pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
-    metrics: MetricsTraining<T, V>,
+pub struct FullEventProcessorTraining {
+    metrics: MetricsTraining,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
     progress_logger: Option<Box<dyn TrainingProgressLogger>>,
@@ -21,8 +21,8 @@ pub struct FullEventProcessorTraining<T: ItemLazy, V: ItemLazy> {
 /// An [event processor](EventProcessorEvaluation) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
-pub struct FullEventProcessorEvaluation<T: ItemLazy> {
-    metrics: MetricsEvaluation<T>,
+pub struct FullEventProcessorEvaluation {
+    metrics: MetricsEvaluation,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
     progress_logger: Option<Box<dyn EvaluationProgressLogger>>,
@@ -30,9 +30,9 @@ pub struct FullEventProcessorEvaluation<T: ItemLazy> {
     current_test: usize,
 }
 
-impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
+impl FullEventProcessorTraining {
     pub(crate) fn new(
-        metrics: MetricsTraining<T, V>,
+        metrics: MetricsTraining,
         renderer: Box<dyn MetricsRenderer>,
         store: Arc<EventStoreClient>,
     ) -> Self {
@@ -52,9 +52,9 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
     }
 }
 
-impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
+impl FullEventProcessorEvaluation {
     pub(crate) fn new(
-        metrics: MetricsEvaluation<T>,
+        metrics: MetricsEvaluation,
         renderer: Box<dyn MetricsRenderer>,
         store: Arc<EventStoreClient>,
     ) -> Self {
@@ -77,10 +77,8 @@ impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
     }
 }
 
-impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
-    type ItemTest = T;
-
-    fn process_test(&mut self, event: EvaluatorEvent<Self::ItemTest>) {
+impl EventProcessorEvaluation for FullEventProcessorEvaluation {
+    fn process_test(&mut self, event: EvaluatorEvent) {
         match event {
             EvaluatorEvent::Start { total_tests } => {
                 let definitions = self.metrics.metric_definitions();
@@ -163,10 +161,8 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
     }
 }
 
-impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>
-    for FullEventProcessorTraining<T, V>
-{
-    fn process_train(&mut self, event: LearnerEvent<T>) {
+impl EventProcessorTraining<LearnerEvent, LearnerEvent> for FullEventProcessorTraining {
+    fn process_train(&mut self, event: LearnerEvent) {
         match event {
             LearnerEvent::Start { total_epochs } => {
                 self.total_epochs = total_epochs;
@@ -254,7 +250,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
         }
     }
 
-    fn process_valid(&mut self, event: LearnerEvent<V>) {
+    fn process_valid(&mut self, event: LearnerEvent) {
         match event {
             LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
             LearnerEvent::StartSplit(total_items) => {

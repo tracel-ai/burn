@@ -18,7 +18,7 @@ where
 {
     device: Device,
     learner: Learner<LC>,
-    event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
+    event_processor: Arc<Mutex<SupervisedTrainingEventProcessor>>,
     components: WorkerComponents,
     checkpointer: Option<LearningCheckpointer<LC>>,
     dataloader_train: TrainLoader<LC>,
@@ -37,7 +37,7 @@ where
     pub fn start(
         device: Device,
         learner: Learner<LC>,
-        event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
+        event_processor: Arc<Mutex<SupervisedTrainingEventProcessor>>,
         components: WorkerComponents,
         checkpointer: Option<LearningCheckpointer<LC>>,
         dataloader_train: TrainLoader<LC>,
