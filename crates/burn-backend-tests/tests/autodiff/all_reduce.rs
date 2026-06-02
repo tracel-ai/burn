@@ -107,6 +107,7 @@ fn should_diff_all_reduce_complex_1() {
 #[test]
 #[serial]
 fn should_diff_all_reduce_all_devices() {
+    println!("ALL_DEVICES");
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
 
     let config = DistributedConfig {
@@ -135,6 +136,7 @@ fn compare_gradients(
     expected_output: &[f32],
     expected_grads: &[f32],
 ) {
+    println!("In compare gradients");
     for out in outputs {
         let s = format!("{out}");
         println!("out: {s}");
