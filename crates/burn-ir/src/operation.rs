@@ -1094,6 +1094,40 @@ pub struct CatOpIr {
 pub struct AllReduceOpIr {
     pub tensor: TensorIr,
     pub out: TensorIr,
+    /// How to reduce the values across the participating devices.
+    pub op: burn_backend::distributed::ReduceOperation,
+    /// The devices participating in the collective operation.
+    pub device_ids: Vec<DeviceIdIr>,
+}
+
+/// Serializable representation of a [device id](burn_backend::DeviceId).
+///
+/// The intermediate representation is part of the wire protocol (e.g. the remote backend), so it
+/// cannot store `burn_backend::DeviceId` directly since that type is not serializable.
+#[cfg(feature = "distributed")]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeviceIdIr {
+    /// Identifies the type of the device.
+    pub type_id: u16,
+    /// Identifies the device number.
+    pub index_id: u16,
+}
+
+#[cfg(feature = "distributed")]
+impl From<burn_backend::DeviceId> for DeviceIdIr {
+    fn from(value: burn_backend::DeviceId) -> Self {
+        Self {
+            type_id: value.type_id,
+            index_id: value.index_id,
+        }
+    }
+}
+
+#[cfg(feature = "distributed")]
+impl From<DeviceIdIr> for burn_backend::DeviceId {
+    fn from(value: DeviceIdIr) -> Self {
+        burn_backend::DeviceId::new(value.type_id, value.index_id)
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]

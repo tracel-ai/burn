@@ -2071,7 +2071,7 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
                 handles.remove_handle(repr.id);
             }
             #[cfg(feature = "distributed")]
-            OperationIr::Distributed(_op) => todo!(),
+            OperationIr::Distributed(op) => B::register_distributed(op, handles),
         }
     }
 
@@ -2117,6 +2117,11 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
 
     fn sync(&self) -> Result<(), ExecutionError> {
         B::sync(&self.device)
+    }
+
+    #[cfg(feature = "distributed")]
+    fn sync_collective(&self) {
+        B::sync_distributed(&self.device)
     }
 
     fn seed(&self, seed: u64) {

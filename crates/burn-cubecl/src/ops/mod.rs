@@ -7,7 +7,7 @@ mod tensor;
 mod transaction;
 
 #[cfg(feature = "distributed")]
-mod distributed;
+pub(crate) mod distributed;
 
 pub(crate) mod base;
 pub use base::*;

@@ -208,4 +208,17 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
     }
+
+    #[cfg(feature = "distributed")]
+    fn register_distributed(
+        op: &burn_ir::DistributedOperationIr,
+        handles: &mut burn_ir::HandleContainer<Self::Handle>,
+    ) {
+        crate::ops::distributed::register_distributed::<Self>(op, handles)
+    }
+
+    #[cfg(feature = "distributed")]
+    fn sync_distributed(device: &Self::Device) {
+        crate::ops::distributed::sync_distributed::<Self>(device)
+    }
 }

@@ -40,7 +40,12 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         let streams = StreamId::current();
 
         let client = tensor.client.clone();
-        let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+        let desc = AllReduceOpIr::create(
+            tensor.into_ir(),
+            op,
+            device_ids.iter().map(|id| (*id).into()).collect(),
+            || client.create_empty_handle(),
+        );
 
         let output = client
             .register(
