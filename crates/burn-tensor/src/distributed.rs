@@ -5,10 +5,11 @@
 
 use alloc::vec::Vec;
 use burn_backend::distributed::DistributedBackend;
-use burn_dispatch::Dispatch;
+use burn_backend::ops::FloatTensorOps;
+use burn_dispatch::{Dispatch, DispatchTensor};
 pub use burn_std::distributed::*;
 
-use crate::Device;
+use crate::{Device, Tensor, ops::BridgeTensor};
 
 /// This structure acts as a resource handle for multi-device synchronization.
 ///
@@ -42,5 +43,30 @@ impl Drop for DistributedContext {
         if !self.devices.is_empty() {
             Dispatch::close_communication_server(self.devices[0].as_dispatch());
         }
+    }
+}
+
+/// A tensor handle used for a collective operation, that is not yet valid for use.
+/// We must ensure collective operations are completed before accessing the underlying data.
+#[derive(new, Clone)]
+pub struct CollectiveTensor<const D: usize> {
+    handle: DispatchTensor,
+}
+
+impl<const D: usize> CollectiveTensor<D> {
+    /// Synchronizes the collective operation and returns a valid tensor handle.
+    pub fn resolve(self) -> Tensor<D> {
+        Dispatch::sync_collective(&Dispatch::float_device(&self.handle));
+        Tensor::new(BridgeTensor::float(self.handle))
+    }
+
+    /// Returns the tensor handle without synchronizing.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `sync_collective()` is called before
+    /// the returned handle is used in any computation.
+    pub unsafe fn assume_resolved(self) -> Tensor<D> {
+        Tensor::new(BridgeTensor::float(self.handle))
     }
 }

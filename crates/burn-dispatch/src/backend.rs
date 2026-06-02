@@ -10,6 +10,8 @@ use alloc::vec::Vec;
 ))]
 use alloc::vec;
 
+#[cfg(all(feature = "distributed", feature = "autodiff"))]
+use burn_backend::distributed::{DistributedParamId, DistributedParams};
 use burn_backend::{AutodiffBackend, Backend, BackendTypes, DType, ExecutionError};
 
 #[cfg(feature = "autodiff")]
@@ -172,7 +174,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::WebGpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(all(feature = "flex", not(feature = "distributed")))]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff().backward(),
-                #[cfg(any(feature = "ndarray", default_backend))]
+                #[cfg(all(
+                    any(feature = "ndarray", default_backend),
+                    not(feature = "distributed")
+                ))]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
                 #[cfg(all(feature = "tch", not(feature = "distributed")))]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
@@ -546,7 +551,10 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(all(
+                any(feature = "ndarray", default_backend),
+                not(feature = "distributed")
+            ))]
             DispatchTensorKind::NdArray(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::NdArray(
                     crate::BackendTensor::Autodiff(Autodiff::<NdArray>::from_inner(tensor.float())),
@@ -592,6 +600,98 @@ impl AutodiffBackend for Dispatch {
 
     fn q_from_inner(tensor: DispatchTensor) -> DispatchTensor {
         tensor
+    }
+
+    #[cfg(feature = "distributed")]
+    fn set_distributed_params(
+        tensor: DispatchTensor,
+        param_id: DistributedParamId,
+    ) -> DispatchTensor {
+        let DispatchTensor {
+            kind,
+            checkpointing,
+        } = tensor;
+
+        let kind = match kind {
+            DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
+                #[cfg(feature = "cuda")]
+                DispatchTensorKind::Cuda(tensor) => {
+                    DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Cuda(
+                        crate::BackendTensor::Autodiff(Autodiff::<Cuda>::set_distributed_params(
+                            tensor.as_autodiff().clone(),
+                            param_id,
+                        )),
+                    )))
+                }
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+                other => {
+                    panic!("Distributed operations are not supported for tensor kind {other:?}")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
+        };
+
+        let checkpointing = if let Some(strategy) = checkpointing {
+            Some(strategy)
+        } else {
+            Some(crate::CheckpointingStrategy::None)
+        };
+        DispatchTensor {
+            kind,
+            checkpointing,
+        }
+    }
+
+    #[cfg(feature = "distributed")]
+    fn distributed_params(tensor: &DispatchTensor) -> Option<DistributedParams> {
+        let DispatchTensor {
+            kind,
+            checkpointing: _,
+        } = tensor;
+
+        match &kind {
+            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
+                #[cfg(feature = "cuda")]
+                DispatchTensorKind::Cuda(tensor) => {
+                    tensor.as_autodiff().node.distributed_params.clone()
+                }
+
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+                other => {
+                    panic!("Distributed operations are not supported for tensor kind {other:?}")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
+        }
+    }
+
+    #[cfg(feature = "distributed")]
+    fn is_distributed(tensor: &DispatchTensor) -> bool {
+        let DispatchTensor {
+            kind,
+            checkpointing: _,
+        } = tensor;
+
+        match &kind {
+            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
+                #[cfg(feature = "cuda")]
+                DispatchTensorKind::Cuda(tensor) => {
+                    tensor.as_autodiff().node.distributed_params.is_some()
+                }
+
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+                other => {
+                    panic!("Distributed operations are not supported for tensor kind {other:?}")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
+        }
     }
 }
 

@@ -425,7 +425,8 @@ where
             .downcast::<FusionUtilities>()
             .expect("Can downcast to `FusionUtilities`");
         let id = CommunicationId::from(device_ids);
-        if utilities.initialized_comms.read().unwrap().contains(&id) {
+
+        if !utilities.initialized_comms.read().unwrap().contains(&id) {
             // Communication initialization is blocking for the server, so we need to flush right away to make sure other devices
             // aren't waiting indefinitely on this initialization call.
             // This is already handled by cubecl, but since fusion adds another layer of streams and asynchronous submits,

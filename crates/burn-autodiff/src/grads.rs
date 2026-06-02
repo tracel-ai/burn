@@ -17,6 +17,7 @@ use burn_backend::distributed::DistributedParams;
 pub type GradID = u64;
 
 #[cfg(feature = "distributed")]
+#[derive(Clone)]
 pub(crate) struct GradSyncContext {
     pub n_required_map: HashMap<NodeId, usize>,
     pub distributed_params: HashMap<NodeId, DistributedParams>,

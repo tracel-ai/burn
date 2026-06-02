@@ -595,19 +595,19 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| weights.matmul(x));
+        compare_sync_gradient(ReduceOperation::Sum, |weights, x| weights.matmul(x));
     }
 
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| weights.matmul(x));
+        compare_sync_gradient(ReduceOperation::Mean, |weights, x| weights.matmul(x));
     }
 
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_residual() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradient(ReduceOperation::Sum, |weights, x| {
             let y = weights.clone().matmul(x);
             y.add(weights)
         });
@@ -616,7 +616,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_residual() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradient(ReduceOperation::Mean, |weights, x| {
             let y = weights.clone().matmul(x);
             y.add(weights)
         });
@@ -625,7 +625,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_activation() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradient(ReduceOperation::Sum, |weights, x| {
             let y = weights.clone().matmul(x);
             let y = y.add(weights);
             burn_tensor::activation::relu(y)
@@ -635,7 +635,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_activation() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradient(ReduceOperation::Mean, |weights, x| {
             let y = weights.clone().matmul(x);
             let y = y.add(weights);
             burn_tensor::activation::relu(y)
@@ -645,7 +645,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_diamond_graph() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradient(ReduceOperation::Sum, |weights, x| {
             let left = weights.clone().matmul(x.clone().mul_scalar(2));
             let right = weights.clone().matmul(x.clone().exp());
             Tensor::cat(vec![left, right], 0)
@@ -655,7 +655,7 @@ mod grad_distributed {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_diamond_graph() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradient(ReduceOperation::Mean, |weights, x| {
             let left = weights.clone().matmul(x.clone().mul_scalar(2));
             let right = weights.clone().matmul(x.clone().exp());
             Tensor::cat(vec![left, right], 0)
@@ -669,26 +669,24 @@ mod grad_distributed {
         use burn_tensor::distributed::DistributedConfig;
 
         const NUM_ITERATIONS: usize = 100;
-        let type_id = 0u16;
-
-        let devices = Device::enumerate(DeviceType::Cuda).autodiff();
+        let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
 
         let module = ModuleBasic::new(&devices[0]);
         let (synced_senders, synced_receivers): (
             Vec<Sender<TensorData>>,
             Vec<Receiver<TensorData>>,
-        ) = (0..device_count)
+        ) = (0..devices.len())
             .map(|_| std::sync::mpsc::channel())
             .unzip();
         let (original_senders, original_receivers): (
             Vec<Sender<TensorData>>,
             Vec<Receiver<TensorData>>,
-        ) = (0..device_count)
+        ) = (0..devices.len())
             .map(|_| std::sync::mpsc::channel())
             .unzip();
 
         let config = DistributedConfig { all_reduce_op: op };
-        let context = DistributedContext::init(devices.clone(), config);
+        let _context = DistributedContext::init(devices.clone(), config);
 
         let join_handles = spawn_peer_threads(
             &module,

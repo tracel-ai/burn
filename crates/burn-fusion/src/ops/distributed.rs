@@ -48,8 +48,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
                 OperationIr::Distributed(DistributedOperationIr::AllReduce(desc.clone())),
                 AllReduceOps::<B>::new(desc, op, device_ids.clone()),
             )
-            .output()
-            .into();
+            .output();
 
         client.ensure_collective_init::<B>(device_ids);
 

@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use core::mem::discriminant;
 
 use burn_backend::{
     DeviceId,
@@ -23,11 +22,22 @@ macro_rules! dispatch_distributed_devices_arms {
             // Autodiff arm first
             #[cfg(feature = "autodiff")]
             $crate::DispatchDevice::Autodiff(inner) => {
+                let inner_devices = $devices
+                    .iter()
+                    .map(|d| {
+                         match &d {
+                            #[cfg(feature = "autodiff")]
+                            $crate::DispatchDevice::Autodiff(d_inner) => *d_inner.inner.clone(),
+                            _ => unreachable!("All devices are expected to be of the same variant."),
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let inner_devices = inner_devices.as_slice();
                 // Recursively dispatch on inner
                 dispatch_distributed_devices_arms!(
                     @autodiff
                     &**inner,
-                    $devices,
+                    &*inner_devices,
                     |$inner_devices| $body;
                     $([$Backend, $cfg]),*
                 )
@@ -35,18 +45,12 @@ macro_rules! dispatch_distributed_devices_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(_) => {
-                    assert!(
-                        $devices
-                            .iter()
-                            .all(|d| discriminant(d) == discriminant($device)),
-                        "All devices are expected to be of the same variant."
-                    );
                     type B = $crate::backends::$Backend;
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
                             let DispatchDevice::$Backend(dev) = d else {
-                                unreachable!()
+                                unreachable!("All devices are expected to be of the same variant.")
                             };
                             dev.clone()
                         })
@@ -68,18 +72,12 @@ macro_rules! dispatch_distributed_devices_arms {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchDevice::$Backend(_) => {
-                    assert!(
-                        $devices
-                            .iter()
-                            .all(|d| discriminant(d) == discriminant($device)),
-                        "All devices are expected to be of the same variant."
-                    );
                     type B = $crate::backends::Autodiff<$crate::backends::$Backend>;
                     let $inner_devices = $devices
                         .iter()
                         .map(|d| {
                             let DispatchDevice::$Backend(dev) = d else {
-                                unreachable!()
+                                unreachable!("All devices are expected to be of the same variant.")
                             };
                             dev.clone()
                         })
@@ -100,7 +98,7 @@ macro_rules! dispatch_distributed_devices {
             dispatch_distributed_devices_arms,
             $device,
             $devices,
-            |$inner_devices| { $body }
+            |$inner_devices| $body
         )
     };
 }
