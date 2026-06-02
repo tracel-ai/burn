@@ -13,8 +13,8 @@ use burn_backend::{
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
-    HandleContainer, HandleKind, IntOperationIr, ModuleOperationIr, NumericOperationIr, OperationIr,
-    TensorId, TensorIr, TensorStatus,
+    HandleContainer, HandleKind, IntOperationIr, ModuleOperationIr, NumericOperationIr,
+    OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut, stub::Mutex};
 

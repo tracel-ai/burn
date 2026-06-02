@@ -191,11 +191,20 @@ mod tests {
 
     #[test]
     fn address_distinguishes_port_host_and_scheme() {
-        assert_ne!(Address::from("ws://host:3000"), Address::from("ws://host:3001"));
+        assert_ne!(
+            Address::from("ws://host:3000"),
+            Address::from("ws://host:3001")
+        );
         assert_ne!(Address::from("ws://a:3000"), Address::from("ws://b:3000"));
-        assert_ne!(Address::from("ws://host:3000"), Address::from("wss://host:3000"));
+        assert_ne!(
+            Address::from("ws://host:3000"),
+            Address::from("wss://host:3000")
+        );
         // Host names are textual, not resolved.
-        assert_ne!(Address::from("ws://localhost:3000"), Address::from("ws://127.0.0.1:3000"));
+        assert_ne!(
+            Address::from("ws://localhost:3000"),
+            Address::from("ws://127.0.0.1:3000")
+        );
     }
 
     #[test]

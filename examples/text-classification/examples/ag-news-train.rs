@@ -113,7 +113,17 @@ mod remote {
     use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        crate::launch_single(Device::remote("ws://localhost:3000", 0));
+        let mut devices = vec![
+            Device::remote("ws://localhost:3000", 0),
+            Device::remote("ws://localhost:3000", 1),
+        ];
+
+        launch(ExecutionStrategy::ddp(
+            devices,
+            DistributedConfig {
+                all_reduce_op: ReduceOperation::Mean,
+            },
+        ))
     }
 }
 

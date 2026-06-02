@@ -5,8 +5,8 @@
 //! `build.rs`, plus visibility of every in-tree `BackendIr` type. The user
 //! surface (`Channel` enum, opaque `Device` argument) lives in `burn-tensor`.
 
-use crate::{Dispatch, DispatchDevice, DispatchDeviceId};
 use crate::backends::*;
+use crate::{Dispatch, DispatchDevice, DispatchDeviceId};
 
 /// Collect every [`Device<B>`] the host exposes for the backend that owns `$variant`, by
 /// enumerating the backend (see [`Dispatch::enumerate`]) and unwrapping the matching variant.
@@ -33,9 +33,10 @@ macro_rules! host_devices {
 pub fn start_websocket(device: DispatchDevice, port: u16) {
     match device.inner() {
         #[cfg(feature = "cpu")]
-        DispatchDevice::Cpu(_) => {
-            burn_remote::server::start_websocket::<Cpu>(host_devices!(DispatchDeviceId::Cpu, Cpu), port)
-        }
+        DispatchDevice::Cpu(_) => burn_remote::server::start_websocket::<Cpu>(
+            host_devices!(DispatchDeviceId::Cpu, Cpu),
+            port,
+        ),
         #[cfg(feature = "cuda")]
         DispatchDevice::Cuda(_) => burn_remote::server::start_websocket::<Cuda>(
             host_devices!(DispatchDeviceId::Cuda, Cuda),
