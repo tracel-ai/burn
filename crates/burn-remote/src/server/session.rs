@@ -5,6 +5,7 @@ use burn_router::TensorInterpreter;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
+use crate::server::local_transfer::LocalTransferService;
 use crate::shared::{SessionId, TaskResponse};
 
 /// Capacity for the per-session response queue.
@@ -28,8 +29,12 @@ where
     B: BackendIr,
     P: Protocol,
 {
-    device: Device<B>,
+    /// All devices this server hosts, indexed by the device index the client selects at
+    /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
+    devices: Vec<Device<B>>,
     pub(crate) data_service: Arc<TensorDataService<B, P>>,
+    /// Rendezvous registry for same-host tensor transfers between this server's sessions.
+    pub(crate) local_transfers: Arc<LocalTransferService<B>>,
     sessions: Mutex<HashMap<SessionId, Session<B>>>,
 }
 
@@ -44,19 +49,40 @@ where
     B: BackendIr,
     P: Protocol,
 {
-    pub fn new(device: Device<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
+    pub fn new(devices: Vec<Device<B>>, data_service: Arc<TensorDataService<B, P>>) -> Self {
+        assert!(
+            !devices.is_empty(),
+            "A remote server must host at least one device"
+        );
         Self {
-            device,
+            devices,
             data_service,
+            local_transfers: Arc::new(LocalTransferService::new()),
             sessions: Mutex::new(HashMap::new()),
         }
     }
 
-    /// The backend default device settings, used by the response-init handshake before any
+    /// Resolve the device at `device_index`, falling back to the default device (index 0)
+    /// with a warning if the client requested an index this server doesn't host.
+    fn device(&self, device_index: u32) -> Device<B> {
+        match self.devices.get(device_index as usize) {
+            Some(device) => device.clone(),
+            None => {
+                log::warn!(
+                    "Requested device index {device_index} but server hosts only {} device(s); \
+                     falling back to device 0",
+                    self.devices.len()
+                );
+                self.devices[0].clone()
+            }
+        }
+    }
+
+    /// The device settings for `device_index`, used by the response-init handshake before any
     /// session-specific runner is needed.
-    pub fn device_settings(&self) -> burn_std::DeviceSettings {
+    pub fn device_settings(&self, device_index: u32) -> burn_std::DeviceSettings {
         use burn_backend::backend::DeviceOps;
-        self.device.defaults()
+        self.device(device_index).defaults()
     }
 
     /// Resolve both the [`TensorInterpreter`] and the response sender for `session_id` in a single lock
@@ -66,9 +92,12 @@ where
     pub async fn session_handles(
         &self,
         session_id: SessionId,
+        device_index: u32,
     ) -> (TensorInterpreter<B>, mpsc::Sender<TaskResponse>) {
-        self.with_session(session_id, |s| (s.runner.clone(), s.sender.clone()))
-            .await
+        self.with_session(session_id, device_index, |s| {
+            (s.runner.clone(), s.sender.clone())
+        })
+        .await
     }
 
     /// Get a clone of the [`TensorInterpreter`] for `session_id` only if the session already exists,
@@ -86,8 +115,9 @@ where
     pub async fn take_response_receiver(
         &self,
         session_id: SessionId,
+        device_index: u32,
     ) -> Result<mpsc::Receiver<TaskResponse>, String> {
-        self.with_session(session_id, |s| {
+        self.with_session(session_id, device_index, |s| {
             s.receiver
                 .take()
                 .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
@@ -105,13 +135,16 @@ where
     async fn with_session<R>(
         &self,
         session_id: SessionId,
+        device_index: u32,
         f: impl FnOnce(&mut Session<B>) -> R,
     ) -> R {
         let mut sessions = self.sessions.lock().await;
         let entry = sessions.entry(session_id).or_insert_with(|| {
             let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);
             Session {
-                runner: TensorInterpreter::new(self.device.clone()),
+                // The session is pinned to its device for its whole lifetime; the first
+                // handler (request or response) to touch it fixes the device index.
+                runner: TensorInterpreter::new(self.device(device_index)),
                 sender,
                 receiver: Some(receiver),
             }

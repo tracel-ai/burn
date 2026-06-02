@@ -27,7 +27,7 @@ use pending::{PendingResponses, Responder};
 use writer::RequestWriter;
 
 use registry::settings_cell;
-pub use registry::{address_to_id, id_to_address};
+pub use registry::{endpoint_to_id, id_to_endpoint};
 pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
 
 /// Flush the outgoing task buffer when this many tasks have accumulated.
@@ -78,13 +78,20 @@ pub struct RemoteService<C: ProtocolClient> {
 
 impl<C: ProtocolClient> DeviceService for RemoteService<C> {
     fn init(device_id: DeviceId) -> Self {
-        let (id, address) = Self::resolve_address(device_id);
+        let (id, address, device_index) = Self::resolve_endpoint(device_id);
         let runtime = build_runtime();
         let session_id = SessionId::new();
 
-        log::info!("Connecting to {address} ...");
+        log::info!("Connecting to {address} (device {device_index}) ...");
         let (mut request, mut response) = Self::connect_streams(&runtime, &address);
-        let settings = Self::handshake(&runtime, &mut request, &mut response, &address, session_id);
+        let settings = Self::handshake(
+            &runtime,
+            &mut request,
+            &mut response,
+            &address,
+            session_id,
+            device_index,
+        );
 
         // Publish settings to the shared cell so `RemoteDevice::defaults` can see them.
         let cell = settings_cell(id);
@@ -129,14 +136,15 @@ fn build_runtime() -> tokio::runtime::Runtime {
 /// Construction helpers for [`RemoteService::init`], one per step of bringing a connection
 /// up. Kept separate from the public submit-style API below.
 impl<C: ProtocolClient> RemoteService<C> {
-    /// Resolve a device id to its registry index and parsed network [`Address`].
-    fn resolve_address(device_id: DeviceId) -> (u32, Address) {
+    /// Resolve a device id to its registry index, parsed network [`Address`], and the device
+    /// index to select on the server.
+    fn resolve_endpoint(device_id: DeviceId) -> (u32, Address, u32) {
         let id = device_id.index_id as u32;
-        let address_str = id_to_address(id)
-            .unwrap_or_else(|| panic!("No address registered for device id {device_id}"));
+        let (address_str, device_index) = id_to_endpoint(id)
+            .unwrap_or_else(|| panic!("No endpoint registered for device id {device_id}"));
         let address = Address::from_str(&address_str)
             .unwrap_or_else(|_| panic!("Could not parse registered address `{address_str}`"));
-        (id, address)
+        (id, address, device_index)
     }
 
     /// Open the request and response channels. Done synchronously so a missing server
@@ -166,10 +174,12 @@ impl<C: ProtocolClient> RemoteService<C> {
         response: &mut C::Channel,
         address: &Address,
         session_id: SessionId,
+        device_index: u32,
     ) -> DeviceSettings {
-        let init_bytes: bytes::Bytes = rmp_serde::to_vec(&vec![Task::Init(session_id)])
-            .expect("Can serialize Task::Init")
-            .into();
+        let init_bytes: bytes::Bytes =
+            rmp_serde::to_vec(&vec![Task::Init(session_id, device_index)])
+                .expect("Can serialize Task::Init")
+                .into();
 
         runtime
             .block_on(async {
@@ -276,6 +286,30 @@ impl<C: ProtocolClient> RemoteService<C> {
             tensor,
             count,
             transfer_id,
+        });
+        self.flush();
+    }
+
+    /// Expose a tensor for a same-host transfer, flushing immediately.
+    ///
+    /// Source side of the local path; flushed for the same reason as
+    /// [`expose_tensor_remote`](Self::expose_tensor_remote).
+    pub fn expose_tensor_local(&mut self, tensor: TensorIr, transfer_id: TensorTransferId) {
+        self.submit_compute(ComputeTask::ExposeTensorLocal {
+            tensor,
+            transfer_id,
+        });
+        self.flush();
+    }
+
+    /// Register a tensor produced by a same-host transfer, flushing immediately.
+    ///
+    /// Target side of the local path; flushed for the same reason as
+    /// [`register_tensor_remote`](Self::register_tensor_remote).
+    pub fn register_tensor_local(&mut self, transfer_id: TensorTransferId, new_id: TensorId) {
+        self.submit_compute(ComputeTask::RegisterTensorLocal {
+            transfer_id,
+            new_id,
         });
         self.flush();
     }

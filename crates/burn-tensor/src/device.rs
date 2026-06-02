@@ -329,14 +329,25 @@ impl Device {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }
 
-    /// Remote device identified by a network address (e.g. `"ws://127.0.0.1:3000"`).
+    /// Remote device identified by a network address (e.g. `"ws://127.0.0.1:3000"`) and the
+    /// index of the device to select on that server.
     ///
-    /// Requires a running [`burn-remote`](burn_dispatch::backends::remote) server at
-    /// the given address. Operations on tensors created with this device are
-    /// shipped to the server and executed there.
+    /// Requires a running [`burn-remote`](burn_dispatch::backends::remote) server at the given
+    /// address. Operations on tensors created with this device are shipped to the server and
+    /// executed there. The `index` selects which of the server's devices to use (the server
+    /// hosts all of its backend's devices); use [`DeviceIndex::Default`] for the server's
+    /// default device. Two remote devices with the same address but different indices target
+    /// distinct devices on the same host.
+    ///
+    /// ```rust,ignore
+    /// Device::remote("ws://host:3000", 0);                    // first device
+    /// Device::remote("ws://host:3000", 1);                    // second device on same host
+    /// Device::remote("ws://host:3000", DeviceIndex::Default); // server-chosen default
+    /// ```
     #[cfg(feature = "remote")]
-    pub fn remote(address: &str) -> Self {
-        let device = burn_dispatch::devices::RemoteDevice::new(address);
+    pub fn remote(address: &str, index: impl Into<DeviceIndex>) -> Self {
+        let index = index.into().resolve();
+        let device = burn_dispatch::devices::RemoteDevice::new(address, index);
         device.connect(); // initializes the connection (required to get the device default settings)
         Self::new(device)
     }

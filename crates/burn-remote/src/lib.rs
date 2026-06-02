@@ -49,19 +49,19 @@ mod tests {
             .unwrap();
 
         rt.spawn(crate::server::start_websocket_async::<Flex>(
-            Default::default(),
+            vec![Default::default()],
             3000,
         ));
         rt.spawn(crate::server::start_websocket_async::<Flex>(
-            Default::default(),
+            vec![Default::default()],
             3010,
         ));
 
         // Give the servers a moment to bind before clients try to connect.
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device_1 = Device::remote("ws://localhost:3000");
-        let device_2 = Device::remote("ws://localhost:3010");
+        let device_1 = Device::remote("ws://localhost:3000", 0);
+        let device_2 = Device::remote("ws://localhost:3010", 0);
 
         // Some random input on device 1.
         let input_shape = [1, 28, 28];
@@ -81,6 +81,46 @@ mod tests {
         rt.shutdown_background();
     }
 
+    /// A single server hosting multiple devices: two indices on the same address resolve to
+    /// two distinct sessions (distinct interpreters/runner threads). Moving a tensor between
+    /// them exercises the multi-device path within one host.
+    #[test]
+    pub fn test_multi_device_single_server() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        // One server, two devices.
+        rt.spawn(crate::server::start_websocket_async::<Flex>(
+            vec![Default::default(), Default::default()],
+            3030,
+        ));
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device_0 = Device::remote("ws://localhost:3030", 0);
+        let device_1 = Device::remote("ws://localhost:3030", 1);
+
+        // Distinct indices on the same address must be distinct devices.
+        assert_ne!(device_0, device_1);
+
+        let input_shape = [1, 28, 28];
+        let input = Tensor::<3>::random(input_shape, Distribution::Default, &device_0);
+        let numbers_expected: Vec<f32> = input.to_data().to_vec().unwrap();
+
+        // Move tensor to the second device on the same host and back.
+        let input = input.to_device(&device_1);
+        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        assert_eq!(numbers, numbers_expected);
+
+        let input = input.to_device(&device_0);
+        let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
+        assert_eq!(numbers, numbers_expected);
+
+        rt.shutdown_background();
+    }
+
     /// Exercises the cross-backend transfer body: local tensor → remote (data round-trip
     /// through `TensorData`), an op on the remote, then remote → local.
     #[test]
@@ -91,14 +131,14 @@ mod tests {
             .unwrap();
 
         rt.spawn(crate::server::start_websocket_async::<Flex>(
-            Default::default(),
+            vec![Default::default()],
             3020,
         ));
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         let local = Device::default();
-        let remote = Device::remote("ws://localhost:3020");
+        let remote = Device::remote("ws://localhost:3020", 0);
 
         // Create on local, move to remote.
         let input = Tensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &local);

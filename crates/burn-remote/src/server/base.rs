@@ -40,11 +40,14 @@ where
     B: BackendIr,
     P: Protocol,
 {
-    /// Start the server on the given address.
-    pub async fn start(device: Device<B>, server: P::Server) {
+    /// Start the server hosting the given devices.
+    ///
+    /// `devices` is indexed by the device index the client selects at session init;
+    /// `devices[0]` is the default device. Must be non-empty.
+    pub async fn start(devices: Vec<Device<B>>, server: P::Server) {
         let cancel_token = CancellationToken::new();
         let data_service = Arc::new(TensorDataService::<B, P>::new(cancel_token));
-        let session_manager = Arc::new(SessionManager::<B, P>::new(device, data_service.clone()));
+        let session_manager = Arc::new(SessionManager::<B, P>::new(devices, data_service.clone()));
 
         let _server = server
             .route("/response", {
@@ -79,9 +82,9 @@ where
             }
         };
 
-        let session_id = match rmp_serde::from_slice::<Vec<Task>>(&msg.data) {
+        let (session_id, device_index) = match rmp_serde::from_slice::<Vec<Task>>(&msg.data) {
             Ok(mut tasks) => match tasks.pop() {
-                Some(Task::Init(id)) if tasks.is_empty() => id,
+                Some(Task::Init(id, device_index)) if tasks.is_empty() => (id, device_index),
                 other => {
                     log::error!(
                         "Response handshake expected a single Task::Init, got {other:?}; closing stream"
@@ -95,11 +98,11 @@ where
             }
         };
 
-        log::info!("Init responder for session {session_id}");
+        log::info!("Init responder for session {session_id} (device {device_index})");
 
-        // Reply with the device's default settings — the client uses these to fill in
-        // `RemoteDevice::defaults` so it can resolve op dtypes without an extra RTT.
-        let settings = session_manager.device_settings();
+        // Reply with the selected device's default settings — the client uses these to fill
+        // in `RemoteDevice::defaults` so it can resolve op dtypes without an extra RTT.
+        let settings = session_manager.device_settings(device_index);
         let init_response = TaskResponse {
             content: TaskResponseContent::Init(settings),
             // Placeholder id for the handshake; the client reads this response inline
@@ -119,7 +122,10 @@ where
             return;
         }
 
-        let mut receiver = match session_manager.take_response_receiver(session_id).await {
+        let mut receiver = match session_manager
+            .take_response_receiver(session_id, device_index)
+            .await
+        {
             Ok(r) => r,
             Err(err) => {
                 log::error!("{err}");
@@ -160,6 +166,9 @@ where
     ) {
         log::info!("[Request Handler] On new connection.");
         let mut session_id: Option<SessionId> = None;
+        // The device index this session is bound to, fixed by `Task::Init`. Used when the
+        // session's runner is first created (on the first compute task).
+        let mut device_index: u32 = 0;
         // Whether we already ran `handle_close` for this session via an explicit `Task::Close`.
         // If not, we close on the way out so an abrupt disconnect doesn't leak the session.
         let mut session_closed = false;
@@ -195,9 +204,10 @@ where
             let mut closed = false;
             for task in tasks {
                 match task {
-                    Task::Init(id) => {
-                        log::info!("Init requester for session {id}");
+                    Task::Init(id, index) => {
+                        log::info!("Init requester for session {id} (device {index})");
                         session_id = Some(id);
+                        device_index = index;
                         // Re-resolve handles for the new session on the next compute task.
                         handles = None;
                     }
@@ -218,7 +228,8 @@ where
                         };
 
                         if handles.is_none() {
-                            handles = Some(session_manager.session_handles(sid).await);
+                            handles =
+                                Some(session_manager.session_handles(sid, device_index).await);
                         }
                         let (runner, sender) = handles.as_ref().unwrap();
 
@@ -318,6 +329,30 @@ where
                 StreamId::current().executes(|| runner.register_tensor_data_id(new_id, data));
                 Ok(())
             }
+            ComputeTask::ExposeTensorLocal {
+                tensor,
+                transfer_id,
+            } => {
+                // Source side of a same-host transfer. Grab the device-resident primitive
+                // (no host readback) and park it in the registry for the target session to
+                // pick up. Runs inline on this connection, so it is ordered after the op that
+                // produced `tensor` — the handle is guaranteed present.
+                let kind = StreamId::current().executes(|| runner.get_tensor(&tensor));
+                sm.local_transfers.expose(transfer_id, kind).await;
+                Ok(())
+            }
+            ComputeTask::RegisterTensorLocal {
+                transfer_id,
+                new_id,
+            } => {
+                // Target side of a same-host transfer. Wait for the source to expose the
+                // primitive, then move it onto this session's device and register it. Awaited
+                // inline so subsequent ops on this connection that consume `new_id` see it
+                // registered first — same ordering contract as `RegisterTensorRemote`.
+                let kind = sm.local_transfers.take(transfer_id).await;
+                StreamId::current().executes(|| runner.register_tensor_to_device(new_id, kind));
+                Ok(())
+            }
             ComputeTask::ExposeTensorRemote {
                 tensor,
                 count,
@@ -408,14 +443,16 @@ where
     }
 }
 
-/// Start the server on the given port and [device](Device).
-pub async fn start_websocket_async<B: BackendIr>(device: Device<B>, port: u16) {
+/// Start the server on the given port, hosting the given [devices](Device).
+///
+/// `devices` is indexed by the device index the client selects; `devices[0]` is the default.
+pub async fn start_websocket_async<B: BackendIr>(devices: Vec<Device<B>>, port: u16) {
     let server = WsServer::new(port);
-    RemoteServer::<B, WebSocket>::start(device, server).await;
+    RemoteServer::<B, WebSocket>::start(devices, server).await;
 }
 
 #[tokio::main]
-/// Start the server on the given port and [device](Device).
-pub async fn start_websocket<B: BackendIr>(device: Device<B>, port: u16) {
-    start_websocket_async::<B>(device, port).await;
+/// Start the server on the given port, hosting the given [devices](Device).
+pub async fn start_websocket<B: BackendIr>(devices: Vec<Device<B>>, port: u16) {
+    start_websocket_async::<B>(devices, port).await;
 }

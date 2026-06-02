@@ -13,8 +13,8 @@ use burn_backend::{
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
-    HandleContainer, IntOperationIr, ModuleOperationIr, NumericOperationIr, OperationIr, TensorId,
-    TensorIr, TensorStatus,
+    HandleContainer, HandleKind, IntOperationIr, ModuleOperationIr, NumericOperationIr, OperationIr,
+    TensorId, TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut, stub::Mutex};
 
@@ -66,6 +66,53 @@ impl<B: BackendIr> TensorInterpreter<B> {
     pub fn get_tensor_handle(&self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.lock().unwrap().handles;
         handles.get_tensor_handle(tensor).handle
+    }
+
+    /// Take the typed backend primitive for `tensor`, dispatching on its dtype.
+    ///
+    /// Unlike [`get_tensor_handle`](Self::get_tensor_handle) (which returns the opaque
+    /// `B::Handle`), this returns the concrete float/int/bool primitive so the caller can hand
+    /// it to `B::*_to_device`. Used by the same-host transfer path, which moves a tensor between
+    /// two interpreters living in the same server process without a host round-trip.
+    pub fn get_tensor(&self, tensor: &TensorIr) -> HandleKind<B> {
+        let handles = &mut self.context.lock().unwrap().handles;
+        let dtype = tensor.dtype;
+        if dtype.is_float() {
+            HandleKind::Float(handles.get_float_tensor::<B>(tensor))
+        } else if dtype.is_int() {
+            HandleKind::Int(handles.get_int_tensor::<B>(tensor))
+        } else if dtype.is_bool() {
+            HandleKind::Bool(handles.get_bool_tensor::<B>(tensor))
+        } else {
+            todo!("Local transfer of {dtype:?} tensors is not supported yet");
+        }
+    }
+
+    /// Move a primitive produced on another interpreter's device onto this interpreter's device
+    /// and register it under `id`.
+    ///
+    /// The counterpart of [`get_tensor`](Self::get_tensor): the source interpreter hands over its
+    /// primitive, and the destination calls `B::*_to_device` onto its own device. When both
+    /// interpreters share the same device, the backend's `to_device` is a cheap no-op.
+    pub fn register_tensor_to_device(&self, id: TensorId, tensor: HandleKind<B>) {
+        let mut ctx = self.context.lock().unwrap();
+        match tensor {
+            HandleKind::Float(tensor) => {
+                let tensor = B::float_to_device(tensor, &self.device);
+                ctx.handles.register_float_tensor::<B>(&id, tensor);
+            }
+            HandleKind::Int(tensor) => {
+                let tensor = B::int_to_device(tensor, &self.device);
+                ctx.handles.register_int_tensor::<B>(&id, tensor);
+            }
+            HandleKind::Bool(tensor) => {
+                let tensor = B::bool_to_device(tensor, &self.device);
+                ctx.handles.register_bool_tensor::<B>(&id, tensor);
+            }
+            HandleKind::Quantized(_) => {
+                todo!("Local transfer of quantized tensors is not supported yet");
+            }
+        }
     }
 
     /// Create a tensor with the given handle and shape.

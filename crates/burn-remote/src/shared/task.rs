@@ -43,7 +43,8 @@ impl SessionId {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Task {
     Compute(ComputeTask),
-    Init(SessionId),
+    /// Open a session bound to the device at the given index on the server.
+    Init(SessionId, u32),
     Close(SessionId),
 }
 
@@ -70,6 +71,21 @@ pub enum ComputeTask {
         tensor: TensorIr,
         count: u32,
         transfer_id: TensorTransferId,
+    },
+    /// Source side of a same-host transfer: hand the device-resident primitive for `tensor`
+    /// to the server's local transfer registry under `transfer_id`. No host readback — the
+    /// counterpart [`RegisterTensorLocal`](ComputeTask::RegisterTensorLocal), running on the
+    /// target session of the same server, moves it onto the target device via the inner
+    /// backend's `to_device`.
+    ExposeTensorLocal {
+        tensor: TensorIr,
+        transfer_id: TensorTransferId,
+    },
+    /// Target side of a same-host transfer: wait for `transfer_id` to be exposed, move the
+    /// primitive onto this session's device, and register it under `new_id`.
+    RegisterTensorLocal {
+        transfer_id: TensorTransferId,
+        new_id: TensorId,
     },
     ReadTensor(RequestId, StreamId, TensorIr),
     SyncBackend(RequestId, StreamId),

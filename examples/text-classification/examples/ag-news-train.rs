@@ -113,7 +113,7 @@ mod remote {
     use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        crate::launch_single(Device::remote("ws://localhost:3000"));
+        crate::launch_single(Device::remote("ws://localhost:3000", 0));
     }
 }
 
