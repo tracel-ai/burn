@@ -3083,8 +3083,11 @@ fn display_fmt_inner(
         let slices: Vec<Slice> = (0..rank)
             .map(|d| Slice::from((multi_index[d] as i64)..((multi_index[d] + 1) as i64)))
             .collect();
+        println!("in display_fmt_inner");
         let sliced = slice_bridge_by_kind(primitive.clone(), &slices, kind);
+        println!("sliced");
         let data = burn_std::reader::try_read_sync(into_data_async_impl(sliced, kind));
+        println!("into_data fmt_inenr");
         if let Some(Ok(data)) = data {
             let elem = DataIterFmt { data, precision }.next();
             acc.push_str(&elem);
