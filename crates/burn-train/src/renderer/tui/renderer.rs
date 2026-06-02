@@ -114,7 +114,7 @@ impl TuiMetricsRendererWrapper {
 
     fn send_event(&self, event: TuiRendererEvent) {
         if self.kill_signal.lock().unwrap().try_recv().is_ok() {
-            panic!("Killing training from user input.")
+            return;
         }
         if let Err(e) = self.sender.send(event) {
             log::warn!("Failed to send TUI event: {e}");
@@ -534,7 +534,7 @@ struct PopupCancel;
 impl CallbackFn for KillPopupAccept {
     fn call(&self) -> bool {
         self.0.send(()).unwrap();
-        panic!("Killing training from user input.");
+        true
     }
 }
 
