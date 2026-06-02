@@ -17,7 +17,6 @@ const NO_STD_CRATES: &[&str] = &[
     "burn-std",
     "burn-backend",
     "burn-tensor",
-    "burn-flex",
     "burn-ndarray",
     "burn-no-std-tests",
 ];

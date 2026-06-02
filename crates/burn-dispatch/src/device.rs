@@ -51,11 +51,11 @@ pub enum DispatchDevice {
     WebGpu(WgpuDevice),
 
     /// The [Flex backend](Flex) device (CPU-only).
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     Flex(FlexDevice),
 
     /// The [NdArray backend](NdArray) device (CPU-only).
-    #[cfg(any(feature = "ndarray", default_backend))]
+    #[cfg(feature = "ndarray")]
     NdArray(NdArrayDevice),
 
     /// The [LibTorch backend](LibTorch) device.
@@ -156,9 +156,9 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Wgpu(device) => f.debug_tuple("Wgpu").field(device).finish(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(device) => f.debug_tuple("WebGpu").field(device).finish(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
@@ -244,14 +244,14 @@ impl Default for DispatchDevice {
                         );
                     }
                     "flex" => {
-                        #[cfg(feature = "flex")]
+                        #[cfg(any(feature = "flex", default_backend))]
                         return Self::Flex(FlexDevice);
                         panic!(
                             "BURN_DEVICE=flex requested, but the 'flex' feature is not enabled."
                         );
                     }
                     "ndarray" => {
-                        #[cfg(any(feature = "ndarray", default_backend))]
+                        #[cfg(feature = "ndarray")]
                         return Self::NdArray(NdArrayDevice::default());
                         panic!(
                             "BURN_DEVICE=ndarray requested, but the 'ndarray' feature is not enabled."
@@ -288,13 +288,13 @@ impl Default for DispatchDevice {
 
         // Prefer Flex over NdArray when both are enabled: Flex is the long-term
         // CPU backend replacement and should win the default tie.
-        #[cfg(feature = "flex")]
+        #[cfg(any(feature = "flex", default_backend))]
         return Self::Flex(FlexDevice);
 
         #[cfg(feature = "remote")]
         return Self::Remote(RemoteDevice::default());
 
-        #[cfg(any(feature = "ndarray", default_backend))]
+        #[cfg(feature = "ndarray")]
         return Self::NdArray(NdArrayDevice::default());
     }
 }
@@ -328,9 +328,9 @@ impl PartialEq for DispatchDevice {
             (Self::Wgpu(a), Self::Wgpu(b)) => a == b,
             #[cfg(feature = "webgpu")]
             (Self::WebGpu(a), Self::WebGpu(b)) => a == b,
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             (Self::Flex(a), Self::Flex(b)) => a == b,
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             (Self::NdArray(a), Self::NdArray(b)) => a == b,
             #[cfg(feature = "tch")]
             (Self::LibTorch(a), Self::LibTorch(b)) => a == b,
@@ -388,9 +388,9 @@ impl DispatchDevice {
             Self::Wgpu(_) => DispatchDeviceId::Wgpu,
             #[cfg(feature = "webgpu")]
             Self::WebGpu(_) => DispatchDeviceId::WebGpu,
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(_) => DispatchDeviceId::Flex,
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             Self::NdArray(_) => DispatchDeviceId::NdArray,
             #[cfg(feature = "tch")]
             Self::LibTorch(_) => DispatchDeviceId::LibTorch,
@@ -457,11 +457,11 @@ impl TryFrom<u16> for DispatchDeviceId {
             2 => Ok(Self::Wgpu),
             #[cfg(feature = "rocm")]
             3 => Ok(Self::Rocm),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             4 => Ok(Self::Flex),
             #[cfg(feature = "tch")]
             5 => Ok(Self::LibTorch),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             6 => Ok(Self::NdArray),
             #[cfg(feature = "metal")]
             7 => Ok(Self::Metal),
@@ -493,9 +493,9 @@ impl DeviceOps for DispatchDevice {
             Self::Wgpu(device) => device.defaults(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(device) => device.defaults(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(device) => device.defaults(),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.defaults(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.defaults(),
@@ -527,9 +527,9 @@ impl burn_backend::Device for DispatchDevice {
             DispatchDeviceId::Wgpu => Self::Wgpu(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "webgpu")]
             DispatchDeviceId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             DispatchDeviceId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
@@ -555,9 +555,9 @@ impl burn_backend::Device for DispatchDevice {
             Self::Wgpu(device) => device.to_id(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(device) => device.to_id(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(device) => device.to_id(),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.to_id(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.to_id(),
@@ -625,14 +625,14 @@ impl From<WgpuDevice> for DispatchDevice {
     }
 }
 
-#[cfg(feature = "flex")]
+#[cfg(any(feature = "flex", default_backend))]
 impl From<FlexDevice> for DispatchDevice {
     fn from(device: FlexDevice) -> Self {
         DispatchDevice::Flex(device)
     }
 }
 
-#[cfg(any(feature = "ndarray", default_backend))]
+#[cfg(feature = "ndarray")]
 impl From<NdArrayDevice> for DispatchDevice {
     fn from(device: NdArrayDevice) -> Self {
         DispatchDevice::NdArray(device)

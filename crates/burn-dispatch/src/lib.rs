@@ -77,13 +77,13 @@ pub mod backends {
     #[cfg(feature = "wgpu")]
     pub use burn_wgpu::Wgpu;
 
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex as flex;
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::Flex;
-    #[cfg(any(feature = "ndarray", default_backend))]
+    #[cfg(feature = "ndarray")]
     pub use burn_ndarray as ndarray;
-    #[cfg(any(feature = "ndarray", default_backend))]
+    #[cfg(feature = "ndarray")]
     pub use burn_ndarray::NdArray;
     #[cfg(feature = "tch")]
     pub use burn_tch as libtorch;
@@ -111,9 +111,9 @@ pub mod devices {
     #[cfg(feature = "wgpu")]
     pub use burn_wgpu::WgpuDevice;
 
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     pub use burn_flex::FlexDevice;
-    #[cfg(any(feature = "ndarray", default_backend))]
+    #[cfg(feature = "ndarray")]
     pub use burn_ndarray::NdArrayDevice;
     #[cfg(feature = "tch")]
     pub use burn_tch::LibTorchDevice;

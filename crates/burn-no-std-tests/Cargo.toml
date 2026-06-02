@@ -16,10 +16,6 @@ workspace = true
 [features]
 default = []
 
-# Enable burn-flex's `critical-section` fallback for no_std targets without
-# atomic CAS (e.g. thumbv6m-none-eabi). See burn-flex Cargo.toml for details.
-critical-section = ["burn-flex/critical-section"]
-
 [dependencies]
 
 # ** Please make sure all dependencies support no_std **
