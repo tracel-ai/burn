@@ -1,7 +1,5 @@
-use cubecl::device::DeviceId;
-
 use crate::{
-    Backend,
+    Backend, DeviceId,
     distributed::CollectiveTensor,
     tensor::{Device, FloatTensor},
 };
