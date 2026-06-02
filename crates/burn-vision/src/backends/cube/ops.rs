@@ -1,6 +1,6 @@
 use crate::{
-    BoolVisionOps, ConnectedStatsOptions, Connectivity, FloatVisionOps, IntVisionOps,
-    VisionBackend, backends::cpu,
+    BoolVisionOps, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, FloatVisionOps,
+    IntVisionOps, VisionBackend, backends::cpu,
 };
 use burn_cubecl::{CubeBackend, CubeRuntime};
 
@@ -39,34 +39,17 @@ impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
         connectivity: Connectivity,
         opts: ConnectedStatsOptions,
         out_dtype: IntDType,
-    ) -> (
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-    ) {
+    ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         let device = Self::bool_device(&img);
         hardware_accelerated::<R>(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
             |_| {
-                let (labels, (area, top, left, right, bottom, max_label)) =
-                    cpu::connected_components_with_stats::<Self>(
-                        img,
-                        connectivity,
-                        opts,
-                        out_dtype,
-                    );
-                (
-                    Self::int_from_data(labels, &device),
-                    area,
-                    top,
-                    left,
-                    right,
-                    bottom,
-                    max_label,
-                )
+                let (labels, stats) = cpu::connected_components_with_stats::<Self>(
+                    img,
+                    connectivity,
+                    opts,
+                    out_dtype,
+                );
+                (Self::int_from_data(labels, &device), stats)
             },
         )
     }
@@ -141,15 +124,7 @@ mod fusion {
             conn: Connectivity,
             opts: ConnectedStatsOptions,
             out_dtype: IntDType,
-        ) -> (
-            IntTensor<Self>,
-            IntTensor<Self>,
-            IntTensor<Self>,
-            IntTensor<Self>,
-            IntTensor<Self>,
-            IntTensor<Self>,
-            IntTensor<Self>,
-        ) {
+        ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
             let height = img.shape[0];
             let width = img.shape[1];
             let client = img.client.clone();
@@ -183,18 +158,17 @@ mod fusion {
                         ],
                     ) = self.desc.as_fixed();
                     let input = handles.get_bool_tensor::<B1>(img);
-                    let (output, area, left, top, right, bottom, max_label) =
-                        B1::connected_components_with_stats(
-                            input, self.conn, self.opts, self.dtype,
-                        );
+                    let (output, stats) = B1::connected_components_with_stats(
+                        input, self.conn, self.opts, self.dtype,
+                    );
 
                     handles.register_int_tensor::<B1>(&labels_ir.id, output);
-                    handles.register_int_tensor::<B1>(&area_ir.id, area);
-                    handles.register_int_tensor::<B1>(&left_ir.id, left);
-                    handles.register_int_tensor::<B1>(&top_ir.id, top);
-                    handles.register_int_tensor::<B1>(&right_ir.id, right);
-                    handles.register_int_tensor::<B1>(&bottom_ir.id, bottom);
-                    handles.register_int_tensor::<B1>(&max_label_ir.id, max_label);
+                    handles.register_int_tensor::<B1>(&area_ir.id, stats.area);
+                    handles.register_int_tensor::<B1>(&left_ir.id, stats.left);
+                    handles.register_int_tensor::<B1>(&top_ir.id, stats.top);
+                    handles.register_int_tensor::<B1>(&right_ir.id, stats.right);
+                    handles.register_int_tensor::<B1>(&bottom_ir.id, stats.bottom);
+                    handles.register_int_tensor::<B1>(&max_label_ir.id, stats.max_label);
                 }
             }
 
@@ -224,7 +198,15 @@ mod fusion {
                 .try_into()
                 .unwrap();
 
-            (out, area, left, top, right, bottom, max_label)
+            let stats = ConnectedStatsPrimitive {
+                area,
+                left,
+                top,
+                right,
+                bottom,
+                max_label,
+            };
+            (out, stats)
         }
     }
     impl<B: FusionBackend + IntVisionOps> IntVisionOps for Fusion<B> {}

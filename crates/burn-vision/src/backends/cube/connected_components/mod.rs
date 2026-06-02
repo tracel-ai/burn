@@ -49,19 +49,19 @@ pub(crate) fn stats_from_opts<R: CubeRuntime>(
             l.dtype,
         )
     };
-    (
-        (opts != ConnectedStatsOptions::none())
+    ConnectedStatsPrimitive {
+        area: (opts != ConnectedStatsOptions::none())
             .then(zeros)
             .unwrap_or_else(dummy),
-        opts.bounds_enabled.then(max).unwrap_or_else(dummy),
-        opts.bounds_enabled.then(max).unwrap_or_else(dummy),
-        opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        zeros_client::<R>(
+        left: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
+        top: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
+        right: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
+        bottom: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
+        max_label: zeros_client::<R>(
             l.client.clone(),
             l.device.clone(),
             Shape::new([1]),
             int_dtype,
         ),
-    )
+    }
 }

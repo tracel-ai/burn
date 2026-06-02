@@ -232,14 +232,14 @@ fn finalize_stats<B: Backend, I: Element>(
         B::int_from_data(data, device)
     };
 
-    (
-        into_prim(stats.area),
-        into_prim(stats.left),
-        into_prim(stats.top),
-        into_prim(stats.right),
-        into_prim(stats.bottom),
+    ConnectedStatsPrimitive {
+        area: into_prim(stats.area),
+        left: into_prim(stats.left),
+        top: into_prim(stats.top),
+        right: into_prim(stats.right),
+        bottom: into_prim(stats.bottom),
         max_label,
-    )
+    }
 }
 
 pub fn max_labels(h: usize, w: usize, conn: Connectivity) -> usize {
