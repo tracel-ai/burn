@@ -112,7 +112,7 @@ fn should_diff_all_reduce_all_devices() {
     let config = DistributedConfig {
         all_reduce_op: ReduceOperation::Sum,
     };
-    let _context = DistributedContext::init(devices, config);
+    let _context = DistributedContext::init(devices.clone(), config);
 
     let input = devices
         .iter()
@@ -154,8 +154,6 @@ fn compute_gradients(
     op: ReduceOperation,
     devices: Vec<Device>,
 ) -> (Vec<Tensor<1>>, Vec<Tensor<1>>) {
-    let config = DistributedConfig { all_reduce_op: op };
-
     let out = compute_all_reduce(tensors.clone(), op, devices);
 
     let mut all_grads = vec![];
