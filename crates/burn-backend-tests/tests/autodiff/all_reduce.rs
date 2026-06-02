@@ -14,6 +14,11 @@ fn should_diff_all_reduce_sum() {
     }
     let (device_0, device_1) = (devices[0].clone(), devices[1].clone());
 
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Sum,
+    };
+    let _context = DistributedContext::init(vec![device_0.clone(), device_1.clone()], config);
+
     let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
     let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
 
@@ -33,6 +38,11 @@ fn should_diff_all_reduce_mean() {
         return;
     }
     let (device_0, device_1) = (devices[0].clone(), devices[1].clone());
+
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Sum,
+    };
+    let _context = DistributedContext::init(vec![device_0.clone(), device_1.clone()], config);
 
     let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
     let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
@@ -54,13 +64,14 @@ fn should_diff_all_reduce_complex_1() {
     }
     let (device_0, device_1) = (devices[0].clone(), devices[1].clone());
 
-    let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
-    let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
-
     let config = DistributedConfig {
         all_reduce_op: ReduceOperation::Sum,
     };
     let _context = DistributedContext::init(vec![device_0.clone(), device_1.clone()], config);
+
+    let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
+    let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
+
     let [out_tensor_0, out_tensor_1] = &compute_all_reduce(
         vec![in_tensor_0.clone(), in_tensor_1.clone()],
         ReduceOperation::Sum,
@@ -97,6 +108,11 @@ fn should_diff_all_reduce_complex_1() {
 #[serial]
 fn should_diff_all_reduce_all_devices() {
     let devices = Device::enumerate(DeviceType::Cuda).autodiff().into_vec();
+
+    let config = DistributedConfig {
+        all_reduce_op: ReduceOperation::Sum,
+    };
+    let _context = DistributedContext::init(devices, config);
 
     let input = devices
         .iter()
@@ -139,7 +155,6 @@ fn compute_gradients(
     devices: Vec<Device>,
 ) -> (Vec<Tensor<1>>, Vec<Tensor<1>>) {
     let config = DistributedConfig { all_reduce_op: op };
-    let _context = DistributedContext::init(devices.clone(), config);
 
     let out = compute_all_reduce(tensors.clone(), op, devices);
 
