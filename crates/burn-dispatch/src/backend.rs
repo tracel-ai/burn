@@ -845,9 +845,25 @@ impl Dispatch {
                 .map(|i| LibTorchDevice::Cuda(i).into())
                 .collect(),
             #[cfg(feature = "remote")]
-            // Remote devices are user-supplied addresses, not enumerable hardware.
+            // Remote devices are keyed by a network address, which the type-id-only
+            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote`] to list the devices
+            // behind a given address.
             DispatchDeviceId::Remote => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
         }
+    }
+
+    /// List every device hosted by the remote server at `address`.
+    ///
+    /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
+    /// address rather than enumerable local hardware, so they need a dedicated entry point.
+    /// Connecting to the server (required to learn its device count) happens here; see
+    /// [`RemoteDevice::enumerate`].
+    #[cfg(feature = "remote")]
+    pub fn enumerate_remote(address: &str) -> Vec<DispatchDevice> {
+        RemoteDevice::enumerate(address)
+            .into_iter()
+            .map(DispatchDevice::Remote)
+            .collect()
     }
 }

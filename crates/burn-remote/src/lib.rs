@@ -39,7 +39,7 @@ pub use __client::*;
 #[cfg(all(test, feature = "client", feature = "server"))]
 mod tests {
     use burn_flex::Flex;
-    use burn_tensor::{Device, Distribution, Tensor};
+    use burn_tensor::{Device, DeviceType, Distribution, Tensor};
 
     #[test]
     pub fn test_to_device_over_websocket() {
@@ -117,6 +117,43 @@ mod tests {
         let input = input.to_device(&device_0);
         let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
+
+        rt.shutdown_background();
+    }
+
+    /// `Device::enumerate(DeviceType::remote(addr))` lists every device the server hosts, by
+    /// connecting once and reading the device count off the init handshake.
+    #[test]
+    pub fn test_enumerate_remote_devices() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        // One server hosting three devices.
+        rt.spawn(crate::server::start_websocket_async::<Flex>(
+            vec![Default::default(), Default::default(), Default::default()],
+            3040,
+        ));
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let devices = Device::enumerate(DeviceType::remote("ws://localhost:3040")).into_vec();
+
+        // The server reports its three devices, in index order.
+        assert_eq!(devices.len(), 3);
+        assert_eq!(devices[0], Device::remote("ws://localhost:3040", 0));
+        assert_eq!(devices[1], Device::remote("ws://localhost:3040", 1));
+        assert_eq!(devices[2], Device::remote("ws://localhost:3040", 2));
+
+        // Distinct indices are distinct devices.
+        assert_ne!(devices[0], devices[1]);
+        assert_ne!(devices[1], devices[2]);
+
+        // The enumerated devices are usable: run an op on the last one.
+        let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &devices[2]);
+        let numbers: Vec<f32> = (input * 2.0).to_data().to_vec().unwrap();
+        assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0]);
 
         rt.shutdown_background();
     }

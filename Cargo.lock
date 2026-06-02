@@ -1172,7 +1172,6 @@ dependencies = [
  "burn-std",
  "colored 3.1.1",
  "derive-new",
- "enumset",
  "num-traits",
  "serde",
 ]

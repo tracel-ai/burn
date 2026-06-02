@@ -130,6 +130,38 @@ impl RemoteDevice {
         // turn calls `RemoteService::init` and populates the settings for this device.
         get_client::<R>(self);
     }
+
+    /// The canonical network address of the server this device lives on.
+    pub fn address(&self) -> String {
+        self.address.to_string()
+    }
+
+    /// The index of this device on its server.
+    pub fn device_index(&self) -> usize {
+        self.device_index as usize
+    }
+
+    /// List every device hosted by the server at `address`, one [`RemoteDevice`] per device
+    /// index the server exposes.
+    ///
+    /// Connecting is required to learn how many devices the server hosts (the count rides on
+    /// the init handshake), so this establishes the connection to the server's default device
+    /// (index 0). The returned devices for the remaining indices connect lazily on first use,
+    /// matching [`Device::enumerate`](burn_backend::tensor::Device)'s behavior for local
+    /// backends.
+    pub fn enumerate(address: &str) -> Vec<Self> {
+        // Device 0 always exists (a server must host at least one device); connecting to it
+        // populates the device-count cell for its registry id.
+        let device = Self::new(address, 0);
+        device.connect();
+
+        let count = service::device_count_for(device.id)
+            .expect("Device count populated by the init handshake during connect");
+
+        (0..count as usize)
+            .map(|index| Self::new(address, index))
+            .collect()
+    }
 }
 
 impl Default for RemoteDevice {

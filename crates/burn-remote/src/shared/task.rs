@@ -102,8 +102,9 @@ pub struct TaskResponse {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskResponseContent {
-    // Server responds with device settings
-    Init(DeviceSettings),
+    /// Server responds with the selected device's settings plus the total number of devices
+    /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
+    Init(DeviceSettings, u32),
     ReadTensor(Result<TensorData, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),

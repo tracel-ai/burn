@@ -26,9 +26,9 @@ use batch::OutgoingBatch;
 use pending::{PendingResponses, Responder};
 use writer::RequestWriter;
 
-use registry::settings_cell;
+use registry::{device_count_cell, settings_cell};
 pub use registry::{endpoint_to_id, id_to_endpoint};
-pub(crate) use registry::{has_settings, new_tensor_id, settings_for};
+pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
 
 /// Flush the outgoing task buffer when this many tasks have accumulated.
 ///
@@ -84,7 +84,7 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
 
         log::info!("Connecting to {address} (device {device_index}) ...");
         let (mut request, mut response) = Self::connect_streams(&runtime, &address);
-        let settings = Self::handshake(
+        let (settings, device_count) = Self::handshake(
             &runtime,
             &mut request,
             &mut response,
@@ -96,6 +96,8 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
         // Publish settings to the shared cell so `RemoteDevice::defaults` can see them.
         let cell = settings_cell(id);
         let _ = cell.set(settings);
+        // Publish the server's device count so `RemoteDevice::enumerate` can list every device.
+        let _ = device_count_cell(id).set(device_count);
 
         let pending = PendingResponses::new();
         Self::spawn_response_demux(&runtime, response, pending.responder());
@@ -175,7 +177,7 @@ impl<C: ProtocolClient> RemoteService<C> {
         address: &Address,
         session_id: SessionId,
         device_index: u32,
-    ) -> DeviceSettings {
+    ) -> (DeviceSettings, u32) {
         let init_bytes: bytes::Bytes =
             rmp_serde::to_vec(&vec![Task::Init(session_id, device_index)])
                 .expect("Can serialize Task::Init")
@@ -194,7 +196,9 @@ impl<C: ProtocolClient> RemoteService<C> {
                     .expect("Can deserialize init handshake payload");
 
                 match reply.content {
-                    TaskResponseContent::Init(settings) => Ok::<_, C::Error>(settings),
+                    TaskResponseContent::Init(settings, device_count) => {
+                        Ok::<_, C::Error>((settings, device_count))
+                    }
                     other => panic!("Expected Init response, got {other:?}"),
                 }
             })

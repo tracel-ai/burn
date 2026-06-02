@@ -41,6 +41,10 @@ struct EndpointEntry {
     address: String,
     device_index: u32,
     settings: Arc<OnceLock<DeviceSettings>>,
+    /// Total number of devices hosted by the server at `address`, learned from the init
+    /// handshake. A per-server property, but stored per id (every endpoint sharing the address
+    /// observes the same value once any of them has connected). See [`device_count_for`].
+    device_count: Arc<OnceLock<u32>>,
 }
 
 static REGISTRY: OnceLock<Mutex<EndpointRegistry>> = OnceLock::new();
@@ -77,6 +81,7 @@ pub fn endpoint_to_id<S: AsRef<str>>(address: S, device_index: u32) -> u32 {
             address: address.to_string(),
             device_index,
             settings: Arc::new(OnceLock::new()),
+            device_count: Arc::new(OnceLock::new()),
         },
     );
     id
@@ -125,6 +130,30 @@ pub(crate) fn settings_cell(id: u32) -> Arc<OnceLock<DeviceSettings>> {
         .expect("Device id not registered")
         .settings
         .clone()
+}
+
+/// The shared device-count cell for `id`, populated once by `RemoteService::init` from the
+/// server's init handshake and read by [`device_count_for`].
+pub(crate) fn device_count_cell(id: u32) -> Arc<OnceLock<u32>> {
+    registry()
+        .lock()
+        .unwrap()
+        .by_index
+        .get(&id)
+        .expect("Device id not registered")
+        .device_count
+        .clone()
+}
+
+/// Returns the number of devices the server hosts for `id`, or `None` if no
+/// [`RemoteService`](super::RemoteService) has connected for this device yet.
+pub(crate) fn device_count_for(id: u32) -> Option<u32> {
+    registry()
+        .lock()
+        .unwrap()
+        .by_index
+        .get(&id)
+        .and_then(|e| e.device_count.get().copied())
 }
 
 #[cfg(test)]

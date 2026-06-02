@@ -71,7 +71,6 @@ num-traits = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
-enumset = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

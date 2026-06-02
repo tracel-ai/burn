@@ -103,8 +103,9 @@ where
         // Reply with the selected device's default settings — the client uses these to fill
         // in `RemoteDevice::defaults` so it can resolve op dtypes without an extra RTT.
         let settings = session_manager.device_settings(device_index);
+        let device_count = session_manager.device_count();
         let init_response = TaskResponse {
-            content: TaskResponseContent::Init(settings),
+            content: TaskResponseContent::Init(settings, device_count),
             // Placeholder id for the handshake; the client reads this response inline
             // before the response-demux task starts, so it never goes through the
             // pending-callback map.

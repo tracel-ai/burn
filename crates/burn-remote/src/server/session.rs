@@ -85,6 +85,12 @@ where
         self.device(device_index).defaults()
     }
 
+    /// The total number of devices this server hosts. Sent to the client on the init handshake
+    /// so it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
+    pub fn device_count(&self) -> u32 {
+        self.devices.len() as u32
+    }
+
     /// Resolve both the [`TensorInterpreter`] and the response sender for `session_id` in a single lock
     /// acquisition, creating the session on demand. The request loop resolves these once per
     /// connection and reuses them for every task, instead of re-locking the sessions map (and
