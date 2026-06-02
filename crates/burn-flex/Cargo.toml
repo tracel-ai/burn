@@ -15,7 +15,6 @@ version.workspace = true
 workspace = true
 
 [features]
-complex = []
 default = ["std", "simd", "rayon"]
 doc = ["default"]
 std = [
@@ -49,7 +48,6 @@ critical-section = [
 burn-backend = { workspace = true }
 burn-ir = { workspace = true }
 burn-std = { workspace = true }
-#burn-complex = { workspace = true, optional = true }
 
 bytemuck = { workspace = true }
 half = { workspace = true }

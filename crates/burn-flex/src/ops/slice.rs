@@ -164,11 +164,9 @@ pub fn slice_assign(tensor: FlexTensor, slices: &[Slice], value: FlexTensor) -> 
         DType::U16 => slice_assign_impl::<u16>(tensor, slices, value),
         DType::U8 => slice_assign_impl::<u8>(tensor, slices, value),
         DType::Bool(_) => slice_assign_impl::<u8>(tensor, slices, value),
-        //#[cfg(feature = "complex")]")]
         DType::Complex32 => {
             slice_assign_impl::<burn_std::ComplexScalar<f32>>(tensor, slices, value)
         }
-        //#[cfg(feature = "complex")]")]
         DType::Complex64 => {
             slice_assign_impl::<burn_std::ComplexScalar<f64>>(tensor, slices, value)
         }

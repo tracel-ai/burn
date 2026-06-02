@@ -9,7 +9,6 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
 use burn_std::{Bytes, Shape, bf16, f16};
-//#[cfg(feature = "complex")]")]
 use gemm::{c32, c64};
 
 use crate::{FlexTensor, Layout};
@@ -48,7 +47,6 @@ impl GemmScalar for f16 {
     }
 }
 
-//#[cfg(feature = "complex")]")]
 impl GemmScalar for burn_std::ComplexScalar<f32> {
     fn zero() -> Self {
         burn_std::ComplexScalar {
@@ -64,7 +62,6 @@ impl GemmScalar for burn_std::ComplexScalar<f32> {
     }
 }
 
-//#[cfg(feature = "complex")]")]
 impl GemmScalar for c64 {
     fn zero() -> Self {
         c64 { re: 0.0, im: 0.0 }
@@ -74,7 +71,6 @@ impl GemmScalar for c64 {
     }
 }
 
-//#[cfg(feature = "complex")]")]
 impl GemmScalar for c32 {
     fn zero() -> Self {
         c32 { re: 0.0, im: 0.0 }
@@ -139,9 +135,7 @@ pub fn matmul(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
         DType::F64 => matmul_gemm::<f64>(lhs, rhs),
         DType::F16 => matmul_gemm::<f16>(lhs, rhs),
         DType::BF16 => matmul_bf16(lhs, rhs),
-        //#[cfg(feature = "complex")]")]
         DType::Complex32 => matmul_gemm_complex::<burn_std::ComplexScalar<f32>, c32>(lhs, rhs),
-        //#[cfg(feature = "complex")]")]
         DType::Complex64 => matmul_gemm_complex::<burn_std::ComplexScalar<f64>, c64>(lhs, rhs),
         _ => panic!("matmul: unsupported dtype {:?}", lhs.dtype()),
     }
@@ -285,7 +279,6 @@ fn matmul_gemm<T: GemmScalar + Element>(lhs: FlexTensor, rhs: FlexTensor) -> Fle
     }
 }
 
-//#[cfg(feature = "complex")]")]
 fn matmul_gemm_complex<T: burn_std::ComplexElement + bytemuck::Pod, G: GemmScalar>(
     lhs: FlexTensor,
     rhs: FlexTensor,
