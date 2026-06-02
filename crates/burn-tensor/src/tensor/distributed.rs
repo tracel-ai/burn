@@ -4,8 +4,8 @@
 //! the lifecycle of distributed synchronization clients.
 
 use alloc::vec::Vec;
-use burn_backend::distributed::DistributedBackend;
 use burn_backend::ops::FloatTensorOps;
+use burn_backend::{DeviceOps, distributed::DistributedBackend};
 use burn_dispatch::{Dispatch, DispatchTensor};
 pub use burn_std::distributed::*;
 
@@ -69,4 +69,24 @@ impl<const D: usize> CollectiveTensor<D> {
     pub unsafe fn assume_resolved(self) -> Tensor<D> {
         Tensor::new(BridgeTensor::float(self.handle))
     }
+}
+
+/// Performs an all_reduce operation on the input tensor.
+///
+/// # Arguments
+/// - `input`: The input tensor.
+/// - `op`: The aggregation operation.
+/// - `device_ids`: The list of all devices with which to `all_reduce`
+///
+/// # Returns
+/// A [CollectiveTensor] containing the handle of the result.
+pub fn all_reduce<const D: usize>(
+    input: Tensor<D>,
+    op: ReduceOperation,
+    device_ids: Vec<Device>,
+) -> CollectiveTensor<D> {
+    let device_ids = device_ids.iter().map(|d| d.as_dispatch().id()).collect();
+    let collective = Dispatch::all_reduce(input.primitive.into_float(), op, device_ids);
+    // Safety: we call `assume_resolved` only to wrap it in `burn_tensor`'s [CollectiveTensor].
+    CollectiveTensor::new(unsafe { collective.assume_resolved() })
 }
