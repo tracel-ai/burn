@@ -4,12 +4,13 @@ use std::sync::{Arc, Mutex};
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
 use crate::{
-    DistributedRuntime, EarlyStoppingStrategyRef, Interrupter, Learner, LearningComponentsTypes,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearningComponentsTypes,
     SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
     TrainingModel, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::tensor::Device;
+use burn_core::tensor::distributed::DistributedContext;
 
 #[derive(Clone)]
 pub(crate) struct WorkerComponents {
@@ -32,18 +33,24 @@ pub(crate) struct WorkerComponents {
 /// A training strategy for Distributed Data Parallel (DDP) training.
 ///
 /// This strategy manages multiple workers and coordinates cross-device
-/// gradient synchronization using the provided [`DistributedRuntime`].
-pub struct DdpTrainingStrategy<LC: LearningComponentsTypes> {
+/// gradient synchronization using the provided [`DistributedContext`].
+pub struct DdpTrainingStrategy {
     devices: Vec<Device>,
-    runtime: Box<dyn DistributedRuntime>,
+    /// Kept alive to anchor the lifetime of the underlying distributed server.
+    /// Spawns communication servers on creation, automatically tears them down on drop.
+    _context: DistributedContext,
 }
-impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
-    pub fn new(devices: Vec<Device>, runtime: Box<dyn DistributedRuntime>) -> Self {
-        Self { devices, runtime }
+
+impl DdpTrainingStrategy {
+    pub fn new(devices: Vec<Device>, context: DistributedContext) -> Self {
+        Self {
+            devices,
+            _context: context,
+        }
     }
 }
 
-impl<LC> SupervisedLearningStrategy<LC> for DdpTrainingStrategy<LC>
+impl<LC> SupervisedLearningStrategy<LC> for DdpTrainingStrategy
 where
     LC: LearningComponentsTypes + Send + 'static,
 {
@@ -79,8 +86,6 @@ where
             train_total_items,
             valid_total_items,
         };
-
-        self.runtime.start();
 
         // Start worker for main device
         // First training dataloader corresponds to main device
@@ -122,8 +127,6 @@ where
                 .join()
                 .expect("Distributed data parallel worker failed");
         }
-
-        self.runtime.close();
 
         // Main worker had the event processor
         let model = main_handle

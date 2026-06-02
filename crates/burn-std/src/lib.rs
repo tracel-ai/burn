@@ -34,6 +34,9 @@ pub use element::*;
 mod device_settings;
 pub use device_settings::*;
 
+/// Distributed configurations.
+pub mod distributed;
+
 /// Configuration types for tensor operations (conv, pool, interpolate, pad, etc).
 pub mod ops;
 pub use ops::*;

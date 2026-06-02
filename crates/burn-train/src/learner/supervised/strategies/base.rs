@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
-use burn_core::tensor::backend::distributed::{DistributedBackend, DistributedConfig};
+use burn_core::tensor::distributed::{DistributedConfig, DistributedContext};
 use burn_core::{module::AutodiffModule, prelude::Device};
 
 use crate::{
@@ -41,7 +41,7 @@ pub enum ExecutionStrategy {
         /// Devices on this node for the DDP
         devices: Vec<Device>,
         /// The distributed runtime.
-        runtime: Box<dyn DistributedRuntime>,
+        context: DistributedContext,
     },
 }
 
@@ -54,7 +54,7 @@ impl ExecutionStrategy {
             #[cfg(feature = "ddp")]
             ExecutionStrategy::DistributedDataParallel {
                 devices,
-                runtime: _,
+                context: _,
             } => &devices[0],
         }
     }
@@ -71,17 +71,11 @@ impl ExecutionStrategy {
 }
 
 #[cfg(feature = "ddp")]
-impl<B: DistributedBackend> ExecutionStrategy {
+impl ExecutionStrategy {
     /// Creates a distributed data parallel (DDP) strategy.
     pub fn ddp(devices: Vec<Device>, config: DistributedConfig) -> Self {
-        let session = DistributedSession {
-            devices: devices.clone(),
-            config,
-        };
-        Self::DistributedDataParallel {
-            devices,
-            runtime: Box::new(session),
-        }
+        let context = DistributedContext::init(devices.clone(), config);
+        Self::DistributedDataParallel { devices, context }
     }
 }
 
@@ -96,40 +90,6 @@ pub enum TrainingStrategy<LC: LearningComponentsTypes> {
 impl<LC: LearningComponentsTypes> From<ExecutionStrategy> for TrainingStrategy<LC> {
     fn from(value: ExecutionStrategy) -> Self {
         Self::Default(value)
-    }
-}
-
-#[cfg(feature = "ddp")]
-/// Manages the orchestration of a distributed training environment.
-///
-/// This trait provides a generic interface to initialize and finalize
-/// the communication infrastructure required for cross-device synchronization.
-pub trait DistributedRuntime: Send + Sync + 'static {
-    /// Initialize the distributed environment.
-    fn start(&self);
-
-    /// Cleanup the distributed environment.
-    fn close(&self);
-}
-
-#[cfg(feature = "ddp")]
-/// A concrete implementation of [`DistributedRuntime`] for a [distributed backend](DistributedBackend).
-///
-/// It encapsulates the necessary configuration and device information to
-/// manage the resources related to a [`DistributedBackend`].
-pub struct DistributedSession<B: DistributedBackend> {
-    devices: Vec<Device>,
-    config: DistributedConfig,
-}
-
-#[cfg(feature = "ddp")]
-impl<B: DistributedBackend> DistributedRuntime for DistributedSession {
-    fn start(&self) {
-        B::start_communication_server(&self.devices, self.config.clone());
-    }
-
-    fn close(&self) {
-        B::close_communication_server(&self.devices[0]);
     }
 }
 

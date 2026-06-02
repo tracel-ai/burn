@@ -457,7 +457,7 @@ where
                     )
                 }
                 #[cfg(feature = "ddp")]
-                ExecutionStrategy::DistributedDataParallel { devices, runtime } => {
+                ExecutionStrategy::DistributedDataParallel { devices, context } => {
                     use crate::ddp::DdpTrainingStrategy;
 
                     let ddp = DdpTrainingStrategy::new(
@@ -465,7 +465,7 @@ where
                             .into_iter()
                             .map(|d| autodiff_device(d, self.grad_checkpointing))
                             .collect(),
-                        runtime,
+                        context,
                     );
                     ddp.train(
                         learner,
