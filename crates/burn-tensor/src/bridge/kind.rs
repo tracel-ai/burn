@@ -54,18 +54,6 @@ pub trait TensorKind: sealed::Sealed + Clone + Send + Sync + core::fmt::Debug {
     }
 }
 
-/// A type-level representation of a compound tensor kind
-/// Metadata access is lazy.
-pub trait CompoundTensorKind {
-    type Inner: TensorKind;
-    const COMPONENTS: usize;
-    type ComponentsArray: AsRef<[BridgeTensor]> + AsMut<[BridgeTensor]> + Clone;
-    const INNER_KIND_ID: Kind;
-    fn inner_name() -> &'static str {
-        Self::INNER_KIND_ID.as_str()
-    }
-}
-
 impl TensorKind for Float {
     const KIND: Kind = Kind::Float;
 }
@@ -80,18 +68,6 @@ impl TensorKind for Bool {
 
 impl TensorKind for Complex {
     const KIND: Kind = Kind::Complex;
-}
-
-impl CompoundTensorKind for Complex {
-    type Inner = Float;
-    type ComponentsArray = [BridgeTensor; Self::COMPONENTS];
-    const INNER_KIND_ID: Kind = Kind::Float;
-
-    fn inner_name() -> &'static str {
-        Self::INNER_KIND_ID.as_str()
-    }
-
-    const COMPONENTS: usize = 2;
 }
 
 /// Represents the kind of a [`Tensor`](crate::Tensor).
