@@ -200,7 +200,11 @@ impl AutodiffBackend for Dispatch {
             kind,
             checkpointing,
         } = tensor;
-        let grad = match &kind {
+        // Explicit type: under `distributed` only the Cuda/NdArray arms survive (the others are
+        // cfg'd out because communication is Cuda-only). With neither enabled every arm
+        // diverges, so the match would otherwise infer `!` and the `.map` below fails to
+        // type-check. The annotation keeps it well-typed for any backend selection.
+        let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(all(feature = "cpu", not(feature = "distributed")))]
                 DispatchTensorKind::Cpu(tensor) => tensor
@@ -278,7 +282,9 @@ impl AutodiffBackend for Dispatch {
             kind,
             checkpointing,
         } = tensor;
-        let grad = match &kind {
+        // See `grad` above: explicit type so the match stays well-typed even when every arm is
+        // cfg'd out (non-Cuda `distributed` build).
+        let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(all(feature = "cpu", not(feature = "distributed")))]
                 DispatchTensorKind::Cpu(tensor) => tensor

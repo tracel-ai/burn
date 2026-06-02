@@ -143,7 +143,10 @@ impl DistributedBackend for Dispatch {
         device_ids: Vec<DeviceId>,
     ) -> CollectiveTensor<Self> {
         // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
-        let tensor = unary_float!(@distributed tensor, float, |tensor| {
+        // Explicit type: the distributed dispatch only emits a Cuda arm (communication is
+        // Cuda-only), so a non-Cuda `distributed` build leaves only the diverging fallback and
+        // the match would otherwise infer `!`.
+        let tensor: FloatTensor<Self> = unary_float!(@distributed tensor, float, |tensor| {
             let collective_tensor = B::all_reduce(tensor, op, device_ids);
             unsafe { collective_tensor.assume_resolved() }
         } => Float);
