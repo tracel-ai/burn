@@ -1,0 +1,17 @@
+[package]
+name = "debug-ex"
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+version.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = [
+    "train",
+    "cuda",
+    "metrics",
+    "fusion",
+] }
+
+[lints]
+workspace = true
