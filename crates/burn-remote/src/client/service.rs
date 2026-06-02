@@ -27,8 +27,8 @@ use pending::{PendingResponses, Responder};
 use writer::RequestWriter;
 
 use registry::{device_count_cell, settings_cell};
-pub use registry::{endpoint_to_id, id_to_endpoint};
 pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
+pub use registry::{endpoint_to_id, id_to_endpoint};
 
 /// Flush the outgoing task buffer when this many tasks have accumulated.
 ///
