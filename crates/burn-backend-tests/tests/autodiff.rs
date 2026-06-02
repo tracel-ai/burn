@@ -13,6 +13,6 @@ pub type IntElem = i32;
 mod backend;
 pub use backend::*;
 
-#[allow(clippy::module_inception)]
-#[path = "common/autodiff.rs"]
-mod autodiff;
+// #[allow(clippy::module_inception)]
+// #[path = "common/autodiff.rs"]
+// mod autodiff;

@@ -164,9 +164,13 @@ fn compute_gradients(
 ) -> (Vec<Tensor<1>>, Vec<Tensor<1>>) {
     let out = compute_all_reduce(tensors.clone(), op, devices);
 
+    println!("[{:?}] in compute gradients", std::thread::current().id());
+
     let mut all_grads = vec![];
     for (in_tensor, out_tensor) in tensors.iter().zip(out.clone()) {
+        println!("[{:?}] Call backward", std::thread::current().id());
         let grads = out_tensor.backward();
+        println!("[{:?}] Call grad", std::thread::current().id());
         all_grads.push(in_tensor.grad(&grads).unwrap());
     }
 
@@ -178,9 +182,16 @@ fn compute_all_reduce(
     op: ReduceOperation,
     devices: Vec<Device>,
 ) -> Vec<Tensor<1>> {
+    println!("[{:?}] in compute all_reduce", std::thread::current().id());
+
     let mut out = vec![];
     for tensor in tensors.clone() {
+        println!("[{:?}] all_reduce for tensor", std::thread::current().id());
+
         let out_tensor = burn_tensor::module::all_reduce(tensor, op, devices.clone());
+
+        println!("[{:?}] resolve for tensor", std::thread::current().id());
+
         let out_tensor = out_tensor.resolve();
         out.push(out_tensor);
     }
