@@ -1,4 +1,4 @@
-use burn_tensor::{Complex, Float, SplitTensor, Tensor};
+use burn_tensor::{Complex, Float, Tensor};
 pub type FloatTensor<const D: usize> = Tensor<D, Float>;
 
 macro_rules! gen_tests {
