@@ -1,12 +1,12 @@
 use burn_backend::{
-    Bytes, DType, ExecutionError, Shape, Slice, TensorData, TensorMetadata, TensorPrimitive,
+    Bytes, DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive,
     get_device_settings,
-    ops::{FloatTensorOps, QTensorOps},
+    ops::QTensorOps,
     quantization::{
         QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
         QuantizationParametersPrimitive, params_shape,
     },
-    tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
+    tensor::{Device, FloatTensor, QuantizedTensor},
 };
 use burn_std::{FloatDType, Metadata};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
@@ -244,37 +244,6 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
     }
 
     fn q_flip(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_gather(
-        _dim: usize,
-        _tensor: QuantizedTensor<Self>,
-        _indices: IntTensor<Self>,
-    ) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_select(
-        _tensor: QuantizedTensor<Self>,
-        _dim: usize,
-        _indices: IntTensor<Self>,
-    ) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
-        // No native quantized slice kernel yet: dequantize, slice in float, then requantize.
-        let scheme = tensor.scheme();
-        let dtype = get_device_settings::<Self>(&Self::q_device(&tensor)).float_dtype;
-
-        let tensor_f = Self::dequantize(tensor, dtype);
-        let out_f = Self::float_slice(tensor_f, slices);
-
-        Self::quantize_dynamic(out_f, &scheme)
-    }
-
-    fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

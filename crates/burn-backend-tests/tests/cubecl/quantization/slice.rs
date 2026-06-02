@@ -121,4 +121,3 @@ fn should_slice_partial_dims() {
     // Fewer slices than dims: trailing dimension is sliced fully.
     should_quantize_slice_dequantize_arange([4, 8], s![1..3]);
 }
-
