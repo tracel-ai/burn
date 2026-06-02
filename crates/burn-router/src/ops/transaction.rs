@@ -1,5 +1,5 @@
 use burn_backend::ops::TransactionOps;
 
-use crate::{BackendRouter, RunnerChannel};
+use crate::{BackendRouter, RouterChannel};
 
-impl<R: RunnerChannel> TransactionOps<Self> for BackendRouter<R> {}
+impl<R: RouterChannel> TransactionOps<Self> for BackendRouter<R> {}

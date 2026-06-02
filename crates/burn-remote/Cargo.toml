@@ -52,7 +52,6 @@ burn-communication = { workspace = true, features = [
 bytes = { workspace = true }
 
 # Basic dependencies
-derive-new = { workspace = true }
 log = { workspace = true }
 
 # Shared dependencies

@@ -1,6 +1,6 @@
 use core::sync::atomic::{AtomicU64, Ordering};
 
-use super::{RouterTensor, RunnerClient};
+use super::{RouterClient, RouterTensor};
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
@@ -12,21 +12,22 @@ use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp,
 };
 use burn_ir::{
-    BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
-    ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
+    ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
+    HandleContainer, IntOperationIr, ModuleOperationIr, NumericOperationIr, OperationIr, TensorId,
+    TensorIr, TensorStatus,
 };
 use burn_std::{DeviceSettings, future::DynFut, stub::Mutex};
 
-/// A runner's context contains a [handle container](HandleContainer) to manage
+/// An interpreter's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
-pub struct RunnerContext<B: BackendIr> {
+pub struct InterpreterContext<B: BackendIr> {
     /// Handle container to retrieve tensors based on their intermediate representation.
     handles: HandleContainer<B::Handle>,
 }
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-impl<B: BackendIr> RunnerContext<B> {
+impl<B: BackendIr> InterpreterContext<B> {
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&mut self) -> TensorId {
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -34,27 +35,27 @@ impl<B: BackendIr> RunnerContext<B> {
     }
 }
 
-/// A runner is responsible for executing tensor operations for a given [intermediate backend](BackendIr).
+/// A tensor interpreter is responsible for executing tensor operations for a given [intermediate backend](BackendIr).
 #[derive(Clone)]
-pub struct Runner<B: BackendIr> {
+pub struct TensorInterpreter<B: BackendIr> {
     // Mutex for the mutable handles
-    context: Arc<Mutex<RunnerContext<B>>>,
+    context: Arc<Mutex<InterpreterContext<B>>>,
     device: B::Device,
 }
 
-impl<B: BackendIr> core::fmt::Debug for Runner<B> {
+impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Runner")
+        f.debug_struct("TensorInterpreter")
             .field("device", &self.device)
             .finish()
     }
 }
 
-impl<B: BackendIr> Runner<B> {
-    /// Create a new runner.
+impl<B: BackendIr> TensorInterpreter<B> {
+    /// Create a new interpreter.
     pub fn new(device: B::Device) -> Self {
         Self {
-            context: Arc::new(Mutex::new(RunnerContext {
+            context: Arc::new(Mutex::new(InterpreterContext {
                 handles: HandleContainer::new(),
             })),
             device,
@@ -68,7 +69,7 @@ impl<B: BackendIr> Runner<B> {
     }
 
     /// Create a tensor with the given handle and shape.
-    pub fn register_tensor<C: RunnerClient>(
+    pub fn register_tensor<C: RouterClient>(
         &self,
         handle: B::Handle,
         shape: Shape,
@@ -141,8 +142,8 @@ impl<B: BackendIr> Runner<B> {
     }
 }
 
-// This is a Remote Runner
-impl<B: BackendIr> RunnerClient for Runner<B> {
+// This is a Remote TensorInterpreter
+impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
     type Device = B::Device;
 
     /// Execute a tensor operation.
@@ -315,6 +316,32 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_zeros(shape, &self.device, desc.out.dtype.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::NotEqual(desc) => {
+                    binary_float_cmp_ops!(handles, desc, B::float_not_equal)
+                }
+                BaseOperationIr::NotEqualElem(desc) => {
+                    scalar_float_cmp_ops!(handles, desc, B::float_not_equal_elem)
+                }
+                BaseOperationIr::All(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_all(tensor, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Any(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_any(tensor, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::AllDim(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_all_dim(tensor, desc.axis, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::AnyDim(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_any_dim(tensor, desc.axis, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::BaseInt(op) => match op {
                 BaseOperationIr::Reshape(desc) => {
@@ -474,6 +501,32 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::int_zeros(shape, &self.device, desc.out.dtype.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::NotEqual(desc) => {
+                    binary_int_cmp_ops!(handles, desc, B::int_not_equal)
+                }
+                BaseOperationIr::NotEqualElem(desc) => {
+                    scalar_int_cmp_ops!(handles, desc, B::int_not_equal_elem)
+                }
+                BaseOperationIr::All(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_all(tensor, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Any(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_any(tensor, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::AllDim(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_all_dim(tensor, desc.axis, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::AnyDim(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_any_dim(tensor, desc.axis, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::BaseBool(op) => match op {
                 BaseOperationIr::Reshape(desc) => {
@@ -629,6 +682,37 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::Ones(desc) => {
                     let shape = desc.out.shape.clone();
                     let output = B::bool_ones(shape, &self.device, desc.out.dtype.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::NotEqual(desc) => {
+                    let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
+                    let rhs = handles.get_bool_tensor::<B>(&desc.rhs);
+                    let output = B::bool_not_equal(lhs, rhs);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::NotEqualElem(desc) => {
+                    let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
+                    let output = B::bool_not_equal_elem(lhs, desc.rhs.into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::All(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+                    let output = B::bool_all(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::Any(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+                    let output = B::bool_any(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::AllDim(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+                    let output = B::bool_all_dim(tensor, desc.axis);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::AnyDim(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+                    let output = B::bool_any_dim(tensor, desc.axis);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
             },
@@ -821,6 +905,40 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
                     let output = B::float_cummax(tensor, desc.axis);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::Neg(desc) => {
+                    unary_float_ops!(handles, desc, B::float_neg)
+                }
+                NumericOperationIr::Sign(desc) => {
+                    unary_float_ops!(handles, desc, B::float_sign)
+                }
+                NumericOperationIr::ClampMin(desc) => {
+                    scalar_float_ops!(handles, desc, B::float_clamp_min)
+                }
+                NumericOperationIr::ClampMax(desc) => {
+                    scalar_float_ops!(handles, desc, B::float_clamp_max)
+                }
+                NumericOperationIr::Sort(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_sort(tensor, desc.dim, desc.descending);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::SortWithIndices(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let (values, indices) = B::float_sort_with_indices(
+                        tensor,
+                        desc.dim,
+                        desc.descending,
+                        desc.out_indices.dtype.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, values);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, indices);
+                }
+                NumericOperationIr::ArgSort(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output =
+                        B::float_argsort(tensor, desc.dim, desc.descending, desc.out.dtype.into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
             OperationIr::NumericInt(_dtype, op) => match op {
@@ -1016,6 +1134,35 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::int_cummax(tensor, desc.axis);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
+                NumericOperationIr::Neg(desc) => {
+                    unary_int_ops!(handles, desc, B::int_neg)
+                }
+                NumericOperationIr::Sign(desc) => {
+                    unary_int_ops!(handles, desc, B::int_sign)
+                }
+                NumericOperationIr::ClampMin(desc) => {
+                    scalar_int_ops!(handles, desc, B::int_clamp_min)
+                }
+                NumericOperationIr::ClampMax(desc) => {
+                    scalar_int_ops!(handles, desc, B::int_clamp_max)
+                }
+                NumericOperationIr::Sort(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_sort(tensor, desc.dim, desc.descending);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationIr::SortWithIndices(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let (values, indices) =
+                        B::int_sort_with_indices(tensor, desc.dim, desc.descending);
+                    handles.register_int_tensor::<B>(&desc.out.id, values);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, indices);
+                }
+                NumericOperationIr::ArgSort(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+                    let output = B::int_argsort(tensor, desc.dim, desc.descending);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::Bool(op) => match op {
                 BoolOperationIr::IntoFloat(desc) => {
@@ -1041,6 +1188,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 BoolOperationIr::Or(desc) => {
                     binary_bool_ops!(handles, desc, B::bool_or)
+                }
+                BoolOperationIr::Xor(desc) => {
+                    binary_bool_ops!(handles, desc, B::bool_xor)
                 }
             },
             OperationIr::Int(op) => match op {
@@ -1711,6 +1861,157 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     );
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LayerNorm(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let gamma = handles.get_float_tensor::<B>(&desc.gamma);
+                    let beta = desc.beta.as_ref().map(|b| handles.get_float_tensor::<B>(b));
+                    let output = B::layer_norm(input, gamma, beta, desc.epsilon.elem());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Unfold4d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let options = burn_backend::ops::UnfoldOptions::new(
+                        desc.options.stride,
+                        desc.options.padding,
+                        desc.options.dilation,
+                    );
+                    let output = B::unfold4d(x, desc.kernel_size, options);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::ConvTranspose1dWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                    let output = B::conv_transpose1d_weight_backward(
+                        x,
+                        weight,
+                        output_grad,
+                        desc.options.clone().into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::ConvTranspose1dBiasBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let bias = handles.get_float_tensor::<B>(&desc.bias);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                    let output = B::conv_transpose1d_bias_backward(x, bias, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::ConvTranspose2dWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                    let output = B::conv_transpose2d_weight_backward(
+                        x,
+                        weight,
+                        output_grad,
+                        desc.options.clone().into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::ConvTranspose2dBiasBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let bias = handles.get_float_tensor::<B>(&desc.bias);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                    let output = B::conv_transpose2d_bias_backward(x, bias, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::ConvTranspose3dWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                    let output = B::conv_transpose3d_weight_backward(
+                        x,
+                        weight,
+                        output_grad,
+                        desc.options.clone().into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::ConvTranspose3dBiasBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let bias = handles.get_float_tensor::<B>(&desc.bias);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                    let output = B::conv_transpose3d_bias_backward(x, bias, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+            },
+            OperationIr::Activation(op) => match op {
+                ActivationOperationIr::Relu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::relu(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ActivationOperationIr::ReluBackward(desc) => {
+                    let output = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::relu_backward(output, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LeakyRelu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.lhs);
+                    let result = B::leaky_relu(input, desc.rhs.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::PRelu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.lhs);
+                    let alpha = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::prelu(input, alpha);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Gelu(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::gelu(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::GeluBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::gelu_backward(x, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Sigmoid(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::sigmoid(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::SigmoidBackward(desc) => {
+                    let output = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::sigmoid_backward(output, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::HardSigmoid(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.tensor);
+                    let result = B::hard_sigmoid(input, desc.alpha.into(), desc.beta.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LogSigmoid(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::log_sigmoid(input);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LogSigmoidBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.lhs);
+                    let grad = handles.get_float_tensor::<B>(&desc.rhs);
+                    let result = B::log_sigmoid_backward(x, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Softmax(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::softmax(input, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::LogSoftmax(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::log_softmax(input, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
+                }
+                ActivationOperationIr::Softmin(desc) => {
+                    let input = handles.get_float_tensor::<B>(&desc.input);
+                    let result = B::softmin(input, desc.axis);
+                    handles.register_float_tensor::<B>(&desc.out.id, result);
                 }
             },
             OperationIr::Custom(_) => {
