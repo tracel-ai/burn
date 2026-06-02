@@ -919,3 +919,25 @@ impl core::ops::Deref for Devices {
         &self.0
     }
 }
+
+#[cfg(all(test, feature = "flex", feature = "autodiff"))]
+mod autodiff_move_tests {
+    use crate::{Device, Tensor};
+
+    // A non-tracked float tensor (e.g. a gradient) can be moved onto an autodiff device; it
+    // lands on the underlying hardware and stays non-tracked. Regression test for a panic in
+    // `float_to_device` ("Cannot move between autodiff and non-autodiff instances").
+    #[test]
+    fn move_non_autodiff_float_tensor_to_autodiff_device() {
+        let device = Device::default();
+        let ad_device = device.clone().autodiff();
+
+        let t = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+        let moved = t.to_device(&ad_device);
+
+        assert_eq!(
+            moved.to_data().to_vec::<f32>().unwrap(),
+            vec![1.0, 2.0, 3.0, 4.0]
+        );
+    }
+}
