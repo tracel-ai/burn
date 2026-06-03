@@ -61,6 +61,7 @@ mod pow;
 mod recip;
 mod relu;
 mod remainder;
+mod retain_graph;
 mod repeat_dim;
 mod reshape;
 mod rfft;
