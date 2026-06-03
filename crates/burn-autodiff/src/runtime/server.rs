@@ -91,6 +91,12 @@ impl AutodiffServer {
         gradients
     }
 
+    /// Execute backward without consuming graph state, allowing repeated backward passes.
+    pub fn backward_retain(&mut self, grads: Gradients, node_id: NodeId) -> Gradients {
+        let (tape, checkpointer) = self.build_tape_retaining(node_id);
+        Self::execute_steps_retaining(tape, &self.steps, grads, checkpointer)
+    }
+
     fn cleanup<NC: NodeCleaner>(&mut self, consumed: &Vec<NodeId>) {
         let mut cleaner = NC::init();
         self.memory_management
@@ -177,6 +183,50 @@ impl AutodiffServer {
         }
     }
 
+    /// Build tape by borrowing steps and builders, leaving graph state intact.
+    fn build_tape_retaining(
+        &mut self,
+        node: NodeId,
+    ) -> (Vec<Vec<NodeId>>, Checkpointer) {
+        let depth = self
+            .steps
+            .get(&node)
+            .expect(
+                "Node should have a step registered, did you forget to call \
+                 `Tensor::register_grad` on the tensor where you need gradients?",
+            )
+            .depth();
+
+        let mut tape = (0..depth)
+            .map(|_| Vec::with_capacity(1))
+            .collect::<Vec<_>>();
+
+        let mut tree = HashMap::default();
+        let mut builder = CheckpointerBuilder::default();
+
+        BreadthFirstSearch.traverse_retaining(node, &self.steps, |id, step| {
+            let step_depth = step.depth();
+
+            if step_depth == 0 {
+                return;
+            }
+
+            if let Some(ids) = tape.get_mut(step_depth - 1) {
+                let parents = step.parents().iter().map(|p| p.id).filter(|s| *s != id);
+                tree.insert(id, parents.collect());
+                ids.push(id);
+            }
+
+            if let Some(node_builder) = self.actions_builder.get(&id) {
+                builder.extend_ref(node_builder);
+            }
+        });
+
+        let checkpointer = builder.build(NodeTree::new(tree));
+
+        (tape, checkpointer)
+    }
+
     fn execute_steps(
         tape: Vec<Vec<StepBoxed>>,
         mut grads: Gradients,
@@ -186,6 +236,26 @@ impl AutodiffServer {
             steps
                 .into_iter()
                 .for_each(|step| step.step(&mut grads, &mut checkpointer))
+        });
+
+        // For checkpointing tests
+        #[cfg(feature = "export_tests")]
+        assert!(checkpointer.is_empty());
+
+        grads
+    }
+
+    fn execute_steps_retaining(
+        tape: Vec<Vec<NodeId>>,
+        steps: &HashMap<NodeId, StepBoxed>,
+        mut grads: Gradients,
+        mut checkpointer: Checkpointer,
+    ) -> Gradients {
+        tape.into_iter().rev().for_each(|ids| {
+            ids.into_iter().for_each(|id| {
+                let step = steps.get(&id).expect("Step must exist for retained graph");
+                step.step(&mut grads, &mut checkpointer);
+            })
         });
 
         // For checkpointing tests
