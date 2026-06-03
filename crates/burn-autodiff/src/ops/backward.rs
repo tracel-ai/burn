@@ -24,7 +24,7 @@ where
 
     /// The backward pass.
     fn backward(
-        self,
+        &self,
         ops: Ops<Self::State, N>,
         grads: &mut Gradients,
         checkpointer: &mut Checkpointer,

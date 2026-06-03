@@ -7,8 +7,8 @@ use burn_backend::distributed::DistributedParams;
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + core::fmt::Debug {
-    /// Executes the step and consumes it.
-    fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer);
+    /// Executes the step.
+    fn step(&self, grads: &mut Gradients, checkpointer: &mut Checkpointer);
     /// Depth of the operation relative to the first node added to a graph.
     fn depth(&self) -> usize;
     /// The node associated to the step.
