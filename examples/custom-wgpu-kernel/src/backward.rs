@@ -43,7 +43,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
             type State = (NodeId, NodeId, FloatTensor<B>, Shape);
 
             fn backward(
-                self,
+                &self,
                 ops: Ops<Self::State, 3>,
                 grads: &mut Gradients,
                 checkpointer: &mut Checkpointer,
