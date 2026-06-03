@@ -1,19 +1,51 @@
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
+    kernel::{interpolate::interpolate_autotune, into_contiguous},
     ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
 use cubek::interpolate::{
+    definition::InterpolateError,
     definition::InterpolateMode as CubekInterpolateMode,
     definition::InterpolateOptions as CubekInterpolateOptions,
     definition::NearestMode as CubekNearestMode,
     interpolate as cubek_interpolate, interpolate_backward as cubek_interpolate_backward,
-    launch::InterpolateStrategy,
-    routines::{BlueprintStrategy, GlobalMemoryRoutine, GlobalMemoryStrategy},
+    launch::InterpolateStrategy as CubekInterpolateStrategy,
+    routines::{
+        BlueprintStrategy, GlobalMemoryRoutine, GlobalMemoryStrategy, SharedMemoryRoutine,
+        SharedMemoryStrategy,
+    },
 };
+
+#[derive(Debug)]
+/// Strategy used to select which interpolate implementation to run.
+pub enum InterpolateStrategy {
+    /// Default interpolate strategy.
+    GlobalMemory(GlobalMemoryStrategy),
+
+    /// Use shared memory for caching tiles of the input and output.
+    SharedMemory(SharedMemoryStrategy),
+
+    /// Automatically benchmark and select the best strategy at runtime.
+    #[cfg(feature = "autotune")]
+    Autotune,
+}
+
+impl Default for InterpolateStrategy {
+    fn default() -> Self {
+        // if autotune is enabled, default to autotune
+        #[cfg(feature = "autotune")]
+        return InterpolateStrategy::Autotune;
+
+        // if autotune is disabled, default to global memory with a square aspect ratio to make sure it runs
+        #[cfg(not(feature = "autotune"))]
+        InterpolateStrategy::GlobalMemory(GlobalMemoryStrategy {
+            tile_target_aspect_ratio: 1.0,
+        })
+    }
+}
 
 /// Interpolate operation
 ///
@@ -22,7 +54,38 @@ pub fn interpolate<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
     options: InterpolateOptions,
+    strategy: InterpolateStrategy,
 ) -> CubeTensor<R> {
+    match strategy {
+        InterpolateStrategy::GlobalMemory(strategy) => execute_interpolate(
+            input,
+            output_size,
+            options,
+            CubekInterpolateStrategy::GlobalMemoryStrategy(
+                BlueprintStrategy::<GlobalMemoryRoutine>::Inferred(strategy),
+            ),
+        )
+        .unwrap_or_else(|e| panic!("Interpolation failed: {e}")),
+        InterpolateStrategy::SharedMemory(strategy) => execute_interpolate(
+            input,
+            output_size,
+            options,
+            CubekInterpolateStrategy::SharedMemoryStrategy(
+                BlueprintStrategy::<SharedMemoryRoutine>::Inferred(strategy),
+            ),
+        )
+        .unwrap_or_else(|e| panic!("Interpolation failed: {e}")),
+        InterpolateStrategy::Autotune => interpolate_autotune(input, output_size, options),
+    }
+}
+
+/// Execute the given interpolate strategy without autotuning. This is used by the autotune implementation to run each candidate strategy.
+pub fn execute_interpolate<R: CubeRuntime>(
+    input: CubeTensor<R>,
+    output_size: [usize; 2],
+    options: InterpolateOptions,
+    strategy: CubekInterpolateStrategy,
+) -> Result<CubeTensor<R>, InterpolateError> {
     let [batch_size, channels, _, _] = input.meta.shape().dims();
     let [out_height, out_width] = output_size;
 
@@ -41,19 +104,11 @@ pub fn interpolate<R: CubeRuntime>(
         input.clone().binding(),
         output.clone().binding(),
         map_options(options.clone()),
-        InterpolateStrategy::GlobalMemoryStrategy(
-            BlueprintStrategy::<GlobalMemoryRoutine>::Inferred(GlobalMemoryStrategy {}),
-        ),
+        strategy,
         dtype_to_storage_type(input.dtype),
-    )
-    .unwrap_or_else(|e| {
-        panic!(
-            "interpolate kernel failed (device={0:?}, dtype={1:?}, options={2:?}): {3}",
-            input.device, input.dtype, options, e
-        )
-    });
+    )?;
 
-    permute_nhwc_to_nchw(output)
+    Ok(permute_nhwc_to_nchw(output))
 }
 
 /// Backward interpolate operation
