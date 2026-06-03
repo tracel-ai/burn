@@ -202,7 +202,7 @@ impl<B: Backend> AutodiffTensor<B> {
         let client = self.node.client.clone();
 
         AutodiffClient::backward_retain::<B>(&client, self)
-    }    
+    }
 
     pub fn grad(&self, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
         grads.get::<B>(self)

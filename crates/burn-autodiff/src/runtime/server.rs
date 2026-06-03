@@ -184,10 +184,7 @@ impl AutodiffServer {
     }
 
     /// Build tape by borrowing steps and builders, leaving graph state intact.
-    fn build_tape_retaining(
-        &mut self,
-        node: NodeId,
-    ) -> (Vec<Vec<NodeId>>, Checkpointer) {
+    fn build_tape_retaining(&mut self, node: NodeId) -> (Vec<Vec<NodeId>>, Checkpointer) {
         let depth = self
             .steps
             .get(&node)

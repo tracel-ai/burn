@@ -54,11 +54,8 @@ impl BackwardStates {
 
         match state {
             State::Recompute { .. } => unreachable!(),
-            State::Computed {
-                state_content,
-                ..
-            } => {
-                let value = (&*state_content)
+            State::Computed { state_content, .. } => {
+                let value = (*state_content)
                     .downcast_ref::<T>()
                     .expect("State content type mismatch")
                     .clone();

@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]

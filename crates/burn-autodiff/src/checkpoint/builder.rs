@@ -3,7 +3,7 @@ use crate::{
     graph::{ComputingProperty, NodeId},
     tensor::AutodiffTensor,
 };
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
