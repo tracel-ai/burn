@@ -1,11 +1,12 @@
 use burn_backend::{
     DeviceId, TensorMetadata,
+    cubecl::dtype_to_elem_type,
     distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
 
 use crate::{
-    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
+    CubeBackend, CubeRuntime,
     ops::numeric::{self, zeros_client},
 };
 
@@ -37,7 +38,7 @@ impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
         client.all_reduce(
             out_tensor.handle.clone(),
             out_tensor.handle.clone(),
-            out_tensor.dtype.into(),
+            dtype_to_elem_type(out_tensor.dtype),
             device_ids.clone(),
             op,
         );

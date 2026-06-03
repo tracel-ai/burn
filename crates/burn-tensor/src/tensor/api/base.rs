@@ -2591,12 +2591,13 @@ where
     /// }
     /// ```
     pub fn into_scalar<E: Element>(self) -> E {
-        crate::try_read_sync(self.into_scalar_async())
-            .expect(
-            "Failed to read tensor data synchronously. This can happen on platforms
-            that don't support blocking futures like WASM. Try into_scalar_async instead.",
-            )
-            .expect("Error while reading data: use `try_into_scalar` instead to catch the error at runtime")
+        check!(TensorCheck::into_scalar::<D>(&self.shape()));
+
+        let err_msg =
+            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
+
+        let data = self.into_data();
+        data.iter::<E>().next().expect(err_msg)
     }
 
     /// Convert the tensor into a scalar and returns any error that might have occurred since the
@@ -2611,10 +2612,13 @@ where
     ///
     /// The scalar value of the tensor.
     pub fn try_into_scalar<E: Element>(self) -> Result<E, ExecutionError> {
-        crate::try_read_sync(self.into_scalar_async()).expect(
-            "Failed to read tensor data synchronously. This can happen on platforms
-            that don't support blocking futures like WASM. Try into_scalar_async instead.",
-        )
+        check!(TensorCheck::into_scalar::<D>(&self.shape()));
+
+        let err_msg =
+            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
+
+        let data = self.try_into_data()?;
+        Ok(data.iter::<E>().next().expect(err_msg))
     }
 
     /// Convert the tensor into a scalar.
@@ -2625,7 +2629,11 @@ where
     pub async fn into_scalar_async<E: Element>(self) -> Result<E, ExecutionError> {
         check!(TensorCheck::into_scalar::<D>(&self.shape()));
 
-        Ok(self.into_data_async().await?.iter().next().unwrap())
+        let err_msg =
+            "Error while reading data: use `try_into_scalar` instead to catch the error at runtime";
+
+        let data = self.into_data_async().await?;
+        Ok(data.iter::<E>().next().expect(err_msg))
     }
 
     /// Broadcast the tensor to the given shape.

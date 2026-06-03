@@ -4,9 +4,12 @@ use crate::{
 };
 use bon::Builder;
 
-use burn_core as burn; // for backend_extension
-use burn_core::backend::{Backend, backend_extension, tensor::IntTensor};
+use burn_core::backend::{
+    Backend, ExtensionType, backend_extension,
+    tensor::{BoolTensor, IntTensor},
+};
 use burn_core::tensor::{Int, IntDType, Scalar, Tensor, read_sync};
+use burn_core::{self as burn, backend::tensor::FloatTensor}; // for backend_extension
 
 /// Connected components connectivity
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -93,21 +96,22 @@ pub struct ConnectedStats {
     pub max_label: Tensor<1, Int>,
 }
 
+#[derive(ExtensionType)]
 /// Primitive version of [`ConnectedStats`], to be returned by the backend
-pub type ConnectedStatsPrimitive<B> = (
-    // Total area of each component
-    IntTensor<B>,
-    // Leftmost x coordinate in the component
-    IntTensor<B>,
-    // Topmost y coordinate in the component
-    IntTensor<B>,
-    // Rightmost x coordinate in the component
-    IntTensor<B>,
-    // Bottommost y coordinate in the component
-    IntTensor<B>,
-    // Scalar tensor of the max label
-    IntTensor<B>,
-);
+pub struct ConnectedStatsPrimitive<B: Backend> {
+    /// Total area of each component
+    pub area: IntTensor<B>,
+    /// Leftmost x coordinate in the component
+    pub left: IntTensor<B>,
+    /// Topmost y coordinate in the component
+    pub top: IntTensor<B>,
+    /// Rightmost x coordinate in the component
+    pub right: IntTensor<B>,
+    /// Bottommost y coordinate in the component
+    pub bottom: IntTensor<B>,
+    /// Scalar tensor of the max label
+    pub max_label: IntTensor<B>,
+}
 
 impl Default for ConnectedStatsOptions {
     fn default() -> Self {
@@ -233,34 +237,16 @@ pub trait BoolVisionOps: Backend {
     /// label of each pixel, along with stats collected for each component.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
-    // TODO: support struct return types that encapsulate tensors with `#[backend_extension]`
-    #[allow(clippy::type_complexity)]
     fn connected_components_with_stats(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
         opts: ConnectedStatsOptions,
         out_dtype: IntDType,
-    ) -> (
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-        IntTensor<Self>,
-    ) {
+    ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         let device = Self::bool_device(&img);
-        let (labels, (area, top, left, right, bottom, max_label)) =
+        let (labels, stats) =
             cpu::connected_components_with_stats::<Self>(img, connectivity, opts, out_dtype);
-        (
-            Self::int_from_data(labels, &device),
-            area,
-            top,
-            left,
-            right,
-            bottom,
-            max_label,
-        )
+        (Self::int_from_data(labels, &device), stats)
     }
 
     /// Erodes an input tensor with the specified kernel.

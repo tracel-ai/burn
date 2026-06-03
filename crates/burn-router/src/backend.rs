@@ -1,32 +1,32 @@
-use super::{RouterTensor, RunnerChannel, RunnerClient, get_client};
+use super::{RouterChannel, RouterClient, RouterTensor, get_client};
 use alloc::{format, string::String};
 use burn_backend::{Backend, BackendTypes, DType, ExecutionError, UnimplementedTensorPrimitive};
 use core::marker::PhantomData;
 
 /// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).
-pub struct BackendRouter<R: RunnerChannel> {
+pub struct BackendRouter<R: RouterChannel> {
     r: PhantomData<R>,
 }
 
-impl<R: RunnerChannel> core::fmt::Debug for BackendRouter<R> {
+impl<R: RouterChannel> core::fmt::Debug for BackendRouter<R> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("router"))
     }
 }
 
-impl<R: RunnerChannel> Clone for BackendRouter<R> {
+impl<R: RouterChannel> Clone for BackendRouter<R> {
     fn clone(&self) -> Self {
         Self { r: PhantomData }
     }
 }
 
-impl<R: RunnerChannel> Default for BackendRouter<R> {
+impl<R: RouterChannel> Default for BackendRouter<R> {
     fn default() -> Self {
         Self { r: PhantomData }
     }
 }
 
-impl<R: RunnerChannel> BackendTypes for BackendRouter<R> {
+impl<R: RouterChannel> BackendTypes for BackendRouter<R> {
     type Device = R::Device;
 
     type FloatTensorPrimitive = RouterTensor<R::Client>;
@@ -36,7 +36,7 @@ impl<R: RunnerChannel> BackendTypes for BackendRouter<R> {
     type ComplexTensorPrimitive = UnimplementedTensorPrimitive<R::Client>;
 }
 
-impl<R: RunnerChannel> Backend for BackendRouter<R> {
+impl<R: RouterChannel> Backend for BackendRouter<R> {
     fn name(device: &Self::Device) -> String {
         format!("router<{}>", R::name(device))
     }

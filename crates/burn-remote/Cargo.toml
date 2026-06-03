@@ -34,6 +34,11 @@ server = [
     "tracing-core/default",
     "tracing-subscriber/default",
 ]
+distributed =  [
+    "burn-backend/distributed",
+    "burn-ir/distributed",
+    "burn-router/distributed",
+]
 
 
 [dependencies]
@@ -52,7 +57,6 @@ burn-communication = { workspace = true, features = [
 bytes = { workspace = true }
 
 # Basic dependencies
-derive-new = { workspace = true }
 log = { workspace = true }
 
 # Shared dependencies

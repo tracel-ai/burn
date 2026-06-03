@@ -1,42 +1,42 @@
 use burn_backend::tensor::Device;
 use burn_communication::{Protocol, data_service::TensorDataService};
 use burn_ir::BackendIr;
-use burn_router::Runner;
-use burn_std::id::StreamId;
+use burn_router::TensorInterpreter;
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{
-    Mutex,
-    mpsc::{Receiver, Sender},
-};
+use tokio::sync::{Mutex, mpsc};
 
-use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponse};
+use crate::shared::{SessionId, TaskResponse};
 
-use super::stream::Stream;
-
-/// A session manager control the creation of sessions.
+/// Capacity for the per-session response queue.
 ///
-/// Each session manages its own stream, spawning one thread per stream to mimic the same behavior
-/// a native backend would have.
+/// Sized larger than the typical in-flight read/sync count so that request processing
+/// doesn't block on backpressure during a burst, but small enough that a stuck response
+/// writer surfaces as a backpressure stall rather than memory growth.
+const RESPONSE_CHANNEL_CAPACITY: usize = 64;
+
+/// Coordinates per-session state.
+///
+/// Each [`Session`] owns its own [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer)
+/// — different sessions never share tensor handles, so concurrent sessions can't race on
+/// each other's backend state. Cross-session tensor transfers go through `data_service`,
+/// which already serializes the bytes through its own protocol.
+///
+/// Within a session there is exactly one request-handling task (one tokio task per socket
+/// connection), so per-session ordering is preserved without any extra locking.
 pub struct SessionManager<B, P>
 where
     B: BackendIr,
     P: Protocol,
 {
-    pub(crate) runner: Runner<B>,
-    sessions: Mutex<HashMap<SessionId, Session<B, P>>>,
-    data_service: Arc<TensorDataService<B, P>>,
+    device: Device<B>,
+    pub(crate) data_service: Arc<TensorDataService<B, P>>,
+    sessions: Mutex<HashMap<SessionId, Session<B>>>,
 }
 
-struct Session<B, P>
-where
-    B: BackendIr,
-    P: Protocol,
-{
-    runner: Runner<B>,
-    streams: HashMap<StreamId, Stream<B, P>>,
-    sender: Sender<Receiver<TaskResponse>>,
-    receiver: Option<Receiver<Receiver<TaskResponse>>>,
-    data_service: Arc<TensorDataService<B, P>>,
+struct Session<B: BackendIr> {
+    runner: TensorInterpreter<B>,
+    sender: mpsc::Sender<TaskResponse>,
+    receiver: Option<mpsc::Receiver<TaskResponse>>,
 }
 
 impl<B, P> SessionManager<B, P>
@@ -46,125 +46,76 @@ where
 {
     pub fn new(device: Device<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
         Self {
-            runner: Runner::new(device),
-            sessions: Mutex::new(Default::default()),
+            device,
             data_service,
+            sessions: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Register a new responder for the session. Only one responder can exist for a session for
-    /// now.
-    pub async fn register_responder(
+    /// The backend default device settings, used by the response-init handshake before any
+    /// session-specific runner is needed.
+    pub fn device_settings(&self) -> burn_std::DeviceSettings {
+        use burn_backend::backend::DeviceOps;
+        self.device.defaults()
+    }
+
+    /// Resolve both the [`TensorInterpreter`] and the response sender for `session_id` in a single lock
+    /// acquisition, creating the session on demand. The request loop resolves these once per
+    /// connection and reuses them for every task, instead of re-locking the sessions map (and
+    /// re-cloning the runner) per task.
+    pub async fn session_handles(
         &self,
         session_id: SessionId,
-    ) -> Receiver<Receiver<TaskResponse>> {
-        log::info!("Register responder for session {session_id}");
-        let mut sessions = self.sessions.lock().await;
-        self.register_session(&mut sessions, session_id);
-
-        let session = sessions.get_mut(&session_id).unwrap();
-        session.init_responder()
+    ) -> (TensorInterpreter<B>, mpsc::Sender<TaskResponse>) {
+        self.with_session(session_id, |s| (s.runner.clone(), s.sender.clone()))
+            .await
     }
 
-    /// Get the stream for the current session and task.
-    pub async fn stream(
+    /// Get a clone of the [`TensorInterpreter`] for `session_id` only if the session already exists,
+    /// without creating one. Used on the close path so a `Close` for an unknown or
+    /// already-removed session doesn't resurrect a phantom runner just to drop it.
+    pub async fn try_runner(&self, session_id: SessionId) -> Option<TensorInterpreter<B>> {
+        let sessions = self.sessions.lock().await;
+        sessions.get(&session_id).map(|s| s.runner.clone())
+    }
+
+    /// Take the response receiver for `session_id`.
+    ///
+    /// Returns `Err` if a responder has already been registered for this session — the
+    /// protocol allows only one response socket per session.
+    pub async fn take_response_receiver(
         &self,
-        session_id: &mut Option<SessionId>,
-        task: Task,
-    ) -> Option<(Stream<B, P>, ConnectionId, ComputeTask)> {
+        session_id: SessionId,
+    ) -> Result<mpsc::Receiver<TaskResponse>, String> {
+        self.with_session(session_id, |s| {
+            s.receiver
+                .take()
+                .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
+        })
+        .await
+    }
+
+    /// Drop the session. The runner's handles are released here, so any backend state held
+    /// only by this session's tensors becomes eligible for cleanup.
+    pub async fn close(&self, session_id: SessionId) {
         let mut sessions = self.sessions.lock().await;
-
-        let session_id = match session_id {
-            Some(id) => *id,
-            None => match task {
-                Task::Init(id) => {
-                    log::info!("Init requester for session {id}");
-                    *session_id = Some(id);
-                    self.register_session(&mut sessions, id);
-                    return None;
-                }
-                _ => panic!("The first message should initialize the session"),
-            },
-        };
-
-        match sessions.get_mut(&session_id) {
-            Some(session) => {
-                let (task, connection_id) = match task {
-                    Task::Compute(task, connection_id) => (task, connection_id),
-                    _ => panic!("Only support compute tasks."),
-                };
-                let stream = session.select(connection_id.stream_id).await;
-                Some((stream, connection_id, task))
-            }
-            None => panic!("To be initialized"),
-        }
+        sessions.remove(&session_id);
     }
 
-    /// Close the session with the given id.
-    pub async fn close(&self, session_id: Option<SessionId>) {
-        if let Some(id) = session_id {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(&id) {
-                session.close().await;
+    async fn with_session<R>(
+        &self,
+        session_id: SessionId,
+        f: impl FnOnce(&mut Session<B>) -> R,
+    ) -> R {
+        let mut sessions = self.sessions.lock().await;
+        let entry = sessions.entry(session_id).or_insert_with(|| {
+            let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);
+            Session {
+                runner: TensorInterpreter::new(self.device.clone()),
+                sender,
+                receiver: Some(receiver),
             }
-        }
-    }
-
-    fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B, P>>, id: SessionId) {
-        sessions.entry(id).or_insert_with(|| {
-            log::info!("Creating a new session {id}");
-
-            Session::new(self.runner.clone(), self.data_service.clone())
         });
-    }
-}
-
-impl<B, P> Session<B, P>
-where
-    B: BackendIr,
-    P: Protocol,
-{
-    fn new(runner: Runner<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
-        let (sender, receiver) = tokio::sync::mpsc::channel(1);
-
-        Self {
-            runner,
-            streams: Default::default(),
-            sender,
-            receiver: Some(receiver),
-            data_service,
-        }
-    }
-
-    fn init_responder(&mut self) -> Receiver<Receiver<TaskResponse>> {
-        let mut receiver = None;
-        core::mem::swap(&mut receiver, &mut self.receiver);
-        receiver.expect("Only one responder per session is possible.")
-    }
-
-    /// Select the current [stream](Stream) based on the given task.
-    async fn select(&mut self, stream_id: StreamId) -> Stream<B, P> {
-        // We return the stream.
-        match self.streams.get(&stream_id) {
-            Some(stream) => stream.clone(),
-            None => {
-                let stream = Stream::<B, P>::new(
-                    self.runner.clone(),
-                    self.sender.clone(),
-                    self.data_service.clone(),
-                )
-                .await;
-                self.streams.insert(stream_id, stream.clone());
-                stream
-            }
-        }
-    }
-
-    // Close all streams created in the session.
-    async fn close(&mut self) {
-        for (id, stream) in self.streams.drain() {
-            log::info!("Closing stream {id}");
-            stream.close().await;
-        }
+        f(entry)
     }
 }

@@ -14,6 +14,7 @@ default = ["webgpu"]
 cuda = ["burn/cuda"]
 webgpu = ["burn/webgpu"]
 vulkan = ["burn/vulkan"]
+rocm = ["burn/rocm"]
 flex = ["burn/flex"]
 
 [dependencies]

@@ -19,6 +19,19 @@ macro_rules! backend_list {
     };
 }
 
+/// Supplies a list of all supported distributed backends and their corresponding feature flags
+/// to a callback macro. This centralizes the backend registry.
+#[cfg(feature = "distributed")]
+macro_rules! distributed_backend_list {
+    ($callback:ident, $($extra:tt)*) => {
+        $callback! {
+            $($extra)*;
+            // Right now, only the cubecl CudaServer actually implements the distributed communication
+            [Cuda, feature = "cuda"]
+        }
+    };
+}
+
 /// Supplies a matrix of cross-backend combinations. Used for operations where the source and destination backends may differ.
 macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
@@ -90,6 +103,9 @@ macro_rules! dispatch_device_arms {
                     $body
                 }
             )*
+            #[cfg(feature = "distributed")]
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
     (
@@ -106,7 +122,10 @@ macro_rules! dispatch_device_arms {
                     $body
                 }
             )*
-            $crate::DispatchDevice::Autodiff(_) => unreachable!("Autodiff should not wrap an autodiff device.")
+            $crate::DispatchDevice::Autodiff(_) => unreachable!("Autodiff should not wrap an autodiff device."),
+            #[cfg(feature = "distributed")]
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed operations are not supported for device {other:?}"),
         }
     };
 }
@@ -114,7 +133,13 @@ macro_rules! dispatch_device_arms {
 /// Dispatches an operation body based on the provided device.
 macro_rules! dispatch_device {
     ($device:expr, |$inner:ident| $body:expr) => {
-        backend_list!(dispatch_device_arms, $device, |$inner| $body)
+        dispatch_device!(@internal backend_list, $device, |$inner| $body)
+    };
+    (@distributed $device:expr, |$inner:ident| $body:expr) => {
+        dispatch_device!(@internal distributed_backend_list, $device, |$inner| $body)
+    };
+    (@internal $list_macro:ident, $device:expr, |$inner:ident| $body:expr) => {
+        $list_macro!(dispatch_device_arms, $device, |$inner| $body)
     };
 }
 
@@ -737,6 +762,9 @@ macro_rules! unary_float_arms {
                     }
                 }
             )*
+            #[cfg(feature = "distributed")]
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }
     }};
 
@@ -759,7 +787,10 @@ macro_rules! unary_float_arms {
                     })
                 }
             )*
-            $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor.")
+            $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor."),
+            #[cfg(feature = "distributed")]
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }
     }};
 
@@ -793,6 +824,9 @@ macro_rules! unary_float_arms {
                     $body
                 }
             )*
+            #[cfg(feature = "distributed")]
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }
     }};
     (
@@ -812,7 +846,10 @@ macro_rules! unary_float_arms {
                     })
                 }
             )*
-            $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor.")
+            $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor."),
+            #[cfg(feature = "distributed")]
+            #[allow(unreachable_patterns)]
+            other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }
     }};
 
@@ -971,9 +1008,25 @@ macro_rules! if_mode {
 ///
 /// When the return `=> Kind` is not provided, the operation output is not wrapped in a dispatch tensor (e.g., `into_data(..)`)
 macro_rules! unary_float {
-    // Owned with return kind
+    // --- Entrypoints that default to standard backend_list ---
     ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr => $kind:ident) => {
-        backend_list!(
+        unary_float!(@internal backend_list, $tensor, $inner_kind, |$inner| $body => $kind)
+    };
+    ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
+        unary_float!(@internal backend_list, $tensor, $inner_kind, |$inner| $body)
+    };
+    (ref $tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
+        unary_float!(@internal backend_list, ref $tensor, $inner_kind, |$inner| $body)
+    };
+
+    // --- Distributed entrypoint ---
+    (@distributed $tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr => $kind:ident) => {
+        unary_float!(@internal distributed_backend_list, $tensor, $inner_kind, |$inner| $body => $kind)
+    };
+
+    // --- Internal implementation workers that accept the list macro dynamically ---
+    (@internal $list_macro:ident, $tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr => $kind:ident) => {
+        $list_macro!(
             unary_float_arms,
             owned,
             $kind,
@@ -982,15 +1035,13 @@ macro_rules! unary_float {
             |$inner| { $body }
         )
     };
-    // Owned without return kind
-    ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
-        backend_list!(unary_float_arms, owned, $inner_kind, $tensor, |$inner| {
+    (@internal $list_macro:ident, $tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
+        $list_macro!(unary_float_arms, owned, $inner_kind, $tensor, |$inner| {
             $body
         })
     };
-    // Reference without return kind
-    (ref $tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
-        backend_list!(unary_float_arms, ref, $inner_kind, $tensor, |$inner| {
+    (@internal $list_macro:ident, ref $tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
+        $list_macro!(unary_float_arms, ref, $inner_kind, $tensor, |$inner| {
             $body
         })
     };

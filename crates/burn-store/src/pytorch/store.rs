@@ -367,7 +367,11 @@ impl ModuleStore for PytorchStore {
         }
 
         if !self.allow_partial && !result.missing.is_empty() {
-            return Err(PytorchStoreError::TensorNotFound(format!("\n{}", result)));
+            return Err(PytorchStoreError::TensorNotFound(format!(
+                "\n{}\n\nHint: Use `.allow_partial(true)` on the store to get an `ApplyResult` \
+                with structured missing/error info instead of a hard failure.",
+                result
+            )));
         }
 
         Ok(result)

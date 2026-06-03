@@ -3,12 +3,12 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use alloc::format;
 use alloc::{sync::Arc, vec::Vec};
 
-use super::RunnerClient;
+use super::RouterClient;
 use burn_backend::{DType, Shape, TensorData, TensorMetadata, backend::ExecutionError};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
-pub struct RouterTensor<C: RunnerClient> {
+pub struct RouterTensor<C: RouterClient> {
     pub(crate) id: TensorId,
     pub(crate) shape: Shape,
     pub(crate) dtype: DType,
@@ -17,7 +17,7 @@ pub struct RouterTensor<C: RunnerClient> {
     pub(crate) count: Arc<AtomicU32>,
 }
 
-impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
+impl<C: RouterClient> TensorMetadata for RouterTensor<C> {
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -31,7 +31,7 @@ impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
     }
 }
 
-impl<C: RunnerClient> RouterTensor<C> {
+impl<C: RouterClient> RouterTensor<C> {
     /// Create a new router tensor.
     pub fn new(id: TensorId, shape: Shape, dtype: DType, client: C) -> Self {
         Self {
@@ -88,7 +88,7 @@ impl<C: RunnerClient> RouterTensor<C> {
     }
 }
 
-impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
+impl<C: RouterClient> core::fmt::Debug for RouterTensor<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(
             format!(
@@ -103,7 +103,7 @@ impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
     }
 }
 
-impl<C: RunnerClient> Clone for RouterTensor<C> {
+impl<C: RouterClient> Clone for RouterTensor<C> {
     fn clone(&self) -> Self {
         self.count.fetch_add(1, Ordering::Relaxed);
 
@@ -117,7 +117,7 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
     }
 }
 
-impl<C: RunnerClient> Drop for RouterTensor<C> {
+impl<C: RouterClient> Drop for RouterTensor<C> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Relaxed);
 

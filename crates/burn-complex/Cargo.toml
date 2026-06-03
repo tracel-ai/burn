@@ -5,14 +5,9 @@ license.workspace = true
 readme.workspace = true
 version.workspace = true
 
-
-[features]
-#default = ["burn-tensor/flex"]
-#flex = [ "burn-tensor/flex", "burn-core/flex" ]
-#no_std is a problem for later
-#std = ["burn-tensor/std", "num-complex/std", "num-traits/std"]
-
-    
+# right now, we can't move burn-complex test into burn-backend-tests because of autodiff codegen causing
+# a panic, as it's currently not supported. We can move the test once burn-autodiff 
+# (and potentially other backend decorators) has complex support
 
 [dependencies]
 

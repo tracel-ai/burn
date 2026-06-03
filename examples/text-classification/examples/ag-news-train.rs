@@ -1,7 +1,7 @@
 #![recursion_limit = "256"]
 
 #[cfg(feature = "ddp")]
-use burn::tensor::backend::distributed::{DistributedBackend, DistributedConfig, ReduceOperation};
+use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -21,12 +21,9 @@ type ElemType = burn::tensor::flex32;
 
 #[cfg(all(feature = "cuda", not(feature = "ddp")))]
 pub fn launch_multi() {
-    let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
-
-    devices.iter_mut().for_each(|d| {
-        d.configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
-            .unwrap()
-    });
+    let devices = Device::enumerate(burn::tensor::DeviceType::Cuda)
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+        .unwrap();
 
     launch(ExecutionStrategy::MultiDevice(
         devices,
@@ -35,16 +32,14 @@ pub fn launch_multi() {
 }
 
 #[cfg(all(feature = "cuda", feature = "ddp"))]
-pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
+pub fn launch_multi() {
     let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
-
-    devices.iter_mut().for_each(|d| {
-        d.configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
-            .unwrap()
-    });
+    devices
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+        .unwrap();
 
     launch(ExecutionStrategy::ddp(
-        devices,
+        devices.into_vec(),
         DistributedConfig {
             all_reduce_op: ReduceOperation::Mean,
         },
@@ -108,15 +103,14 @@ mod wgpu {
     }
 }
 
-// #[cfg(feature = "remote")]
-// mod remote {
-//     use crate::{ElemType, launch};
-//     use burn::backend::{Autodiff, RemoteBackend};
+#[cfg(feature = "remote")]
+mod remote {
+    use burn::tensor::{Device, DeviceKind};
 
-//     pub fn run() {
-//         launch::<Autodiff<RemoteBackend>>(ExecutionStrategy::SingleDevice(Default::default()));
-//     }
-// }
+    pub fn run() {
+        crate::launch_single(Device::remote("ws://localhost:3000"));
+    }
+}
 
 #[cfg(feature = "cuda")]
 mod cuda {

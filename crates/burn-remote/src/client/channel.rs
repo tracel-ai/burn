@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use burn_backend::Shape;
 use burn_communication::ProtocolClient;
 use burn_ir::TensorIr;
-use burn_router::{RouterTensor, RunnerChannel, get_client};
+use burn_router::{RouterChannel, RouterTensor, get_client};
 
 use super::{
     RemoteClient,
@@ -15,17 +15,17 @@ pub struct RemoteChannel<C: ProtocolClient> {
     _p: PhantomData<C>,
 }
 
-impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
+impl<C: ProtocolClient> RouterChannel for RemoteChannel<C> {
     type Device = RemoteDevice;
     type Bridge = RemoteBridge<C>;
-    type Client = RemoteClient;
+    type Client = RemoteClient<C>;
 
     fn name(device: &Self::Device) -> String {
         format!("remote-{device:?}")
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {
-        RemoteClient::init::<C>(device.clone())
+        RemoteClient::<C>::init(device.clone())
     }
 
     fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> RemoteTensorHandle<C> {
@@ -62,7 +62,7 @@ impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
         let id = handle.tensor.id;
 
         let target_client = get_client::<Self>(target_device);
-        let router_tensor: RouterTensor<RemoteClient> =
+        let router_tensor: RouterTensor<RemoteClient<C>> =
             RouterTensor::new(id, handle.tensor.shape, handle.tensor.dtype, target_client);
 
         router_tensor

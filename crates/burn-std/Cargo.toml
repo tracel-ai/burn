@@ -40,7 +40,11 @@ smallvec = { workspace = true, features = ["serde"] }
 spin = { workspace = true }
 thiserror = { workspace = true }
 
-# Some backends require trait impl for our complex element types, hence the below
+# ParamId
+data-encoding = { workspace = true }
+uuid = { workspace = true }
+
+# the crates underlying some backends require trait impl for our complex element types, hence the below
 tch = { workspace = true, default-features = true, features = ["download-libtorch"], optional = true }
 ndarray = { workspace = true, optional = true }                             
 

@@ -65,21 +65,6 @@ impl QTensorOps<Self> for LibTorch {
         unimplemented!()
     }
 
-    fn q_select(
-        _tensor: QuantizedTensor<Self>,
-        _dim: usize,
-        _indices: IntTensor<Self>,
-    ) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_slice(
-        _tensor: QuantizedTensor<Self>,
-        _slices: &[burn_backend::Slice],
-    ) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
     fn q_argmax(
         _tensor: QuantizedTensor<Self>,
         _dim: usize,
@@ -117,10 +102,6 @@ impl QTensorOps<Self> for LibTorch {
         _dim: usize,
         _indices_dtype: IntDType,
     ) -> (QuantizedTensor<Self>, IntTensor<Self>) {
-        unimplemented!()
-    }
-
-    fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 

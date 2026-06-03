@@ -218,7 +218,10 @@ pub trait QTensorOps<B: Backend> {
     }
 
     /// Broadcasts the `tensor` to the given `shape`.
-    fn q_expand(tensor: QuantizedTensor<B>, shape: Shape) -> QuantizedTensor<B>;
+    fn q_expand(tensor: QuantizedTensor<B>, shape: Shape) -> QuantizedTensor<B> {
+        // Default implementation. Backends can expand on the quantized values when supported.
+        dequant_op_quant!(float_op | tensor | B::float_expand(tensor, shape), tensor)
+    }
 
     /// Transposes a tensor.
     ///
@@ -283,7 +286,13 @@ pub trait QTensorOps<B: Backend> {
         tensor: QuantizedTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
-    ) -> QuantizedTensor<B>;
+    ) -> QuantizedTensor<B> {
+        // Default implementation. Backends can select on the quantized values when supported.
+        dequant_op_quant!(
+            float_op | tensor | B::float_select(tensor, dim, indices),
+            tensor
+        )
+    }
 
     /// Select tensor elements corresponding to the given slices.
     ///
@@ -295,7 +304,10 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn q_slice(tensor: QuantizedTensor<B>, slices: &[Slice]) -> QuantizedTensor<B>;
+    fn q_slice(tensor: QuantizedTensor<B>, slices: &[Slice]) -> QuantizedTensor<B> {
+        // Default implementation. Backends can slice on the quantized values when supported.
+        dequant_op_quant!(float_op | tensor | B::float_slice(tensor, slices), tensor)
+    }
 
     /// Gather elements from a tensor.
     ///

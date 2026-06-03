@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate derive_new;
-
 #[cfg(feature = "client")]
 pub(crate) mod client;
 

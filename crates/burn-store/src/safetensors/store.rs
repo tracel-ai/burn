@@ -718,7 +718,8 @@ impl ModuleStore for SafetensorsStore {
 
         if !self.get_allow_partial() && !result.missing.is_empty() {
             return Err(SafetensorsStoreError::TensorNotFound(format!(
-                "\n{}",
+                "\n{}\n\nHint: Use `.allow_partial(true)` on the store to get an `ApplyResult` \
+                with structured missing/error info instead of a hard failure.",
                 result
             )));
         }

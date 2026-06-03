@@ -26,7 +26,7 @@ tracing = [
     "burn-ir/tracing",
     "burn-std/tracing",
 ]
-distributed = ["burn-ir/distributed"]
+distributed = ["burn-ir/distributed", "burn-backend/distributed"]
 
 [dependencies]
 burn-ir = { workspace = true }

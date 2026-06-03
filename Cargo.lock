@@ -658,7 +658,6 @@ dependencies = [
  "burn-ndarray",
  "burn-nn",
  "burn-optim",
- "burn-remote",
  "burn-rl",
  "burn-rocm",
  "burn-router",
@@ -801,7 +800,6 @@ dependencies = [
  "burn-ir",
  "burn-std",
  "burn-tensor",
- "data-encoding",
  "derive-new",
  "flate2",
  "half",
@@ -819,7 +817,6 @@ dependencies = [
  "serial_test",
  "spin",
  "thiserror 2.0.18",
- "uuid",
 ]
 
 [[package]]
@@ -1062,7 +1059,6 @@ dependencies = [
  "burn-std",
  "burn-tensor",
  "bytes",
- "derive-new",
  "futures-util",
  "log",
  "rmp-serde",
@@ -1120,6 +1116,7 @@ dependencies = [
  "cubecl-common",
  "cubecl-zspace",
  "dashmap",
+ "data-encoding",
  "derive-new",
  "enumset",
  "half",
@@ -1142,6 +1139,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
