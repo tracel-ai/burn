@@ -162,6 +162,10 @@ pub(crate) fn handle_command(
             // ------------------------------
             match args.ci {
                 CiTestType::GithubRunner => {
+                    // Avoid default `Target::Workspace` which unifies features across the workspace and bloats binaries
+                    // leading to OOM during grcov
+                    args.target = Target::AllPackages;
+
                     // Exclude crates that are not supported on CI
                     args.exclude.extend(vec![
                         "burn-cpu".to_string(),
