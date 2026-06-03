@@ -86,20 +86,13 @@ fn create_key<R: CubeRuntime>(
 ) -> InterpolateAutotuneKey {
     let elem_input = dtype_to_elem_type(input.dtype);
     let elem_output = dtype_to_elem_type(input.dtype);
-    let elem_acc = dtype_to_elem_type(input.dtype);
 
-    InterpolateAutotuneKey::generate(
-        elem_input,
-        elem_output,
-        elem_acc,
-        &input.meta.shape(),
-        &output_size,
-    )
+    InterpolateAutotuneKey::generate(elem_input, elem_output, input.meta.shape(), output_size)
 }
 
 fn input_gen<R: CubeRuntime>(
     _key: &InterpolateAutotuneKey,
     (input, output_size, options): &(CubeTensor<R>, [usize; 2], InterpolateOptions),
 ) -> (CubeTensor<R>, [usize; 2], InterpolateOptions) {
-    (input.clone(), output_size.clone(), options.clone())
+    (input.clone(), *output_size, options.clone())
 }
