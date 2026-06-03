@@ -61,7 +61,7 @@ tracing = [
 network = ["burn-core/network"]
 
 # Training with full features
-train = ["burn-train", "autodiff", "dataset"]
+train = ["burn-train", "optim", "dataset"]
 
 ## Includes the Text UI (progress bars, metric plots)
 tui = ["burn-train?/tui"]
