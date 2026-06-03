@@ -195,6 +195,47 @@ impl AutodiffBackend for Dispatch {
         }
     }
 
+    fn backward_retain(tensor: &DispatchTensor) -> Self::Gradients {
+        let DispatchTensor { kind, .. } = tensor;
+        match kind {
+            DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
+                #[cfg(all(feature = "cpu", not(feature = "distributed")))]
+                DispatchTensorKind::Cpu(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(feature = "cuda")]
+                DispatchTensorKind::Cuda(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "metal", not(feature = "distributed")))]
+                DispatchTensorKind::Metal(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "rocm", not(feature = "distributed")))]
+                DispatchTensorKind::Rocm(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "vulkan", not(feature = "distributed")))]
+                DispatchTensorKind::Vulkan(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "wgpu", not(feature = "distributed")))]
+                DispatchTensorKind::Wgpu(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "webgpu", not(feature = "distributed")))]
+                DispatchTensorKind::WebGpu(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "flex", not(feature = "distributed")))]
+                DispatchTensorKind::Flex(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(
+                    any(feature = "ndarray", default_backend),
+                    not(feature = "distributed")
+                ))]
+                DispatchTensorKind::NdArray(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "tch", not(feature = "distributed")))]
+                DispatchTensorKind::LibTorch(tensor) => tensor.as_autodiff().backward_retain(),
+                #[cfg(all(feature = "remote", not(feature = "distributed")))]
+                DispatchTensorKind::Remote(tensor) => tensor.as_autodiff().backward_retain(),
+                DispatchTensorKind::Autodiff(_) => {
+                    panic!("Autodiff should not wrap an autodiff tensor.")
+                }
+                #[cfg(feature = "distributed")]
+                other => {
+                    panic!("Distributed operations are not supported for tensor kind {other:?}")
+                }
+            },
+            _ => panic!("Requires autodiff tensor."),
+        }
+    }
+
     fn grad(tensor: &DispatchTensor, grads: &Self::Gradients) -> Option<DispatchTensor> {
         let DispatchTensor {
             kind,
