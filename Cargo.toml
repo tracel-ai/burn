@@ -222,7 +222,7 @@ burn-wgpu = { path = "crates/burn-wgpu", version = "0.22.0-pre.1", default-featu
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f683f2d3cfdb41aecc519e5a436e453b8c82b577" }
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f683f2d3cfdb41aecc519e5a436e453b8c82b577" }
 cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "f683f2d3cfdb41aecc519e5a436e453b8c82b577" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "5df69a65711ca60d9854c339e6bd1ea9605ce943" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "7255736e5e6e3b1a6d485bd9128b963e24502a39" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
