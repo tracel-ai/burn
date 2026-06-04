@@ -29,18 +29,27 @@ mod ndarray {
 mod tch {
     use super::ComplexScalar;
     use tch::kind::Element as TchElement;
+    //use tch::Scalar as TchScalar;
     // Not supported right now burn side, apparently supported for tch
-    impl<E: TchElement> TchElement for ComplexScalar<f16> {
-        const KIND: tch::Kind = tch::Kind::ComplexHalf;
-        const ZERO: Self = Self::new(0.0, 0.0);
-    }
-    impl<E: TchElement> TchElement for ComplexScalar<f32> {
+    // unsafe impl TchElement for ComplexScalar<f16> {
+    //     const KIND: tch::Kind = tch::Kind::ComplexHalf;
+    //     const ZERO: Self = ComplexScalar { real: 0.0_f16, imag: 0.0 };
+    // }
+    // unsafe is required by the bounds of TchElement
+    unsafe impl TchElement for ComplexScalar<f32> {
         const KIND: tch::Kind = tch::Kind::ComplexFloat;
-        const ZERO: Self = Self::new(0.0, 0.0);
+        const ZERO: Self = ComplexScalar {
+            real: 0.0_f32,
+            imag: 0.0,
+        };
     }
-    impl<E: TchElement> TchElement for ComplexScalar<f64> {
+
+    unsafe impl TchElement for ComplexScalar<f64> {
         const KIND: tch::Kind = tch::Kind::ComplexDouble;
-        const ZERO: Self = Self::new(0.0, 0.0);
+        const ZERO: Self = ComplexScalar {
+            real: 0.0_f64,
+            imag: 0.0,
+        };
     }
 }
 

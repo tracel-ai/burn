@@ -19,8 +19,8 @@ default = ["std"]
 doc = ["default"]
 distributed = ["std", "oneshot"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std"]
-ndarray = ["dep:ndarray"]
-tch = ["dep:tch"]
+ndarray = ["burn-std/ndarray"]
+tch = ["burn-std/tch"]
 tracing = ["burn-std/tracing", "cubecl/tracing"]
 
 # For DTypeUsage de/serialization
@@ -51,9 +51,6 @@ oneshot = { version = "0.2.1", optional = true }
 spin = { workspace = true }
 num-complex = { workspace = true, default-features = false }
 paste = { workspace = true }
-# For implementing traits on Complex element types
-ndarray = { workspace = true, optional = true }
-tch = { workspace = true, optional = true, default-features = false}
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
