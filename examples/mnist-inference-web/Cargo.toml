@@ -19,7 +19,7 @@ flex = ["burn/flex"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = { workspace = true }
+burn = { workspace = true, features = ["extension"]}
 serde = { workspace = true }
 console_error_panic_hook = { workspace = true }
 
