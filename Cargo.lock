@@ -2661,6 +2661,7 @@ name = "custom-wgpu-kernel"
 version = "0.22.0-pre.1"
 dependencies = [
  "burn",
+ "burn-cubecl",
  "burn-fusion",
  "bytemuck",
  "cubecl",
