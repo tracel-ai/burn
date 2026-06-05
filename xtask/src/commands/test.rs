@@ -33,7 +33,7 @@ impl std::convert::TryInto<CompileCmdArgs> for BurnTestCmdArgs {
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CiTestType {
-    // Github runner
+    // Github runner shards
     Backends,
     Crates,
     Examples,
