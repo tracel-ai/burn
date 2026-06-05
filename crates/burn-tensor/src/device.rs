@@ -358,6 +358,12 @@ impl Device {
         Self::new(DispatchDevice::Wgpu(wgpu_device(device_kind)))
     }
 
+    #[cfg(all(feature = "wgpu", target_family = "wasm"))]
+    /// Asynchronously creates a WGPU device, initializing the client.
+    pub async fn wgpu_async(device_kind: DeviceKind) -> Self {
+        Self::new(DispatchDevice::Wgpu(wgpu_init_async(device_kind).await))
+    }
+
     /// Vulkan-backed WGPU device, selected via [`DeviceKind`].
     ///
     /// Pins the wgpu shader compiler to SPIR-V at compile time, avoiding
@@ -651,6 +657,17 @@ fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
         DeviceKind::DefaultDevice => WgpuDevice::DefaultDevice,
         DeviceKind::Existing(id) => WgpuDevice::Existing(id),
     }
+}
+
+#[cfg(all(feature = "wgpu", target_family = "wasm"))]
+// TODO: this is only helpful for the default graphics api and runtime options.. we'd have to expose other methods but that leaks the types
+// so we might have to introduce some wrapper types.
+async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
+    use burn_dispatch::backends::wgpu::{graphics::AutoGraphicsApi, init_setup_async};
+
+    let device = wgpu_device(device_kind);
+    init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
+    device
 }
 
 // TODO: this is essentially per-backend filter, we could have higher level filters e.g. Cpu (CpuDevice, Ndarray, Flex, LibTorchDevice::Cpu)
