@@ -23,7 +23,7 @@ impl std::convert::TryInto<CompileCmdArgs> for BurnTestCmdArgs {
     type Error = anyhow::Error;
     fn try_into(self) -> Result<CompileCmdArgs, Self::Error> {
         Ok(CompileCmdArgs {
-            target: self.target.try_into()?,
+            target: self.target,
             exclude: self.exclude,
             only: self.only,
         })
