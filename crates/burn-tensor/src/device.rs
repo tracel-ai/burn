@@ -6,7 +6,7 @@ use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
-use burn_std::{BoolDType, FloatDType, IntDType};
+use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
 use alloc::vec::Vec;
 use enumset::{EnumSet, EnumSetType};
@@ -517,6 +517,25 @@ impl Device {
         func: Func,
     ) -> Output {
         Dispatch::memory_persistent_allocations(self.as_dispatch(), input, func)
+    }
+
+    /// Triggers a memory cleanup on this device.
+    ///
+    /// The amount of memory reclaimed depends on the allocator implementation.
+    /// Calling this method does not guarantee that any memory will be freed.
+    pub fn memory_cleanup(&self) {
+        Dispatch::memory_cleanup(self.as_dispatch());
+    }
+
+    /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.
+    ///
+    /// Depending on the backend, the data may be transferred to pinned memory
+    /// or another transfer-optimized format to improve transfer performance.
+    pub fn staging<'a, Iter>(&self, data: Iter)
+    where
+        Iter: Iterator<Item = &'a mut TensorData>,
+    {
+        Dispatch::staging(data, self.as_dispatch());
     }
 
     /// Returns the [`DeviceSettings`] for this device.
