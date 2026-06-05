@@ -5,6 +5,7 @@ use burn_backend::cubecl::dtype_to_elem_type;
 use burn_backend::ops::InterpolateOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
 use cubek::interpolate::{
+    definition::TileSize,
     launch::{InterpolateAutotuneKey, InterpolateStrategy},
     routines::{
         BlueprintStrategy, GlobalMemoryRoutine, GlobalMemoryStrategy, SharedMemoryRoutine,
@@ -27,11 +28,40 @@ pub fn interpolate_autotune<R: CubeRuntime>(
 
         let global_memory =
             TuneGroup::<InterpolateAutotuneKey>::new("global_memory", |_key| PRIORITY);
+        let shared_memory =
+            TuneGroup::<InterpolateAutotuneKey>::new("shared_memory", |_key| PRIORITY);
 
         let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
 
-        for tile_target_aspect_ratio in [0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 100.0] {
-            let name = format!("global_memory_tile_aspect_{tile_target_aspect_ratio}");
+        let tile_sizes: [TileSize; 16] = [
+            // Square shapes
+            TileSize::new(8, 8),
+            TileSize::new(16, 16),
+            TileSize::new(32, 32),
+            // Rectangular shapes
+            TileSize::new(8, 16),
+            TileSize::new(16, 8),
+            TileSize::new(16, 32),
+            TileSize::new(32, 16),
+            // Flat horizontal shapes
+            TileSize::new(1, 64),
+            TileSize::new(1, 128),
+            TileSize::new(1, 256),
+            TileSize::new(2, 128),
+            TileSize::new(1, 512),
+            TileSize::new(1, 1024),
+            // Flat vertical shapes
+            TileSize::new(64, 1),
+            TileSize::new(128, 1),
+            TileSize::new(256, 1),
+        ];
+
+        for tile_size in tile_sizes {
+            let name = format!(
+                "global_memory_tile_size_{}_{}",
+                tile_size.height(),
+                tile_size.width()
+            );
             set = set.with(
                 Tunable::new(&name, move |(input, output_size, options)| {
                     execute_interpolate::<R>(
@@ -41,16 +71,18 @@ pub fn interpolate_autotune<R: CubeRuntime>(
                         InterpolateStrategy::GlobalMemoryStrategy(BlueprintStrategy::<
                             GlobalMemoryRoutine,
                         >::Inferred(
-                            GlobalMemoryStrategy {
-                                tile_target_aspect_ratio,
-                            },
+                            GlobalMemoryStrategy { tile_size },
                         )),
                     )
                 })
                 .group(&global_memory, |_key| PRIORITY),
             );
 
-            let name = format!("shared_memory_tile_aspect_{tile_target_aspect_ratio}");
+            let name = format!(
+                "shared_memory_tile_size_{}_{}",
+                tile_size.height(),
+                tile_size.width()
+            );
             set = set.with(
                 Tunable::new(&name, move |(input, output_size, options)| {
                     execute_interpolate::<R>(
@@ -60,13 +92,11 @@ pub fn interpolate_autotune<R: CubeRuntime>(
                         InterpolateStrategy::SharedMemoryStrategy(BlueprintStrategy::<
                             SharedMemoryRoutine,
                         >::Inferred(
-                            SharedMemoryStrategy {
-                                tile_target_aspect_ratio,
-                            },
+                            SharedMemoryStrategy { tile_size },
                         )),
                     )
                 })
-                .group(&global_memory, |_key| PRIORITY),
+                .group(&shared_memory, |_key| PRIORITY),
             );
         }
 

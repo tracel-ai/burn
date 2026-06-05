@@ -300,7 +300,7 @@ where
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
-        kernel::interpolate::interpolate(x, output_size, options, Default::default())
+        kernel::interpolate::interpolate(x, output_size, options, Default::default()).unwrap()
     }
 
     fn interpolate_backward(

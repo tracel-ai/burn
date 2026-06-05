@@ -6,11 +6,13 @@ use crate::{
 };
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{Shape, TensorMetadata, ops::InterpolateMode, ops::InterpolateOptions};
+#[cfg(not(feature = "autotune"))]
+use cubek::interpolate::definition::TileSize;
 use cubek::interpolate::{
-    definition::InterpolateError,
-    definition::InterpolateMode as CubekInterpolateMode,
-    definition::InterpolateOptions as CubekInterpolateOptions,
-    definition::NearestMode as CubekNearestMode,
+    definition::{
+        InterpolateError, InterpolateMode as CubekInterpolateMode,
+        InterpolateOptions as CubekInterpolateOptions, NearestMode as CubekNearestMode,
+    },
     interpolate as cubek_interpolate, interpolate_backward as cubek_interpolate_backward,
     launch::InterpolateStrategy as CubekInterpolateStrategy,
     routines::{
@@ -39,10 +41,10 @@ impl Default for InterpolateStrategy {
         #[cfg(feature = "autotune")]
         return InterpolateStrategy::Autotune;
 
-        // if autotune is disabled, default to global memory with a square aspect ratio to make sure it runs
+        // if autotune is disabled, default to global memory with a 16x16 tile size
         #[cfg(not(feature = "autotune"))]
         InterpolateStrategy::GlobalMemory(GlobalMemoryStrategy {
-            tile_target_aspect_ratio: 1.0,
+            tile_size: TileSize::new(16, 16),
         })
     }
 }
@@ -55,7 +57,7 @@ pub fn interpolate<R: CubeRuntime>(
     output_size: [usize; 2],
     options: InterpolateOptions,
     strategy: InterpolateStrategy,
-) -> CubeTensor<R> {
+) -> Result<CubeTensor<R>, InterpolateError> {
     match strategy {
         InterpolateStrategy::GlobalMemory(strategy) => execute_interpolate(
             input,
@@ -64,8 +66,7 @@ pub fn interpolate<R: CubeRuntime>(
             CubekInterpolateStrategy::GlobalMemoryStrategy(
                 BlueprintStrategy::<GlobalMemoryRoutine>::Inferred(strategy),
             ),
-        )
-        .unwrap_or_else(|e| panic!("Interpolation failed: {e}")),
+        ),
         InterpolateStrategy::SharedMemory(strategy) => execute_interpolate(
             input,
             output_size,
@@ -73,9 +74,8 @@ pub fn interpolate<R: CubeRuntime>(
             CubekInterpolateStrategy::SharedMemoryStrategy(
                 BlueprintStrategy::<SharedMemoryRoutine>::Inferred(strategy),
             ),
-        )
-        .unwrap_or_else(|e| panic!("Interpolation failed: {e}")),
-        InterpolateStrategy::Autotune => interpolate_autotune(input, output_size, options),
+        ),
+        InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
     }
 }
 
