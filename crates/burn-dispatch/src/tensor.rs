@@ -212,11 +212,11 @@ pub enum DispatchTensorKind {
     WebGpu(BackendTensor<WebGpu>),
 
     /// The [Flex backend](Flex) tensor.
-    #[cfg(feature = "flex")]
+    #[cfg(any(feature = "flex", default_backend))]
     Flex(BackendTensor<Flex>),
 
     /// The [NdArray backend](NdArray) tensor.
-    #[cfg(any(feature = "ndarray", default_backend))]
+    #[cfg(feature = "ndarray")]
     NdArray(BackendTensor<NdArray>),
 
     /// The [LibTorch backend](LibTorch) tensor.
@@ -249,9 +249,9 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.dtype(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(tensor) => tensor.dtype(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.dtype(),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.dtype(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.dtype(),
@@ -278,9 +278,9 @@ impl TensorMetadata for DispatchTensorKind {
             Self::Wgpu(tensor) => tensor.shape(),
             #[cfg(feature = "webgpu")]
             Self::WebGpu(tensor) => tensor.shape(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             Self::Flex(tensor) => tensor.shape(),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.shape(),
             #[cfg(feature = "tch")]
             Self::LibTorch(tensor) => tensor.shape(),

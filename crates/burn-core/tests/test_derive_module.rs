@@ -153,7 +153,7 @@ mod compiletime_clone_impl_check {
 }
 
 pub fn test_device() -> Device {
-    burn_tensor::Device::ndarray()
+    burn_tensor::Device::flex()
 }
 
 mod state {
