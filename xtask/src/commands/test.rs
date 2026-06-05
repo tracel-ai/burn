@@ -18,12 +18,27 @@ pub struct BurnTestCmdArgs {
     pub ci: CiTestType,
 }
 
+// `cargo check` for examples
+impl std::convert::TryInto<CompileCmdArgs> for BurnTestCmdArgs {
+    type Error = anyhow::Error;
+    fn try_into(self) -> Result<CompileCmdArgs, Self::Error> {
+        Ok(CompileCmdArgs {
+            target: self.target.try_into()?,
+            exclude: self.exclude,
+            only: self.only,
+        })
+    }
+}
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum CiTestType {
-    GithubRunner,         // backend tests
-    GithubRunnerCrates,   // workspace crates
-    GithubRunnerExamples, // examples crates
+    // Github runner
+    Backends,
+    Crates,
+    Examples,
+    // Other runners
+    GithubRunner,
     GithubMacRunner,
     GcpCudaRunner,
     GcpVulkanRunner,
@@ -202,7 +217,7 @@ pub(crate) fn handle_command(
             // 1) Tests with default features
             // ------------------------------
             match args.ci {
-                CiTestType::GithubRunner => {
+                CiTestType::Backends | CiTestType::GithubRunner => {
                     // Backend ops
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
@@ -226,7 +241,7 @@ pub(crate) fn handle_command(
                         context,
                     )?;
                 }
-                CiTestType::GithubRunnerCrates => {
+                CiTestType::Crates => {
                     // Default `Target::Workspace`
                     // Exclude crates that are not supported on CI
                     args.exclude
@@ -248,10 +263,12 @@ pub(crate) fn handle_command(
                         context.clone(),
                     )?;
                 }
-                CiTestType::GithubRunnerExamples => {
+                CiTestType::Examples => {
+                    // NOTE: for the examples we simply run `cargo checks` (no tests, faster validation)
+                    // TODO: switch to `cargo xtask build` or `check` eventually instead of including this in the tests
                     args.target = Target::AllPackages;
                     args.only.extend(enumerate_examples()?);
-                    base_commands::test::handle_command(
+                    base_commands::compile::handle_command(
                         args.clone().try_into().unwrap(),
                         env.clone(),
                         context.clone(),
@@ -343,9 +360,9 @@ pub(crate) fn handle_command(
             // 2) Specific additional commands to test specific features
             // ---------------------------------------------------------
             match args.ci {
-                CiTestType::GithubRunner => (),
-                CiTestType::GithubRunnerExamples => (),
-                CiTestType::GithubRunnerCrates => {
+                CiTestType::Backends | CiTestType::GithubRunner => (),
+                CiTestType::Examples => (),
+                CiTestType::Crates => {
                     // burn-dataset
                     helpers::custom_crates_tests(
                         vec!["burn-dataset"],
