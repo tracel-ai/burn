@@ -167,7 +167,7 @@ jobs:
         run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*" --profile release
       # --------------------------------------------------------------------------------
       - name: Upload Codecov Shard Artifact
-        if: matrix.rust == 'stable'
+        if: matrix.rust == 'stable' && matrix.ci_type != 'examples'
         uses: actions/upload-artifact@v7
         with:
           # Names must be unique so they don't overwrite each other in the storage backend
