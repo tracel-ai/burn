@@ -11,7 +11,7 @@ type MappedDataset = MapperDataset<SqliteDataset<SpeechItemRaw>, ConvertSamples,
 
 /// Enum representing speech command classes in the Speech Commands dataset.
 /// Class names are based on the Speech Commands dataset from Huggingface.
-/// See [speech_commands](https://huggingface.co/datasets/speech_commands)
+/// See [speech_commands](https://huggingface.co/datasets/google/speech_commands)
 /// for more information.
 #[allow(missing_docs)]
 #[derive(Debug, Display, Clone, Copy, FromRepr, Serialize, Deserialize, EnumCount)]
@@ -98,7 +98,7 @@ pub struct SpeechItem {
 }
 
 /// Speech Commands dataset from Huggingface v0.02.
-/// See [Speech Commands dataset](https://huggingface.co/datasets/speech_commands).
+/// See [Speech Commands dataset](https://huggingface.co/datasets/google/speech_commands).
 ///
 /// The data is downloaded from Huggingface and stored in a SQLite database (3.0 GB).
 /// The dataset contains 99,720 audio samples of 2,607 people saying 35 different words.
@@ -120,7 +120,7 @@ impl SpeechCommandsDataset {
     /// Create a new dataset with the given split.
     pub fn new(split: &str) -> Self {
         let dataset: SqliteDataset<SpeechItemRaw> =
-            HuggingfaceDatasetLoader::new("speech_commands")
+            HuggingfaceDatasetLoader::new("google/speech_commands")
                 .with_subset("v0.02")
                 .dataset(split)
                 .unwrap();

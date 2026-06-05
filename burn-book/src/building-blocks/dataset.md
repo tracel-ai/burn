@@ -54,7 +54,7 @@ found at the [API reference](https://burn.dev/docs/burn/data/dataset/transform/i
 
 ```rust, ignore
 type DbPedia = SqliteDataset<DbPediaItem>;
-let dataset: DbPedia = HuggingfaceDatasetLoader::new("dbpedia_14")
+let dataset: DbPedia = HuggingfaceDatasetLoader::new("fancyzhx/dbpedia_14")
         .dataset("train").
         .unwrap();
 
@@ -140,7 +140,7 @@ For now, there are only a couple of dataset sources available with Burn, but mor
 You can easily import any Hugging Face dataset with Burn. We use SQLite as the storage to avoid
 downloading the model each time or starting a Python process. You need to know the format of each
 item in the dataset beforehand. Here's an example with the
-[dbpedia dataset](https://huggingface.co/datasets/dbpedia_14).
+[dbpedia dataset](https://huggingface.co/datasets/fancyzhx/dbpedia_14).
 
 ```rust, ignore
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -151,7 +151,7 @@ pub struct DbPediaItem {
 }
 
 fn main() {
-    let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("dbpedia_14")
+    let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("fancyzhx/dbpedia_14")
         .dataset("train") // The training split.
         .unwrap();
 }
