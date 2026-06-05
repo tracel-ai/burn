@@ -5,8 +5,8 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{
-    FnArg, Ident, ItemStruct, ItemTrait, Meta, Pat, ReturnType, Token, TraitItem, Type,
-    parse_macro_input,
+    FnArg, GenericArgument, Ident, ItemStruct, ItemTrait, Meta, Pat, PathArguments, ReturnType,
+    Token, TraitItem, Type, TypeParamBound, parse_macro_input,
 };
 
 /// # `backend_extension`
@@ -176,6 +176,7 @@ struct Operation {
     name: Ident,
     inputs: Vec<OperationArg>,
     output: OperationOutput,
+    asyncness: bool,
 }
 
 struct Extension {
@@ -260,6 +261,28 @@ fn backend_to_ident(b: &Backend) -> Ident {
     format_ident!("{}", format!("{:?}", b.kind))
 }
 
+fn extract_future_output_type(ty: &Type) -> Option<&Type> {
+    if let Type::ImplTrait(impl_trait) = ty {
+        for bound in &impl_trait.bounds {
+            if let TypeParamBound::Trait(trait_bound) = bound {
+                let last_segment = trait_bound.path.segments.last()?;
+                if last_segment.ident == "Future" {
+                    if let PathArguments::AngleBracketed(args) = &last_segment.arguments {
+                        for arg in &args.args {
+                            if let GenericArgument::AssocType(assoc) = arg {
+                                if assoc.ident == "Output" {
+                                    return Some(&assoc.ty);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
     let mut ops = Vec::new();
 
@@ -283,7 +306,9 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
         }
 
         // Parse outputs
-        let output = match &f.sig.output {
+
+        // Parse outputs
+        let (actual_ty, is_async) = match &f.sig.output {
             ReturnType::Default => {
                 return Err(syn::Error::new_spanned(
                     &f.sig.output,
@@ -291,26 +316,38 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                 ));
             }
             ReturnType::Type(_, ty) => {
-                // TODO: expand support for vec and maybe nested containers
-                if let Type::Tuple(tup) = ty.as_ref() {
-                    let elements = tup
-                        .elems
-                        .iter()
-                        .map(|elem| {
-                            if let Some(kind) = TensorKind::from_type(elem) {
-                                Ok(OutputKind::Tensor(kind))
-                            } else {
-                                Ok(OutputKind::Custom(elem.clone()))
-                            }
-                        })
-                        .collect::<syn::Result<Vec<_>>>()?;
-                    OperationOutput::Tuple(elements)
-                } else if let Some(kind) = TensorKind::from_type(ty) {
-                    OperationOutput::Tensor(kind)
+                // If it's `impl Future<Output = T>`, extract T and mark as async.
+                // Otherwise, use the type as-is and check for `async fn`.
+                if let Some(out_ty) = extract_future_output_type(ty) {
+                    (out_ty, true)
                 } else {
-                    // ExtensionType
-                    OperationOutput::Custom(*ty.clone())
+                    (ty.as_ref(), f.sig.asyncness.is_some())
                 }
+            }
+        };
+
+        let output = match actual_ty {
+            // TODO: expand support for vec and maybe nested containers
+            Type::Tuple(tup) => {
+                let elements = tup
+                    .elems
+                    .iter()
+                    .map(|elem| {
+                        if let Some(kind) = TensorKind::from_type(elem) {
+                            Ok(OutputKind::Tensor(kind))
+                        } else {
+                            Ok(OutputKind::Custom(elem.clone()))
+                        }
+                    })
+                    .collect::<syn::Result<Vec<_>>>()?;
+                OperationOutput::Tuple(elements)
+            }
+            ty if TensorKind::from_type(ty).is_some() => {
+                OperationOutput::Tensor(TensorKind::from_type(ty).unwrap())
+            }
+            ty => {
+                // ExtensionType
+                OperationOutput::Custom(ty.clone())
             }
         };
 
@@ -318,6 +355,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
             name: f.sig.ident.clone(),
             inputs,
             output,
+            asyncness: is_async,
         });
     }
 
@@ -353,12 +391,18 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         .as_ref()
         .map(|meta| quote! { #[#meta] });
 
+    let maybe_async = if op.asyncness {
+        quote! { async }
+    } else {
+        quote! {}
+    };
+
     let sig_args = op.inputs.iter().map(|arg| {
         let name = &arg.name;
         match &arg.kind {
             ArgKind::Tensor(k) => {
                 let ty = k.to_primitive_ty();
-                quote! { mut #name: #ty }
+                quote! { #name: #ty }
             }
             ArgKind::Other(ty) => quote! { #name: #ty },
         }
@@ -420,7 +464,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     };
 
     quote! {
-        fn #name(#(#sig_args),*) -> #ret_ty {
+        #maybe_async fn #name(#(#sig_args),*) -> #ret_ty {
             #ckp_logic
             match #match_inputs {
                 #( #concrete_arms )*
@@ -470,6 +514,12 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
 
     // Call the method and wrap the result
     let call_args = op.inputs.iter().map(|a| &a.name);
+    let maybe_await = if op.asyncness {
+        quote! { .await }
+    } else {
+        quote! {}
+    };
+
     let wrap_out = match &op.output {
         OperationOutput::Tensor(kind) => {
             let wrapped = gen_tensor_wrap(kind, quote! { _out }, &b_ident, false);
@@ -505,7 +555,7 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
         #cfg_attr
         #pattern => {
             #(#unwraps)*
-            let _out = <#b_ident as #trait_name>::#fn_name(#(#call_args),*);
+            let _out = <#b_ident as #trait_name>::#fn_name(#(#call_args),*)#maybe_await;
             #wrap_out
         }
     }
@@ -575,6 +625,12 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
         });
 
         let call_args = op.inputs.iter().map(|a| &a.name);
+        let maybe_await = if op.asyncness {
+            quote! { .await }
+        } else {
+            quote! {}
+        };
+
         let wrap_out = match &op.output {
             OperationOutput::Tensor(kind) => {
                 let wrapped = gen_tensor_wrap(kind, quote! { _out }, &b_ident, true);
@@ -628,7 +684,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
             #pattern => {
                 #(#unwraps)*
                 type _ADBackend = Autodiff<#b_ident>;
-                let _out = <_ADBackend as #trait_name>::#fn_name(#(#call_args),*);
+                let _out = <_ADBackend as #trait_name>::#fn_name(#(#call_args),*)#maybe_await;
                 #wrap_out
             }
         }
