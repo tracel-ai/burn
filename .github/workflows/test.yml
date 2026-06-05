@@ -178,8 +178,11 @@ jobs:
   upload-coverage:
     runs-on: ubuntu-latest
     needs: linux-std-tests
-    # Run even if tests failed so we still capture partial code coverage reports
-    if: always()
+    # Only run if linux-std-tests actually executed (whether it succeeded or failed; partial code coverage can be reported)
+    if: |
+      always() &&
+      needs.linux-std-tests.result != 'skipped' &&
+      needs.linux-std-tests.result != 'cancelled'
     steps:
       - name: checkout
         uses: actions/checkout@v6
