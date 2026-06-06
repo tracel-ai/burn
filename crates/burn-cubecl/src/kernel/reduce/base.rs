@@ -2,12 +2,13 @@
 use super::{autotune_reduce, autotune_sum};
 use crate::{
     CubeRuntime,
+    kernel::cast,
     ops::numeric::{empty_device_contiguous_dtype, zeros_client},
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
-use burn_std::Metadata;
+use burn_std::{BoolDType, Metadata};
 use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy,
@@ -129,6 +130,45 @@ pub fn reduce<Run: CubeRuntime>(
     // reshape to scalar tensor
     *tensor.meta = Metadata::new([1], [1]);
     Ok(tensor)
+}
+
+/// Reduce with a logical instruction ([`Any`](ReduceOperationConfig::Any) /
+/// [`All`](ReduceOperationConfig::All)) and return the result as a boolean tensor.
+///
+/// The reduction itself produces a numeric `0/1` tensor whose dtype matches the
+/// input (cubek's `precision()` keeps `output = input` for `Any`/`All`). We then
+/// convert those flags to the boolean backing storage and relabel the tensor as
+/// `Bool`. For a boolean input the storage already matches, so the cast is a
+/// no-op and only the (kernel-free) dtype relabel happens; for float/int inputs
+/// the cast runs on the already-reduced (small) tensor.
+///
+/// `dim == None` reduces the whole tensor to a scalar; `Some(dim)` reduces a
+/// single axis, keeping it with length 1.
+pub fn reduce_logical<Run: CubeRuntime>(
+    tensor: CubeTensor<Run>,
+    dim: Option<usize>,
+    config: ReduceOperationConfig,
+    out_dtype: BoolDType,
+) -> CubeTensor<Run> {
+    debug_assert!(
+        matches!(
+            config,
+            ReduceOperationConfig::Any | ReduceOperationConfig::All
+        ),
+        "reduce_logical only supports Any / All, got {config:?}"
+    );
+    let out_bool = DType::Bool(out_dtype);
+
+    let reduced = match dim {
+        Some(d) => reduce_dim::<Run>(tensor, None, d, Default::default(), config),
+        None => reduce::<Run>(tensor, None, Default::default(), config),
+    }
+    .expect("Any/All reduce on a valid axis cannot fail");
+
+    let backing = elem_type_to_dtype(dtype_to_elem_type(out_bool));
+    let mut out = cast(reduced, backing);
+    out.dtype = out_bool; // same storage, relabel as Bool (no kernel)
+    out
 }
 
 fn argsort(shape: &[usize]) -> Vec<usize> {
