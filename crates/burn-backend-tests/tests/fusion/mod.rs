@@ -3,6 +3,7 @@ pub use super::*;
 mod fusion_f16_broadcast;
 mod fusion_f16_write_vectorization;
 mod fusion_shape;
+mod int_bitwise;
 mod reduce_broadcasted;
 
 use burn_tensor::StreamId;

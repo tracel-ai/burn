@@ -330,7 +330,7 @@ pub(crate) fn emit_handle_snapshot(stream_id: StreamId, ids: impl IntoIterator<I
 pub mod matchers {
     use super::OpMatcher;
     use burn_backend::DType;
-    use burn_ir::{FloatOperationIr, NumericOperationIr, OperationIr};
+    use burn_ir::{FloatOperationIr, IntOperationIr, NumericOperationIr, OperationIr};
 
     /// Matches a float add (`a + b`) on the given dtype.
     pub fn is_add_float(dtype: DType) -> OpMatcher {
@@ -350,6 +350,86 @@ pub mod matchers {
                 OperationIr::NumericFloat(d, NumericOperationIr::Mul(_)) if *d == dtype
             )
         })
+    }
+
+    /// Matches a float multiply by scalar on the given dtype.
+    pub fn is_mul_scalar_float(dtype: DType) -> OpMatcher {
+        Box::new(move |op| {
+            matches!(
+                op,
+                OperationIr::NumericFloat(d, NumericOperationIr::MulScalar(_)) if *d == dtype
+            )
+        })
+    }
+
+    /// Matches an int bitwise and.
+    pub fn is_bitwise_and_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseAnd(_))))
+    }
+
+    /// Matches an int bitwise and by scalar.
+    pub fn is_bitwise_and_scalar_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseAndScalar(_))))
+    }
+
+    /// Matches an int bitwise or.
+    pub fn is_bitwise_or_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseOr(_))))
+    }
+
+    /// Matches an int bitwise or by scalar.
+    pub fn is_bitwise_or_scalar_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseOrScalar(_))))
+    }
+
+    /// Matches an int bitwise xor.
+    pub fn is_bitwise_xor_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseXor(_))))
+    }
+
+    /// Matches an int bitwise xor by scalar.
+    pub fn is_bitwise_xor_scalar_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseXorScalar(_))))
+    }
+
+    /// Matches an int bitwise not.
+    pub fn is_bitwise_not_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseNot(_))))
+    }
+
+    /// Matches an int bitwise left shift.
+    pub fn is_bitwise_left_shift_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseLeftShift(_))))
+    }
+
+    /// Matches an int bitwise left shift by scalar.
+    pub fn is_bitwise_left_shift_scalar_int() -> OpMatcher {
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::Int(IntOperationIr::BitwiseLeftShiftScalar(_))
+            )
+        })
+    }
+
+    /// Matches an int bitwise right shift.
+    pub fn is_bitwise_right_shift_int() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::BitwiseRightShift(_))))
+    }
+
+    /// Matches an int bitwise right shift by scalar.
+    pub fn is_bitwise_right_shift_scalar_int() -> OpMatcher {
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::Int(IntOperationIr::BitwiseRightShiftScalar(_))
+            )
+        })
+    }
+
+    /// Matches an int-to-float cast.
+    pub fn is_int_into_float() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Int(IntOperationIr::IntoFloat(_))))
     }
 
     /// Matches a float subtraction (`a - b`) on the given dtype.
