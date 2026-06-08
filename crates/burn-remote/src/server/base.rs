@@ -233,8 +233,14 @@ where
                         }
                         let (runner, sender) = handles.as_ref().unwrap();
 
-                        if let Err(err) =
-                            Self::process_compute(&session_manager, runner, sender, compute).await
+                        if let Err(err) = Self::process_compute(
+                            &session_manager,
+                            runner,
+                            sender,
+                            device_index,
+                            compute,
+                        )
+                        .await
                         {
                             // A single task failing shouldn't tear down the connection —
                             // the failure surfaces to the client through the response (for
@@ -293,10 +299,12 @@ where
     /// callback on the client. Async work (data-service transfers, `read_tensor_async`)
     /// runs without a stream context — the relevant stream id is captured into the future
     /// at construction time via `executes`.
+    #[cfg_attr(not(feature = "distributed"), allow(unused_variables))]
     async fn process_compute(
         sm: &SessionManager<B, P>,
         runner: &TensorInterpreter<B>,
         sender: &mpsc::Sender<TaskResponse>,
+        device_index: u32,
         task: ComputeTask,
     ) -> Result<(), String> {
         match task {
@@ -306,7 +314,34 @@ where
                 // them to this server's backend device ids before the runner executes.
                 #[cfg(feature = "distributed")]
                 let op = Self::resolve_collective_devices(sm, op);
+
+                // Diagnostics for collective deadlocks: registering a distributed op can block
+                // inside the backend's collective until every peer device submits, all while
+                // holding this connection's tokio worker thread. Log around it (capture before
+                // `op` is moved into the runner). Fewer ENTERs than devices => not all ranks
+                // arrived; ENTERs without matching EXITs => stuck inside the collective.
+                #[cfg(feature = "distributed")]
+                let collective = match &op {
+                    burn_ir::OperationIr::Distributed(
+                        burn_ir::DistributedOperationIr::AllReduce(desc),
+                    ) => Some((desc.out.id, desc.device_ids.clone())),
+                    _ => None,
+                };
+                #[cfg(feature = "distributed")]
+                if let Some((out, group)) = &collective {
+                    log::info!(
+                        "[collective] device {device_index} stream {stream_id}: all_reduce ENTER (out={out:?}, group={group:?})"
+                    );
+                }
+
                 stream_id.executes(|| runner.register_op(op));
+
+                #[cfg(feature = "distributed")]
+                if let Some((out, _)) = &collective {
+                    log::info!(
+                        "[collective] device {device_index} stream {stream_id}: all_reduce EXIT (out={out:?})"
+                    );
+                }
                 Ok(())
             }
             ComputeTask::RegisterTensor(stream_id, id, data) => {
@@ -423,12 +458,28 @@ where
                 Ok(())
             }
             ComputeTask::SyncBackend(request_id, stream_id) => {
-                let res = stream_id.executes(|| runner.sync());
+                // A device sync blocks the calling thread until the backend drains. Run it via
+                // `block_in_place` (see `SyncCollective` for the full rationale) so it doesn't
+                // tie up a tokio worker for the whole drain.
+                let res = tokio::task::block_in_place(|| stream_id.executes(|| runner.sync()));
                 Self::send_response(sender, request_id, TaskResponseContent::SyncBackend(res)).await
             }
             #[cfg(feature = "distributed")]
             ComputeTask::SyncCollective(request_id, stream_id) => {
-                stream_id.executes(|| runner.sync_collective());
+                log::info!(
+                    "[collective] device {device_index} stream {stream_id}: sync_collective ENTER"
+                );
+                // CRITICAL: `sync_collective` drains the stream, which executes the all-reduce and
+                // blocks the calling thread until *every* peer device reaches the collective.
+                // Running it directly on the inline tokio worker would let N participating
+                // connections exhaust the worker pool before all N submit — the collective could
+                // never assemble, deadlocking. `block_in_place` releases this worker's core to a
+                // replacement thread so the other connections keep draining and the collective
+                // completes. (Requires the multi-threaded runtime that `start_websocket` uses.)
+                tokio::task::block_in_place(|| stream_id.executes(|| runner.sync_collective()));
+                log::info!(
+                    "[collective] device {device_index} stream {stream_id}: sync_collective EXIT"
+                );
                 Self::send_response(sender, request_id, TaskResponseContent::SyncCollective).await
             }
             ComputeTask::DTypeUsage(request_id, dtype) => {
