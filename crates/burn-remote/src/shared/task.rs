@@ -1,5 +1,5 @@
 use burn_backend::{DTypeUsageSet, ExecutionError, TensorData};
-use burn_communication::{Address, data_service::TensorTransferId};
+use burn_communication::{Address, external_comm::TensorTransferId};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
@@ -66,24 +66,33 @@ pub enum ComputeTask {
     /// its own.
     RegisterOperation(StreamId, OperationIr),
     RegisterTensor(StreamId, TensorId, TensorData),
-    RegisterTensorRemote(TensorRemote, TensorId),
+    RegisterTensorRemote(StreamId, TensorRemote, TensorId),
     ExposeTensorRemote {
+        stream_id: StreamId,
         tensor: TensorIr,
         count: u32,
         transfer_id: TensorTransferId,
     },
     /// Source side of a same-host transfer: hand the device-resident primitive for `tensor`
-    /// to the server's local transfer registry under `transfer_id`. No host readback — the
+    /// to the server's local comm registry under `transfer_id`. No host readback — the
     /// counterpart [`RegisterTensorLocal`](ComputeTask::RegisterTensorLocal), running on the
     /// target session of the same server, moves it onto the target device via the inner
     /// backend's `to_device`.
+    ///
+    /// `stream_id` is the client stream that produced `tensor`, so the server reads it back on
+    /// the same stream the producing ops ran on rather than an arbitrary server thread.
     ExposeTensorLocal {
+        stream_id: StreamId,
         tensor: TensorIr,
         transfer_id: TensorTransferId,
     },
     /// Target side of a same-host transfer: wait for `transfer_id` to be exposed, move the
     /// primitive onto this session's device, and register it under `new_id`.
+    ///
+    /// `stream_id` is the client stream that will consume `new_id`, so the registration lands
+    /// on the same stream as the ops that use the transferred tensor.
     RegisterTensorLocal {
+        stream_id: StreamId,
         transfer_id: TensorTransferId,
         new_id: TensorId,
     },

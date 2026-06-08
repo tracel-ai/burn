@@ -1,4 +1,4 @@
-pub(crate) mod local_transfer;
+pub(crate) mod local_comm;
 pub(crate) mod session;
 
 mod base;

@@ -1,6 +1,6 @@
 use burn_communication::{
     CommunicationChannel, Message, Protocol, ProtocolServer,
-    data_service::{TensorDataServer, TensorDataService},
+    external_comm::{ExternalCommServer, ExternalCommService},
     util::os_shutdown_signal,
     websocket::{WebSocket, WsServer},
 };
@@ -10,7 +10,6 @@ use tokio_util::sync::CancellationToken;
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
 use burn_router::{RouterClient, TensorInterpreter};
-use burn_std::id::StreamId;
 use tokio::sync::mpsc;
 
 use crate::shared::{ComputeTask, RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
@@ -22,10 +21,10 @@ use super::session::SessionManager;
 /// Compute tasks are processed **inline** on the request-handling task: there is no
 /// per-stream worker thread and no compute-side mpsc channel. The
 /// [`SessionManager`] only owns the per-session response queue (one `mpsc::Sender` per
-/// session, drained by the response-writing task). The stream id carried on each task
-/// (`RegisterOperation`, `RegisterTensor`, `ReadTensor`, `SyncBackend`) is threaded
-/// through to the runner via [`StreamId::executes`], so stream-aware backends (fusion,
-/// etc.) see the right stream context per op.
+/// session, drained by the response-writing task). The stream id carried on every compute
+/// task (ops, tensor registration, reads, syncs, and the same-host/cross-server transfer
+/// tasks) is threaded through to the runner via [`StreamId::executes`](burn_std::id::StreamId::executes),
+/// so stream-aware backends (fusion, etc.) see the right stream context per op.
 pub struct RemoteServer<B, P>
 where
     B: BackendIr,
@@ -46,8 +45,8 @@ where
     /// `devices[0]` is the default device. Must be non-empty.
     pub async fn start(devices: Vec<Device<B>>, server: P::Server) {
         let cancel_token = CancellationToken::new();
-        let data_service = Arc::new(TensorDataService::<B, P>::new(cancel_token));
-        let session_manager = Arc::new(SessionManager::<B, P>::new(devices, data_service.clone()));
+        let external_comm = Arc::new(ExternalCommService::<B, P>::new(cancel_token));
+        let session_manager = Arc::new(SessionManager::<B, P>::new(devices, external_comm.clone()));
 
         let _server = server
             .route("/response", {
@@ -58,7 +57,7 @@ where
                 let session_manager = session_manager.clone();
                 move |stream| Self::handle_socket_request(session_manager, stream)
             })
-            .route_tensor_data_service(data_service)
+            .route_external_comm(external_comm)
             .serve(os_shutdown_signal())
             .await;
     }
@@ -288,7 +287,7 @@ where
 
     /// Execute a single [`ComputeTask`] inline.
     ///
-    /// Sync work is wrapped in [`StreamId::executes`] so the runner's thread-local stream
+    /// Sync work is wrapped in [`StreamId::executes`](burn_std::id::StreamId::executes) so the runner's thread-local stream
     /// id matches the one the client assigned to this op. Response-producing tasks carry
     /// their own [`RequestId`] for routing the response back to the right pending
     /// callback on the client. Async work (data-service transfers, `read_tensor_async`)
@@ -309,14 +308,14 @@ where
                 stream_id.executes(|| runner.register_tensor_data_id(id, data));
                 Ok(())
             }
-            ComputeTask::RegisterTensorRemote(remote, new_id) => {
+            ComputeTask::RegisterTensorRemote(stream_id, remote, new_id) => {
                 log::info!(
                     "Registering remote tensor (transfer {:?} from {:?})",
                     remote.transfer_id,
                     remote.address,
                 );
                 let data = sm
-                    .data_service
+                    .external_comm
                     .download_tensor(remote.address.clone(), remote.transfer_id)
                     .await
                     .ok_or_else(|| {
@@ -325,24 +324,27 @@ where
                             remote.transfer_id, remote.address,
                         )
                     })?;
-                // No client-side stream context for cross-server transfers; use the
-                // current thread's stream id (this task's tokio worker).
-                StreamId::current().executes(|| runner.register_tensor_data_id(new_id, data));
+                // Register on the client stream that will consume `new_id`, carried over the
+                // wire — not the arbitrary tokio worker running this task.
+                stream_id.executes(|| runner.register_tensor_data_id(new_id, data));
                 Ok(())
             }
             ComputeTask::ExposeTensorLocal {
+                stream_id,
                 tensor,
                 transfer_id,
             } => {
                 // Source side of a same-host transfer. Grab the device-resident primitive
                 // (no host readback) and park it in the registry for the target session to
                 // pick up. Runs inline on this connection, so it is ordered after the op that
-                // produced `tensor` — the handle is guaranteed present.
-                let kind = StreamId::current().executes(|| runner.get_tensor(&tensor));
-                sm.local_transfers.expose(transfer_id, kind).await;
+                // produced `tensor` — the handle is guaranteed present. Read it back on the
+                // client stream that produced it, carried over the wire.
+                let kind = stream_id.executes(|| runner.get_tensor(&tensor));
+                sm.local_comm.expose(transfer_id, kind).await;
                 Ok(())
             }
             ComputeTask::RegisterTensorLocal {
+                stream_id,
                 transfer_id,
                 new_id,
             } => {
@@ -350,11 +352,12 @@ where
                 // primitive, then move it onto this session's device and register it. Awaited
                 // inline so subsequent ops on this connection that consume `new_id` see it
                 // registered first — same ordering contract as `RegisterTensorRemote`.
-                let kind = sm.local_transfers.take(transfer_id).await;
-                StreamId::current().executes(|| runner.register_tensor_to_device(new_id, kind));
+                let kind = sm.local_comm.take(transfer_id).await;
+                stream_id.executes(|| runner.register_tensor_to_device(new_id, kind));
                 Ok(())
             }
             ComputeTask::ExposeTensorRemote {
+                stream_id,
                 tensor,
                 count,
                 transfer_id,
@@ -366,12 +369,12 @@ where
                 // registration on a GPU→host copy. A target that downloads before the
                 // expose lands simply blocks on the data service's `new_tensor_notify`,
                 // so there is no race.
-                let fut = StreamId::current().executes(|| runner.read_tensor_async(tensor));
-                let data_service = sm.data_service.clone();
+                let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
+                let external_comm = sm.external_comm.clone();
                 tokio::spawn(async move {
                     match fut.await {
                         Ok(data) => {
-                            data_service.expose_data(data, count, transfer_id).await;
+                            external_comm.expose_data(data, count, transfer_id).await;
                         }
                         Err(e) => {
                             log::error!(

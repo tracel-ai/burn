@@ -6,7 +6,7 @@ use burn_backend::{
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 use burn_communication::{
-    Address, CommunicationChannel, Message, ProtocolClient, data_service::TensorTransferId,
+    Address, CommunicationChannel, Message, ProtocolClient, external_comm::TensorTransferId,
 };
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::{DType, DeviceSettings, backtrace::BackTrace, id::StreamId};
@@ -270,8 +270,13 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// flush right away instead of relying on a later op to piggy-back the flush. Otherwise
     /// the task would sit buffered below [`FLUSH_THRESHOLD`] and the target server would
     /// never start the download.
-    pub fn register_tensor_remote(&mut self, tensor: TensorRemote, new_id: TensorId) {
-        self.submit_compute(ComputeTask::RegisterTensorRemote(tensor, new_id));
+    pub fn register_tensor_remote(
+        &mut self,
+        stream_id: StreamId,
+        tensor: TensorRemote,
+        new_id: TensorId,
+    ) {
+        self.submit_compute(ComputeTask::RegisterTensorRemote(stream_id, tensor, new_id));
         self.flush();
     }
 
@@ -282,11 +287,13 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// complete, and the caller has no later barrier on this client to carry the flush.
     pub fn expose_tensor_remote(
         &mut self,
+        stream_id: StreamId,
         tensor: TensorIr,
         count: u32,
         transfer_id: TensorTransferId,
     ) {
         self.submit_compute(ComputeTask::ExposeTensorRemote {
+            stream_id,
             tensor,
             count,
             transfer_id,
@@ -298,8 +305,14 @@ impl<C: ProtocolClient> RemoteService<C> {
     ///
     /// Source side of the local path; flushed for the same reason as
     /// [`expose_tensor_remote`](Self::expose_tensor_remote).
-    pub fn expose_tensor_local(&mut self, tensor: TensorIr, transfer_id: TensorTransferId) {
+    pub fn expose_tensor_local(
+        &mut self,
+        stream_id: StreamId,
+        tensor: TensorIr,
+        transfer_id: TensorTransferId,
+    ) {
         self.submit_compute(ComputeTask::ExposeTensorLocal {
+            stream_id,
             tensor,
             transfer_id,
         });
@@ -310,8 +323,14 @@ impl<C: ProtocolClient> RemoteService<C> {
     ///
     /// Target side of the local path; flushed for the same reason as
     /// [`register_tensor_remote`](Self::register_tensor_remote).
-    pub fn register_tensor_local(&mut self, transfer_id: TensorTransferId, new_id: TensorId) {
+    pub fn register_tensor_local(
+        &mut self,
+        stream_id: StreamId,
+        transfer_id: TensorTransferId,
+        new_id: TensorId,
+    ) {
         self.submit_compute(ComputeTask::RegisterTensorLocal {
+            stream_id,
             transfer_id,
             new_id,
         });

@@ -1,7 +1,7 @@
 use super::{RemoteChannel, RemoteClient, service};
 use crate::shared::{TaskResponseContent, TensorRemote};
 use burn_backend::{DeviceId, DeviceOps, ExecutionError, StreamId, TensorData};
-use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
+use burn_communication::{Address, ProtocolClient, external_comm::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 use burn_std::DeviceSettings;
@@ -251,10 +251,14 @@ impl<C: ProtocolClient> RemoteTensorHandle<C> {
     /// target session on the same server, which moves it with the inner backend's `to_device`.
     /// No host round-trip.
     fn change_backend_local(mut self, target_device: &RemoteDevice) -> Self {
+        // The stream of the calling user thread: the source reads the tensor back on the
+        // stream that produced it, and the target registers the result on the stream that
+        // will consume it — same contract as the regular op/tensor registration paths.
+        let stream_id = StreamId::current();
         let transfer_id = get_next_transfer_id();
         let tensor = self.tensor.clone();
         self.client.handle.submit(move |s| {
-            s.expose_tensor_local(tensor, transfer_id);
+            s.expose_tensor_local(stream_id, tensor, transfer_id);
         });
         // Force the expose (and the ops producing the tensor) onto the wire now — same reason
         // as the cross-server path below.
@@ -263,7 +267,7 @@ impl<C: ProtocolClient> RemoteTensorHandle<C> {
         let target_client = get_client::<RemoteChannel<C>>(target_device);
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
-            s.register_tensor_local(transfer_id, new_id);
+            s.register_tensor_local(stream_id, transfer_id, new_id);
         });
         target_client.handle.flush_queue();
 
@@ -279,10 +283,13 @@ impl<C: ProtocolClient> RemoteTensorHandle<C> {
     /// to download the data.
     /// This way the client never sees the tensor's data, and we avoid a bottleneck.
     fn change_backend_remote(mut self, target_device: &RemoteDevice) -> Self {
+        // See `change_backend_local`: carry the calling thread's stream so the source readback
+        // and the target registration land on the client streams, not arbitrary server threads.
+        let stream_id = StreamId::current();
         let transfer_id = get_next_transfer_id();
         let tensor = self.tensor.clone();
         self.client.handle.submit(move |s| {
-            s.expose_tensor_remote(tensor, 1, transfer_id);
+            s.expose_tensor_remote(stream_id, tensor, 1, transfer_id);
         });
         // `submit` only enqueues the closure on the device-runner queue; the runner
         // wouldn't drain it until 32 ops accumulated. `flush_queue` forces the runner
@@ -297,6 +304,7 @@ impl<C: ProtocolClient> RemoteTensorHandle<C> {
         let new_id = service::new_tensor_id();
         target_client.handle.submit(move |s| {
             s.register_tensor_remote(
+                stream_id,
                 TensorRemote {
                     transfer_id,
                     address,

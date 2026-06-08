@@ -1,11 +1,11 @@
 use burn_backend::tensor::Device;
-use burn_communication::{Protocol, data_service::TensorDataService};
+use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::BackendIr;
 use burn_router::TensorInterpreter;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
-use crate::server::local_transfer::LocalTransferService;
+use crate::server::local_comm::LocalCommService;
 use crate::shared::{SessionId, TaskResponse};
 
 /// Capacity for the per-session response queue.
@@ -19,7 +19,7 @@ const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 ///
 /// Each [`Session`] owns its own [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer)
 /// — different sessions never share tensor handles, so concurrent sessions can't race on
-/// each other's backend state. Cross-session tensor transfers go through `data_service`,
+/// each other's backend state. Cross-session tensor transfers go through `external_comm`,
 /// which already serializes the bytes through its own protocol.
 ///
 /// Within a session there is exactly one request-handling task (one tokio task per socket
@@ -32,9 +32,9 @@ where
     /// All devices this server hosts, indexed by the device index the client selects at
     /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
     devices: Vec<Device<B>>,
-    pub(crate) data_service: Arc<TensorDataService<B, P>>,
+    pub(crate) external_comm: Arc<ExternalCommService<B, P>>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
-    pub(crate) local_transfers: Arc<LocalTransferService<B>>,
+    pub(crate) local_comm: Arc<LocalCommService<B>>,
     sessions: Mutex<HashMap<SessionId, Session<B>>>,
 }
 
@@ -49,15 +49,15 @@ where
     B: BackendIr,
     P: Protocol,
 {
-    pub fn new(devices: Vec<Device<B>>, data_service: Arc<TensorDataService<B, P>>) -> Self {
+    pub fn new(devices: Vec<Device<B>>, external_comm: Arc<ExternalCommService<B, P>>) -> Self {
         assert!(
             !devices.is_empty(),
             "A remote server must host at least one device"
         );
         Self {
             devices,
-            data_service,
-            local_transfers: Arc::new(LocalTransferService::new()),
+            external_comm,
+            local_comm: Arc::new(LocalCommService::new()),
             sessions: Mutex::new(HashMap::new()),
         }
     }
