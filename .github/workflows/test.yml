@@ -183,7 +183,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download All Coverage Artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           # Finds all artifacts prefixed with coverage-linux-*
           pattern: coverage-linux-*
