@@ -315,11 +315,6 @@ where
                 #[cfg(feature = "distributed")]
                 let op = Self::resolve_collective_devices(sm, op);
 
-                // Diagnostics for collective deadlocks: registering a distributed op can block
-                // inside the backend's collective until every peer device submits, all while
-                // holding this connection's tokio worker thread. Log around it (capture before
-                // `op` is moved into the runner). Fewer ENTERs than devices => not all ranks
-                // arrived; ENTERs without matching EXITs => stuck inside the collective.
                 #[cfg(feature = "distributed")]
                 let collective = match &op {
                     burn_ir::OperationIr::Distributed(
@@ -327,21 +322,32 @@ where
                     ) => Some((desc.out.id, desc.device_ids.clone())),
                     _ => None,
                 };
+
                 #[cfg(feature = "distributed")]
-                if let Some((out, group)) = &collective {
+                if let Some((out, group)) = collective {
+                    // A collective op is issued on the gradient-sync thread's stream, which is
+                    // NOT the stream the per-device `sync_collective` later drains — so relying on
+                    // that sync to execute it leaves the op stuck in its lazy stream forever (a
+                    // deadlock). Instead, drain it on its own stream right here so the cross-device
+                    // collective launches now. `block_in_place` releases this worker's core so the
+                    // other participating connections reach the same point and the collective can
+                    // rendezvous (it blocks until every peer device submits its all-reduce).
                     log::info!(
                         "[collective] device {device_index} stream {stream_id}: all_reduce ENTER (out={out:?}, group={group:?})"
                     );
-                }
-
-                stream_id.executes(|| runner.register_op(op));
-
-                #[cfg(feature = "distributed")]
-                if let Some((out, _)) = &collective {
+                    tokio::task::block_in_place(|| {
+                        stream_id.executes(|| {
+                            runner.register_op(op);
+                            runner.sync_collective();
+                        })
+                    });
                     log::info!(
                         "[collective] device {device_index} stream {stream_id}: all_reduce EXIT (out={out:?})"
                     );
+                    return Ok(());
                 }
+
+                stream_id.executes(|| runner.register_op(op));
                 Ok(())
             }
             ComputeTask::RegisterTensor(stream_id, id, data) => {
