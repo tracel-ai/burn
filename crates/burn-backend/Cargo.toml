@@ -17,8 +17,7 @@ workspace = true
 [features]
 default = ["std"]
 doc = ["default"]
-distributed = ["std", "oneshot"]
-std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std"]
+std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot"]
 
 tracing = ["burn-std/tracing", "cubecl/tracing"]
 

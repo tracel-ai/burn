@@ -1,10 +1,14 @@
 //! Types and helpers for inter-device operations.
 
+#[cfg(feature = "std")]
 pub(crate) mod api;
+#[cfg(feature = "std")]
 pub(crate) mod client;
 mod ops;
+#[cfg(feature = "std")]
 pub(crate) mod server;
 
+#[cfg(feature = "std")]
 pub use api::*;
 pub use ops::*;
 

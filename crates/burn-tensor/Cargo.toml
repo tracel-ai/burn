@@ -25,7 +25,6 @@ std = [
     "colored",
 ]
 tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-dispatch/tracing"]
-distributed = ["std", "burn-backend/distributed", "burn-dispatch/distributed"]
 
 cubecl = ["burn-backend/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]

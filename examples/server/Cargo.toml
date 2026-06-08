@@ -16,11 +16,6 @@ webgpu = ["burn/webgpu"]
 vulkan = ["burn/vulkan"]
 rocm = ["burn/rocm"]
 flex = ["burn/flex"]
-# Enables server-side execution of distributed collective ops (e.g. all-reduce for DDP).
-# Required when clients send distributed operations, otherwise the server can't even decode
-# them (`OperationIr::Distributed` is gated by this feature). Pair with a backend that supports
-# collectives, e.g. `--features cuda,distributed`.
-distributed = ["burn/distributed"]
 
 [dependencies]
 burn = { workspace = true, features = ["default", "server"] }

@@ -6,7 +6,6 @@ mod qtensor;
 mod tensor;
 mod transaction;
 
-#[cfg(feature = "distributed")]
 pub(crate) mod distributed;
 
 pub(crate) mod base;

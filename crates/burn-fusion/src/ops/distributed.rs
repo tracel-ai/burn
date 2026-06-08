@@ -13,7 +13,7 @@ use crate::{
 };
 use burn_ir::OperationOutput;
 
-impl<B: FusionBackend + DistributedOps> DistributedOps for Fusion<B> {
+impl<B: FusionBackend> DistributedOps<Self> for Fusion<B> {
     fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
@@ -27,7 +27,7 @@ impl<B: FusionBackend + DistributedOps> DistributedOps for Fusion<B> {
             _b: PhantomData<B>,
         }
 
-        impl<B: FusionBackend + DistributedOps> Operation<B::FusionRuntime> for AllReduceOps<B> {
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for AllReduceOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let output = B::all_reduce(tensor, self.op, self.device_ids.clone());

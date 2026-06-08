@@ -4,7 +4,7 @@ use crate::{
     graph::{ComputingProperty, Node, NodeId, NodeRef, Parent, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 use crate::{distributed::DistributedGradientRegistration, grads::GradSyncContext};
 use alloc::{boxed::Box, vec};
 use burn_backend::{Backend, TensorMetadata};
@@ -15,8 +15,7 @@ use alloc::sync::Arc;
 #[cfg(not(target_has_atomic = "ptr"))]
 use portable_atomic_util::Arc;
 
-#[cfg(feature = "distributed")]
-use burn_backend::distributed::{DistributedOps, DistributedParamId, DistributedParams};
+use burn_backend::distributed::{DistributedParamId, DistributedParams};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -63,7 +62,6 @@ impl Step for RootStep {
         self.node.order
     }
 
-    #[cfg(feature = "distributed")]
     fn distributed_params(&self) -> Option<DistributedParams> {
         self.node.distributed_params.clone()
     }
@@ -80,7 +78,6 @@ impl<B: Backend> AutodiffTensor<B> {
             Requirement::None,
             ComputingProperty::Ambiguous,
             AutodiffClientImpl::new(),
-            #[cfg(feature = "distributed")]
             None,
         )
         .into();
@@ -115,7 +112,6 @@ impl<B: Backend> AutodiffTensor<B> {
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
-                    #[cfg(feature = "distributed")]
                     self.node.distributed_params.clone(),
                 )
                 .into();
@@ -156,7 +152,6 @@ impl<B: Backend> AutodiffTensor<B> {
             requirement,
             computing_properties,
             client,
-            #[cfg(feature = "distributed")]
             None,
         )
         .into();
@@ -190,7 +185,7 @@ impl<B: Backend> AutodiffTensor<B> {
         self.primitive
     }
 
-    #[cfg(not(feature = "distributed"))]
+    #[cfg(not(feature = "std"))]
     pub fn backward(self) -> Gradients {
         let client = self.node.client.clone();
 
@@ -210,7 +205,6 @@ impl<B: Backend> AutodiffTensor<B> {
         grads.register::<B>(self.node.id, grad);
     }
 
-    #[cfg(feature = "distributed")]
     /// Mark the tensor as distributed across multiple devices.
     /// Its gradients will be automatically aggregated from those devices after the backward pass.
     ///
@@ -234,8 +228,8 @@ impl<B: Backend> AutodiffTensor<B> {
     }
 }
 
-#[cfg(feature = "distributed")]
-impl<B: DistributedOps> AutodiffTensor<B> {
+#[cfg(feature = "std")]
+impl<B: Backend> AutodiffTensor<B> {
     pub fn backward(self) -> Gradients {
         let device = B::float_device(&self.primitive);
         let device_cloned = device.clone();

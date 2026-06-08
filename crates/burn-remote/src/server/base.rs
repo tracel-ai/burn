@@ -305,7 +305,6 @@ where
                 // client's `resolve_devices`); translate them to this server's backend device ids
                 // before the runner executes. Applies to every op — only ops that actually carry
                 // device ids are affected.
-                #[cfg(feature = "distributed")]
                 let op = Self::resolve_devices(sm, op);
 
                 stream_id.executes(|| runner.register_op(op));
@@ -444,7 +443,6 @@ where
     /// [`DeviceId`](burn_backend::DeviceId) of the device this server hosts at that index, so the
     /// inner backend's `all_reduce` reduces across the right devices — and every rank derives the
     /// same communicator id from the group.
-    #[cfg(feature = "distributed")]
     fn resolve_devices(
         sm: &SessionManager<B, P>,
         mut op: burn_ir::OperationIr,

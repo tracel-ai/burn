@@ -8,13 +8,15 @@ use burn_backend::{
     tensor::FloatTensor,
 };
 
+use burn_backend::Backend;
+
 use crate::{
     Autodiff,
     checkpoint::strategy::CheckpointStrategy,
     ops::{Backward, Ops, OpsKind, unary},
 };
 
-impl<B: DistributedOps, C: CheckpointStrategy> DistributedOps for Autodiff<B, C> {
+impl<B: Backend, C: CheckpointStrategy> DistributedOps<Self> for Autodiff<B, C> {
     fn start_communication_server(devices: &[B::Device], config: DistributedConfig) {
         B::start_communication_server(devices, config);
     }
@@ -44,7 +46,7 @@ impl<B: DistributedOps, C: CheckpointStrategy> DistributedOps for Autodiff<B, C>
         #[derive(Debug)]
         struct AllReduce;
 
-        impl<B: DistributedOps> Backward<B, 1> for AllReduce {
+        impl<B: Backend> Backward<B, 1> for AllReduce {
             type State = (ReduceOperation, Vec<DeviceId>);
 
             fn backward(

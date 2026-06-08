@@ -1,46 +1,19 @@
+use burn_backend::distributed::DistributedOps;
+
+use crate::{CubeBackend, CubeRuntime};
+
+#[cfg(feature = "std")]
 use burn_backend::{
     DeviceId, TensorMetadata,
     cubecl::dtype_to_elem_type,
-    distributed::{CollectiveTensor, DistributedOps, ReduceOperation},
+    distributed::{CollectiveTensor, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
-use burn_ir::BackendIr;
+#[cfg(feature = "std")]
+use crate::ops::numeric::{self, zeros_client};
 
-use crate::{
-    CubeBackend, CubeRuntime,
-    ops::numeric::{self, zeros_client},
-};
-
-/// Reduce a float tensor across the given devices, returning the resolved output.
-///
-/// Shared by the [`BackendIr`] implementations so the distributed interpreter path (e.g. the
-/// remote backend) can drive collective operations.
-pub(crate) fn float_all_reduce<B>(
-    tensor: FloatTensor<B>,
-    op: ReduceOperation,
-    device_ids: Vec<DeviceId>,
-) -> FloatTensor<B>
-where
-    B: BackendIr + DistributedOps,
-{
-    let output = B::all_reduce(tensor, op, device_ids);
-    // Safety: the collective tensor is immediately registered and not accessed before the
-    // collective operation resolves.
-    unsafe { output.assume_resolved() }
-}
-
-/// Resolve the pending collective operations on the given device.
-///
-/// Shared by the [`BackendIr`] implementations so the distributed interpreter path (e.g. the
-/// remote backend) can resolve collective operations.
-pub(crate) fn sync_distributed<B>(device: &Device<B>)
-where
-    B: BackendIr + DistributedOps,
-{
-    B::sync_collective(device);
-}
-
-impl<R: CubeRuntime> DistributedOps for CubeBackend<R> {
+impl<R: CubeRuntime> DistributedOps<Self> for CubeBackend<R> {
+    #[cfg(feature = "std")]
     fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
@@ -75,6 +48,7 @@ impl<R: CubeRuntime> DistributedOps for CubeBackend<R> {
         CollectiveTensor::new(out_tensor)
     }
 
+    #[cfg(feature = "std")]
     fn sync_collective(device: &Device<Self>) {
         let client = R::client(device);
         client.sync_collective();

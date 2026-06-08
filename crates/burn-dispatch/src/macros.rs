@@ -21,7 +21,6 @@ macro_rules! backend_list {
 
 /// Supplies a list of all supported distributed backends and their corresponding feature flags
 /// to a callback macro. This centralizes the backend registry.
-#[cfg(feature = "distributed")]
 macro_rules! distributed_backend_list {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
@@ -106,7 +105,6 @@ macro_rules! dispatch_device_arms {
                     $body
                 }
             )*
-            #[cfg(feature = "distributed")]
             #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
@@ -126,7 +124,6 @@ macro_rules! dispatch_device_arms {
                 }
             )*
             $crate::DispatchDevice::Autodiff(_) => unreachable!("Autodiff should not wrap an autodiff device."),
-            #[cfg(feature = "distributed")]
             #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for device {other:?}"),
         }
@@ -590,7 +587,6 @@ macro_rules! unary_float_arms {
                     }
                 }
             )*
-            #[cfg(feature = "distributed")]
             #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }
@@ -616,7 +612,6 @@ macro_rules! unary_float_arms {
                 }
             )*
             $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor."),
-            #[cfg(feature = "distributed")]
             #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }
@@ -652,7 +647,6 @@ macro_rules! unary_float_arms {
                     $body
                 }
             )*
-            #[cfg(feature = "distributed")]
             #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }
@@ -675,7 +669,6 @@ macro_rules! unary_float_arms {
                 }
             )*
             $crate::DispatchTensorKind::Autodiff(..) => unreachable!("Autodiff should not wrap an autodiff tensor."),
-            #[cfg(feature = "distributed")]
             #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         }

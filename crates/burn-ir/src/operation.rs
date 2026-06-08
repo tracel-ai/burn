@@ -90,7 +90,6 @@ pub enum OperationIr {
     Custom(CustomOpIr),
     /// A tensor is dropped.
     Drop(TensorIr),
-    #[cfg(feature = "distributed")]
     /// Operation specific to a distributed tensor.
     Distributed(DistributedOperationIr),
     /// Activation function operation (relu, gelu, sigmoid, softmax, …).
@@ -792,7 +791,6 @@ pub enum BoolOperationIr {
     Xor(BinaryOpIr),
 }
 
-#[cfg(feature = "distributed")]
 /// Operations that can be done on distributed tensors.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(clippy::large_enum_variant)]
@@ -1096,7 +1094,6 @@ pub struct CatOpIr {
     pub out: TensorIr,
 }
 
-#[cfg(feature = "distributed")]
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AllReduceOpIr {
@@ -1112,7 +1109,6 @@ pub struct AllReduceOpIr {
 ///
 /// The intermediate representation is part of the wire protocol (e.g. the remote backend), so it
 /// cannot store `burn_backend::DeviceId` directly since that type is not serializable.
-#[cfg(feature = "distributed")]
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceIdIr {
     /// Identifies the type of the device.
@@ -1121,7 +1117,6 @@ pub struct DeviceIdIr {
     pub index_id: u16,
 }
 
-#[cfg(feature = "distributed")]
 impl From<burn_backend::DeviceId> for DeviceIdIr {
     fn from(value: burn_backend::DeviceId) -> Self {
         Self {
@@ -1131,7 +1126,6 @@ impl From<burn_backend::DeviceId> for DeviceIdIr {
     }
 }
 
-#[cfg(feature = "distributed")]
 impl From<DeviceIdIr> for burn_backend::DeviceId {
     fn from(value: DeviceIdIr) -> Self {
         burn_backend::DeviceId::new(value.type_id, value.index_id)
@@ -2080,7 +2074,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.inputs(),
             OperationIr::Custom(repr) => repr.inputs(),
             OperationIr::Drop(repr) => Box::new([repr].into_iter()),
-            #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.inputs(),
             OperationIr::Activation(repr) => repr.inputs(),
         }
@@ -2101,7 +2094,6 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.outputs(),
             OperationIr::Custom(repr) => repr.outputs(),
             OperationIr::Drop(_repr) => Box::new([].into_iter()),
-            #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.outputs(),
             OperationIr::Activation(repr) => repr.outputs(),
         }
@@ -2142,7 +2134,6 @@ impl OperationIr {
 
                 output
             }
-            #[cfg(feature = "distributed")]
             OperationIr::Distributed(repr) => repr.mark_read_only(nodes),
             OperationIr::Activation(repr) => repr.mark_read_only(nodes),
         }
@@ -3581,7 +3572,6 @@ impl ModuleOperationIr {
     }
 }
 
-#[cfg(feature = "distributed")]
 impl DistributedOperationIr {
     fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {

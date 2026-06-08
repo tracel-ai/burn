@@ -45,7 +45,6 @@ autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
 fusion = ["burn-tensor/fusion", "burn-fusion/test-util"]
-distributed = ["std", "burn-tensor/distributed", "burn-fusion?/distributed"]
 
 # CubeCL backends
 cube = [

@@ -9,7 +9,7 @@ use burn_ir::{AllReduceOpIr, DeviceIdIr, DistributedOperationIr, OperationIr, Op
 
 use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
 
-impl<R: RouterChannel> DistributedOps for BackendRouter<R> {
+impl<R: RouterChannel> DistributedOps<Self> for BackendRouter<R> {
     fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,

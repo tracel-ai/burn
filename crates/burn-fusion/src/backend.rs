@@ -184,33 +184,17 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     fn fusers(device: Self::FusionDevice) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
 }
 
-/// Bound that adds a [`DistributedBackend`](burn_backend::distributed::DistributedBackend)
-/// requirement when the `distributed` feature is enabled, and is a no-op otherwise.
-///
-/// Abstracting the conditional supertrait here lets [`FusionBackend`] keep a single declaration
-/// regardless of the feature flag, while still guaranteeing that the remote/router interpreter
-/// path ([`BackendIr::float_all_reduce`] / [`BackendIr::sync_distributed`]) can drive collective
-/// operations through fusion. The only in-tree fusion backend (`CubeBackend`) satisfies it
-/// unconditionally.
-#[cfg(feature = "distributed")]
-pub trait MaybeDistributedBackend: burn_backend::distributed::DistributedOps {}
-#[cfg(feature = "distributed")]
-impl<B: burn_backend::distributed::DistributedOps> MaybeDistributedBackend for B {}
-
-/// Bound that adds a `DistributedBackend` requirement when the `distributed` feature is enabled,
-/// and is a no-op otherwise. See the `distributed`-enabled definition for details.
-#[cfg(not(feature = "distributed"))]
-pub trait MaybeDistributedBackend {}
-#[cfg(not(feature = "distributed"))]
-impl<B> MaybeDistributedBackend for B {}
-
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation fuser](crate::OperationFuser).
+///
+/// Collective operations on the remote/router interpreter path are driven through the
+/// [`DistributedOps`](burn_backend::distributed::DistributedOps) supertrait of [`Backend`], which
+/// every fusion backend satisfies unconditionally.
 pub trait FusionBackend:
     BackendIr<
         Handle = FusionHandle<Self::FusionRuntime>,
         Device = FusionDevice<Self::FusionRuntime>,
-    > + MaybeDistributedBackend
+    >
 {
     /// The runtime used for this backend.
     type FusionRuntime: FusionRuntime;

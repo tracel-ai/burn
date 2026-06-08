@@ -23,7 +23,6 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         // Device ids in the op's payload are *client* remote device ids; rewrite them to
         // server-local device indices the server can resolve to its own backend devices. Applies
         // to every op — only ops that actually carry device ids are rewritten.
-        #[cfg(feature = "distributed")]
         let op = self.resolve_devices(op);
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
@@ -90,7 +89,6 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
     }
 }
 
-#[cfg(feature = "distributed")]
 impl<C: ProtocolClient> RemoteClient<C> {
     /// Rewrite the device ids carried by an op so the server can resolve them.
     ///

@@ -9,7 +9,7 @@ mod clone_invariance;
 #[path = "../tensor/multi_threads.rs"]
 mod multi_threads;
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "cuda")]
 #[path = "../tensor/distributed.rs"]
 mod distributed;
 

@@ -237,7 +237,6 @@ pub(crate) fn op_kind(op: &OperationIr) -> String {
         OperationIr::Init(x) => format!("Init::{}", inner(format!("{x:?}"))),
         OperationIr::Custom(_) => "Custom".to_string(),
         OperationIr::Drop(_) => "Drop".to_string(),
-        #[cfg(feature = "distributed")]
         OperationIr::Distributed(x) => format!("Distributed::{}", inner(format!("{x:?}"))),
         OperationIr::Activation(x) => format!("Activation::{}", inner(format!("{x:?}"))),
     }

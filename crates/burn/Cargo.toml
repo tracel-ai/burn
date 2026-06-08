@@ -26,7 +26,6 @@ default = [
     "rl",
     "std",
     "optim",
-    "distributed",
     "burn-core/default",
     "burn-train?/default",
     "burn-nn/default",

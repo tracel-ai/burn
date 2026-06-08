@@ -24,7 +24,6 @@ doc = [
 std = ["burn-core/std", "num-traits/std", "serde/std", "log"]
 tracing = ["burn-core/tracing"]
 
-distributed = ["std", "burn-core/distributed"]
 # collective = ["burn-collective"]
 
 [dependencies]

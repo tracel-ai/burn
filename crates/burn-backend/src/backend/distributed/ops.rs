@@ -1,12 +1,16 @@
+use alloc::vec::Vec;
+
 use crate::{
     Backend, DeviceId,
     distributed::CollectiveTensor,
     tensor::{Device, FloatTensor},
 };
 
+use crate::distributed::{DistributedConfig, DistributedParams, ReduceOperation};
+
+#[cfg(feature = "std")]
 use crate::distributed::{
-    DistributedConfig, DistributedParams, ReduceOperation, close_distributed_sync_server,
-    get_distributed_sync_client, start_distributed_sync_server,
+    close_distributed_sync_server, get_distributed_sync_client, start_distributed_sync_server,
 };
 
 /// Mutable reference to a float tensor.
@@ -33,7 +37,10 @@ pub trait DistributedOps<B: Backend> {
     ///
     /// * `devices` - The devices to orchestrate.
     fn start_communication_server(devices: &[B::Device], config: DistributedConfig) {
+        #[cfg(feature = "std")]
         start_distributed_sync_server::<B>(devices, config);
+        #[cfg(not(feature = "std"))]
+        let _ = (devices, config);
     }
 
     /// Close the communication server used to orchestrate syncing between devices.
@@ -42,6 +49,7 @@ pub trait DistributedOps<B: Backend> {
     ///
     /// * `device` - A device on the backend.
     fn close_communication_server(_device: &B::Device) {
+        #[cfg(feature = "std")]
         close_distributed_sync_server::<B>();
     }
 
@@ -55,9 +63,12 @@ pub trait DistributedOps<B: Backend> {
     /// * `device` - The device calling the initialization.
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
     fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
+        #[cfg(feature = "std")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.register_sync_parameters(distributed_params);
         };
+        #[cfg(not(feature = "std"))]
+        let _ = distributed_params;
     }
 
     /// Tell the gradient sync server that this device has submitted all its sync operations and is ready to be synchronized.
@@ -66,9 +77,12 @@ pub trait DistributedOps<B: Backend> {
     ///
     /// * `device` - The device on which to sync.
     fn submit_sync_collective(device: &B::Device) {
+        #[cfg(feature = "std")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_sync_collective(device.clone());
         };
+        #[cfg(not(feature = "std"))]
+        let _ = device;
     }
 
     /// Submit a gradient tensor for synchronization across all devices.
@@ -81,9 +95,12 @@ pub trait DistributedOps<B: Backend> {
     /// * `tensor` - The tensor to synchronize.
     /// * `distributed_params` - The [`DistributedParams`] for the parameter.
     fn submit_gradient_sync(tensor: TensorRef<B>, distributed_params: DistributedParams) {
+        #[cfg(feature = "std")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_gradient_sync(tensor, distributed_params);
         };
+        #[cfg(not(feature = "std"))]
+        let _ = (tensor, distributed_params);
     }
 
     /// all_reduce operation.

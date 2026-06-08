@@ -103,7 +103,11 @@ macro_rules! dispatch_distributed_devices {
     };
 }
 
-impl DistributedOps for Dispatch {
+// In builds without a collective-capable backend (Cuda/Remote), the distributed dispatch arms
+// are all cfg'd out, leaving only a diverging fallback — so the captured arguments and trailing
+// expressions are intentionally unused/unreachable.
+#[allow(unused_variables, unreachable_code)]
+impl DistributedOps<Self> for Dispatch {
     fn start_communication_server(devices: &[DispatchDevice], config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];

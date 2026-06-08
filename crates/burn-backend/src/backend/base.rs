@@ -9,7 +9,6 @@ use crate::{TensorData, TensorMetadata};
 use alloc::string::String;
 use enumset::{EnumSet, EnumSetType};
 
-#[cfg(feature = "distributed")]
 use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
@@ -327,7 +326,6 @@ pub trait AutodiffBackend: Backend {
     /// The autodiff backend tensor.
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
 
-    #[cfg(feature = "distributed")]
     /// Mark the tensor as distributed across multiple devices.
     /// The gradients will be aggregated during the backward pass.
     ///
@@ -339,13 +337,11 @@ pub trait AutodiffBackend: Backend {
         tensor
     }
 
-    #[cfg(feature = "distributed")]
     /// Returns the distributed parameters if the tensor was marked as distributed.
     fn distributed_params(_tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
         None
     }
 
-    #[cfg(feature = "distributed")]
     /// Returns true if the tensor was marked as distributed.
     fn is_distributed(_tensor: &FloatTensor<Self>) -> bool {
         false
