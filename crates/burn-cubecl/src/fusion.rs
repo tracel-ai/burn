@@ -135,12 +135,17 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     }
 
     #[cfg(feature = "distributed")]
-    fn register_distributed(
-        op: &burn_ir::DistributedOperationIr,
-        device: &Self::Device,
-        handles: &mut burn_ir::HandleContainer<Self::Handle>,
-    ) {
-        crate::ops::distributed::register_distributed::<Self>(op, device, handles)
+    fn float_all_reduce(
+        tensor: FloatTensor<Self>,
+        op: burn_backend::distributed::ReduceOperation,
+        device_ids: Vec<burn_backend::DeviceId>,
+    ) -> FloatTensor<Self> {
+        crate::ops::distributed::float_all_reduce::<Self>(tensor, op, device_ids)
+    }
+
+    #[cfg(feature = "distributed")]
+    fn sync_distributed(device: &Self::Device) {
+        crate::ops::distributed::sync_distributed::<Self>(device)
     }
 }
 

@@ -4,36 +4,40 @@ use burn_backend::{
     distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
-use burn_ir::{BackendIr, DistributedOperationIr, HandleContainer};
+use burn_ir::BackendIr;
 
 use crate::{
     CubeBackend, CubeRuntime,
     ops::numeric::{self, zeros_client},
 };
 
-/// Execute a [distributed operation](DistributedOperationIr) against a handle container.
+/// Reduce a float tensor across the given devices, returning the resolved output.
 ///
 /// Shared by the [`BackendIr`] implementations so the distributed interpreter path (e.g. the
 /// remote backend) can drive collective operations.
-pub(crate) fn register_distributed<B>(
-    op: &DistributedOperationIr,
-    device: &Device<B>,
-    handles: &mut HandleContainer<B::Handle>,
-) where
+pub(crate) fn float_all_reduce<B>(
+    tensor: FloatTensor<B>,
+    op: ReduceOperation,
+    device_ids: Vec<DeviceId>,
+) -> FloatTensor<B>
+where
     B: BackendIr + DistributedBackend,
 {
-    match op {
-        DistributedOperationIr::AllReduce(desc) => {
-            let tensor = handles.get_float_tensor::<B>(&desc.tensor);
-            let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
-            let output = B::all_reduce(tensor, desc.op, device_ids);
-            // Safety: the collective tensor is immediately registered and not accessed before the
-            // collective operation resolves.
-            let output = unsafe { output.assume_resolved() };
-            handles.register_float_tensor::<B>(&desc.out.id, output);
-        }
-        DistributedOperationIr::SyncCollective => B::sync_collective(device),
-    }
+    let output = B::all_reduce(tensor, op, device_ids);
+    // Safety: the collective tensor is immediately registered and not accessed before the
+    // collective operation resolves.
+    unsafe { output.assume_resolved() }
+}
+
+/// Resolve the pending collective operations on the given device.
+///
+/// Shared by the [`BackendIr`] implementations so the distributed interpreter path (e.g. the
+/// remote backend) can resolve collective operations.
+pub(crate) fn sync_distributed<B>(device: &Device<B>)
+where
+    B: BackendIr + DistributedBackend,
+{
+    B::sync_collective(device);
 }
 
 impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {

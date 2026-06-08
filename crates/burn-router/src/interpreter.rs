@@ -2071,7 +2071,18 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
                 handles.remove_handle(repr.id);
             }
             #[cfg(feature = "distributed")]
-            OperationIr::Distributed(op) => B::register_distributed(op, &self.device, handles),
+            OperationIr::Distributed(op) => match op {
+                burn_ir::DistributedOperationIr::AllReduce(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
+
+                    let output = B::float_all_reduce(tensor, desc.op, device_ids);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                burn_ir::DistributedOperationIr::SyncCollective => {
+                    B::sync_distributed(&self.device)
+                }
+            },
         }
     }
 

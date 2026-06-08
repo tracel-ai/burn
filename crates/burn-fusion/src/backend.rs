@@ -189,8 +189,9 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
 ///
 /// Abstracting the conditional supertrait here lets [`FusionBackend`] keep a single declaration
 /// regardless of the feature flag, while still guaranteeing that the remote/router interpreter
-/// path ([`BackendIr::register_distributed`]) can drive collective operations through fusion. The
-/// only in-tree fusion backend (`CubeBackend`) satisfies it unconditionally.
+/// path ([`BackendIr::float_all_reduce`] / [`BackendIr::sync_distributed`]) can drive collective
+/// operations through fusion. The only in-tree fusion backend (`CubeBackend`) satisfies it
+/// unconditionally.
 #[cfg(feature = "distributed")]
 pub trait MaybeDistributedBackend: burn_backend::distributed::DistributedBackend {}
 #[cfg(feature = "distributed")]
@@ -263,23 +264,20 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
     // into the fusion stream; we resolve it eagerly here because the interpreter hands back a
     // concrete handle.
     #[cfg(feature = "distributed")]
-    fn register_distributed(
-        op: &burn_ir::DistributedOperationIr,
-        device: &Self::Device,
-        handles: &mut burn_ir::HandleContainer<Self::Handle>,
-    ) {
+    fn float_all_reduce(
+        tensor: FloatTensor<Self>,
+        op: burn_backend::distributed::ReduceOperation,
+        device_ids: Vec<burn_backend::DeviceId>,
+    ) -> FloatTensor<Self> {
         use burn_backend::distributed::DistributedBackend;
 
-        match op {
-            burn_ir::DistributedOperationIr::AllReduce(desc) => {
-                let tensor = handles.get_float_tensor::<Self>(&desc.tensor);
-                let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
-                let output = Self::all_reduce(tensor, desc.op, device_ids);
-                // Safety: immediately registered, not accessed before the collective resolves.
-                let output = unsafe { output.assume_resolved() };
-                handles.register_float_tensor::<Self>(&desc.out.id, output);
-            }
-            burn_ir::DistributedOperationIr::SyncCollective => Self::sync_collective(device),
-        }
+        let output = Self::all_reduce(tensor, op, device_ids);
+        // Safety: immediately registered, not accessed before the collective resolves.
+        unsafe { output.assume_resolved() }
+    }
+
+    #[cfg(feature = "distributed")]
+    fn sync_distributed(device: &Self::Device) {
+        <Self as burn_backend::distributed::DistributedBackend>::sync_collective(device)
     }
 }
