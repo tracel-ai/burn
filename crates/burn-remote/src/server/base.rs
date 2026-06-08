@@ -301,27 +301,12 @@ where
     ) -> Result<(), String> {
         match task {
             ComputeTask::RegisterOperation(stream_id, op) => {
-                // Collective ops arrive with their device group expressed as server-local
-                // device indices (see the client's `resolve_collective_devices`); translate
-                // them to this server's backend device ids before the runner executes.
+                // Device ids in the op's payload arrive as server-local device indices (see the
+                // client's `resolve_devices`); translate them to this server's backend device ids
+                // before the runner executes. Applies to every op — only ops that actually carry
+                // device ids are affected.
                 #[cfg(feature = "distributed")]
-                let op = Self::resolve_collective_devices(sm, op);
-
-                // Collective ops can't stay lazy: the underlying comm init is blocking and must
-                // rendezvous across all participating devices, and they're issued on a stream
-                // nothing else drains. Execute them eagerly (register + drain). `block_in_place`
-                // keeps this connection's ops in order while freeing the runtime so the other
-                // connections' loops reach their own collectives and the rendezvous completes.
-                #[cfg(feature = "distributed")]
-                if matches!(&op, burn_ir::OperationIr::Distributed(_)) {
-                    tokio::task::block_in_place(|| {
-                        stream_id.executes(|| {
-                            runner.register_op(op);
-                            runner.sync_collective();
-                        })
-                    });
-                    return Ok(());
-                }
+                let op = Self::resolve_devices(sm, op);
 
                 stream_id.executes(|| runner.register_op(op));
                 Ok(())
@@ -450,16 +435,17 @@ where
         }
     }
 
-    /// Translate the device group of a collective op from server-local device indices to this
+    /// Translate the device ids carried by an op from server-local device indices to this
     /// server's backend device ids.
     ///
-    /// The client (`RemoteClient::resolve_collective_devices`) sends each participating device as
-    /// a plain server-local index in `index_id`. Here we map each index to the actual backend
+    /// This runs for every op, but only ops that carry device ids (currently the collective ops)
+    /// are affected. The client (`RemoteClient::resolve_devices`) sends each participating device
+    /// as a plain server-local index in `index_id`. Here we map each index to the actual backend
     /// [`DeviceId`](burn_backend::DeviceId) of the device this server hosts at that index, so the
     /// inner backend's `all_reduce` reduces across the right devices — and every rank derives the
     /// same communicator id from the group.
     #[cfg(feature = "distributed")]
-    fn resolve_collective_devices(
+    fn resolve_devices(
         sm: &SessionManager<B, P>,
         mut op: burn_ir::OperationIr,
     ) -> burn_ir::OperationIr {

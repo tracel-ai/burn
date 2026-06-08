@@ -137,14 +137,10 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     #[cfg(feature = "distributed")]
     fn register_distributed(
         op: &burn_ir::DistributedOperationIr,
+        device: &Self::Device,
         handles: &mut burn_ir::HandleContainer<Self::Handle>,
     ) {
-        crate::ops::distributed::register_distributed::<Self>(op, handles)
-    }
-
-    #[cfg(feature = "distributed")]
-    fn sync_distributed(device: &Self::Device) {
-        crate::ops::distributed::sync_distributed::<Self>(device)
+        crate::ops::distributed::register_distributed::<Self>(op, device, handles)
     }
 }
 

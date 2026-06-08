@@ -42,14 +42,6 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     /// Sync the interpreter, ensure that all computations are finished.
     fn sync(&self) -> Result<(), ExecutionError>;
-    /// Synchronize the pending collective (distributed) operations.
-    ///
-    /// The default implementation falls back to a full [sync](RouterClient::sync); clients backed
-    /// by a distributed backend should override this to resolve only the collective operations.
-    #[cfg(feature = "distributed")]
-    fn sync_collective(&self) {
-        let _ = self.sync();
-    }
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.

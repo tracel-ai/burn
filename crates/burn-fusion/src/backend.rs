@@ -184,35 +184,32 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     fn fusers(device: Self::FusionDevice) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
 }
 
+/// Bound that adds a [`DistributedBackend`](burn_backend::distributed::DistributedBackend)
+/// requirement when the `distributed` feature is enabled, and is a no-op otherwise.
+///
+/// Abstracting the conditional supertrait here lets [`FusionBackend`] keep a single declaration
+/// regardless of the feature flag, while still guaranteeing that the remote/router interpreter
+/// path ([`BackendIr::register_distributed`]) can drive collective operations through fusion. The
+/// only in-tree fusion backend (`CubeBackend`) satisfies it unconditionally.
+#[cfg(feature = "distributed")]
+pub trait MaybeDistributedBackend: burn_backend::distributed::DistributedBackend {}
+#[cfg(feature = "distributed")]
+impl<B: burn_backend::distributed::DistributedBackend> MaybeDistributedBackend for B {}
+
+/// Bound that adds a `DistributedBackend` requirement when the `distributed` feature is enabled,
+/// and is a no-op otherwise. See the `distributed`-enabled definition for details.
+#[cfg(not(feature = "distributed"))]
+pub trait MaybeDistributedBackend {}
+#[cfg(not(feature = "distributed"))]
+impl<B> MaybeDistributedBackend for B {}
+
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation fuser](crate::OperationFuser).
-///
-/// When the `distributed` feature is enabled, a fusion backend must also be a
-/// [`DistributedBackend`](burn_backend::distributed::DistributedBackend) so the remote/router
-/// interpreter path (`BackendIr::register_distributed`) can drive collective operations through
-/// it. The only in-tree fusion backend (`CubeBackend`) already satisfies this unconditionally.
-#[cfg(feature = "distributed")]
 pub trait FusionBackend:
     BackendIr<
         Handle = FusionHandle<Self::FusionRuntime>,
         Device = FusionDevice<Self::FusionRuntime>,
-    > + burn_backend::distributed::DistributedBackend
-{
-    /// The runtime used for this backend.
-    type FusionRuntime: FusionRuntime;
-
-    /// Cast a float tensor and returns the resulting handle.
-    fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle;
-
-    /// Pointer to the full precision fusion backend.
-    type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
-}
-
-/// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [operation fuser](crate::OperationFuser).
-#[cfg(not(feature = "distributed"))]
-pub trait FusionBackend:
-    BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
+    > + MaybeDistributedBackend
 {
     /// The runtime used for this backend.
     type FusionRuntime: FusionRuntime;
@@ -260,13 +257,15 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
         tensor
     }
 
-    // The `distributed` supertrait on `FusionBackend` guarantees `Self: DistributedBackend`, so
-    // the remote/router interpreter can drive collectives through fusion just like the cube
-    // backend. `all_reduce` registers the op into the fusion stream; we resolve it eagerly here
-    // because the interpreter hands back a concrete handle.
+    // The `MaybeDistributedBackend` supertrait on `FusionBackend` guarantees `Self:
+    // DistributedBackend` under the `distributed` feature, so the remote/router interpreter can
+    // drive collectives through fusion just like the cube backend. `all_reduce` registers the op
+    // into the fusion stream; we resolve it eagerly here because the interpreter hands back a
+    // concrete handle.
     #[cfg(feature = "distributed")]
     fn register_distributed(
         op: &burn_ir::DistributedOperationIr,
+        device: &Self::Device,
         handles: &mut burn_ir::HandleContainer<Self::Handle>,
     ) {
         use burn_backend::distributed::DistributedBackend;
@@ -280,14 +279,7 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
                 let output = unsafe { output.assume_resolved() };
                 handles.register_float_tensor::<Self>(&desc.out.id, output);
             }
-            burn_ir::DistributedOperationIr::SyncCollective => {
-                unreachable!("SyncCollective is resolved by the interpreter via `sync_distributed`")
-            }
+            burn_ir::DistributedOperationIr::SyncCollective => Self::sync_collective(device),
         }
-    }
-
-    #[cfg(feature = "distributed")]
-    fn sync_distributed(device: &Self::Device) {
-        <Self as burn_backend::distributed::DistributedBackend>::sync_collective(device)
     }
 }

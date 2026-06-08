@@ -17,6 +17,7 @@ use crate::{
 /// remote backend) can drive collective operations.
 pub(crate) fn register_distributed<B>(
     op: &DistributedOperationIr,
+    device: &Device<B>,
     handles: &mut HandleContainer<B::Handle>,
 ) where
     B: BackendIr + DistributedBackend,
@@ -31,21 +32,8 @@ pub(crate) fn register_distributed<B>(
             let output = unsafe { output.assume_resolved() };
             handles.register_float_tensor::<B>(&desc.out.id, output);
         }
-        DistributedOperationIr::SyncCollective => {
-            unreachable!("SyncCollective is resolved by the interpreter via `sync_distributed`")
-        }
+        DistributedOperationIr::SyncCollective => B::sync_collective(device),
     }
-}
-
-/// Synchronize the pending collective operations on the given device.
-///
-/// Shared by the [`BackendIr`] implementations so the distributed interpreter path (e.g. the
-/// remote backend) can resolve collective operations.
-pub(crate) fn sync_distributed<B>(device: &Device<B>)
-where
-    B: BackendIr + DistributedBackend,
-{
-    B::sync_collective(device);
 }
 
 impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {

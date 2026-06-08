@@ -38,6 +38,11 @@ pub trait BackendIr: Backend {
 
     /// Execute a distributed operation against the given handle container.
     ///
+    /// This is the single entry point for every [`DistributedOperationIr`](crate::DistributedOperationIr)
+    /// variant, including the [`SyncCollective`](crate::DistributedOperationIr::SyncCollective)
+    /// barrier — there is no separate sync path. `device` is the device the interpreter is bound
+    /// to, used to resolve the barrier.
+    ///
     /// Backends that support distributed operations (i.e. implement
     /// [`DistributedBackend`](burn_backend::distributed::DistributedBackend)) should override this
     /// method. The default implementation panics, which keeps backends that don't support
@@ -45,22 +50,9 @@ pub trait BackendIr: Backend {
     #[cfg(feature = "distributed")]
     fn register_distributed(
         _op: &crate::DistributedOperationIr,
+        _device: &Self::Device,
         _handles: &mut crate::HandleContainer<Self::Handle>,
     ) {
-        panic!(
-            "Backend {} does not support distributed operations.",
-            core::any::type_name::<Self>()
-        )
-    }
-
-    /// Synchronize the pending collective operations on the given device.
-    ///
-    /// Backends that support distributed operations (i.e. implement
-    /// [`DistributedBackend`](burn_backend::distributed::DistributedBackend)) should override this
-    /// method to forward to
-    /// [`DistributedBackend::sync_collective`](burn_backend::distributed::DistributedBackend::sync_collective).
-    #[cfg(feature = "distributed")]
-    fn sync_distributed(_device: &Self::Device) {
         panic!(
             "Backend {} does not support distributed operations.",
             core::any::type_name::<Self>()
