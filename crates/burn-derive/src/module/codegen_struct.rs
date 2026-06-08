@@ -146,6 +146,30 @@ impl ModuleCodegen for StructModuleCodegen {
         }
     }
 
+    fn gen_map_zip(&self) -> TokenStream {
+        let struct_name = self.name.to_string();
+        let container_type = format!("Struct:{}", struct_name);
+        let (names, body) = self.gen_fields_fn_names(|name, field_type| {
+            if field_type.is_parameter_module() || field_type.maybe_generic_module() {
+                let name_str = name.to_string();
+                quote! {
+                    mapper.enter_module(#name_str, #container_type);
+                    let #name = burn::module::Module::map_zip(self.#name, other.#name, mapper);
+                    mapper.exit_module(#name_str, #container_type);
+                }
+            } else {
+                quote! { let #name = self.#name; }
+            }
+        });
+
+        quote! {
+            fn map_zip<Mapper: burn::module::ModuleZipMapper>(self, other: Self, mapper: &mut Mapper) -> Self {
+                #body
+                Self { #(#names),* }
+            }
+        }
+    }
+
     fn gen_valid(&self) -> TokenStream {
         let (names, body) = self.gen_fields_fn_names(|name, field_type| {
             if field_type.is_module || field_type.maybe_generic_module() {

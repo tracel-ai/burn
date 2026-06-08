@@ -1,7 +1,7 @@
 use super::{Param, ParamId, Parameter};
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor,
+    ModuleVisitor, ModuleZipMapper,
 };
 use alloc::{format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
@@ -128,6 +128,14 @@ impl<const D: usize> Module for Param<Tensor<D>> {
         mapper.map_float(self)
     }
 
+    fn map_zip<Mapper: crate::module::ModuleZipMapper>(
+        self,
+        other: Self,
+        mapper: &mut Mapper,
+    ) -> Self {
+        mapper.map_float(self, other)
+    }
+
     fn into_record(self) -> Self::Record {
         self.transform_for_save()
     }
@@ -192,6 +200,10 @@ impl<const D: usize> Module for Param<Tensor<D, Int>> {
         mapper.map_int(self)
     }
 
+    fn map_zip<Mapper: ModuleZipMapper>(self, other: Self, mapper: &mut Mapper) -> Self {
+        mapper.map_int(self, other)
+    }
+
     fn into_record(self) -> Self::Record {
         self.transform_for_save()
     }
@@ -245,6 +257,10 @@ impl<const D: usize> Module for Param<Tensor<D, Bool>> {
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_bool(self)
+    }
+
+    fn map_zip<Mapper: ModuleZipMapper>(self, other: Self, mapper: &mut Mapper) -> Self {
+        mapper.map_bool(self, other)
     }
 
     fn into_record(self) -> Self::Record {

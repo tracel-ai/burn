@@ -1,6 +1,6 @@
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
-    ModuleVisitor,
+    ModuleVisitor, ModuleZipMapper,
 };
 
 use alloc::{format, string::ToString, vec::Vec};
@@ -22,6 +22,16 @@ where
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         self.map(|module| module.map(mapper))
+    }
+
+    fn map_zip<Mapper: crate::module::ModuleZipMapper>(
+        self,
+        other: Self,
+        mapper: &mut Mapper,
+    ) -> Self {
+        self.map(|module| {
+            module.map_zip(other.expect("Both variants should be some value."), mapper)
+        })
     }
 
     fn load_record(self, record: Self::Record) -> Self {
@@ -111,6 +121,24 @@ where
                 let index_str = alloc::format!("{}", i);
                 mapper.enter_module(&index_str, "Vec");
                 let mapped = module.map(mapper);
+                mapper.exit_module(&index_str, "Vec");
+                mapped
+            })
+            .collect()
+    }
+
+    fn map_zip<Mapper: crate::module::ModuleZipMapper>(
+        self,
+        other: Self,
+        mapper: &mut Mapper,
+    ) -> Self {
+        self.into_iter()
+            .zip(other)
+            .enumerate()
+            .map(|(i, (module_self, module_other))| {
+                let index_str = alloc::format!("{}", i);
+                mapper.enter_module(&index_str, "Vec");
+                let mapped = module_self.map_zip(module_other, mapper);
                 mapper.exit_module(&index_str, "Vec");
                 mapped
             })
@@ -232,6 +260,25 @@ where
             .unwrap_or_else(|v: Vec<T>| panic!("Expected array of length {}, got {}", N, v.len()))
     }
 
+    fn map_zip<Mapper: crate::module::ModuleZipMapper>(
+        self,
+        other: Self,
+        mapper: &mut Mapper,
+    ) -> Self {
+        let mut result = Vec::with_capacity(N);
+        for (i, (module_self, module_other)) in IntoIterator::into_iter(self).zip(other).enumerate()
+        {
+            let index_str = alloc::format!("{}", i);
+            mapper.enter_module(&index_str, "Array");
+            let mapped = module_self.map_zip(module_other, mapper);
+            mapper.exit_module(&index_str, "Array");
+            result.push(mapped);
+        }
+        result
+            .try_into()
+            .unwrap_or_else(|v: Vec<T>| panic!("Expected array of length {}, got {}", N, v.len()))
+    }
+
     fn load_record(self, record: Self::Record) -> Self {
         self.into_iter()
             .zip(record)
@@ -291,7 +338,7 @@ macro_rules! impl_module_tuple {
     // `$l` represents the generic modules.
     // `$i` represents the indices of the modules in the tuple.
     ([$($l:ident),*][$($i:tt),*]) => {
-        impl<$($l,)*> Module for ($($l,)*)
+            impl<$($l,)*> Module for ($($l,)*)
         where
             $($l: Module + Debug + Send + Clone,)*
         {
@@ -325,6 +372,18 @@ macro_rules! impl_module_tuple {
                         let index_str = $i.to_string();
                         mapper.enter_module(&index_str, "Tuple");
                         let mapped = self.$i.map(mapper);
+                        mapper.exit_module(&index_str, "Tuple");
+                        mapped
+                    }
+                ,)*)
+            }
+
+            fn map_zip<M: ModuleZipMapper>(self, other: Self, mapper: &mut M) -> Self {
+                ($(
+                    {
+                        let index_str = $i.to_string();
+                        mapper.enter_module(&index_str, "Tuple");
+                        let mapped = self.$i.map_zip(other.$i, mapper);
                         mapper.exit_module(&index_str, "Tuple");
                         mapped
                     }

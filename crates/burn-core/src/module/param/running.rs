@@ -92,6 +92,27 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         self
     }
 
+    fn map_zip<Mapper: crate::module::ModuleZipMapper>(
+        self,
+        other: Self,
+        mapper: &mut Mapper,
+    ) -> Self {
+        let mut tensor_self = self.value.lock().unwrap();
+        let param_self = Param::initialized(self.id, tensor_self.clone());
+
+        let tensor_other = other.value.lock().unwrap();
+        let param_other = Param::initialized(other.id, tensor_other.clone());
+
+        let param_out = mapper.map_float(param_self, param_other);
+        let (_, tensor_out, _) = param_out.consume();
+
+        core::mem::drop(tensor_other);
+        *tensor_self = tensor_out;
+        core::mem::drop(tensor_self);
+
+        self
+    }
+
     fn into_record(self) -> Self::Record {
         self.sync();
         let tensor = self.value.lock().unwrap();

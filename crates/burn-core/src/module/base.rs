@@ -143,6 +143,10 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Map each tensor parameter in the module with a [mapper](ModuleMapper).
     fn map<Mapper: ModuleMapper>(self, mapper: &mut Mapper) -> Self;
 
+    /// TODO
+    fn map_zip<Mapper: ModuleZipMapper>(self, other: Self, mapper: &mut Mapper) -> Self;
+    // fn iter<Iterator: ModuleIterator>(self, mapper: &mut Iterator) -> ModuleIterator;
+
     /// Load the module state from a record.
     fn load_record(self, record: Self::Record) -> Self;
 
@@ -393,6 +397,112 @@ pub trait ModuleMapper {
         Param::from_mapped_value(id, tensor, mapper)
     }
 }
+
+/// TODO
+pub trait ModuleZipMapper {
+    /// Called when entering a submodule.
+    ///
+    /// # Parameters
+    /// - `name`: The name of the submodule being entered
+    /// - `container_type`: The type of the container with format:
+    ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
+    ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Tuple containers: "Tuple" (name is the index)
+    ///   - For Array containers: "Array" (name is the index)
+    ///
+    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// the field name in the path (e.g., "bias" instead of "bias.Some")
+    #[allow(unused_variables)]
+    fn enter_module(&mut self, name: &str, container_type: &str) {}
+
+    /// Called when exiting a submodule.
+    ///
+    /// # Parameters
+    /// - `name`: The name of the submodule being exited
+    /// - `container_type`: The type of the container with format:
+    ///   - For user-defined structs: "Struct:TypeName" (e.g., "Struct:Linear")
+    ///   - For user-defined enums: "Enum:TypeName" (e.g., "Enum:MyEnum")
+    ///   - For Vec containers: "Vec" (name is the index)
+    ///   - For Tuple containers: "Tuple" (name is the index)
+    ///   - For Array containers: "Array" (name is the index)
+    ///
+    /// Note: Option containers do not call enter_module/exit_module to preserve
+    /// the field name in the path (e.g., "bias" instead of "bias.Some")
+    #[allow(unused_variables)]
+    fn exit_module(&mut self, name: &str, container_type: &str) {}
+
+    /// Map a float parameter in the module.
+    ///
+    /// # Parameters
+    /// - `param`: The float parameter to transform
+    ///
+    /// # Returns
+    /// The transformed parameter
+    #[allow(unused_variables)]
+    fn map_float<const D: usize>(
+        &mut self,
+        param: Param<Tensor<D>>,
+        other: Param<Tensor<D>>,
+    ) -> Param<Tensor<D>> {
+        let (id, tensor, mapper) = param.consume();
+        Param::from_mapped_value(id, tensor, mapper)
+    }
+
+    /// Map an int parameter in the module.
+    ///
+    /// # Parameters
+    /// - `param`: The integer parameter to transform
+    ///
+    /// # Returns
+    /// The transformed parameter
+    #[allow(unused_variables)]
+    fn map_int<const D: usize>(
+        &mut self,
+        param: Param<Tensor<D, Int>>,
+        other: Param<Tensor<D, Int>>,
+    ) -> Param<Tensor<D, Int>> {
+        let (id, tensor, mapper) = param.consume();
+        Param::from_mapped_value(id, tensor, mapper)
+    }
+
+    /// Map a bool parameter in the module.
+    ///
+    /// # Parameters
+    /// - `param`: The boolean parameter to transform
+    ///
+    /// # Returns
+    /// The transformed parameter
+    #[allow(unused_variables)]
+    fn map_bool<const D: usize>(
+        &mut self,
+        param: Param<Tensor<D, Bool>>,
+        other: Param<Tensor<D, Bool>>,
+    ) -> Param<Tensor<D, Bool>> {
+        let (id, tensor, mapper) = param.consume();
+        Param::from_mapped_value(id, tensor, mapper)
+    }
+}
+
+// pub trait ModuleIterator {
+//     fn init();
+//     fn iter();
+//     fn iter_mut();
+// }
+
+// pub struct ModuleIterator2 {
+//     // fn init();
+//     // fn iter();
+//     // fn iter_mut();
+// }
+
+// impl Iterator for ModuleIterator2 {
+//     type Item = Param<Tensor<D>>;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         todo!()
+//     }
+// }
 
 /// Module with auto-differentiation backend.
 pub trait AutodiffModule: Module + Send + core::fmt::Debug {

@@ -17,6 +17,7 @@ pub(crate) trait ModuleCodegen {
     fn gen_to_device(&self) -> TokenStream;
     fn gen_fork(&self) -> TokenStream;
     fn gen_map(&self) -> TokenStream;
+    fn gen_map_zip(&self) -> TokenStream;
     fn gen_valid(&self) -> TokenStream;
     fn gen_from_inner(&self) -> TokenStream;
     fn gen_into_record(&self) -> TokenStream;
@@ -43,6 +44,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let num_params_fn = codegen.gen_num_params();
     let visit = codegen.gen_visit();
     let map_mut = codegen.gen_map();
+    let map_zip_mut = codegen.gen_map_zip();
     let collect_devices = codegen.gen_collect_devices();
     let to_device = codegen.gen_to_device();
     let fork = codegen.gen_fork();
@@ -74,6 +76,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 
             #visit
             #map_mut
+            #map_zip_mut
 
             #collect_devices
             #to_device

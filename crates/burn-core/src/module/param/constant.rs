@@ -74,6 +74,10 @@ macro_rules! empty {
             self
         }
 
+        fn map_zip<M: burn::module::ModuleZipMapper>(self, _other: Self, _mapper: &mut M) -> Self {
+            self
+        }
+
         fn load_record(self, _record: Self::Record) -> Self {
             self
         }
@@ -193,6 +197,14 @@ impl<const D: usize, K: Basic> Module for Tensor<D, K> {
 
         devices
     }
+
+    fn map_zip<Mapper: crate::module::ModuleZipMapper>(
+        self,
+        _other: Self,
+        _mapper: &mut Mapper,
+    ) -> Self {
+        self
+    }
 }
 
 impl<const D: usize, K: Basic> ModuleDisplayDefault for Tensor<D, K> {
@@ -285,6 +297,14 @@ where
     }
 
     fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
+        self
+    }
+
+    fn map_zip<Mapper: crate::module::ModuleZipMapper>(
+        self,
+        _other: Self,
+        _mapper: &mut Mapper,
+    ) -> Self {
         self
     }
 
