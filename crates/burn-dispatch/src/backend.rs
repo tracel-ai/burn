@@ -181,12 +181,15 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
                 #[cfg(all(feature = "tch", not(feature = "distributed")))]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
-                #[cfg(all(feature = "remote", not(feature = "distributed")))]
+                #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor.autodiff().backward(),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
+                // Reachable only in feature combos that leave a backend variant without a
+                // distributed arm (e.g. a non-collective backend); covered builds make it dead.
                 #[cfg(feature = "distributed")]
+                #[allow(unreachable_patterns)]
                 other => {
                     panic!("Distributed operations are not supported for tensor kind {other:?}")
                 }
@@ -200,10 +203,10 @@ impl AutodiffBackend for Dispatch {
             kind,
             checkpointing,
         } = tensor;
-        // Explicit type: under `distributed` only the Cuda/NdArray arms survive (the others are
-        // cfg'd out because communication is Cuda-only). With neither enabled every arm
-        // diverges, so the match would otherwise infer `!` and the `.map` below fails to
-        // type-check. The annotation keeps it well-typed for any backend selection.
+        // Explicit type: under `distributed` only the collective-capable arms survive (Cuda,
+        // NdArray, Remote); the rest are cfg'd out. With none enabled every arm diverges, so the
+        // match would otherwise infer `!` and the `.map` below fails to type-check. The
+        // annotation keeps it well-typed for any backend selection.
         let grad: Option<DispatchTensorKind> = match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(all(feature = "cpu", not(feature = "distributed")))]
@@ -256,7 +259,7 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
-                #[cfg(all(feature = "remote", not(feature = "distributed")))]
+                #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
                     .grad(grads)
@@ -264,7 +267,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
+                // Reachable only in feature combos that leave a backend variant without a
+                // distributed arm (e.g. a non-collective backend); covered builds make it dead.
                 #[cfg(feature = "distributed")]
+                #[allow(unreachable_patterns)]
                 other => {
                     panic!("Distributed operations are not supported for tensor kind {other:?}")
                 }
@@ -336,7 +342,7 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
-                #[cfg(all(feature = "remote", not(feature = "distributed")))]
+                #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => tensor
                     .as_autodiff()
                     .grad_remove(grads)
@@ -344,7 +350,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
+                // Reachable only in feature combos that leave a backend variant without a
+                // distributed arm (e.g. a non-collective backend); covered builds make it dead.
                 #[cfg(feature = "distributed")]
+                #[allow(unreachable_patterns)]
                 other => {
                     panic!("Distributed operations are not supported for tensor kind {other:?}")
                 }
@@ -406,7 +415,7 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
-                #[cfg(all(feature = "remote", not(feature = "distributed")))]
+                #[cfg(feature = "remote")]
                 (DispatchTensorKind::Remote(tensor), DispatchTensorKind::Remote(grad)) => {
                     tensor.as_autodiff().grad_replace(grads, grad.float())
                 }
@@ -470,14 +479,17 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
-                #[cfg(all(feature = "remote", not(feature = "distributed")))]
+                #[cfg(feature = "remote")]
                 DispatchTensorKind::Remote(tensor) => DispatchTensorKind::Remote(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
+                // Reachable only in feature combos that leave a backend variant without a
+                // distributed arm (e.g. a non-collective backend); covered builds make it dead.
                 #[cfg(feature = "distributed")]
+                #[allow(unreachable_patterns)]
                 other => {
                     panic!("Distributed operations are not supported for tensor kind {other:?}")
                 }
@@ -572,7 +584,7 @@ impl AutodiffBackend for Dispatch {
                     Autodiff::<LibTorch>::from_inner(tensor.float()),
                 )),
             )),
-            #[cfg(all(feature = "remote", not(feature = "distributed")))]
+            #[cfg(feature = "remote")]
             DispatchTensorKind::Remote(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
                     crate::BackendTensor::Autodiff(Autodiff::<Remote>::from_inner(tensor.float())),
@@ -582,6 +594,7 @@ impl AutodiffBackend for Dispatch {
                 panic!("Autodiff should not wrap an autodiff tensor.")
             }
             #[cfg(feature = "distributed")]
+            #[allow(unreachable_patterns)]
             other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         };
 
@@ -629,6 +642,15 @@ impl AutodiffBackend for Dispatch {
                         )),
                     )))
                 }
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => {
+                    DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Remote(
+                        crate::BackendTensor::Autodiff(Autodiff::<Remote>::set_distributed_params(
+                            tensor.as_autodiff().clone(),
+                            param_id,
+                        )),
+                    )))
+                }
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -663,6 +685,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Cuda(tensor) => {
                     tensor.as_autodiff().node.distributed_params.clone()
                 }
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => {
+                    tensor.as_autodiff().node.distributed_params.clone()
+                }
 
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
@@ -686,6 +712,10 @@ impl AutodiffBackend for Dispatch {
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(feature = "cuda")]
                 DispatchTensorKind::Cuda(tensor) => {
+                    tensor.as_autodiff().node.distributed_params.is_some()
+                }
+                #[cfg(feature = "remote")]
+                DispatchTensorKind::Remote(tensor) => {
                     tensor.as_autodiff().node.distributed_params.is_some()
                 }
 
