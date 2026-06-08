@@ -77,9 +77,22 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
     #[cfg(feature = "distributed")]
     fn sync_collective(&self) {
         let stream_id = StreamId::current();
+        // Diagnostics: which local device issues this sync, and whether the call returns.
+        // `submit_blocking` first takes this device's client mutex, so an ENTER with no
+        // corresponding return points at the client being blocked before reaching the wire.
+        log::info!(
+            "[collective-client] device {}:{} stream {stream_id}: sync_collective ISSUE",
+            self.device.address(),
+            self.device.device_index()
+        );
         self.handle
             .submit_blocking(move |s| s.sync_collective(stream_id))
-            .expect("Service call failed")
+            .expect("Service call failed");
+        log::info!(
+            "[collective-client] device {}:{} stream {stream_id}: sync_collective RETURNED",
+            self.device.address(),
+            self.device.device_index()
+        );
     }
 
     fn seed(&self, seed: u64) {
@@ -116,6 +129,7 @@ impl<C: ProtocolClient> RemoteClient<C> {
 
         if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = &mut op {
             let local_address = self.device.address();
+            let out = desc.out.id;
             for id in desc.device_ids.iter_mut() {
                 let (address, device_index) = id_to_endpoint(id.index_id as u32).expect(
                     "an all_reduce device must be a registered remote device on this process",
@@ -128,6 +142,16 @@ impl<C: ProtocolClient> RemoteClient<C> {
                 id.type_id = 0;
                 id.index_id = device_index as u16;
             }
+            // Diagnostics: which local device's connection this all_reduce is issued on. If every
+            // all_reduce logs the same local device, the per-rank gradients are funneling through
+            // one client instead of being spread across the participating devices.
+            log::info!(
+                "[collective-client] device {}:{} stream {}: all_reduce ISSUE (out={out:?}, group={:?})",
+                local_address,
+                self.device.device_index(),
+                StreamId::current(),
+                desc.device_ids
+            );
         }
 
         op
