@@ -27,6 +27,10 @@ tracing = [
 ]
 
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
+# Compile-level support for distributed collective ops. wgpu runtimes don't actually implement
+# collectives, but this keeps the feature set coherent so a `distributed` build that includes a
+# wgpu backend (e.g. alongside a remote backend) still compiles; collective calls error at runtime.
+distributed = ["burn-cubecl/distributed", "burn-fusion?/distributed"]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
 

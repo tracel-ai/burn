@@ -186,6 +186,31 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation fuser](crate::OperationFuser).
+///
+/// When the `distributed` feature is enabled, a fusion backend must also be a
+/// [`DistributedBackend`](burn_backend::distributed::DistributedBackend) so the remote/router
+/// interpreter path (`BackendIr::register_distributed`) can drive collective operations through
+/// it. The only in-tree fusion backend (`CubeBackend`) already satisfies this unconditionally.
+#[cfg(feature = "distributed")]
+pub trait FusionBackend:
+    BackendIr<
+        Handle = FusionHandle<Self::FusionRuntime>,
+        Device = FusionDevice<Self::FusionRuntime>,
+    > + burn_backend::distributed::DistributedBackend
+{
+    /// The runtime used for this backend.
+    type FusionRuntime: FusionRuntime;
+
+    /// Cast a float tensor and returns the resulting handle.
+    fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle;
+
+    /// Pointer to the full precision fusion backend.
+    type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
+}
+
+/// Trait that allows an existing [backend](Backend) to specify graph optimizations using
+/// [operation fuser](crate::OperationFuser).
+#[cfg(not(feature = "distributed"))]
 pub trait FusionBackend:
     BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {
@@ -233,5 +258,33 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
+    }
+
+    // The `distributed` supertrait on `FusionBackend` guarantees `Self: DistributedBackend`, so
+    // the remote/router interpreter can drive collectives through fusion just like the cube
+    // backend. `all_reduce` registers the op into the fusion stream; we resolve it eagerly here
+    // because the interpreter hands back a concrete handle.
+    #[cfg(feature = "distributed")]
+    fn register_distributed(
+        op: &burn_ir::DistributedOperationIr,
+        handles: &mut burn_ir::HandleContainer<Self::Handle>,
+    ) {
+        use burn_backend::distributed::DistributedBackend;
+
+        match op {
+            burn_ir::DistributedOperationIr::AllReduce(desc) => {
+                let tensor = handles.get_float_tensor::<Self>(&desc.tensor);
+                let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
+                let output = Self::all_reduce(tensor, desc.op, device_ids);
+                // Safety: immediately registered, not accessed before the collective resolves.
+                let output = unsafe { output.assume_resolved() };
+                handles.register_float_tensor::<Self>(&desc.out.id, output);
+            }
+        }
+    }
+
+    #[cfg(feature = "distributed")]
+    fn sync_distributed(device: &Self::Device) {
+        <Self as burn_backend::distributed::DistributedBackend>::sync_collective(device)
     }
 }
