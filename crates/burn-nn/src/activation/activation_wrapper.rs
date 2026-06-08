@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use crate::Identity;
 use crate::activation::{
     Celu, CeluConfig, Elu, EluConfig, Gelu, HardShrink, HardShrinkConfig, HardSigmoid,
     HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig, PRelu, PReluConfig, Relu, Selu,
@@ -15,6 +16,9 @@ use burn::tensor::Tensor;
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum ActivationConfig {
+    /// Identity activation layer.
+    Identity,
+
     /// [`Gelu`] activation layer.
     Gelu,
 
@@ -143,6 +147,7 @@ impl ActivationConfig {
     /// Initialize a wrapped activation layer.
     pub fn init(&self, device: &Device) -> Activation {
         match self {
+            ActivationConfig::Identity => Activation::Identity(Identity::new()),
             ActivationConfig::Relu => Relu.into(),
             ActivationConfig::LeakyRelu(conf) => conf.init().into(),
             ActivationConfig::Gelu => Gelu::new().into(),
@@ -173,6 +178,9 @@ impl ActivationConfig {
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
 pub enum Activation {
+    /// Identity activation layer.
+    Identity(Identity),
+
     /// [`Gelu`] activation layer.
     Gelu(Gelu),
 
@@ -226,6 +234,12 @@ pub enum Activation {
 
     /// [`Shrink`] activation layer.
     Shrink(Shrink),
+}
+
+impl From<Identity> for Activation {
+    fn from(layer: Identity) -> Self {
+        Self::Identity(layer)
+    }
 }
 
 impl From<Gelu> for Activation {
@@ -340,6 +354,7 @@ impl Activation {
     /// Forward pass.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         match self {
+            Activation::Identity(layer) => layer.forward(input),
             Activation::Relu(layer) => layer.forward(input),
             Activation::LeakyRelu(layer) => layer.forward(input),
             Activation::Gelu(layer) => layer.forward(input),
@@ -384,6 +399,16 @@ mod tests {
         let act = config.init(device);
         let output = act.forward(input);
         expect_tensor(output, expected);
+    }
+
+    #[test]
+    fn test_identity() {
+        let device = Default::default();
+        let input = make_input(&device);
+
+        let expected = input.clone();
+
+        check_stateless_config_output(ActivationConfig::Identity, input, expected, &device)
     }
 
     #[test]
