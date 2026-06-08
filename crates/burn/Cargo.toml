@@ -121,6 +121,7 @@ distributed = [
     "burn-optim/distributed",
     "burn-train?/ddp",
     "burn-router?/distributed",
+    "burn-remote?/distributed",
 ]
 # TODO: add to burn dispatch
 remote = ["burn-remote/client", "ir", "burn-core/remote"]

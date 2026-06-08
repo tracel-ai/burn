@@ -301,6 +301,11 @@ where
     ) -> Result<(), String> {
         match task {
             ComputeTask::RegisterOperation(stream_id, op) => {
+                // Collective ops arrive with their device group expressed as server-local
+                // device indices (see the client's `resolve_collective_devices`); translate
+                // them to this server's backend device ids before the runner executes.
+                #[cfg(feature = "distributed")]
+                let op = Self::resolve_collective_devices(sm, op);
                 stream_id.executes(|| runner.register_op(op));
                 Ok(())
             }
@@ -421,11 +426,41 @@ where
                 let res = stream_id.executes(|| runner.sync());
                 Self::send_response(sender, request_id, TaskResponseContent::SyncBackend(res)).await
             }
+            #[cfg(feature = "distributed")]
+            ComputeTask::SyncCollective(request_id, stream_id) => {
+                stream_id.executes(|| runner.sync_collective());
+                Self::send_response(sender, request_id, TaskResponseContent::SyncCollective).await
+            }
             ComputeTask::DTypeUsage(request_id, dtype) => {
                 let res = runner.dtype_usage(dtype);
                 Self::send_response(sender, request_id, TaskResponseContent::DTypeUsage(res)).await
             }
         }
+    }
+
+    /// Translate the device group of a collective op from server-local device indices to this
+    /// server's backend device ids.
+    ///
+    /// The client (`RemoteClient::resolve_collective_devices`) sends each participating device as
+    /// a plain server-local index in `index_id`. Here we map each index to the actual backend
+    /// [`DeviceId`](burn_backend::DeviceId) of the device this server hosts at that index, so the
+    /// inner backend's `all_reduce` reduces across the right devices — and every rank derives the
+    /// same communicator id from the group.
+    #[cfg(feature = "distributed")]
+    fn resolve_collective_devices(
+        sm: &SessionManager<B, P>,
+        mut op: burn_ir::OperationIr,
+    ) -> burn_ir::OperationIr {
+        use burn_backend::backend::DeviceOps;
+        use burn_ir::{DistributedOperationIr, OperationIr};
+
+        if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = &mut op {
+            for id in desc.device_ids.iter_mut() {
+                *id = sm.device(id.index_id as u32).id().into();
+            }
+        }
+
+        op
     }
 
     async fn send_response(

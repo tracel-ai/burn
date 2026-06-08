@@ -366,6 +366,21 @@ impl<C: ProtocolClient> RemoteService<C> {
         }
     }
 
+    /// Resolve the pending collective operations on the session's device, blocking until the
+    /// server acknowledges. Mirrors [`sync`](Self::sync) but maps to the backend's
+    /// `sync_distributed` server-side.
+    #[cfg(feature = "distributed")]
+    pub fn sync_collective(&mut self, stream_id: StreamId) {
+        let rx = self.submit_request(|id| ComputeTask::SyncCollective(id, stream_id));
+        match self.runtime.block_on(rx) {
+            Ok(TaskResponseContent::SyncCollective) => {}
+            Ok(other) => panic!("Invalid response for SyncCollective: {other:?}"),
+            Err(_) => {
+                panic!("Remote response channel closed before sync_collective completed")
+            }
+        }
+    }
+
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {
         let rx = self.submit_request(|id| ComputeTask::DTypeUsage(id, dtype));
         match self.runtime.block_on(rx) {

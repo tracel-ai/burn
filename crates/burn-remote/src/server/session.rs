@@ -64,7 +64,7 @@ where
 
     /// Resolve the device at `device_index`, falling back to the default device (index 0)
     /// with a warning if the client requested an index this server doesn't host.
-    fn device(&self, device_index: u32) -> Device<B> {
+    pub(crate) fn device(&self, device_index: u32) -> Device<B> {
         match self.devices.get(device_index as usize) {
             Some(device) => device.clone(),
             None => {

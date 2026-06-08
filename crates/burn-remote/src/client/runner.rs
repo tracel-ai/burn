@@ -20,6 +20,10 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
 
     fn register_op(&self, op: burn_ir::OperationIr) {
         let stream_id = StreamId::current();
+        // Collective ops carry the participating devices as *client* remote device ids; rewrite
+        // them to server-local device indices the server can resolve to its own backend devices.
+        #[cfg(feature = "distributed")]
+        let op = self.resolve_collective_devices(op);
         self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
@@ -70,6 +74,14 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
             .expect("Service call failed")
     }
 
+    #[cfg(feature = "distributed")]
+    fn sync_collective(&self) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(move |s| s.sync_collective(stream_id))
+            .expect("Service call failed")
+    }
+
     fn seed(&self, seed: u64) {
         self.handle.submit(move |s| s.seed(seed));
     }
@@ -82,6 +94,43 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         self.handle
             .submit_blocking(move |s| s.dtype_usage(dtype))
             .expect("Service call failed")
+    }
+}
+
+#[cfg(feature = "distributed")]
+impl<C: ProtocolClient> RemoteClient<C> {
+    /// Rewrite the device group of a collective op so the server can resolve it.
+    ///
+    /// On the client, the participating devices are identified by their *remote* device ids
+    /// (`type_id = 0`, `index_id = ` the local-registry index that encodes `address`+device
+    /// index). The server can't reverse that registry hash, so we translate each id to the
+    /// plain server-local device index (kept in `index_id`, `type_id` left 0). The server then
+    /// maps each index to its own backend device id before executing — see
+    /// `RemoteServer::resolve_collective_devices`.
+    ///
+    /// Only same-server collectives are supported for now: every participating device must live
+    /// on the same address as the tensor's device. A cross-server group panics with a clear
+    /// message rather than silently reducing the wrong devices.
+    fn resolve_collective_devices(&self, mut op: burn_ir::OperationIr) -> burn_ir::OperationIr {
+        use burn_ir::{DistributedOperationIr, OperationIr};
+
+        if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = &mut op {
+            let local_address = self.device.address();
+            for id in desc.device_ids.iter_mut() {
+                let (address, device_index) = id_to_endpoint(id.index_id as u32).expect(
+                    "an all_reduce device must be a registered remote device on this process",
+                );
+                assert_eq!(
+                    address, local_address,
+                    "cross-server all_reduce is not supported yet: the tensor is on `{local_address}` \
+                     but the collective includes a device on `{address}`",
+                );
+                id.type_id = 0;
+                id.index_id = device_index as u16;
+            }
+        }
+
+        op
     }
 }
 
