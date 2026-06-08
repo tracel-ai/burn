@@ -27,8 +27,6 @@ tracing = [
 
 distributed = ["std", "burn-backend/distributed"]
 
-complex = []
-
 [dependencies]
 burn-std = { workspace = true }
 burn-backend = { workspace = true }

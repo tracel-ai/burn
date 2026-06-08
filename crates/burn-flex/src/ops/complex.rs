@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use burn_backend::ops::ComplexTensorOps;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
-use burn_backend::{ComplexTensor, ComplexTensorBackend, Distribution, InterleavedLayout};
+use burn_backend::{ComplexTensor, ComplexTensorBackend, Distribution};
 use burn_backend::{Element, TensorData};
 
 use burn_std::{BoolDType, ComplexDType, ComplexScalar, DType, Scalar, Slice};
@@ -24,8 +24,6 @@ use crate::{Flex, FlexDevice, FlexTensor, ops::binary::scalar_op_typed};
 
 impl ComplexTensorBackend for Flex {
     type InnerBackend = Flex;
-
-    type Layout = InterleavedLayout;
 
     fn complex_from_real_data(data: TensorData, _device: &Device<Self>) -> ComplexTensor<Self> {
         let interleaved_data = burn_std::complex_utils::interleaved_data_from_real_data(data);
@@ -58,22 +56,6 @@ impl ComplexTensorBackend for Flex {
 }
 
 impl ComplexTensorOps<Flex> for Flex {
-    async fn complex_into_real_data(
-        tensor: ComplexTensor<Flex>,
-    ) -> Result<TensorData, burn_backend::ExecutionError> {
-        Ok(burn_std::complex_utils::interleaved_data_to_real_data(
-            tensor.into_data(),
-        ))
-    }
-
-    async fn complex_into_imag_data(
-        tensor: ComplexTensor<Flex>,
-    ) -> Result<TensorData, burn_backend::ExecutionError> {
-        Ok(burn_std::complex_utils::interleaved_data_to_imag_data(
-            tensor.into_data(),
-        ))
-    }
-
     async fn complex_into_interleaved_data(
         tensor: ComplexTensor<Flex>,
     ) -> Result<TensorData, burn_backend::ExecutionError> {
@@ -87,12 +69,6 @@ impl ComplexTensorOps<Flex> for Flex {
             tensor.into_data(),
         ))
     }
-
-    // fn to_complex(tensor: FloatTensor<Flex>) -> ComplexTensor<Flex> {
-    //     let interleaved_data =
-    //         burn_std::complex_utils::interleaved_data_from_real_data(tensor.into_data());
-    //     FlexTensor::from_data(interleaved_data)
-    // }
 
     fn complex_squared_norm(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
         crate::c2r_unary_op!(tensor, |a| a.norm_sqr())
@@ -119,6 +95,26 @@ impl ComplexTensorOps<Flex> for Flex {
 
     fn complex_div(lhs: ComplexTensor<Flex>, rhs: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
         crate::c2c_binary_op!(lhs, rhs, |a, b| a / b)
+    }
+
+    fn complex_add_scalar(lhs: ComplexTensor<Flex>, rhs: Scalar) -> ComplexTensor<Flex> {
+        let rhs = rhs.elem::<ComplexScalar<f64>>();
+        crate::c2c_scalar_op!(lhs, rhs, |a, b| a + b)
+    }
+
+    fn complex_sub_scalar(lhs: ComplexTensor<Flex>, rhs: Scalar) -> ComplexTensor<Flex> {
+        let rhs = rhs.elem::<ComplexScalar<f64>>();
+        crate::c2c_scalar_op!(lhs, rhs, |a, b| a - b)
+    }
+
+    fn complex_mul_scalar(lhs: ComplexTensor<Flex>, rhs: Scalar) -> ComplexTensor<Flex> {
+        let rhs = rhs.elem::<ComplexScalar<f64>>();
+        crate::c2c_scalar_op!(lhs, rhs, |a, b| a * b)
+    }
+
+    fn complex_div_scalar(lhs: ComplexTensor<Flex>, rhs: Scalar) -> ComplexTensor<Flex> {
+        let rhs = rhs.elem::<ComplexScalar<f64>>();
+        crate::c2c_scalar_op!(lhs, rhs, |a, b| a / b)
     }
 
     fn complex_real(tensor: ComplexTensor<Flex>) -> FloatTensor<Flex> {
@@ -782,6 +778,15 @@ impl ComplexTensorOps<Flex> for Flex {
             }
             _ => unreachable!(),
         }
+    }
+
+    fn complex_atan2(lhs: ComplexTensor<Flex>, rhs: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::ops::complex::c2c_binary_op(
+            lhs,
+            rhs,
+            |a: ComplexScalar<f32>, b: ComplexScalar<f32>| a.atan2(b),
+            |a: ComplexScalar<f64>, b: ComplexScalar<f64>| a.atan2(b),
+        )
     }
 }
 

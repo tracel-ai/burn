@@ -32,9 +32,3 @@ pub use transaction::*;
 mod extension;
 #[cfg(feature = "extension")]
 pub use extension::*;
-
-// needed by split tensor currently
-#[allow(unused)]
-pub(crate) use bool::{bool_and_impl, bool_not_impl, bool_or_impl};
-#[allow(unused)]
-pub(crate) use float::{atan2_impl, powf_impl, powf_scalar_impl};

@@ -1,7 +1,7 @@
 use burn_std::TensorData;
 
 use crate::{
-    Backend, BackendTypes, ComplexTensorBackend, InterleavedLayout, UnimplementedTensorPrimitive,
+    Backend, BackendTypes, ComplexTensorBackend, UnimplementedTensorPrimitive,
     ops::ComplexTensorOps,
 };
 
@@ -15,8 +15,6 @@ where
     C: Clone + Send + Sync + 'static,
 {
     type InnerBackend = Self;
-
-    type Layout = InterleavedLayout;
 
     fn complex_from_real_data(
         _data: burn_std::TensorData,
@@ -57,18 +55,6 @@ where
         panic!("{}", complex_panic_message())
     }
 
-    async fn complex_into_real_data(
-        _tensor: crate::ComplexTensor<B>,
-    ) -> Result<burn_std::TensorData, burn_std::ExecutionError> {
-        panic!("{}", complex_panic_message())
-    }
-
-    async fn complex_into_imag_data(
-        _tensor: crate::ComplexTensor<B>,
-    ) -> Result<burn_std::TensorData, burn_std::ExecutionError> {
-        panic!("{}", complex_panic_message())
-    }
-
     async fn complex_into_interleaved_data(
         _tensor: crate::ComplexTensor<B>,
     ) -> Result<burn_std::TensorData, burn_std::ExecutionError> {
@@ -80,10 +66,6 @@ where
     ) -> Result<(TensorData, TensorData), burn_std::ExecutionError> {
         panic!("{}", complex_panic_message())
     }
-
-    // fn to_complex(_tensor: crate::tensor::FloatTensor<B>) -> crate::ComplexTensor<B> {
-    //     panic!("{}",complex_panic_message())
-    // }
 
     fn complex_squared_norm(_tensor: crate::ComplexTensor<B>) -> crate::tensor::FloatTensor<B> {
         panic!("{}", complex_panic_message())
@@ -529,6 +511,13 @@ where
         _fill_value: burn_std::Scalar,
         _device: &crate::tensor::Device<B>,
         _dtype: burn_std::ComplexDType,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_atan2(
+        _lhs: crate::ComplexTensor<B>,
+        _rhs: crate::ComplexTensor<B>,
     ) -> crate::ComplexTensor<B> {
         panic!("{}", complex_panic_message())
     }

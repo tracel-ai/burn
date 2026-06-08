@@ -7,7 +7,7 @@ use crate::{
 #[cfg(feature = "distributed")]
 use crate::{distributed::DistributedGradientRegistration, grads::GradSyncContext};
 use alloc::{boxed::Box, vec};
-use burn_backend::{Backend, BackendTypes, TensorMetadata};
+use burn_backend::{Backend, TensorMetadata};
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
@@ -19,20 +19,13 @@ use portable_atomic_util::Arc;
 use burn_backend::distributed::{DistributedBackend, DistributedParamId, DistributedParams};
 
 #[derive(Debug, Clone)]
-pub struct AutodiffTensor<B: BackendTypes> {
+pub struct AutodiffTensor<B: Backend> {
     pub primitive: B::FloatTensorPrimitive,
     pub node: NodeRef,
     pub rc: NodeRefCount,
 }
 
-impl<B: BackendTypes> AutodiffTensor<B> {
-    /// Returns the inner autodiff tensor primitive.
-    pub fn primitive(&self) -> &B::FloatTensorPrimitive {
-        &self.primitive
-    }
-}
-
-impl<B: BackendTypes> TensorMetadata for AutodiffTensor<B> {
+impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
     fn dtype(&self) -> burn_std::DType {
         self.primitive.dtype()
     }

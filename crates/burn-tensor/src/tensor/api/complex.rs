@@ -73,8 +73,27 @@ where
     /// let tensor = Tensor::<1, Complex>::from_parts([1.0, 0.0], [0.0, 1.0], &device);
     /// let phase = tensor.phase();
     /// ```
+    pub fn arg(self) -> Tensor<D, Float> {
+        Tensor::new(K::arg(self.primitive))
+    }
+
+    #[inline]
+    /// Returns the phase (argument) of each complex element.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \arg\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = arg(x_i)`")]
+    ///
+    /// The phase is expressed in radians.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let device = Default::default();
+    /// let tensor = Tensor::<1, Complex>::from_parts([1.0, 0.0], [0.0, 1.0], &device);
+    /// let arg = tensor.arg();
+    /// ```
     pub fn phase(self) -> Tensor<D, Float> {
-        Tensor::new(K::phase(self.primitive))
+        self.arg()
     }
 
     /// Returns the real component of each complex element.
@@ -175,7 +194,11 @@ where
     /// let tensor = Tensor::<1, Complex>::from_interleaved_data(data, &device);
     /// ```
     pub fn from_interleaved_data(data: TensorData, device: &Device) -> Self {
-        Self::new(K::from_interleaved_data(data, device))
+        Self::from_data(
+            data,
+            TensorCreationOptions::new(device.clone())
+                .with_dtype(device.settings().complex_dtype().into()),
+        )
     }
 
     /// Create a Complex Tensor from a float tensor representing the real part, filling the imaginary part with zeros.
@@ -216,7 +239,7 @@ where
     }
 }
 
-//for some reason, implementing sub causes a compilation error originating from order
+//TODO: for some reason, implementing sub causes a compilation error originating from order
 // saying there are multiple implementations satisfying the constraints.
 // Complex Tensor + Float Tensor
 // impl<const D: usize> core::ops::Add<Tensor<D, Float>> for Tensor<D, Complex> {

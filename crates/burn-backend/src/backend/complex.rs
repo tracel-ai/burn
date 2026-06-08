@@ -46,12 +46,6 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized + BackendTypes {
             BoolTensorPrimitive = Self::BoolTensorPrimitive,
         >;
 
-    ///// Tensor primitive to be used for all complex operations.
-    //type ComplexTensorPrimitive: TensorMetadata + 'static;
-
-    /// The underlying layout for the complex elements
-    type Layout: Layout;
-
     /// Creates a complex tensor from real-valued data, padding the imaginary part with zeros.
     ///
     /// Each element `x` in `data` becomes `x + 0i`.

@@ -26,32 +26,6 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The device of the tensor.
     fn complex_device(tensor: &ComplexTensor<B>) -> B::Device;
 
-    /// Converts the tensor's real component to a data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data structure with the tensor's data.
-    fn complex_into_real_data(
-        tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
-
-    /// Converts the tensor's imaginary component to a data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data structure with the tensor's imaginary data.
-    fn complex_into_imag_data(
-        tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
-
     /// Converts the tensor to interleaved complex data, where real and imaginary parts alternate.
     ///
     /// # Arguments
@@ -77,17 +51,6 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     fn complex_into_split_data(
         tensor: ComplexTensor<B>,
     ) -> impl Future<Output = Result<(TensorData, TensorData), ExecutionError>> + Send;
-
-    // /// Converts a real float tensor to a complex tensor with zero imaginary part.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `tensor` - The float tensor.
-    // ///
-    // /// # Returns
-    // ///
-    // /// A complex tensor with the same values as `tensor` and a zero imaginary part.
-    // fn to_complex(tensor: FloatTensor<B>) -> ComplexTensor<B>;
 
     // was going to add a norm function here, but float tensor ops doesn't have a hypot function
     // easy enough to add, but a bit out of scope for this PR
@@ -248,6 +211,40 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The result of subtracting the second tensor from the first tensor.
     fn complex_sub(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Adds two tensors together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of adding the two tensors together.
+    fn complex_add_scalar(lhs: ComplexTensor<B>, rhs: Scalar) -> ComplexTensor<B> {
+        let shape = lhs.shape();
+        let device = Self::complex_device(&lhs);
+        let dtype = lhs.dtype();
+        Self::complex_add(lhs, Self::complex_full(shape, rhs, &device, dtype.into()))
+    }
+
+    /// Subtracts the second tensor from the first tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of subtracting the second tensor from the first tensor.
+    fn complex_sub_scalar(lhs: ComplexTensor<B>, rhs: Scalar) -> ComplexTensor<B> {
+        let shape = lhs.shape();
+        let device = Self::complex_device(&lhs);
+        let dtype = lhs.dtype();
+        Self::complex_sub(lhs, Self::complex_full(shape, rhs, &device, dtype.into()))
+    }
+
     /// Multiplies two complex tensors together using complex multiplication.
     ///
     /// # Arguments
@@ -271,6 +268,40 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// The result of dividing the first tensor by the second tensor.
     fn complex_div(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Adds two tensors together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the two tensors together.
+    fn complex_mul_scalar(lhs: ComplexTensor<B>, rhs: Scalar) -> ComplexTensor<B> {
+        let shape = lhs.shape();
+        let device = Self::complex_device(&lhs);
+        let dtype = lhs.dtype();
+        Self::complex_mul(lhs, Self::complex_full(shape, rhs, &device, dtype.into()))
+    }
+
+    /// Subtracts the second tensor from the first tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of dividing the first tensor by the second tensor.
+    fn complex_div_scalar(lhs: ComplexTensor<B>, rhs: Scalar) -> ComplexTensor<B> {
+        let shape = lhs.shape();
+        let device = Self::complex_device(&lhs);
+        let dtype = lhs.dtype();
+        Self::complex_div(lhs, Self::complex_full(shape, rhs, &device, dtype.into()))
+    }
 
     /// Negates the tensor.
     ///
@@ -337,20 +368,6 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// A float tensor containing the phases in radians.
     fn complex_arg(tensor: ComplexTensor<B>) -> FloatTensor<B>;
-
-    #[inline]
-    /// Returns the phase (argument) of the complex tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The complex tensor.
-    ///
-    /// # Returns
-    ///
-    /// A float tensor containing the phases in radians.
-    fn complex_phase(tensor: ComplexTensor<B>) -> FloatTensor<B> {
-        Self::complex_arg(tensor)
-    }
 
     /// Creates a complex tensor from separate real and imaginary host buffers.
     ///
@@ -561,6 +578,17 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// The element-wise complex area hyperbolic tangent of `tensor`.
     fn complex_atanh(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Complex inverse tangent function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise complex arctangent of `tensor`.
+    fn complex_atan2(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Complex select function.
     ///
@@ -1100,7 +1128,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the power of the corresponding elements of `rhs`.
-    fn complex_powi(lhs: ComplexTensor<B>, rhs: B::IntTensorPrimitive) -> ComplexTensor<B>
+    fn complex_powi(lhs: ComplexTensor<B>, rhs: IntTensor<B>) -> ComplexTensor<B>
     where
         B::InnerBackend: IntTensorOps<B::InnerBackend>,
         // make the equality explicit at the use site

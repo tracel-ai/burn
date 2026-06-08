@@ -304,7 +304,7 @@ pub(crate) trait ComplexOps: FloatMathOps {
     ///
     /// A real-valued tensor containing the angle `atan2(im, re)` for each element,
     /// in the range `(-π, π]`.
-    fn phase(tensor: BridgeTensor) -> BridgeTensor;
+    fn arg(tensor: BridgeTensor) -> BridgeTensor;
 
     /// Extracts the real part of each complex element.
     ///
@@ -379,18 +379,6 @@ pub(crate) trait ComplexOps: FloatMathOps {
     where
         T: Into<TensorData>;
 
-    /// Creates a complex tensor from interleaved `[re₀, im₀, re₁, im₁, …]` data.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - Flat tensor data with real and imaginary values interleaved.
-    /// * `device` - The device on which the tensor will be allocated.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor whose element count is half the length of the flat data.
-    fn from_interleaved_data(data: TensorData, device: &Device) -> BridgeTensor;
-
     /// Creates a complex tensor from polar form, converting `(r, θ)` pairs to `r·cos θ + i·r·sin θ`.
     ///
     /// # Arguments
@@ -408,15 +396,8 @@ impl ComplexOps for Complex {
     fn conj(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_conj(tensor.into_complex()))
     }
-    fn phase(tensor: BridgeTensor) -> BridgeTensor {
-        BridgeTensor::float(Dispatch::complex_phase(tensor.into_complex()))
-    }
-
-    fn from_interleaved_data(data: TensorData, device: &Device) -> BridgeTensor {
-        BridgeTensor::complex(Dispatch::complex_from_interleaved_data(
-            data,
-            device.as_dispatch(),
-        ))
+    fn arg(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::float(Dispatch::complex_arg(tensor.into_complex()))
     }
 
     fn real(tensor: BridgeTensor) -> BridgeTensor {
@@ -475,14 +456,7 @@ impl Numeric for Complex {
     }
 
     fn add_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
-        let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(
-            lhs.shape(),
-            rhs,
-            &Dispatch::complex_device(&lhs),
-            lhs.dtype().into(),
-        );
-        BridgeTensor::complex(Dispatch::complex_add(lhs, rhs_tensor))
+        BridgeTensor::complex(Dispatch::complex_add_scalar(lhs.into_complex(), rhs))
     }
 
     fn sub(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
@@ -494,13 +468,8 @@ impl Numeric for Complex {
 
     fn sub_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(
-            lhs.shape(),
-            rhs,
-            &Dispatch::complex_device(&lhs),
-            lhs.dtype().into(),
-        );
-        BridgeTensor::complex(Dispatch::complex_sub(lhs, rhs_tensor))
+
+        BridgeTensor::complex(Dispatch::complex_sub_scalar(lhs, rhs))
     }
 
     fn mul(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
@@ -512,13 +481,7 @@ impl Numeric for Complex {
 
     fn mul_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(
-            lhs.shape(),
-            rhs,
-            &Dispatch::complex_device(&lhs),
-            lhs.dtype().into(),
-        );
-        BridgeTensor::complex(Dispatch::complex_mul(lhs, rhs_tensor))
+        BridgeTensor::complex(Dispatch::complex_mul_scalar(lhs, rhs))
     }
 
     fn div(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
@@ -530,13 +493,7 @@ impl Numeric for Complex {
 
     fn div_scalar(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor {
         let lhs = lhs.into_complex();
-        let rhs_tensor = Dispatch::complex_full(
-            lhs.shape(),
-            rhs,
-            &Dispatch::complex_device(&lhs),
-            lhs.dtype().into(),
-        );
-        BridgeTensor::complex(Dispatch::complex_div(lhs, rhs_tensor))
+        BridgeTensor::complex(Dispatch::complex_div_scalar(lhs, rhs))
     }
 
     fn remainder(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
@@ -724,5 +681,12 @@ impl FloatMathOps for Complex {
 
     fn atanh(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_atanh(tensor.into_complex()))
+    }
+
+    fn atan2(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(Dispatch::complex_atan2(
+            lhs.into_complex(),
+            rhs.into_complex(),
+        ))
     }
 }

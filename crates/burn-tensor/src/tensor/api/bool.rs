@@ -491,15 +491,15 @@ fn bool_to_float_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
     BridgeTensor::float(Dispatch::bool_into_float(p.into(), out_dtype))
 }
 
-pub(crate) fn bool_not_impl(p: BridgeTensor) -> BridgeTensor {
+fn bool_not_impl(p: BridgeTensor) -> BridgeTensor {
     BridgeTensor::bool(Dispatch::bool_not(p.into()))
 }
 
-pub(crate) fn bool_and_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+fn bool_and_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
     BridgeTensor::bool(Dispatch::bool_and(lhs.into(), rhs.into()))
 }
 
-pub(crate) fn bool_or_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+fn bool_or_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
     BridgeTensor::bool(Dispatch::bool_or(lhs.into(), rhs.into()))
 }
 

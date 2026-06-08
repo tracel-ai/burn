@@ -697,7 +697,6 @@ dependencies = [
  "derive-new",
  "enumset",
  "hashbrown 0.16.1",
- "ndarray 0.17.2",
  "num-complex",
  "num-traits",
  "oneshot",
@@ -709,7 +708,6 @@ dependencies = [
  "serde_json",
  "serial_test",
  "spin",
- "tch",
 ]
 
 [[package]]

@@ -708,6 +708,25 @@ where
         ((one + self).ln() - (one - self).ln()) / two
     }
 }
+// not from num-complex
+impl<E> ComplexScalar<E>
+where
+    E: num_traits::Float,
+{
+    /// Computes the principal value of the inverse tangent of `self` / `other`.
+    #[inline]
+    pub fn atan2(self, other: Self) -> Self {
+        // atan2(z1, z2) = -i * (ln(z2 + i*z1) - 0.5 * ln(z1^2 + z2^2))
+        // avoids sqrt of complex number entirely
+        let i = Self::i();
+        let w = other + i * self; // z2 + i*z1
+        let denom_sq = self * self + other * other; // z1^2 + z2^2
+
+        let half = ComplexScalar::<E>::new(E::from(0.5).unwrap(), E::zero());
+
+        -i * (w.ln() - half * denom_sq.ln())
+    }
+}
 
 impl<E: Element + ElementComparison + bytemuck::Pod> Element for ComplexScalar<E> {
     #[inline(always)]

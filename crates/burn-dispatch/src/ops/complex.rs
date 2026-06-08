@@ -52,41 +52,37 @@ impl ComplexTensorOps<Self> for Dispatch {
         )
     }
 
-    // fn complex_empty(shape: Shape, device: &DispatchDevice, dtype: ComplexDType) -> ComplexTensor<Self> {
-    //     complex_creation_op!(Complex, device, |device| B::complex_empty(shape, device, dtype))
-    // }
-
     fn complex_add(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
         binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_add(lhs, rhs) => Complex)
     }
 
-    // fn complex_add_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
-    //     unary_complex!(lhs, complex, |lhs| B::complex_add_scalar(lhs, rhs) => Complex)
-    // }
+    fn complex_add_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
+        unary_complex!(lhs, complex, |lhs| B::complex_add_scalar(lhs, rhs) => Complex)
+    }
 
     fn complex_sub(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
         binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_sub(lhs, rhs) => Complex)
     }
 
-    // fn complex_sub_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
-    //     unary_complex!(lhs, complex, |lhs| B::complex_sub_scalar(lhs, rhs) => Complex)
-    // }
+    fn complex_sub_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
+        unary_complex!(lhs, complex, |lhs| B::complex_sub_scalar(lhs, rhs) => Complex)
+    }
 
     fn complex_mul(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
         binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_mul(lhs, rhs) => Complex)
     }
 
-    // fn complex_mul_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
-    //     unary_complex!(lhs, complex, |lhs| B::complex_mul_scalar(lhs, rhs) => Complex)
-    // }
+    fn complex_mul_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
+        unary_complex!(lhs, complex, |lhs| B::complex_mul_scalar(lhs, rhs) => Complex)
+    }
 
     fn complex_div(lhs: ComplexTensor<Self>, rhs: ComplexTensor<Self>) -> ComplexTensor<Self> {
         binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_div(lhs, rhs) => Complex)
     }
 
-    // fn complex_div_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
-    //     unary_complex!(lhs, complex, |lhs| B::complex_div_scalar(lhs, rhs) => Complex)
-    // }
+    fn complex_div_scalar(lhs: ComplexTensor<Self>, rhs: Scalar) -> ComplexTensor<Self> {
+        unary_complex!(lhs, complex, |lhs| B::complex_div_scalar(lhs, rhs) => Complex)
+    }
 
     fn complex_remainder(
         lhs: ComplexTensor<Self>,
@@ -321,6 +317,13 @@ impl ComplexTensorOps<Self> for Dispatch {
         unary_complex!(tensor, complex, |tensor| B::complex_expand(tensor, shape) => Complex)
     }
 
+    fn complex_atan2(
+        lhs: burn_backend::ComplexTensor<Self>,
+        rhs: burn_backend::ComplexTensor<Self>,
+    ) -> burn_backend::ComplexTensor<Self> {
+        binary_complex!((lhs, complex), (rhs, complex), |lhs, rhs| B::complex_atan2(lhs, rhs) => Complex)
+    }
+
     fn complex_unfold(
         tensor: ComplexTensor<Self>,
         dim: usize,
@@ -448,20 +451,6 @@ impl ComplexTensorOps<Self> for Dispatch {
         unary_complex!(tensor, complex, |tensor| B::complex_sign(tensor) => Complex)
     }
 
-    async fn complex_into_real_data(
-        tensor: burn_backend::ComplexTensor<Self>,
-    ) -> Result<TensorData, ExecutionError> {
-        unary_complex!(tensor, complex, |tensor| B::complex_into_real_data(tensor)
-            .await)
-    }
-
-    async fn complex_into_imag_data(
-        tensor: burn_backend::ComplexTensor<Self>,
-    ) -> Result<TensorData, ExecutionError> {
-        unary_complex!(tensor, complex, |tensor| B::complex_into_imag_data(tensor)
-            .await)
-    }
-
     async fn complex_into_interleaved_data(
         tensor: burn_backend::ComplexTensor<Self>,
     ) -> Result<TensorData, ExecutionError> {
@@ -550,12 +539,4 @@ impl ComplexTensorOps<Self> for Dispatch {
     ) -> burn_backend::ComplexTensor<Self> {
         unary_complex!(lhs, complex, |lhs| B::complex_powc_scalar(lhs, rhs) => Complex)
     }
-
-    // fn complex_is_nan(tensor: ComplexTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-    //     unary_complex!(tensor, complex, |tensor| B::complex_is_nan(tensor, out_dtype) => Bool)
-    // }
-
-    // fn complex_is_inf(tensor: ComplexTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-    //     unary_complex!(tensor, complex, |tensor| B::complex_is_inf(tensor, out_dtype) => Bool)
-    // }
 }

@@ -253,7 +253,6 @@ impl TensorData {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
             }
-            //what to do here?
             DType::Complex64 => self.assert_eq_elem::<ComplexScalar<f64>>(other),
             DType::Complex32 => self.assert_eq_elem::<ComplexScalar<f32>>(other),
         }

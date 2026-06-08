@@ -1,11 +1,9 @@
-use burn_backend::{ComplexTensorBackend, InterleavedLayout};
+use burn_backend::ComplexTensorBackend;
 
 use crate::{Dispatch, DispatchDevice};
 
 impl ComplexTensorBackend for Dispatch {
     type InnerBackend = Self;
-
-    type Layout = InterleavedLayout;
 
     fn complex_from_real_data(
         data: burn_backend::TensorData,

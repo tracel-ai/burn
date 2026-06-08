@@ -41,7 +41,7 @@ pub mod ops;
 #[doc(hidden)]
 pub mod simd;
 
-pub use backend::{Flex, FlexDevice, SEED, get_seeded_rng};
+pub use backend::{Flex, FlexDevice};
 pub use layout::Layout;
 pub use qtensor::FlexQTensor;
 pub use tensor::FlexTensor;
