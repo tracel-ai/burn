@@ -190,7 +190,7 @@ jobs:
           path: coverage-reports
 
       - name: Codecov upload
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           # Codecov automatically discovers and merges multiple lcov files inside this directory
           directory: coverage-reports
