@@ -5,7 +5,7 @@ use std::{
 
 use std::collections::HashMap;
 
-use super::{DistributedBackend, DistributedConfig, client::DistributedSyncClient};
+use super::{DistributedConfig, DistributedOps, client::DistributedSyncClient};
 
 /// The type-erased box type for [`DistributedSyncClient`].
 type ClientBox = Box<dyn Any + Send + Sync>;
@@ -23,7 +23,7 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
 }
 
 /// Get the distributed sync client for the given [DistributedBackend].
-pub fn get_distributed_sync_client<B: DistributedBackend>() -> Option<DistributedSyncClient<B>> {
+pub fn get_distributed_sync_client<B: DistributedOps>() -> Option<DistributedSyncClient<B>> {
     let typeid = TypeId::of::<B>();
     let state_map = get_backend_client_map();
     state_map
@@ -32,14 +32,14 @@ pub fn get_distributed_sync_client<B: DistributedBackend>() -> Option<Distribute
 }
 
 /// Remove the client form the map for the given [DistributedBackend].
-pub(crate) fn remove_distributed_sync_client<B: DistributedBackend>() {
+pub(crate) fn remove_distributed_sync_client<B: DistributedOps>() {
     let typeid = TypeId::of::<B>();
     let mut state_map = get_backend_client_map();
     state_map.remove(&typeid);
 }
 
 /// Starts the server used to sync the gradients of parameters sharded across multiple devices.
-pub fn start_distributed_sync_server<B: DistributedBackend>(
+pub fn start_distributed_sync_server<B: DistributedOps>(
     devices: &[B::Device],
     config: DistributedConfig,
 ) {
@@ -52,7 +52,7 @@ pub fn start_distributed_sync_server<B: DistributedBackend>(
 }
 
 /// Close the gradient syncing server.
-pub fn close_distributed_sync_server<B: DistributedBackend>() {
+pub fn close_distributed_sync_server<B: DistributedOps>() {
     if let Some(client) = get_distributed_sync_client::<B>() {
         client.close();
         remove_distributed_sync_client::<B>();

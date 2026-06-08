@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use crate::{DeviceId, DeviceOps, tensor::Device};
 
 use crate::distributed::{
-    DistributedBackend, DistributedConfig, DistributedParamId, DistributedParams, TensorRef,
+    DistributedConfig, DistributedOps, DistributedParamId, DistributedParams, TensorRef,
     client::DistributedSyncMessage,
 };
 
-pub(crate) struct DistributedSyncServer<B: DistributedBackend> {
+pub(crate) struct DistributedSyncServer<B: DistributedOps> {
     config: DistributedConfig,
     all_reduce_ops_queue: HashMap<DistributedParamId, Vec<TensorRef<B>>>,
     param_required_map: HashMap<DistributedParamId, usize>,
@@ -18,7 +18,7 @@ pub(crate) struct DistributedSyncServer<B: DistributedBackend> {
     callbacks: HashMap<DeviceId, oneshot::Sender<Box<dyn FnOnce() + Send>>>,
 }
 
-impl<B: DistributedBackend> DistributedSyncServer<B> {
+impl<B: DistributedOps> DistributedSyncServer<B> {
     /// Create a new gradient sync server instance.
     pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
         Self {

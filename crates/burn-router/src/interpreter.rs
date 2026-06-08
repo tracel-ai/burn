@@ -9,7 +9,8 @@ use crate::{
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use burn_backend::{
-    Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp,
+    Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, distributed::DistributedOps,
+    tensor::IndexingUpdateOp,
 };
 use burn_ir::{
     ActivationOperationIr, BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr,
@@ -2076,12 +2077,10 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
 
-                    let output = B::float_all_reduce(tensor, desc.op, device_ids);
+                    let output = <B as DistributedOps>::all_reduce(tensor, desc.op, device_ids);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                burn_ir::DistributedOperationIr::SyncCollective => {
-                    B::sync_distributed(&self.device)
-                }
+                burn_ir::DistributedOperationIr::SyncCollective => B::sync_collective(&self.device),
             },
         }
     }

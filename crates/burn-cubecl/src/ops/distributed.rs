@@ -1,7 +1,7 @@
 use burn_backend::{
     DeviceId, TensorMetadata,
     cubecl::dtype_to_elem_type,
-    distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
+    distributed::{CollectiveTensor, DistributedOps, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
 use burn_ir::BackendIr;
@@ -21,7 +21,7 @@ pub(crate) fn float_all_reduce<B>(
     device_ids: Vec<DeviceId>,
 ) -> FloatTensor<B>
 where
-    B: BackendIr + DistributedBackend,
+    B: BackendIr + DistributedOps,
 {
     let output = B::all_reduce(tensor, op, device_ids);
     // Safety: the collective tensor is immediately registered and not accessed before the
@@ -35,12 +35,12 @@ where
 /// remote backend) can resolve collective operations.
 pub(crate) fn sync_distributed<B>(device: &Device<B>)
 where
-    B: BackendIr + DistributedBackend,
+    B: BackendIr + DistributedOps,
 {
     B::sync_collective(device);
 }
 
-impl<R: CubeRuntime> DistributedBackend for CubeBackend<R> {
+impl<R: CubeRuntime> DistributedOps for CubeBackend<R> {
     fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,

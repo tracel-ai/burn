@@ -133,20 +133,6 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor.into()
     }
-
-    #[cfg(feature = "distributed")]
-    fn float_all_reduce(
-        tensor: FloatTensor<Self>,
-        op: burn_backend::distributed::ReduceOperation,
-        device_ids: Vec<burn_backend::DeviceId>,
-    ) -> FloatTensor<Self> {
-        crate::ops::distributed::float_all_reduce::<Self>(tensor, op, device_ids)
-    }
-
-    #[cfg(feature = "distributed")]
-    fn sync_distributed(device: &Self::Device) {
-        crate::ops::distributed::sync_distributed::<Self>(device)
-    }
 }
 
 impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {

@@ -1,6 +1,7 @@
 use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
+use crate::distributed::DistributedOps;
 pub use crate::element::Element;
 use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
@@ -89,6 +90,7 @@ pub trait Backend:
     + ActivationOps<Self>
     + QTensorOps<Self>
     + TransactionOps<Self>
+    + DistributedOps<Self>
     + Clone
     + Default
     + Sized

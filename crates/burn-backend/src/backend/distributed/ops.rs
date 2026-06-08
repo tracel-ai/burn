@@ -26,14 +26,14 @@ unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 // * `submit_gradient_sync`
 
 /// Operations on communication tensors.
-pub trait DistributedBackend: Backend {
+pub trait DistributedOps<B: Backend> {
     /// Start the communication server used to orchestrate tensor syncing between devices.
     ///
     /// # Arguments
     ///
     /// * `devices` - The devices to orchestrate.
-    fn start_communication_server(devices: &[Self::Device], config: DistributedConfig) {
-        start_distributed_sync_server::<Self>(devices, config);
+    fn start_communication_server(devices: &[B::Device], config: DistributedConfig) {
+        start_distributed_sync_server::<B>(devices, config);
     }
 
     /// Close the communication server used to orchestrate syncing between devices.
@@ -41,8 +41,8 @@ pub trait DistributedBackend: Backend {
     /// # Arguments
     ///
     /// * `device` - A device on the backend.
-    fn close_communication_server(_device: &Self::Device) {
-        close_distributed_sync_server::<Self>();
+    fn close_communication_server(_device: &B::Device) {
+        close_distributed_sync_server::<B>();
     }
 
     /// Register the parameters that will require gradient synchronization for the upcoming backward pass.
@@ -54,11 +54,8 @@ pub trait DistributedBackend: Backend {
     ///
     /// * `device` - The device calling the initialization.
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
-    fn register_sync_parameters(
-        _device: &Self::Device,
-        distributed_params: Vec<DistributedParams>,
-    ) {
-        if let Some(sync_client) = get_distributed_sync_client::<Self>() {
+    fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
+        if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.register_sync_parameters(distributed_params);
         };
     }
@@ -68,8 +65,8 @@ pub trait DistributedBackend: Backend {
     /// # Arguments
     ///
     /// * `device` - The device on which to sync.
-    fn submit_sync_collective(device: &Self::Device) {
-        if let Some(sync_client) = get_distributed_sync_client::<Self>() {
+    fn submit_sync_collective(device: &B::Device) {
+        if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_sync_collective(device.clone());
         };
     }
@@ -83,8 +80,8 @@ pub trait DistributedBackend: Backend {
     ///
     /// * `tensor` - The tensor to synchronize.
     /// * `distributed_params` - The [`DistributedParams`] for the parameter.
-    fn submit_gradient_sync(tensor: TensorRef<Self>, distributed_params: DistributedParams) {
-        if let Some(sync_client) = get_distributed_sync_client::<Self>() {
+    fn submit_gradient_sync(tensor: TensorRef<B>, distributed_params: DistributedParams) {
+        if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_gradient_sync(tensor, distributed_params);
         };
     }
@@ -100,10 +97,10 @@ pub trait DistributedBackend: Backend {
     ///
     /// The corresponding [CollectiveTensor].
     fn all_reduce(
-        _tensor: FloatTensor<Self>,
+        _tensor: FloatTensor<B>,
         _op: ReduceOperation,
         _device_ids: Vec<DeviceId>,
-    ) -> CollectiveTensor<Self> {
+    ) -> CollectiveTensor<B> {
         unimplemented!()
     }
 
@@ -112,7 +109,7 @@ pub trait DistributedBackend: Backend {
     /// # Arguments
     ///
     /// * `device` - The device to sync.
-    fn sync_collective(_device: &Self::Device) {
+    fn sync_collective(_device: &B::Device) {
         unimplemented!()
     }
 
@@ -129,8 +126,8 @@ pub trait DistributedBackend: Backend {
     /// # Safety
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
-    unsafe fn comm_device(tensor: &TensorRef<Self>) -> Device<Self> {
-        unsafe { Self::float_device(&(*tensor.0)) }
+    unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
+        unsafe { B::float_device(&(*tensor.0)) }
     }
 
     /// Returns a clone of the float tensor from the tensor reference.
@@ -146,7 +143,7 @@ pub trait DistributedBackend: Backend {
     /// # Safety
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
-    unsafe fn float_from_ref(tensor: &TensorRef<Self>) -> FloatTensor<Self> {
+    unsafe fn float_from_ref(tensor: &TensorRef<B>) -> FloatTensor<B> {
         unsafe { (*tensor.0).clone() }
     }
 }

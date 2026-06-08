@@ -16,7 +16,7 @@ use alloc::sync::Arc;
 use portable_atomic_util::Arc;
 
 #[cfg(feature = "distributed")]
-use burn_backend::distributed::{DistributedBackend, DistributedParamId, DistributedParams};
+use burn_backend::distributed::{DistributedOps, DistributedParamId, DistributedParams};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -235,7 +235,7 @@ impl<B: Backend> AutodiffTensor<B> {
 }
 
 #[cfg(feature = "distributed")]
-impl<B: DistributedBackend> AutodiffTensor<B> {
+impl<B: DistributedOps> AutodiffTensor<B> {
     pub fn backward(self) -> Gradients {
         let device = B::float_device(&self.primitive);
         let device_cloned = device.clone();

@@ -193,9 +193,9 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
 /// operations through fusion. The only in-tree fusion backend (`CubeBackend`) satisfies it
 /// unconditionally.
 #[cfg(feature = "distributed")]
-pub trait MaybeDistributedBackend: burn_backend::distributed::DistributedBackend {}
+pub trait MaybeDistributedBackend: burn_backend::distributed::DistributedOps {}
 #[cfg(feature = "distributed")]
-impl<B: burn_backend::distributed::DistributedBackend> MaybeDistributedBackend for B {}
+impl<B: burn_backend::distributed::DistributedOps> MaybeDistributedBackend for B {}
 
 /// Bound that adds a `DistributedBackend` requirement when the `distributed` feature is enabled,
 /// and is a no-op otherwise. See the `distributed`-enabled definition for details.
@@ -256,28 +256,5 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
-    }
-
-    // The `MaybeDistributedBackend` supertrait on `FusionBackend` guarantees `Self:
-    // DistributedBackend` under the `distributed` feature, so the remote/router interpreter can
-    // drive collectives through fusion just like the cube backend. `all_reduce` registers the op
-    // into the fusion stream; we resolve it eagerly here because the interpreter hands back a
-    // concrete handle.
-    #[cfg(feature = "distributed")]
-    fn float_all_reduce(
-        tensor: FloatTensor<Self>,
-        op: burn_backend::distributed::ReduceOperation,
-        device_ids: Vec<burn_backend::DeviceId>,
-    ) -> FloatTensor<Self> {
-        use burn_backend::distributed::DistributedBackend;
-
-        let output = Self::all_reduce(tensor, op, device_ids);
-        // Safety: immediately registered, not accessed before the collective resolves.
-        unsafe { output.assume_resolved() }
-    }
-
-    #[cfg(feature = "distributed")]
-    fn sync_distributed(device: &Self::Device) {
-        <Self as burn_backend::distributed::DistributedBackend>::sync_collective(device)
     }
 }

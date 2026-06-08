@@ -4,7 +4,7 @@ use crate::{
     stream::{StreamId, execution::Operation},
 };
 #[cfg(feature = "distributed")]
-use burn_backend::distributed::DistributedBackend;
+use burn_backend::distributed::DistributedOps;
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
 #[cfg(feature = "distributed")]
 use burn_std::CommunicationId;
@@ -405,7 +405,7 @@ where
     #[cfg(feature = "distributed")]
     pub fn sync_collective<B>(&self, device: &B::Device)
     where
-        B: FusionBackend<FusionRuntime = R> + DistributedBackend,
+        B: FusionBackend<FusionRuntime = R> + DistributedOps,
     {
         // Ensure that all operations are resolved before calling sync_collective.
         self.sync(|| ());
@@ -417,7 +417,7 @@ where
     #[cfg(feature = "distributed")]
     pub fn ensure_collective_init<B>(&self, device_ids: Vec<DeviceId>)
     where
-        B: FusionBackend<FusionRuntime = R> + DistributedBackend,
+        B: FusionBackend<FusionRuntime = R> + DistributedOps,
     {
         let utilities = self
             .server

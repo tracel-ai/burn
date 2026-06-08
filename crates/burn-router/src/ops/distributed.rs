@@ -2,14 +2,14 @@ use alloc::vec::Vec;
 
 use burn_backend::{
     DeviceId,
-    distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
+    distributed::{CollectiveTensor, DistributedOps, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
 use burn_ir::{AllReduceOpIr, DeviceIdIr, DistributedOperationIr, OperationIr, OperationOutput};
 
 use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
 
-impl<R: RouterChannel> DistributedBackend for BackendRouter<R> {
+impl<R: RouterChannel> DistributedOps for BackendRouter<R> {
     fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,

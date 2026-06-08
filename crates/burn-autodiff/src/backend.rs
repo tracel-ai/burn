@@ -12,7 +12,7 @@ use burn_backend::{
 };
 
 #[cfg(feature = "distributed")]
-use burn_backend::distributed::{DistributedBackend, DistributedParamId, DistributedParams};
+use burn_backend::distributed::{DistributedOps, DistributedParamId, DistributedParams};
 
 /// Enable auto-differentiation on a backend.
 ///
@@ -150,7 +150,7 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
 }
 
 #[cfg(feature = "distributed")]
-impl<B: DistributedBackend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
+impl<B: DistributedOps, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type InnerBackend = B;
     type Gradients = Gradients;
 

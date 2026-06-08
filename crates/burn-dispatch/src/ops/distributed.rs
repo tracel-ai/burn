@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use burn_backend::{
     DeviceId,
     distributed::{
-        CollectiveTensor, DistributedBackend, DistributedConfig, DistributedParams,
-        ReduceOperation, TensorRef,
+        CollectiveTensor, DistributedConfig, DistributedOps, DistributedParams, ReduceOperation,
+        TensorRef,
     },
     tensor::FloatTensor,
 };
@@ -103,7 +103,7 @@ macro_rules! dispatch_distributed_devices {
     };
 }
 
-impl DistributedBackend for Dispatch {
+impl DistributedOps for Dispatch {
     fn start_communication_server(devices: &[DispatchDevice], config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];
