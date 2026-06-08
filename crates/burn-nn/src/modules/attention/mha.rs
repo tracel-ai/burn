@@ -40,6 +40,22 @@ pub struct MultiHeadAttentionConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+
+    /// Enable bias for the key [Linear] layer.
+    #[config(default = true)]
+    pub enable_key_bias: bool,
+
+    /// Enable bias for the value [Linear] layer.
+    #[config(default = true)]
+    pub enable_value_bias: bool,
+
+    /// Enable bias for the query [Linear] layer.
+    #[config(default = true)]
+    pub enable_query_bias: bool,
+
+    /// Enable bias for the output [Linear] layer.
+    #[config(default = true)]
+    pub enable_output_bias: bool,
 }
 
 /// The multihead attention module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -114,17 +130,26 @@ pub struct MhaInput {
 impl MultiHeadAttentionConfig {
     /// Initialize a new [multihead attention](MultiHeadAttention) module.
     pub fn init(&self, device: &Device) -> MultiHeadAttention {
-        let linear = |config: &Self| {
-            LinearConfig::new(config.d_model, config.d_model)
-                .with_initializer(self.initializer.clone())
-                .init(device)
-        };
+        let linear_cfg = LinearConfig::new(self.d_model, self.d_model)
+            .with_initializer(self.initializer.clone());
 
         MultiHeadAttention {
-            query: linear(self),
-            key: linear(self),
-            value: linear(self),
-            output: linear(self),
+            query: linear_cfg
+                .clone()
+                .with_bias(self.enable_query_bias)
+                .init(device),
+            key: linear_cfg
+                .clone()
+                .with_bias(self.enable_key_bias)
+                .init(device),
+            value: linear_cfg
+                .clone()
+                .with_bias(self.enable_value_bias)
+                .init(device),
+            output: linear_cfg
+                .clone()
+                .with_bias(self.enable_output_bias)
+                .init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
             activation: Gelu::new(),
             n_heads: self.n_heads,
