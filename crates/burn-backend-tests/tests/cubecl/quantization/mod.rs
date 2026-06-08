@@ -2,6 +2,7 @@ pub use super::*;
 
 mod quantize_dequantize;
 mod reshape;
+mod slice;
 
 fn supports_native() -> bool {
     let name = format!("{:?}", burn_tensor::Device::default());

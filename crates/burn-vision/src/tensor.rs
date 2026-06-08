@@ -71,20 +71,20 @@ impl ConnectedComponents for Tensor<2, Bool> {
     ) -> (Tensor<2, Int>, ConnectedStats) {
         println!("Tensor::connected_components_with_stats");
         let settings = self.device().settings();
-        let (labels, area, left, top, right, bottom, max_label) =
-            <Dispatch as BoolVisionOps>::connected_components_with_stats(
-                self.into_primitive(),
-                connectivity,
-                options,
-                settings.int_dtype,
-            );
+        let (labels, stats) = <Dispatch as BoolVisionOps>::connected_components_with_stats(
+            self.into_primitive(),
+            connectivity,
+            options,
+            settings.int_dtype,
+        );
+
         let stats = ConnectedStats {
-            area: Tensor::from_primitive(area),
-            left: Tensor::from_primitive(left),
-            top: Tensor::from_primitive(top),
-            right: Tensor::from_primitive(right),
-            bottom: Tensor::from_primitive(bottom),
-            max_label: Tensor::from_primitive(max_label),
+            area: Tensor::from_primitive(stats.area),
+            left: Tensor::from_primitive(stats.left),
+            top: Tensor::from_primitive(stats.top),
+            right: Tensor::from_primitive(stats.right),
+            bottom: Tensor::from_primitive(stats.bottom),
+            max_label: Tensor::from_primitive(stats.max_label),
         };
         (Tensor::from_primitive(labels), stats)
     }

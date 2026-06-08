@@ -116,6 +116,8 @@ pub fn handle_command(
                 threads: None,
                 jobs: None,
                 command: Some(TestSubCommand::All),
+                // NOTE: this will only run `CiTestType::Backends` (burn-backend-tests)
+                // for local sanity checks this is a quick approach to validating after no-std tests + cargo build
                 ci: CiTestType::GithubRunner,
                 features: None,
                 no_default_features: false,

@@ -198,9 +198,17 @@ model.save_into(&mut store)?;
 
 ### Handling Load Results
 
-The `load_from` method returns detailed information about the loading process:
+The `load_from` method returns detailed information about the loading process.
+
+> **Note:** Inspecting `result.missing`, `result.errors`, etc. requires the store to be configured with
+> [`.allow_partial(true)`](#partial-loading). Without it, a missing tensor causes a hard `Err`
+> before you ever receive an `ApplyResult`.
 
 ```rust, ignore
+// Use .allow_partial(true) to get an ApplyResult with structured info
+let mut store = PytorchStore::from_file("pretrained.pt")
+    .allow_partial(true);
+
 let result = model.load_from(&mut store)?;
 
 // Print a formatted summary with suggestions
@@ -213,6 +221,15 @@ println!("Errors: {:?}", result.errors);
 
 if result.is_success() {
     println!("All tensors loaded successfully");
+}
+```
+
+If you don't use `.allow_partial(true)`, use normal error handling:
+
+```rust, ignore
+match model.load_from(&mut store) {
+    Ok(result) => println!("Loaded successfully: {} tensors", result.applied.len()),
+    Err(e) => eprintln!("Failed to load: {e}"),
 }
 ```
 

@@ -5,7 +5,8 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{
-    FnArg, Ident, ItemTrait, Meta, Pat, ReturnType, Token, TraitItem, Type, parse_macro_input,
+    FnArg, Ident, ItemStruct, ItemTrait, Meta, Pat, ReturnType, Token, TraitItem, Type,
+    parse_macro_input,
 };
 
 /// # `backend_extension`
@@ -156,10 +157,25 @@ struct OperationArg {
     kind: ArgKind,
 }
 
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone)]
+enum OutputKind {
+    Tensor(TensorKind),
+    Custom(Type),
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone)]
+enum OperationOutput {
+    Tensor(TensorKind),
+    Tuple(Vec<OutputKind>),
+    Custom(Type),
+}
+
 struct Operation {
     name: Ident,
     inputs: Vec<OperationArg>,
-    outputs: Vec<TensorKind>,
+    output: OperationOutput,
 }
 
 struct Extension {
@@ -266,37 +282,42 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
             inputs.push(OperationArg { name, kind });
         }
 
-        // Parse Outputs (Support single type or tuple)
-        let mut outputs = Vec::new();
-        match &f.sig.output {
-            ReturnType::Default => {}
+        // Parse outputs
+        let output = match &f.sig.output {
+            ReturnType::Default => {
+                return Err(syn::Error::new_spanned(
+                    &f.sig.output,
+                    "Operations must return a value",
+                ));
+            }
             ReturnType::Type(_, ty) => {
-                // TODO: expand support for vec, nested containers, and possibly custom structs
-                // (requires though since we have no type information)
-                if let syn::Type::Tuple(tup) = ty.as_ref() {
-                    for elem in &tup.elems {
-                        outputs.push(TensorKind::from_type(elem).ok_or_else(|| {
-                            syn::Error::new_spanned(
-                                elem,
-                                "Tuple elements must be Float, Int, or Bool",
-                            )
-                        })?);
-                    }
+                // TODO: expand support for vec and maybe nested containers
+                if let Type::Tuple(tup) = ty.as_ref() {
+                    let elements = tup
+                        .elems
+                        .iter()
+                        .map(|elem| {
+                            if let Some(kind) = TensorKind::from_type(elem) {
+                                Ok(OutputKind::Tensor(kind))
+                            } else {
+                                Ok(OutputKind::Custom(elem.clone()))
+                            }
+                        })
+                        .collect::<syn::Result<Vec<_>>>()?;
+                    OperationOutput::Tuple(elements)
+                } else if let Some(kind) = TensorKind::from_type(ty) {
+                    OperationOutput::Tensor(kind)
                 } else {
-                    outputs.push(TensorKind::from_type(ty).ok_or_else(|| {
-                        syn::Error::new_spanned(
-                            ty,
-                            "Return must be Float, Int, Bool, or a tuple of them",
-                        )
-                    })?);
+                    // ExtensionType
+                    OperationOutput::Custom(*ty.clone())
                 }
             }
-        }
+        };
 
         ops.push(Operation {
             name: f.sig.ident.clone(),
             inputs,
-            outputs,
+            output,
         });
     }
 
@@ -307,28 +328,8 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
     })
 }
 
-fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
+fn expand_extension(ir: Extension, original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
-
-    // Rewrite the original trait to use full Burn types
-    for item in &mut original_trait.items {
-        if let TraitItem::Fn(f) = item {
-            for arg in &mut f.sig.inputs {
-                if let FnArg::Typed(pt) = arg
-                    && let Some(kind) = TensorKind::from_type(&pt.ty)
-                {
-                    let ty = kind.to_primitive_ty();
-                    *pt.ty = syn::parse2(ty).unwrap();
-                }
-            }
-            if let ReturnType::Type(_, ty) = &mut f.sig.output
-                && let Some(kind) = TensorKind::from_type(ty)
-            {
-                let new_ty = kind.to_primitive_ty();
-                **ty = syn::parse2(new_ty).unwrap();
-            }
-        }
-    }
 
     // Generate Dispatch Implementation
     let dispatch_methods = ir.ops.iter().map(|op| gen_dispatch_method(&ir, op));
@@ -352,7 +353,6 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         .as_ref()
         .map(|meta| quote! { #[#meta] });
 
-    // Signature generation
     let sig_args = op.inputs.iter().map(|arg| {
         let name = &arg.name;
         match &arg.kind {
@@ -364,16 +364,18 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         }
     });
 
-    let ret_ty = match op.outputs.len() {
-        0 => unimplemented!(), // TODO: error?
-        1 => op.outputs[0].to_primitive_ty(),
-        _ => {
-            let types = op.outputs.iter().map(|k| k.to_primitive_ty());
+    let ret_ty = match &op.output {
+        OperationOutput::Tensor(k) => k.to_primitive_ty(),
+        OperationOutput::Tuple(elems) => {
+            let types = elems.iter().map(|e| match e {
+                OutputKind::Tensor(k) => k.to_primitive_ty(),
+                OutputKind::Custom(ty) => quote! { #ty },
+            });
             quote! { (#(#types),*) }
         }
+        OperationOutput::Custom(ty) => quote! { #ty },
     };
 
-    // Match inputs
     let tensor_inputs: Vec<_> = op
         .inputs
         .iter()
@@ -382,8 +384,9 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
             _ => None,
         })
         .collect();
+
     let match_inputs = match tensor_inputs.len() {
-        0 => unimplemented!(), // TODO: error?
+        0 => quote! { () },
         1 => {
             let name = tensor_inputs[0];
             quote! { #name.kind }
@@ -394,20 +397,17 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         }
     };
 
-    // Checkpointing logic (when applicable, just check first tensor)
     let first_tensor = op.inputs.iter().find_map(|a| match &a.kind {
         ArgKind::Tensor(_) => Some(&a.name),
         _ => None,
     });
+
     let ckp_logic = if let Some(name) = first_tensor {
-        quote! {
-            let checkpointing = #name.checkpointing.clone();
-        }
+        quote! { let checkpointing = #name.checkpointing.clone(); }
     } else {
-        quote! {}
+        quote! { let checkpointing = None; }
     };
 
-    // Match arms for DispatchTensorKind::$Backends
     let concrete_arms = ir
         .backends
         .concrete
@@ -419,39 +419,15 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         None
     };
 
-    // Wrap the resulting tensor(s)
-    // If the macro is in AD-mode, we include the field. If not, we don't.
-    let wrap_output = |kinds_access: TokenStream2| {
-        quote! {
-            burn::backend::DispatchTensor {
-                kind: #kinds_access,
-                checkpointing: checkpointing.clone(), // Field always present, but None when not autodiff
-            }
-        }
-    };
-
-    let final_return = if op.outputs.len() == 1 {
-        wrap_output(quote! { _kinds })
-    } else {
-        let wraps = op.outputs.iter().enumerate().map(|(i, _)| {
-            let idx = syn::Index::from(i);
-            wrap_output(quote! { _kinds.#idx })
-        });
-        quote! { (#(#wraps),*) }
-    };
-
     quote! {
         fn #name(#(#sig_args),*) -> #ret_ty {
             #ckp_logic
-
-            let _kinds = match #match_inputs {
+            match #match_inputs {
                 #( #concrete_arms )*
                 #ad_cfg_attr
                 #ad_arm
                 _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
-            };
-
-            #final_return
+            }
         }
     }
 }
@@ -494,7 +470,36 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
 
     // Call the method and wrap the result
     let call_args = op.inputs.iter().map(|a| &a.name);
-    let wrap_out = gen_result_wrap(op, &b_ident, false);
+    let wrap_out = match &op.output {
+        OperationOutput::Tensor(kind) => {
+            let wrapped = gen_tensor_wrap(kind, quote! { _out }, &b_ident, false);
+            quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
+        }
+        OperationOutput::Tuple(elems) => {
+            let elements = elems.iter().enumerate().map(|(i, elem)| {
+                let idx = syn::Index::from(i);
+                match elem {
+                    OutputKind::Tensor(kind) => {
+                        let wrapped = gen_tensor_wrap(kind, quote! { _out.#idx }, &b_ident, false);
+                        quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
+                    }
+                    OutputKind::Custom(_) => {
+                        quote! {
+                            burn::backend::ExtensionType::map_type(
+                                _out.#idx,
+                                |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor),
+                                checkpointing,
+                            )
+                        }
+                    }
+                }
+            });
+            quote! { (#(#elements),*) }
+        }
+        OperationOutput::Custom(_) => {
+            quote! { burn::backend::ExtensionType::map_type(_out, |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor), checkpointing) }
+        }
+    };
 
     quote! {
         #cfg_attr
@@ -570,7 +575,53 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
         });
 
         let call_args = op.inputs.iter().map(|a| &a.name);
-        let wrap_out = gen_result_wrap(op, &b_ident, true);
+        let wrap_out = match &op.output {
+            OperationOutput::Tensor(kind) => {
+                let wrapped = gen_tensor_wrap(kind, quote! { _out }, &b_ident, true);
+                quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
+            }
+            OperationOutput::Tuple(elems) => {
+                let elements = elems.iter().enumerate().map(|(i, elem)| {
+                let idx = syn::Index::from(i);
+                match elem {
+                    OutputKind::Tensor(kind) => {
+                        let wrapped = gen_tensor_wrap(kind, quote! { _out.#idx }, &b_ident, true);
+                        quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
+                    }
+                    OutputKind::Custom(_) => {
+                        quote! {
+                            burn::backend::ExtensionType::map_type(
+                                _out.#idx,
+                                |tensor| match tensor {
+                                    burn::backend::BackendTensor::Float(t) => {
+                                        burn::backend::DispatchTensorKind::Autodiff(
+                                            Box::new(burn::backend::DispatchTensorKind::#b_ident(
+                                                burn::backend::BackendTensor::Autodiff(t)
+                                            ))
+                                        )
+                                    }
+                                    _ => burn::backend::DispatchTensorKind::#b_ident(tensor),
+                                },
+                                checkpointing,
+                            )
+                        }
+                    }
+                }
+            });
+                quote! { (#(#elements),*) }
+            }
+            OperationOutput::Custom(_) => {
+                quote! { burn::backend::ExtensionType::map_type(_out, |tensor| match tensor {
+                    burn::backend::BackendTensor::Float(t) => {
+                        burn::backend::DispatchTensorKind::Autodiff(
+                            Box::new(burn::backend::DispatchTensorKind::#b_ident(
+                                burn::backend::BackendTensor::Autodiff(t)
+                            ))
+                        )
+                    }
+                }, checkpointing) }
+            }
+        };
 
         quote! {
             #cfg_attr
@@ -588,41 +639,117 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
     }
 }
 
-fn gen_result_wrap(op: &Operation, b_ident: &Ident, is_ad: bool) -> TokenStream2 {
-    let wrap_item = |kind: TensorKind, val: TokenStream2| {
-        let variant = kind.variant();
-        if is_ad && kind == TensorKind::Float {
-            // Wrap as Autodiff(Backend(Autodiff(tensor)))
-            quote! {
-                burn::backend::DispatchTensorKind::Autodiff(
-                    Box::new(burn::backend::DispatchTensorKind::#b_ident(
-                        burn::backend::BackendTensor::Autodiff(#val)
-                    ))
-                )
-            }
-        } else {
-            quote! {
-                burn::backend::DispatchTensorKind::#b_ident(
-                    burn::backend::BackendTensor::#variant(#val)
-                )
-            }
+fn gen_tensor_wrap(
+    kind: &TensorKind,
+    val: TokenStream2,
+    b_ident: &Ident,
+    is_ad: bool,
+) -> TokenStream2 {
+    let variant = kind.variant();
+    if is_ad && *kind == TensorKind::Float {
+        quote! {
+            burn::backend::DispatchTensorKind::Autodiff(
+                Box::new(burn::backend::DispatchTensorKind::#b_ident(
+                    burn::backend::BackendTensor::Autodiff(#val)
+                ))
+            )
         }
+    } else {
+        quote! {
+            burn::backend::DispatchTensorKind::#b_ident(
+                burn::backend::BackendTensor::#variant(#val)
+            )
+        }
+    }
+}
+
+/// Derive macro to implement `ExtensionType` for custom structures returned by backend extensions.
+///
+/// When a custom backend extension operation needs to return multiple tensors or a mix of tensors
+/// and metadata (instead of a single tensor primitive or container of primitives), this macro automates
+/// the process of wrapping the tensor primitives so they can cross the boundary into the `Dispatch` backend.
+///
+/// # Requirements
+///
+/// - The struct must have named fields.
+/// - The struct must be generic over a `Backend` type parameter (`B`).
+///
+/// # Field Attributes
+///
+/// By default, the macro inspects the type of each field:
+/// - **Tensor Primitives**: Automatically mapped.
+/// - **Other types**: Passed through unmodified.
+///
+/// To nest another custom struct that also implements `ExtensionType`, you must annotate it with
+/// `#[extension_type]` to tell the macro to traverse it recursively.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// #[derive(ExtensionType)]
+/// pub struct OperationOutput<B: Backend> {
+///     pub bool: BoolTensor<B>,
+///     pub int: IntTensor<B>,
+///     pub float: FloaTensor<B>,
+///     pub count: usize, // Non-tensor field passes through automatically
+/// }
+/// ```
+#[proc_macro_derive(ExtensionType, attributes(extension_type))]
+pub fn derive_extension_output(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as ItemStruct);
+    let name = &input.ident;
+
+    // Extract generics for the trait implementation block
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let fields_wrap = match &input.fields {
+        syn::Fields::Named(fields) => {
+            let field_mappings = fields.named.iter().map(|f| {
+                let f_name = &f.ident;
+                let is_ext = f.attrs.iter().any(|attr| attr.path().is_ident("extension_type"));
+
+                if is_ext {
+                    // It's a nested extension type
+                    quote! {
+                        #f_name: self.#f_name.map_type(
+                            &map_kind,
+                            checkpointing
+                        ),
+                    }
+                }
+                else if let Some(tensor_kind) = TensorKind::from_type(&f.ty) {
+                    // Tensor primitive
+                    let variant_ident = tensor_kind.variant();
+                    quote! {
+                        #f_name: burn::backend::DispatchTensor {
+                            kind: map_kind(burn::backend::BackendTensor::#variant_ident(self.#f_name)),
+                            checkpointing,
+                        },
+                    }
+                } else {
+                    // Passthrough
+                    quote! { #f_name: self.#f_name, }
+                }
+             });
+
+            quote! { #name { #( #field_mappings )* } }
+        }
+        _ => panic!("ExtensionType derive only supports structs with named fields"),
     };
 
-    let wrapped_kinds = match op.outputs.len() {
-        0 => quote! { () },
-        1 => {
-            let kind = wrap_item(op.outputs[0], quote! { _out });
-            quote! { #kind }
-        }
-        _ => {
-            let elements = op.outputs.iter().enumerate().map(|(i, &kind)| {
-                let idx = syn::Index::from(i);
-                wrap_item(kind, quote! { _out.#idx })
-            });
-            quote! { (#(#elements),*) }
-        }
-    };
+    TokenStream::from(quote! {
+        impl #impl_generics burn::backend::ExtensionType<B> for #name #ty_generics #where_clause {
+            type Target = #name<burn::backend::Dispatch>;
 
-    quote! { #wrapped_kinds }
+            fn map_type<F>(
+                self,
+                map_kind: F,
+                checkpointing: Option<burn::backend::CheckpointingStrategy>,
+            ) -> Self::Target
+            where
+                F: Fn(burn::backend::BackendTensor<B>) -> burn::backend::DispatchTensorKind,
+            {
+                #fields_wrap
+            }
+        }
+    })
 }

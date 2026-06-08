@@ -35,9 +35,10 @@ impl DbPediaDataset {
         Self::new("test")
     }
     pub fn new(split: &str) -> Self {
-        let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("dbpedia_14")
-            .dataset(split)
-            .unwrap();
+        let dataset: SqliteDataset<DbPediaItem> =
+            HuggingfaceDatasetLoader::new("fancyzhx/dbpedia_14")
+                .dataset(split)
+                .unwrap();
         Self { dataset }
     }
 }

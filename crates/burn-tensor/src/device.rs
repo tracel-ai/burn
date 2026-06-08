@@ -6,7 +6,7 @@ use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
-use burn_std::{BoolDType, FloatDType, IntDType};
+use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
 #[cfg(feature = "remote")]
 use alloc::string::String;
@@ -371,6 +371,12 @@ impl Device {
         Self::new(DispatchDevice::Wgpu(wgpu_device(device_kind)))
     }
 
+    #[cfg(all(feature = "wgpu", target_family = "wasm"))]
+    /// Asynchronously creates a WGPU device, initializing the client.
+    pub async fn wgpu_async(device_kind: DeviceKind) -> Self {
+        Self::new(DispatchDevice::Wgpu(wgpu_init_async(device_kind).await))
+    }
+
     /// Vulkan-backed WGPU device, selected via [`DeviceKind`].
     ///
     /// Pins the wgpu shader compiler to SPIR-V at compile time, avoiding
@@ -532,6 +538,25 @@ impl Device {
         Dispatch::memory_persistent_allocations(self.as_dispatch(), input, func)
     }
 
+    /// Triggers a memory cleanup on this device.
+    ///
+    /// The amount of memory reclaimed depends on the allocator implementation.
+    /// Calling this method does not guarantee that any memory will be freed.
+    pub fn memory_cleanup(&self) {
+        Dispatch::memory_cleanup(self.as_dispatch());
+    }
+
+    /// Prepares the given data for transfer between the CPU and accelerator devices such as GPUs.
+    ///
+    /// Depending on the backend, the data may be transferred to pinned memory
+    /// or another transfer-optimized format to improve transfer performance.
+    pub fn staging<'a, Iter>(&self, data: Iter)
+    where
+        Iter: Iterator<Item = &'a mut TensorData>,
+    {
+        Dispatch::staging(data, self.as_dispatch());
+    }
+
     /// Returns the [`DeviceSettings`] for this device.
     ///
     /// Settings include the default float and integer data types used when creating
@@ -668,6 +693,17 @@ fn wgpu_device(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
         DeviceKind::DefaultDevice => WgpuDevice::DefaultDevice,
         DeviceKind::Existing(id) => WgpuDevice::Existing(id),
     }
+}
+
+#[cfg(all(feature = "wgpu", target_family = "wasm"))]
+// TODO: this is only helpful for the default graphics api and runtime options.. we'd have to expose other methods but that leaks the types
+// so we might have to introduce some wrapper types.
+async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::WgpuDevice {
+    use burn_dispatch::backends::wgpu::{graphics::AutoGraphicsApi, init_setup_async};
+
+    let device = wgpu_device(device_kind);
+    init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
+    device
 }
 
 // TODO: this is essentially per-backend filter, we could have higher level filters e.g. Cpu (CpuDevice, Ndarray, Flex, LibTorchDevice::Cpu)

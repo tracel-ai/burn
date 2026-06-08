@@ -130,7 +130,7 @@ rstest = { workspace = true }
 serial_test = { workspace = true }
 
 # Default device for tests
-burn-tensor = { workspace = true, features = ["ndarray"] }
+burn-tensor = { workspace = true, features = ["flex"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

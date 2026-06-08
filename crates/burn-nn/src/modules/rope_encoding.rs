@@ -232,6 +232,19 @@ impl RotaryEncoding {
         self.start_offset = start;
     }
 
+    /// Resets the pre-computed rotary frequency window to start at position 0.
+    pub fn reset(&mut self) {
+        if self.start_offset == 0 {
+            return;
+        }
+
+        let max_seq_len = self.freq_complex.dims()[0];
+        let freqs = Self::compute_rotary_frequencies(0..max_seq_len, self.theta.clone());
+        self.freq_complex
+            .inplace(|freq_complex| freq_complex.slice_assign([0..max_seq_len], freqs));
+        self.start_offset = 0;
+    }
+
     /// Computes the positional rotation frequencies (cosine and sine values) used in RoPE.
     ///
     /// # Arguments
@@ -564,6 +577,41 @@ mod tests {
         let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
         rotary_encoding.shift(6);
         rotary_encoding.shift(4); // should be monotonically increasing
+    }
+
+    #[test]
+    fn test_rotary_encoding_reset_after_shift() {
+        let device = Default::default();
+        let rotary_encoding = RotaryEncodingConfig::new(10, 4).init(&device);
+
+        let input = Tensor::<3>::from_floats(
+            [
+                [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
+                [[9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]],
+            ],
+            &device,
+        )
+        .unsqueeze::<4>();
+
+        let expected_output = rotary_encoding.apply(input.clone(), 0);
+        let expected_shifted_output = rotary_encoding.apply(input.clone(), 2);
+
+        let mut rotary_encoding = RotaryEncodingConfig::new(4, 4).init(&device);
+        rotary_encoding.shift(2);
+        rotary_encoding.reset();
+
+        assert_eq!(rotary_encoding.start_offset, 0);
+        let output = rotary_encoding.apply(input.clone(), 0);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected_output.into_data(), Tolerance::default());
+
+        // Reset must also allow subsequent shifts from the beginning again.
+        rotary_encoding.shift(2);
+        let output = rotary_encoding.apply(input, 0);
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected_shifted_output.into_data(), Tolerance::default());
     }
 
     #[test]
