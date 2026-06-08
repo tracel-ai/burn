@@ -195,7 +195,6 @@ jobs:
           # Codecov automatically discovers and merges multiple lcov files inside this directory
           directory: coverage-reports
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: true
 
   linux-no-std-tests:
     runs-on: ubuntu-22.04
