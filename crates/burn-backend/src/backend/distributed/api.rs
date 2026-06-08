@@ -5,7 +5,9 @@ use std::{
 
 use std::collections::HashMap;
 
-use super::{DistributedConfig, DistributedOps, client::DistributedSyncClient};
+use crate::Backend;
+
+use super::{DistributedConfig, client::DistributedSyncClient};
 
 /// The type-erased box type for [`DistributedSyncClient`].
 type ClientBox = Box<dyn Any + Send + Sync>;
@@ -23,7 +25,7 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
 }
 
 /// Get the distributed sync client for the given [DistributedBackend].
-pub fn get_distributed_sync_client<B: DistributedOps>() -> Option<DistributedSyncClient<B>> {
+pub fn get_distributed_sync_client<B: Backend>() -> Option<DistributedSyncClient<B>> {
     let typeid = TypeId::of::<B>();
     let state_map = get_backend_client_map();
     state_map
@@ -32,17 +34,14 @@ pub fn get_distributed_sync_client<B: DistributedOps>() -> Option<DistributedSyn
 }
 
 /// Remove the client form the map for the given [DistributedBackend].
-pub(crate) fn remove_distributed_sync_client<B: DistributedOps>() {
+pub(crate) fn remove_distributed_sync_client<B: Backend>() {
     let typeid = TypeId::of::<B>();
     let mut state_map = get_backend_client_map();
     state_map.remove(&typeid);
 }
 
 /// Starts the server used to sync the gradients of parameters sharded across multiple devices.
-pub fn start_distributed_sync_server<B: DistributedOps>(
-    devices: &[B::Device],
-    config: DistributedConfig,
-) {
+pub fn start_distributed_sync_server<B: Backend>(devices: &[B::Device], config: DistributedConfig) {
     if get_distributed_sync_client::<B>().is_none() {
         let typeid = TypeId::of::<B>();
         let mut state_map = get_backend_client_map();
@@ -52,7 +51,7 @@ pub fn start_distributed_sync_server<B: DistributedOps>(
 }
 
 /// Close the gradient syncing server.
-pub fn close_distributed_sync_server<B: DistributedOps>() {
+pub fn close_distributed_sync_server<B: Backend>() {
     if let Some(client) = get_distributed_sync_client::<B>() {
         client.close();
         remove_distributed_sync_client::<B>();

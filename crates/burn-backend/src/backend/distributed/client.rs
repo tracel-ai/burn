@@ -1,17 +1,18 @@
 use std::{sync::mpsc::Sender, thread::spawn};
 
+use crate::Backend;
 use crate::tensor::Device;
 
 use crate::distributed::{
-    DistributedConfig, DistributedOps, DistributedParams, TensorRef, server::DistributedSyncServer,
+    DistributedConfig, DistributedParams, TensorRef, server::DistributedSyncServer,
 };
 
-pub(crate) enum ActionMessage<B: DistributedOps> {
+pub(crate) enum ActionMessage<B: Backend> {
     Message(DistributedSyncMessage<B>),
     Close(),
 }
 
-pub(crate) enum DistributedSyncMessage<B: DistributedOps> {
+pub(crate) enum DistributedSyncMessage<B: Backend> {
     RegisterSyncParameters(Vec<DistributedParams>),
     TensorSync((TensorRef<B>, DistributedParams)),
     #[allow(clippy::type_complexity)]
@@ -19,11 +20,11 @@ pub(crate) enum DistributedSyncMessage<B: DistributedOps> {
 }
 
 #[derive(Clone)]
-pub struct DistributedSyncClient<B: DistributedOps> {
+pub struct DistributedSyncClient<B: Backend> {
     sender: Sender<ActionMessage<B>>,
 }
 
-impl<B: DistributedOps> DistributedSyncClient<B> {
+impl<B: Backend> DistributedSyncClient<B> {
     pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
 
