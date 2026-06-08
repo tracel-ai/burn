@@ -10,7 +10,7 @@ struct MnistItemRaw {
 fn main() {
     // There are some datasets, such as https://huggingface.co/datasets/ylecun/mnist/tree/main that contains a script,
     // In this cases you must enable trusting remote code execution if you want to use it.
-    let _train_ds: SqliteDataset<MnistItemRaw> = HuggingfaceDatasetLoader::new("mnist")
+    let _train_ds: SqliteDataset<MnistItemRaw> = HuggingfaceDatasetLoader::new("ylecun/mnist")
         .with_trust_remote_code(true)
         .dataset("train")
         .unwrap();
