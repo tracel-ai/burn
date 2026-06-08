@@ -61,7 +61,7 @@ impl AgNewsDataset {
 
     /// Constructs the dataset from a split (either "train" or "test")
     pub fn new(split: &str) -> Self {
-        let dataset: SqliteDataset<AgNewsItem> = HuggingfaceDatasetLoader::new("ag_news")
+        let dataset: SqliteDataset<AgNewsItem> = HuggingfaceDatasetLoader::new("fancyzhx/ag_news")
             .dataset(split)
             .unwrap();
         Self { dataset }
@@ -133,9 +133,10 @@ impl DbPediaDataset {
 
     /// Constructs the dataset from a split (either "train" or "test")
     pub fn new(split: &str) -> Self {
-        let dataset: SqliteDataset<DbPediaItem> = HuggingfaceDatasetLoader::new("dbpedia_14")
-            .dataset(split)
-            .unwrap();
+        let dataset: SqliteDataset<DbPediaItem> =
+            HuggingfaceDatasetLoader::new("fancyzhx/dbpedia_14")
+                .dataset(split)
+                .unwrap();
         Self { dataset }
     }
 }

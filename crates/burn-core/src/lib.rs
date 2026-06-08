@@ -39,7 +39,7 @@ extern crate alloc;
 #[cfg(test)]
 #[allow(missing_docs)]
 pub fn test_device() -> burn_tensor::Device {
-    burn_tensor::Device::ndarray()
+    burn_tensor::Device::flex()
 }
 
 #[cfg(test)]

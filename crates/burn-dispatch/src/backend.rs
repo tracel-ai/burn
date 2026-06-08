@@ -119,9 +119,9 @@ impl Backend for Dispatch {
             DispatchDeviceId::Wgpu => Wgpu::device_count(backend_type_id),
             #[cfg(feature = "webgpu")]
             DispatchDeviceId::WebGpu => WebGpu::device_count(backend_type_id),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => NdArray::device_count(backend_type_id),
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => LibTorch::device_count(backend_type_id),
@@ -171,12 +171,9 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Wgpu(tensor) => tensor.autodiff_float().backward(),
                 #[cfg(all(feature = "webgpu", not(feature = "distributed")))]
                 DispatchTensorKind::WebGpu(tensor) => tensor.autodiff_float().backward(),
-                #[cfg(all(feature = "flex", not(feature = "distributed")))]
+                #[cfg(all(any(feature = "flex", default_backend), not(feature = "distributed")))]
                 DispatchTensorKind::Flex(tensor) => tensor.autodiff_float().backward(),
-                #[cfg(all(
-                    any(feature = "ndarray", default_backend),
-                    not(feature = "distributed")
-                ))]
+                #[cfg(all(feature = "ndarray", not(feature = "distributed")))]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff_float().backward(),
                 #[cfg(all(feature = "tch", not(feature = "distributed")))]
                 DispatchTensorKind::LibTorch(tensor) => tensor.autodiff_float().backward(),
@@ -236,12 +233,12 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff_float()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::WebGpu(crate::BackendTensor::Float(t))),
-                #[cfg(all(feature = "flex", not(feature = "distributed")))]
+                #[cfg(all(any(feature = "flex", default_backend), not(feature = "distributed")))]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff_float()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(any(feature = "ndarray", default_backend))]
+                #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => tensor
                     .as_autodiff_float()
                     .grad(grads)
@@ -314,12 +311,12 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff_float()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::WebGpu(crate::BackendTensor::Float(t))),
-                #[cfg(all(feature = "flex", not(feature = "distributed")))]
+                #[cfg(all(any(feature = "flex", default_backend), not(feature = "distributed")))]
                 DispatchTensorKind::Flex(tensor) => tensor
                     .as_autodiff_float()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::Flex(crate::BackendTensor::Float(t))),
-                #[cfg(any(feature = "ndarray", default_backend))]
+                #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => tensor
                     .as_autodiff_float()
                     .grad_remove(grads)
@@ -391,11 +388,11 @@ impl AutodiffBackend for Dispatch {
                 (DispatchTensorKind::WebGpu(tensor), DispatchTensorKind::WebGpu(grad)) => {
                     tensor.as_autodiff_float().grad_replace(grads, grad.float())
                 }
-                #[cfg(all(feature = "flex", not(feature = "distributed")))]
+                #[cfg(all(any(feature = "flex", default_backend), not(feature = "distributed")))]
                 (DispatchTensorKind::Flex(tensor), DispatchTensorKind::Flex(grad)) => {
                     tensor.as_autodiff_float().grad_replace(grads, grad.float())
                 }
-                #[cfg(any(feature = "ndarray", default_backend))]
+                #[cfg(feature = "ndarray")]
                 (DispatchTensorKind::NdArray(tensor), DispatchTensorKind::NdArray(grad)) => {
                     tensor.as_autodiff_float().grad_replace(grads, grad.float())
                 }
@@ -451,11 +448,11 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::WebGpu(tensor) => DispatchTensorKind::WebGpu(
                     crate::BackendTensor::Float(tensor.autodiff_float().primitive),
                 ),
-                #[cfg(all(feature = "flex", not(feature = "distributed")))]
+                #[cfg(all(any(feature = "flex", default_backend), not(feature = "distributed")))]
                 DispatchTensorKind::Flex(tensor) => DispatchTensorKind::Flex(
                     crate::BackendTensor::Float(tensor.autodiff_float().primitive),
                 ),
-                #[cfg(any(feature = "ndarray", default_backend))]
+                #[cfg(all(feature = "ndarray", not(feature = "distributed")))]
                 DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
                     crate::BackendTensor::Float(tensor.autodiff_float().primitive),
                 ),
@@ -544,16 +541,13 @@ impl AutodiffBackend for Dispatch {
                     crate::BackendTensor::Autodiff(Autodiff::<WebGpu>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(all(feature = "flex", not(feature = "distributed")))]
+            #[cfg(all(any(feature = "flex", default_backend), not(feature = "distributed")))]
             DispatchTensorKind::Flex(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::Flex(
                     crate::BackendTensor::Autodiff(Autodiff::<Flex>::from_inner(tensor.float())),
                 )))
             }
-            #[cfg(all(
-                any(feature = "ndarray", default_backend),
-                not(feature = "distributed")
-            ))]
+            #[cfg(all(feature = "ndarray", not(feature = "distributed")))]
             DispatchTensorKind::NdArray(tensor) => {
                 DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::NdArray(
                     crate::BackendTensor::Autodiff(Autodiff::<NdArray>::from_inner(tensor.float())),
@@ -770,9 +764,9 @@ impl DispatchTensorKind {
             DispatchTensorKind::Wgpu(tensor) => DispatchDevice::Wgpu(tensor.device()),
             #[cfg(feature = "webgpu")]
             DispatchTensorKind::WebGpu(tensor) => DispatchDevice::WebGpu(tensor.device()),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
             #[cfg(feature = "tch")]
             DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
@@ -835,9 +829,9 @@ impl Dispatch {
             DispatchDeviceId::WebGpu => (0..WebGpu::device_count(0))
                 .map(|i| DispatchDevice::WebGpu(WgpuDevice::DiscreteGpu(i)))
                 .collect(),
-            #[cfg(feature = "flex")]
+            #[cfg(any(feature = "flex", default_backend))]
             DispatchDeviceId::Flex => vec![FlexDevice.into()],
-            #[cfg(any(feature = "ndarray", default_backend))]
+            #[cfg(feature = "ndarray")]
             DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
             #[cfg(feature = "tch")]
             DispatchDeviceId::LibTorch => (0..LibTorch::device_count(0))

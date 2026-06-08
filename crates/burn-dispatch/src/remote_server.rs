@@ -35,9 +35,9 @@ pub fn start_websocket(device: DispatchDevice, port: u16) {
         DispatchDevice::WebGpu(device) => {
             burn_remote::server::start_websocket::<WebGpu>(device, port)
         }
-        #[cfg(feature = "flex")]
+        #[cfg(any(feature = "flex", default_backend))]
         DispatchDevice::Flex(device) => burn_remote::server::start_websocket::<Flex>(device, port),
-        #[cfg(any(feature = "ndarray", default_backend))]
+        #[cfg(feature = "ndarray")]
         DispatchDevice::NdArray(device) => {
             burn_remote::server::start_websocket::<NdArray>(device, port)
         }
@@ -89,11 +89,11 @@ pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
         DispatchDevice::WebGpu(device) => {
             burn_remote::server::start_websocket_async::<WebGpu>(device, port).await
         }
-        #[cfg(feature = "flex")]
+        #[cfg(any(feature = "flex", default_backend))]
         DispatchDevice::Flex(device) => {
             burn_remote::server::start_websocket_async::<Flex>(device, port).await
         }
-        #[cfg(any(feature = "ndarray", default_backend))]
+        #[cfg(feature = "ndarray")]
         DispatchDevice::NdArray(device) => {
             burn_remote::server::start_websocket_async::<NdArray>(device, port).await
         }
