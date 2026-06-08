@@ -31,6 +31,9 @@ pub(crate) fn register_distributed<B>(
             let output = unsafe { output.assume_resolved() };
             handles.register_float_tensor::<B>(&desc.out.id, output);
         }
+        DistributedOperationIr::SyncCollective => {
+            unreachable!("SyncCollective is resolved by the interpreter via `sync_distributed`")
+        }
     }
 }
 

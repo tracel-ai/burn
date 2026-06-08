@@ -1552,6 +1552,7 @@ impl RelativeOps for DistributedOperationIr {
                     device_ids: desc.device_ids.clone(),
                 })
             }
+            DistributedOperationIr::SyncCollective => DistributedOperationIr::SyncCollective,
         }
     }
 }

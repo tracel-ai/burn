@@ -24,7 +24,22 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         // them to server-local device indices the server can resolve to its own backend devices.
         #[cfg(feature = "distributed")]
         let op = self.resolve_collective_devices(op);
-        self.handle.submit(move |s| s.register_op(stream_id, op));
+        // `SyncCollective` is the per-step barrier: flush so it (and the collective ops queued
+        // before it) reach the server promptly instead of waiting for the batch to fill. It stays
+        // fire-and-forget — we don't wait for a response.
+        #[cfg(feature = "distributed")]
+        let flush_after = matches!(
+            &op,
+            burn_ir::OperationIr::Distributed(burn_ir::DistributedOperationIr::SyncCollective)
+        );
+        #[cfg(not(feature = "distributed"))]
+        let flush_after = false;
+        self.handle.submit(move |s| {
+            s.register_op(stream_id, op);
+            if flush_after {
+                s.flush();
+            }
+        });
     }
 
     fn read_tensor_async(
@@ -72,27 +87,6 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         self.handle
             .submit_blocking(|s| s.sync(stream_id))
             .expect("Service call failed")
-    }
-
-    #[cfg(feature = "distributed")]
-    fn sync_collective(&self) {
-        let stream_id = StreamId::current();
-        // Diagnostics: which local device issues this sync, and whether the call returns.
-        // `submit_blocking` first takes this device's client mutex, so an ENTER with no
-        // corresponding return points at the client being blocked before reaching the wire.
-        log::info!(
-            "[collective-client] device {}:{} stream {stream_id}: sync_collective ISSUE",
-            self.device.address(),
-            self.device.device_index()
-        );
-        self.handle
-            .submit_blocking(move |s| s.sync_collective(stream_id))
-            .expect("Service call failed");
-        log::info!(
-            "[collective-client] device {}:{} stream {stream_id}: sync_collective RETURNED",
-            self.device.address(),
-            self.device.device_index()
-        );
     }
 
     fn seed(&self, seed: u64) {

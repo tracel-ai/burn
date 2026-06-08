@@ -280,6 +280,9 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
                 let output = unsafe { output.assume_resolved() };
                 handles.register_float_tensor::<Self>(&desc.out.id, output);
             }
+            burn_ir::DistributedOperationIr::SyncCollective => {
+                unreachable!("SyncCollective is resolved by the interpreter via `sync_distributed`")
+            }
         }
     }
 

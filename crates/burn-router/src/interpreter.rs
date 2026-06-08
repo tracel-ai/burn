@@ -195,6 +195,15 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
 
     /// Execute a tensor operation.
     fn register_op(&self, op: OperationIr) {
+        // `sync_collective` is a device-level barrier that doesn't touch the handle container, and
+        // it can block (the underlying collective comm init is blocking). Resolve it before taking
+        // the handles lock so we don't hold it across the (potentially blocking) sync.
+        #[cfg(feature = "distributed")]
+        if let OperationIr::Distributed(burn_ir::DistributedOperationIr::SyncCollective) = &op {
+            B::sync_distributed(&self.device);
+            return;
+        }
+
         // Remove unused tensor handles
         let mut ctx = self.context.lock().unwrap();
 

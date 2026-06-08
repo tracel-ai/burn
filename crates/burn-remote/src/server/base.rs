@@ -233,14 +233,8 @@ where
                         }
                         let (runner, sender) = handles.as_ref().unwrap();
 
-                        if let Err(err) = Self::process_compute(
-                            &session_manager,
-                            runner,
-                            sender,
-                            device_index,
-                            compute,
-                        )
-                        .await
+                        if let Err(err) =
+                            Self::process_compute(&session_manager, runner, sender, compute).await
                         {
                             // A single task failing shouldn't tear down the connection —
                             // the failure surfaces to the client through the response (for
@@ -299,12 +293,10 @@ where
     /// callback on the client. Async work (data-service transfers, `read_tensor_async`)
     /// runs without a stream context — the relevant stream id is captured into the future
     /// at construction time via `executes`.
-    #[cfg_attr(not(feature = "distributed"), allow(unused_variables))]
     async fn process_compute(
         sm: &SessionManager<B, P>,
         runner: &TensorInterpreter<B>,
         sender: &mpsc::Sender<TaskResponse>,
-        device_index: u32,
         task: ComputeTask,
     ) -> Result<(), String> {
         match task {
@@ -314,6 +306,23 @@ where
                 // them to this server's backend device ids before the runner executes.
                 #[cfg(feature = "distributed")]
                 let op = Self::resolve_collective_devices(sm, op);
+
+                // Collective ops can't stay lazy: the underlying comm init is blocking and must
+                // rendezvous across all participating devices, and they're issued on a stream
+                // nothing else drains. Execute them eagerly (register + drain). `block_in_place`
+                // keeps this connection's ops in order while freeing the runtime so the other
+                // connections' loops reach their own collectives and the rendezvous completes.
+                #[cfg(feature = "distributed")]
+                if matches!(&op, burn_ir::OperationIr::Distributed(_)) {
+                    tokio::task::block_in_place(|| {
+                        stream_id.executes(|| {
+                            runner.register_op(op);
+                            runner.sync_collective();
+                        })
+                    });
+                    return Ok(());
+                }
+
                 stream_id.executes(|| runner.register_op(op));
                 Ok(())
             }
@@ -433,38 +442,6 @@ where
             ComputeTask::SyncBackend(request_id, stream_id) => {
                 let res = stream_id.executes(|| runner.sync());
                 Self::send_response(sender, request_id, TaskResponseContent::SyncBackend(res)).await
-            }
-            #[cfg(feature = "distributed")]
-            ComputeTask::SyncCollective(request_id, stream_id) => {
-                // `sync_collective` blocks until *every* peer device reaches the collective. The
-                // local CUDA backend runs this on its own thread; here we must do the same. If we
-                // ran it inline on this connection's request loop, the N participating connections
-                // would each block their loop and the collective could never assemble — a deadlock.
-                // Spawn it on a blocking task (like `ReadTensor`); the client blocks on the
-                // response, so ordering for that worker is preserved.
-                let runner = runner.clone();
-                let sender = sender.clone();
-                tokio::task::spawn_blocking(move || {
-                    log::info!(
-                        "[collective] device {device_index} stream {stream_id}: sync_collective ENTER"
-                    );
-                    stream_id.executes(|| runner.sync_collective());
-                    log::info!(
-                        "[collective] device {device_index} stream {stream_id}: sync_collective EXIT"
-                    );
-                    if sender
-                        .blocking_send(TaskResponse {
-                            content: TaskResponseContent::SyncCollective,
-                            id: request_id,
-                        })
-                        .is_err()
-                    {
-                        log::warn!(
-                            "Response receiver dropped before sync_collective {request_id} could be sent"
-                        );
-                    }
-                });
-                Ok(())
             }
             ComputeTask::DTypeUsage(request_id, dtype) => {
                 let res = runner.dtype_usage(dtype);

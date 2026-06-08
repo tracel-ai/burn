@@ -795,10 +795,18 @@ pub enum BoolOperationIr {
 #[cfg(feature = "distributed")]
 /// Operations that can be done on distributed tensors.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum DistributedOperationIr {
     /// Operation corresponding to:
     /// [all_reduce](burn_backend::distributed::DistributedBackend::all_reduce).
     AllReduce(AllReduceOpIr),
+    /// Resolve the pending collective operations on the executing device. Corresponds to
+    /// [sync_collective](burn_backend::distributed::DistributedBackend::sync_collective).
+    ///
+    /// Fire-and-forget and payload-free: it syncs whichever device the interpreter is bound to.
+    /// Modeled as an operation (not a side-channel call) so it travels the normal op stream
+    /// alongside [`AllReduce`](DistributedOperationIr::AllReduce) and is ordered against it.
+    SyncCollective,
 }
 
 /// Swap dim operation intermediate representation.
@@ -3578,12 +3586,14 @@ impl DistributedOperationIr {
     fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {
             DistributedOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
+            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
         }
     }
 
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         match self {
             DistributedOperationIr::AllReduce(repr) => Box::new([&repr.out].into_iter()),
+            DistributedOperationIr::SyncCollective => Box::new([].into_iter()),
         }
     }
 
@@ -3594,6 +3604,7 @@ impl DistributedOperationIr {
             DistributedOperationIr::AllReduce(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
             }
+            DistributedOperationIr::SyncCollective => {}
         }
 
         output

@@ -31,7 +31,11 @@ impl<R: RouterChannel> DistributedBackend for BackendRouter<R> {
     }
 
     fn sync_collective(device: &Device<Self>) {
+        // Fire-and-forget, like `all_reduce`: register a `SyncCollective` op on the device's
+        // stream instead of a blocking call. The interpreter resolves it via `sync_distributed`.
         let client = get_client::<R>(device);
-        client.sync_collective();
+        client.register_op(OperationIr::Distributed(
+            DistributedOperationIr::SyncCollective,
+        ));
     }
 }

@@ -11,11 +11,11 @@ use std::fmt::Display;
 /// Routing id for a request that expects a response.
 ///
 /// Only the response-producing compute tasks ([`ComputeTask::ReadTensor`],
-/// [`ComputeTask::SyncBackend`], [`ComputeTask::DTypeUsage`], and — under the `distributed`
-/// feature — [`ComputeTask::SyncCollective`]) carry a `RequestId`; the
+/// [`ComputeTask::SyncBackend`], [`ComputeTask::DTypeUsage`]) carry a `RequestId`; the
 /// server echoes it on its [`TaskResponse`] so the client demultiplexes responses back
 /// to the right pending callback. Fire-and-forget tasks have no id because no response
-/// ever comes back.
+/// ever comes back. Collective ops (all-reduce, sync-collective) are plain fire-and-forget
+/// [`OperationIr`]s carried by [`ComputeTask::RegisterOperation`].
 pub type RequestId = u64;
 
 /// Unique identifier that can represent a session.
@@ -100,14 +100,6 @@ pub enum ComputeTask {
     ReadTensor(RequestId, StreamId, TensorIr),
     SyncBackend(RequestId, StreamId),
     DTypeUsage(RequestId, DType),
-    /// Resolve the pending collective (distributed) operations on this session's device.
-    ///
-    /// The same-host counterpart of [`SyncBackend`](ComputeTask::SyncBackend) but scoped to
-    /// collectives: it maps to the backend's `sync_distributed` rather than a full device sync,
-    /// so resolving one rank's all-reduce doesn't block on a full device drain. Response-producing
-    /// (the client blocks in `CollectiveTensor::resolve`), so it carries a [`RequestId`].
-    #[cfg(feature = "distributed")]
-    SyncCollective(RequestId, StreamId),
 }
 
 #[allow(missing_docs)]
@@ -126,8 +118,4 @@ pub enum TaskResponseContent {
     ReadTensor(Result<TensorData, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),
-    /// Acknowledges a [`ComputeTask::SyncCollective`]; carries no payload since the backend's
-    /// `sync_distributed` is infallible.
-    #[cfg(feature = "distributed")]
-    SyncCollective,
 }
