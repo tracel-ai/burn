@@ -422,6 +422,7 @@ impl<C: ProtocolClient> RemoteService<C> {
         if self.batch.is_empty() {
             return;
         }
+        log::info!("Flush session: {}", self.session_id);
         self.writer.send(&self.runtime, self.batch.take());
     }
 }

@@ -6,6 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
 use crate::server::local_comm::LocalCommService;
+use crate::server::socket::{RequestService, ResponseService};
 use crate::server::worker::SessionWorker;
 use crate::shared::{ComputeTask, SessionId, TaskResponse};
 
@@ -82,58 +83,6 @@ where
         }
     }
 
-    /// The device settings for `device_index`, used by the response-init handshake before any
-    /// session-specific runner is needed.
-    pub fn device_settings(&self, device_index: u32) -> burn_std::DeviceSettings {
-        use burn_backend::backend::DeviceOps;
-        self.device(device_index).defaults()
-    }
-
-    /// The total number of devices this server hosts. Sent to the client on the init handshake
-    /// so it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
-    pub fn device_count(&self) -> u32 {
-        self.devices.len() as u32
-    }
-
-    /// Resolve the channel used to forward [`ComputeTask`]s to `session_id`'s worker thread,
-    /// creating the session (and spawning its worker) on demand. The request loop resolves
-    /// this once per connection and reuses it for every task, instead of re-locking the
-    /// sessions map per task.
-    pub async fn session_task_sender(
-        &self,
-        session_id: SessionId,
-        device_index: u32,
-    ) -> mpsc::Sender<ComputeTask> {
-        self.with_session(session_id, device_index, |s| s.worker.task_sender())
-            .await
-    }
-
-    /// Take the response receiver for `session_id`.
-    ///
-    /// Returns `Err` if a responder has already been registered for this session — the
-    /// protocol allows only one response socket per session.
-    pub async fn take_response_receiver(
-        &self,
-        session_id: SessionId,
-        device_index: u32,
-    ) -> Result<mpsc::Receiver<TaskResponse>, String> {
-        self.with_session(session_id, device_index, |s| {
-            s.receiver
-                .take()
-                .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
-        })
-        .await
-    }
-
-    /// Drop the session, detaching its worker. Removing the map entry drops the worker handle
-    /// it holds; once the request connection also drops its cloned task sender, the worker's
-    /// channel closes, so the worker flushes its runner and exits, releasing any backend state
-    /// held only by this session's tensors.
-    pub async fn close(&self, session_id: SessionId) {
-        let mut sessions = self.sessions.lock().await;
-        sessions.remove(&session_id);
-    }
-
     async fn with_session<R>(
         &self,
         session_id: SessionId,
@@ -161,5 +110,69 @@ where
             }
         });
         f(entry)
+    }
+}
+
+impl<B, P> RequestService for SessionManager<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
+    /// Resolve the channel used to forward [`ComputeTask`]s to `session_id`'s worker thread,
+    /// creating the session (and spawning its worker) on demand. The request loop resolves
+    /// this once per connection and reuses it for every task, instead of re-locking the
+    /// sessions map per task.
+    async fn session_task_sender(
+        &self,
+        session_id: SessionId,
+        device_index: u32,
+    ) -> mpsc::Sender<ComputeTask> {
+        self.with_session(session_id, device_index, |s| s.worker.task_sender())
+            .await
+    }
+
+    /// Drop the session, detaching its worker. Removing the map entry drops the worker handle
+    /// it holds; once the request connection also drops its cloned task sender, the worker's
+    /// channel closes, so the worker flushes its runner and exits, releasing any backend state
+    /// held only by this session's tensors.
+    async fn close(&self, session_id: SessionId) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.remove(&session_id);
+    }
+}
+
+impl<B, P> ResponseService for SessionManager<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
+    /// The device settings for `device_index`, used by the response-init handshake before any
+    /// session-specific runner is needed.
+    fn device_settings(&self, device_index: u32) -> burn_std::DeviceSettings {
+        use burn_backend::backend::DeviceOps;
+        self.device(device_index).defaults()
+    }
+
+    /// The total number of devices this server hosts. Sent to the client on the init handshake
+    /// so it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
+    fn device_count(&self) -> u32 {
+        self.devices.len() as u32
+    }
+
+    /// Take the response receiver for `session_id`.
+    ///
+    /// Returns `Err` if a responder has already been registered for this session — the
+    /// protocol allows only one response socket per session.
+    async fn take_response_receiver(
+        &self,
+        session_id: SessionId,
+        device_index: u32,
+    ) -> Result<mpsc::Receiver<TaskResponse>, String> {
+        self.with_session(session_id, device_index, |s| {
+            s.receiver
+                .take()
+                .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
+        })
+        .await
     }
 }
