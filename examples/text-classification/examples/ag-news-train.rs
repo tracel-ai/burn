@@ -121,14 +121,15 @@ mod remote {
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
         let mut devices = Device::enumerate(DeviceType::remote(ADDRESS));
-        devices
-            .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
-            .unwrap();
+        // devices
+        //     .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+        //     .unwrap();
 
-        crate::launch(ExecutionStrategy::MultiDevice(
-            devices.into_vec(),
-            burn::train::MultiDeviceOptim::OptimSharded,
-        ));
+        crate::launch_single(devices.into_vec().pop().unwrap());
+        // crate::launch(ExecutionStrategy::MultiDevice(
+        //     devices.into_vec(),
+        //     burn::train::MultiDeviceOptim::OptimSharded,
+        // ));
     }
 
     /// Same enumeration, but drive the devices with distributed data-parallel training.

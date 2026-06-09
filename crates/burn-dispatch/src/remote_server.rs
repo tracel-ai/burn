@@ -53,10 +53,9 @@ pub fn start_websocket(device: DispatchDevice, port: u16) {
             port,
         ),
         #[cfg(feature = "vulkan")]
-        DispatchDevice::Vulkan(_) => burn_remote::server::start_websocket::<Vulkan>(
-            host_devices!(DispatchDeviceId::Vulkan, Vulkan),
-            port,
-        ),
+        DispatchDevice::Vulkan(_) => {
+            burn_remote::server::start_websocket::<Vulkan>(vec![WgpuDevice::DefaultDevice], port)
+        }
         #[cfg(feature = "wgpu")]
         DispatchDevice::Wgpu(_) => burn_remote::server::start_websocket::<Wgpu>(
             host_devices!(DispatchDeviceId::Wgpu, Wgpu),
@@ -132,7 +131,7 @@ pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
         #[cfg(feature = "vulkan")]
         DispatchDevice::Vulkan(_) => {
             burn_remote::server::start_websocket_async::<Vulkan>(
-                host_devices!(DispatchDeviceId::Vulkan, Vulkan),
+                vec![WgpuDevice::DefaultDevice],
                 port,
             )
             .await

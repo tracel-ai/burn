@@ -146,14 +146,13 @@ mod tests {
     /// Concurrent multi-device regression (DDP-style): two user threads, each pinned to a device,
     /// running simultaneously and each iteration moving a tensor to the *other* device and back.
     ///
-    /// This used to deadlock for two reasons, both of which surface only under concurrency:
-    /// - The transfer-id counter never persisted its increment, so every same-host transfer after
-    ///   the first reused the same id; two simultaneous transfers then collided in the server's
-    ///   rendezvous and one `take` hung forever.
-    /// - The server ran a whole session on one FIFO worker, so a `take` blocked every later task
-    ///   on that session — including the `expose` a peer session was waiting on — letting two
-    ///   opposite transfers form a cyclic wait. The per-stream workers remove that false
-    ///   dependency.
+    /// This used to deadlock because the client's transfer-id counter never persisted its
+    /// increment (`TensorTransferId` is `Copy`, so the increment landed on a throwaway local).
+    /// Every same-host transfer after the first reused the same id; sequentially that's harmless
+    /// (each expose is taken before the next), but two transfers in flight at once then collided
+    /// in the server's `local_comm` rendezvous and one `take` hung forever. Single-threaded
+    /// workloads never tripped it — `into_data` serializes each iteration — so the bug only shows
+    /// up under genuine concurrency.
     #[test]
     fn test_multi_device_concurrent_to_device_deadlock() {
         let rt = tokio::runtime::Builder::new_multi_thread()

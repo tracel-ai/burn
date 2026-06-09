@@ -104,39 +104,6 @@ pub enum Task {
     DTypeUsage(RequestId, DType),
 }
 
-impl Task {
-    /// The client stream this task belongs to, if any.
-    ///
-    /// Per-stream ordering is what the server must preserve: ops, tensor registrations, reads,
-    /// syncs and transfers all carry the [`StreamId`] of the client thread that issued them, and
-    /// the server runs each stream on its own worker so independent streams can't head-of-line
-    /// block one another. The two session-global tasks ([`Seed`](Task::Seed),
-    /// [`DTypeUsage`](Task::DTypeUsage)) carry no stream — they're routed to a shared default
-    /// stream by [`stream_id_or_default`](Self::stream_id_or_default).
-    pub fn stream_id(&self) -> Option<StreamId> {
-        match self {
-            Task::RegisterOperation(stream_id, _)
-            | Task::RegisterTensor(stream_id, _, _)
-            | Task::RegisterTensorRemote(stream_id, _, _)
-            | Task::ReadTensor(_, stream_id, _)
-            | Task::SyncBackend(_, stream_id) => Some(*stream_id),
-            Task::ExposeTensorRemote { stream_id, .. }
-            | Task::ExposeTensorLocal { stream_id, .. }
-            | Task::RegisterTensorLocal { stream_id, .. } => Some(*stream_id),
-            Task::Seed(_) | Task::DTypeUsage(_, _) => None,
-        }
-    }
-
-    /// The stream this task is dispatched on, mapping the session-global tasks (which carry no
-    /// [`StreamId`]) onto a single reserved default stream so they stay ordered among themselves.
-    pub fn stream_id_or_default(&self) -> StreamId {
-        // A sentinel that the thread-id-derived stream ids never realistically collide with; even
-        // if it did, merging a global task onto a real stream only adds ordering, never breaks it.
-        const DEFAULT_STREAM: StreamId = StreamId { value: u64::MAX };
-        self.stream_id().unwrap_or(DEFAULT_STREAM)
-    }
-}
-
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TaskResponse {
