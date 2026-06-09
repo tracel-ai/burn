@@ -1,9 +1,10 @@
-use burn_backend::TensorMetadata;
+use burn_backend::{Backend, TensorMetadata};
 pub use burn_dispatch::DispatchTensor;
+use burn_dispatch::{BackendTensor, DispatchKindConversion};
 use burn_std::DType;
 
 use crate::{
-    Tensor,
+    Bool, Float, Int, Tensor,
     kind::Basic,
     ops::{BridgeKind, BridgeTensor, Kind},
 };
@@ -44,11 +45,11 @@ where
         }
     }
 
-    /// Converts from a primitive tensor into a tensor.
+    /// Converts from a dispatch tensor into a tensor.
     ///
     /// # Panics
-    /// Panis if the primitive dtype does not match the tensor kind `K`.
-    pub fn from_primitive(tensor: DispatchTensor) -> Self {
+    /// Panis if the dispatch dtype does not match the tensor kind `K`.
+    pub fn from_dispatch(tensor: DispatchTensor) -> Self {
         match (tensor.dtype(), K::KIND) {
             (DType::QFloat(_), Kind::Float) => Self::new(BridgeTensor::qfloat(tensor)),
             (dtype, Kind::Float) if dtype.is_float() => Self::new(BridgeTensor::float(tensor)),
@@ -60,9 +61,137 @@ where
         }
     }
 
-    /// Converts the tensor into a primitive tensor.
-    pub fn into_primitive(self) -> DispatchTensor {
+    /// Converts the tensor into a dispatch tensor.
+    pub fn into_dispatch(self) -> DispatchTensor {
         self.primitive.into()
+    }
+
+    /// Safely downcasts a [`Tensor`] into its low-level backend primitive.
+    ///
+    /// This is primarily intended for backend extensions where interfacing with the direct backend
+    /// primitive (e.g., `B::FloatTensorPrimitive` or `AutodiffTensor<B>`) is necessary.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// // Extract the underlying CubeCL tensor primitive on the `Wgpu` backend
+    /// let cube_tensor = tensor.try_into_primitive::<Wgpu>()?;
+    ///
+    /// // For an autodiff tensor, we can get the wrapped CubeCL tensor primitive on the `Autodiff<Wgpu>` backend
+    /// let ad_tensor = tensor.try_into_primitive::<Autodiff<Wgpu>>()?;
+    ///
+    /// # Errors
+    ///
+    /// Returns a `Result::Err` string if:
+    /// * The tensor does not currently live on backend `B`.
+    /// * The target backend is an `Autodiff` wrapper but the tensor lacks an active computation graph.
+    /// * The requested tensor kind `K` (e.g., `Float`) does not match the data variant inside the backend wrapper.
+    ///
+    /// ```
+    pub fn try_into_primitive<B: Backend>(
+        self,
+    ) -> Result<<K as BackendPrimitive<B>>::Primitive, String>
+    where
+        K: BackendPrimitive<B>,
+        DispatchTensor: DispatchKindConversion<B>,
+    {
+        let dispatch = self.primitive.into();
+        // `tensor.try_into_backend::<Autodiff<B>>()` returns a `BackendTensor::Float(AutodiffTensor<B>)`
+        // so it is automatically handled by the `try_into_primitive` impl for `Float`
+        let tensor = <DispatchTensor as DispatchKindConversion<B>>::try_into_backend(dispatch)?;
+        <K as BackendPrimitive<B>>::try_into_primitive(tensor)
+    }
+
+    /// Reconstructs a high-level [`Tensor`] from a concrete backend primitive.
+    ///
+    /// This is the inverse of [`Tensor::try_into_primitive`].
+    ///
+    /// # Panics
+    /// Panis if the tensor kind `K` does not match the tensor underlying primitive kind.
+    pub fn from_primitive<B: Backend>(primitive: <K as BackendPrimitive<B>>::Primitive) -> Self
+    where
+        K: BackendPrimitive<B>,
+        DispatchTensor: DispatchKindConversion<B>,
+    {
+        let tensor = <K as BackendPrimitive<B>>::from_primitive(primitive);
+        let dispatch = <DispatchTensor as DispatchKindConversion<B>>::from_backend(tensor);
+        Self::from_dispatch(dispatch)
+    }
+}
+
+/// Trait to safely extract and wrap backend-specific primitives based on the high-level tensor kind.
+///
+/// This trait functions as a type-level map linking frontend kinds (`Float`, `Int`, `Bool`)
+/// to their corresponding backend-associated types (`B::FloatTensorPrimitive`, `B::IntTensorPrimitive`, etc.).
+pub trait BackendPrimitive<B: Backend> {
+    /// The backend tensor primitive.
+    type Primitive;
+
+    /// Attempts to unpack the type-erased [`BackendTensor`] enum wrapper into the concrete
+    /// variant expected by this kind.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if there is a variant type mismatch (e.g., attempting to extract an
+    /// `Int` primitive out of a `BackendTensor::Float` enum variant).
+    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String>;
+
+    /// Wraps a backend tensor primitive into its corresponding `BackendTensor` enum variant.
+    fn from_primitive(primitive: Self::Primitive) -> BackendTensor<B>;
+}
+
+impl<B: Backend> BackendPrimitive<B> for Float {
+    // NOTE: not implemented for QFloat
+    type Primitive = B::FloatTensorPrimitive;
+
+    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String> {
+        match tensor {
+            BackendTensor::Float(t) => Ok(t),
+            other => Err(format!(
+                "Expected Float primitive, got variant: {}",
+                other.name()
+            )),
+        }
+    }
+
+    fn from_primitive(primitive: Self::Primitive) -> BackendTensor<B> {
+        BackendTensor::Float(primitive)
+    }
+}
+
+impl<B: Backend> BackendPrimitive<B> for Int {
+    type Primitive = B::IntTensorPrimitive;
+
+    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String> {
+        match tensor {
+            BackendTensor::Int(t) => Ok(t),
+            other => Err(format!(
+                "Expected Int primitive, got variant: {}",
+                other.name()
+            )),
+        }
+    }
+
+    fn from_primitive(primitive: Self::Primitive) -> BackendTensor<B> {
+        BackendTensor::Int(primitive)
+    }
+}
+
+impl<B: Backend> BackendPrimitive<B> for Bool {
+    type Primitive = B::BoolTensorPrimitive;
+
+    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String> {
+        match tensor {
+            BackendTensor::Bool(t) => Ok(t),
+            other => Err(format!(
+                "Expected Bool primitive, got variant: {}",
+                other.name()
+            )),
+        }
+    }
+
+    fn from_primitive(primitive: Self::Primitive) -> BackendTensor<B> {
+        BackendTensor::Bool(primitive)
     }
 }
 
@@ -71,6 +200,9 @@ mod tests {
     use crate::{Bool, Int};
 
     use super::*;
+
+    type TestBackend = burn_dispatch::backends::Flex;
+    type TestAutodiffBackend = burn_dispatch::backends::Autodiff<burn_dispatch::backends::Flex>;
 
     // -- into_bridge / from_bridge roundtrip --
 
@@ -139,19 +271,19 @@ mod tests {
     fn from_bridge_qfloat_variant_with_int_dtype_panics() {
         // Construct a QFloat bridge tensor wrapping a non-qfloat dispatch tensor:
         // kind tag says Float but dtype says otherwise.
-        let inner = Tensor::<2, Int>::zeros([2, 3], &Default::default()).into_primitive();
+        let inner = Tensor::<2, Int>::zeros([2, 3], &Default::default()).into_dispatch();
         let bridge = BridgeTensor::qfloat(inner);
         let _tensor = Tensor::<2>::from_bridge(bridge);
     }
 
-    // -- into_primitive / from_primitive roundtrip --
+    // -- into_dispatch / from_dispatch roundtrip --
 
     #[test]
     fn float_primitive_roundtrip() {
         let tensor = Tensor::<2>::zeros([2, 3], &Default::default());
         let shape = tensor.shape();
-        let primitive = tensor.into_primitive();
-        let tensor = Tensor::<2>::from_primitive(primitive);
+        let primitive = tensor.into_dispatch();
+        let tensor = Tensor::<2>::from_dispatch(primitive);
         assert_eq!(tensor.shape(), shape);
     }
 
@@ -159,8 +291,8 @@ mod tests {
     fn int_primitive_roundtrip() {
         let tensor = Tensor::<2, Int>::zeros([2, 3], &Default::default());
         let shape = tensor.shape();
-        let primitive = tensor.into_primitive();
-        let tensor = Tensor::<2, Int>::from_primitive(primitive);
+        let primitive = tensor.into_dispatch();
+        let tensor = Tensor::<2, Int>::from_dispatch(primitive);
         assert_eq!(tensor.shape(), shape);
     }
 
@@ -168,31 +300,144 @@ mod tests {
     fn bool_primitive_roundtrip() {
         let tensor = Tensor::<2, Bool>::empty([2, 3], &Default::default());
         let shape = tensor.shape();
-        let primitive = tensor.into_primitive();
-        let tensor = Tensor::<2, Bool>::from_primitive(primitive);
+        let primitive = tensor.into_dispatch();
+        let tensor = Tensor::<2, Bool>::from_dispatch(primitive);
         assert_eq!(tensor.shape(), shape);
     }
 
-    // -- from_primitive panics on dtype/kind mismatch --
+    // -- from_dispatch panics on dtype/kind mismatch --
 
     #[test]
     #[should_panic(expected = "Expected kind Float")]
-    fn from_primitive_int_dtype_as_float_panics() {
-        let primitive = Tensor::<2, Int>::zeros([2, 3], &Default::default()).into_primitive();
-        let _tensor = Tensor::<2>::from_primitive(primitive);
+    fn from_dispatch_int_dtype_as_float_panics() {
+        let primitive = Tensor::<2, Int>::zeros([2, 3], &Default::default()).into_dispatch();
+        let _tensor = Tensor::<2>::from_dispatch(primitive);
     }
 
     #[test]
     #[should_panic(expected = "Expected kind Int")]
-    fn from_primitive_float_dtype_as_int_panics() {
-        let primitive = Tensor::<2>::zeros([2, 3], &Default::default()).into_primitive();
-        let _tensor = Tensor::<2, Int>::from_primitive(primitive);
+    fn from_dispatch_float_dtype_as_int_panics() {
+        let primitive = Tensor::<2>::zeros([2, 3], &Default::default()).into_dispatch();
+        let _tensor = Tensor::<2, Int>::from_dispatch(primitive);
     }
 
     #[test]
     #[should_panic(expected = "Expected kind Bool")]
-    fn from_primitive_float_dtype_as_bool_panics() {
-        let primitive = Tensor::<2>::zeros([2, 3], &Default::default()).into_primitive();
-        let _tensor = Tensor::<2, Bool>::from_primitive(primitive);
+    fn from_dispatch_float_dtype_as_bool_panics() {
+        let primitive = Tensor::<2>::zeros([2, 3], &Default::default()).into_dispatch();
+        let _tensor = Tensor::<2, Bool>::from_dispatch(primitive);
+    }
+
+    // -- try_into_primitive / from_primitive roundtrip --
+
+    #[test]
+    fn float_backend_primitive_roundtrip() {
+        let device = Default::default();
+        let tensor = Tensor::<2>::zeros([2, 3], &device);
+        let shape = tensor.shape();
+
+        let primitive = tensor
+            .try_into_primitive::<TestBackend>()
+            .expect("Failed to extract Float primitive");
+        let tensor = Tensor::<2>::from_primitive::<TestBackend>(primitive);
+
+        assert_eq!(tensor.shape(), shape);
+    }
+
+    #[test]
+    fn int_backend_primitive_roundtrip() {
+        let device = Default::default();
+        let tensor = Tensor::<2, Int>::zeros([2, 3], &device);
+        let shape = tensor.shape();
+
+        let primitive = tensor
+            .try_into_primitive::<TestBackend>()
+            .expect("Failed to extract Int primitive");
+        let tensor = Tensor::<2, Int>::from_primitive::<TestBackend>(primitive);
+
+        assert_eq!(tensor.shape(), shape);
+    }
+
+    #[test]
+    fn bool_backend_primitive_roundtrip() {
+        let device = Default::default();
+        let tensor = Tensor::<2, Bool>::empty([2, 3], &device);
+        let shape = tensor.shape();
+
+        let primitive = tensor
+            .try_into_primitive::<TestBackend>()
+            .expect("Failed to extract Bool primitive");
+        let tensor = Tensor::<2, Bool>::from_primitive::<TestBackend>(primitive);
+
+        assert_eq!(tensor.shape(), shape);
+    }
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn autodiff_backend_primitive_roundtrip() {
+        let device = crate::Device::default().autodiff();
+        let tensor = Tensor::<2, Float>::empty([2, 3], &device).require_grad();
+        let require_grad = tensor.is_require_grad();
+
+        let primitive = tensor
+            .try_into_primitive::<TestAutodiffBackend>()
+            .expect("Failed to extract Autodiff primitive");
+        let tensor = Tensor::<2, Float>::from_primitive::<TestAutodiffBackend>(primitive);
+
+        assert_eq!(tensor.is_require_grad(), require_grad);
+    }
+
+    // -- try_into_primitive panics on backend or kind mismatch --
+
+    #[cfg(feature = "autodiff")]
+    #[test]
+    fn try_into_primitive_backend_mismatch() {
+        let device = Default::default();
+        let tensor = Tensor::<2>::zeros([2, 3], &device);
+
+        let result = tensor.try_into_primitive::<TestAutodiffBackend>();
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Expected Autodiff tensor, got backend:")
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected kind Float")]
+    fn try_into_primitive_kind_mismatch() {
+        let device = Default::default();
+        let tensor = Tensor::<2, Int>::zeros([2, 3], &device);
+
+        let primitive = tensor
+            .try_into_primitive::<TestBackend>()
+            .expect("Failed to extract Int primitive");
+        let _tensor = Tensor::<2, Float>::from_primitive::<TestBackend>(primitive);
+    }
+
+    // -- BackendPrimitive trait error handling on mismatched variants --
+
+    #[test]
+    fn try_into_primitive_float_with_int_variant_returns_err() {
+        let device = Default::default();
+
+        // Valid Int primitive
+        let int_tensor = Tensor::<2, Int>::zeros([2, 3], &device);
+        let int_primitive = int_tensor.try_into_primitive::<TestBackend>().unwrap();
+
+        // Wrap it artificially into the Backend layer
+        let backend_tensor = BackendTensor::<TestBackend>::Int(int_primitive);
+
+        // Attempt to extract it as a Float primitive using the BackendPrimitive trait
+        let result = <Float as BackendPrimitive<TestBackend>>::try_into_primitive(backend_tensor);
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Expected Float primitive, got variant: Int")
+        );
     }
 }
