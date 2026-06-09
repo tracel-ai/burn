@@ -17,16 +17,24 @@
 //! and the target op travel on separate connections with no cross-connection ordering — so the
 //! taker waits on a [`Notify`] until the primitive shows up.
 
+use crate::shared::SessionId;
 use burn_communication::external_comm::TensorTransferId;
 use burn_ir::{BackendIr, HandleKind};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
 
+/// A primitive parked in the registry, tagged with the session that exposed it so the entry can
+/// be reclaimed if that session goes away before its target takes it.
+struct Pending<B: BackendIr> {
+    source: SessionId,
+    tensor: HandleKind<B>,
+}
+
 /// Rendezvous registry for same-host communication, keyed by [`TensorTransferId`].
 pub(crate) struct LocalCommService<B: BackendIr> {
     /// Primitives exposed by source sessions, waiting to be taken by their target.
-    pending: Mutex<HashMap<TensorTransferId, HandleKind<B>>>,
+    pending: Mutex<HashMap<TensorTransferId, Pending<B>>>,
     /// Wakes takers whenever a new primitive is exposed.
     notify: Arc<Notify>,
 }
@@ -39,9 +47,19 @@ impl<B: BackendIr> LocalCommService<B> {
         }
     }
 
-    /// Expose `tensor` under `transfer_id`, waking any session already waiting for it.
-    pub async fn expose(&self, transfer_id: TensorTransferId, tensor: HandleKind<B>) {
-        self.pending.lock().await.insert(transfer_id, tensor);
+    /// Expose `tensor` under `transfer_id`, waking any session already waiting for it. `source` is
+    /// the session exposing it, so a stranded entry can be purged if that session closes before its
+    /// target takes the tensor (see [`purge_session`](Self::purge_session)).
+    pub async fn expose(
+        &self,
+        source: SessionId,
+        transfer_id: TensorTransferId,
+        tensor: HandleKind<B>,
+    ) {
+        self.pending
+            .lock()
+            .await
+            .insert(transfer_id, Pending { source, tensor });
         self.notify.notify_waiters();
     }
 
@@ -54,11 +72,24 @@ impl<B: BackendIr> LocalCommService<B> {
             tokio::pin!(notified);
             notified.as_mut().enable();
 
-            if let Some(tensor) = self.pending.lock().await.remove(&transfer_id) {
-                return tensor;
+            if let Some(pending) = self.pending.lock().await.remove(&transfer_id) {
+                return pending.tensor;
             }
 
             notified.await;
         }
+    }
+
+    /// Drop every primitive `session` exposed that no target ever took.
+    ///
+    /// Called when a session closes. In normal operation every exposed primitive is taken (and so
+    /// removed) by its target, but if the source session tears down first — a crash, a dropped
+    /// connection, a transfer whose target never runs — its entry would otherwise sit in the map
+    /// for the server's lifetime, pinning device memory. Purging by source session reclaims it.
+    pub async fn purge_session(&self, session: SessionId) {
+        self.pending
+            .lock()
+            .await
+            .retain(|_, pending| pending.source != session);
     }
 }

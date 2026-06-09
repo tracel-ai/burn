@@ -125,6 +125,10 @@ where
                     log::error!("Task on session {session_id} failed: {err}");
                 }
             }
+
+            // Reclaim any same-host transfers this session exposed that no target ever took, so a
+            // half-finished transfer doesn't strand device memory in the shared registry.
+            self.local_comm.purge_session(session_id).await;
         });
 
         // The task channel closed: every submit connection bound to this session has gone away
@@ -210,7 +214,9 @@ where
                 // that produced `tensor` — the handle is guaranteed present. Read it back on the
                 // client stream that produced it, carried over the wire.
                 let kind = stream_id.executes(|| runner.get_tensor(&tensor));
-                self.local_comm.expose(transfer_id, kind).await;
+                self.local_comm
+                    .expose(self.session_id, transfer_id, kind)
+                    .await;
                 Ok(())
             }
             Task::RegisterTensorLocal {
