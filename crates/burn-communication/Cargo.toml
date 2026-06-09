@@ -42,3 +42,8 @@ burn-backend = { workspace = true, optional = true, features = ["default"] }
 axum = { workspace = true, features = ["ws"], optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Integration tests for the websocket server (run with `--features websocket`).
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "net"] }
+tokio-tungstenite = { workspace = true }
