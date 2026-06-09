@@ -27,6 +27,11 @@ impl<S: SubmitService> SubmitPolicy<S> {
     /// connection should close — a `Close` short-circuits the rest of the batch, matching the
     /// client side (once it sends `Close`, it sends nothing after).
     pub(super) async fn process_batch(&mut self, messages: Vec<RemoteMessage>) -> bool {
+        log::info!(
+            "[submit] session {:?} received a batch of {} message(s) off the socket",
+            self.state.session_id,
+            messages.len()
+        );
         for message in messages {
             match self.state.decide(message) {
                 Action::Continue => {}

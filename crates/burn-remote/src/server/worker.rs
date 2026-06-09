@@ -113,6 +113,7 @@ fn worker_loop<B, P>(
             std::thread::current().id()
         );
         while let Some(task) = receiver.recv().await {
+            log::info!("Session {session_id} worker received a task");
             if let Err(err) =
                 process_task(&external_comm, &local_comm, &runner, &response_sender, task).await
             {
