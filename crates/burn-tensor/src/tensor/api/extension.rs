@@ -79,18 +79,17 @@ where
     ///
     /// // For an autodiff tensor, we can get the wrapped CubeCL tensor primitive on the `Autodiff<Wgpu>` backend
     /// let ad_tensor = tensor.try_into_primitive::<Autodiff<Wgpu>>()?;
+    ///```
     ///
     /// # Errors
     ///
-    /// Returns a `Result::Err` string if:
-    /// * The tensor does not currently live on backend `B`.
-    /// * The target backend is an `Autodiff` wrapper but the tensor lacks an active computation graph.
-    /// * The requested tensor kind `K` (e.g., `Float`) does not match the data variant inside the backend wrapper.
+    /// Returns a [`PrimitiveConversionError`] if the tensor does not currently live on the requested
+    /// backend `B` (including `Autodiff<B>` mismatch).
     ///
     /// ```
     pub fn try_into_primitive<B: Backend>(
         self,
-    ) -> Result<<K as BackendPrimitive<B>>::Primitive, String>
+    ) -> Result<<K as BackendPrimitive<B>>::Primitive, PrimitiveConversionError>
     where
         K: BackendPrimitive<B>,
         DispatchTensor: DispatchKindConversion<B>,
@@ -98,7 +97,8 @@ where
         let dispatch = self.primitive.into();
         // `tensor.try_into_backend::<Autodiff<B>>()` returns a `BackendTensor::Float(AutodiffTensor<B>)`
         // so it is automatically handled by the `try_into_primitive` impl for `Float`
-        let tensor = <DispatchTensor as DispatchKindConversion<B>>::try_into_backend(dispatch)?;
+        let tensor = <DispatchTensor as DispatchKindConversion<B>>::try_into_backend(dispatch)
+            .map_err(PrimitiveConversionError::BackendMismatch)?;
         <K as BackendPrimitive<B>>::try_into_primitive(tensor)
     }
 
@@ -119,6 +119,19 @@ where
     }
 }
 
+/// Error returned when a [`DispatchTensor`] cannot be converted to the requested concrete primitive type.
+#[derive(Debug, PartialEq)]
+pub enum PrimitiveConversionError {
+    /// The dispatch tensor's backend variant does not match the requested backend.
+    ///
+    /// For example, extracting a `Wgpu` primitive from a `Cuda` dispatch tensor.
+    BackendMismatch(String),
+    /// The tensor kind does not match the requested primitive kind.
+    ///
+    /// For example, extracting a float primitive from an int tensor.
+    KindMismatch(String),
+}
+
 /// Trait to safely extract and wrap backend-specific primitives based on the high-level tensor kind.
 ///
 /// This trait functions as a type-level map linking frontend kinds (`Float`, `Int`, `Bool`)
@@ -134,7 +147,9 @@ pub trait BackendPrimitive<B: Backend> {
     ///
     /// Returns an error if there is a variant type mismatch (e.g., attempting to extract an
     /// `Int` primitive out of a `BackendTensor::Float` enum variant).
-    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String>;
+    fn try_into_primitive(
+        tensor: BackendTensor<B>,
+    ) -> Result<Self::Primitive, PrimitiveConversionError>;
 
     /// Wraps a backend tensor primitive into its corresponding `BackendTensor` enum variant.
     fn from_primitive(primitive: Self::Primitive) -> BackendTensor<B>;
@@ -144,13 +159,15 @@ impl<B: Backend> BackendPrimitive<B> for Float {
     // NOTE: not implemented for QFloat
     type Primitive = B::FloatTensorPrimitive;
 
-    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String> {
+    fn try_into_primitive(
+        tensor: BackendTensor<B>,
+    ) -> Result<Self::Primitive, PrimitiveConversionError> {
         match tensor {
             BackendTensor::Float(t) => Ok(t),
-            other => Err(format!(
+            other => Err(PrimitiveConversionError::KindMismatch(format!(
                 "Expected Float primitive, got variant: {}",
                 other.name()
-            )),
+            ))),
         }
     }
 
@@ -162,13 +179,15 @@ impl<B: Backend> BackendPrimitive<B> for Float {
 impl<B: Backend> BackendPrimitive<B> for Int {
     type Primitive = B::IntTensorPrimitive;
 
-    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String> {
+    fn try_into_primitive(
+        tensor: BackendTensor<B>,
+    ) -> Result<Self::Primitive, PrimitiveConversionError> {
         match tensor {
             BackendTensor::Int(t) => Ok(t),
-            other => Err(format!(
+            other => Err(PrimitiveConversionError::KindMismatch(format!(
                 "Expected Int primitive, got variant: {}",
                 other.name()
-            )),
+            ))),
         }
     }
 
@@ -180,13 +199,15 @@ impl<B: Backend> BackendPrimitive<B> for Int {
 impl<B: Backend> BackendPrimitive<B> for Bool {
     type Primitive = B::BoolTensorPrimitive;
 
-    fn try_into_primitive(tensor: BackendTensor<B>) -> Result<Self::Primitive, String> {
+    fn try_into_primitive(
+        tensor: BackendTensor<B>,
+    ) -> Result<Self::Primitive, PrimitiveConversionError> {
         match tensor {
             BackendTensor::Bool(t) => Ok(t),
-            other => Err(format!(
+            other => Err(PrimitiveConversionError::KindMismatch(format!(
                 "Expected Bool primitive, got variant: {}",
                 other.name()
-            )),
+            ))),
         }
     }
 
@@ -395,14 +416,12 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<2>::zeros([2, 3], &device);
 
-        let result = tensor.try_into_primitive::<TestAutodiffBackend>();
+        let err = tensor
+            .try_into_primitive::<TestAutodiffBackend>()
+            .unwrap_err();
 
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Expected Autodiff tensor, got backend:")
-        );
+        assert!(matches!(err, PrimitiveConversionError::BackendMismatch(_)));
+        assert!(format!("{err:?}").contains("Expected Autodiff tensor, got backend:"));
     }
 
     #[test]
@@ -431,13 +450,14 @@ mod tests {
         let backend_tensor = BackendTensor::<TestBackend>::Int(int_primitive);
 
         // Attempt to extract it as a Float primitive using the BackendPrimitive trait
-        let result = <Float as BackendPrimitive<TestBackend>>::try_into_primitive(backend_tensor);
+        let err = <Float as BackendPrimitive<TestBackend>>::try_into_primitive(backend_tensor)
+            .unwrap_err();
 
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .contains("Expected Float primitive, got variant: Int")
+        assert_eq!(
+            err,
+            PrimitiveConversionError::KindMismatch(
+                "Expected Float primitive, got variant: Int".into()
+            )
         );
     }
 }
