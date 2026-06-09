@@ -232,6 +232,141 @@ mod tests {
 
     /// Exercises the cross-backend transfer body: local tensor → remote (data round-trip
     /// through `TensorData`), an op on the remote, then remote → local.
+    /// Run `body` on a worker thread and report whether it finished within `timeout`.
+    ///
+    /// Unlike [`with_deadlock_watchdog`], a panic inside `body` counts as "finished": these error
+    /// tests assert that a failure *surfaces* (as an `Err` or a panic) instead of hanging, so all
+    /// that matters is the thread came back. Returns `false` if it was still running at the
+    /// deadline — i.e. the call hung.
+    fn finishes_within(
+        timeout: std::time::Duration,
+        body: impl FnOnce() + Send + 'static,
+    ) -> bool {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            // Swallow panics: a disconnected read panicking on the error path is an acceptable
+            // "didn't hang" outcome and must not abort the whole test process.
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+            let _ = tx.send(());
+        });
+        rx.recv_timeout(timeout).is_ok()
+    }
+
+    /// When the server goes down, a client call that awaits a response (here a tensor read) must
+    /// fail promptly instead of blocking forever. Before the fix the response-demux task just
+    /// exited on the closed stream, leaving every pending callback — and any later request —
+    /// parked on a oneshot that would never be completed.
+    #[test]
+    fn test_server_down_does_not_hang_client() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(crate::server::start_websocket_async::<Flex>(
+            vec![Default::default()],
+            3070,
+        ));
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = Device::remote("ws://localhost:3070", 0);
+
+        // One successful round-trip so the sockets are actually up and the demux task is running.
+        let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+        let warmup: Vec<f32> = (input * 2.0).to_data().to_vec().unwrap();
+        assert_eq!(warmup, vec![2.0, 4.0, 6.0, 8.0]);
+
+        // Kill the server: dropping its runtime closes the listener and both client sockets.
+        rt.shutdown_timeout(std::time::Duration::from_millis(100));
+        // Let the client's response-demux observe the closed stream and fail pending callers.
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        // A read now has no server to answer it. It must error out (which `to_data` surfaces as a
+        // panic), not hang.
+        let finished = finishes_within(std::time::Duration::from_secs(10), move || {
+            let t = Tensor::<2>::from_floats([[5.0, 6.0], [7.0, 8.0]], &device);
+            let _ = (t * 2.0).to_data();
+        });
+        assert!(
+            finished,
+            "client hung waiting for a response after the server went down"
+        );
+    }
+
+    /// A client that disconnects abruptly mid-session (socket dropped, no `Close`) must not wedge
+    /// the server: it should clean the session up and keep serving everyone else. We drive a raw
+    /// connection here because a `Device`'s client is process-cached and never dropped mid-test.
+    #[test]
+    fn test_client_disconnect_handled_cleanly_by_server() {
+        use crate::shared::{RemoteMessage, SessionId, Task};
+        use burn_communication::{CommunicationChannel, Message, Protocol, ProtocolClient};
+        use std::str::FromStr;
+
+        type Client = <crate::shared::RemoteProtocol as Protocol>::Client;
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(crate::server::start_websocket_async::<Flex>(
+            vec![Default::default()],
+            3090,
+        ));
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        // Raw client: connect a submit stream, init a session and send one task so the server
+        // spawns the session worker, then drop the socket without a `Close` to mimic a crash.
+        {
+            let rtc = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let address = burn_communication::Address::from_str("ws://localhost:3090").unwrap();
+            let session_id = SessionId::new();
+
+            rtc.block_on(async {
+                let mut submit = Client::connect(address, "submit")
+                    .await
+                    .expect("raw submit connect");
+
+                let frame = |msgs: Vec<RemoteMessage>| -> Message {
+                    Message::new(rmp_serde::to_vec(&msgs).unwrap().into())
+                };
+
+                submit
+                    .send(frame(vec![RemoteMessage::Init(session_id, 0)]))
+                    .await
+                    .expect("send init");
+                submit
+                    .send(frame(vec![RemoteMessage::Task(Task::Seed(0))]))
+                    .await
+                    .expect("send task");
+                // Drop `submit` here (end of block): the server sees the stream end without a
+                // `Close` and must run the cleanup path.
+            });
+        }
+
+        // Give the server a moment to tear the abandoned session down.
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        // The server must have survived: a fresh, normal client on the same server still works.
+        let finished = finishes_within(std::time::Duration::from_secs(10), || {
+            let device = Device::remote("ws://localhost:3090", 0);
+            let input = Tensor::<2>::from_floats([[10.0, 20.0]], &device);
+            let numbers: Vec<f32> = (input * 3.0).to_data().to_vec().unwrap();
+            assert_eq!(numbers, vec![30.0, 60.0]);
+        });
+        assert!(
+            finished,
+            "server stopped serving after a client disconnected abruptly"
+        );
+
+        rt.shutdown_timeout(std::time::Duration::from_millis(100));
+    }
+
     #[test]
     pub fn test_to_device_local_to_remote() {
         let rt = tokio::runtime::Builder::new_multi_thread()

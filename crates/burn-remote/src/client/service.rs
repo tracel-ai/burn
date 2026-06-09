@@ -229,14 +229,19 @@ impl<C: ProtocolClient> RemoteService<C> {
                     }
                     Ok(None) => {
                         log::warn!("Remote response stream closed");
-                        return;
+                        break;
                     }
                     Err(err) => {
                         log::warn!("Remote response stream error: {err:?}");
-                        return;
+                        break;
                     }
                 }
             }
+
+            // The response stream is gone (clean close or error): the server will never answer
+            // any in-flight or future request on this connection. Fail every waiting caller and
+            // gate new ones so they error out instead of blocking forever on a dead server.
+            responder.disconnect();
         });
     }
 }
