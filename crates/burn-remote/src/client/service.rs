@@ -425,7 +425,7 @@ impl<C: ProtocolClient> RemoteService<C> {
             return;
         }
 
-        log::info!(
+        log::debug!(
             "Connecting to {} (device {}) ...",
             self.address,
             self.device_index
@@ -456,7 +456,7 @@ impl<C: ProtocolClient> RemoteService<C> {
             return;
         }
         self.ensure_connected();
-        log::info!("Flush session: {}", self.session_id);
+        log::trace!("Flush session: {}", self.session_id);
         let batch = self.batch.take();
         let writer = self
             .writer

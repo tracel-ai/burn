@@ -44,7 +44,7 @@ impl<S: SubmitService, C: CommunicationChannel> SubmitHandler<S, C> {
     }
 
     pub(crate) async fn run(mut self) {
-        log::info!(
+        log::debug!(
             "[Submit handler] On new connection: {:?}",
             std::thread::current().id()
         );
@@ -53,7 +53,7 @@ impl<S: SubmitService, C: CommunicationChannel> SubmitHandler<S, C> {
             let msg = match self.socket.recv().await {
                 Ok(Some(m)) => m,
                 Ok(None) => {
-                    log::info!("Submit stream closed");
+                    log::debug!("Submit stream closed");
                     break;
                 }
                 Err(err) => {

@@ -36,7 +36,7 @@ impl<S: SubmitService> SubmitPolicy<S> {
                     }
                 }
                 Action::Close(id) => {
-                    log::info!("Close requested for session {id}");
+                    log::debug!("Close requested for session {id}");
                     self.service.close(id).await;
                     return true;
                 }
@@ -81,11 +81,11 @@ impl<S: SubmitService> SubmitPolicy<S> {
             Some(id) if !self.state.session_closed => {
                 // The stream ended without an explicit `Close` (client crash, dropped socket,
                 // decode/stream error). Close here so nothing leaks.
-                log::info!("Submit stream for session {id} ended without Close; cleaning up");
+                log::debug!("Submit stream for session {id} ended without Close; cleaning up");
                 self.service.close(id).await;
             }
-            Some(id) => log::info!("Closing session {id}"),
-            None => log::info!("Closing session (no id info)"),
+            Some(id) => log::debug!("Closing session {id}"),
+            None => log::debug!("Closing session (no id info)"),
         }
     }
 }

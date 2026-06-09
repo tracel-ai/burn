@@ -42,14 +42,12 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
     }
 
     pub(crate) async fn run(mut self) {
-        log::info!("[Fetch handler] On new connection, initializing ...");
-
         let Some((session_id, device_index)) = self.handshake().await else {
             return;
         };
 
-        log::info!(
-            "[Fetch handler] On new connection, initialized: {session_id} Device({device_index}) {:?}",
+        log::debug!(
+            "[Fetch handler] New connection for {session_id} Device({device_index}) {:?}",
             std::thread::current().id()
         );
 
@@ -67,7 +65,7 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
             }
         };
 
-        log::info!("Fetch writer running for session {session_id}");
+        log::debug!("Fetch writer running for session {session_id}");
 
         // Drain the per-session result queue. The queue closes when every sender is dropped: the
         // session's worker (on close/disconnect) and any in-flight readback tasks.
@@ -88,7 +86,7 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
             }
         }
 
-        log::info!("Fetch writer for session {session_id} exited (queue closed)");
+        log::debug!("Fetch writer for session {session_id} exited (queue closed)");
     }
 
     /// Read the init handshake and reply with the selected device's settings, returning the
@@ -98,7 +96,7 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
         let msg = match self.socket.recv().await {
             Ok(Some(m)) => m,
             Ok(None) => {
-                log::info!("Fetch stream closed before init handshake");
+                log::debug!("Fetch stream closed before init handshake");
                 return None;
             }
             Err(err) => {
@@ -115,7 +113,7 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
             }
         };
 
-        log::info!("Init fetcher for session {session_id} (device {device_index})");
+        log::trace!("Init fetcher for session {session_id} (device {device_index})");
 
         // Reply with the selected device's default settings — the client uses these to fill in
         // `RemoteDevice::defaults` so it can resolve op dtypes without an extra RTT — and the

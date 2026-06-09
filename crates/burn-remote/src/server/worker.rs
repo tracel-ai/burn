@@ -116,19 +116,8 @@ where
         // run on the shared runtime's worker threads, so they make progress while this thread is
         // parked on a barrier or rendezvous.
         handle.block_on(async {
-            log::info!(
-                "New session worker: {} {:?}",
-                session_id,
-                std::thread::current().id()
-            );
-            // Diagnostic: how far does each session's worker get? Logs the first few tasks then
-            // every 200, so a stalled session shows a frozen count instead of flooding the log.
-            let mut processed: u64 = 0;
+            log::debug!("Session {session_id} worker started");
             while let Some(task) = receiver.recv().await {
-                processed += 1;
-                if processed <= 3 || processed.is_multiple_of(200) {
-                    log::info!("Session {session_id} worker: processed {processed} tasks");
-                }
                 if let Err(err) = self.process_task(task).await {
                     // One task failing doesn't tear down the session: read/sync/dtype failures
                     // surface to the client through their response, fire-and-forget failures are
@@ -136,7 +125,6 @@ where
                     log::error!("Task on session {session_id} failed: {err}");
                 }
             }
-            log::info!("Session {session_id} worker: drained after {processed} tasks");
         });
 
         // The task channel closed: every submit connection bound to this session has gone away
@@ -144,7 +132,7 @@ where
         // so the session's tensors aren't freed with GPU work still queued. Dropping `self`
         // afterwards drops the runner and the response sender, closing the fetch writer's queue and
         // ending its task too.
-        log::info!("Session {session_id} worker draining and exiting");
+        log::debug!("Session {session_id} worker draining and exiting");
         if let Err(err) = self.runner.sync() {
             log::warn!("runner.sync() at session {session_id} close failed: {err:?}");
         }
@@ -174,7 +162,7 @@ where
                 Ok(())
             }
             Task::RegisterTensorRemote(stream_id, remote, new_id) => {
-                log::info!(
+                log::trace!(
                     "Registering remote tensor (transfer {:?} from {:?})",
                     remote.transfer_id,
                     remote.address,
@@ -228,7 +216,7 @@ where
                 count,
                 transfer_id,
             } => {
-                log::info!("Exposing tensor (transfer {transfer_id:?})");
+                log::trace!("Exposing tensor (transfer {transfer_id:?})");
                 // Same shape as `ReadTensor`: the sync part of `read_tensor_async` runs in order
                 // to preserve stream ordering, but the readback + expose are detached so a
                 // cross-server hand-off doesn't stall this session's op registration on a
