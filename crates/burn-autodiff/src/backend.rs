@@ -86,6 +86,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
+
+    fn flush(device: &Self::Device) {
+        B::flush(device)
+    }
 }
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {

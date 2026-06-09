@@ -42,6 +42,8 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     /// Sync the interpreter, ensure that all computations are finished.
     fn sync(&self) -> Result<(), ExecutionError>;
+    /// TODO: Docs
+    fn flush(&self);
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.

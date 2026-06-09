@@ -158,6 +158,8 @@ impl Backend for Flex {
             _ => DTypeUsageSet::empty(),
         }
     }
+
+    fn flush(_device: &Self::Device) {}
 }
 
 impl BackendIr for Flex {

@@ -86,6 +86,12 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
+
+    fn flush(device: &Self::Device) {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client.sync(move || B::flush(&device))
+    }
 }
 
 /// The status of a [fuser](OperationFuser).

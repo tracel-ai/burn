@@ -87,6 +87,10 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
             .submit_blocking(move |s| s.dtype_usage(dtype))
             .expect("Service call failed")
     }
+
+    fn flush(&self) {
+        self.handle.submit_blocking(|s| s.flush()).unwrap();
+    }
 }
 
 impl<C: ProtocolClient> RemoteClient<C> {

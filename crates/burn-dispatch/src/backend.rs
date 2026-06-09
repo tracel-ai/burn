@@ -144,6 +144,10 @@ impl Backend for Dispatch {
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
+
+    fn flush(device: &Self::Device) {
+        dispatch_device!(device, |device| B::flush(device))
+    }
 }
 
 #[cfg(feature = "autodiff")]

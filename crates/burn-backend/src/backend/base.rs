@@ -137,6 +137,9 @@ pub trait Backend:
         Ok(())
     }
 
+    /// Flush any pending operation of the backend.
+    fn flush(_device: &Self::Device);
+
     /// Marks the given data as being used as a staging buffer for transfer between CPU and
     /// accelerators like GPUs.
     ///

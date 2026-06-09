@@ -2148,4 +2148,8 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet {
         B::dtype_usage(&self.device, dtype)
     }
+
+    fn flush(&self) {
+        B::flush(&self.device);
+    }
 }
