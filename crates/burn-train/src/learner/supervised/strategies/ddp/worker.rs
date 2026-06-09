@@ -75,11 +75,28 @@ where
         let epoch_valid = self
             .dataloader_valid
             .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader));
+        log::info!(
+            "[ddp worker] device {:?} (main={}): fit start, forking model",
+            self.device,
+            self.is_main
+        );
         self.learner.fork(&self.device);
+        log::info!(
+            "[ddp worker] device {:?}: fork done, calling grad_sharded",
+            self.device
+        );
         self.learner.grad_sharded();
+        log::info!(
+            "[ddp worker] device {:?}: grad_sharded done, entering training loop",
+            self.device
+        );
 
         for training_progress in TrainingLoop::new(self.starting_epoch, num_epochs) {
             let epoch = training_progress.items_processed;
+            log::info!(
+                "[ddp worker] device {:?}: epoch {epoch} — running forward/backward",
+                self.device
+            );
 
             if self.is_main {
                 self.event_processor

@@ -112,8 +112,14 @@ fn worker_loop<B, P>(
             session_id,
             std::thread::current().id()
         );
+        // Diagnostic: how far does each session's worker get? Logs the first few tasks then
+        // every 200, so a stalled session shows a frozen count instead of flooding the log.
+        let mut processed: u64 = 0;
         while let Some(task) = receiver.recv().await {
-            log::info!("Session {session_id} worker received a task");
+            processed += 1;
+            if processed <= 3 || processed % 200 == 0 {
+                log::info!("Session {session_id} worker: processed {processed} tasks");
+            }
             if let Err(err) =
                 process_task(&external_comm, &local_comm, &runner, &response_sender, task).await
             {
@@ -123,6 +129,7 @@ fn worker_loop<B, P>(
                 log::error!("Task on session {session_id} failed: {err}");
             }
         }
+        log::info!("Session {session_id} worker: drained after {processed} tasks");
     });
 
     // The task channel closed: every submit connection bound to this session has gone away
