@@ -47,6 +47,14 @@ impl WsServer {
     {
         init_logging();
 
+        // Report the address the listener actually bound to (resolves an ephemeral `:0` port to
+        // the real one), so the log confirms the server is accepting connections and tells the
+        // operator where.
+        match listener.local_addr() {
+            Ok(addr) => log::info!("Server started, listening on {addr}"),
+            Err(err) => log::info!("Server started (could not resolve bound address: {err})"),
+        }
+
         axum::serve(
             listener,
             self.router

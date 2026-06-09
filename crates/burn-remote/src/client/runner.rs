@@ -124,7 +124,10 @@ impl<C: ProtocolClient> RemoteClient<C> {
                 id.type_id = 0;
                 id.index_id = device_index as u16;
             }
-            log::trace!("All-reduce on {:?} ({local_address}): {desc:?}", self.device);
+            log::trace!(
+                "All-reduce on {:?} ({local_address}): {desc:?}",
+                self.device
+            );
         }
 
         op

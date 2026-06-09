@@ -238,10 +238,7 @@ mod tests {
     /// tests assert that a failure *surfaces* (as an `Err` or a panic) instead of hanging, so all
     /// that matters is the thread came back. Returns `false` if it was still running at the
     /// deadline — i.e. the call hung.
-    fn finishes_within(
-        timeout: std::time::Duration,
-        body: impl FnOnce() + Send + 'static,
-    ) -> bool {
+    fn finishes_within(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) -> bool {
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             // Swallow panics: a disconnected read panicking on the error path is an acceptable

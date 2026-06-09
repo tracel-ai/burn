@@ -2083,9 +2083,7 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
                     B::flush(&self.device);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                burn_ir::DistributedOperationIr::SyncCollective => {
-                    B::sync_collective(&self.device)
-                }
+                burn_ir::DistributedOperationIr::SyncCollective => B::sync_collective(&self.device),
             },
         }
     }

@@ -172,8 +172,14 @@ mod tests {
         pending.responder().disconnect();
 
         // Both receivers resolve immediately with an error instead of hanging.
-        assert!(matches!(rx0.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
-        assert!(matches!(rx1.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
+        assert!(matches!(
+            rx0.try_recv(),
+            Err(oneshot::error::TryRecvError::Closed)
+        ));
+        assert!(matches!(
+            rx1.try_recv(),
+            Err(oneshot::error::TryRecvError::Closed)
+        ));
     }
 
     #[test]
@@ -184,7 +190,10 @@ mod tests {
         // A request issued after the connection dropped must not park forever.
         let id = pending.next_id();
         let mut rx = pending.register(id);
-        assert!(matches!(rx.try_recv(), Err(oneshot::error::TryRecvError::Closed)));
+        assert!(matches!(
+            rx.try_recv(),
+            Err(oneshot::error::TryRecvError::Closed)
+        ));
 
         // And it was never inserted, so a late response for it finds nothing.
         assert!(!pending.responder().complete(id, content()));
