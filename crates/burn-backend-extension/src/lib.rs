@@ -266,14 +266,14 @@ fn extract_future_output_type(ty: &Type) -> Option<&Type> {
         for bound in &impl_trait.bounds {
             if let TypeParamBound::Trait(trait_bound) = bound {
                 let last_segment = trait_bound.path.segments.last()?;
-                if last_segment.ident == "Future" {
-                    if let PathArguments::AngleBracketed(args) = &last_segment.arguments {
-                        for arg in &args.args {
-                            if let GenericArgument::AssocType(assoc) = arg {
-                                if assoc.ident == "Output" {
-                                    return Some(&assoc.ty);
-                                }
-                            }
+                if last_segment.ident == "Future"
+                    && let PathArguments::AngleBracketed(args) = &last_segment.arguments
+                {
+                    for arg in &args.args {
+                        if let GenericArgument::AssocType(assoc) = arg
+                            && assoc.ident == "Output"
+                        {
+                            return Some(&assoc.ty);
                         }
                     }
                 }
