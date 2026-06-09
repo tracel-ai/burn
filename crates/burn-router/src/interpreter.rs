@@ -2081,11 +2081,11 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
                     // Safety: the collective tensor is resolved through the normal op stream
                     // (a `SyncCollective` op follows), so the handle is valid once that runs.
                     let output = unsafe { output.assume_resolved() };
-                    let _ = B::sync(&self.device).ok();
+                    B::flush(&self.device);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 burn_ir::DistributedOperationIr::SyncCollective => {
-                    log::info!("All reduce: {:?}", self.device);
+                    log::info!("Sync collective: {:?}", self.device);
                     B::sync_collective(&self.device)
                 }
             },
