@@ -9,6 +9,8 @@ use crate::{
     ops::{BridgeKind, BridgeTensor, Kind},
 };
 
+use alloc::{format, string::String};
+
 impl<const D: usize, K> Tensor<D, K>
 where
     K: Basic,

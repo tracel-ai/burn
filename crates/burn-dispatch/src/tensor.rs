@@ -12,6 +12,8 @@ use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_backend::tensor::FloatTensor;
 
+use alloc::{format, string::String};
+
 // TODO: if we reduce the different associated types for float/int/bool/quantized tensor primitives down to a single
 // `B::TensorPrimitive` we can simplify this.
 
