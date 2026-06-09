@@ -314,7 +314,10 @@ mod tests {
 
             // The batch never sends `Close` — simulate an abrupt disconnect afterwards.
             policy
-                .process_batch(vec![RemoteMessage::Init(id, 0), RemoteMessage::Task(Task::Seed(1))])
+                .process_batch(vec![
+                    RemoteMessage::Init(id, 0),
+                    RemoteMessage::Task(Task::Seed(1)),
+                ])
                 .await;
             policy.cleanup().await;
 

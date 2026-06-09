@@ -1,5 +1,5 @@
 use crate::shared::{
-    Task, RequestId, SessionId, RemoteMessage, TaskResponse, TaskResponseContent, TensorRemote,
+    RemoteMessage, RequestId, SessionId, Task, TaskResponse, TaskResponseContent, TensorRemote,
 };
 use burn_backend::{
     DTypeUsageSet, ExecutionError, TensorData,

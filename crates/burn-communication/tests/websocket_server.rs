@@ -159,7 +159,11 @@ async fn concurrent_connections_are_not_serialized() {
                 let mut ws = connect(&url).await;
                 let payload = format!("hello-{i}").into_bytes();
                 send_binary(&mut ws, &payload).await;
-                assert_eq!(recv_binary(&mut ws).await, payload, "client {i} echo mismatch");
+                assert_eq!(
+                    recv_binary(&mut ws).await,
+                    payload,
+                    "client {i} echo mismatch"
+                );
                 close_cleanly(ws).await;
             })
         })
@@ -235,7 +239,11 @@ async fn abrupt_disconnect_does_not_affect_other_connections() {
 
     // B must still be alive and responsive after A vanished.
     send_binary(&mut b, b"b2").await;
-    assert_eq!(recv_binary(&mut b).await, b"b2", "B died after A disconnected");
+    assert_eq!(
+        recv_binary(&mut b).await,
+        b"b2",
+        "B died after A disconnected"
+    );
 
     close_cleanly(b).await;
     server.shutdown().await;
@@ -268,7 +276,11 @@ async fn stream_end_after_close_does_not_panic() {
         .await
         .expect("/drain handler did not finish — it likely panicked on the bare-None path")
         .expect("report channel closed");
-    assert_eq!(first, Recv::End, "close frame should make the first recv return Ok(None)");
+    assert_eq!(
+        first,
+        Recv::End,
+        "close frame should make the first recv return Ok(None)"
+    );
     assert_eq!(
         second,
         Recv::End,

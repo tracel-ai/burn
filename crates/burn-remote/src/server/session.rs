@@ -8,7 +8,7 @@ use tokio::sync::{Mutex, mpsc};
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{FetchService, SubmitService};
 use crate::server::worker::SessionWorker;
-use crate::shared::{Task, SessionId, TaskResponse};
+use crate::shared::{SessionId, Task, TaskResponse};
 
 /// Capacity for the per-session response queue.
 ///

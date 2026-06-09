@@ -44,7 +44,10 @@ impl<S: SubmitService, C: CommunicationChannel> SubmitHandler<S, C> {
     }
 
     pub(crate) async fn run(mut self) {
-        log::info!("[Submit handler] On new connection.");
+        log::info!(
+            "[Submit handler] On new connection: {:?}",
+            std::thread::current().id()
+        );
 
         loop {
             let msg = match self.socket.recv().await {

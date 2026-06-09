@@ -120,9 +120,9 @@ impl CommunicationChannel for WsServerChannel {
                 // A close frame is an orderly end-of-stream.
                 Some(Ok(ws::Message::Close(_close_frame))) => return Ok(None),
                 // Control/text frames carry no protocol payload: skip and keep reading.
-                Some(Ok(
-                    ws::Message::Ping(_) | ws::Message::Pong(_) | ws::Message::Text(_),
-                )) => continue,
+                Some(Ok(ws::Message::Ping(_) | ws::Message::Pong(_) | ws::Message::Text(_))) => {
+                    continue;
+                }
                 Some(Err(err)) => return Err(WsServerError::Axum(err)),
                 // The stream is exhausted: the peer went away without a close frame (closed
                 // tab, network drop, killed client). This is a common disconnect path, not an

@@ -11,7 +11,9 @@ pub(super) fn parse_init_handshake(bytes: &[u8]) -> Result<(SessionId, u32), Str
         .map_err(|err| format!("Failed to decode init handshake: {err:?}"))?;
 
     match messages.pop() {
-        Some(RemoteMessage::Init(id, device_index)) if messages.is_empty() => Ok((id, device_index)),
+        Some(RemoteMessage::Init(id, device_index)) if messages.is_empty() => {
+            Ok((id, device_index))
+        }
         other => Err(format!(
             "Init handshake expected a single RemoteMessage::Init, got {other:?}"
         )),

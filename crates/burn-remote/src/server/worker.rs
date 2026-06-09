@@ -25,7 +25,7 @@ use burn_router::{RouterClient, TensorInterpreter};
 use tokio::{runtime::Handle, sync::mpsc};
 
 use crate::server::local_comm::LocalCommService;
-use crate::shared::{Task, RequestId, SessionId, TaskResponse, TaskResponseContent};
+use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
 
 /// Capacity of the per-session task channel feeding the worker thread.
 ///
@@ -290,6 +290,8 @@ async fn send_response(
         })
         .await
         .map_err(|_| {
-            format!("Response receiver dropped before result for request {request_id} could be sent")
+            format!(
+                "Response receiver dropped before result for request {request_id} could be sent"
+            )
         })
 }

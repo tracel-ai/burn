@@ -42,11 +42,16 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
     }
 
     pub(crate) async fn run(mut self) {
-        log::info!("[Fetch handler] On new connection.");
+        log::info!("[Fetch handler] On new connection, initializing ...");
 
         let Some((session_id, device_index)) = self.handshake().await else {
             return;
         };
+
+        log::info!(
+            "[Fetch handler] On new connection, initialized: {session_id} Device({device_index}) {:?}",
+            std::thread::current().id()
+        );
 
         // Claim the session's result receiver. The protocol allows only one fetch socket per
         // session, so a second fetcher is rejected here.
