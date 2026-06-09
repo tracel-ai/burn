@@ -68,18 +68,18 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::{Tensor, Complex, ComplexScalar, Shape, Int};
+    /// use burn_tensor::{Tensor, Complex, ComplexScalar, Scalar, Shape, Int};
     ///
     /// fn example() {
     ///    let device = Default::default();
     ///    let tensor1 = Tensor::<2, Complex>::from_complex([[ComplexScalar::new(1.0, -2.0), ComplexScalar::new(3.0, 4.0), ComplexScalar::new(0.0, -1.0)], [ComplexScalar::new(1.0, -2.0), ComplexScalar::new(0.0, -1.0), ComplexScalar::new(2.0, 2.0)]], &device);
-    ///    let exponent = ComplexScalar::new(2.0, 2.0).into();
+    ///    let exponent = Scalar::from(ComplexScalar::new(2.0, 2.0));
     ///    let tensor = tensor1.powc_scalar(exponent);
     ///    println!("{tensor}");
-    ///    // [[ 1.84452120e+01-1.05764765e+00i,  1.42600948e+00+6.02434630e-01i,
-    ///    // 2.64608933e-18-4.32139183e-02i],
-    ///    //  [-7.49735280e-02+2.99204278e-02i,  5.50067930e-19-8.98329102e-03i,
-    ///    //  9.29602961e+01+5.18329310e+01i]]
+    ///    // [[-2.22517157e-01 -0.10070913j, -2.10831397e+01-24.00021071j,
+    ///    //  2.64608933e-18 -0.04321392j],
+    ///    // [-2.22517157e-01 -0.10070913j,  2.64608933e-18 -0.04321392j,
+    ///    //  3.71763952e+00-13.08834205j]]
     /// }
     /// ```
     pub fn powc_scalar(self, exponent: Scalar) -> Self {

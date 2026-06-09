@@ -94,6 +94,7 @@ impl_from_scalar! {
     f64  => Float, f32  => Float, f16  => Float, bf16 => Float,
     i64  => Int, i32  => Int, i16  => Int, i8 => Int,
     u64  => UInt, u32  => UInt, u16  => UInt, u8 => UInt, bool => Bool,
+    ComplexScalar<f64> => Complex, ComplexScalar<f32> => Complex
 }
 
 // CubeCL requirement
