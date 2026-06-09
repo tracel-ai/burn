@@ -62,13 +62,23 @@ const FLUSH_THRESHOLD: usize = 32;
 /// handle.
 pub struct RemoteService<C: ProtocolClient> {
     runtime: tokio::runtime::Runtime,
+    /// Where to connect on first use. The connection is established lazily (see
+    /// [`ensure_connected`](Self::ensure_connected)) rather than in [`init`](Self::init),
+    /// because cubecl holds a process-global device-registry lock across `init` — opening the
+    /// sockets there would serialize every remote device's setup behind that lock.
+    address: Address,
+    device_index: u32,
     /// Owns the request socket and serializes outgoing frames off the runner thread.
-    writer: SubmitWriter,
+    /// `None` until the first task (or a settings read) triggers the lazy connect.
+    writer: Option<SubmitWriter>,
     /// Buffers outgoing tasks and signals when a batch is ready for the wire.
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
     pending: PendingResponses,
+    /// Shared cell populated from the init handshake (read by `RemoteDevice::defaults`).
     settings: Arc<OnceLock<DeviceSettings>>,
+    /// Shared cell populated from the init handshake (read by `RemoteDevice::enumerate`).
+    device_count: Arc<OnceLock<u32>>,
     session_id: SessionId,
     closed: bool,
     /// The request channel (`C::Channel`) lives in the writer task, not in this struct, so
@@ -82,33 +92,21 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
         let runtime = build_runtime();
         let session_id = SessionId::new();
 
-        log::info!("Connecting to {address} (device {device_index}) ...");
-        let (mut request, mut response) = Self::connect_streams(&runtime, &address);
-        let (settings, device_count) = Self::handshake(
-            &runtime,
-            &mut request,
-            &mut response,
-            &address,
-            session_id,
-            device_index,
-        );
-
-        // Publish settings to the shared cell so `RemoteDevice::defaults` can see them.
-        let cell = settings_cell(id);
-        let _ = cell.set(settings);
-        // Publish the server's device count so `RemoteDevice::enumerate` can list every device.
-        let _ = device_count_cell(id).set(device_count);
-
-        let pending = PendingResponses::new();
-        Self::spawn_response_demux(&runtime, response, pending.responder());
-        let writer = SubmitWriter::spawn::<C>(&runtime, request);
-
+        // Lazy connect: `init` must return promptly. cubecl holds a process-global
+        // device-registry lock across this call (to make device-handle creation atomic), so
+        // doing the blocking network connect + handshake here would serialize every remote
+        // device's setup behind that lock — N devices would connect strictly one at a time.
+        // Instead we record the endpoint and open the sockets on the first real use, off the
+        // lock and on the device-runner thread (see `ensure_connected`).
         Self {
             runtime,
-            writer,
+            address,
+            device_index,
+            writer: None,
             batch: OutgoingBatch::new(FLUSH_THRESHOLD),
-            pending,
-            settings: cell,
+            pending: PendingResponses::new(),
+            settings: settings_cell(id),
+            device_count: device_count_cell(id),
             session_id,
             closed: false,
             _p: PhantomData,
@@ -116,12 +114,11 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
     }
 
     fn utilities(&self) -> ServerUtilitiesHandle {
-        // DeviceSettings is `Copy`, so we publish a snapshot.
-        let settings = *self
-            .settings
-            .get()
-            .expect("DeviceSettings populated during init()");
-        Arc::new(settings)
+        // The remote backend surfaces device settings through the endpoint registry
+        // (`RemoteDevice::defaults` → `settings_for`), not through this handle, so the device
+        // layer never reads what we return here. Handing back an empty handle keeps `init` —
+        // and the cubecl lock it runs under — free of the blocking network handshake.
+        Arc::new(())
     }
 }
 
@@ -416,14 +413,56 @@ impl<C: ProtocolClient> RemoteService<C> {
         self.flush();
     }
 
+    /// Open the submit/fetch sockets and run the init handshake — exactly once.
+    ///
+    /// Called lazily from the device-runner thread: from [`flush`](Self::flush) on the first
+    /// task, or via [`RemoteClient::ensure_connected`](super::RemoteClient) on the settings
+    /// path. Never from [`init`](Self::init), so the blocking connect + handshake runs off
+    /// cubecl's global device-registry lock and devices connect in parallel. Always runs on
+    /// the single runner thread, so the idempotent check needs no locking.
+    pub fn ensure_connected(&mut self) {
+        if self.writer.is_some() {
+            return;
+        }
+
+        log::info!(
+            "Connecting to {} (device {}) ...",
+            self.address,
+            self.device_index
+        );
+        let (mut request, mut response) = Self::connect_streams(&self.runtime, &self.address);
+        let (settings, device_count) = Self::handshake(
+            &self.runtime,
+            &mut request,
+            &mut response,
+            &self.address,
+            self.session_id,
+            self.device_index,
+        );
+
+        // Publish to the shared cells so `RemoteDevice::defaults`/`enumerate` can read them.
+        let _ = self.settings.set(settings);
+        let _ = self.device_count.set(device_count);
+
+        Self::spawn_response_demux(&self.runtime, response, self.pending.responder());
+        self.writer = Some(SubmitWriter::spawn::<C>(&self.runtime, request));
+    }
+
     /// Hand whatever's currently buffered to the writer task as one batch (the writer
-    /// serializes it off the runner thread). No-op when the buffer is empty.
+    /// serializes it off the runner thread). No-op when the buffer is empty; otherwise opens
+    /// the connection first if it isn't already up.
     pub fn flush(&mut self) {
         if self.batch.is_empty() {
             return;
         }
+        self.ensure_connected();
         log::info!("Flush session: {}", self.session_id);
-        self.writer.send(&self.runtime, self.batch.take());
+        let batch = self.batch.take();
+        let writer = self
+            .writer
+            .as_ref()
+            .expect("writer is set by ensure_connected");
+        writer.send(&self.runtime, batch);
     }
 }
 
@@ -434,10 +473,18 @@ impl<C: ProtocolClient> Drop for RemoteService<C> {
         }
         self.closed = true;
 
+        // If we never connected, there's no server-side session to close and no writer to
+        // drain — whatever was buffered never had a connection to go out on, so just drop it.
+        if self.writer.is_none() {
+            return;
+        }
+
         // Best-effort teardown: append Close to whatever's still buffered and let the
         // writer drain + flush it before we join the task, so the runtime isn't torn down
         // mid-send. Serialization happens in the writer task now, so Drop can't panic on it.
         self.batch.push(RemoteMessage::Close(self.session_id));
-        self.writer.shutdown(&self.runtime, Some(self.batch.take()));
+        let batch = self.batch.take();
+        let writer = self.writer.as_mut().expect("writer present (checked above)");
+        writer.shutdown(&self.runtime, Some(batch));
     }
 }

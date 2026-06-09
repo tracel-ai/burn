@@ -166,19 +166,26 @@ impl RemoteDevice {
     }
 
     /// Forces the client connection to be established immediately using the default protocol.
-    /// This is a no-op if the client is already initialized for this address.
+    /// This is a no-op if the connection is already up for this device.
     pub fn connect(&self) {
         use burn_communication::Protocol;
         type DefaultChannel = RemoteChannel<<crate::shared::RemoteProtocol as Protocol>::Client>;
 
-        self.connect_with_channel::<DefaultChannel>();
+        // `get_client` initializes the (lazy) service if needed; `ensure_connected` then opens
+        // the sockets and runs the handshake on the runner thread, so the settings/device-count
+        // cells are populated by the time we return.
+        get_client::<DefaultChannel>(self).ensure_connected();
     }
 
-    /// Forces the connection using the specified communication protocol channel.
-    /// This is a no-op if the client is already initialized for this address.
+    /// Initializes the client for this device using the specified protocol channel.
+    /// This is a no-op if the client already exists for this address.
+    ///
+    /// Note this only creates the (lazy) service — the actual socket connection and handshake
+    /// open on first use. Use [`connect`](Self::connect) when you need the connection (and the
+    /// device's settings) established right away.
     pub fn connect_with_channel<R: burn_router::RouterChannel<Device = Self>>(&self) {
-        // If the client doesn't exist yet, `get_client` forces initialization, which in
-        // turn calls `RemoteService::init` and populates the settings for this device.
+        // `get_client` forces service initialization if the client doesn't exist yet;
+        // `RemoteService::init` records the endpoint but defers the connect to first use.
         get_client::<R>(self);
     }
 
