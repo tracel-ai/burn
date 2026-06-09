@@ -6,9 +6,9 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
 use crate::server::local_comm::LocalCommService;
-use crate::server::socket::{RequestService, ResponseService};
+use crate::server::service::{FetchService, SubmitService};
 use crate::server::worker::SessionWorker;
-use crate::shared::{ComputeTask, SessionId, TaskResponse};
+use crate::shared::{Task, SessionId, TaskResponse};
 
 /// Capacity for the per-session response queue.
 ///
@@ -25,8 +25,8 @@ const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 /// each other's backend state. Cross-session tensor transfers go through `external_comm`
 /// (cross-server) or `local_comm` (same-host), each of which has its own rendezvous.
 ///
-/// Compute runs on the worker thread, not the request task: the request handler only decodes
-/// the incoming batch and forwards each [`ComputeTask`] to the worker over a bounded channel.
+/// Tasks run on the worker thread, not the submit handler: the handler only decodes
+/// the incoming batch and forwards each [`Task`] to the worker over a bounded channel.
 /// Tasks are processed in FIFO order on the single worker, so per-session ordering is
 /// preserved without any extra locking, while a blocking op on one session (e.g. an
 /// all-reduce barrier) can't stall another session's worker or a runtime thread.
@@ -95,7 +95,7 @@ where
             // The session is pinned to its device for its whole lifetime; the first handler
             // (request or response) to touch it fixes the device index. Spawn the worker that
             // owns the runner — this runs inside the tokio runtime, so the worker can capture
-            // the runtime handle it needs for the async parts of compute.
+            // the runtime handle it needs for the async parts of a task.
             let runner = TensorInterpreter::new(self.device(device_index));
             let worker = SessionWorker::new(
                 session_id,
@@ -113,12 +113,12 @@ where
     }
 }
 
-impl<B, P> RequestService for SessionManager<B, P>
+impl<B, P> SubmitService for SessionManager<B, P>
 where
     B: BackendIr,
     P: Protocol,
 {
-    /// Resolve the channel used to forward [`ComputeTask`]s to `session_id`'s worker thread,
+    /// Resolve the channel used to forward [`Task`]s to `session_id`'s worker thread,
     /// creating the session (and spawning its worker) on demand. The request loop resolves
     /// this once per connection and reuses it for every task, instead of re-locking the
     /// sessions map per task.
@@ -126,7 +126,7 @@ where
         &self,
         session_id: SessionId,
         device_index: u32,
-    ) -> mpsc::Sender<ComputeTask> {
+    ) -> mpsc::Sender<Task> {
         self.with_session(session_id, device_index, |s| s.worker.task_sender())
             .await
     }
@@ -141,7 +141,7 @@ where
     }
 }
 
-impl<B, P> ResponseService for SessionManager<B, P>
+impl<B, P> FetchService for SessionManager<B, P>
 where
     B: BackendIr,
     P: Protocol,

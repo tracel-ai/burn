@@ -1,5 +1,5 @@
 use crate::shared::{
-    ComputeTask, RequestId, SessionId, Task, TaskResponse, TaskResponseContent, TensorRemote,
+    Task, RequestId, SessionId, RemoteMessage, TaskResponse, TaskResponseContent, TensorRemote,
 };
 use burn_backend::{
     DTypeUsageSet, ExecutionError, TensorData,
@@ -24,7 +24,7 @@ mod writer;
 
 use batch::OutgoingBatch;
 use pending::{PendingResponses, Responder};
-use writer::RequestWriter;
+use writer::SubmitWriter;
 
 use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
@@ -53,7 +53,7 @@ const FLUSH_THRESHOLD: usize = 32;
 /// is enqueued before we await the oneshot).
 ///
 /// The moving parts are split into focused types: [`OutgoingBatch`] buffers tasks and
-/// decides when to flush, [`RequestWriter`] owns the socket and serializes frames off the
+/// decides when to flush, [`SubmitWriter`] owns the socket and serializes frames off the
 /// runner thread, and [`PendingResponses`] correlates response-producing requests with the
 /// caller awaiting each reply.
 ///
@@ -63,7 +63,7 @@ const FLUSH_THRESHOLD: usize = 32;
 pub struct RemoteService<C: ProtocolClient> {
     runtime: tokio::runtime::Runtime,
     /// Owns the request socket and serializes outgoing frames off the runner thread.
-    writer: RequestWriter,
+    writer: SubmitWriter,
     /// Buffers outgoing tasks and signals when a batch is ready for the wire.
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
@@ -101,7 +101,7 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
 
         let pending = PendingResponses::new();
         Self::spawn_response_demux(&runtime, response, pending.responder());
-        let writer = RequestWriter::spawn::<C>(&runtime, request);
+        let writer = SubmitWriter::spawn::<C>(&runtime, request);
 
         Self {
             runtime,
@@ -149,26 +149,26 @@ impl<C: ProtocolClient> RemoteService<C> {
         (id, address, device_index)
     }
 
-    /// Open the request and response channels. Done synchronously so a missing server
-    /// surfaces here rather than on the first op, and the demux/writer tasks can be spawned
-    /// on already-open streams.
+    /// Open the submit and fetch channels. Done synchronously so a missing server surfaces here
+    /// rather than on the first op, and the demux/writer tasks can be spawned on already-open
+    /// streams.
     fn connect_streams(
         runtime: &tokio::runtime::Runtime,
         address: &Address,
     ) -> (C::Channel, C::Channel) {
         runtime.block_on(async {
-            let request = C::connect(address.clone(), "request")
+            let submit = C::connect(address.clone(), "submit")
                 .await
-                .unwrap_or_else(|err| panic!("{}", connect_error("request", address, &err)));
-            let response = C::connect(address.clone(), "response")
+                .unwrap_or_else(|err| panic!("{}", connect_error("submit", address, &err)));
+            let fetch = C::connect(address.clone(), "fetch")
                 .await
-                .unwrap_or_else(|err| panic!("{}", connect_error("response", address, &err)));
-            (request, response)
+                .unwrap_or_else(|err| panic!("{}", connect_error("fetch", address, &err)));
+            (submit, fetch)
         })
     }
 
     /// Send the session-init handshake on both streams and wait for the device settings the
-    /// server replies with on the response stream. Both streams carry the same `Vec<Task>`
+    /// server replies with on the response stream. Both streams carry the same `Vec<RemoteMessage>`
     /// wire format; the handshake is just a single-element batch.
     fn handshake(
         runtime: &tokio::runtime::Runtime,
@@ -179,8 +179,8 @@ impl<C: ProtocolClient> RemoteService<C> {
         device_index: u32,
     ) -> (DeviceSettings, u32) {
         let init_bytes: bytes::Bytes =
-            rmp_serde::to_vec(&vec![Task::Init(session_id, device_index)])
-                .expect("Can serialize Task::Init")
+            rmp_serde::to_vec(&vec![RemoteMessage::Init(session_id, device_index)])
+                .expect("Can serialize RemoteMessage::Init")
                 .into();
 
         runtime
@@ -256,11 +256,11 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// Buffer a fire-and-forget op. The buffer is flushed automatically once it reaches
     /// [`FLUSH_THRESHOLD`] entries.
     pub fn register_op(&mut self, stream_id: StreamId, op: OperationIr) {
-        self.submit_compute(ComputeTask::RegisterOperation(stream_id, op));
+        self.submit_task(Task::RegisterOperation(stream_id, op));
     }
 
     pub fn register_tensor(&mut self, stream_id: StreamId, id: TensorId, data: TensorData) {
-        self.submit_compute(ComputeTask::RegisterTensor(stream_id, id, data));
+        self.submit_task(Task::RegisterTensor(stream_id, id, data));
     }
 
     /// Register a tensor produced by a cross-server transfer, flushing immediately.
@@ -276,7 +276,7 @@ impl<C: ProtocolClient> RemoteService<C> {
         tensor: TensorRemote,
         new_id: TensorId,
     ) {
-        self.submit_compute(ComputeTask::RegisterTensorRemote(stream_id, tensor, new_id));
+        self.submit_task(Task::RegisterTensorRemote(stream_id, tensor, new_id));
         self.flush();
     }
 
@@ -292,7 +292,7 @@ impl<C: ProtocolClient> RemoteService<C> {
         count: u32,
         transfer_id: TensorTransferId,
     ) {
-        self.submit_compute(ComputeTask::ExposeTensorRemote {
+        self.submit_task(Task::ExposeTensorRemote {
             stream_id,
             tensor,
             count,
@@ -311,7 +311,7 @@ impl<C: ProtocolClient> RemoteService<C> {
         tensor: TensorIr,
         transfer_id: TensorTransferId,
     ) {
-        self.submit_compute(ComputeTask::ExposeTensorLocal {
+        self.submit_task(Task::ExposeTensorLocal {
             stream_id,
             tensor,
             transfer_id,
@@ -329,7 +329,7 @@ impl<C: ProtocolClient> RemoteService<C> {
         transfer_id: TensorTransferId,
         new_id: TensorId,
     ) {
-        self.submit_compute(ComputeTask::RegisterTensorLocal {
+        self.submit_task(Task::RegisterTensorLocal {
             stream_id,
             transfer_id,
             new_id,
@@ -338,7 +338,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     }
 
     pub fn seed(&mut self, seed: u64) {
-        self.submit_compute(ComputeTask::Seed(seed));
+        self.submit_task(Task::Seed(seed));
     }
 
     /// Initiate a tensor read. The returned receiver resolves when the server response
@@ -351,11 +351,11 @@ impl<C: ProtocolClient> RemoteService<C> {
         stream_id: StreamId,
         tensor: TensorIr,
     ) -> oneshot::Receiver<TaskResponseContent> {
-        self.submit_request(|id| ComputeTask::ReadTensor(id, stream_id, tensor))
+        self.submit_request(|id| Task::ReadTensor(id, stream_id, tensor))
     }
 
     pub fn sync(&mut self, stream_id: StreamId) -> Result<(), ExecutionError> {
-        let rx = self.submit_request(|id| ComputeTask::SyncBackend(id, stream_id));
+        let rx = self.submit_request(|id| Task::SyncBackend(id, stream_id));
         match self.runtime.block_on(rx) {
             Ok(TaskResponseContent::SyncBackend(res)) => res,
             Ok(other) => panic!("Invalid response for SyncBackend: {other:?}"),
@@ -367,7 +367,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     }
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {
-        let rx = self.submit_request(|id| ComputeTask::DTypeUsage(id, dtype));
+        let rx = self.submit_request(|id| Task::DTypeUsage(id, dtype));
         match self.runtime.block_on(rx) {
             Ok(TaskResponseContent::DTypeUsage(set)) => set,
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
@@ -376,9 +376,9 @@ impl<C: ProtocolClient> RemoteService<C> {
     }
 
     /// Buffer a fire-and-forget compute task. Thin wrapper over [`submit`](Self::submit)
-    /// that wraps the task in [`Task::Compute`].
-    fn submit_compute(&mut self, task: ComputeTask) {
-        self.submit(Task::Compute(task));
+    /// that wraps the task in [`RemoteMessage::Task`].
+    fn submit_task(&mut self, task: Task) {
+        self.submit(RemoteMessage::Task(task));
     }
 
     /// Issue a response-producing compute task: allocate its [`RequestId`], register the
@@ -386,11 +386,11 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// the returned receiver. `make_task` builds the task from the freshly allocated id.
     fn submit_request(
         &mut self,
-        make_task: impl FnOnce(RequestId) -> ComputeTask,
+        make_task: impl FnOnce(RequestId) -> Task,
     ) -> oneshot::Receiver<TaskResponseContent> {
         let request_id = self.pending.next_id();
         let rx = self.pending.register(request_id);
-        self.submit_blocking(Task::Compute(make_task(request_id)));
+        self.submit_blocking(RemoteMessage::Task(make_task(request_id)));
         rx
     }
 
@@ -399,7 +399,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// Use this for fire-and-forget tasks. The runner thread is single-threaded, so
     /// pushing into the buffer is just a `Vec::push` — no locking, no tokio hop, no
     /// network send.
-    fn submit(&mut self, task: Task) {
+    fn submit(&mut self, task: RemoteMessage) {
         if self.batch.push(task) {
             self.flush();
         }
@@ -411,7 +411,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// to the writer task, and the FIFO writer guarantees it reaches the wire before any
     /// later frame — so the response can't be missed. We no longer block on the actual
     /// send; correctness comes from FIFO enqueue order plus the oneshot await.
-    fn submit_blocking(&mut self, task: Task) {
+    fn submit_blocking(&mut self, task: RemoteMessage) {
         self.batch.push(task);
         self.flush();
     }
@@ -437,7 +437,7 @@ impl<C: ProtocolClient> Drop for RemoteService<C> {
         // Best-effort teardown: append Close to whatever's still buffered and let the
         // writer drain + flush it before we join the task, so the runtime isn't torn down
         // mid-send. Serialization happens in the writer task now, so Drop can't panic on it.
-        self.batch.push(Task::Close(self.session_id));
+        self.batch.push(RemoteMessage::Close(self.session_id));
         self.writer.shutdown(&self.runtime, Some(self.batch.take()));
     }
 }

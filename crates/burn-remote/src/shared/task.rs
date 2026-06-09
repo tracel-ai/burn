@@ -8,14 +8,13 @@ use burn_std::{
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-/// Routing id for a request that expects a response.
+/// Routing id for a task whose result is fetched back.
 ///
-/// Only the response-producing compute tasks ([`ComputeTask::ReadTensor`],
-/// [`ComputeTask::SyncBackend`], [`ComputeTask::DTypeUsage`]) carry a `RequestId`; the
-/// server echoes it on its [`TaskResponse`] so the client demultiplexes responses back
-/// to the right pending callback. Fire-and-forget tasks have no id because no response
-/// ever comes back. Collective ops (all-reduce, sync-collective) are plain fire-and-forget
-/// [`OperationIr`]s carried by [`ComputeTask::RegisterOperation`].
+/// Only the result-producing tasks ([`Task::ReadTensor`], [`Task::SyncBackend`],
+/// [`Task::DTypeUsage`]) carry a `RequestId`; the server echoes it on its [`TaskResponse`] so
+/// the client demultiplexes results back to the right pending callback. Fire-and-forget tasks
+/// have no id because no result ever comes back. Collective ops (all-reduce, sync-collective)
+/// are plain fire-and-forget [`OperationIr`]s carried by [`Task::RegisterOperation`].
 pub type RequestId = u64;
 
 /// Unique identifier that can represent a session.
@@ -40,10 +39,13 @@ impl SessionId {
     }
 }
 
+/// A single message on a session's `/submit` (or handshake) stream: either a session-lifecycle
+/// signal (`Init`/`Close`) or a [`Task`] to run.
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Task {
-    Compute(ComputeTask),
+pub enum RemoteMessage {
+    /// A unit of work to run within the bound session.
+    Task(Task),
     /// Open a session bound to the device at the given index on the server.
     Init(SessionId, u32),
     Close(SessionId),
@@ -58,7 +60,7 @@ pub struct TensorRemote {
 
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
-pub enum ComputeTask {
+pub enum Task {
     Seed(u64),
     /// A single [`OperationIr`] tagged with the stream it was issued on.
     ///
@@ -76,7 +78,7 @@ pub enum ComputeTask {
     },
     /// Source side of a same-host transfer: hand the device-resident primitive for `tensor`
     /// to the server's local comm registry under `transfer_id`. No host readback — the
-    /// counterpart [`RegisterTensorLocal`](ComputeTask::RegisterTensorLocal), running on the
+    /// counterpart [`RegisterTensorLocal`](Task::RegisterTensorLocal), running on the
     /// target session of the same server, moves it onto the target device via the inner
     /// backend's `to_device`.
     ///

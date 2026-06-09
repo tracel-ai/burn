@@ -11,7 +11,7 @@ type CallbackMap = Arc<Mutex<HashMap<RequestId, oneshot::Sender<TaskResponseCont
 
 /// Correlates response-producing requests with the caller awaiting each one.
 ///
-/// Each response-producing task ([`ReadTensor`](crate::shared::ComputeTask::ReadTensor),
+/// Each response-producing task ([`ReadTensor`](crate::shared::Task::ReadTensor),
 /// `SyncBackend`, `DTypeUsage`) carries a [`RequestId`]; the server echoes it on the
 /// response. The runner thread [`register`](Self::register)s a [`oneshot`] callback before
 /// sending the task, and the response-demux task delivers the reply through a [`Responder`].

@@ -1,20 +1,20 @@
 //! Per-session worker thread.
 //!
-//! Each session owns one dedicated OS thread that runs all of its compute. The websocket
-//! request handler does no compute itself: it decodes the incoming task batch and forwards
-//! each [`ComputeTask`] to the session's worker over a bounded channel. The worker owns the
-//! session's [`TensorInterpreter`] and processes tasks in FIFO order, preserving per-session
-//! ordering without any extra locking.
+//! Each session owns one dedicated OS thread that runs all of its tasks. The websocket submit
+//! handler does no work itself: it decodes the incoming message batch and forwards each
+//! [`Task`] to the session's worker over a bounded channel. The worker owns the session's
+//! [`TensorInterpreter`] and processes tasks in FIFO order, preserving per-session ordering
+//! without any extra locking.
 //!
-//! Why a dedicated OS thread instead of running compute on the tokio request task? Some
-//! compute is **synchronously blocking** — most importantly a collective op (all-reduce /
+//! Why a dedicated OS thread instead of running tasks on the tokio submit task? Some tasks
+//! are **synchronously blocking** — most importantly a collective op (all-reduce /
 //! sync-collective), which parks the calling thread until *every* participating device
 //! reaches the same barrier (`register_op` → `B::sync_collective` →
 //! `DistributedSyncClient::submit_sync_collective` → a blocking `rx.recv()`). Running that on
 //! a tokio worker ties up a runtime thread; once more devices are blocked than the runtime
 //! has worker threads, the remaining devices can never be scheduled to reach the barrier and
 //! it deadlocks. Giving each session its own OS thread keeps that blocking off the shared
-//! runtime, so a barrier on one device can't stall another — the request loops (tokio tasks)
+//! runtime, so a barrier on one device can't stall another — the submit loops (tokio tasks)
 //! keep forwarding and every session's worker reaches the barrier independently.
 
 use std::sync::Arc;
@@ -25,29 +25,29 @@ use burn_router::{RouterClient, TensorInterpreter};
 use tokio::{runtime::Handle, sync::mpsc};
 
 use crate::server::local_comm::LocalCommService;
-use crate::shared::{ComputeTask, RequestId, SessionId, TaskResponse, TaskResponseContent};
+use crate::shared::{Task, RequestId, SessionId, TaskResponse, TaskResponseContent};
 
 /// Capacity of the per-session task channel feeding the worker thread.
 ///
-/// The request handler forwards with an `await`ing send, so a full channel applies async
-/// backpressure (the request task yields and stops reading the socket) rather than blocking
+/// The submit handler forwards with an `await`ing send, so a full channel applies async
+/// backpressure (the submit task yields and stops reading the socket) rather than blocking
 /// an OS thread or growing memory without bound. Sized so a burst of fire-and-forget ops
-/// doesn't stall the request loop while the worker is mid-task.
+/// doesn't stall the submit loop while the worker is mid-task.
 const TASK_CHANNEL_CAPACITY: usize = 64;
 
-/// Handle to a session's worker thread, held by the session map and cloned once per request
+/// Handle to a session's worker thread, held by the session map and cloned once per submit
 /// connection. The worker thread runs until every clone of its task sender is dropped (clean
-/// session close or request-stream disconnect), at which point it flushes the runner and
+/// session close or submit-stream disconnect), at which point it flushes the runner and
 /// exits — so the handle is detached and there is nothing to join.
 pub(crate) struct SessionWorker {
-    sender: mpsc::Sender<ComputeTask>,
+    sender: mpsc::Sender<Task>,
 }
 
 impl SessionWorker {
     /// Spawn the worker thread for a freshly created session.
     ///
     /// Must be called from within the tokio runtime: it captures [`Handle::current`] so the
-    /// worker can drive the async parts of compute (cross-server / same-host transfers,
+    /// worker can drive the async parts of a task (cross-server / same-host transfers,
     /// tensor readbacks, response sends) and detach readbacks with `tokio::spawn`.
     pub(crate) fn new<B, P>(
         session_id: SessionId,
@@ -83,15 +83,15 @@ impl SessionWorker {
         Self { sender }
     }
 
-    /// Clone the channel used to forward compute tasks to this worker.
-    pub(crate) fn task_sender(&self) -> mpsc::Sender<ComputeTask> {
+    /// Clone the channel used to forward tasks to this worker.
+    pub(crate) fn task_sender(&self) -> mpsc::Sender<Task> {
         self.sender.clone()
     }
 }
 
 fn worker_loop<B, P>(
     handle: Handle,
-    mut receiver: mpsc::Receiver<ComputeTask>,
+    mut receiver: mpsc::Receiver<Task>,
     session_id: SessionId,
     runner: TensorInterpreter<B>,
     response_sender: mpsc::Sender<TaskResponse>,
@@ -109,20 +109,20 @@ fn worker_loop<B, P>(
     handle.block_on(async {
         while let Some(task) = receiver.recv().await {
             if let Err(err) =
-                process_compute(&external_comm, &local_comm, &runner, &response_sender, task).await
+                process_task(&external_comm, &local_comm, &runner, &response_sender, task).await
             {
                 // One task failing doesn't tear down the session: read/sync/dtype failures
                 // surface to the client through their response, fire-and-forget failures are
                 // logged here, and the worker keeps processing subsequent tasks.
-                log::error!("Compute task on session {session_id} failed: {err}");
+                log::error!("Task on session {session_id} failed: {err}");
             }
         }
     });
 
-    // The task channel closed: every request connection bound to this session has gone away
+    // The task channel closed: every submit connection bound to this session has gone away
     // (clean `Close` or disconnect). Flush outstanding backend work before dropping the
     // runner so the session's tensors aren't freed with GPU work still queued. Dropping the
-    // runner and `response_sender` afterwards closes the response writer's queue, ending its
+    // runner and `response_sender` afterwards closes the fetch writer's queue, ending its
     // task too.
     log::info!("Session {session_id} worker draining and exiting");
     if let Err(err) = runner.sync() {
@@ -134,7 +134,7 @@ fn worker_loop<B, P>(
     }
 }
 
-/// Execute a single [`ComputeTask`] on the worker thread.
+/// Execute a single [`Task`] on the worker thread.
 ///
 /// Sync work is wrapped in [`StreamId::executes`](burn_std::id::StreamId::executes) so the runner's thread-local stream
 /// id matches the one the client assigned to this op. Response-producing tasks carry their
@@ -142,27 +142,27 @@ fn worker_loop<B, P>(
 /// client. Async work (data-service transfers, `read_tensor_async`) runs without a stream
 /// context — the relevant stream id is captured into the future at construction time via
 /// `executes`.
-async fn process_compute<B, P>(
+async fn process_task<B, P>(
     external_comm: &Arc<ExternalCommService<B, P>>,
     local_comm: &Arc<LocalCommService<B>>,
     runner: &TensorInterpreter<B>,
     sender: &mpsc::Sender<TaskResponse>,
-    task: ComputeTask,
+    task: Task,
 ) -> Result<(), String>
 where
     B: BackendIr,
     P: Protocol,
 {
     match task {
-        ComputeTask::RegisterOperation(stream_id, op) => {
+        Task::RegisterOperation(stream_id, op) => {
             stream_id.executes(|| runner.register_op(op));
             Ok(())
         }
-        ComputeTask::RegisterTensor(stream_id, id, data) => {
+        Task::RegisterTensor(stream_id, id, data) => {
             stream_id.executes(|| runner.register_tensor_data_id(id, data));
             Ok(())
         }
-        ComputeTask::RegisterTensorRemote(stream_id, remote, new_id) => {
+        Task::RegisterTensorRemote(stream_id, remote, new_id) => {
             log::info!(
                 "Registering remote tensor (transfer {:?} from {:?})",
                 remote.transfer_id,
@@ -182,7 +182,7 @@ where
             stream_id.executes(|| runner.register_tensor_data_id(new_id, data));
             Ok(())
         }
-        ComputeTask::ExposeTensorLocal {
+        Task::ExposeTensorLocal {
             stream_id,
             tensor,
             transfer_id,
@@ -196,7 +196,7 @@ where
             local_comm.expose(transfer_id, kind).await;
             Ok(())
         }
-        ComputeTask::RegisterTensorLocal {
+        Task::RegisterTensorLocal {
             stream_id,
             transfer_id,
             new_id,
@@ -210,7 +210,7 @@ where
             stream_id.executes(|| runner.register_tensor_to_device(new_id, kind));
             Ok(())
         }
-        ComputeTask::ExposeTensorRemote {
+        Task::ExposeTensorRemote {
             stream_id,
             tensor,
             count,
@@ -236,11 +236,11 @@ where
             });
             Ok(())
         }
-        ComputeTask::Seed(seed) => {
+        Task::Seed(seed) => {
             runner.seed(seed);
             Ok(())
         }
-        ComputeTask::ReadTensor(request_id, stream_id, tensor) => {
+        Task::ReadTensor(request_id, stream_id, tensor) => {
             // `read_tensor_async` is sync at construction — it locks the context and
             // captures the tensor's position in the command stream — and returns a future
             // for the actual host readback. Run the sync part in order (so ordering vs. later
@@ -267,11 +267,11 @@ where
             });
             Ok(())
         }
-        ComputeTask::SyncBackend(request_id, stream_id) => {
+        Task::SyncBackend(request_id, stream_id) => {
             let res = stream_id.executes(|| runner.sync());
             send_response(sender, request_id, TaskResponseContent::SyncBackend(res)).await
         }
-        ComputeTask::DTypeUsage(request_id, dtype) => {
+        Task::DTypeUsage(request_id, dtype) => {
             let res = runner.dtype_usage(dtype);
             send_response(sender, request_id, TaskResponseContent::DTypeUsage(res)).await
         }

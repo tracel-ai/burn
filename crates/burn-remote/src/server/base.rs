@@ -10,20 +10,20 @@ use tokio_util::sync::CancellationToken;
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
 
+use super::service::{FetchHandler, SubmitHandler};
 use super::session::SessionManager;
-use super::socket::{SocketRequest, SocketResponse};
 
 /// HTTP-style server for the burn-remote protocol.
 ///
-/// Each connection is a thin IO loop: [`SocketResponse`] answers the response stream's init
-/// handshake and drains the session's response queue, while [`SocketRequest`] decodes the
-/// request stream's task batches and forwards each compute task to the session's worker. The
-/// actual compute runs on that per-session worker thread (see
+/// Each connection is a thin IO loop: [`FetchHandler`] answers the `/fetch` stream's init
+/// handshake and drains the session's result queue, while [`SubmitHandler`] decodes the
+/// `/submit` stream's message batches and forwards each task to the session's worker. The
+/// tasks actually run on that per-session worker thread (see
 /// [`SessionWorker`](super::worker::SessionWorker)), which holds the session's runner and
 /// processes its tasks in FIFO order — so a blocking op (e.g. an all-reduce barrier) parks
 /// only that session's worker rather than a shared runtime thread. The [`SessionManager`] owns
-/// the per-session state behind the [`RequestService`](super::socket::RequestService) /
-/// [`ResponseService`](super::socket::ResponseService) traits the handlers depend on.
+/// the per-session state behind the [`SubmitService`](super::service::SubmitService) /
+/// [`FetchService`](super::service::FetchService) traits the handlers depend on.
 pub struct RemoteServer<B, P>
 where
     B: BackendIr,
@@ -48,13 +48,13 @@ where
         let session_manager = Arc::new(SessionManager::<B, P>::new(devices, external_comm.clone()));
 
         let _server = server
-            .route("/response", {
+            .route("/fetch", {
                 let session_manager = session_manager.clone();
-                move |stream| SocketResponse::new(session_manager, stream).run()
+                move |stream| FetchHandler::new(session_manager, stream).run()
             })
-            .route("/request", {
+            .route("/submit", {
                 let session_manager = session_manager.clone();
-                move |stream| SocketRequest::new(session_manager, stream).run()
+                move |stream| SubmitHandler::new(session_manager, stream).run()
             })
             .route_external_comm(external_comm)
             .serve(os_shutdown_signal())
