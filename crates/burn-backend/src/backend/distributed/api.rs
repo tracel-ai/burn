@@ -12,7 +12,7 @@ use super::{DistributedConfig, client::DistributedSyncClient};
 /// The type-erased box type for [`DistributedSyncClient`].
 type ClientBox = Box<dyn Any + Send + Sync>;
 
-/// Global state map from [DistributedBackend] to boxed [`DistributedSyncClient`].
+/// Global state map from [Backend] to boxed [`DistributedSyncClient`].
 static BACKEND_CLIENT_MAP: OnceLock<Mutex<HashMap<TypeId, ClientBox>>> = OnceLock::new();
 
 // TODO: Replace TypeId with DeviceId, the index being i32::MAX, a.k.a. communication index.
@@ -24,7 +24,7 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
         .unwrap()
 }
 
-/// Get the distributed sync client for the given [DistributedBackend].
+/// Get the distributed sync client for the given [Backend].
 pub fn get_distributed_sync_client<B: Backend>() -> Option<DistributedSyncClient<B>> {
     let typeid = TypeId::of::<B>();
     let state_map = get_backend_client_map();
@@ -33,7 +33,7 @@ pub fn get_distributed_sync_client<B: Backend>() -> Option<DistributedSyncClient
         .map(|val| val.downcast_ref().cloned().unwrap())
 }
 
-/// Remove the client form the map for the given [DistributedBackend].
+/// Remove the client form the map for the given [Backend].
 pub(crate) fn remove_distributed_sync_client<B: Backend>() {
     let typeid = TypeId::of::<B>();
     let mut state_map = get_backend_client_map();
