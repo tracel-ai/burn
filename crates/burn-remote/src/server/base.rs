@@ -66,6 +66,7 @@ where
         session_manager: Arc<SessionManager<B, P>>,
         mut socket: <P::Server as ProtocolServer>::Channel,
     ) {
+        let thread_id = std::thread::current().id();
         log::info!("[Response Handler] On new connection.");
 
         // Read the init handshake to learn which session this responder belongs to.
@@ -97,7 +98,9 @@ where
             }
         };
 
-        log::info!("Init responder for session {session_id} (device {device_index})");
+        log::info!(
+            "[{thread_id:?}] Init responder for session {session_id} (device {device_index})"
+        );
 
         // Reply with the selected device's default settings — the client uses these to fill
         // in `RemoteDevice::defaults` so it can resolve op dtypes without an extra RTT.
