@@ -16,9 +16,6 @@ pub trait Backend: burn::backend::Backend {
     ) -> FloatTensor<Self>;
 }
 
-/// We create our own AutodiffBackend trait that extends the Burn autodiff backend trait.
-pub trait AutodiffBackend: Backend + burn::backend::AutodiffBackend {}
-
 /// We define our custom implementation using the added function on our custom backend.
 pub fn matmul_add_relu_custom(lhs: Tensor<3>, rhs: Tensor<3>, bias: Tensor<3>) -> Tensor<3> {
     let output = Dispatch::fused_matmul_add_relu(
