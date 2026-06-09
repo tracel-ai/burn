@@ -796,10 +796,10 @@ pub enum BoolOperationIr {
 #[allow(clippy::large_enum_variant)]
 pub enum DistributedOperationIr {
     /// Operation corresponding to:
-    /// [all_reduce](burn_backend::distributed::DistributedBackend::all_reduce).
+    /// [all_reduce](burn_backend::distributed::DistributedOps::all_reduce).
     AllReduce(AllReduceOpIr),
     /// Resolve the pending collective operations on the executing device. Corresponds to
-    /// [sync_collective](burn_backend::distributed::DistributedBackend::sync_collective).
+    /// [sync_collective](burn_backend::distributed::DistributedOps::sync_collective).
     ///
     /// Fire-and-forget and payload-free: it syncs whichever device the interpreter is bound to.
     /// Modeled as an operation (not a side-channel call) so it travels the normal op stream
