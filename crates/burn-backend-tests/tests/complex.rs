@@ -9,15 +9,15 @@ macro_rules! gen_tests {
 
                     mod basic {
                         type TestTensor<const D: usize> = $ty;
-                        include!("compat/basic.rs");
+                        include!("complex/basic.rs");
                     }
                     mod numeric {
                         type TestTensor<const D: usize> = $ty;
-                        include!("compat/numeric.rs");
+                        include!("complex/numeric.rs");
                     }
                     mod ops {
                         type TestTensor<const D: usize> = $ty;
-                        include!("compat/ops.rs");
+                        include!("complex/ops.rs");
                     }
                 }
             }
@@ -26,4 +26,5 @@ macro_rules! gen_tests {
 }
 
 //gen_tests!(split, burn_tensor::SplitTensor<D,burn_tensor::Complex> );
+#[cfg(feature = "flex")]
 gen_tests!(interleaved, burn_tensor::Tensor<D,burn_tensor::Complex>);

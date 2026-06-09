@@ -49,7 +49,6 @@ rand_distr = { workspace = true }
 serde = { workspace = true }
 oneshot = { version = "0.2.1", optional = true }
 spin = { workspace = true }
-num-complex = { workspace = true, default-features = false }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }

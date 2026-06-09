@@ -214,7 +214,7 @@ fn test_complex_exp() {
     // exp(0 + 0i) = 1 * (1 + 0i) = 1 + 0i
     // exp(0 + πi) = 1 * (-1 + 0i) = -1 + 0i (approximately)
     let expected_data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of exp(0)
@@ -242,7 +242,7 @@ fn test_complex_sin() {
     let result = tensor.sin();
 
     let expected_data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(expected_data[0].abs() < 1e-6); // real part of sin(0)
@@ -270,7 +270,7 @@ fn test_complex_cos() {
     let result = tensor.cos();
 
     let expected_data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!((expected_data[0] - 1.0).abs() < 1e-6); // real part of cos(0)
@@ -298,7 +298,7 @@ fn test_complex_log() {
     let result = tensor.log();
 
     let expected_data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(expected_data[0].abs() < 1e-6); // real part of log(1)
@@ -359,7 +359,7 @@ fn test_complex_sqrt() {
     let result = tensor.sqrt();
 
     let expected_data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!((expected_data[0] - 2.0).abs() < 1e-6); // real part of sqrt(4)
@@ -450,7 +450,7 @@ fn test_complex_acos() {
     let result = tensor.acos();
 
     let data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(data[0].abs() < 1e-5, "re(acos(1)) = {}", data[0]);
@@ -477,7 +477,7 @@ fn test_complex_acosh() {
     let result = tensor.acosh();
 
     let data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(data[0].abs() < 1e-5, "re(acosh(1)) = {}", data[0]);
@@ -504,7 +504,7 @@ fn test_complex_asin() {
     let result = tensor.asin();
 
     let data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(data[0].abs() < 1e-5, "re(asin(0)) = {}", data[0]);
@@ -531,7 +531,7 @@ fn test_complex_asinh() {
     let result = tensor.asinh();
 
     let data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(data[0].abs() < 1e-5, "re(asinh(0)) = {}", data[0]);
@@ -558,7 +558,7 @@ fn test_complex_atan() {
     let result = tensor.atan();
 
     let data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(data[0].abs() < 1e-5, "re(atan(0)) = {}", data[0]);
@@ -585,7 +585,7 @@ fn test_complex_atanh() {
     let result = tensor.atanh();
 
     let data: Vec<f32> =
-        burn_std::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
+        burn_backend::complex_utils::interleaved_data_to_raw_float_data(result.into_data())
             .into_vec()
             .unwrap();
     assert!(data[0].abs() < 1e-5, "re(atanh(0)) = {}", data[0]);

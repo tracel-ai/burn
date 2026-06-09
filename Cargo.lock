@@ -697,7 +697,6 @@ dependencies = [
  "derive-new",
  "enumset",
  "hashbrown 0.16.1",
- "num-complex",
  "num-traits",
  "oneshot",
  "paste",
@@ -733,6 +732,7 @@ dependencies = [
  "cubek",
  "divan",
  "num-traits",
+ "paste",
  "proc-macro2",
  "quote",
  "rand 0.10.1",
@@ -772,16 +772,6 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "burn-complex"
-version = "0.22.0-pre.1"
-dependencies = [
- "burn-core",
- "burn-std",
- "burn-tensor",
- "paste",
 ]
 
 [[package]]
