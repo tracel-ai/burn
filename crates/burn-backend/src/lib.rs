@@ -73,6 +73,7 @@ mod cube_wgpu {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U32),
+                None,
                 Default::default(),
             )
         }

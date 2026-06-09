@@ -1,6 +1,6 @@
-use burn_tensor::{Complex, Float, Tensor};
+use burn_tensor::{Float, Tensor};
 pub type FloatTensor<const D: usize> = Tensor<D, Float>;
-
+#[allow(unused)]
 macro_rules! gen_tests {
     ($variant:ident, $($ty:ty),*) => {
         $(

@@ -317,17 +317,29 @@ pub(crate) trait ComplexOps: FloatMathOps {
     /// A real-valued tensor containing the real component of each element.
     fn real(tensor: BridgeTensor) -> BridgeTensor;
 
-    /// Raises each complex element to the power of `exponent`, where the exponent can be a complex tensor.
+    /// Raises each complex element to the power of `exponent`, where the exponent is a complex tensor.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The base complex tensor.
-    /// * `exponent` - The exponent tensor, which can be complex. The operation is defined as `tensor^exponent = exp(exponent * log(tensor))`.
+    /// * `exponent` - The exponent tensor, which is complex. The operation is defined as `tensor^exponent = exp(exponent * log(tensor))`.
     ///
     /// # Returns
     ///
     /// A complex tensor where each element is the result of raising the corresponding element of `tensor` to the power of the corresponding element in `exponent`.
     fn powc(tensor: BridgeTensor, exponent: BridgeTensor) -> BridgeTensor;
+
+    /// Raises each complex element to the power of `exponent`, where the exponent is a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The base complex tensor.
+    /// * `exponent` - The exponent scalar. The operation is defined as `tensor^exponent = exp(exponent * log(tensor))`.
+    ///
+    /// # Returns
+    ///
+    /// A complex tensor where each element is the result of raising the corresponding element of `tensor` to the power of the scalar `exponent`.
+    fn powc_scalar(tensor: BridgeTensor, exponent: Scalar) -> BridgeTensor;
 
     /// Extracts the imaginary part of each complex element.
     ///
@@ -433,6 +445,13 @@ impl ComplexOps for Complex {
         BridgeTensor::complex(Dispatch::complex_powc(
             tensor.into_complex(),
             exponent.into_complex(),
+        ))
+    }
+
+    fn powc_scalar(tensor: BridgeTensor, exponent: Scalar) -> BridgeTensor {
+        BridgeTensor::complex(Dispatch::complex_powc_scalar(
+            tensor.into_complex(),
+            exponent,
         ))
     }
 

@@ -1,4 +1,4 @@
-use burn_std::TensorData;
+use burn_std::{Scalar, TensorData};
 
 use crate::{Complex, Device, Float, Tensor, TensorCreationOptions, kind::ComplexMath};
 
@@ -57,6 +57,33 @@ where
     /// ```
     pub fn powc(self, exponent: Self) -> Self {
         Self::new(K::powc(self.primitive, exponent.primitive))
+    }
+
+    /// Applies element wise power operation with a complex scalar exponent.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The scalar to apply the power operation with.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Complex, ComplexScalar, Shape, Int};
+    ///
+    /// fn example() {
+    ///    let device = Default::default();
+    ///    let tensor1 = Tensor::<2, Complex>::from_complex([[ComplexScalar::new(1.0, -2.0), ComplexScalar::new(3.0, 4.0), ComplexScalar::new(0.0, -1.0)], [ComplexScalar::new(1.0, -2.0), ComplexScalar::new(0.0, -1.0), ComplexScalar::new(2.0, 2.0)]], &device);
+    ///    let exponent = ComplexScalar::new(2.0, 2.0).into();
+    ///    let tensor = tensor1.powc_scalar(exponent);
+    ///    println!("{tensor}");
+    ///    // [[ 1.84452120e+01-1.05764765e+00i,  1.42600948e+00+6.02434630e-01i,
+    ///    // 2.64608933e-18-4.32139183e-02i],
+    ///    //  [-7.49735280e-02+2.99204278e-02i,  5.50067930e-19-8.98329102e-03i,
+    ///    //  9.29602961e+01+5.18329310e+01i]]
+    /// }
+    /// ```
+    pub fn powc_scalar(self, exponent: Scalar) -> Self {
+        Self::new(K::powc_scalar(self.primitive, exponent))
     }
 
     /// Returns the phase (argument) of each complex element.
@@ -170,35 +197,6 @@ where
         T: Into<TensorData>,
     {
         Self::new(K::from_parts(real.into(), imag.into(), device))
-    }
-
-    /// Creates a complex tensor from interleaved host data.
-    ///
-    /// The input data is expected to store real and imaginary values in alternating
-    /// order (interleaved layout).
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - Interleaved complex tensor data.
-    /// * `device` - The device where the resulting tensor is allocated.
-    ///
-    /// # Returns
-    ///
-    /// A complex tensor backed by `data` on the target `device`.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let device = Default::default();
-    /// let data = TensorData::from([1.0_f32, 3.0, -2.0, 4.0]);
-    /// let tensor = Tensor::<1, Complex>::from_interleaved_data(data, &device);
-    /// ```
-    pub fn from_interleaved_data(data: TensorData, device: &Device) -> Self {
-        Self::from_data(
-            data,
-            TensorCreationOptions::new(device.clone())
-                .with_dtype(device.settings().complex_dtype().into()),
-        )
     }
 
     /// Create a Complex Tensor from a float tensor representing the real part, filling the imaginary part with zeros.
