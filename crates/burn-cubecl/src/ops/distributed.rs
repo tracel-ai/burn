@@ -3,14 +3,14 @@ use burn_backend::distributed::DistributedOps;
 use crate::{CubeBackend, CubeRuntime};
 
 #[cfg(feature = "std")]
+use crate::ops::numeric::{self, zeros_client};
+#[cfg(feature = "std")]
 use burn_backend::{
     DeviceId, TensorMetadata,
     cubecl::dtype_to_elem_type,
     distributed::{CollectiveTensor, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
-#[cfg(feature = "std")]
-use crate::ops::numeric::{self, zeros_client};
 
 impl<R: CubeRuntime> DistributedOps<Self> for CubeBackend<R> {
     #[cfg(feature = "std")]

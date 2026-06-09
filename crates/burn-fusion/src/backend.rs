@@ -191,10 +191,7 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
 /// [`DistributedOps`](burn_backend::distributed::DistributedOps) supertrait of [`Backend`], which
 /// every fusion backend satisfies unconditionally.
 pub trait FusionBackend:
-    BackendIr<
-        Handle = FusionHandle<Self::FusionRuntime>,
-        Device = FusionDevice<Self::FusionRuntime>,
-    >
+    BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {
     /// The runtime used for this backend.
     type FusionRuntime: FusionRuntime;
