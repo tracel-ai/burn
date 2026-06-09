@@ -302,7 +302,10 @@ where
         match task {
             ComputeTask::RegisterOperation(stream_id, op) => {
                 let thread_id = std::thread::current().id();
-                log::info!("[{stream_id}-{thread_id:?}] Register operation: {op:?}");
+                log::info!(
+                    "[{stream_id}-{thread_id:?}-{:?}] Register operation: {op:?}",
+                    runner.device()
+                );
                 stream_id.executes(|| runner.register_op(op));
                 Ok(())
             }

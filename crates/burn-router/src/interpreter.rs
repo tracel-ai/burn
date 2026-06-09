@@ -2081,6 +2081,7 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
                     // Safety: the collective tensor is resolved through the normal op stream
                     // (a `SyncCollective` op follows), so the handle is valid once that runs.
                     let output = unsafe { output.assume_resolved() };
+                    log::info!("Flushing: {:?}", self.device);
                     B::flush(&self.device);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
