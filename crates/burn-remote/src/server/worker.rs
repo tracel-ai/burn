@@ -128,18 +128,35 @@ where
         });
 
         // The task channel closed: every submit connection bound to this session has gone away
-        // (clean `Close` or disconnect). Flush outstanding backend work before dropping the runner
-        // so the session's tensors aren't freed with GPU work still queued. Dropping `self`
-        // afterwards drops the runner and the response sender, closing the fetch writer's queue and
-        // ending its task too.
+        // (clean `Close` or disconnect). Tear the session down in an order that actually releases
+        // its memory.
         log::debug!("Session {session_id} worker draining and exiting");
-        if let Err(err) = self.runner.sync() {
+
+        // Destructure so we control drop order explicitly. The `..` fields (response sender, comm
+        // services) drop here: dropping the response sender closes the fetch writer's queue, ending
+        // its task.
+        let SessionHandler { runner, .. } = self;
+        let device = runner.device();
+
+        // Flush outstanding backend work before dropping the runner so the session's tensors aren't
+        // freed with GPU work still queued against them.
+        if let Err(err) = runner.sync() {
             log::warn!("runner.sync() at session {session_id} close failed: {err:?}");
         }
-        let device = self.runner.device();
         if let Err(err) = B::sync(&device) {
             log::warn!("B::sync(device) at session {session_id} close failed: {err:?}");
         }
+
+        // Drop the runner: this frees every tensor handle the session held back to the backend's
+        // allocator. Must happen before `memory_cleanup`, otherwise the memory is still live and
+        // nothing is reclaimable.
+        drop(runner);
+
+        // Hand the freed memory back instead of leaving it parked in the allocator's pool for a
+        // session that no longer exists. A no-op on backends that don't pool (the `Backend`
+        // default), but on cubecl backends (wgpu/cuda) this returns the session's device memory so
+        // a long-lived server doesn't accumulate it across session churn.
+        B::memory_cleanup(&device);
     }
 
     /// Execute a single [`Task`] against this session's state.

@@ -68,20 +68,23 @@ where
         }
     }
 
-    /// Resolve the device at `device_index`, falling back to the default device (index 0)
-    /// with a warning if the client requested an index this server doesn't host.
+    /// Resolve the device at `device_index`.
+    ///
+    /// The index is validated against the server's device count on the client init handshake, so
+    /// an out-of-range index here is a protocol/configuration error (e.g. a client enumerating
+    /// more devices than this server hosts). Fail loudly rather than silently collapsing onto
+    /// device 0 — for a collective that would reduce a device against itself and silently corrupt
+    /// the result instead of producing a clear failure.
     pub(crate) fn device(&self, device_index: u32) -> Device<B> {
-        match self.devices.get(device_index as usize) {
-            Some(device) => device.clone(),
-            None => {
-                log::warn!(
-                    "Requested device index {device_index} but server hosts only {} device(s); \
-                     falling back to device 0",
+        self.devices
+            .get(device_index as usize)
+            .cloned()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Requested device index {device_index} but server hosts only {} device(s)",
                     self.devices.len()
-                );
-                self.devices[0].clone()
-            }
-        }
+                )
+            })
     }
 
     async fn with_session<R>(
