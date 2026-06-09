@@ -20,6 +20,7 @@ pub use activation::{
 };
 
 mod padding;
+
 pub use padding::*;
 
 // For backward compat, `burn::nn::Initializer`

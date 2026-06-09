@@ -13,6 +13,7 @@ pub mod pool;
 /// Transformer module
 pub mod transformer;
 
+mod identity;
 /// Interpolate module
 pub mod interpolate;
 
@@ -26,10 +27,12 @@ mod rope_encoding;
 mod unfold;
 
 pub mod norm;
+
 pub use norm::{batch::*, group::*, instance::*, layer::*, local_response::*, rms::*};
 
 pub use dropout::*;
 pub use embedding::*;
+pub use identity::*;
 pub use linear::*;
 pub use noise::*;
 pub use pos_encoding::*;
