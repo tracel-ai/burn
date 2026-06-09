@@ -41,6 +41,28 @@ mod tests {
     use burn_flex::Flex;
     use burn_tensor::{Device, DeviceType, Distribution, Tensor};
 
+    /// Run `body` on a worker thread and fail the test if it doesn't finish within `timeout`.
+    ///
+    /// A deadlock in the remote backend manifests as a hung worker, so without a watchdog the
+    /// test would block the whole suite forever. We can't forcibly kill the hung thread (it's
+    /// parked on a blocking recv deep in the backend), so on timeout we panic from the test
+    /// thread and let the process exit carry the stuck worker away.
+    fn with_deadlock_watchdog(timeout: std::time::Duration, body: impl FnOnce() + Send + 'static) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = std::thread::spawn(move || {
+            body();
+            let _ = tx.send(());
+        });
+        match rx.recv_timeout(timeout) {
+            Ok(()) => {
+                handle.join().expect("worker thread panicked");
+            }
+            Err(_) => panic!(
+                "Deadlock: the remote multi-device workload did not finish within {timeout:?}"
+            ),
+        }
+    }
+
     #[test]
     pub fn test_to_device_over_websocket() {
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -117,6 +139,57 @@ mod tests {
         let input = input.to_device(&device_0);
         let numbers: Vec<f32> = input.to_data().to_vec().unwrap();
         assert_eq!(numbers, numbers_expected);
+
+        rt.shutdown_background();
+    }
+
+    /// Concurrent multi-device regression (DDP-style): two user threads, each pinned to a device,
+    /// running simultaneously and each iteration moving a tensor to the *other* device and back.
+    ///
+    /// This used to deadlock for two reasons, both of which surface only under concurrency:
+    /// - The transfer-id counter never persisted its increment, so every same-host transfer after
+    ///   the first reused the same id; two simultaneous transfers then collided in the server's
+    ///   rendezvous and one `take` hung forever.
+    /// - The server ran a whole session on one FIFO worker, so a `take` blocked every later task
+    ///   on that session — including the `expose` a peer session was waiting on — letting two
+    ///   opposite transfers form a cyclic wait. The per-stream workers remove that false
+    ///   dependency.
+    #[test]
+    fn test_multi_device_concurrent_to_device_deadlock() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(crate::server::start_websocket_async::<Flex>(
+            vec![Default::default(), Default::default()],
+            3060,
+        ));
+
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        with_deadlock_watchdog(std::time::Duration::from_secs(30), || {
+            let device0 = Device::remote("ws://localhost:3060", 0);
+            let device1 = Device::remote("ws://localhost:3060", 1);
+
+            let run = |home: Device, away: Device| {
+                move || {
+                    for _ in 0..100 {
+                        let t = Tensor::<2>::random([8, 8], Distribution::Default, &home);
+                        // home -> away, op there, away -> home.
+                        let t = t.to_device(&away);
+                        let t = t * 2.0;
+                        let t = t.to_device(&home);
+                        let _ = t.sum().into_data();
+                    }
+                }
+            };
+
+            let h0 = std::thread::spawn(run(device0.clone(), device1.clone()));
+            let h1 = std::thread::spawn(run(device1, device0));
+            h0.join().unwrap();
+            h1.join().unwrap();
+        });
 
         rt.shutdown_background();
     }

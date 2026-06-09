@@ -276,17 +276,27 @@ pub struct RemoteTensorHandle<C: ProtocolClient> {
 
 static TRANSFER_COUNTER: Mutex<Option<TensorTransferId>> = Mutex::new(None);
 
+/// Allocate the next globally-unique [`TensorTransferId`] for a same-host / cross-server transfer.
+///
+/// The id keys the server's transfer rendezvous (`local_comm` / `external_comm`), so two
+/// transfers that are ever in flight at the same time MUST get distinct ids — otherwise a `take`
+/// can pick up the wrong (or an overwritten) exposed primitive and its peer hangs forever. The
+/// counter is incremented **in place** in the static; `TensorTransferId` is `Copy`, so the
+/// earlier `transfer_counter.unwrap()` copied the value out and incremented a throwaway local,
+/// leaving every transfer after the first sharing id 1 — harmless sequentially, a deadlock under
+/// concurrency.
 fn get_next_transfer_id() -> TensorTransferId {
     let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
-    if transfer_counter.is_none() {
-        *transfer_counter = Some(0.into());
-
-        transfer_counter.unwrap()
-    } else {
-        let mut transfer_counter = transfer_counter.unwrap();
-        transfer_counter.next();
-
-        transfer_counter
+    match transfer_counter.as_mut() {
+        Some(id) => {
+            id.next();
+            *id
+        }
+        None => {
+            let id = TensorTransferId::from(0);
+            *transfer_counter = Some(id);
+            id
+        }
     }
 }
 
