@@ -655,9 +655,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
-                other => {
-                    panic!("Distributed operations are not supported for tensor kind {other:?}")
-                }
+                // Backends without distributed support never carry distributed params.
+                _ => None,
             },
             _ => panic!("Requires autodiff tensor."),
         }
@@ -684,9 +683,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
-                other => {
-                    panic!("Distributed operations are not supported for tensor kind {other:?}")
-                }
+                // Backends without distributed support are never distributed.
+                _ => false,
             },
             _ => panic!("Requires autodiff tensor."),
         }
