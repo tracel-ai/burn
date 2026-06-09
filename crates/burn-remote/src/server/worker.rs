@@ -107,6 +107,11 @@ fn worker_loop<B, P>(
     // runtime's worker threads, so they make progress while this thread is parked on a
     // barrier.
     handle.block_on(async {
+        log::info!(
+            "New sessions worker: {} {:?}",
+            session_id,
+            std::thread::current().id()
+        );
         while let Some(task) = receiver.recv().await {
             if let Err(err) =
                 process_task(&external_comm, &local_comm, &runner, &response_sender, task).await

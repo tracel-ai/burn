@@ -484,7 +484,10 @@ impl<C: ProtocolClient> Drop for RemoteService<C> {
         // mid-send. Serialization happens in the writer task now, so Drop can't panic on it.
         self.batch.push(RemoteMessage::Close(self.session_id));
         let batch = self.batch.take();
-        let writer = self.writer.as_mut().expect("writer present (checked above)");
+        let writer = self
+            .writer
+            .as_mut()
+            .expect("writer present (checked above)");
         writer.shutdown(&self.runtime, Some(batch));
     }
 }
