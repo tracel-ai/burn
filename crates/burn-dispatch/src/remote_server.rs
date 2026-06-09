@@ -12,173 +12,128 @@ use crate::{Dispatch, DispatchDevice, DispatchDeviceId};
 /// enumerating the backend (see [`Dispatch::enumerate`]) and unwrapping the matching variant.
 /// `$id` is the [`DispatchDeviceId`] to enumerate; the result is `Vec<Device<B>>`, indexed by
 /// hardware device index, which is exactly the index a client selects with `Device::remote`.
+///
+/// Enumeration is only trustworthy when it finds **more than one** device: several backends (the
+/// wgpu family — Vulkan/WebGpu/Wgpu — and the CPU-only ones like Flex) can't enumerate hardware
+/// and report either nothing or a single placeholder index that isn't the device you'd actually
+/// run on. In that case fall back to hosting a single backend-specific default device
+/// (`Device::<B>::default()`, e.g. `WgpuDevice::DefaultDevice`) rather than a possibly-empty or
+/// bogus enumerated list. This generalizes what used to be a hardcoded Vulkan special-case.
 macro_rules! host_devices {
-    ($id:expr, $variant:ident) => {
-        Dispatch::enumerate($id)
+    ($id:expr, $variant:ident) => {{
+        let devices = Dispatch::enumerate($id)
             .into_iter()
             .filter_map(|device| match device {
                 DispatchDevice::$variant(device) => Some(device),
                 _ => None,
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        if devices.len() > 1 {
+            devices
+        } else {
+            vec![Default::default()]
+        }
+    }};
+}
+
+/// Run `$body` with the concrete backend that owns `$device`'s variant bound to the type alias
+/// `$b` and that backend's host device list bound to `$devices`.
+///
+/// This is the single source of truth for the `DispatchDevice` → concrete-`BackendIr` mapping.
+/// The sync and async server entry points differ only in whether `$body` awaits the call, so they
+/// share this one match instead of duplicating eleven `#[cfg]`-gated arms each. Backends without a
+/// `BackendIr` impl (`LibTorch`, `Remote`) panic; `Autodiff` is already stripped by `.inner()`.
+macro_rules! with_backend {
+    ($device:expr, |$b:ident, $devices:ident| $body:expr) => {
+        match $device.inner() {
+            #[cfg(feature = "cpu")]
+            DispatchDevice::Cpu(_) => {
+                type $b = Cpu;
+                let $devices = host_devices!(DispatchDeviceId::Cpu, Cpu);
+                $body
+            }
+            #[cfg(feature = "cuda")]
+            DispatchDevice::Cuda(_) => {
+                type $b = Cuda;
+                let $devices = host_devices!(DispatchDeviceId::Cuda, Cuda);
+                $body
+            }
+            #[cfg(feature = "metal")]
+            DispatchDevice::Metal(_) => {
+                type $b = Metal;
+                let $devices = host_devices!(DispatchDeviceId::Metal, Metal);
+                $body
+            }
+            #[cfg(feature = "rocm")]
+            DispatchDevice::Rocm(_) => {
+                type $b = Rocm;
+                let $devices = host_devices!(DispatchDeviceId::Rocm, Rocm);
+                $body
+            }
+            #[cfg(feature = "vulkan")]
+            DispatchDevice::Vulkan(_) => {
+                type $b = Vulkan;
+                let $devices = host_devices!(DispatchDeviceId::Vulkan, Vulkan);
+                $body
+            }
+            #[cfg(feature = "wgpu")]
+            DispatchDevice::Wgpu(_) => {
+                type $b = Wgpu;
+                let $devices = host_devices!(DispatchDeviceId::Wgpu, Wgpu);
+                $body
+            }
+            #[cfg(feature = "webgpu")]
+            DispatchDevice::WebGpu(_) => {
+                type $b = WebGpu;
+                let $devices = host_devices!(DispatchDeviceId::WebGpu, WebGpu);
+                $body
+            }
+            #[cfg(feature = "flex")]
+            DispatchDevice::Flex(_) => {
+                type $b = Flex;
+                let $devices = host_devices!(DispatchDeviceId::Flex, Flex);
+                $body
+            }
+            #[cfg(any(feature = "ndarray", default_backend))]
+            DispatchDevice::NdArray(_) => {
+                type $b = NdArray;
+                let $devices = host_devices!(DispatchDeviceId::NdArray, NdArray);
+                $body
+            }
+            #[cfg(feature = "tch")]
+            DispatchDevice::LibTorch(_) => {
+                panic!("LibTorch is not supported as a remote-server backend (no BackendIr impl)")
+            }
+            #[cfg(feature = "remote")]
+            DispatchDevice::Remote(_) => {
+                panic!("Cannot host a remote server on a remote device")
+            }
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(_) => {
+                unreachable!("Autodiff stripped by .inner() above")
+            }
+        }
     };
 }
 
 /// Start a websocket remote server, blocking the current thread.
 ///
 /// The dispatch device selects which backend executes operations server-side; the server
-/// then hosts **all** of that backend's devices (single host, multi-device), indexed by
-/// hardware device index. Autodiff is stripped (the autodiff graph is a client-side
-/// concern); backends that don't implement `BackendIr` (`LibTorch`, `Remote`) panic.
+/// then hosts that backend's devices (single host, multi-device), indexed by hardware device
+/// index. See [`with_backend`] for how the backend is resolved and [`host_devices`] for how its
+/// device list is chosen.
 pub fn start_websocket(device: DispatchDevice, port: u16) {
-    match device.inner() {
-        #[cfg(feature = "cpu")]
-        DispatchDevice::Cpu(_) => burn_remote::server::start_websocket::<Cpu>(
-            host_devices!(DispatchDeviceId::Cpu, Cpu),
-            port,
-        ),
-        #[cfg(feature = "cuda")]
-        DispatchDevice::Cuda(_) => burn_remote::server::start_websocket::<Cuda>(
-            host_devices!(DispatchDeviceId::Cuda, Cuda),
-            port,
-        ),
-        #[cfg(feature = "metal")]
-        DispatchDevice::Metal(_) => burn_remote::server::start_websocket::<Metal>(
-            host_devices!(DispatchDeviceId::Metal, Metal),
-            port,
-        ),
-        #[cfg(feature = "rocm")]
-        DispatchDevice::Rocm(_) => burn_remote::server::start_websocket::<Rocm>(
-            host_devices!(DispatchDeviceId::Rocm, Rocm),
-            port,
-        ),
-        #[cfg(feature = "vulkan")]
-        DispatchDevice::Vulkan(_) => {
-            burn_remote::server::start_websocket::<Vulkan>(vec![WgpuDevice::DefaultDevice], port)
-        }
-        #[cfg(feature = "wgpu")]
-        DispatchDevice::Wgpu(_) => burn_remote::server::start_websocket::<Wgpu>(
-            host_devices!(DispatchDeviceId::Wgpu, Wgpu),
-            port,
-        ),
-        #[cfg(feature = "webgpu")]
-        DispatchDevice::WebGpu(_) => burn_remote::server::start_websocket::<WebGpu>(
-            host_devices!(DispatchDeviceId::WebGpu, WebGpu),
-            port,
-        ),
-        #[cfg(feature = "flex")]
-        DispatchDevice::Flex(_) => burn_remote::server::start_websocket::<Flex>(
-            host_devices!(DispatchDeviceId::Flex, Flex),
-            port,
-        ),
-        #[cfg(any(feature = "ndarray", default_backend))]
-        DispatchDevice::NdArray(_) => burn_remote::server::start_websocket::<NdArray>(
-            host_devices!(DispatchDeviceId::NdArray, NdArray),
-            port,
-        ),
-        #[cfg(feature = "tch")]
-        DispatchDevice::LibTorch(_) => {
-            panic!("LibTorch is not supported as a remote-server backend (no BackendIr impl)")
-        }
-        #[cfg(feature = "remote")]
-        DispatchDevice::Remote(_) => {
-            panic!("Cannot host a remote server on a remote device")
-        }
-        #[cfg(feature = "autodiff")]
-        DispatchDevice::Autodiff(_) => {
-            unreachable!("Autodiff stripped by .inner() above")
-        }
-    }
+    with_backend!(device, |B, devices| {
+        burn_remote::server::start_websocket::<B>(devices, port)
+    })
 }
 
 /// Start a websocket remote server on the caller's tokio runtime.
 ///
-/// See [`start_websocket`] for variant-handling rules.
+/// The async counterpart of [`start_websocket`]; the two share the same backend-resolution match
+/// (see [`with_backend`]) and differ only in awaiting the server future.
 pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
-    match device.inner() {
-        #[cfg(feature = "cpu")]
-        DispatchDevice::Cpu(_) => {
-            burn_remote::server::start_websocket_async::<Cpu>(
-                host_devices!(DispatchDeviceId::Cpu, Cpu),
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "cuda")]
-        DispatchDevice::Cuda(_) => {
-            burn_remote::server::start_websocket_async::<Cuda>(
-                host_devices!(DispatchDeviceId::Cuda, Cuda),
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "metal")]
-        DispatchDevice::Metal(_) => {
-            burn_remote::server::start_websocket_async::<Metal>(
-                host_devices!(DispatchDeviceId::Metal, Metal),
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "rocm")]
-        DispatchDevice::Rocm(_) => {
-            burn_remote::server::start_websocket_async::<Rocm>(
-                host_devices!(DispatchDeviceId::Rocm, Rocm),
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "vulkan")]
-        DispatchDevice::Vulkan(_) => {
-            burn_remote::server::start_websocket_async::<Vulkan>(
-                vec![WgpuDevice::DefaultDevice],
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "wgpu")]
-        DispatchDevice::Wgpu(_) => {
-            burn_remote::server::start_websocket_async::<Wgpu>(
-                host_devices!(DispatchDeviceId::Wgpu, Wgpu),
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "webgpu")]
-        DispatchDevice::WebGpu(_) => {
-            burn_remote::server::start_websocket_async::<WebGpu>(
-                host_devices!(DispatchDeviceId::WebGpu, WebGpu),
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "flex")]
-        DispatchDevice::Flex(_) => {
-            burn_remote::server::start_websocket_async::<Flex>(
-                host_devices!(DispatchDeviceId::Flex, Flex),
-                port,
-            )
-            .await
-        }
-        #[cfg(any(feature = "ndarray", default_backend))]
-        DispatchDevice::NdArray(_) => {
-            burn_remote::server::start_websocket_async::<NdArray>(
-                host_devices!(DispatchDeviceId::NdArray, NdArray),
-                port,
-            )
-            .await
-        }
-        #[cfg(feature = "tch")]
-        DispatchDevice::LibTorch(_) => {
-            panic!("LibTorch is not supported as a remote-server backend (no BackendIr impl)")
-        }
-        #[cfg(feature = "remote")]
-        DispatchDevice::Remote(_) => {
-            panic!("Cannot host a remote server on a remote device")
-        }
-        #[cfg(feature = "autodiff")]
-        DispatchDevice::Autodiff(_) => {
-            unreachable!("Autodiff stripped by .inner() above")
-        }
-    }
+    with_backend!(device, |B, devices| {
+        burn_remote::server::start_websocket_async::<B>(devices, port).await
+    })
 }
