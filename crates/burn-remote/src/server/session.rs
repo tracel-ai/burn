@@ -6,7 +6,8 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
 use crate::server::local_comm::LocalCommService;
-use crate::shared::{SessionId, TaskResponse};
+use crate::server::worker::SessionWorker;
+use crate::shared::{ComputeTask, SessionId, TaskResponse};
 
 /// Capacity for the per-session response queue.
 ///
@@ -17,13 +18,17 @@ const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 
 /// Coordinates per-session state.
 ///
-/// Each [`Session`] owns its own [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer)
+/// Each [`Session`] owns a dedicated [`SessionWorker`] thread that, in turn, owns the
+/// session's [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer)
 /// — different sessions never share tensor handles, so concurrent sessions can't race on
-/// each other's backend state. Cross-session tensor transfers go through `external_comm`,
-/// which already serializes the bytes through its own protocol.
+/// each other's backend state. Cross-session tensor transfers go through `external_comm`
+/// (cross-server) or `local_comm` (same-host), each of which has its own rendezvous.
 ///
-/// Within a session there is exactly one request-handling task (one tokio task per socket
-/// connection), so per-session ordering is preserved without any extra locking.
+/// Compute runs on the worker thread, not the request task: the request handler only decodes
+/// the incoming batch and forwards each [`ComputeTask`] to the worker over a bounded channel.
+/// Tasks are processed in FIFO order on the single worker, so per-session ordering is
+/// preserved without any extra locking, while a blocking op on one session (e.g. an
+/// all-reduce barrier) can't stall another session's worker or a runtime thread.
 pub struct SessionManager<B, P>
 where
     B: BackendIr,
@@ -35,12 +40,11 @@ where
     pub(crate) external_comm: Arc<ExternalCommService<B, P>>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
-    sessions: Mutex<HashMap<SessionId, Session<B>>>,
+    sessions: Mutex<HashMap<SessionId, Session>>,
 }
 
-struct Session<B: BackendIr> {
-    runner: TensorInterpreter<B>,
-    sender: mpsc::Sender<TaskResponse>,
+struct Session {
+    worker: SessionWorker,
     receiver: Option<mpsc::Receiver<TaskResponse>>,
 }
 
@@ -91,27 +95,17 @@ where
         self.devices.len() as u32
     }
 
-    /// Resolve both the [`TensorInterpreter`] and the response sender for `session_id` in a single lock
-    /// acquisition, creating the session on demand. The request loop resolves these once per
-    /// connection and reuses them for every task, instead of re-locking the sessions map (and
-    /// re-cloning the runner) per task.
-    pub async fn session_handles(
+    /// Resolve the channel used to forward [`ComputeTask`]s to `session_id`'s worker thread,
+    /// creating the session (and spawning its worker) on demand. The request loop resolves
+    /// this once per connection and reuses it for every task, instead of re-locking the
+    /// sessions map per task.
+    pub async fn session_task_sender(
         &self,
         session_id: SessionId,
         device_index: u32,
-    ) -> (TensorInterpreter<B>, mpsc::Sender<TaskResponse>) {
-        self.with_session(session_id, device_index, |s| {
-            (s.runner.clone(), s.sender.clone())
-        })
-        .await
-    }
-
-    /// Get a clone of the [`TensorInterpreter`] for `session_id` only if the session already exists,
-    /// without creating one. Used on the close path so a `Close` for an unknown or
-    /// already-removed session doesn't resurrect a phantom runner just to drop it.
-    pub async fn try_runner(&self, session_id: SessionId) -> Option<TensorInterpreter<B>> {
-        let sessions = self.sessions.lock().await;
-        sessions.get(&session_id).map(|s| s.runner.clone())
+    ) -> mpsc::Sender<ComputeTask> {
+        self.with_session(session_id, device_index, |s| s.worker.task_sender())
+            .await
     }
 
     /// Take the response receiver for `session_id`.
@@ -131,8 +125,10 @@ where
         .await
     }
 
-    /// Drop the session. The runner's handles are released here, so any backend state held
-    /// only by this session's tensors becomes eligible for cleanup.
+    /// Drop the session, detaching its worker. Removing the map entry drops the worker handle
+    /// it holds; once the request connection also drops its cloned task sender, the worker's
+    /// channel closes, so the worker flushes its runner and exits, releasing any backend state
+    /// held only by this session's tensors.
     pub async fn close(&self, session_id: SessionId) {
         let mut sessions = self.sessions.lock().await;
         sessions.remove(&session_id);
@@ -142,16 +138,25 @@ where
         &self,
         session_id: SessionId,
         device_index: u32,
-        f: impl FnOnce(&mut Session<B>) -> R,
+        f: impl FnOnce(&mut Session) -> R,
     ) -> R {
         let mut sessions = self.sessions.lock().await;
         let entry = sessions.entry(session_id).or_insert_with(|| {
             let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);
-            Session {
-                // The session is pinned to its device for its whole lifetime; the first
-                // handler (request or response) to touch it fixes the device index.
-                runner: TensorInterpreter::new(self.device(device_index)),
+            // The session is pinned to its device for its whole lifetime; the first handler
+            // (request or response) to touch it fixes the device index. Spawn the worker that
+            // owns the runner — this runs inside the tokio runtime, so the worker can capture
+            // the runtime handle it needs for the async parts of compute.
+            let runner = TensorInterpreter::new(self.device(device_index));
+            let worker = SessionWorker::new(
+                session_id,
+                runner,
                 sender,
+                self.external_comm.clone(),
+                self.local_comm.clone(),
+            );
+            Session {
+                worker,
                 receiver: Some(receiver),
             }
         });

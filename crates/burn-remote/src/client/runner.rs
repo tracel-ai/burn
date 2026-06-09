@@ -124,7 +124,12 @@ impl<C: ProtocolClient> RemoteClient<C> {
                 id.type_id = 0;
                 id.index_id = device_index as u16;
             }
-            log::info!("All Reduce: {:?}", desc);
+            let thread_id = std::thread::current().id();
+            log::info!(
+                "[{thread_id:?}-{:?}-{local_address:?}] All Reduce: {:?}",
+                self.device,
+                desc
+            );
         }
 
         op
