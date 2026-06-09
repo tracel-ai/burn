@@ -164,6 +164,12 @@ pub enum FuseOp {
     LowerEqual(BinaryFuseArgs),
     Rem(BinaryFuseArgs),
     GreaterEqual(BinaryFuseArgs),
+    BitwiseAnd(BinaryFuseArgs),
+    BitwiseOr(BinaryFuseArgs),
+    BitwiseXor(BinaryFuseArgs),
+    BitwiseLeftShift(BinaryFuseArgs),
+    BitwiseRightShift(BinaryFuseArgs),
+    BitwiseNot(UnaryFuseArgs),
     Clamp {
         input: FuseArg,
         min: FuseArg,
@@ -221,6 +227,16 @@ impl Display for FuseOp {
             FuseOp::LowerEqual(args) => write!(f, "{} = {} <= {}", args.out, args.lhs, args.rhs),
             FuseOp::Rem(args) => write!(f, "{} = {} % {}", args.out, args.lhs, args.rhs),
             FuseOp::GreaterEqual(args) => write!(f, "{} = {} >= {}", args.out, args.lhs, args.rhs),
+            FuseOp::BitwiseAnd(args) => write!(f, "{} = {} & {}", args.out, args.lhs, args.rhs),
+            FuseOp::BitwiseOr(args) => write!(f, "{} = {} | {}", args.out, args.lhs, args.rhs),
+            FuseOp::BitwiseXor(args) => write!(f, "{} = {} ^ {}", args.out, args.lhs, args.rhs),
+            FuseOp::BitwiseLeftShift(args) => {
+                write!(f, "{} = {} << {}", args.out, args.lhs, args.rhs)
+            }
+            FuseOp::BitwiseRightShift(args) => {
+                write!(f, "{} = {} >> {}", args.out, args.lhs, args.rhs)
+            }
+            FuseOp::BitwiseNot(args) => write!(f, "{} = !{}", args.out, args.input),
             FuseOp::Clamp {
                 input,
                 min,
@@ -304,6 +320,12 @@ impl FuseOp {
             FuseOp::Greater(op) => op.lhs.precision().into_elem(),
             FuseOp::LowerEqual(op) => op.lhs.precision().into_elem(),
             FuseOp::GreaterEqual(op) => op.lhs.precision().into_elem(),
+            FuseOp::BitwiseAnd(op) => op.lhs.precision().into_elem(),
+            FuseOp::BitwiseOr(op) => op.lhs.precision().into_elem(),
+            FuseOp::BitwiseXor(op) => op.lhs.precision().into_elem(),
+            FuseOp::BitwiseLeftShift(op) => op.lhs.precision().into_elem(),
+            FuseOp::BitwiseRightShift(op) => op.lhs.precision().into_elem(),
+            FuseOp::BitwiseNot(op) => op.out.precision().into_elem(),
             FuseOp::ConditionalAssign { out, .. } => out.precision().into_elem(),
             FuseOp::Gather { output, .. } => output.precision().into_elem(),
             FuseOp::Select { output, .. } => output.precision().into_elem(),
@@ -671,7 +693,12 @@ impl FuseOp {
             | FuseOp::Greater(binary_fuse_args)
             | FuseOp::LowerEqual(binary_fuse_args)
             | FuseOp::Rem(binary_fuse_args)
-            | FuseOp::GreaterEqual(binary_fuse_args) => {
+            | FuseOp::GreaterEqual(binary_fuse_args)
+            | FuseOp::BitwiseAnd(binary_fuse_args)
+            | FuseOp::BitwiseOr(binary_fuse_args)
+            | FuseOp::BitwiseXor(binary_fuse_args)
+            | FuseOp::BitwiseLeftShift(binary_fuse_args)
+            | FuseOp::BitwiseRightShift(binary_fuse_args) => {
                 binary_fuse_args.lhs.multi_block_variable(registers);
                 binary_fuse_args.rhs.multi_block_variable(registers);
                 binary_fuse_args.out.multi_block_variable(registers);
@@ -686,7 +713,8 @@ impl FuseOp {
             | FuseOp::Erf(unary_fuse_args)
             | FuseOp::Sqrt(unary_fuse_args)
             | FuseOp::Recip(unary_fuse_args)
-            | FuseOp::Assign(unary_fuse_args) => {
+            | FuseOp::Assign(unary_fuse_args)
+            | FuseOp::BitwiseNot(unary_fuse_args) => {
                 unary_fuse_args.input.multi_block_variable(registers);
                 unary_fuse_args.out.multi_block_variable(registers);
             }

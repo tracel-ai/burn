@@ -40,6 +40,22 @@ pub struct MultiHeadAttentionConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+
+    /// Enable bias for the key [Linear] layer.
+    #[config(default = true)]
+    pub key_bias: bool,
+
+    /// Enable bias for the value [Linear] layer.
+    #[config(default = true)]
+    pub value_bias: bool,
+
+    /// Enable bias for the query [Linear] layer.
+    #[config(default = true)]
+    pub query_bias: bool,
+
+    /// Enable bias for the output [Linear] layer.
+    #[config(default = true)]
+    pub output_bias: bool,
 }
 
 /// The multihead attention module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -114,17 +130,14 @@ pub struct MhaInput {
 impl MultiHeadAttentionConfig {
     /// Initialize a new [multihead attention](MultiHeadAttention) module.
     pub fn init(&self, device: &Device) -> MultiHeadAttention {
-        let linear = |config: &Self| {
-            LinearConfig::new(config.d_model, config.d_model)
-                .with_initializer(self.initializer.clone())
-                .init(device)
-        };
+        let linear_cfg = LinearConfig::new(self.d_model, self.d_model)
+            .with_initializer(self.initializer.clone());
 
         MultiHeadAttention {
-            query: linear(self),
-            key: linear(self),
-            value: linear(self),
-            output: linear(self),
+            query: linear_cfg.clone().with_bias(self.query_bias).init(device),
+            key: linear_cfg.clone().with_bias(self.key_bias).init(device),
+            value: linear_cfg.clone().with_bias(self.value_bias).init(device),
+            output: linear_cfg.clone().with_bias(self.output_bias).init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
             activation: Gelu::new(),
             n_heads: self.n_heads,
@@ -358,6 +371,46 @@ mod tests {
     use burn::tensor::Int;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Shape};
+
+    #[test]
+    fn test_enable_bias() {
+        let d_model = 32;
+        let n_heads = 4;
+        let device = Default::default();
+
+        let base_cfg = MultiHeadAttentionConfig::new(d_model, n_heads);
+
+        // Default, everything is enabled.
+        let mha = base_cfg.init(&device);
+        assert!(mha.query.bias.is_some());
+        assert!(mha.key.bias.is_some());
+        assert!(mha.value.bias.is_some());
+        assert!(mha.output.bias.is_some());
+
+        let mha = base_cfg.clone().with_query_bias(false).init(&device);
+        assert!(mha.query.bias.is_none());
+        assert!(mha.key.bias.is_some());
+        assert!(mha.value.bias.is_some());
+        assert!(mha.output.bias.is_some());
+
+        let mha = base_cfg.clone().with_key_bias(false).init(&device);
+        assert!(mha.query.bias.is_some());
+        assert!(mha.key.bias.is_none());
+        assert!(mha.value.bias.is_some());
+        assert!(mha.output.bias.is_some());
+
+        let mha = base_cfg.clone().with_value_bias(false).init(&device);
+        assert!(mha.query.bias.is_some());
+        assert!(mha.key.bias.is_some());
+        assert!(mha.value.bias.is_none());
+        assert!(mha.output.bias.is_some());
+
+        let mha = base_cfg.clone().with_output_bias(false).init(&device);
+        assert!(mha.query.bias.is_some());
+        assert!(mha.key.bias.is_some());
+        assert!(mha.value.bias.is_some());
+        assert!(mha.output.bias.is_none());
+    }
 
     #[test]
     fn test_self_attention_shapes() {
