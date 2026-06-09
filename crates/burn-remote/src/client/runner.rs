@@ -93,7 +93,7 @@ impl<C: ProtocolClient> RemoteClient<C> {
     /// Rewrite the device ids carried by an op so the server can resolve them.
     ///
     /// This runs for every op, but only ops that carry device ids (currently the collective ops)
-    /// are affected. On the client, the participating devices are identified by their *remote*
+    /// are affected On the client, the participating devices are identified by their *remote*
     /// device ids (`type_id = 0`, `index_id = ` the local-registry index that encodes
     /// `address`+device index). The server can't reverse that registry hash, so we translate each
     /// id to the plain server-local device index (kept in `index_id`, `type_id` left 0). The
@@ -120,6 +120,7 @@ impl<C: ProtocolClient> RemoteClient<C> {
                 id.type_id = 0;
                 id.index_id = device_index as u16;
             }
+            log::info!("All Reduce: {:?}", desc);
         }
 
         op

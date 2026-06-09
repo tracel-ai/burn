@@ -2074,15 +2074,20 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
             OperationIr::Distributed(op) => match op {
                 burn_ir::DistributedOperationIr::AllReduce(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    log::info!("All reduce: {:?}", self.device);
                     let device_ids = desc.device_ids.iter().map(|id| (*id).into()).collect();
 
                     let output = <B as DistributedOps<B>>::all_reduce(tensor, desc.op, device_ids);
                     // Safety: the collective tensor is resolved through the normal op stream
                     // (a `SyncCollective` op follows), so the handle is valid once that runs.
                     let output = unsafe { output.assume_resolved() };
+                    let _ = B::sync(&self.device).ok();
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                burn_ir::DistributedOperationIr::SyncCollective => B::sync_collective(&self.device),
+                burn_ir::DistributedOperationIr::SyncCollective => {
+                    log::info!("All reduce: {:?}", self.device);
+                    B::sync_collective(&self.device)
+                }
             },
         }
     }
