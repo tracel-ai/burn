@@ -49,13 +49,9 @@ impl Reader {
             return Err(Error::InvalidHeader);
         }
         let metadata = parse_metadata(&bytes[HEADER_SIZE..metadata_end])?;
-        validate_total_size(&metadata, metadata_end, bytes.len())?;
 
-        Ok(Self {
-            metadata,
-            source: Source::Memory(bytes),
-            data_offset: aligned_data_section_start(header.metadata_size as usize),
-        })
+        let available = bytes.len();
+        Self::assemble(&header, metadata, Source::Memory(bytes), available)
     }
 
     /// Load a pack from a file.
@@ -82,12 +78,27 @@ impl Reader {
         file.read_exact(&mut metadata_bytes).map_err(io_err)?;
         let metadata = parse_metadata(&metadata_bytes)?;
 
+        let source = Source::File(path.as_ref().to_path_buf());
+        Self::assemble(&header, metadata, source, file_size as usize)
+    }
+
+    /// Finish construction once the header, metadata, and data source are known.
+    ///
+    /// Centralizes the truncation check and the aligned data-section offset so both
+    /// [`from_bytes`](Self::from_bytes) and [`from_file`](Self::from_file) stay in sync.
+    /// `available` is the number of bytes the source can actually supply.
+    fn assemble(
+        header: &Header,
+        metadata: Metadata,
+        source: Source,
+        available: usize,
+    ) -> Result<Self, Error> {
         let metadata_end = HEADER_SIZE + header.metadata_size as usize;
-        validate_total_size(&metadata, metadata_end, file_size as usize)?;
+        validate_total_size(&metadata, metadata_end, available)?;
 
         Ok(Self {
             metadata,
-            source: Source::File(path.as_ref().to_path_buf()),
+            source,
             data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }

@@ -48,16 +48,127 @@ impl Writer {
         self
     }
 
-    /// Build tensor descriptors and metadata
+    /// Calculate the total size needed for the burnpack data.
+    ///
+    /// This is useful when you want to pre-allocate a buffer for `write_into()`.
+    /// The size includes padding bytes for both metadata alignment and tensor alignment.
+    pub fn size(&self) -> Result<usize, Error> {
+        Ok(self.plan()?.total_size())
+    }
+
+    /// Write burnpack data into a caller-provided buffer.
+    ///
+    /// The buffer must be large enough to hold all data. Use `size()` to determine
+    /// the required buffer size. If the buffer is too small, this will return an error.
+    ///
+    /// This allows the caller to control buffer allocation, enabling optimizations like:
+    /// - Buffer reuse across multiple writes
+    /// - Custom allocators
+    /// - Pinned memory for GPU transfers
+    ///
+    /// # Arguments
+    ///
+    /// * `buffer` - Mutable slice to write data into. Must be at least `size()` bytes.
+    pub fn write_into(&self, buffer: &mut [u8]) -> Result<(), Error> {
+        let layout = self.plan()?;
+        let total_size = layout.total_size();
+
+        if buffer.len() < total_size {
+            return Err(Error::IoError(format!(
+                "Buffer too small: need {} bytes, got {} bytes",
+                total_size,
+                buffer.len()
+            )));
+        }
+
+        let mut sink = BufferSink { buffer, offset: 0 };
+        self.write_container(&layout, &mut sink)
+    }
+
+    /// Write to a byte buffer (convenience method).
+    ///
+    /// This allocates a buffer internally and writes the burnpack data.
+    /// For more control over buffer allocation, use `size()` + `write_into()`.
+    pub fn to_bytes(&self) -> Result<Bytes, Error> {
+        let layout = self.plan()?;
+        let mut buffer = vec![0u8; layout.total_size()];
+
+        let mut sink = BufferSink {
+            buffer: &mut buffer,
+            offset: 0,
+        };
+        self.write_container(&layout, &mut sink)?;
+
+        Ok(Bytes::from_bytes_vec(buffer))
+    }
+
+    /// Write directly to a file (more memory efficient for large models).
+    #[cfg(feature = "std")]
+    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        let layout = self.plan()?;
+        let file = File::create(path).map_err(|e| Error::IoError(e.to_string()))?;
+
+        let mut sink = FileSink { file };
+        self.write_container(&layout, &mut sink)?;
+
+        sink.file.flush().map_err(|e| Error::IoError(e.to_string()))
+    }
+
+    /// Build the complete on-disk layout: header, serialized metadata, and the
+    /// position and size of the (aligned) tensor data section.
+    fn plan(&self) -> Result<Layout, Error> {
+        let (metadata, metadata_bytes) = self.build_metadata()?;
+
+        let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
+            Error::IoError(format!(
+                "Metadata size {} exceeds maximum of {} bytes",
+                metadata_bytes.len(),
+                u32::MAX
+            ))
+        })?;
+
+        let header = Header {
+            magic: MAGIC_NUMBER,
+            version: FORMAT_VERSION,
+            metadata_size,
+        };
+
+        let data_section_start = aligned_data_section_start(metadata_bytes.len());
+        let data_size = Self::data_section_size(&metadata);
+
+        Ok(Layout {
+            metadata,
+            metadata_bytes,
+            header,
+            data_section_start,
+            data_size,
+        })
+    }
+
+    /// Serialize the metadata structure (tensor descriptors + key-value pairs) to CBOR.
     fn build_metadata(&self) -> Result<(Metadata, Vec<u8>), Error> {
-        // Build tensor descriptors and calculate offsets with alignment
+        let metadata = Metadata {
+            tensors: self.build_descriptors()?,
+            metadata: self.metadata.clone(),
+        };
+
+        let mut metadata_bytes = Vec::new();
+        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
+            .map_err(|e| Error::IoError(e.to_string()))?;
+
+        Ok((metadata, metadata_bytes))
+    }
+
+    /// Build tensor descriptors, assigning each tensor an aligned offset within
+    /// the data section so that absolute file positions are mmap-friendly.
+    fn build_descriptors(&self) -> Result<BTreeMap<String, TensorDescriptor>, Error> {
         let mut tensors = BTreeMap::new();
         let mut current_offset = 0u64;
 
         for tensor in &self.tensors {
             let data_len = tensor.bytes.len() as u64;
 
-            // Align the start offset for mmap zero-copy support
+            // Align the start offset for mmap zero-copy support.
             let aligned_start = align_offset(current_offset, TENSOR_ALIGNMENT);
             let end = aligned_start.checked_add(data_len).ok_or_else(|| {
                 Error::IoError(format!(
@@ -79,245 +190,152 @@ impl Writer {
             current_offset = end;
         }
 
-        // Create metadata structure
-        let metadata = Metadata {
-            tensors,
-            metadata: self.metadata.clone(),
-        };
-
-        // Serialize metadata with CBOR
-        let mut metadata_bytes = Vec::new();
-        ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
-            .map_err(|e| Error::IoError(e.to_string()))?;
-
-        Ok((metadata, metadata_bytes))
+        Ok(tensors)
     }
 
-    /// Calculate the total size needed for the burnpack data
-    ///
-    /// This is useful when you want to pre-allocate a buffer for `write_into()`.
-    /// The size includes padding bytes for both metadata alignment and tensor alignment.
-    pub fn size(&self) -> Result<usize, Error> {
-        let (metadata, metadata_bytes) = self.build_metadata()?;
-
-        // Data section starts at aligned position after header + metadata
-        let data_section_start = aligned_data_section_start(metadata_bytes.len());
-
-        // Calculate total data section size from aligned offsets
-        // The last tensor's end offset gives us the total data section size
-        let data_size = metadata
+    /// Size of the tensor data section, derived from the highest descriptor end offset.
+    fn data_section_size(metadata: &Metadata) -> usize {
+        metadata
             .tensors
             .values()
             .map(|t| t.data_offsets.1)
             .max()
-            .unwrap_or(0) as usize;
-
-        Ok(data_section_start + data_size)
+            .unwrap_or(0) as usize
     }
 
-    /// Write burnpack data into a caller-provided buffer
-    ///
-    /// The buffer must be large enough to hold all data. Use `size()` to determine
-    /// the required buffer size. If the buffer is too small, this will return an error.
-    ///
-    /// This allows the caller to control buffer allocation, enabling optimizations like:
-    /// - Buffer reuse across multiple writes
-    /// - Custom allocators
-    /// - Pinned memory for GPU transfers
-    ///
-    /// # Arguments
-    ///
-    /// * `buffer` - Mutable slice to write data into. Must be at least `size()` bytes.
-    pub fn write_into(&self, buffer: &mut [u8]) -> Result<(), Error> {
-        let (metadata, metadata_bytes) = self.build_metadata()?;
+    /// Emit the full container — header, metadata, alignment padding, then tensor data
+    /// — into `sink`, which decides where the bytes ultimately land.
+    fn write_container(&self, layout: &Layout, sink: &mut impl Sink) -> Result<(), Error> {
+        sink.write(&layout.header.into_bytes())?;
+        sink.write(&layout.metadata_bytes)?;
 
-        // Check metadata size fits in u32
-        let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
-            Error::IoError(format!(
-                "Metadata size {} exceeds maximum of {} bytes",
-                metadata_bytes.len(),
-                u32::MAX
-            ))
-        })?;
-
-        // Create header
-        let header = Header {
-            magic: MAGIC_NUMBER,
-            version: FORMAT_VERSION,
-            metadata_size,
-        };
-
-        // Data section starts at aligned position after header + metadata
-        let data_section_start = aligned_data_section_start(metadata_bytes.len());
-
-        // Calculate required size from aligned offsets
-        let data_size = metadata
-            .tensors
-            .values()
-            .map(|t| t.data_offsets.1)
-            .max()
-            .unwrap_or(0) as usize;
-        let total_size = data_section_start + data_size;
-
-        // Check buffer size
-        if buffer.len() < total_size {
-            return Err(Error::IoError(format!(
-                "Buffer too small: need {} bytes, got {} bytes",
-                total_size,
-                buffer.len()
-            )));
+        // Pad so the data section starts at its aligned position.
+        let unaligned_data_start = HEADER_SIZE + layout.metadata_bytes.len();
+        if layout.data_section_start > unaligned_data_start {
+            sink.pad(layout.data_section_start - unaligned_data_start)?;
         }
 
-        let mut offset = 0;
-
-        // Write header
-        let header_bytes = header.into_bytes();
-        buffer[offset..offset + HEADER_SIZE].copy_from_slice(&header_bytes);
-        offset += HEADER_SIZE;
-
-        // Write metadata
-        buffer[offset..offset + metadata_bytes.len()].copy_from_slice(&metadata_bytes);
-        offset += metadata_bytes.len();
-
-        // Write padding to align data section start
-        if data_section_start > offset {
-            buffer[offset..data_section_start].fill(0);
-            offset = data_section_start;
-        }
-
-        // Write tensor data with alignment padding
-        for tensor in &self.tensors {
-            // Get the aligned offset from metadata
-            let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
-                Error::IoError(format!(
-                    "Internal error: tensor '{}' not found in metadata",
-                    tensor.name
-                ))
-            })?;
-            let aligned_offset = descriptor.data_offsets.0 as usize;
-            let target_offset = data_section_start + aligned_offset;
-
-            // Write padding zeros if needed
-            if target_offset > offset {
-                buffer[offset..target_offset].fill(0);
-                offset = target_offset;
-            }
-
-            let expected_len = tensor.bytes.len();
-            let data = &tensor.bytes;
-            let actual_len = data.len();
-
-            // Validate data length consistency
-            if actual_len != expected_len {
-                return Err(Error::IoError(format!(
-                    "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
-                    tensor.name, expected_len, actual_len
-                )));
-            }
-
-            buffer[offset..offset + actual_len].copy_from_slice(&data);
-            offset += actual_len;
-        }
-
-        Ok(())
+        self.write_tensors(&layout.metadata, sink)
     }
 
-    /// Write to a byte buffer (convenience method)
-    ///
-    /// This allocates a buffer internally and writes the burnpack data.
-    /// For more control over buffer allocation, use `size()` + `write_into()`.
-    pub fn to_bytes(&self) -> Result<Bytes, Error> {
-        let size = self.size()?;
-        let mut buffer = vec![0u8; size];
-        self.write_into(&mut buffer)?;
-        Ok(Bytes::from_bytes_vec(buffer))
-    }
-
-    /// Write directly to a file (more memory efficient for large models)
-    #[cfg(feature = "std")]
-    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
-        let mut file = File::create(path).map_err(|e| Error::IoError(e.to_string()))?;
-
-        let (metadata, metadata_bytes) = self.build_metadata()?;
-
-        // Check metadata size fits in u32
-        let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
-            Error::IoError(format!(
-                "Metadata size {} exceeds maximum of {} bytes",
-                metadata_bytes.len(),
-                u32::MAX
-            ))
-        })?;
-
-        // Create and write header
-        let header = Header {
-            magic: MAGIC_NUMBER,
-            version: FORMAT_VERSION,
-            metadata_size,
-        };
-
-        file.write_all(&header.into_bytes())
-            .map_err(|e| Error::IoError(e.to_string()))?;
-
-        // Write metadata
-        file.write_all(&metadata_bytes)
-            .map_err(|e| Error::IoError(e.to_string()))?;
-
-        // Data section starts at aligned position after header + metadata
-        let data_section_start = aligned_data_section_start(metadata_bytes.len());
-        let current_file_pos = HEADER_SIZE + metadata_bytes.len();
-
-        // Write padding to align data section start
-        if data_section_start > current_file_pos {
-            let padding_size = data_section_start - current_file_pos;
-            let padding = vec![0u8; padding_size];
-            file.write_all(&padding)
-                .map_err(|e| Error::IoError(e.to_string()))?;
-        }
-
-        // Track current position within data section (relative to data_section_start)
+    /// Write each tensor's data into `sink`, inserting alignment padding between
+    /// tensors so every tensor lands at its descriptor's aligned offset.
+    fn write_tensors(&self, metadata: &Metadata, sink: &mut impl Sink) -> Result<(), Error> {
+        // Position within the data section (relative to its aligned start).
         let mut data_offset = 0usize;
 
-        // Stream tensor data directly to file with alignment padding
         for tensor in &self.tensors {
-            // Get the aligned offset from metadata
-            let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
-                Error::IoError(format!(
-                    "Internal error: tensor '{}' not found in metadata",
-                    tensor.name
-                ))
-            })?;
-            let aligned_offset = descriptor.data_offsets.0 as usize;
+            let (aligned_offset, data) = Self::resolve_tensor(tensor, metadata)?;
 
-            // Write padding zeros if needed
             if aligned_offset > data_offset {
-                let padding_size = aligned_offset - data_offset;
-                let padding = vec![0u8; padding_size];
-                file.write_all(&padding)
-                    .map_err(|e| Error::IoError(e.to_string()))?;
+                sink.pad(aligned_offset - data_offset)?;
                 data_offset = aligned_offset;
             }
 
-            let expected_len = tensor.bytes.len();
-            let data = &tensor.bytes;
-            let actual_len = data.len();
-
-            // Validate data length consistency
-            if actual_len != expected_len {
-                return Err(Error::IoError(format!(
-                    "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
-                    tensor.name, expected_len, actual_len
-                )));
-            }
-
-            file.write_all(&data)
-                .map_err(|e| Error::IoError(e.to_string()))?;
-            data_offset += actual_len;
+            sink.write(data)?;
+            data_offset += data.len();
         }
 
-        file.flush()
-            .map_err(|e| Error::IoError(e.to_string()))?;
-
         Ok(())
+    }
+
+    /// Look up a tensor's aligned offset from the metadata and validate that its
+    /// bytes match the length the descriptor reserved for it.
+    fn resolve_tensor<'t>(
+        tensor: &'t Tensor,
+        metadata: &Metadata,
+    ) -> Result<(usize, &'t [u8]), Error> {
+        let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
+            Error::IoError(format!(
+                "Internal error: tensor '{}' not found in metadata",
+                tensor.name
+            ))
+        })?;
+
+        let (start, end) = descriptor.data_offsets;
+        let declared_len = (end - start) as usize;
+        let actual_len = tensor.bytes.len();
+        if actual_len != declared_len {
+            return Err(Error::IoError(format!(
+                "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
+                tensor.name, declared_len, actual_len
+            )));
+        }
+
+        Ok((start as usize, &tensor.bytes))
+    }
+}
+
+/// The computed on-disk layout of a burnpack container.
+///
+/// Captures everything needed to emit the bytes: the serialized metadata, the
+/// header, where the aligned data section begins, and how large it is. Built once
+/// via [`Writer::plan`] and shared by `size`, `write_into`, `to_bytes`, and
+/// `write_to_file`.
+struct Layout {
+    metadata: Metadata,
+    metadata_bytes: Vec<u8>,
+    header: Header,
+    data_section_start: usize,
+    data_size: usize,
+}
+
+impl Layout {
+    /// Total number of bytes the container occupies.
+    fn total_size(&self) -> usize {
+        self.data_section_start + self.data_size
+    }
+}
+
+/// A sequential destination for the bytes of a burnpack container.
+///
+/// Padding and data are written in order; each implementation advances its own
+/// cursor, letting the writer stay agnostic about whether bytes land in a buffer
+/// or a file.
+trait Sink {
+    /// Write `count` zero bytes of alignment padding.
+    fn pad(&mut self, count: usize) -> Result<(), Error>;
+    /// Write `data` verbatim.
+    fn write(&mut self, data: &[u8]) -> Result<(), Error>;
+}
+
+/// Sink that copies into a caller-provided buffer.
+struct BufferSink<'a> {
+    buffer: &'a mut [u8],
+    offset: usize,
+}
+
+impl Sink for BufferSink<'_> {
+    fn pad(&mut self, count: usize) -> Result<(), Error> {
+        self.buffer[self.offset..self.offset + count].fill(0);
+        self.offset += count;
+        Ok(())
+    }
+
+    fn write(&mut self, data: &[u8]) -> Result<(), Error> {
+        self.buffer[self.offset..self.offset + data.len()].copy_from_slice(data);
+        self.offset += data.len();
+        Ok(())
+    }
+}
+
+/// Sink that streams directly to a file.
+#[cfg(feature = "std")]
+struct FileSink {
+    file: File,
+}
+
+#[cfg(feature = "std")]
+impl Sink for FileSink {
+    fn pad(&mut self, count: usize) -> Result<(), Error> {
+        self.file
+            .write_all(&vec![0u8; count])
+            .map_err(|e| Error::IoError(e.to_string()))
+    }
+
+    fn write(&mut self, data: &[u8]) -> Result<(), Error> {
+        self.file
+            .write_all(data)
+            .map_err(|e| Error::IoError(e.to_string()))
     }
 }
