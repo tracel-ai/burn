@@ -11,8 +11,14 @@ fn data_section_start_is_aligned() {
     for metadata_size in [0usize, 1, 10, 245, 246, 247, 4096] {
         let start = aligned_data_section_start(metadata_size);
         assert_eq!(start % align, 0, "data section start must be 256-aligned");
-        assert!(start >= HEADER_SIZE + metadata_size, "must clear header+metadata");
-        assert!(start < HEADER_SIZE + metadata_size + align, "minimal padding");
+        assert!(
+            start >= HEADER_SIZE + metadata_size,
+            "must clear header+metadata"
+        );
+        assert!(
+            start < HEADER_SIZE + metadata_size + align,
+            "minimal padding"
+        );
     }
 }
 

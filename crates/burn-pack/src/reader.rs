@@ -153,7 +153,11 @@ impl Reader {
     }
 
     /// Compute and validate the absolute `[start, end)` byte range of a tensor.
-    fn tensor_range(&self, name: &str, descriptor: &TensorDescriptor) -> Result<(usize, usize), Error> {
+    fn tensor_range(
+        &self,
+        name: &str,
+        descriptor: &TensorDescriptor,
+    ) -> Result<(usize, usize), Error> {
         let to_usize = |offset: u64| -> Result<usize, Error> {
             offset.try_into().map_err(|_| {
                 Error::ValidationError(format!(
@@ -162,7 +166,9 @@ impl Reader {
             })
         };
         let overflow = || {
-            Error::ValidationError(format!("Tensor '{name}' has corrupted offset data: overflow"))
+            Error::ValidationError(format!(
+                "Tensor '{name}' has corrupted offset data: overflow"
+            ))
         };
 
         let start = self
@@ -253,7 +259,11 @@ fn parse_metadata(bytes: &[u8]) -> Result<Metadata, Error> {
 }
 
 /// Ensure the available bytes can hold every tensor the metadata claims.
-fn validate_total_size(metadata: &Metadata, metadata_end: usize, available: usize) -> Result<(), Error> {
+fn validate_total_size(
+    metadata: &Metadata,
+    metadata_end: usize,
+    available: usize,
+) -> Result<(), Error> {
     if metadata.tensors.is_empty() {
         return Ok(());
     }
@@ -263,9 +273,9 @@ fn validate_total_size(metadata: &Metadata, metadata_end: usize, available: usiz
         .map(|t| t.data_offsets.1)
         .max()
         .unwrap_or(0);
-    let max_offset: usize = max_offset
-        .try_into()
-        .map_err(|_| Error::ValidationError(format!("Data offset {max_offset} exceeds platform maximum")))?;
+    let max_offset: usize = max_offset.try_into().map_err(|_| {
+        Error::ValidationError(format!("Data offset {max_offset} exceeds platform maximum"))
+    })?;
     let min_size = metadata_end
         .checked_add(max_offset)
         .ok_or_else(|| Error::ValidationError("File size calculation overflow".into()))?;

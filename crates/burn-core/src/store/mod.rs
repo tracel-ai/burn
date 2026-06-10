@@ -388,7 +388,10 @@ impl ModuleMapper for Applier {
         }
     }
 
-    fn map_bool<const D: usize>(&mut self, param: Param<Tensor<D, Bool>>) -> Param<Tensor<D, Bool>> {
+    fn map_bool<const D: usize>(
+        &mut self,
+        param: Param<Tensor<D, Bool>>,
+    ) -> Param<Tensor<D, Bool>> {
         let id = param.id;
         let device = param.lazy_device();
         let shape = param.lazy_shape();

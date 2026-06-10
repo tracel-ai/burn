@@ -4,14 +4,16 @@ use std::path::PathBuf;
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use crate::bridge;
-use crate::{IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot};
-use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
+use crate::{
+    IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot,
+};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core::tensor::Bytes;
+use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
 
 /// Store mode for BurnpackStore
 enum StoreMode {

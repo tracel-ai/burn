@@ -1,6 +1,6 @@
 use super::base::{
-    Error, Header, Metadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
-    TENSOR_ALIGNMENT, TensorDescriptor, aligned_data_section_start,
+    Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, Metadata, TENSOR_ALIGNMENT,
+    TensorDescriptor, aligned_data_section_start,
 };
 use super::tensor::Tensor;
 use alloc::collections::BTreeMap;

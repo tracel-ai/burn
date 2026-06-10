@@ -35,10 +35,7 @@ pub fn tensor_to_snapshot(tensor: PackTensor) -> TensorSnapshot {
     let dtype = tensor.dtype;
     let shape = tensor.shape.clone();
     let path_stack: Vec<String> = tensor.name.split('.').map(|s| s.to_string()).collect();
-    let tensor_id = tensor
-        .param_id
-        .map(ParamId::from)
-        .unwrap_or_else(ParamId::new);
+    let tensor_id = tensor.param_id.map(ParamId::from).unwrap_or_default();
 
     let bytes = tensor.bytes;
     let shape_for_closure = shape.clone();

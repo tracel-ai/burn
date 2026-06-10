@@ -179,10 +179,15 @@ fn file_round_trip() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("model.bpk");
 
-    Writer::new(vec![f32_tensor("weight", &[1.0, 2.0, 3.0, 4.0], &[2, 2], Some(1))])
-        .with_metadata("producer", "burn-pack")
-        .write_to_file(&path)
-        .unwrap();
+    Writer::new(vec![f32_tensor(
+        "weight",
+        &[1.0, 2.0, 3.0, 4.0],
+        &[2, 2],
+        Some(1),
+    )])
+    .with_metadata("producer", "burn-pack")
+    .write_to_file(&path)
+    .unwrap();
 
     let reader = Reader::from_file(&path).unwrap();
     let tensors = reader.get_tensors().unwrap();
