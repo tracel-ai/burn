@@ -22,7 +22,7 @@
 //!     .iter()
 //!     .flat_map(|v| v.to_le_bytes())
 //!     .collect();
-//! let tensor = Tensor::from_bytes(
+//! let tensor = Tensor::new(
 //!     "weight".to_string(),
 //!     DType::F32,
 //!     vec![2, 2],
@@ -41,9 +41,9 @@
 //! let tensors = reader.get_tensors().unwrap();
 //! assert_eq!(tensors.len(), 1);
 //! assert_eq!(tensors[0].name, "weight");
-//! assert_eq!(tensors[0].shape, vec![2, 2]);
+//! assert_eq!(tensors[0].shape.to_vec(), vec![2, 2]);
 //! assert_eq!(tensors[0].param_id, Some(42));
-//! assert_eq!(reader.metadata().metadata["producer"], "burn-pack docs");
+//! assert_eq!(reader.metadata()["producer"], "burn-pack docs");
 //! ```
 //!
 //! # File format
@@ -58,8 +58,8 @@
 //! │   version       : u16  — format version ([`FORMAT_VERSION`])  │
 //! │   metadata_size : u32  — byte length of the CBOR metadata     │
 //! ├──────────────────────────────────────────────────────────────┤
-//! │ Metadata — CBOR, `metadata_size` bytes ([`Metadata`])        │
-//! │   tensors : map<name, [`TensorDescriptor`]>                   │
+//! │ Metadata — CBOR, `metadata_size` bytes                       │
+//! │   tensors : map<name, descriptor>                            │
 //! │     dtype        : [`DType`]                                  │
 //! │     shape        : list<u64>                                  │
 //! │     data_offsets : (start, end)  relative to the data section │
@@ -71,7 +71,8 @@
 //! ├──────────────────────────────────────────────────────────────┤
 //! │ Tensor data section                                          │
 //! │   each tensor's bytes start on a 256-byte boundary           │
-//! │   ([`TENSOR_ALIGNMENT`]) so the file can be mmap'd and        │
+//! │   ([`TENSOR_ALIGNMENT`]) for aligned, lazy file-backed       │
+//! │   loading (see [`Bytes::from_file`]).                         │
 //! │   tensors sliced zero-copy.                                   │
 //! └──────────────────────────────────────────────────────────────┘
 //! ```
@@ -100,8 +101,7 @@
 //!
 //! ## Feature Flags
 //!
-//! - `std`: Enables file I/O and memory mapping (default)
-//! - `memmap`: Enables memory-mapped zero-copy file loading (default, implies `std`)
+//! - `std`: Enables file I/O ([`Reader::from_file`] / [`Writer::write_to_file`]) (default)
 
 extern crate alloc;
 
@@ -112,15 +112,15 @@ mod writer;
 
 pub use base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, MAX_CBOR_RECURSION_DEPTH,
-    MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, Metadata, TENSOR_ALIGNMENT,
-    TensorDescriptor, aligned_data_section_start,
+    MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, TENSOR_ALIGNMENT,
+    aligned_data_section_start,
 };
 #[cfg(feature = "std")]
 pub use base::MAX_FILE_SIZE;
 pub use reader::Reader;
-pub use tensor::{Tensor, TensorBytesFn};
+pub use tensor::Tensor;
 pub use writer::Writer;
 
-// Re-export the format's core scalar types so callers can build [`Tensor`] entries and
-// inspect descriptors without depending on `burn-std` directly.
-pub use burn_std::{Bytes, DType};
+// Re-export the core types so callers can build [`Tensor`] entries and inspect descriptors
+// without depending on `burn-std` directly.
+pub use burn_std::{Bytes, DType, Shape};

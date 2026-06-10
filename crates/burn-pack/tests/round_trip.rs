@@ -17,9 +17,9 @@ fn single_tensor_round_trip() {
     let t = &tensors[0];
     assert_eq!(t.name, "weight");
     assert_eq!(t.dtype, DType::F32);
-    assert_eq!(t.shape, vec![2, 2]);
+    assert_eq!(t.shape.to_vec(), vec![2, 2]);
     assert_eq!(t.param_id, Some(7));
-    assert_eq!(t.byte_len, 16);
+    assert_eq!(t.byte_len(), 16);
     assert_eq!(read_f32(t), vec![1.0, 2.0, 3.0, 4.0]);
 }
 
@@ -55,12 +55,12 @@ fn user_metadata_round_trip() {
         .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
-    let meta = reader.metadata();
-    assert_eq!(meta.metadata["producer"], "burn-pack");
-    assert_eq!(meta.metadata["format"], "burnpack");
-    // Descriptor metadata is reachable too.
-    assert_eq!(meta.tensors["w"].dtype, DType::F32);
-    assert_eq!(meta.tensors["w"].shape, vec![1]);
+    assert_eq!(reader.metadata()["producer"], "burn-pack");
+    assert_eq!(reader.metadata()["format"], "burnpack");
+    // Per-tensor info comes from the tensors themselves.
+    let tensors = reader.get_tensors().unwrap();
+    assert_eq!(tensors[0].dtype, DType::F32);
+    assert_eq!(tensors[0].shape.to_vec(), vec![1]);
 }
 
 #[test]
@@ -120,30 +120,28 @@ fn dtype_and_byte_len_preserved() {
     for (i, (dtype, elem)) in cases.iter().enumerate() {
         let t = read.iter().find(|t| t.name == format!("t{i}")).unwrap();
         assert_eq!(t.dtype, *dtype, "dtype preserved for t{i}");
-        assert_eq!(t.shape, vec![n]);
-        assert_eq!(t.byte_len, n * elem, "byte_len preserved for t{i}");
-        let materialized = t.bytes().unwrap();
-        let materialized: &[u8] = &materialized;
+        assert_eq!(t.shape.to_vec(), vec![n]);
+        assert_eq!(t.byte_len(), n * elem, "byte_len preserved for t{i}");
+        let materialized: &[u8] = &t.bytes;
         assert_eq!(materialized, &vec![i as u8 + 1; n * elem][..]);
     }
 }
 
 #[test]
-fn copy_mode_from_in_memory_bytes() {
+fn in_memory_round_trip() {
     let packed = Writer::new(vec![f32_tensor("w", &[1.5, 2.5, 3.5], &[3], None)])
         .to_bytes()
         .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
-    let copied = reader.get_tensors_zero_copy(false).unwrap();
-    assert_eq!(read_f32(&copied[0]), vec![1.5, 2.5, 3.5]);
+    let tensors = reader.get_tensors().unwrap();
+    assert_eq!(read_f32(&tensors[0]), vec![1.5, 2.5, 3.5]);
 }
 
-// True zero-copy requires shared-backed bytes (e.g. an mmap'd file); slicing in-memory
-// `from_bytes_vec` data is intentionally unsupported.
-#[cfg(feature = "memmap")]
+// Reading from a file backs each tensor with `Bytes::from_file`, read lazily on access.
+#[cfg(feature = "std")]
 #[test]
-fn zero_copy_from_mmap_file() {
+fn file_backed_tensors() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("zc.bpk");
     Writer::new(vec![f32_tensor("w", &[1.5, 2.5, 3.5], &[3], None)])
@@ -151,8 +149,8 @@ fn zero_copy_from_mmap_file() {
         .unwrap();
 
     let reader = Reader::from_file(&path).unwrap();
-    let zero_copy = reader.get_tensors_zero_copy(true).unwrap();
-    assert_eq!(read_f32(&zero_copy[0]), vec![1.5, 2.5, 3.5]);
+    let tensors = reader.get_tensors().unwrap();
+    assert_eq!(read_f32(&tensors[0]), vec![1.5, 2.5, 3.5]);
 }
 
 #[test]
@@ -191,5 +189,5 @@ fn file_round_trip() {
     assert_eq!(tensors.len(), 1);
     assert_eq!(read_f32(&tensors[0]), vec![1.0, 2.0, 3.0, 4.0]);
     assert_eq!(tensors[0].param_id, Some(1));
-    assert_eq!(reader.metadata().metadata["producer"], "burn-pack");
+    assert_eq!(reader.metadata()["producer"], "burn-pack");
 }

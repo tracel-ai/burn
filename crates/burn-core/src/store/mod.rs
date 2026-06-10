@@ -171,11 +171,10 @@ impl RecordNew {
         self.tensors
             .iter()
             .map(|t| {
-                let shape: Vec<usize> = t.data.shape.iter().copied().collect();
-                burn_pack::Tensor::from_bytes(
+                burn_pack::Tensor::new(
                     t.path.clone(),
                     t.data.dtype,
-                    shape,
+                    t.data.shape.clone(),
                     Some(t.id.val()),
                     t.data.bytes.clone(),
                 )
@@ -189,14 +188,14 @@ impl RecordNew {
             .into_iter()
             .map(|t| {
                 let id = t.param_id.map(ParamId::from).unwrap_or_else(ParamId::new);
-                let data = TensorData::from_bytes(t.bytes()?, t.shape, t.dtype);
-                Ok(RecordTensor {
+                let data = TensorData::from_bytes(t.bytes, t.shape, t.dtype);
+                RecordTensor {
                     path: t.name,
                     id,
                     data,
-                })
+                }
             })
-            .collect::<Result<Vec<_>, RecordError>>()?;
+            .collect();
         Ok(Self::from_tensors(tensors))
     }
 }

@@ -25,14 +25,15 @@ other frameworks, embedded readers).
 ## Features
 
 - **Minimal dependencies** — `burn-std` + `serde` + CBOR only; no tensor crates
-- **Zero-copy loading** — 256-byte aligned tensor data enables memory-mapped, copy-free slicing
-- **Lazy materialization** — `Tensor` entries carry metadata plus a closure that yields the raw
-  bytes only when asked
+- **Lazy file loading** — reading from a file backs each tensor with [`Bytes::from_file`], so data
+  is read (and DMA'd to the GPU) only when accessed; 256-byte aligned tensor data keeps it efficient
+- **`Bytes`-native** — `Tensor` entries hold a [`Bytes`] buffer directly, integrating with the rest
+  of the Burn ecosystem (shared/static/file-backed allocations)
 - **ParamId persistence** — optional per-tensor id for stateful training round-trips
 - **Hardened reader** — magic/version checks plus DoS limits on metadata size, tensor count,
   tensor size, CBOR recursion depth, and file size
-- **No-std support** — the format core works in embedded and WASM environments (file I/O and
-  mmap are behind the `std` / `memmap` features)
+- **No-std support** — the format core works in embedded and WASM environments (file I/O is behind
+  the `std` feature)
 
 ## Quick Start
 
@@ -45,7 +46,7 @@ let raw: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0]
     .flat_map(|v| v.to_le_bytes())
     .collect();
 
-let tensor = Tensor::from_bytes(
+let tensor = Tensor::new(
     "weight".to_string(),
     DType::F32,
     vec![2, 2],
@@ -64,12 +65,12 @@ let reader = Reader::from_bytes(packed).unwrap();
 let tensors = reader.get_tensors().unwrap();
 
 assert_eq!(tensors[0].name, "weight");
-assert_eq!(tensors[0].shape, vec![2, 2]);
+assert_eq!(tensors[0].shape.to_vec(), vec![2, 2]);
 assert_eq!(tensors[0].param_id, Some(42));
-assert_eq!(reader.metadata().metadata["producer"], "my-tool");
+assert_eq!(reader.metadata()["producer"], "my-tool");
 ```
 
-### Files and memory mapping
+### Files
 
 ```rust,ignore
 use burn_pack::{Reader, Writer};
@@ -77,14 +78,14 @@ use burn_pack::{Reader, Writer};
 // Stream directly to disk (memory-efficient for large models).
 Writer::new(tensors).write_to_file("model.bpk").unwrap();
 
-// Load via mmap (default with the `memmap` feature); slice tensors zero-copy.
+// Read the header + metadata up front; each tensor's data is backed by `Bytes::from_file`
+// and read lazily when accessed (and DMA'd to the GPU efficiently).
 let reader = Reader::from_file("model.bpk").unwrap();
-let tensors = reader.get_tensors_zero_copy(true).unwrap();
+let tensors = reader.get_tensors().unwrap();
 ```
 
-Zero-copy slicing requires shared-backed bytes (an mmap'd file, or `Bytes::from_shared` /
-`Bytes::from_static`). Slicing an in-memory `Bytes::from_bytes_vec` buffer is intentionally
-unsupported and falls back to copying via `get_tensors()`.
+Reading from a file (`from_file`) keeps tensor data lazy. Reading from an in-memory buffer
+(`from_bytes`) copies each tensor's bytes out of the buffer.
 
 ## File Format
 
@@ -129,17 +130,18 @@ tensor it claims — returning `Error::ValidationError` otherwise.
 
 ## Inspecting a pack
 
-`Reader` exposes the metadata without materializing any tensor data:
+For a file-backed reader, `get_tensors` does not read any tensor data until a tensor's `bytes`
+are accessed — so you can inspect dtype/shape/param-id for free:
 
 ```rust,ignore
 let reader = Reader::from_file("model.bpk")?;
 
-for name in reader.tensor_names() {
-    let d = &reader.metadata().tensors[name];
-    println!("{name}: {:?} {:?}", d.dtype, d.shape);
+for t in reader.get_tensors()? {
+    println!("{}: {:?} {:?}", t.name, t.dtype, t.shape); // no file read yet
 }
 
-// Read a single tensor's raw bytes by name.
+// User key/value metadata, and a single tensor's raw bytes by name.
+let producer = &reader.metadata()["producer"];
 let raw = reader.tensor_data("encoder.weight")?;
 ```
 
@@ -147,8 +149,7 @@ let raw = reader.tensor_data("encoder.weight")?;
 
 | Feature   | Default | Description                                              |
 | --------- | ------- | -------------------------------------------------------- |
-| `std`     | yes     | File I/O and other std-only functionality                |
-| `memmap`  | yes     | Memory-mapped, zero-copy file loading (implies `std`)    |
+| `std`     | yes     | File I/O (`Reader::from_file` / `Writer::write_to_file`) |
 
 Disable defaults for no-std targets:
 

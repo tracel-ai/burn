@@ -21,23 +21,16 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "memmap"]
-memmap = ["std", "dep:memmap2"]
-std = ["dep:memmap2", "burn-std/std", "byteorder/std", "ciborium/std"]
+default = ["std"]
+std = ["burn-std/std", "byteorder/std", "ciborium/std"]
 
 [dependencies]
 burn-std = { workspace = true }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
-bytes = { workspace = true }
 ciborium = { workspace = true }
-memmap2 = { workspace = true, optional = true }
 serde = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-
-# Enable extra-platforms for bytes on targets without native atomics (e.g., thumbv6m-none-eabi)
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-bytes = { workspace = true, features = ["extra-platforms"] }

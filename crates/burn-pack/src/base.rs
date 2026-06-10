@@ -169,7 +169,7 @@ impl Header {
 
 /// Metadata structure serialized with CBOR
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Metadata {
+pub(crate) struct Metadata {
     /// Tensor descriptors mapped by name for efficient lookup
     pub tensors: BTreeMap<String, TensorDescriptor>,
     /// Optional additional metadata
@@ -179,7 +179,7 @@ pub struct Metadata {
 
 /// Individual tensor descriptor
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TensorDescriptor {
+pub(crate) struct TensorDescriptor {
     /// Data type of the tensor
     pub dtype: DType,
     /// Tensor shape dimensions

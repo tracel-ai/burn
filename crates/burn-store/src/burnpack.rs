@@ -34,11 +34,6 @@ pub struct BurnpackStore {
     validate: bool,
     /// Allow overwriting existing files (default: false)
     overwrite: bool,
-    /// Enable zero-copy tensor loading (default: false)
-    ///
-    /// When enabled and the backend supports it, tensor data is sliced from
-    /// the source without copying. This requires keeping the source data alive.
-    zero_copy: bool,
     /// Automatically append .bpk extension if not present (default: true)
     #[cfg(feature = "std")]
     auto_extension: bool,
@@ -101,7 +96,6 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
-            zero_copy: false,
             #[cfg(feature = "std")]
             auto_extension: true,
             #[cfg(feature = "std")]
@@ -123,7 +117,6 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
-            zero_copy: false,
             #[cfg(feature = "std")]
             auto_extension: false, // Not used for bytes mode
             #[cfg(feature = "std")]
@@ -164,7 +157,6 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
-            zero_copy: true, // Enable zero-copy by default for static data
             #[cfg(feature = "std")]
             auto_extension: false,
             #[cfg(feature = "std")]
@@ -223,22 +215,6 @@ impl BurnpackStore {
     /// Default: `false`
     pub fn overwrite(mut self, overwrite: bool) -> Self {
         self.overwrite = overwrite;
-        self
-    }
-
-    /// Enable or disable zero-copy tensor loading.
-    ///
-    /// When enabled and the backend supports it (memory-backed with shared bytes),
-    /// tensor data is sliced from the source without copying. This keeps the source
-    /// data alive as long as any tensor holds a reference.
-    ///
-    /// Zero-copy is automatically enabled when using [`from_static`](Self::from_static).
-    /// Use this method to enable it for other memory-backed stores created with
-    /// [`from_bytes`](Self::from_bytes) when using `Bytes::from_shared()`.
-    ///
-    /// Default: `false` (except for `from_static` which defaults to `true`)
-    pub fn zero_copy(mut self, enable: bool) -> Self {
-        self.zero_copy = enable;
         self
     }
 
@@ -399,9 +375,11 @@ impl ModuleStore for BurnpackStore {
         // Collect snapshots from module with adapter
         let snapshots = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
 
-        // Bridge snapshots to tensor-agnostic burnpack entries
-        let tensors: Vec<PackTensor> =
-            snapshots.iter().map(bridge::snapshot_to_tensor).collect();
+        // Bridge snapshots to tensor-agnostic burnpack entries (materializing their data)
+        let tensors: Vec<PackTensor> = snapshots
+            .iter()
+            .map(bridge::snapshot_to_tensor)
+            .collect::<Result<_, _>>()?;
 
         // Initialize writer with tensors
         let mut writer = Writer::new(tensors);
@@ -511,10 +489,11 @@ impl BurnpackStore {
         // Ensure reader is loaded
         self.ensure_reader()?;
 
-        // Get tensors from reader with zero-copy if enabled, bridging to snapshots
+        // Get tensors from reader, bridging to snapshots. File-backed readers keep the
+        // tensor data lazy (read on materialization); in-memory shared sources are zero-copy.
         let reader = self.reader.as_ref().unwrap();
         let snapshots: Vec<TensorSnapshot> = reader
-            .get_tensors_zero_copy(self.zero_copy)?
+            .get_tensors()?
             .into_iter()
             .map(bridge::tensor_to_snapshot)
             .collect();

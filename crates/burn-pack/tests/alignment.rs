@@ -16,27 +16,8 @@ fn data_section_start_is_aligned() {
     }
 }
 
-#[test]
-fn every_tensor_offset_is_aligned() {
-    // Use odd-sized tensors so the writer must insert padding between them.
-    let packed = Writer::new(vec![
-        f32_tensor("a", &[1.0, 2.0, 3.0], &[3], None), // 12 bytes
-        f32_tensor("b", &[4.0], &[1], None),           // 4 bytes
-        f32_tensor("c", &[5.0, 6.0], &[2], None),      // 8 bytes
-    ])
-    .to_bytes()
-    .unwrap();
-
-    let reader = Reader::from_bytes(packed).unwrap();
-    let align = TENSOR_ALIGNMENT;
-    for (name, descriptor) in &reader.metadata().tensors {
-        assert_eq!(
-            descriptor.data_offsets.0 % align,
-            0,
-            "tensor '{name}' start offset must be 256-aligned"
-        );
-    }
-}
+// Per-tensor offset alignment is verified by an in-crate unit test (it needs the internal
+// tensor descriptors); see `src/reader.rs`.
 
 #[test]
 fn size_matches_to_bytes_length() {

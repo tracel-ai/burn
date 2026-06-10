@@ -1,665 +1,128 @@
-#[cfg(feature = "std")]
-use super::base::MAX_FILE_SIZE;
 use super::base::{
-    Error, Header, Metadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
-    MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
-    aligned_data_section_start,
+    Error, FORMAT_VERSION, HEADER_SIZE, Header, MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE,
+    MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, Metadata, TensorDescriptor, aligned_data_section_start,
 };
 use super::tensor::Tensor;
 use alloc::format;
-use alloc::rc::Rc;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_std::Bytes;
+use burn_std::{Bytes, Shape};
 
 #[cfg(feature = "std")]
-use std::cell::RefCell;
+use super::base::MAX_FILE_SIZE;
 #[cfg(feature = "std")]
 use std::fs::File;
 #[cfg(feature = "std")]
-use std::io::{Read, Seek};
+use std::io::Read;
 #[cfg(feature = "std")]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-/// Storage backend for Reader
-pub(crate) enum StorageBackend {
-    /// Memory-based storage (also used for memory-mapped files converted to bytes::Bytes)
-    Memory(Rc<Bytes>),
-    /// File-based storage with buffered reading
+/// Where a [`Reader`] gets its tensor data from.
+enum Source {
+    /// The whole pack lives in memory.
+    Memory(Bytes),
+    /// The pack lives in a file; tensor data is read lazily via [`Bytes::from_file`].
     #[cfg(feature = "std")]
-    #[allow(dead_code)]
-    FileBuffered { file: Rc<RefCell<File>> },
+    File(PathBuf),
 }
 
-impl StorageBackend {
-    /// Read data from storage into the provided buffer at the given offset.
-    ///
-    /// # Arguments
-    /// * `bytes` - The buffer to read into (caller-allocated)
-    /// * `offset` - Absolute file/data position to start reading from
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The requested data range is out of bounds
-    /// - Less data is available than requested (indicates corruption or incorrect offset)
-    /// - File I/O fails
-    ///
-    /// # Notes
-    ///
-    /// The caller allocates the buffer, which allows for buffer reuse and future optimizations
-    /// like memory pools and pinned memory.
-    ///
-    /// This method ensures all backends have consistent behavior: if the exact number of
-    /// requested bytes cannot be read, an error is returned to prevent data corruption.
-    pub(crate) fn read_into(&self, bytes: &mut [u8], offset: usize) -> Result<(), Error> {
-        match self {
-            StorageBackend::Memory(data) => {
-                let data_bytes = data.as_ref();
-                let end = offset.checked_add(bytes.len()).ok_or_else(|| {
-                    Error::IoError(format!(
-                        "Offset overflow: offset {} + length {} exceeds maximum",
-                        offset,
-                        bytes.len()
-                    ))
-                })?;
-
-                if end > data_bytes.len() {
-                    return Err(Error::IoError(format!(
-                        "Read out of bounds: requested {}..{} but data length is {}",
-                        offset,
-                        end,
-                        data_bytes.len()
-                    )));
-                }
-
-                bytes.copy_from_slice(&data_bytes[offset..end]);
-                Ok(())
-            }
-            #[cfg(feature = "std")]
-            StorageBackend::FileBuffered { file } => {
-                use std::io::SeekFrom;
-
-                let mut file = file.borrow_mut();
-                file.seek(SeekFrom::Start(offset as u64)).map_err(|e| {
-                    Error::IoError(format!("Failed to seek in file: {}", e))
-                })?;
-
-                file.read_exact(bytes).map_err(|e| {
-                    Error::IoError(format!("Failed to read from file: {}", e))
-                })?;
-                Ok(())
-            }
-        }
-    }
-
-    /// Get full data reference for raw access
-    #[allow(dead_code)]
-    pub(crate) fn as_bytes(&self) -> Result<&[u8], Error> {
-        match self {
-            StorageBackend::Memory(data) => Ok(data.as_ref()),
-            #[cfg(feature = "std")]
-            StorageBackend::FileBuffered { .. } => Err(Error::IoError(
-                "Cannot get full bytes reference for FileBuffered backend".into(),
-            )),
-        }
-    }
-
-    /// Attempt to slice bytes without copying (zero-copy).
-    ///
-    /// This uses `Bytes::clone()` + `split()` which is zero-copy when the underlying
-    /// `Bytes` was created via `Bytes::from_shared()` (backed by `bytes::Bytes`).
-    ///
-    /// # Returns
-    /// - `Ok(bytes)` - Successfully created a zero-copy slice
-    /// - `Err(_)` - Backend doesn't support zero-copy or split failed
-    pub(crate) fn slice_bytes(&self, start: usize, end: usize) -> Result<Bytes, Error> {
-        if end < start {
-            return Err(Error::IoError(format!(
-                "Invalid slice range: end ({}) < start ({})",
-                end, start
-            )));
-        }
-
-        match self {
-            StorageBackend::Memory(data) => {
-                // Clone the Bytes - cheap if backed by SharedBytesAllocationController
-                let cloned = (**data).clone();
-
-                // Split at start offset to get (_, right)
-                let (_, right) = cloned.split(start).map_err(|(_, e)| {
-                    Error::IoError(format!("Failed to split at start {}: {:?}", start, e))
-                })?;
-
-                // Split right at (end - start) to get (middle, _)
-                let slice_len = end - start;
-                let (middle, _) = right.split(slice_len).map_err(|(_, e)| {
-                    Error::IoError(format!(
-                        "Failed to split at length {}: {:?}",
-                        slice_len, e
-                    ))
-                })?;
-
-                Ok(middle)
-            }
-            #[cfg(feature = "std")]
-            StorageBackend::FileBuffered { .. } => Err(Error::IoError(
-                "Zero-copy not supported for buffered file reading. Use from_file() with memmap feature for zero-copy loading.".into(),
-            )),
-        }
-    }
-}
-
-/// Reader for loading Burnpack files
+/// Reader for loading burnpack containers.
 pub struct Reader {
-    /// Parsed metadata
-    pub(crate) metadata: Metadata,
-    /// Storage backend
-    pub(crate) storage: StorageBackend,
-    /// Offset to the start of tensor data
-    pub(crate) data_offset: usize,
+    metadata: Metadata,
+    source: Source,
+    /// Absolute byte offset where the (256-byte aligned) tensor data section starts.
+    data_offset: usize,
 }
 
 impl Reader {
-    /// Load from bytes
+    /// Load a pack from an in-memory [`Bytes`] buffer.
+    ///
+    /// Each tensor's bytes are copied out of the buffer on [`get_tensors`](Self::get_tensors).
+    /// For large models, prefer [`from_file`](Self::from_file), which keeps tensor data lazy.
     pub fn from_bytes(bytes: Bytes) -> Result<Self, Error> {
-        // Validate minimum size
-        if bytes.len() < HEADER_SIZE {
-            return Err(Error::InvalidHeader);
-        }
-
-        // Parse header
-        let header = Header::from_bytes(&bytes[..HEADER_SIZE])?;
-
-        // Verify magic number
-        if header.magic != MAGIC_NUMBER {
-            return Err(Error::InvalidMagicNumber);
-        }
-
-        // Verify version compatibility
-        if header.version > FORMAT_VERSION {
-            return Err(Error::InvalidVersion);
-        }
-
-        // Validate metadata size against security limit
-        if header.metadata_size > MAX_METADATA_SIZE {
-            return Err(Error::ValidationError(format!(
-                "Metadata size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
-                header.metadata_size, MAX_METADATA_SIZE
-            )));
-        }
-
-        // Parse metadata
-        let metadata_start = HEADER_SIZE;
-        let metadata_end = metadata_start
+        let header = read_header(&bytes)?;
+        let metadata_end = HEADER_SIZE
             .checked_add(header.metadata_size as usize)
-            .ok_or_else(|| {
-                Error::IoError(format!(
-                    "Metadata size overflow: {} + {}",
-                    metadata_start, header.metadata_size
-                ))
-            })?;
-
+            .ok_or(Error::InvalidHeader)?;
         if bytes.len() < metadata_end {
             return Err(Error::InvalidHeader);
         }
-
-        let metadata: Metadata = ciborium::de::from_reader_with_recursion_limit(
-            &bytes[metadata_start..metadata_end],
-            MAX_CBOR_RECURSION_DEPTH,
-        )
-        .map_err(|e| Error::MetadataDeserializationError(e.to_string()))?;
-
-        // Validate tensor count against security limit
-        if metadata.tensors.len() > MAX_TENSOR_COUNT {
-            return Err(Error::ValidationError(format!(
-                "File contains {} tensors, exceeding maximum of {} (potential DoS attack)",
-                metadata.tensors.len(),
-                MAX_TENSOR_COUNT
-            )));
-        }
-
-        // Validate total file size - ensure file is large enough for all claimed tensor data
-        if !metadata.tensors.is_empty() {
-            let max_data_offset = metadata
-                .tensors
-                .values()
-                .map(|t| t.data_offsets.1)
-                .max()
-                .unwrap_or(0);
-
-            let max_data_offset_usize: usize = max_data_offset.try_into().map_err(|_| {
-                Error::ValidationError(format!(
-                    "Data offset {} exceeds platform maximum",
-                    max_data_offset
-                ))
-            })?;
-
-            let min_file_size =
-                metadata_end
-                    .checked_add(max_data_offset_usize)
-                    .ok_or_else(|| {
-                        Error::ValidationError("File size calculation overflow".into())
-                    })?;
-
-            if bytes.len() < min_file_size {
-                return Err(Error::ValidationError(format!(
-                    "File truncated: expected at least {} bytes, got {} bytes",
-                    min_file_size,
-                    bytes.len()
-                )));
-            }
-        }
+        let metadata = parse_metadata(&bytes[HEADER_SIZE..metadata_end])?;
+        validate_total_size(&metadata, metadata_end, bytes.len())?;
 
         Ok(Self {
             metadata,
-            storage: StorageBackend::Memory(Rc::new(bytes)),
+            source: Source::Memory(bytes),
             data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
-    /// Load from file with memory mapping (most efficient for large files)
-    #[cfg(all(feature = "std", feature = "memmap"))]
-    pub(crate) fn from_file_mmap<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let file = File::open(&path).map_err(|e| Error::IoError(e.to_string()))?;
-
-        // Validate maximum file size to prevent resource exhaustion
-        let file_size = file
-            .metadata()
-            .map_err(|e| Error::IoError(e.to_string()))?
-            .len();
-
-        if file_size > MAX_FILE_SIZE {
-            return Err(Error::ValidationError(format!(
-                "File size {} bytes exceeds maximum allowed size of {} bytes",
-                file_size, MAX_FILE_SIZE
-            )));
-        }
-
-        // Memory map the file
-        let mmap = unsafe {
-            memmap2::MmapOptions::new()
-                .map(&file)
-                .map_err(|e| Error::IoError(e.to_string()))?
-        };
-
-        // Parse header
-        if mmap.len() < HEADER_SIZE {
-            return Err(Error::InvalidHeader);
-        }
-
-        let header = Header::from_bytes(&mmap[..HEADER_SIZE])?;
-
-        // Verify magic number and version
-        if header.magic != MAGIC_NUMBER {
-            return Err(Error::InvalidMagicNumber);
-        }
-
-        if header.version > FORMAT_VERSION {
-            return Err(Error::InvalidVersion);
-        }
-
-        // Validate metadata size against security limit
-        if header.metadata_size > MAX_METADATA_SIZE {
-            return Err(Error::ValidationError(format!(
-                "Metadata size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
-                header.metadata_size, MAX_METADATA_SIZE
-            )));
-        }
-
-        // Parse metadata
-        let metadata_start = HEADER_SIZE;
-        let metadata_end = metadata_start
-            .checked_add(header.metadata_size as usize)
-            .ok_or_else(|| {
-                Error::IoError(format!(
-                    "Metadata size overflow: {} + {}",
-                    metadata_start, header.metadata_size
-                ))
-            })?;
-
-        if mmap.len() < metadata_end {
-            return Err(Error::InvalidHeader);
-        }
-
-        let metadata: Metadata = ciborium::de::from_reader_with_recursion_limit(
-            &mmap[metadata_start..metadata_end],
-            MAX_CBOR_RECURSION_DEPTH,
-        )
-        .map_err(|e| Error::MetadataDeserializationError(e.to_string()))?;
-
-        // Validate tensor count against security limit
-        if metadata.tensors.len() > MAX_TENSOR_COUNT {
-            return Err(Error::ValidationError(format!(
-                "File contains {} tensors, exceeding maximum of {} (potential DoS attack)",
-                metadata.tensors.len(),
-                MAX_TENSOR_COUNT
-            )));
-        }
-
-        // Validate total file size - ensure file is large enough for all claimed tensor data
-        if !metadata.tensors.is_empty() {
-            let max_data_offset = metadata
-                .tensors
-                .values()
-                .map(|t| t.data_offsets.1)
-                .max()
-                .unwrap_or(0);
-
-            let max_data_offset_usize: usize = max_data_offset.try_into().map_err(|_| {
-                Error::ValidationError(format!(
-                    "Data offset {} exceeds platform maximum",
-                    max_data_offset
-                ))
-            })?;
-
-            let min_file_size =
-                metadata_end
-                    .checked_add(max_data_offset_usize)
-                    .ok_or_else(|| {
-                        Error::ValidationError("File size calculation overflow".into())
-                    })?;
-
-            if mmap.len() < min_file_size {
-                return Err(Error::ValidationError(format!(
-                    "File truncated: expected at least {} bytes, got {} bytes",
-                    min_file_size,
-                    mmap.len()
-                )));
-            }
-        }
-
-        // Convert mmap to bytes::Bytes for zero-copy slicing support
-        // bytes::Bytes::from_owner takes ownership and enables efficient slicing
-        let shared_bytes = bytes::Bytes::from_owner(mmap);
-        let bytes = Bytes::from_shared(shared_bytes, burn_std::AllocationProperty::File);
-
-        Ok(Self {
-            metadata,
-            storage: StorageBackend::Memory(Rc::new(bytes)),
-            data_offset: aligned_data_section_start(header.metadata_size as usize),
-        })
-    }
-
-    /// Load from file - automatically uses memory mapping if available, otherwise uses buffered reading
+    /// Load a pack from a file.
+    ///
+    /// Only the header and metadata are read up front; each tensor's data is backed by
+    /// [`Bytes::from_file`] and read lazily when accessed. This integrates with the Burn
+    /// ecosystem's file allocation (pinned-memory staging) for fast file-to-GPU transfers.
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        #[cfg(feature = "memmap")]
-        {
-            // Use memory mapping for efficient access
-            Self::from_file_mmap(path)
-        }
-        #[cfg(not(feature = "memmap"))]
-        {
-            // Fall back to buffered reading for memory efficiency
-            Self::from_file_buffered(path)
-        }
-    }
+        let mut file = File::open(&path).map_err(io_err)?;
 
-    /// Load from file with buffered reading (memory efficient but slower)
-    /// This is less efficient than memory mapping but works everywhere
-    #[cfg(feature = "std")]
-    #[allow(dead_code)]
-    pub(crate) fn from_file_buffered<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        let mut file = File::open(&path).map_err(|e| Error::IoError(e.to_string()))?;
-
-        // Validate maximum file size to prevent resource exhaustion
-        let file_size = file
-            .metadata()
-            .map_err(|e| Error::IoError(e.to_string()))?
-            .len();
-
+        let file_size = file.metadata().map_err(io_err)?.len();
         if file_size > MAX_FILE_SIZE {
             return Err(Error::ValidationError(format!(
-                "File size {} bytes exceeds maximum allowed size of {} bytes",
-                file_size, MAX_FILE_SIZE
+                "File size {file_size} bytes exceeds maximum allowed size of {MAX_FILE_SIZE} bytes"
             )));
         }
 
-        // Read header
         let mut header_bytes = [0u8; HEADER_SIZE];
-        file.read_exact(&mut header_bytes)
-            .map_err(|e| Error::IoError(e.to_string()))?;
+        file.read_exact(&mut header_bytes).map_err(io_err)?;
+        let header = read_header(&header_bytes)?;
 
-        let header = Header::from_bytes(&header_bytes)?;
-
-        // Verify version
-        if header.version > FORMAT_VERSION {
-            return Err(Error::InvalidVersion);
-        }
-
-        // Validate metadata size against security limit
-        if header.metadata_size > MAX_METADATA_SIZE {
-            return Err(Error::ValidationError(format!(
-                "Metadata size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
-                header.metadata_size, MAX_METADATA_SIZE
-            )));
-        }
-
-        // Read metadata
         let mut metadata_bytes = vec![0u8; header.metadata_size as usize];
-        file.read_exact(&mut metadata_bytes)
-            .map_err(|e| Error::IoError(e.to_string()))?;
+        file.read_exact(&mut metadata_bytes).map_err(io_err)?;
+        let metadata = parse_metadata(&metadata_bytes)?;
 
-        let metadata: Metadata = ciborium::de::from_reader_with_recursion_limit(
-            metadata_bytes.as_slice(),
-            MAX_CBOR_RECURSION_DEPTH,
-        )
-        .map_err(|e| Error::MetadataDeserializationError(e.to_string()))?;
-
-        // Validate tensor count against security limit
-        if metadata.tensors.len() > MAX_TENSOR_COUNT {
-            return Err(Error::ValidationError(format!(
-                "File contains {} tensors, exceeding maximum of {} (potential DoS attack)",
-                metadata.tensors.len(),
-                MAX_TENSOR_COUNT
-            )));
-        }
-
-        // Calculate metadata end offset
-        let metadata_end = HEADER_SIZE
-            .checked_add(header.metadata_size as usize)
-            .ok_or_else(|| {
-                Error::IoError(format!(
-                    "Metadata size overflow: {} + {}",
-                    HEADER_SIZE, header.metadata_size
-                ))
-            })?;
-
-        // Validate total file size - ensure file is large enough for all claimed tensor data
-        if !metadata.tensors.is_empty() {
-            let max_data_offset = metadata
-                .tensors
-                .values()
-                .map(|t| t.data_offsets.1)
-                .max()
-                .unwrap_or(0);
-
-            let max_data_offset_usize: usize = max_data_offset.try_into().map_err(|_| {
-                Error::ValidationError(format!(
-                    "Data offset {} exceeds platform maximum",
-                    max_data_offset
-                ))
-            })?;
-
-            let min_file_size =
-                metadata_end
-                    .checked_add(max_data_offset_usize)
-                    .ok_or_else(|| {
-                        Error::ValidationError("File size calculation overflow".into())
-                    })?;
-
-            // Get actual file size
-            let file_size = file
-                .metadata()
-                .map_err(|e| Error::IoError(e.to_string()))?
-                .len() as usize;
-
-            if file_size < min_file_size {
-                return Err(Error::ValidationError(format!(
-                    "File truncated: expected at least {} bytes, got {} bytes",
-                    min_file_size, file_size
-                )));
-            }
-        }
+        let metadata_end = HEADER_SIZE + header.metadata_size as usize;
+        validate_total_size(&metadata, metadata_end, file_size as usize)?;
 
         Ok(Self {
             metadata,
-            storage: StorageBackend::FileBuffered {
-                file: Rc::new(RefCell::new(file)),
-            },
+            source: Source::File(path.as_ref().to_path_buf()),
             data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
-    /// Get all tensors at once for efficient loading (always copies data).
+    /// Get all tensors in the pack.
+    ///
+    /// File-backed tensors are read lazily on access; in-memory tensors are copied out of
+    /// the source buffer.
     pub fn get_tensors(&self) -> Result<Vec<Tensor>, Error> {
-        self.get_tensors_internal(false)
-    }
+        let descriptors: Vec<(&String, &TensorDescriptor)> = self.metadata.tensors.iter().collect();
+        let ranges = descriptors
+            .iter()
+            .map(|(name, d)| self.tensor_range(name, d))
+            .collect::<Result<Vec<_>, _>>()?;
 
-    /// Get all tensors with optional zero-copy loading.
-    ///
-    /// When `zero_copy` is true and the backend supports it (Memory backend with
-    /// `Bytes::from_shared()`), tensor data is sliced without copying. This keeps
-    /// the original data alive as long as any tensor holds a reference.
-    ///
-    /// When `zero_copy` is false or the backend doesn't support it, data is copied
-    /// into newly allocated buffers (default behavior).
-    pub fn get_tensors_zero_copy(
-        &self,
-        zero_copy: bool,
-    ) -> Result<Vec<Tensor>, Error> {
-        self.get_tensors_internal(zero_copy)
-    }
+        let data = self.slice_tensors(&ranges)?;
 
-    /// Internal implementation with optional zero-copy support
-    fn get_tensors_internal(
-        &self,
-        zero_copy: bool,
-    ) -> Result<Vec<Tensor>, Error> {
-        let mut tensors = Vec::new();
-
-        for (name, descriptor) in &self.metadata.tensors {
-            // Convert shape dimensions with overflow checking
-            let shape: Vec<usize> = descriptor
-                .shape
-                .iter()
-                .map(|&s| {
-                    s.try_into().map_err(|_| {
-                        Error::ValidationError(format!(
-                            "Tensor '{}' has corrupted shape data: dimension {} exceeds platform maximum",
-                            name, s
-                        ))
-                    })
-                })
-                .collect::<Result<Vec<usize>, Error>>()?;
-
-            let dtype = descriptor.dtype;
-
-            // Clone storage reference for the closure
-            let storage = match &self.storage {
-                StorageBackend::Memory(data) => StorageBackend::Memory(data.clone()),
-                #[cfg(feature = "std")]
-                StorageBackend::FileBuffered { file } => {
-                    StorageBackend::FileBuffered { file: file.clone() }
-                }
-            };
-
-            // Always use absolute positions for all backends
-            // Convert offsets with overflow checking
-            let offset_start: usize = descriptor.data_offsets.0.try_into().map_err(|_| {
-                Error::ValidationError(format!(
-                    "Tensor '{}' has corrupted offset data: start offset {} exceeds platform maximum",
-                    name, descriptor.data_offsets.0
-                ))
-            })?;
-
-            let offset_end: usize = descriptor.data_offsets.1.try_into().map_err(|_| {
-                Error::ValidationError(format!(
-                    "Tensor '{}' has corrupted offset data: end offset {} exceeds platform maximum",
-                    name, descriptor.data_offsets.1
-                ))
-            })?;
-
-            let start = self.data_offset.checked_add(offset_start).ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "Tensor '{}' has corrupted offset data: start offset overflow {} + {}",
-                    name, self.data_offset, offset_start
-                ))
-            })?;
-
-            let end = self.data_offset.checked_add(offset_end).ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "Tensor '{}' has corrupted offset data: end offset overflow {} + {}",
-                    name, self.data_offset, offset_end
-                ))
-            })?;
-
-            // Validate offset range
-            if end < start {
-                return Err(Error::ValidationError(format!(
-                    "Tensor '{}' has corrupted offset data: end offset {} < start offset {}",
-                    name, end, start
-                )));
-            }
-
-            // Validate tensor size against security limit
-            let tensor_size = end - start;
-            if tensor_size > MAX_TENSOR_SIZE {
-                return Err(Error::ValidationError(format!(
-                    "Tensor '{}' size {} exceeds maximum allowed size of {} bytes (potential DoS attack)",
-                    name, tensor_size, MAX_TENSOR_SIZE
-                )));
-            }
-
-            // Create the byte-loading closure based on zero_copy flag
-            let data_fn: super::tensor::TensorBytesFn = if zero_copy {
-                // Zero-copy closure: slice without copying, error if not supported
-                Rc::new(move || storage.slice_bytes(start, end))
-            } else {
-                // Copying closure: always allocate and copy
-                Rc::new(move || {
-                    let len = end - start;
-                    // TODO Should be allocated by the backend in the future
-                    // See https://github.com/tracel-ai/burn/pull/3792#discussion_r2416812091
-                    let mut data_bytes = vec![0u8; len];
-                    storage.read_into(&mut data_bytes, start)?;
-                    Ok(Bytes::from_bytes_vec(data_bytes))
-                })
-            };
-
-            tensors.push(Tensor::new(
-                name.clone(),
-                dtype,
-                shape,
-                descriptor.param_id,
-                tensor_size,
-                data_fn,
-            ));
-        }
-
-        Ok(tensors)
-    }
-
-    // ---- Inspection helpers ----
-
-    /// The names of all tensors in the pack, in sorted (alphabetical) order.
-    pub fn tensor_names(&self) -> Vec<&str> {
-        self.metadata
-            .tensors
-            .keys()
-            .map(|name| name.as_str())
+        descriptors
+            .into_iter()
+            .zip(data)
+            .map(|((name, d), bytes)| make_tensor(name, d, bytes))
             .collect()
     }
 
-    /// The parsed [`Metadata`] of the pack: the per-tensor [`TensorDescriptor`]s plus the
-    /// user-supplied key/value metadata (`metadata.metadata`).
+    /// The user-supplied key/value metadata stored alongside the tensors.
     ///
-    /// This does not materialize any tensor data; use [`get_tensors`](Self::get_tensors)
-    /// for that.
-    pub fn metadata(&self) -> &Metadata {
-        &self.metadata
+    /// For per-tensor info (dtype/shape/param id), use [`get_tensors`](Self::get_tensors) — for a
+    /// file-backed reader this does not read any tensor data until a tensor's bytes are accessed.
+    pub fn metadata(&self) -> &alloc::collections::BTreeMap<String, String> {
+        &self.metadata.metadata
+    }
+
+    /// The names of all tensors in the pack, in sorted (alphabetical) order.
+    pub fn tensor_names(&self) -> Vec<&str> {
+        self.metadata.tensors.keys().map(|n| n.as_str()).collect()
     }
 
     /// Read a single tensor's raw little-endian bytes by name (always copies).
@@ -671,48 +134,198 @@ impl Reader {
             .tensors
             .get(name)
             .ok_or_else(|| Error::TensorNotFound(name.to_string()))?;
+        let range = self.tensor_range(name, descriptor)?;
+        let mut bytes = self.slice_tensors(&[range])?;
+        let bytes = bytes.pop().expect("one range yields one slice");
+        let slice: &[u8] = &bytes;
+        Ok(slice.to_vec())
+    }
 
-        // Always use absolute positions for all backends
-        // Convert offsets with overflow checking
-        let offset_start: usize = descriptor.data_offsets.0.try_into().map_err(|_| {
-            Error::IoError(format!(
-                "Tensor '{}' has corrupted offset data: start offset {} exceeds platform maximum",
-                name, descriptor.data_offsets.0
-            ))
-        })?;
+    /// Compute and validate the absolute `[start, end)` byte range of a tensor.
+    fn tensor_range(&self, name: &str, descriptor: &TensorDescriptor) -> Result<(usize, usize), Error> {
+        let to_usize = |offset: u64| -> Result<usize, Error> {
+            offset.try_into().map_err(|_| {
+                Error::ValidationError(format!(
+                    "Tensor '{name}' has corrupted offset data: offset {offset} exceeds platform maximum"
+                ))
+            })
+        };
+        let overflow = || {
+            Error::ValidationError(format!("Tensor '{name}' has corrupted offset data: overflow"))
+        };
 
-        let offset_end: usize = descriptor.data_offsets.1.try_into().map_err(|_| {
-            Error::IoError(format!(
-                "Tensor '{}' has corrupted offset data: end offset {} exceeds platform maximum",
-                name, descriptor.data_offsets.1
-            ))
-        })?;
+        let start = self
+            .data_offset
+            .checked_add(to_usize(descriptor.data_offsets.0)?)
+            .ok_or_else(overflow)?;
+        let end = self
+            .data_offset
+            .checked_add(to_usize(descriptor.data_offsets.1)?)
+            .ok_or_else(overflow)?;
 
-        let start = self.data_offset.checked_add(offset_start).ok_or_else(|| {
-            Error::IoError(format!(
-                "Tensor '{}' has corrupted offset data: start offset overflow {} + {}",
-                name, self.data_offset, offset_start
-            ))
-        })?;
-
-        let end = self.data_offset.checked_add(offset_end).ok_or_else(|| {
-            Error::IoError(format!(
-                "Tensor '{}' has corrupted offset data: end offset overflow {} + {}",
-                name, self.data_offset, offset_end
-            ))
-        })?;
-
-        // Validate offset range
         if end < start {
-            return Err(Error::IoError(format!(
-                "Tensor '{}' has corrupted offset data: end offset {} < start offset {}",
-                name, end, start
+            return Err(Error::ValidationError(format!(
+                "Tensor '{name}' has corrupted offset data: end {end} < start {start}"
             )));
         }
+        if end - start > MAX_TENSOR_SIZE {
+            return Err(Error::ValidationError(format!(
+                "Tensor '{name}' size {} exceeds maximum allowed size of {MAX_TENSOR_SIZE} bytes (potential DoS attack)",
+                end - start
+            )));
+        }
+        Ok((start, end))
+    }
 
-        let len = end - start;
-        let mut buffer = vec![0u8; len];
-        self.storage.read_into(&mut buffer, start)?;
-        Ok(buffer)
+    /// Produce one [`Bytes`] per requested range, in the same order as `ranges`.
+    ///
+    /// File-backed ranges are lazy ([`Bytes::from_file`]); in-memory ranges are copied out
+    /// of the source buffer.
+    fn slice_tensors(&self, ranges: &[(usize, usize)]) -> Result<Vec<Bytes>, Error> {
+        match &self.source {
+            #[cfg(feature = "std")]
+            Source::File(path) => Ok(ranges
+                .iter()
+                .map(|&(start, end)| {
+                    Bytes::from_file(path.clone(), (end - start) as u64, start as u64)
+                })
+                .collect()),
+            Source::Memory(source) => {
+                let data: &[u8] = source;
+                ranges
+                    .iter()
+                    .map(|&(start, end)| {
+                        let chunk = data.get(start..end).ok_or_else(|| {
+                            Error::ValidationError(format!(
+                                "Tensor data range {start}..{end} is out of bounds (buffer is {} bytes)",
+                                data.len()
+                            ))
+                        })?;
+                        Ok(Bytes::from_bytes_vec(chunk.to_vec()))
+                    })
+                    .collect()
+            }
+        }
+    }
+}
+
+/// Parse and validate a header from a buffer that starts with it.
+fn read_header(buf: &[u8]) -> Result<Header, Error> {
+    if buf.len() < HEADER_SIZE {
+        return Err(Error::InvalidHeader);
+    }
+    let header = Header::from_bytes(&buf[..HEADER_SIZE])?;
+    if header.version > FORMAT_VERSION {
+        return Err(Error::InvalidVersion);
+    }
+    if header.metadata_size > MAX_METADATA_SIZE {
+        return Err(Error::ValidationError(format!(
+            "Metadata size {} exceeds maximum allowed size of {MAX_METADATA_SIZE} bytes (potential DoS attack)",
+            header.metadata_size
+        )));
+    }
+    Ok(header)
+}
+
+/// Deserialize the CBOR metadata and validate the tensor count.
+fn parse_metadata(bytes: &[u8]) -> Result<Metadata, Error> {
+    let metadata: Metadata =
+        ciborium::de::from_reader_with_recursion_limit(bytes, MAX_CBOR_RECURSION_DEPTH)
+            .map_err(|e| Error::MetadataDeserializationError(e.to_string()))?;
+    if metadata.tensors.len() > MAX_TENSOR_COUNT {
+        return Err(Error::ValidationError(format!(
+            "File contains {} tensors, exceeding maximum of {MAX_TENSOR_COUNT} (potential DoS attack)",
+            metadata.tensors.len()
+        )));
+    }
+    Ok(metadata)
+}
+
+/// Ensure the available bytes can hold every tensor the metadata claims.
+fn validate_total_size(metadata: &Metadata, metadata_end: usize, available: usize) -> Result<(), Error> {
+    if metadata.tensors.is_empty() {
+        return Ok(());
+    }
+    let max_offset = metadata
+        .tensors
+        .values()
+        .map(|t| t.data_offsets.1)
+        .max()
+        .unwrap_or(0);
+    let max_offset: usize = max_offset
+        .try_into()
+        .map_err(|_| Error::ValidationError(format!("Data offset {max_offset} exceeds platform maximum")))?;
+    let min_size = metadata_end
+        .checked_add(max_offset)
+        .ok_or_else(|| Error::ValidationError("File size calculation overflow".into()))?;
+    if available < min_size {
+        return Err(Error::ValidationError(format!(
+            "File truncated: expected at least {min_size} bytes, got {available} bytes"
+        )));
+    }
+    Ok(())
+}
+
+/// Build a [`Tensor`] entry from a descriptor + its data bytes.
+fn make_tensor(name: &str, descriptor: &TensorDescriptor, bytes: Bytes) -> Result<Tensor, Error> {
+    let shape = descriptor
+        .shape
+        .iter()
+        .map(|&s| {
+            s.try_into().map_err(|_| {
+                Error::ValidationError(format!(
+                    "Tensor '{name}' has corrupted shape data: dimension {s} exceeds platform maximum"
+                ))
+            })
+        })
+        .collect::<Result<Vec<usize>, Error>>()?;
+
+    Ok(Tensor::new(
+        name.to_string(),
+        descriptor.dtype,
+        Shape::from(shape),
+        descriptor.param_id,
+        bytes,
+    ))
+}
+
+#[cfg(feature = "std")]
+fn io_err(e: std::io::Error) -> Error {
+    Error::IoError(e.to_string())
+}
+
+// Verifies the on-disk layout invariant (256-byte tensor alignment), which needs access to the
+// internal `TensorDescriptor` offsets. Public round-trip/error tests live in `tests/`.
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    use crate::{TENSOR_ALIGNMENT, Tensor, Writer};
+    use burn_std::DType;
+
+    fn tensor(name: &str, elems: usize) -> Tensor {
+        Tensor::new(
+            name.to_string(),
+            DType::F32,
+            alloc::vec![elems],
+            None,
+            Bytes::from_bytes_vec(alloc::vec![0u8; elems * 4]),
+        )
+    }
+
+    #[test]
+    fn tensor_offsets_are_256_aligned() {
+        // Odd sizes force the writer to insert padding between tensors.
+        let packed = Writer::new(vec![tensor("a", 3), tensor("b", 1), tensor("c", 2)])
+            .to_bytes()
+            .unwrap();
+        let reader = Reader::from_bytes(packed).unwrap();
+
+        for (name, descriptor) in &reader.metadata.tensors {
+            assert_eq!(
+                descriptor.data_offsets.0 % TENSOR_ALIGNMENT,
+                0,
+                "tensor '{name}' start offset is not 256-aligned"
+            );
+        }
     }
 }

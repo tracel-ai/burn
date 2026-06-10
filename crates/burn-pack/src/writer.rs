@@ -55,7 +55,7 @@ impl Writer {
         let mut current_offset = 0u64;
 
         for tensor in &self.tensors {
-            let data_len = tensor.byte_len as u64;
+            let data_len = tensor.bytes.len() as u64;
 
             // Align the start offset for mmap zero-copy support
             let aligned_start = align_offset(current_offset, TENSOR_ALIGNMENT);
@@ -203,8 +203,8 @@ impl Writer {
                 offset = target_offset;
             }
 
-            let expected_len = tensor.byte_len;
-            let data = tensor.bytes()?;
+            let expected_len = tensor.bytes.len();
+            let data = &tensor.bytes;
             let actual_len = data.len();
 
             // Validate data length consistency
@@ -298,8 +298,8 @@ impl Writer {
                 data_offset = aligned_offset;
             }
 
-            let expected_len = tensor.byte_len;
-            let data = tensor.bytes()?;
+            let expected_len = tensor.bytes.len();
+            let data = &tensor.bytes;
             let actual_len = data.len();
 
             // Validate data length consistency
