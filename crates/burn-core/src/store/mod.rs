@@ -203,7 +203,7 @@ impl RecordNext {
 /// Extension trait adding the non-generic record API to every [`Module`].
 pub trait ModuleRecord: Module {
     /// Collect this module's parameters into a [`RecordNext`].
-    fn into_record_next(&self) -> RecordNext {
+    fn into_record_next(self) -> RecordNext {
         let mut collector = Collector::default();
         self.visit(&mut collector);
         RecordNext::from_tensors(collector.tensors)
