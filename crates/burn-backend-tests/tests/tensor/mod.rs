@@ -1,7 +1,7 @@
 pub use super::*; // re-export test types
 
 mod clone_invariance;
-#[cfg(feature = "cuda")]
+#[cfg(feature = "distributed")]
 mod distributed;
 #[cfg(feature = "std")]
 mod multi_threads;

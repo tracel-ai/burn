@@ -112,6 +112,7 @@ mod remote {
     #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
     use burn::tensor::{Device, DeviceConfig, DeviceType, Element};
+    #[cfg(feature = "ddp")]
     use burn::train::ExecutionStrategy;
 
     /// Address of the `burn-remote` server to train against.
@@ -121,15 +122,11 @@ mod remote {
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
         let mut devices = Device::enumerate(DeviceType::remote(ADDRESS));
-        // devices
-        //     .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
-        //     .unwrap();
+        devices
+            .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+            .unwrap();
 
         crate::launch_single(devices.into_vec().pop().unwrap());
-        // crate::launch(ExecutionStrategy::MultiDevice(
-        //     devices.into_vec(),
-        //     burn::train::MultiDeviceOptim::OptimSharded,
-        // ));
     }
 
     /// Same enumeration, but drive the devices with distributed data-parallel training.

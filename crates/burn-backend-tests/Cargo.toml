@@ -58,6 +58,9 @@ cube = [
 
 # Test configs
 quantization = []
+# Enables the collective (all-reduce) tests, which require a CUDA backend built with NCCL.
+# Kept separate from `cuda` so the rest of the suite can run on CUDA without NCCL.
+distributed = ["cuda"]
 
 [dependencies]
 burn-tensor = { workspace = true, features = ["autodiff"] }

@@ -6,7 +6,7 @@ mod adaptive_avgpool1d;
 mod adaptive_avgpool2d;
 mod add;
 mod aggregation;
-#[cfg(feature = "cuda")]
+#[cfg(feature = "distributed")]
 mod all_reduce;
 mod avgpool1d;
 mod avgpool2d;

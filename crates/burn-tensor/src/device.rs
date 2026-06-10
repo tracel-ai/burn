@@ -706,8 +706,6 @@ async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::Wgp
     device
 }
 
-// TODO: this is essentially per-backend filter, we could have higher level filters e.g. Cpu (CpuDevice, Ndarray, Flex, LibTorchDevice::Cpu)
-
 /// Represents the devices that can be used.
 ///
 /// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Most
