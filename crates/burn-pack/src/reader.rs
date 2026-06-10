@@ -642,11 +642,10 @@ impl Reader {
         Ok(tensors)
     }
 
-    // Legacy methods for test compatibility - will be removed
+    // ---- Inspection helpers ----
 
-    /// Get list of tensor names
-    #[allow(dead_code)]
-    pub(crate) fn tensor_names(&self) -> Vec<&str> {
+    /// The names of all tensors in the pack, in sorted (alphabetical) order.
+    pub fn tensor_names(&self) -> Vec<&str> {
         self.metadata
             .tensors
             .keys()
@@ -654,15 +653,19 @@ impl Reader {
             .collect()
     }
 
-    /// Get metadata
-    #[allow(dead_code)]
-    pub(crate) fn metadata(&self) -> &Metadata {
+    /// The parsed [`Metadata`] of the pack: the per-tensor [`TensorDescriptor`]s plus the
+    /// user-supplied key/value metadata (`metadata.metadata`).
+    ///
+    /// This does not materialize any tensor data; use [`get_tensors`](Self::get_tensors)
+    /// for that.
+    pub fn metadata(&self) -> &Metadata {
         &self.metadata
     }
 
-    /// Get tensor data as raw bytes
-    #[allow(dead_code)]
-    pub(crate) fn get_tensor_data(&self, name: &str) -> Result<Vec<u8>, Error> {
+    /// Read a single tensor's raw little-endian bytes by name (always copies).
+    ///
+    /// Returns [`Error::TensorNotFound`] if no tensor with that name exists.
+    pub fn tensor_data(&self, name: &str) -> Result<Vec<u8>, Error> {
         let descriptor = self
             .metadata
             .tensors
