@@ -6,7 +6,8 @@ use burn::{
     tensor::{Device, Tensor},
 };
 
-use burn_store::{ModuleSnapshot, SafetensorsStore};
+use burn::store::ModuleSnapshot;
+use burn_import::SafetensorsStore;
 
 /// Simple model for testing SafeTensors storage
 #[derive(Module, Debug)]

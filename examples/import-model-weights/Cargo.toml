@@ -18,7 +18,7 @@ burn = { workspace = true, features = [
     "vision",
 ] }
 
-burn-store = { workspace = true, features = [
+burn-import = { workspace = true, features = [
     "std",
     "pytorch",
     "safetensors",

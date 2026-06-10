@@ -1,4 +1,5 @@
-use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
+use burn::store::{ModuleSnapshot, PyTorchToBurnAdapter};
+use burn_import::SafetensorsStore;
 
 use import_model_weights::{Model, infer};
 

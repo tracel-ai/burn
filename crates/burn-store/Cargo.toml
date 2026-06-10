@@ -1,7 +1,7 @@
 [package]
 authors = ["Dilshod Tadjibaev (@antimora)"]
 categories = ["science", "no-std", "embedded", "wasm"]
-description = "Storage and serialization infrastructure for Burn"
+description = "The burnpack serialization format for Burn"
 documentation = "https://docs.rs/burn-store"
 edition.workspace = true
 keywords = [
@@ -21,70 +21,24 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "pytorch", "safetensors", "burnpack", "memmap"]
+default = ["std", "burnpack", "memmap"]
 memmap = ["std", "dep:memmap2"]
-std = [
-    "dep:memmap2",
-    "safetensors/std",
-    "burn-core/std",
-    "dep:regex",
-    "byteorder/std",
-]
+std = ["dep:memmap2", "burn-std/std", "byteorder/std", "ciborium?/std"]
 
-burnpack = ["serde", "ciborium"]
-cuda = ["burn-core/cuda"]
-metal = ["wgpu", "burn-core/metal"]
-tch = ["burn-core/tch"]
-wgpu = ["burn-core/wgpu"]
-
-safetensors = ["dep:safetensors"]
-
-pytorch = ["burn-core/record-item-custom-serde", "zip", "serde", "tar"]
+burnpack = ["dep:serde", "dep:ciborium"]
 
 [dependencies]
-burn-core = { workspace = true }
+burn-std = { workspace = true }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
 bytes = { workspace = true }
 ciborium = { workspace = true, optional = true }
-half = { workspace = true }
-hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
-regex = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
-textdistance = { workspace = true }
-zip = { workspace = true, optional = true }
-tar = { workspace = true, optional = true }
-
-# Workaround to force broken minor version to update
-lzma-rust2 = { workspace = true, optional = true }
-
-safetensors = { workspace = true, optional = true }
 
 [dev-dependencies]
-# burn-import = { path = "../burn-import", version = "0.22.0" } # disabled (circular dep in publish, only for bench)
-burn-core = { workspace = true, features = ["flex"] }
-burn-nn = { workspace = true }
-
-divan = "0.1"
 tempfile = { workspace = true }
-
-[[bench]]
-harness = false
-name = "resnet18_loading"
-
-[[bench]]
-harness = false
-name = "unified_loading"
-
-[[bench]]
-harness = false
-name = "unified_saving"
-
-[[bench]]
-harness = false
-name = "zero_copy_loading"
 
 # Enable extra-platforms for bytes on targets without native atomics (e.g., thumbv6m-none-eabi)
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]

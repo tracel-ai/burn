@@ -24,6 +24,9 @@ pub mod module;
 /// Module for the recorder.
 pub mod record;
 
+/// Module snapshot tooling and the non-generic record system (burnpack-based).
+pub mod store;
+
 /// Module for the tensor.
 pub mod tensor;
 // Tensor at root: `burn::Tensor`

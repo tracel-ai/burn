@@ -17,7 +17,7 @@ workspace = true
 [features]
 default = ["sys-metrics", "tui", "rl"]
 doc = ["default"]
-vision = ["burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]
+vision = ["burn-nn", "burn-import/pytorch", "burn-std/network", "dirs"]
 tracing = ["burn-core/tracing", "burn-optim/tracing"]
 
 
@@ -36,7 +36,7 @@ burn-core = { workspace = true, features = [
 burn-optim = { workspace = true, features = ["std"] }
 burn-rl = { workspace = true, optional = true }
 burn-nn = { workspace = true, optional = true, features = ["std"] }
-burn-store = { workspace = true, optional = true, features = ["std"] }
+burn-import = { workspace = true, optional = true, features = ["std"] }
 burn-std = { workspace = true, default-features = false, features = ["std"] }
 dirs = { workspace = true, optional = true }
 

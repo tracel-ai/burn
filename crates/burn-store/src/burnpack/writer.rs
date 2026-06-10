@@ -2,13 +2,13 @@ use super::base::{
     BurnpackError, BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
     TENSOR_ALIGNMENT, TensorDescriptor, aligned_data_section_start,
 };
-use crate::TensorSnapshot;
+use super::tensor::BurnpackTensor;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_core::tensor::Bytes;
+use burn_std::Bytes;
 
 #[cfg(feature = "std")]
 use std::fs::File;
@@ -28,16 +28,16 @@ const fn align_offset(offset: u64, alignment: u64) -> u64 {
 /// Writer for creating Burnpack files
 pub struct BurnpackWriter {
     /// Tensors to write
-    pub(crate) snapshots: Vec<TensorSnapshot>,
+    pub(crate) tensors: Vec<BurnpackTensor>,
     /// Metadata key-value pairs
     pub(crate) metadata: BTreeMap<String, String>,
 }
 
 impl BurnpackWriter {
     /// Create a new writer
-    pub fn new(snapshots: Vec<TensorSnapshot>) -> Self {
+    pub fn new(tensors: Vec<BurnpackTensor>) -> Self {
         Self {
-            snapshots,
+            tensors,
             metadata: BTreeMap::new(),
         }
     }
@@ -54,8 +54,8 @@ impl BurnpackWriter {
         let mut tensors = BTreeMap::new();
         let mut current_offset = 0u64;
 
-        for snapshot in &self.snapshots {
-            let data_len = snapshot.data_len() as u64;
+        for tensor in &self.tensors {
+            let data_len = tensor.byte_len as u64;
 
             // Align the start offset for mmap zero-copy support
             let aligned_start = align_offset(current_offset, TENSOR_ALIGNMENT);
@@ -67,12 +67,12 @@ impl BurnpackWriter {
             })?;
 
             tensors.insert(
-                snapshot.full_path(),
+                tensor.name.clone(),
                 TensorDescriptor {
-                    dtype: snapshot.dtype,
-                    shape: snapshot.shape.iter().map(|&s| s as u64).collect(),
+                    dtype: tensor.dtype,
+                    shape: tensor.shape.iter().map(|&s| s as u64).collect(),
                     data_offsets: (aligned_start, end),
-                    param_id: snapshot.tensor_id.map(|id| id.val()),
+                    param_id: tensor.param_id,
                 },
             );
 
@@ -186,12 +186,12 @@ impl BurnpackWriter {
         }
 
         // Write tensor data with alignment padding
-        for snapshot in &self.snapshots {
+        for tensor in &self.tensors {
             // Get the aligned offset from metadata
-            let descriptor = metadata.tensors.get(&snapshot.full_path()).ok_or_else(|| {
+            let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
                 BurnpackError::IoError(format!(
                     "Internal error: tensor '{}' not found in metadata",
-                    snapshot.full_path()
+                    tensor.name
                 ))
             })?;
             let aligned_offset = descriptor.data_offsets.0 as usize;
@@ -203,23 +203,19 @@ impl BurnpackWriter {
                 offset = target_offset;
             }
 
-            let expected_len = snapshot.data_len();
-            let data = snapshot.to_data().map_err(|e| {
-                BurnpackError::IoError(format!("Failed to get tensor data: {:?}", e))
-            })?;
-            let actual_len = data.bytes.len();
+            let expected_len = tensor.byte_len;
+            let data = tensor.bytes()?;
+            let actual_len = data.len();
 
             // Validate data length consistency
             if actual_len != expected_len {
                 return Err(BurnpackError::IoError(format!(
                     "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
-                    snapshot.full_path(),
-                    expected_len,
-                    actual_len
+                    tensor.name, expected_len, actual_len
                 )));
             }
 
-            buffer[offset..offset + actual_len].copy_from_slice(&data.bytes);
+            buffer[offset..offset + actual_len].copy_from_slice(&data);
             offset += actual_len;
         }
 
@@ -283,12 +279,12 @@ impl BurnpackWriter {
         let mut data_offset = 0usize;
 
         // Stream tensor data directly to file with alignment padding
-        for snapshot in &self.snapshots {
+        for tensor in &self.tensors {
             // Get the aligned offset from metadata
-            let descriptor = metadata.tensors.get(&snapshot.full_path()).ok_or_else(|| {
+            let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
                 BurnpackError::IoError(format!(
                     "Internal error: tensor '{}' not found in metadata",
-                    snapshot.full_path()
+                    tensor.name
                 ))
             })?;
             let aligned_offset = descriptor.data_offsets.0 as usize;
@@ -302,23 +298,19 @@ impl BurnpackWriter {
                 data_offset = aligned_offset;
             }
 
-            let expected_len = snapshot.data_len();
-            let data = snapshot.to_data().map_err(|e| {
-                BurnpackError::IoError(format!("Failed to get tensor data: {:?}", e))
-            })?;
-            let actual_len = data.bytes.len();
+            let expected_len = tensor.byte_len;
+            let data = tensor.bytes()?;
+            let actual_len = data.len();
 
             // Validate data length consistency
             if actual_len != expected_len {
                 return Err(BurnpackError::IoError(format!(
                     "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
-                    snapshot.full_path(),
-                    expected_len,
-                    actual_len
+                    tensor.name, expected_len, actual_len
                 )));
             }
 
-            file.write_all(&data.bytes)
+            file.write_all(&data)
                 .map_err(|e| BurnpackError::IoError(e.to_string()))?;
             data_offset += actual_len;
         }

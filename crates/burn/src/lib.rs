@@ -135,10 +135,15 @@ pub mod rl {
 #[cfg(feature = "server")]
 pub use burn_core::tensor::server;
 
-/// Module for model storage and serialization
-#[cfg(feature = "store")]
+/// Module snapshot tooling and the non-generic record system.
 pub mod store {
-    pub use burn_store::*;
+    pub use burn_core::store::*;
+}
+
+/// Model import and cross-framework interoperability (PyTorch, SafeTensors, burnpack store).
+#[cfg(feature = "import")]
+pub mod import {
+    pub use burn_import::*;
 }
 
 /// Neural network module.

@@ -5,14 +5,13 @@ use super::base::{
     MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
     aligned_data_section_start,
 };
-use crate::TensorSnapshot;
+use super::tensor::BurnpackTensor;
 use alloc::format;
 use alloc::rc::Rc;
 use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_core::module::ParamId;
-use burn_core::tensor::{Bytes, Shape, TensorData};
+use burn_std::Bytes;
 
 #[cfg(feature = "std")]
 use std::cell::RefCell;
@@ -374,7 +373,7 @@ impl BurnpackReader {
         // Convert mmap to bytes::Bytes for zero-copy slicing support
         // bytes::Bytes::from_owner takes ownership and enables efficient slicing
         let shared_bytes = bytes::Bytes::from_owner(mmap);
-        let bytes = Bytes::from_shared(shared_bytes, burn_core::tensor::AllocationProperty::File);
+        let bytes = Bytes::from_shared(shared_bytes, burn_std::AllocationProperty::File);
 
         Ok(Self {
             metadata,
@@ -514,12 +513,12 @@ impl BurnpackReader {
         })
     }
 
-    /// Get all tensor snapshots at once for efficient loading (always copies data)
-    pub fn get_snapshots(&self) -> Result<Vec<TensorSnapshot>, BurnpackError> {
-        self.get_snapshots_internal(false)
+    /// Get all tensors at once for efficient loading (always copies data).
+    pub fn get_tensors(&self) -> Result<Vec<BurnpackTensor>, BurnpackError> {
+        self.get_tensors_internal(false)
     }
 
-    /// Get all tensor snapshots with optional zero-copy loading.
+    /// Get all tensors with optional zero-copy loading.
     ///
     /// When `zero_copy` is true and the backend supports it (Memory backend with
     /// `Bytes::from_shared()`), tensor data is sliced without copying. This keeps
@@ -527,24 +526,23 @@ impl BurnpackReader {
     ///
     /// When `zero_copy` is false or the backend doesn't support it, data is copied
     /// into newly allocated buffers (default behavior).
-    pub fn get_snapshots_zero_copy(
+    pub fn get_tensors_zero_copy(
         &self,
         zero_copy: bool,
-    ) -> Result<Vec<TensorSnapshot>, BurnpackError> {
-        self.get_snapshots_internal(zero_copy)
+    ) -> Result<Vec<BurnpackTensor>, BurnpackError> {
+        self.get_tensors_internal(zero_copy)
     }
 
     /// Internal implementation with optional zero-copy support
-    fn get_snapshots_internal(
+    fn get_tensors_internal(
         &self,
         zero_copy: bool,
-    ) -> Result<Vec<TensorSnapshot>, BurnpackError> {
-        let mut snapshots = Vec::new();
+    ) -> Result<Vec<BurnpackTensor>, BurnpackError> {
+        let mut tensors = Vec::new();
 
         for (name, descriptor) in &self.metadata.tensors {
-            // Clone metadata for use in closure
             // Convert shape dimensions with overflow checking
-            let shape: Shape = Shape::from(descriptor
+            let shape: Vec<usize> = descriptor
                 .shape
                 .iter()
                 .map(|&s| {
@@ -555,7 +553,7 @@ impl BurnpackReader {
                         ))
                     })
                 })
-                .collect::<Result<Vec<usize>, BurnpackError>>()?);
+                .collect::<Result<Vec<usize>, BurnpackError>>()?;
 
             let dtype = descriptor.dtype;
 
@@ -598,9 +596,6 @@ impl BurnpackReader {
                 ))
             })?;
 
-            // Clone shape for the closure (TensorSnapshot::from_closure will also need it)
-            let shape_for_closure = shape.clone();
-
             // Validate offset range
             if end < start {
                 return Err(BurnpackError::ValidationError(format!(
@@ -618,77 +613,36 @@ impl BurnpackReader {
                 )));
             }
 
-            // Restore param_id if it was saved, otherwise generate
-            let tensor_id = descriptor
-                .param_id
-                .map(ParamId::from)
-                .unwrap_or_else(ParamId::new);
+            // Create the byte-loading closure based on zero_copy flag
+            let data_fn: super::tensor::TensorBytesFn = if zero_copy {
+                // Zero-copy closure: slice without copying, error if not supported
+                Rc::new(move || storage.slice_bytes(start, end))
+            } else {
+                // Copying closure: always allocate and copy
+                Rc::new(move || {
+                    let len = end - start;
+                    // TODO Should be allocated by the backend in the future
+                    // See https://github.com/tracel-ai/burn/pull/3792#discussion_r2416812091
+                    let mut data_bytes = vec![0u8; len];
+                    storage.read_into(&mut data_bytes, start)?;
+                    Ok(Bytes::from_bytes_vec(data_bytes))
+                })
+            };
 
-            // Create the data-loading closure based on zero_copy flag
-            let data_fn: Rc<dyn Fn() -> Result<TensorData, crate::TensorSnapshotError>> =
-                if zero_copy {
-                    // Zero-copy closure: slice without copying, error if not supported
-                    Rc::new(move || {
-                        let bytes = storage.slice_bytes(start, end).map_err(|e| {
-                            crate::TensorSnapshotError::IoError(format!(
-                                "Zero-copy slice failed: {}",
-                                e
-                            ))
-                        })?;
-                        Ok(TensorData::from_bytes(
-                            bytes,
-                            shape_for_closure.clone(),
-                            dtype,
-                        ))
-                    })
-                } else {
-                    // Copying closure: always allocate and copy
-                    Rc::new(move || {
-                        let len = end - start;
-                        // TODO Should be allocated by the backend in the future
-                        // See https://github.com/tracel-ai/burn/pull/3792#discussion_r2416812091
-                        let mut data_bytes = vec![0u8; len];
-                        storage.read_into(&mut data_bytes, start).map_err(|e| {
-                            crate::TensorSnapshotError::IoError(format!(
-                                "Failed to read tensor data: {}",
-                                e
-                            ))
-                        })?;
-                        Ok(TensorData::from_bytes_vec(
-                            data_bytes,
-                            shape_for_closure.clone(),
-                            dtype,
-                        ))
-                    })
-                };
-
-            // Create lazy TensorSnapshot
-            let snapshot = TensorSnapshot::from_closure(
-                data_fn,
+            tensors.push(BurnpackTensor::new(
+                name.clone(),
                 dtype,
                 shape,
-                name.split('.').map(|s| s.to_string()).collect(),
-                vec![],    // empty container_stack
-                tensor_id, // restored or newly generated param id
-            );
-
-            snapshots.push(snapshot);
+                descriptor.param_id,
+                tensor_size,
+                data_fn,
+            ));
         }
 
-        Ok(snapshots)
+        Ok(tensors)
     }
 
     // Legacy methods for test compatibility - will be removed
-
-    /// Get tensor as TensorSnapshot with lazy loading
-    #[allow(dead_code)]
-    pub(crate) fn get_tensor_snapshot(&self, name: &str) -> Result<TensorSnapshot, BurnpackError> {
-        let snapshots = self.get_snapshots()?;
-        snapshots
-            .into_iter()
-            .find(|s| s.full_path() == name)
-            .ok_or_else(|| BurnpackError::TensorNotFound(name.to_string()))
-    }
 
     /// Get list of tensor names
     #[allow(dead_code)]

@@ -6,7 +6,8 @@ use burn::{
     tensor::{Device, Tensor},
 };
 
-use burn_store::{BurnpackStore, ModuleSnapshot, PathFilter};
+use burn::store::{ModuleSnapshot, PathFilter};
+use burn_import::BurnpackStore;
 
 /// Simple model for testing Burnpack storage
 #[derive(Module, Debug)]

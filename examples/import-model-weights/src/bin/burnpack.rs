@@ -1,7 +1,8 @@
 use std::env;
 use std::path::Path;
 
-use burn_store::{BurnpackStore, ModuleSnapshot};
+use burn::store::ModuleSnapshot;
+use burn_import::BurnpackStore;
 use import_model_weights::{Model, infer};
 
 pub fn main() {
