@@ -127,7 +127,6 @@ pub struct Header {
 
 impl Header {
     /// Create a new header with the given metadata size
-    #[allow(dead_code)]
     pub fn new(metadata_size: u32) -> Self {
         Self {
             magic: MAGIC_NUMBER,

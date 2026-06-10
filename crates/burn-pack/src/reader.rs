@@ -5,12 +5,13 @@ use super::base::{
 use super::tensor::Tensor;
 use alloc::format;
 use alloc::string::{String, ToString};
-use alloc::vec;
 use alloc::vec::Vec;
 use burn_std::{Bytes, Shape};
 
 #[cfg(feature = "std")]
 use super::base::MAX_FILE_SIZE;
+#[cfg(feature = "std")]
+use alloc::vec;
 #[cfg(feature = "std")]
 use std::fs::File;
 #[cfg(feature = "std")]

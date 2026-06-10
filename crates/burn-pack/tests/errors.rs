@@ -61,6 +61,17 @@ fn rejects_metadata_size_past_eof() {
 }
 
 #[test]
+fn rejects_duplicate_tensor_names() {
+    // Descriptors are keyed by name but data is written from the tensor list: a duplicate
+    // name must be rejected up front, not silently corrupt the container.
+    let writer = Writer::new(vec![
+        f32_tensor("w", &[1.0, 2.0], &[2], None),
+        f32_tensor("w", &[3.0, 4.0], &[2], None),
+    ]);
+    assert!(matches!(writer.to_bytes(), Err(Error::ValidationError(_))));
+}
+
+#[test]
 fn rejects_truncated_data_section() {
     // A valid pack, truncated well into its data section, must be rejected (not silently
     // read). Use a large tensor and drop half the file so we are unambiguously below the

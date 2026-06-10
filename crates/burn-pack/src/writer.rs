@@ -13,7 +13,7 @@ use burn_std::Bytes;
 #[cfg(feature = "std")]
 use std::fs::File;
 #[cfg(feature = "std")]
-use std::io::Write;
+use std::io::{Read, Write};
 #[cfg(feature = "std")]
 use std::path::Path;
 
@@ -154,7 +154,7 @@ impl Writer {
 
         let mut metadata_bytes = Vec::new();
         ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
-            .map_err(|e| Error::IoError(e.to_string()))?;
+            .map_err(|e| Error::MetadataSerializationError(e.to_string()))?;
 
         Ok((metadata, metadata_bytes))
     }
@@ -177,15 +177,26 @@ impl Writer {
                 ))
             })?;
 
-            tensors.insert(
-                tensor.name.clone(),
-                TensorDescriptor {
-                    dtype: tensor.dtype,
-                    shape: tensor.shape.iter().map(|&s| s as u64).collect(),
-                    data_offsets: (aligned_start, end),
-                    param_id: tensor.param_id,
-                },
-            );
+            // Descriptors are keyed by name, but the tensor data is written from the
+            // (ordered) `self.tensors` list. A duplicate name would collapse to a single
+            // descriptor while still writing two data blocks, corrupting the container.
+            if tensors
+                .insert(
+                    tensor.name.clone(),
+                    TensorDescriptor {
+                        dtype: tensor.dtype,
+                        shape: tensor.shape.iter().map(|&s| s as u64).collect(),
+                        data_offsets: (aligned_start, end),
+                        param_id: tensor.param_id,
+                    },
+                )
+                .is_some()
+            {
+                return Err(Error::ValidationError(format!(
+                    "Duplicate tensor name '{}'",
+                    tensor.name
+                )));
+            }
 
             current_offset = end;
         }
@@ -256,8 +267,8 @@ impl Writer {
         let declared_len = (end - start) as usize;
         let actual_len = tensor.bytes.len();
         if actual_len != declared_len {
-            return Err(Error::IoError(format!(
-                "Data corruption: tensor '{}' has inconsistent length (expected {}, got {})",
+            return Err(Error::TensorBytesSizeMismatch(format!(
+                "tensor '{}' has inconsistent length (expected {}, got {})",
                 tensor.name, declared_len, actual_len
             )));
         }
@@ -328,8 +339,9 @@ struct FileSink {
 #[cfg(feature = "std")]
 impl Sink for FileSink {
     fn pad(&mut self, count: usize) -> Result<(), Error> {
-        self.file
-            .write_all(&vec![0u8; count])
+        // Stream zeros without allocating a `count`-sized buffer per call.
+        std::io::copy(&mut std::io::repeat(0).take(count as u64), &mut self.file)
+            .map(|_| ())
             .map_err(|e| Error::IoError(e.to_string()))
     }
 

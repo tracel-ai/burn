@@ -19,7 +19,7 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 
 use crate::module::{Module, ModuleMapper, ModuleVisitor, Param, ParamId};
-use crate::tensor::{Bool, DType, Device, Int, Shape, Tensor, TensorData, kind::Basic};
+use crate::tensor::{Bool, DType, Device, Float, Int, Shape, Tensor, TensorData, kind::Basic};
 
 use burn_pack::{Reader, Writer};
 
@@ -318,11 +318,14 @@ impl Applier {
 
     /// Look up the recorded tensor for the current path and build the tensor to load,
     /// or `None` (recording it as missing / errored) to leave the parameter unchanged.
+    ///
+    /// `module_dtype` is only evaluated on a hit under [`DTypePolicy::CastToModule`], so a
+    /// missing parameter never materializes its current value just to read a dtype.
     fn take<const D: usize, K: Basic>(
         &mut self,
         device: &Device,
         target_shape: Shape,
-        target_dtype: Option<DType>,
+        module_dtype: impl FnOnce() -> DType,
     ) -> Option<Tensor<D, K>> {
         let path = self.path.join(".");
         let mut data = match self.tensors.get(&path) {
@@ -334,7 +337,10 @@ impl Applier {
         };
 
         // Resolve the dtype to load with (CastToModule casts to the module's dtype).
-        let dtype = target_dtype.unwrap_or(data.dtype);
+        let dtype = match self.dtype_policy {
+            DTypePolicy::FromRecord => data.dtype,
+            DTypePolicy::CastToModule => module_dtype(),
+        };
         if data.dtype != dtype {
             data = data.convert_dtype(dtype);
         }
@@ -351,6 +357,26 @@ impl Applier {
     }
 }
 
+/// Generate a `ModuleMapper::map_*` method for one tensor kind. The three kinds differ only
+/// in the tensor type, so the body — collect identity, look the tensor up, load on a hit — is
+/// shared here.
+macro_rules! map_kind {
+    ($method:ident, $kind:ty) => {
+        fn $method<const D: usize>(
+            &mut self,
+            param: Param<Tensor<D, $kind>>,
+        ) -> Param<Tensor<D, $kind>> {
+            let id = param.id;
+            let device = param.lazy_device();
+            let shape = param.lazy_shape();
+            match self.take(&device, shape, || param.val().dtype()) {
+                Some(tensor) => param.transform_for_load(tensor, id),
+                None => param,
+            }
+        }
+    };
+}
+
 impl ModuleMapper for Applier {
     fn enter_module(&mut self, name: &str, _container_type: &str) {
         self.path.push(name.to_string());
@@ -360,50 +386,9 @@ impl ModuleMapper for Applier {
         self.path.pop();
     }
 
-    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
-        let id = param.id;
-        let device = param.lazy_device();
-        let shape = param.lazy_shape();
-        let target_dtype = match self.dtype_policy {
-            DTypePolicy::FromRecord => None,
-            DTypePolicy::CastToModule => Some(param.val().dtype()),
-        };
-        match self.take(&device, shape, target_dtype) {
-            Some(tensor) => param.transform_for_load(tensor, id),
-            None => param,
-        }
-    }
-
-    fn map_int<const D: usize>(&mut self, param: Param<Tensor<D, Int>>) -> Param<Tensor<D, Int>> {
-        let id = param.id;
-        let device = param.lazy_device();
-        let shape = param.lazy_shape();
-        let target_dtype = match self.dtype_policy {
-            DTypePolicy::FromRecord => None,
-            DTypePolicy::CastToModule => Some(param.val().dtype()),
-        };
-        match self.take(&device, shape, target_dtype) {
-            Some(tensor) => param.transform_for_load(tensor, id),
-            None => param,
-        }
-    }
-
-    fn map_bool<const D: usize>(
-        &mut self,
-        param: Param<Tensor<D, Bool>>,
-    ) -> Param<Tensor<D, Bool>> {
-        let id = param.id;
-        let device = param.lazy_device();
-        let shape = param.lazy_shape();
-        let target_dtype = match self.dtype_policy {
-            DTypePolicy::FromRecord => None,
-            DTypePolicy::CastToModule => Some(param.val().dtype()),
-        };
-        match self.take(&device, shape, target_dtype) {
-            Some(tensor) => param.transform_for_load(tensor, id),
-            None => param,
-        }
-    }
+    map_kind!(map_float, Float);
+    map_kind!(map_int, Int);
+    map_kind!(map_bool, Bool);
 }
 
 #[cfg(all(test, feature = "std"))]
