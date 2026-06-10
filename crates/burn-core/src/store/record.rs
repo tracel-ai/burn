@@ -158,8 +158,8 @@ impl RecordNew {
     }
 }
 
-impl From<burn_store::BurnpackError> for RecordError {
-    fn from(err: burn_store::BurnpackError) -> Self {
+impl From<burn_pack::Error> for RecordError {
+    fn from(err: burn_pack::Error) -> Self {
         use alloc::string::ToString;
         RecordError::Io(err.to_string())
     }
@@ -170,14 +170,14 @@ mod burnpack_io {
     use crate::store::bridge;
     use alloc::vec::Vec;
     use burn_std::Bytes;
-    use burn_store::{BurnpackReader, BurnpackTensor, BurnpackWriter};
+    use burn_pack::{Reader, Tensor as PackTensor, Writer};
 
     impl RecordNew {
         /// Serialize the record to an in-memory burnpack byte buffer.
         pub fn to_bytes(&self) -> Result<Bytes, RecordError> {
-            let tensors: Vec<BurnpackTensor> =
+            let tensors: Vec<PackTensor> =
                 self.snapshots.iter().map(bridge::snapshot_to_tensor).collect();
-            let writer = BurnpackWriter::new(tensors);
+            let writer = Writer::new(tensors);
             Ok(writer.to_bytes()?)
         }
 
@@ -186,7 +186,7 @@ mod burnpack_io {
         /// Tensor data is materialized lazily; load-time configuration is reset
         /// to defaults.
         pub fn from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
-            let reader = BurnpackReader::from_bytes(bytes)?;
+            let reader = Reader::from_bytes(bytes)?;
             let snapshots = reader
                 .get_tensors()?
                 .into_iter()
@@ -198,9 +198,9 @@ mod burnpack_io {
         /// Save the record to a burnpack file on disk.
         #[cfg(feature = "std")]
         pub fn save<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), RecordError> {
-            let tensors: Vec<BurnpackTensor> =
+            let tensors: Vec<PackTensor> =
                 self.snapshots.iter().map(bridge::snapshot_to_tensor).collect();
-            let writer = BurnpackWriter::new(tensors);
+            let writer = Writer::new(tensors);
             writer.write_to_file(path)?;
             Ok(())
         }
@@ -211,7 +211,7 @@ mod burnpack_io {
         /// to defaults.
         #[cfg(feature = "std")]
         pub fn load<P: AsRef<std::path::Path>>(path: P) -> Result<Self, RecordError> {
-            let reader = BurnpackReader::from_file(path)?;
+            let reader = Reader::from_file(path)?;
             let snapshots = reader
                 .get_tensors()?
                 .into_iter()

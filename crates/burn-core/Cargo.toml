@@ -40,7 +40,7 @@ sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
 std = [
     "bincode/std",
     "burn-std/std",
-    "burn-store/std",
+    "burn-pack/std",
     "burn-tensor/std",
     "flate2",
     "half/std",
@@ -90,7 +90,7 @@ extension = ["burn-tensor/extension", "burn-backend-extension", "burn-dispatch",
 burn-std = { workspace = true }
 burn-dataset = { workspace = true, optional = true }
 burn-derive = { workspace = true }
-burn-store = { workspace = true, default-features = false, features = ["burnpack"] }
+burn-pack = { workspace = true, default-features = false }
 burn-tensor = { workspace = true }
 
 # Backend extensions

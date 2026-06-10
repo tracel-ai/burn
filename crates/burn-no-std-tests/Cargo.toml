@@ -23,4 +23,4 @@ default = []
 burn = { workspace = true }
 burn-flex = { workspace = true }
 
-burn-import = { workspace = true, default-features = false, features = ["safetensors", "burnpack"] }
+burn-store = { workspace = true, default-features = false, features = ["safetensors", "burnpack"] }

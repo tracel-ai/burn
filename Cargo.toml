@@ -6,8 +6,8 @@ resolver = "2"
 
 members = [
     "crates/*",
-    "crates/burn-import/pytorch-tests",
-    "crates/burn-import/safetensors-tests",
+    "crates/burn-store/pytorch-tests",
+    "crates/burn-store/safetensors-tests",
     "examples/*",
     "xtask",
 ]
@@ -210,8 +210,8 @@ burn-rl = { path = "crates/burn-rl", version = "0.22.0-pre.1", default-features 
 burn-rocm = { path = "crates/burn-rocm", version = "0.22.0-pre.1", default-features = false }
 burn-router = { path = "crates/burn-router", version = "0.22.0-pre.1", default-features = false }
 burn-std = { path = "crates/burn-std", version = "0.22.0-pre.1", default-features = false }
+burn-pack = { path = "crates/burn-pack", version = "0.22.0-pre.1", default-features = false }
 burn-store = { path = "crates/burn-store", version = "0.22.0-pre.1", default-features = false }
-burn-import = { path = "crates/burn-import", version = "0.22.0-pre.1", default-features = false }
 burn-tch = { path = "crates/burn-tch", version = "0.22.0-pre.1", default-features = false }
 burn-tensor = { path = "crates/burn-tensor", version = "0.22.0-pre.1", default-features = false }
 burn-tensor-testgen = { path = "crates/burn-tensor-testgen", version = "0.22.0-pre.1", default-features = false }

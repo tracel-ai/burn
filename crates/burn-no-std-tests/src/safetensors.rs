@@ -7,7 +7,7 @@ use burn::{
 };
 
 use burn::store::ModuleSnapshot;
-use burn_import::SafetensorsStore;
+use burn_store::SafetensorsStore;
 
 /// Simple model for testing SafeTensors storage
 #[derive(Module, Debug)]

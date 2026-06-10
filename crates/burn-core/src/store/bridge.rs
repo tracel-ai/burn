@@ -1,9 +1,9 @@
-//! Bridge between [`TensorSnapshot`] (burn-core) and [`burn_store::BurnpackTensor`]
+//! Bridge between [`TensorSnapshot`] (burn-core) and [`burn_pack::Tensor`]
 //! (the tensor-agnostic burnpack format entry).
 //!
-//! These conversions live in burn-core so the burnpack format crate (`burn-store`)
+//! These conversions live in burn-core so the burnpack format crate (`burn-pack`)
 //! stays free of any tensor dependency. They are public so that higher layers (e.g.
-//! `burn-import`'s native store) can serialize/deserialize snapshots through the
+//! `burn-store`'s native store) can serialize/deserialize snapshots through the
 //! burnpack format.
 
 use alloc::format;
@@ -12,17 +12,17 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 
-use burn_store::{BurnpackError, BurnpackTensor};
+use burn_pack::{Error as PackError, Tensor as PackTensor};
 
 use super::{TensorSnapshot, TensorSnapshotError};
 use crate::module::ParamId;
 use crate::tensor::{Shape, TensorData};
 
-/// Convert a lazy [`TensorSnapshot`] into a lazy [`BurnpackTensor`] entry.
-pub fn snapshot_to_tensor(snapshot: &TensorSnapshot) -> BurnpackTensor {
+/// Convert a lazy [`TensorSnapshot`] into a lazy [`PackTensor`] entry.
+pub fn snapshot_to_tensor(snapshot: &TensorSnapshot) -> PackTensor {
     let data_fn = snapshot.clone_data_fn();
     let shape: Vec<usize> = snapshot.shape.iter().copied().collect();
-    BurnpackTensor::new(
+    PackTensor::new(
         snapshot.full_path(),
         snapshot.dtype,
         shape,
@@ -31,13 +31,13 @@ pub fn snapshot_to_tensor(snapshot: &TensorSnapshot) -> BurnpackTensor {
         Rc::new(move || {
             data_fn()
                 .map(|data| data.bytes)
-                .map_err(|e| BurnpackError::IoError(format!("{e:?}")))
+                .map_err(|e| PackError::IoError(format!("{e:?}")))
         }),
     )
 }
 
-/// Convert a lazy [`BurnpackTensor`] entry back into a lazy [`TensorSnapshot`].
-pub fn tensor_to_snapshot(tensor: BurnpackTensor) -> TensorSnapshot {
+/// Convert a lazy [`PackTensor`] entry back into a lazy [`TensorSnapshot`].
+pub fn tensor_to_snapshot(tensor: PackTensor) -> TensorSnapshot {
     let dtype = tensor.dtype;
     let shape = Shape::from(tensor.shape.clone());
     let path_stack: Vec<String> = tensor.name.split('.').map(|s| s.to_string()).collect();

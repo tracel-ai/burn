@@ -37,14 +37,14 @@ doc = [
     "train",
     "burn-core/doc",
     "burn-train/doc",
-    "burn-import?/std",
+    "burn-store?/std",
     "burn-nn/doc",
     "burn-optim?/doc",
     "burn-autodiff?/std",
 ]
 std = [
     "burn-core/std",
-    "burn-import?/std",
+    "burn-store?/std",
     "burn-nn/std",
     "burn-optim?/std",
     "burn-autodiff?/std",
@@ -78,15 +78,13 @@ sqlite-bundled = ["burn-core/sqlite-bundled"]
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
-# Model import and cross-framework interoperability (SafeTensors, PyTorch interop)
-import = ["burn-import"]
-# Back-compat alias: the old `store` feature now enables the importers.
-store = ["import"]
+# Model storage and cross-framework interoperability (SafeTensors, PyTorch interop)
+store = ["dep:burn-store"]
 
-# Enable safetensors in burn-import.
-safetensors = ["import", "burn-import?/safetensors"]
-# Enable pytorch in burn-import.
-pytorch = ["import", "burn-import?/pytorch"]
+# Enable safetensors in burn-store.
+safetensors = ["store", "burn-store?/safetensors"]
+# Enable pytorch in burn-store.
+pytorch = ["store", "burn-store?/pytorch"]
 
 # CubeCL re-export
 cubecl = ["dep:cubecl"]
@@ -150,7 +148,7 @@ extension = ["burn-core/extension"]
 
 burn-core = { workspace = true }
 burn-train = { workspace = true, optional = true }
-burn-import = { workspace = true, optional = true }
+burn-store = { workspace = true, optional = true }
 burn-nn = { workspace = true }
 burn-optim = { workspace = true, optional = true }
 burn-rl = { workspace = true, optional = true }

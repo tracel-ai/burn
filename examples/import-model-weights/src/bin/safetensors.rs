@@ -1,5 +1,5 @@
 use burn::store::{ModuleSnapshot, PyTorchToBurnAdapter};
-use burn_import::SafetensorsStore;
+use burn_store::SafetensorsStore;
 
 use import_model_weights::{Model, infer};
 

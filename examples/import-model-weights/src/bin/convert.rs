@@ -1,7 +1,7 @@
 use std::{env, path::Path, process};
 
 use burn::store::{ModuleSnapshot, PyTorchToBurnAdapter};
-use burn_import::{BurnpackStore, PytorchStore, SafetensorsStore};
+use burn_store::{BurnpackStore, PytorchStore, SafetensorsStore};
 use import_model_weights::Model;
 
 // Path constants

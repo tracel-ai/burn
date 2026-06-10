@@ -7,7 +7,7 @@ use burn::{
 };
 
 use burn::store::{ModuleSnapshot, PathFilter};
-use burn_import::BurnpackStore;
+use burn_store::BurnpackStore;
 
 /// Simple model for testing Burnpack storage
 #[derive(Module, Debug)]
