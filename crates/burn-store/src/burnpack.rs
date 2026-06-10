@@ -1,14 +1,11 @@
 #[cfg(feature = "std")]
 use std::path::PathBuf;
 
-use super::reader::BurnpackReader;
-use super::writer::BurnpackWriter;
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
-use crate::burnpack::base::BurnpackError;
-use crate::{
-    IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot,
-};
+use crate::bridge;
+use crate::{IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot};
+use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::format;
@@ -37,11 +34,6 @@ pub struct BurnpackStore {
     validate: bool,
     /// Allow overwriting existing files (default: false)
     overwrite: bool,
-    /// Enable zero-copy tensor loading (default: false)
-    ///
-    /// When enabled and the backend supports it, tensor data is sliced from
-    /// the source without copying. This requires keeping the source data alive.
-    zero_copy: bool,
     /// Automatically append .bpk extension if not present (default: true)
     #[cfg(feature = "std")]
     auto_extension: bool,
@@ -53,9 +45,9 @@ pub struct BurnpackStore {
     /// Adapter applied when saving (Burn -> target)
     to_adapter: Box<dyn ModuleAdapter>,
     /// Writer for saving
-    writer: Option<BurnpackWriter>,
+    writer: Option<Writer>,
     /// Reader for loading
-    reader: Option<BurnpackReader>,
+    reader: Option<Reader>,
     /// Cached tensor snapshots (parsed once, reused)
     snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
 }
@@ -104,7 +96,6 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
-            zero_copy: false,
             #[cfg(feature = "std")]
             auto_extension: true,
             #[cfg(feature = "std")]
@@ -126,7 +117,6 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
-            zero_copy: false,
             #[cfg(feature = "std")]
             auto_extension: false, // Not used for bytes mode
             #[cfg(feature = "std")]
@@ -167,7 +157,6 @@ impl BurnpackStore {
             allow_partial: false,
             validate: true,
             overwrite: false,
-            zero_copy: true, // Enable zero-copy by default for static data
             #[cfg(feature = "std")]
             auto_extension: false,
             #[cfg(feature = "std")]
@@ -226,22 +215,6 @@ impl BurnpackStore {
     /// Default: `false`
     pub fn overwrite(mut self, overwrite: bool) -> Self {
         self.overwrite = overwrite;
-        self
-    }
-
-    /// Enable or disable zero-copy tensor loading.
-    ///
-    /// When enabled and the backend supports it (memory-backed with shared bytes),
-    /// tensor data is sliced from the source without copying. This keeps the source
-    /// data alive as long as any tensor holds a reference.
-    ///
-    /// Zero-copy is automatically enabled when using [`from_static`](Self::from_static).
-    /// Use this method to enable it for other memory-backed stores created with
-    /// [`from_bytes`](Self::from_bytes) when using `Bytes::from_shared()`.
-    ///
-    /// Default: `false` (except for `from_static` which defaults to `true`)
-    pub fn zero_copy(mut self, enable: bool) -> Self {
-        self.zero_copy = enable;
         self
     }
 
@@ -338,14 +311,14 @@ impl BurnpackStore {
     }
 
     /// Get the bytes after writing (only valid for bytes mode after collecting)
-    pub fn get_bytes(&self) -> Result<Bytes, BurnpackError> {
+    pub fn get_bytes(&self) -> Result<Bytes, PackError> {
         if let Some(writer) = &self.writer {
             return writer.to_bytes();
         }
 
         match &self.mode {
             StoreMode::Bytes(Some(bytes)) => Ok(bytes.clone()),
-            _ => Err(BurnpackError::IoError("No bytes available".into())),
+            _ => Err(PackError::IoError("No bytes available".into())),
         }
     }
 
@@ -369,17 +342,17 @@ impl BurnpackStore {
     }
 
     /// Ensure the reader is initialized, loading from storage if needed
-    fn ensure_reader(&mut self) -> Result<&BurnpackReader, BurnpackError> {
+    fn ensure_reader(&mut self) -> Result<&Reader, PackError> {
         if self.reader.is_none() {
             let reader = match &self.mode {
                 #[cfg(feature = "std")]
                 StoreMode::File(path) => {
                     let final_path = self.process_path(path);
-                    BurnpackReader::from_file(&final_path)?
+                    Reader::from_file(&final_path)?
                 }
-                StoreMode::Bytes(Some(bytes)) => BurnpackReader::from_bytes(bytes.clone())?,
+                StoreMode::Bytes(Some(bytes)) => Reader::from_bytes(bytes.clone())?,
                 StoreMode::Bytes(None) => {
-                    return Err(BurnpackError::IoError("No bytes to read from".into()));
+                    return Err(PackError::IoError("No bytes to read from".into()));
                 }
             };
             self.reader = Some(reader);
@@ -387,12 +360,12 @@ impl BurnpackStore {
 
         self.reader
             .as_ref()
-            .ok_or_else(|| BurnpackError::IoError("Reader not initialized".into()))
+            .ok_or_else(|| PackError::IoError("Reader not initialized".into()))
     }
 }
 
 impl ModuleStore for BurnpackStore {
-    type Error = BurnpackError;
+    type Error = PackError;
 
     fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
         // Invalidate cache since we're writing new data
@@ -402,8 +375,14 @@ impl ModuleStore for BurnpackStore {
         // Collect snapshots from module with adapter
         let snapshots = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
 
-        // Initialize writer with snapshots
-        let mut writer = BurnpackWriter::new(snapshots);
+        // Bridge snapshots to tensor-agnostic burnpack entries (materializing their data)
+        let tensors: Vec<PackTensor> = snapshots
+            .iter()
+            .map(bridge::snapshot_to_tensor)
+            .collect::<Result<_, _>>()?;
+
+        // Initialize writer with tensors
+        let mut writer = Writer::new(tensors);
 
         // Add metadata using builder pattern
         for (key, value) in &self.metadata {
@@ -423,7 +402,7 @@ impl ModuleStore for BurnpackStore {
 
                     // Check if file exists and overwrite is disabled
                     if final_path.exists() && !self.overwrite {
-                        return Err(BurnpackError::IoError(format!(
+                        return Err(PackError::IoError(format!(
                             "File already exists: {}. Use .overwrite(true) to overwrite.",
                             final_path.display()
                         )));
@@ -465,7 +444,7 @@ impl ModuleStore for BurnpackStore {
 
         // Validate if needed
         if self.validate && !result.errors.is_empty() {
-            return Err(BurnpackError::ValidationError(format!(
+            return Err(PackError::ValidationError(format!(
                 "Import errors: {:?}",
                 result.errors
             )));
@@ -473,7 +452,7 @@ impl ModuleStore for BurnpackStore {
 
         // Check for missing tensors if partial loading is not allowed
         if !self.allow_partial && !result.missing.is_empty() {
-            return Err(BurnpackError::ValidationError(format!(
+            return Err(PackError::ValidationError(format!(
                 "Missing tensors: {:?}",
                 result.missing
             )));
@@ -502,7 +481,7 @@ impl ModuleStore for BurnpackStore {
 
 impl BurnpackStore {
     /// Ensure the snapshots cache is populated
-    fn ensure_snapshots_cache(&mut self) -> Result<(), BurnpackError> {
+    fn ensure_snapshots_cache(&mut self) -> Result<(), PackError> {
         if self.snapshots_cache.is_some() {
             return Ok(());
         }
@@ -510,9 +489,14 @@ impl BurnpackStore {
         // Ensure reader is loaded
         self.ensure_reader()?;
 
-        // Get snapshots from reader with zero-copy if enabled
+        // Get tensors from reader, bridging to snapshots. File-backed readers keep the
+        // tensor data lazy (read on materialization); in-memory shared sources are zero-copy.
         let reader = self.reader.as_ref().unwrap();
-        let snapshots = reader.get_snapshots_zero_copy(self.zero_copy)?;
+        let snapshots: Vec<TensorSnapshot> = reader
+            .get_tensors()?
+            .into_iter()
+            .map(bridge::tensor_to_snapshot)
+            .collect();
 
         // Apply remapping if configured (but NOT filtering - that's done at apply time)
         #[cfg(feature = "std")]

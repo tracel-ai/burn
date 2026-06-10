@@ -27,11 +27,13 @@ std = [
     "dep:memmap2",
     "safetensors/std",
     "burn-core/std",
+    "burn-pack?/std",
     "dep:regex",
     "byteorder/std",
 ]
 
-burnpack = ["serde", "ciborium"]
+# The burnpack format lives in the `burn-pack` crate; this enables the BurnpackStore over it.
+burnpack = ["dep:burn-pack"]
 cuda = ["burn-core/cuda"]
 metal = ["wgpu", "burn-core/metal"]
 tch = ["burn-core/tch"]
@@ -43,6 +45,7 @@ pytorch = ["burn-core/record-item-custom-serde", "zip", "serde", "tar"]
 
 [dependencies]
 burn-core = { workspace = true }
+burn-pack = { workspace = true, optional = true }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }

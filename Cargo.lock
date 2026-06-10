@@ -785,6 +785,7 @@ dependencies = [
  "burn-derive",
  "burn-dispatch",
  "burn-ir",
+ "burn-pack",
  "burn-std",
  "burn-tensor",
  "derive-new",
@@ -803,6 +804,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "spin",
+ "tempfile",
  "thiserror 2.0.18",
 ]
 
@@ -1033,6 +1035,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-pack"
+version = "0.22.0-pre.1"
+dependencies = [
+ "burn-std",
+ "byteorder",
+ "ciborium",
+ "serde",
+ "tempfile",
+]
+
+[[package]]
 name = "burn-remote"
 version = "0.22.0-pre.1"
 dependencies = [
@@ -1132,6 +1145,7 @@ version = "0.22.0-pre.1"
 dependencies = [
  "burn-core",
  "burn-nn",
+ "burn-pack",
  "byteorder",
  "bytes",
  "ciborium",
