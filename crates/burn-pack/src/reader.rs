@@ -19,15 +19,6 @@ use std::io::Read;
 #[cfg(feature = "std")]
 use std::path::{Path, PathBuf};
 
-/// Where a [`Reader`] gets its tensor data from.
-enum Source {
-    /// The whole pack lives in memory.
-    Memory(Bytes),
-    /// The pack lives in a file; tensor data is read lazily via [`Bytes::from_file`].
-    #[cfg(feature = "std")]
-    File(PathBuf),
-}
-
 /// Reader for loading burnpack containers.
 pub struct Reader {
     metadata: Metadata,
@@ -106,24 +97,20 @@ impl Reader {
         })
     }
 
-    /// Get all tensors in the pack.
+    /// Get all tensors in the pack, in sorted (alphabetical) name order.
     ///
-    /// File-backed tensors are read lazily on access; in-memory tensors are popped out of the
-    /// source buffer with [`Bytes::split`] (no per-tensor copy when its backing supports it).
+    /// File-backed tensors are read lazily on access. In-memory tensors are popped out of the
+    /// source buffer with [`Bytes::split`] (no per-tensor copy when the backing supports zero-copy
+    /// splitting); backings that can't split fall back to copying each tensor's range.
     pub fn get_tensors(&self) -> Result<Vec<Tensor>, Error> {
-        let descriptors: Vec<(&String, &TensorDescriptor)> = self.metadata.tensors.iter().collect();
-        let ranges = descriptors
-            .iter()
-            .map(|(name, d)| self.tensor_range(name, d))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let data = self.slice_tensors(&ranges)?;
-
-        descriptors
-            .into_iter()
-            .zip(data)
-            .map(|((name, d), bytes)| make_tensor(name, d, bytes))
-            .collect()
+        match &self.source {
+            #[cfg(feature = "std")]
+            Source::File(path) => self.file_tensors(path),
+            Source::Memory(source) => match self.split_tensors(source)? {
+                Some(tensors) => Ok(tensors),
+                None => self.copy_tensors(source),
+            },
+        }
     }
 
     /// The user-supplied key/value metadata stored alongside the tensors.
@@ -148,11 +135,18 @@ impl Reader {
             .tensors
             .get(name)
             .ok_or_else(|| Error::TensorNotFound(name.to_string()))?;
-        let range = self.tensor_range(name, descriptor)?;
-        let mut bytes = self.slice_tensors(&[range])?;
-        let bytes = bytes.pop().expect("one range yields one slice");
-        let slice: &[u8] = &bytes;
-        Ok(slice.to_vec())
+        let (start, end) = self.tensor_range(name, descriptor)?;
+
+        match &self.source {
+            #[cfg(feature = "std")]
+            Source::File(path) => {
+                let bytes =
+                    Bytes::from_file(path.to_path_buf(), (end - start) as u64, start as u64);
+                let slice: &[u8] = &bytes;
+                Ok(slice.to_vec())
+            }
+            Source::Memory(source) => Ok(memory_chunk(source, start, end)?.to_vec()),
+        }
     }
 
     /// Compute and validate the absolute `[start, end)` byte range of a tensor.
@@ -197,26 +191,77 @@ impl Reader {
         Ok((start, end))
     }
 
-    /// Produce one [`Bytes`] per requested range, in the same order as `ranges`.
-    ///
-    /// File-backed ranges are read lazily ([`Bytes::from_file`]). In-memory tensors are popped
-    /// off the source buffer with [`Bytes::split`] (no per-tensor copy when the buffer's backing
-    /// allocation supports zero-copy splitting); backings that can't split fall back to copying
-    /// each tensor's range out of the buffer.
-    fn slice_tensors(&self, ranges: &[(usize, usize)]) -> Result<Vec<Bytes>, Error> {
-        match &self.source {
-            #[cfg(feature = "std")]
-            Source::File(path) => Ok(ranges
-                .iter()
-                .map(|&(start, end)| {
-                    Bytes::from_file(path.clone(), (end - start) as u64, start as u64)
-                })
-                .collect()),
-            Source::Memory(source) => match pop_tensors(source, ranges)? {
-                Some(tensors) => Ok(tensors),
-                None => copy_tensors(source, ranges),
-            },
+    /// Back each tensor lazily with its byte range in the file ([`Bytes::from_file`]).
+    #[cfg(feature = "std")]
+    fn file_tensors(&self, path: &Path) -> Result<Vec<Tensor>, Error> {
+        let mut tensors = Vec::with_capacity(self.metadata.tensors.len());
+        for (name, descriptor) in &self.metadata.tensors {
+            let (start, end) = self.tensor_range(name, descriptor)?;
+            let bytes = Bytes::from_file(path.to_path_buf(), (end - start) as u64, start as u64);
+            tensors.push(make_tensor(name, descriptor, bytes)?);
         }
+        Ok(tensors)
+    }
+
+    /// Pop each tensor off the in-memory buffer with [`Bytes::split`] (zero-copy when the backing
+    /// supports it). Returns `Ok(None)` if the backing can't split — the caller then copies.
+    ///
+    /// Tensors are keyed (and returned) in name order, but laid out in offset order, so we visit
+    /// them by ascending offset to consume the buffer front-to-back, placing each result back at
+    /// its name-order index. The buffer is cloned up front, which is itself a copy for backings
+    /// that can't be duplicated cheaply — but those can't split either, so the first `pop` returns
+    /// `None` and the caller falls back to copying.
+    fn split_tensors(&self, source: &Bytes) -> Result<Option<Vec<Tensor>>, Error> {
+        let mut entries: Vec<(usize, &String, &TensorDescriptor, usize, usize)> =
+            Vec::with_capacity(self.metadata.tensors.len());
+        for (index, (name, descriptor)) in self.metadata.tensors.iter().enumerate() {
+            let (start, end) = self.tensor_range(name, descriptor)?;
+            entries.push((index, name, descriptor, start, end));
+        }
+        entries.sort_by_key(|&(_, _, _, start, _)| start);
+
+        let mut out: Vec<Option<Tensor>> = self.metadata.tensors.iter().map(|_| None).collect();
+        let mut buf = source.clone();
+        let mut cursor = 0usize; // absolute bytes already popped off the front
+
+        for (index, name, descriptor, start, end) in entries {
+            // Discard the gap before this tensor (header/metadata/padding, then inter-tensor
+            // padding), then split off its bytes.
+            let rest = match pop(buf, start - cursor)? {
+                Some((_, rest)) => rest,
+                None => return Ok(None),
+            };
+            let (data, rest) = match pop(rest, end - start)? {
+                Some(pair) => pair,
+                None => return Ok(None),
+            };
+            out[index] = Some(make_tensor(name, descriptor, data)?);
+            buf = rest;
+            cursor = end;
+        }
+
+        Ok(Some(
+            out.into_iter()
+                .map(|t| t.expect("every tensor is popped exactly once"))
+                .collect(),
+        ))
+    }
+
+    /// Copy each tensor's range out of the in-memory buffer (one copy per tensor).
+    ///
+    /// Fallback for backings that don't support zero-copy [`Bytes::split`].
+    fn copy_tensors(&self, source: &Bytes) -> Result<Vec<Tensor>, Error> {
+        let mut tensors = Vec::with_capacity(self.metadata.tensors.len());
+        for (name, descriptor) in &self.metadata.tensors {
+            let (start, end) = self.tensor_range(name, descriptor)?;
+            let chunk = memory_chunk(source, start, end)?;
+            tensors.push(make_tensor(
+                name,
+                descriptor,
+                Bytes::from_bytes_vec(chunk.to_vec()),
+            )?);
+        }
+        Ok(tensors)
     }
 }
 
@@ -281,64 +326,15 @@ fn validate_total_size(
     Ok(())
 }
 
-/// Pop tensors off the buffer with [`Bytes::split`] (zero-copy when the backing supports it).
-///
-/// Walks the buffer front-to-back, discarding the gap before each tensor (header/metadata/padding,
-/// then inter-tensor padding) and splitting off its bytes. `ranges` are absolute and in caller
-/// (name) order, so we pop in ascending-offset order and place each result back at its original
-/// index. Returns `Ok(None)` if the buffer's backing can't split — the caller then copies instead.
-///
-/// Note: this clones `source` up front, which is itself a copy for backings that don't support
-/// cheap (refcounted) duplication. Such backings also can't split, so this returns `None` after
-/// the clone and the caller falls back to copying; the clone becomes free once the backing
-/// supports zero-copy duplication + splitting.
-fn pop_tensors(source: &Bytes, ranges: &[(usize, usize)]) -> Result<Option<Vec<Bytes>>, Error> {
-    let mut order: Vec<usize> = (0..ranges.len()).collect();
-    order.sort_by_key(|&i| ranges[i].0);
-
-    let mut out: Vec<Option<Bytes>> = (0..ranges.len()).map(|_| None).collect();
-    let mut buf = source.clone();
-    let mut cursor = 0usize; // absolute bytes already popped off the front
-
-    for i in order {
-        let (start, end) = ranges[i];
-        let rest = match pop(buf, start - cursor)? {
-            Some((_, rest)) => rest,
-            None => return Ok(None),
-        };
-        let (tensor, rest) = match pop(rest, end - start)? {
-            Some(pair) => pair,
-            None => return Ok(None),
-        };
-        out[i] = Some(tensor);
-        buf = rest;
-        cursor = end;
-    }
-
-    Ok(Some(
-        out.into_iter()
-            .map(|b| b.expect("every tensor is popped exactly once"))
-            .collect(),
-    ))
-}
-
-/// Copy each tensor's range out of the buffer (one copy per tensor).
-///
-/// Fallback for backings that don't support zero-copy [`Bytes::split`].
-fn copy_tensors(source: &Bytes, ranges: &[(usize, usize)]) -> Result<Vec<Bytes>, Error> {
+/// Borrow a tensor's `[start, end)` range out of an in-memory buffer, bounds-checked.
+fn memory_chunk(source: &Bytes, start: usize, end: usize) -> Result<&[u8], Error> {
     let data: &[u8] = source;
-    ranges
-        .iter()
-        .map(|&(start, end)| {
-            let chunk = data.get(start..end).ok_or_else(|| {
-                Error::ValidationError(format!(
-                    "Tensor data range {start}..{end} is out of bounds (buffer is {} bytes)",
-                    data.len()
-                ))
-            })?;
-            Ok(Bytes::from_bytes_vec(chunk.to_vec()))
-        })
-        .collect()
+    data.get(start..end).ok_or_else(|| {
+        Error::ValidationError(format!(
+            "Tensor data range {start}..{end} is out of bounds (buffer is {} bytes)",
+            data.len()
+        ))
+    })
 }
 
 /// Split `n` bytes off the front of `bytes`, returning `Some((popped, remainder))`.
@@ -377,6 +373,15 @@ fn make_tensor(name: &str, descriptor: &TensorDescriptor, bytes: Bytes) -> Resul
         descriptor.param_id,
         bytes,
     ))
+}
+
+/// Where a [`Reader`] gets its tensor data from.
+enum Source {
+    /// The whole pack lives in memory.
+    Memory(Bytes),
+    /// The pack lives in a file; tensor data is read lazily via [`Bytes::from_file`].
+    #[cfg(feature = "std")]
+    File(PathBuf),
 }
 
 #[cfg(feature = "std")]

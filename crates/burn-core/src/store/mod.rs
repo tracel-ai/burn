@@ -1,12 +1,15 @@
 //! Minimal, non-generic record system for saving and loading module parameters.
 //!
-//! A [`RecordNext`] holds a module's parameters (path + [`ParamId`] + [`TensorData`]) and
+//! A [`RecordNext`](crate::store::RecordNext) holds a module's parameters (path +
+//! [`ParamId`](crate::module::ParamId) + [`TensorData`](crate::tensor::TensorData)) and
 //! serializes them with the [burnpack](burn_pack) format. It is produced and applied with the
-//! [`ModuleRecord`] extension trait ([`into_record_next`](ModuleRecord::into_record_next) /
-//! [`load_record_next`](ModuleRecord::load_record_next)).
+//! [`ModuleRecord`](crate::store::ModuleRecord) extension trait
+//! ([`into_record_next`](crate::store::ModuleRecord::into_record_next) /
+//! [`load_record_next`](crate::store::ModuleRecord::load_record_next)).
 //!
-//! This module is intentionally tiny: traversal is a straightforward [`ModuleVisitor`] /
-//! [`ModuleMapper`] keyed by parameter path, with no filtering, adapters, or lazy snapshots.
+//! This module is intentionally tiny: traversal is a straightforward
+//! [`ModuleVisitor`](crate::module::ModuleVisitor) / [`ModuleMapper`](crate::module::ModuleMapper)
+//! keyed by parameter path, with no filtering, adapters, or lazy snapshots.
 //! The richer snapshot/import tooling (filtering, key remapping, PyTorch/SafeTensors adapters,
 //! cross-framework stores) lives in the `burn-store` crate.
 //!

@@ -75,6 +75,7 @@ fn assert_matches_sample(model: &Mlp) {
     assert_eq!(b2, vec![11.0, 12.0]);
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn save_and_load_module_via_file() {
     let device = Default::default();
