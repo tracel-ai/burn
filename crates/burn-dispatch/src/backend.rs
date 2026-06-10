@@ -415,7 +415,7 @@ impl AutodiffBackend for Dispatch {
     fn inner(tensor: DispatchTensor) -> DispatchTensor {
         let DispatchTensor {
             kind,
-            checkpointing,
+            checkpointing: _,
         } = tensor;
 
         let kind = match kind {
@@ -476,7 +476,7 @@ impl AutodiffBackend for Dispatch {
         };
         DispatchTensor {
             kind,
-            checkpointing,
+            checkpointing: None,
         }
     }
 
@@ -572,6 +572,7 @@ impl AutodiffBackend for Dispatch {
             other => panic!("Distributed operations are not supported for tensor kind {other:?}"),
         };
 
+        // TODO: should use C::STRATEGY
         let checkpointing = if let Some(strategy) = checkpointing {
             Some(strategy)
         } else {

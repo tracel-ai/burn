@@ -1,15 +1,19 @@
 use crate::backends::*;
 
 #[cfg(feature = "autodiff")]
-use burn_backend::ComplexTensor;
+use burn_autodiff::checkpoint::strategy::{
+    BalancedCheckpointing, CheckpointStrategy, NoCheckpointing,
+};
 use burn_backend::{Backend, ComplexTensorBackend, DType, Shape, TensorMetadata};
-//#[cfg(feature = "complex")]
+
 
 use crate::CheckpointingStrategy;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_backend::tensor::FloatTensor;
+
+use alloc::{format, string::String};
 
 // TODO: if we reduce the different associated types for float/int/bool/quantized tensor primitives down to a single
 // `B::TensorPrimitive` we can simplify this.
@@ -181,6 +185,18 @@ impl<B: Backend + ComplexTensorBackend> BackendTensor<B> {
             BackendTensor::Complex(tensor) => B::complex_device(tensor),
         }
     }
+
+    /// Returns the tensor primitive kind name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            BackendTensor::Float(_) => "Float",
+            BackendTensor::Int(_) => "Int",
+            BackendTensor::Bool(_) => "Bool",
+            BackendTensor::Quantized(_) => "Quantized",
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(_) => "Autodiff",
+        }
+    }
 }
 
 impl<B: Backend> TensorMetadata for BackendTensor<B> {
@@ -232,13 +248,6 @@ pub struct DispatchTensor {
     /// - `None`: tensor is not tracked by autodiff
     /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
     pub checkpointing: Option<CheckpointingStrategy>,
-}
-
-impl DispatchTensor {
-    /// Returns the tensor kind primitive.
-    pub fn into_primitive(self) -> DispatchTensorKind {
-        self.kind
-    }
 }
 
 /// Internal representation of a [`DispatchTensor`].
@@ -368,3 +377,162 @@ impl TensorMetadata for DispatchTensor {
         self.kind.shape()
     }
 }
+
+impl DispatchTensorKind {
+    /// Returns the backend tensor kind name.
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            #[cfg(feature = "cpu")]
+            DispatchTensorKind::Cpu(_) => "Cpu",
+            #[cfg(feature = "cuda")]
+            DispatchTensorKind::Cuda(_) => "Cuda",
+            #[cfg(feature = "metal")]
+            DispatchTensorKind::Metal(_) => "Metal",
+            #[cfg(feature = "rocm")]
+            DispatchTensorKind::Rocm(_) => "Rocm",
+            #[cfg(feature = "vulkan")]
+            DispatchTensorKind::Vulkan(_) => "Vulkan",
+            #[cfg(feature = "wgpu")]
+            DispatchTensorKind::Wgpu(_) => "Wgpu",
+            #[cfg(feature = "webgpu")]
+            DispatchTensorKind::WebGpu(_) => "WebGpu",
+            #[cfg(any(feature = "flex", default_backend))]
+            DispatchTensorKind::Flex(_) => "Flex",
+            #[cfg(feature = "ndarray")]
+            DispatchTensorKind::NdArray(_) => "NdArray",
+            #[cfg(feature = "tch")]
+            DispatchTensorKind::LibTorch(_) => "LibTorch",
+            #[cfg(feature = "remote")]
+            DispatchTensorKind::Remote(_) => "Remote",
+            #[cfg(feature = "autodiff")]
+            DispatchTensorKind::Autodiff(_) => "Autodiff",
+        }
+    }
+}
+
+#[cfg(feature = "autodiff")]
+trait IntoCheckpointingStrategy {
+    const STRATEGY: CheckpointingStrategy;
+}
+
+#[cfg(feature = "autodiff")]
+impl IntoCheckpointingStrategy for NoCheckpointing {
+    const STRATEGY: CheckpointingStrategy = CheckpointingStrategy::None;
+}
+
+#[cfg(feature = "autodiff")]
+impl IntoCheckpointingStrategy for BalancedCheckpointing {
+    const STRATEGY: CheckpointingStrategy = CheckpointingStrategy::Balanced;
+}
+
+/// Trait to execute runtime routing conversions between the dynamic dispatch layer and specific backends.
+pub trait DispatchKindConversion<B: Backend> {
+    /// Attempts to extract a backend-specific [`BackendTensor`] wrapper from a generic, dynamically-routed [`DispatchTensor`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the dynamic routing state does not match the requested backend `B`.
+    fn try_into_backend(tensor: DispatchTensor) -> Result<BackendTensor<B>, String>;
+
+    /// Encapsulates a backend-specific tensor variant back into a globally routing [`DispatchTensor`].
+    fn from_backend(tensor: BackendTensor<B>) -> DispatchTensor;
+}
+
+macro_rules! impl_dispatch_conversion {
+    ($backend:ident, $cfg:meta) => {
+        #[cfg($cfg)]
+        impl DispatchKindConversion<$backend> for DispatchTensor {
+            fn try_into_backend(tensor: DispatchTensor) -> Result<BackendTensor<$backend>, String> {
+                match tensor.kind {
+                    DispatchTensorKind::$backend(t) => Ok(t),
+                    other => Err(format!(
+                        "Expected {} tensor, got variant: {}",
+                        stringify!($backend),
+                        other.name()
+                    )),
+                }
+            }
+
+            fn from_backend(tensor: BackendTensor<$backend>) -> DispatchTensor {
+                DispatchTensor {
+                    kind: DispatchTensorKind::$backend(tensor),
+                    checkpointing: None,
+                }
+            }
+        }
+
+        #[cfg(all($cfg, feature = "autodiff"))]
+        impl<C: CheckpointStrategy + IntoCheckpointingStrategy>
+            DispatchKindConversion<Autodiff<$backend, C>> for DispatchTensor
+        {
+            fn try_into_backend(
+                tensor: DispatchTensor,
+            ) -> Result<BackendTensor<Autodiff<$backend, C>>, String> {
+                match tensor.kind {
+                    DispatchTensorKind::Autodiff(t) => match *t {
+                        DispatchTensorKind::$backend(t) => match t {
+                            // Encode as `BackendTensor::Float` for `Autodiff<B, C>`
+                            BackendTensor::Autodiff(t) => Ok(BackendTensor::Float(t)),
+                            other => Err(format!(
+                                "Expected Autodiff {} float tensor, got Autodiff variant: {}",
+                                stringify!($backend),
+                                other.name()
+                            )),
+                        },
+                        other => Err(format!(
+                            "Expected Autodiff {} tensor, got Autodiff variant: {}",
+                            stringify!($backend),
+                            other.name()
+                        )),
+                    },
+                    other => Err(format!(
+                        "Expected Autodiff tensor, got backend: {}",
+                        other.name()
+                    )),
+                }
+            }
+
+            fn from_backend(tensor: BackendTensor<Autodiff<$backend, C>>) -> DispatchTensor {
+                // Unwrap the Autodiff backend representation back into the inner hardware representation
+                let kind = match tensor {
+                    // Inverse: Wrap the `Float` variant back into the backend's `Autodiff` primitive variant
+                    BackendTensor::Float(t) => {
+                        let ad_tensor = BackendTensor::Autodiff(t);
+                        // Wrap in the concrete backend's dispatch container
+                        let inner_dispatch = DispatchTensorKind::$backend(ad_tensor);
+                        // Re-apply the outer Autodiff dispatch wrapper
+                        DispatchTensorKind::Autodiff(Box::new(inner_dispatch))
+                    }
+
+                    // Pass-throughs for non-differentiable types
+                    BackendTensor::Int(t) => DispatchTensorKind::$backend(BackendTensor::Int(t)),
+                    BackendTensor::Bool(t) => DispatchTensorKind::$backend(BackendTensor::Bool(t)),
+                    BackendTensor::Quantized(t) => {
+                        DispatchTensorKind::$backend(BackendTensor::Quantized(t))
+                    }
+
+                    BackendTensor::Autodiff(_) => {
+                        panic!("Unexpected Autodiff variant provided to `from_backend`",)
+                    }
+                };
+
+                DispatchTensor {
+                    kind,
+                    checkpointing: Some(C::STRATEGY),
+                }
+            }
+        }
+    };
+}
+
+impl_dispatch_conversion!(Flex, any(feature = "flex", default_backend));
+impl_dispatch_conversion!(Cpu, feature = "cpu");
+impl_dispatch_conversion!(Cuda, feature = "cuda");
+impl_dispatch_conversion!(Rocm, feature = "rocm");
+impl_dispatch_conversion!(Remote, feature = "remote");
+impl_dispatch_conversion!(Metal, feature = "metal");
+impl_dispatch_conversion!(Vulkan, feature = "vulkan");
+impl_dispatch_conversion!(Wgpu, feature = "wgpu");
+impl_dispatch_conversion!(WebGpu, feature = "webgpu");
+impl_dispatch_conversion!(NdArray, feature = "ndarray");
+impl_dispatch_conversion!(LibTorch, feature = "tch");

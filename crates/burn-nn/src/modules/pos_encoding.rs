@@ -146,7 +146,7 @@ pub fn generate_sinusoids(
     assert!(d_model.is_multiple_of(2), "d_model must be even");
     assert!(
         max_timescale >= length,
-        "max_timescale must be greater than length"
+        "max_timescale must be greater than or equal to length"
     );
 
     // Calculate the increment for the logarithmic timescale

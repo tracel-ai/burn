@@ -57,8 +57,8 @@ pub trait Nms {
 impl ConnectedComponents for Tensor<2, Bool> {
     fn connected_components(self, connectivity: Connectivity) -> Tensor<2, Int> {
         let settings = self.device().settings();
-        Tensor::from_primitive(<Dispatch as BoolVisionOps>::connected_components(
-            self.into_primitive(),
+        Tensor::from_dispatch(<Dispatch as BoolVisionOps>::connected_components(
+            self.into_dispatch(),
             connectivity,
             settings.int_dtype,
         ))
@@ -72,21 +72,21 @@ impl ConnectedComponents for Tensor<2, Bool> {
         println!("Tensor::connected_components_with_stats");
         let settings = self.device().settings();
         let (labels, stats) = <Dispatch as BoolVisionOps>::connected_components_with_stats(
-            self.into_primitive(),
+            self.into_dispatch(),
             connectivity,
             options,
             settings.int_dtype,
         );
 
         let stats = ConnectedStats {
-            area: Tensor::from_primitive(stats.area),
-            left: Tensor::from_primitive(stats.left),
-            top: Tensor::from_primitive(stats.top),
-            right: Tensor::from_primitive(stats.right),
-            bottom: Tensor::from_primitive(stats.bottom),
-            max_label: Tensor::from_primitive(stats.max_label),
+            area: Tensor::from_dispatch(stats.area),
+            left: Tensor::from_dispatch(stats.left),
+            top: Tensor::from_dispatch(stats.top),
+            right: Tensor::from_dispatch(stats.right),
+            bottom: Tensor::from_dispatch(stats.bottom),
+            max_label: Tensor::from_dispatch(stats.max_label),
         };
-        (Tensor::from_primitive(labels), stats)
+        (Tensor::from_dispatch(labels), stats)
     }
 }
 
@@ -97,11 +97,11 @@ impl Morphology for Tensor<3, Float> {
         }
 
         let out = <Dispatch as FloatVisionOps>::float_erode(
-            self.into_primitive(),
-            kernel.into_primitive(),
+            self.into_dispatch(),
+            kernel.into_dispatch(),
             opts,
         );
-        Tensor::from_primitive(out)
+        Tensor::from_dispatch(out)
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
@@ -110,27 +110,27 @@ impl Morphology for Tensor<3, Float> {
         }
 
         let out = <Dispatch as FloatVisionOps>::float_dilate(
-            self.into_primitive(),
-            kernel.into_primitive(),
+            self.into_dispatch(),
+            kernel.into_dispatch(),
             opts,
         );
-        Tensor::from_primitive(out)
+        Tensor::from_dispatch(out)
     }
 }
 
 impl Morphology for Tensor<3, Int> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::from_primitive(<Dispatch as IntVisionOps>::int_erode(
-            self.into_primitive(),
-            kernel.into_primitive(),
+        Tensor::from_dispatch(<Dispatch as IntVisionOps>::int_erode(
+            self.into_dispatch(),
+            kernel.into_dispatch(),
             opts,
         ))
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::from_primitive(<Dispatch as IntVisionOps>::int_dilate(
-            self.into_primitive(),
-            kernel.into_primitive(),
+        Tensor::from_dispatch(<Dispatch as IntVisionOps>::int_dilate(
+            self.into_dispatch(),
+            kernel.into_dispatch(),
             opts,
         ))
     }
@@ -138,17 +138,17 @@ impl Morphology for Tensor<3, Int> {
 
 impl Morphology for Tensor<3, Bool> {
     fn erode(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::from_primitive(<Dispatch as BoolVisionOps>::bool_erode(
-            self.into_primitive(),
-            kernel.into_primitive(),
+        Tensor::from_dispatch(<Dispatch as BoolVisionOps>::bool_erode(
+            self.into_dispatch(),
+            kernel.into_dispatch(),
             opts,
         ))
     }
 
     fn dilate(self, kernel: Tensor<2, Bool>, opts: MorphOptions) -> Self {
-        Tensor::from_primitive(<Dispatch as BoolVisionOps>::bool_dilate(
-            self.into_primitive(),
-            kernel.into_primitive(),
+        Tensor::from_dispatch(<Dispatch as BoolVisionOps>::bool_dilate(
+            self.into_dispatch(),
+            kernel.into_dispatch(),
             opts,
         ))
     }
@@ -162,9 +162,9 @@ impl Nms for Tensor<2> {
 
         let settings = self.device().settings();
 
-        Tensor::from_primitive(<Dispatch as FloatVisionOps>::nms(
-            self.into_primitive(),
-            scores.into_primitive(),
+        Tensor::from_dispatch(<Dispatch as FloatVisionOps>::nms(
+            self.into_dispatch(),
+            scores.into_dispatch(),
             options,
             settings.int_dtype,
         ))
