@@ -1,6 +1,6 @@
 use super::{RouterChannel, RouterClient, RouterTensor, get_client};
 use alloc::{format, string::String};
-use burn_backend::{Backend, BackendTypes, DType, ExecutionError};
+use burn_backend::{Backend, BackendTypes, DType, ExecutionError, UnimplementedTensorPrimitive};
 use core::marker::PhantomData;
 
 /// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).
@@ -33,6 +33,7 @@ impl<R: RouterChannel> BackendTypes for BackendRouter<R> {
     type IntTensorPrimitive = RouterTensor<R::Client>;
     type BoolTensorPrimitive = RouterTensor<R::Client>;
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<R::Client>;
 }
 
 impl<R: RouterChannel> Backend for BackendRouter<R> {

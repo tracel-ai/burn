@@ -19,7 +19,8 @@ default = ["std"]
 doc = ["default"]
 distributed = ["std", "oneshot"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std"]
-
+ndarray = ["burn-std/ndarray"]
+tch = ["burn-std/tch"]
 tracing = ["burn-std/tracing", "cubecl/tracing"]
 
 # For DTypeUsage de/serialization

@@ -92,6 +92,9 @@ pub fn dtype_to_elem_type(dtype: DType) -> ElemType {
                 other => panic!("{other:?} doesn't support native packing"),
             },
         },
+        DType::Complex32 | DType::Complex64 => {
+            unimplemented!("Complex types are not yet supported")
+        }
     }
 }
 

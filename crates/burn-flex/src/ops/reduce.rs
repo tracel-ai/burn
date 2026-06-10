@@ -8,7 +8,9 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
+use burn_std::ComplexScalar;
 use burn_std::{Bytes, Shape, bf16, f16};
+use num_traits::Zero;
 
 use crate::strided_index::StridedIter;
 use crate::{FlexTensor, Layout};
@@ -67,6 +69,8 @@ pub fn sum(tensor: FlexTensor) -> FlexTensor {
         DType::U16 => sum_impl_widening::<u16>(&tensor),
         DType::U32 => sum_impl_widening::<u32>(&tensor),
         DType::U64 => sum_impl::<u64>(&tensor),
+        DType::Complex32 => sum_impl::<burn_std::ComplexScalar<f32>>(&tensor),
+        DType::Complex64 => sum_impl::<burn_std::ComplexScalar<f64>>(&tensor),
         _ => panic!("sum: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -270,6 +274,18 @@ pub fn sum_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::U16 => reduce_dim_widening::<u16, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::U32 => reduce_dim_widening::<u32, _>(&tensor, dim, 0, |acc, x| acc.wrapping_add(x)),
         DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 0, |acc, x| acc + x),
+        DType::Complex32 => reduce_dim_impl::<burn_std::ComplexScalar<f32>, _>(
+            &tensor,
+            dim,
+            burn_std::ComplexScalar::zero(),
+            |acc, x| acc + x,
+        ),
+        DType::Complex64 => reduce_dim_impl::<burn_std::ComplexScalar<f64>, _>(
+            &tensor,
+            dim,
+            burn_std::ComplexScalar::zero(),
+            |acc, x| acc + x,
+        ),
         _ => panic!("sum_dim: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -337,6 +353,14 @@ pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         }
         DType::U32 => scalar_div::<u32>(sum_result, dim_size as u32),
         DType::U64 => scalar_div::<u64>(sum_result, dim_size as u64),
+        DType::Complex32 => scalar_div::<burn_std::ComplexScalar<f32>>(
+            sum_result,
+            burn_std::ComplexScalar::new(dim_size as f32, 0.0),
+        ),
+        DType::Complex64 => scalar_div::<burn_std::ComplexScalar<f64>>(
+            sum_result,
+            burn_std::ComplexScalar::new(dim_size as f64, 0.0),
+        ),
         _ => panic!("mean_dim: unsupported dtype {:?}", dtype),
     }
 }
@@ -356,6 +380,8 @@ pub fn prod(tensor: FlexTensor) -> FlexTensor {
         DType::U16 => prod_impl_widening::<u16>(&tensor),
         DType::U32 => prod_impl_widening::<u32>(&tensor),
         DType::U64 => prod_impl::<u64>(&tensor),
+        DType::Complex32 => prod_impl::<burn_std::ComplexScalar<f32>>(&tensor),
+        DType::Complex64 => prod_impl::<burn_std::ComplexScalar<f64>>(&tensor),
         _ => panic!("prod: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -413,6 +439,18 @@ pub fn prod_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         DType::U16 => reduce_dim_widening::<u16, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::U32 => reduce_dim_widening::<u32, _>(&tensor, dim, 1, |acc, x| acc.wrapping_mul(x)),
         DType::U64 => reduce_dim_impl::<u64, _>(&tensor, dim, 1, |acc, x| acc * x),
+        DType::Complex32 => reduce_dim_impl::<burn_std::ComplexScalar<f32>, _>(
+            &tensor,
+            dim,
+            <burn_std::ComplexScalar<f32> as num_traits::One>::one(),
+            |acc, x| acc * x,
+        ),
+        DType::Complex64 => reduce_dim_impl::<burn_std::ComplexScalar<f64>, _>(
+            &tensor,
+            dim,
+            <burn_std::ComplexScalar<f64> as num_traits::One>::one(),
+            |acc, x| acc * x,
+        ),
         _ => panic!("prod_dim: unsupported dtype {:?}", tensor.dtype()),
     }
 }
@@ -1449,6 +1487,14 @@ pub fn mean(tensor: FlexTensor) -> FlexTensor {
     match dtype {
         DType::F32 => scalar_div::<f32>(sum_result, n as f32),
         DType::F64 => scalar_div::<f64>(sum_result, n as f64),
+        DType::Complex32 => scalar_div::<burn_std::ComplexScalar<f32>>(
+            sum_result,
+            ComplexScalar::from_real(n as f32),
+        ),
+        DType::Complex64 => scalar_div::<burn_std::ComplexScalar<f64>>(
+            sum_result,
+            ComplexScalar::from_real(n as f64),
+        ),
         _ => panic!("mean: unsupported dtype {:?}", dtype),
     }
 }

@@ -1,13 +1,51 @@
-use crate::{Backend, get_device_settings};
+use crate::{Backend, BackendTypes, get_device_settings};
 use burn_std::{DType, QuantScheme, Shape};
 
 #[derive(Debug, Clone)]
 /// A primitive tensor representation.
-pub enum TensorPrimitive<B: Backend> {
+pub enum TensorPrimitive<B: BackendTypes> {
     /// Float tensor primitive.
     Float(B::FloatTensorPrimitive),
     /// Quantized float tensor primitive.
     QFloat(B::QuantizedTensorPrimitive),
+}
+
+/// a Placeholder primitive for tensor types that are not yet supported by a backend.
+#[derive(Clone)]
+pub struct UnimplementedTensorPrimitive<E: Clone + Send + Sync + 'static> {
+    _elem: core::marker::PhantomData<E>,
+}
+
+impl<E: Clone + Send + Sync + 'static> UnimplementedTensorPrimitive<E> {
+    /// Stub method that panics with a message indicating that the given tensor type is not yet supported for the backend associated with the device.
+    pub fn device(&self) -> ! {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+
+    /// Stub to make it compatible with backend decorators
+    pub fn primitive(&self) -> ! {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+}
+
+impl<E: Clone + Send + Sync + 'static> TensorMetadata for UnimplementedTensorPrimitive<E> {
+    fn dtype(&self) -> DType {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+
+    fn shape(&self) -> Shape {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
+}
+
+impl<E: Clone + Send + Sync + 'static> core::fmt::Debug for UnimplementedTensorPrimitive<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "placeholder tensor primitive for {}",
+            core::any::type_name::<E>()
+        )
+    }
 }
 
 impl<B: Backend> TensorPrimitive<B> {
@@ -31,7 +69,7 @@ impl<B: Backend> TensorPrimitive<B> {
     }
 }
 
-impl<B: Backend> TensorMetadata for TensorPrimitive<B> {
+impl<B: BackendTypes + Clone + core::fmt::Debug> TensorMetadata for TensorPrimitive<B> {
     fn dtype(&self) -> DType {
         match self {
             TensorPrimitive::Float(tensor) => tensor.dtype(),

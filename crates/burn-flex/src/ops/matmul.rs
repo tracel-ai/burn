@@ -9,12 +9,13 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
 use burn_std::{Bytes, Shape, bf16, f16};
+use gemm::{c32, c64};
 
 use crate::{FlexTensor, Layout};
 
 /// Types that can be used with gemm-based matmul.
 /// Only implement for types that `gemm::gemm` dispatches on via TypeId (f32, f64, f16).
-trait GemmScalar: Element + bytemuck::Pod {
+trait GemmScalar: bytemuck::Pod {
     fn zero() -> Self;
     fn one() -> Self;
 }
@@ -43,6 +44,39 @@ impl GemmScalar for f16 {
     }
     fn one() -> Self {
         f16::from_f32(1.0)
+    }
+}
+
+impl GemmScalar for burn_std::ComplexScalar<f32> {
+    fn zero() -> Self {
+        burn_std::ComplexScalar {
+            real: 0.0,
+            imag: 0.0,
+        }
+    }
+    fn one() -> Self {
+        burn_std::ComplexScalar {
+            real: 1.0,
+            imag: 0.0,
+        }
+    }
+}
+
+impl GemmScalar for c64 {
+    fn zero() -> Self {
+        c64 { re: 0.0, im: 0.0 }
+    }
+    fn one() -> Self {
+        c64 { re: 1.0, im: 0.0 }
+    }
+}
+
+impl GemmScalar for c32 {
+    fn zero() -> Self {
+        c32 { re: 0.0, im: 0.0 }
+    }
+    fn one() -> Self {
+        c32 { re: 1.0, im: 0.0 }
     }
 }
 
@@ -101,6 +135,8 @@ pub fn matmul(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
         DType::F64 => matmul_gemm::<f64>(lhs, rhs),
         DType::F16 => matmul_gemm::<f16>(lhs, rhs),
         DType::BF16 => matmul_bf16(lhs, rhs),
+        DType::Complex32 => matmul_gemm_complex::<burn_std::ComplexScalar<f32>, c32>(lhs, rhs),
+        DType::Complex64 => matmul_gemm_complex::<burn_std::ComplexScalar<f64>, c64>(lhs, rhs),
         _ => panic!("matmul: unsupported dtype {:?}", lhs.dtype()),
     }
 }
@@ -232,7 +268,7 @@ fn batch_elem_offset(b: usize, broadcast_shape: &[usize], elem_strides: &[isize]
 // Generic gemm-based matmul (f32, f64, f16)
 // ============================================================================
 
-fn matmul_gemm<T: GemmScalar>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
+fn matmul_gemm<T: GemmScalar + Element>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     let lhs_rank = lhs.layout().shape().num_dims();
     let rhs_rank = rhs.layout().shape().num_dims();
 
@@ -243,8 +279,162 @@ fn matmul_gemm<T: GemmScalar>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     }
 }
 
+fn matmul_gemm_complex<T: burn_std::ComplexElement + bytemuck::Pod, G: GemmScalar>(
+    lhs: FlexTensor,
+    rhs: FlexTensor,
+) -> FlexTensor {
+    let lhs_shape = lhs.layout().shape();
+    let rhs_shape = rhs.layout().shape();
+    let lhs_rank = lhs_shape.num_dims();
+    let rhs_rank = rhs_shape.num_dims();
+
+    // These formulas hold for both 2D (rank==2) and batched (rank>2) cases.
+    let m = lhs_shape[lhs_rank - 2];
+    let k = lhs_shape[lhs_rank - 1];
+    let n = rhs_shape[rhs_rank - 1];
+
+    let (lhs_row_stride, lhs_col_stride) = get_2d_strides(lhs.layout());
+    let (rhs_row_stride, rhs_col_stride) = get_2d_strides(rhs.layout());
+
+    let lhs_data: &[T] = lhs.storage();
+    let rhs_data: &[T] = rhs.storage();
+
+    if lhs_rank == 2 && rhs_rank == 2 {
+        let lhs_ptr = unsafe { lhs_data.as_ptr().add(lhs.layout().start_offset()) };
+        let rhs_ptr = unsafe { rhs_data.as_ptr().add(rhs.layout().start_offset()) };
+
+        let out_shape = Shape::from(vec![m, n]);
+        let mut output = FlexTensor::empty(out_shape, <T>::dtype());
+        let out_data: &mut [T] = output.storage_mut();
+
+        let parallelism = get_parallelism(m, n, k);
+
+        unsafe {
+            gemm_call(
+                m,
+                n,
+                k,
+                out_data.as_mut_ptr() as *mut G,
+                1,
+                n as isize,
+                lhs_ptr as *const G,
+                lhs_col_stride,
+                lhs_row_stride,
+                rhs_ptr as *const G,
+                rhs_col_stride,
+                rhs_row_stride,
+                parallelism,
+            );
+        }
+
+        output
+    } else {
+        let lhs_batch: Vec<usize> = lhs_shape[..lhs_rank - 2].to_vec();
+        let rhs_batch: Vec<usize> = rhs_shape[..rhs_rank - 2].to_vec();
+
+        let (broadcast_shape, _, _) = broadcast_batch_dims(&lhs_batch, &rhs_batch);
+        let batch_size: usize = broadcast_shape.iter().product();
+        let broadcast_len = broadcast_shape.len();
+
+        let lhs_batch_strides =
+            broadcast_batch_elem_strides(&lhs_batch, lhs.layout().strides(), broadcast_len);
+        let rhs_batch_strides =
+            broadcast_batch_elem_strides(&rhs_batch, rhs.layout().strides(), broadcast_len);
+
+        let out_matrix_size = checked_size(m, n);
+
+        let mut out_dims = broadcast_shape.clone();
+        out_dims.push(m);
+        out_dims.push(n);
+        let out_shape = Shape::from(out_dims);
+
+        let mut output = FlexTensor::empty(out_shape, <T>::dtype());
+
+        let lhs_start = lhs.layout().start_offset() as isize;
+        let rhs_start = rhs.layout().start_offset() as isize;
+        let out_data: &mut [T] = output.storage_mut();
+
+        let per_matrix_ops = m.saturating_mul(n).saturating_mul(k);
+
+        // Closure: run gemm for one batch slice at the given pointers
+        let run_one = |out_ptr: *mut G, b: usize, parallelism: gemm::Parallelism| {
+            let lhs_off = lhs_start + batch_elem_offset(b, &broadcast_shape, &lhs_batch_strides);
+            let rhs_off = rhs_start + batch_elem_offset(b, &broadcast_shape, &rhs_batch_strides);
+            unsafe {
+                gemm_call::<G>(
+                    m,
+                    n,
+                    k,
+                    out_ptr,
+                    1,
+                    n as isize,
+                    lhs_data.as_ptr().offset(lhs_off) as *const G,
+                    lhs_col_stride,
+                    lhs_row_stride,
+                    rhs_data.as_ptr().offset(rhs_off) as *const G,
+                    rhs_col_stride,
+                    rhs_row_stride,
+                    parallelism,
+                );
+            }
+        };
+
+        // Strategy:
+        // 1. Large matrices: let gemm parallelize internally
+        // 2. Small matrices, large batch: parallelize batch loop
+        // 3. Small total work: single-threaded
+        #[cfg(feature = "rayon")]
+        {
+            let total_ops = batch_size.saturating_mul(per_matrix_ops);
+            let prefer_batch_parallel = batch_size >= 4 && total_ops >= BATCH_PARALLEL_THRESHOLD;
+
+            if per_matrix_ops >= PARALLEL_THRESHOLD && !prefer_batch_parallel {
+                let parallelism = gemm::Parallelism::Rayon(0);
+                for b in 0..batch_size {
+                    run_one(
+                        out_data[b * out_matrix_size..].as_mut_ptr() as *mut G,
+                        b,
+                        parallelism,
+                    );
+                }
+            } else if total_ops >= BATCH_PARALLEL_THRESHOLD && batch_size > 1 {
+                use rayon::prelude::*;
+
+                out_data
+                    .par_chunks_mut(out_matrix_size)
+                    .enumerate()
+                    .for_each(|(b, out_chunk)| {
+                        run_one(out_chunk.as_mut_ptr() as *mut G, b, gemm::Parallelism::None);
+                    });
+            } else {
+                for b in 0..batch_size {
+                    run_one(
+                        out_data[b * out_matrix_size..].as_mut_ptr() as *mut G,
+                        b,
+                        gemm::Parallelism::None,
+                    );
+                }
+            }
+        }
+
+        #[cfg(not(feature = "rayon"))]
+        {
+            let _ = per_matrix_ops;
+            for b in 0..batch_size {
+                run_one(
+                    out_data[b * out_matrix_size..].as_mut_ptr() as *mut G,
+                    b,
+                    gemm::Parallelism::None,
+                );
+            }
+        }
+
+        output
+    }
+}
+
 /// 2D matmul with strided support: [M, K] x [K, N] -> [M, N]
-fn matmul_2d_strided<T: GemmScalar>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
+fn matmul_2d_strided<T: GemmScalar + Element>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     let lhs_shape = lhs.layout().shape();
     let rhs_shape = rhs.layout().shape();
 
@@ -332,7 +522,7 @@ unsafe fn gemm_call<T: GemmScalar>(
 
 /// Batched matmul: [B..., M, K] x [B..., K, N] -> [B..., M, N]
 /// Supports broadcasting on batch dimensions and strided (non-contiguous) inputs.
-fn matmul_batched_gemm<T: GemmScalar>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
+fn matmul_batched_gemm<T: GemmScalar + Element>(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
     let lhs_shape = lhs.layout().shape();
     let rhs_shape = rhs.layout().shape();
     let lhs_rank = lhs_shape.num_dims();

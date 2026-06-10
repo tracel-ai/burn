@@ -50,6 +50,7 @@ cpu = ["burn-dispatch/cpu", "cubecl-cpu"]
 autodiff = ["burn-dispatch/autodiff"]
 remote = ["std", "burn-dispatch/remote"]
 server = ["remote", "burn-dispatch/remote-server"]
+#complex = []
 
 # For backend extensions
 extension = []
@@ -64,6 +65,7 @@ burn-std = { workspace = true }
 burn-backend = { workspace = true }
 burn-dispatch = { workspace = true }
 burn-backend-extension = { workspace = true, optional = true }
+bytemuck = { workspace = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

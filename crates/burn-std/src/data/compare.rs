@@ -3,7 +3,7 @@ use alloc::string::String;
 use num_traits::{Float, ToPrimitive};
 
 use super::TensorData;
-use crate::{BoolStore, DType, Element, ElementOrdered, bf16, f16};
+use crate::{BoolStore, ComplexScalar, DType, Element, ElementOrdered, bf16, f16};
 
 /// The tolerance used to compare to floating point numbers.
 ///
@@ -253,6 +253,8 @@ impl TensorData {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
             }
+            DType::Complex64 => self.assert_eq_elem::<ComplexScalar<f64>>(other),
+            DType::Complex32 => self.assert_eq_elem::<ComplexScalar<f32>>(other),
         }
     }
 

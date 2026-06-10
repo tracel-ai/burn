@@ -17,4 +17,6 @@ pub mod tensor {
     pub type BoolTensor<B> = <B as BackendTypes>::BoolTensorPrimitive;
     /// Quantized tensor primitive type used by the backend.
     pub type QuantizedTensor<B> = <B as BackendTypes>::QuantizedTensorPrimitive;
+    /// Complex tensor primitive type used by the backend.
+    pub type ComplexTensor<B> = <B as BackendTypes>::ComplexTensorPrimitive;
 }

@@ -6,7 +6,7 @@ use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
-use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
+use burn_std::{BoolDType, ComplexDType, DType, FloatDType, IntDType, TensorData};
 
 use alloc::vec::Vec;
 use enumset::{EnumSet, EnumSetType};
@@ -590,12 +590,14 @@ impl Device {
         let float_dtype = config.float_dtype.take().unwrap_or(defaults.float_dtype);
         let int_dtype = config.int_dtype.take().unwrap_or(defaults.int_dtype);
         let bool_dtype = config.bool_dtype.take().unwrap_or(defaults.bool_dtype);
+        let complex_dtype = config.complex_dtype.map(DType::from);
 
         burn_backend::set_default_dtypes::<Dispatch>(
             self.as_dispatch(),
             float_dtype,
             int_dtype,
             bool_dtype,
+            complex_dtype,
         )
     }
 
@@ -719,6 +721,8 @@ pub struct DeviceConfig {
 
     /// Default boolean data type.
     pub bool_dtype: Option<BoolDType>,
+    /// Default complex data type.
+    pub complex_dtype: Option<ComplexDType>,
     // TODO: maybe quantization, but for now we keep this as device defaults
 }
 
@@ -740,29 +744,41 @@ impl DeviceConfig {
         self.bool_dtype = Some(dtype.into());
         self
     }
+
+    /// Sets the default complex data type for tensors created on the device.
+    pub fn complex_dtype(mut self, dtype: impl Into<ComplexDType>) -> Self {
+        self.complex_dtype = Some(dtype.into());
+        self
+    }
 }
 
 impl From<FloatDType> for DeviceConfig {
     fn from(value: FloatDType) -> Self {
-        DeviceConfig::new(Some(value), None, None)
+        DeviceConfig::new(Some(value), None, None, None)
     }
 }
 
 impl From<IntDType> for DeviceConfig {
     fn from(value: IntDType) -> Self {
-        DeviceConfig::new(None, Some(value), None)
+        DeviceConfig::new(None, Some(value), None, None)
     }
 }
 
 impl From<BoolDType> for DeviceConfig {
     fn from(value: BoolDType) -> Self {
-        DeviceConfig::new(None, None, Some(value))
+        DeviceConfig::new(None, None, Some(value), None)
+    }
+}
+
+impl From<ComplexDType> for DeviceConfig {
+    fn from(value: ComplexDType) -> Self {
+        DeviceConfig::new(None, None, None, Some(value))
     }
 }
 
 impl From<(FloatDType, IntDType)> for DeviceConfig {
     fn from(value: (FloatDType, IntDType)) -> Self {
-        DeviceConfig::new(Some(value.0), Some(value.1), None)
+        DeviceConfig::new(Some(value.0), Some(value.1), None, None)
     }
 }
 

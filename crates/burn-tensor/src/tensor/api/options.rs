@@ -62,6 +62,7 @@ impl TensorCreationOptions {
                 Kind::Float => settings.float_dtype.into(),
                 Kind::Int => settings.int_dtype.into(),
                 Kind::Bool => settings.bool_dtype.into(),
+                Kind::Complex => settings.complex_dtype().into(),
             }
         })
     }
