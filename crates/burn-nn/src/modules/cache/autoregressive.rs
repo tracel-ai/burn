@@ -5,6 +5,7 @@ use super::{CacheState, TensorCache};
 use burn::tensor::Tensor;
 
 impl<const D: usize> TensorCache<D> {
+    /// TODO: remove ig
     pub fn forward_autoregressive<F>(
         &mut self,
         tensor: Tensor<3>,
@@ -33,6 +34,7 @@ impl<const D: usize> TensorCache<D> {
         tensor_new
     }
 
+    /// TODO: remove ig
     pub fn forward_full<F>(&mut self, tensor: Tensor<3>, func: F) -> Tensor<D>
     where
         F: Fn(Tensor<3>) -> Tensor<D>,
