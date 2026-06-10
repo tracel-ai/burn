@@ -22,7 +22,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         device: &DispatchDevice,
         dtype: ComplexDType,
     ) -> ComplexTensor<Self> {
-        complex_creation_op!(Complex, device, |device| B::complex_random(
+        creation_op!(Complex, device, |device| B::complex_random(
             shape,
             distribution,
             device,
@@ -38,7 +38,7 @@ impl ComplexTensorOps<Self> for Dispatch {
         tensor: ComplexTensor<Self>,
         device: &DispatchDevice,
     ) -> ComplexTensor<Self> {
-        complex_to_device!(
+        to_device!(
             Complex,
             complex,
             tensor,
@@ -245,10 +245,6 @@ impl ComplexTensorOps<Self> for Dispatch {
         unary_complex!(tensor, complex, |tensor| B::complex_cumprod(tensor, dim) => Complex)
     }
 
-    // fn complex_cast(tensor: ComplexTensor<Self>, dtype: ComplexDType) -> ComplexTensor<Self> {
-    //     unary_complex!(tensor, complex, |tensor| B::complex_cast(tensor, dtype) => Complex)
-    // }
-
     fn complex_exp(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
         unary_complex!(tensor, complex, |tensor| B::complex_exp(tensor) => Complex)
     }
@@ -281,13 +277,17 @@ impl ComplexTensorOps<Self> for Dispatch {
         unary_complex!(tensor, complex, |tensor| B::complex_cosh(tensor) => Complex)
     }
 
-    // fn complex_sinh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
-    //     unary_complex!(tensor, complex, |tensor| B::complex_sinh(tensor) => Complex)
-    // }
+    fn complex_cast(tensor: ComplexTensor<Self>, dtype: ComplexDType) -> ComplexTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_cast(tensor, dtype) => Complex)
+    }
 
-    // fn complex_tanh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
-    //     unary_complex!(tensor, complex, |tensor| B::complex_tanh(tensor) => Complex)
-    // }
+    fn complex_sinh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_sinh(tensor) => Complex)
+    }
+
+    fn complex_tanh(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_tanh(tensor) => Complex)
+    }
 
     fn complex_acos(tensor: ComplexTensor<Self>) -> ComplexTensor<Self> {
         unary_complex!(tensor, complex, |tensor| B::complex_acos(tensor) => Complex)
@@ -538,5 +538,31 @@ impl ComplexTensorOps<Self> for Dispatch {
         rhs: Scalar,
     ) -> burn_backend::ComplexTensor<Self> {
         unary_complex!(lhs, complex, |lhs| B::complex_powc_scalar(lhs, rhs) => Complex)
+    }
+
+    fn complex_recip(
+        tensor: burn_backend::ComplexTensor<Self>,
+    ) -> burn_backend::ComplexTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_recip(tensor) => Complex)
+    }
+
+    fn complex_finv(
+        tensor: burn_backend::ComplexTensor<Self>,
+    ) -> burn_backend::ComplexTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_finv(tensor) => Complex)
+    }
+
+    fn complex_into_float(
+        tensor: burn_backend::ComplexTensor<Self>,
+        dtype: burn_backend::FloatDType,
+    ) -> FloatTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_into_float(tensor, dtype) => Float)
+    }
+
+    fn complex_into_int(
+        tensor: burn_backend::ComplexTensor<Self>,
+        dtype: burn_backend::IntDType,
+    ) -> IntTensor<Self> {
+        unary_complex!(tensor, complex, |tensor| B::complex_into_int(tensor, dtype) => Int)
     }
 }

@@ -521,4 +521,105 @@ where
     ) -> crate::ComplexTensor<B> {
         panic!("{}", complex_panic_message())
     }
+
+    fn complex_recip(_tensor: crate::ComplexTensor<B>) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_cast(
+        _tensor: crate::ComplexTensor<B>,
+        _dtype: burn_std::ComplexDType,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_finv(_tensor: crate::ComplexTensor<B>) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_shape(_tensor: &crate::ComplexTensor<B>) -> burn_std::Shape {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_add_scalar(
+        _lhs: crate::ComplexTensor<B>,
+        _rhs: burn_std::Scalar,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_sub_scalar(
+        _lhs: crate::ComplexTensor<B>,
+        _rhs: burn_std::Scalar,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_mul_scalar(
+        _lhs: crate::ComplexTensor<B>,
+        _rhs: burn_std::Scalar,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_div_scalar(
+        _lhs: crate::ComplexTensor<B>,
+        _rhs: burn_std::Scalar,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_cosh(_tensor: crate::ComplexTensor<B>) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_sinh(_tensor: crate::ComplexTensor<B>) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_tanh(_tensor: crate::ComplexTensor<B>) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_gather_nd(
+        _data: crate::ComplexTensor<B>,
+        _indices: crate::tensor::IntTensor<B>,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_powi(
+        _lhs: crate::ComplexTensor<B>,
+        _rhs: crate::tensor::IntTensor<B>,
+    ) -> crate::ComplexTensor<B>
+    where
+        <B as ComplexTensorBackend>::InnerBackend:
+            super::IntTensorOps<<B as ComplexTensorBackend>::InnerBackend>,
+        // make the equality explicit at the use site
+        <<B as ComplexTensorBackend>::InnerBackend as BackendTypes>::IntTensorPrimitive:
+            From<<B>::IntTensorPrimitive>,
+    {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_powi_scalar(
+        _lhs: crate::ComplexTensor<B>,
+        _rhs: burn_std::Scalar,
+    ) -> crate::ComplexTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_into_float(
+        _tensor: crate::ComplexTensor<B>,
+        _dtype: burn_std::FloatDType,
+    ) -> crate::tensor::FloatTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
+
+    fn complex_into_int(
+        _tensor: crate::ComplexTensor<B>,
+        _dtype: burn_std::IntDType,
+    ) -> crate::tensor::IntTensor<B> {
+        panic!("{}", complex_panic_message())
+    }
 }

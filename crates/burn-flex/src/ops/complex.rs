@@ -4,10 +4,15 @@ use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{ComplexTensor, ComplexTensorBackend, Distribution};
 use burn_backend::{Element, TensorData};
 
-use burn_std::{BoolDType, ComplexDType, ComplexScalar, DType, Scalar, Slice};
+use burn_std::cast::ToElement;
+use burn_std::{
+    BoolDType, Bytes, ComplexDType, ComplexScalar, DType, FloatDType, IntDType, Scalar, Slice,
+};
+use half::{bf16, f16};
 use num_traits::ToPrimitive;
 use num_traits::{One, Zero};
 
+use crate::Layout;
 use crate::ops::binary::make_tensor;
 use crate::ops::binary::{
     binary_op_typed_convert, can_use_binary_inplace, scalar_op_typed_convert,
@@ -788,6 +793,110 @@ impl ComplexTensorOps<Flex> for Flex {
             |a: ComplexScalar<f64>, b: ComplexScalar<f64>| a.atan2(b),
         )
     }
+
+    fn complex_recip(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.recip())
+    }
+
+    fn complex_finv(tensor: ComplexTensor<Flex>) -> ComplexTensor<Flex> {
+        crate::c2c_unary_op!(tensor, |a| a.finv())
+    }
+
+    fn complex_into_float(tensor: ComplexTensor<Flex>, dtype: FloatDType) -> FloatTensor<Flex> {
+        let tensor = tensor.to_contiguous();
+        let shape = tensor.layout().shape().clone();
+        let out_dt = DType::from(dtype);
+        match dtype {
+            FloatDType::F64 => {
+                let data: Vec<f64> = crate::read_complexes!(tensor, |x| x.real());
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+            FloatDType::F32 | FloatDType::Flex32 => {
+                let data: Vec<f32> = crate::read_complexes!(tensor, |x| x.real() as f32);
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+            FloatDType::F16 => {
+                let data: Vec<f16> =
+                    crate::read_complexes!(tensor, |x| f16::from_f32(x.real() as f32));
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+            FloatDType::BF16 => {
+                let data: Vec<bf16> =
+                    crate::read_complexes!(tensor, |x| bf16::from_f32(x.real() as f32));
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }
+        }
+    }
+
+    fn complex_into_int(tensor: ComplexTensor<Flex>, dtype: IntDType) -> IntTensor<Flex> {
+        let tensor = tensor.to_contiguous();
+        let shape = tensor.layout().shape().clone();
+        let out_dt = DType::from(dtype);
+
+        macro_rules! convert {
+            ($int_ty:ty) => {{
+                let data: Vec<$int_ty> = crate::read_complexes!(tensor, |x| x.real() as $int_ty);
+                FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
+            }};
+        }
+
+        match dtype {
+            IntDType::I64 => convert!(i64),
+            IntDType::I32 => convert!(i32),
+            IntDType::I16 => convert!(i16),
+            IntDType::I8 => convert!(i8),
+            IntDType::U64 => convert!(u64),
+            IntDType::U32 => convert!(u32),
+            IntDType::U16 => convert!(u16),
+            IntDType::U8 => convert!(u8),
+        }
+    }
+
+    fn complex_cast(tensor: ComplexTensor<Flex>, dtype: ComplexDType) -> ComplexTensor<Flex> {
+        use crate::Layout;
+        use burn_std::Bytes;
+
+        let src_dtype = tensor.dtype();
+        let target_dtype = DType::from(dtype);
+
+        // No-op if already the same dtype
+        if src_dtype == target_dtype {
+            return tensor;
+        }
+
+        let tensor = tensor.to_contiguous();
+        let shape = tensor.layout().shape().clone();
+
+        // Convert to f64 intermediate, then to target
+        let f64_values: Vec<ComplexScalar<f64>> = match src_dtype {
+            DType::Complex32 => {
+                let src: &[ComplexScalar<f32>] = tensor.storage();
+                src.iter().map(|&v| v.to_complex64()).collect()
+            }
+            DType::Complex64 => {
+                let src: &[ComplexScalar<f64>] = tensor.storage();
+                src.to_vec()
+            }
+
+            _ => panic!("complex_cast: unsupported source dtype {:?}", src_dtype),
+        };
+
+        // Convert from f64 to target dtype
+        match target_dtype {
+            DType::Complex32 => {
+                let result: Vec<ComplexScalar<f32>> =
+                    f64_values.iter().map(|&v| v.to_complex32()).collect();
+                let bytes = Bytes::from_elems(result);
+                FlexTensor::new(bytes, Layout::contiguous(shape), DType::Complex32)
+            }
+            DType::Complex64 => {
+                let bytes = Bytes::from_elems(f64_values);
+                FlexTensor::new(bytes, Layout::contiguous(shape), DType::Complex64)
+            }
+
+            _ => panic!("complex_cast: unsupported target dtype {:?}", target_dtype),
+        }
+    }
 }
 
 /// Check if any element is non-zero (complex tensors).
@@ -800,6 +909,34 @@ pub fn any_complex(tensor: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
         _ => panic!("any_complex: unsupported dtype {:?}", tensor.dtype()),
     };
     bool_scalar(has_any, out_dtype)
+}
+
+#[macro_export]
+macro_rules! read_complexes {
+    ($tensor:expr, |$x:ident| $conv:expr) => {
+        match $tensor.dtype() {
+            DType::Complex32 => $tensor
+                .storage::<ComplexScalar<f32>>()
+                .iter()
+                .map(|v| {
+                    let $x = v.to_complex64();
+                    $conv
+                })
+                .collect(),
+            DType::Complex64 => $tensor
+                .storage::<ComplexScalar<f64>>()
+                .iter()
+                .map(|v| {
+                    let $x = *v;
+                    $conv
+                })
+                .collect(),
+            _ => panic!(
+                "complex conversion method: unsupported source dtype {:?}",
+                $tensor.dtype()
+            ),
+        }
+    };
 }
 
 #[macro_export]

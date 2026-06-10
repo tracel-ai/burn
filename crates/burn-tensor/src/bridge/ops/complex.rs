@@ -294,6 +294,28 @@ pub(crate) trait ComplexOps: FloatMathOps {
     /// A new tensor where each element `a + bi` is replaced by `a - bi`.
     fn conj(tensor: BridgeTensor) -> BridgeTensor;
 
+    /// Computes the reciprocal of each element, i.e., `1 / z`.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor where each element `a + bi` is replaced by `1 / (a + bi)`.
+    fn recip(tensor: BridgeTensor) -> BridgeTensor;
+
+    /// Computes the reciprocal of each element, i.e., `1 / z`.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor where each element `a + bi` is replaced by `1 / (a + bi)`.
+    fn finv(tensor: BridgeTensor) -> BridgeTensor;
+
     /// Computes the phase angle (argument) of each complex element, in radians.
     ///
     /// # Arguments
@@ -463,6 +485,14 @@ impl ComplexOps for Complex {
             real.into(),
             device.as_dispatch(),
         ))
+    }
+
+    fn recip(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(Dispatch::complex_recip(tensor.into_complex()))
+    }
+
+    fn finv(tensor: BridgeTensor) -> BridgeTensor {
+        BridgeTensor::complex(Dispatch::complex_finv(tensor.into_complex()))
     }
 }
 
@@ -638,44 +668,15 @@ impl FloatMathOps for Complex {
     }
 
     fn cosh(tensor: BridgeTensor) -> BridgeTensor {
-        let tensor = tensor.into_complex();
-        let device = Dispatch::complex_device(&tensor);
-        let dtype = tensor.dtype().into();
-        let shape = tensor.shape();
-        let two = Dispatch::complex_full(shape, Scalar::from(2.0_f32), &device, dtype);
-        let exp_z = Dispatch::complex_exp(tensor.clone());
-        let exp_neg_z = Dispatch::complex_exp(Dispatch::complex_neg(tensor));
-        BridgeTensor::complex(Dispatch::complex_div(
-            Dispatch::complex_add(exp_z, exp_neg_z),
-            two,
-        ))
+        BridgeTensor::complex(Dispatch::complex_cosh(tensor.into_complex()))
     }
 
     fn sinh(tensor: BridgeTensor) -> BridgeTensor {
-        let tensor = tensor.into_complex();
-        let device = Dispatch::complex_device(&tensor);
-        let dtype = tensor.dtype().into();
-        let shape = tensor.shape();
-        let two = Dispatch::complex_full(shape, Scalar::from(2.0_f32), &device, dtype);
-        let exp_z = Dispatch::complex_exp(tensor.clone());
-        let exp_neg_z = Dispatch::complex_exp(Dispatch::complex_neg(tensor));
-        BridgeTensor::complex(Dispatch::complex_div(
-            Dispatch::complex_sub(exp_z, exp_neg_z),
-            two,
-        ))
+        BridgeTensor::complex(Dispatch::complex_sinh(tensor.into_complex()))
     }
 
     fn tanh(tensor: BridgeTensor) -> BridgeTensor {
-        let tensor = tensor.into_complex();
-        let device = Dispatch::complex_device(&tensor);
-        let shape = tensor.shape();
-        let dtype = tensor.dtype().into();
-        let ones = Dispatch::complex_ones(shape, &device, dtype);
-        let two_z = Dispatch::complex_add(tensor.clone(), tensor);
-        let e2z = Dispatch::complex_exp(two_z);
-        let numerator = Dispatch::complex_sub(e2z.clone(), ones.clone());
-        let denominator = Dispatch::complex_add(e2z, ones);
-        BridgeTensor::complex(Dispatch::complex_div(numerator, denominator))
+        BridgeTensor::complex(Dispatch::complex_tanh(tensor.into_complex()))
     }
 
     fn acos(tensor: BridgeTensor) -> BridgeTensor {

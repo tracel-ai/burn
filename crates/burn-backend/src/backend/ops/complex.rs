@@ -1,6 +1,6 @@
 use burn_std::{
-    ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, Scalar, Shape, Slice,
-    TensorData,
+    ComplexDType, Distribution, ExecutionError, FloatDType, IndexingUpdateOp, IntDType, Scalar,
+    Shape, Slice, TensorData,
 };
 
 use crate::{
@@ -325,6 +325,28 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The complex conjugate of the tensor.
     fn complex_conj(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
+    /// Returns the reciprocal of the complex tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The reciprocal of the tensor.
+    fn complex_recip(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
+    /// Returns the reciprocal of the complex tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The reciprocal of the tensor.
+    fn complex_finv(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+
     /// Returns the real part of the complex tensor.
     ///
     /// # Arguments
@@ -346,6 +368,28 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// A float tensor containing the imaginary parts.
     fn complex_imag(tensor: ComplexTensor<B>) -> FloatTensor<B>;
+
+    /// converts the real part of the complex tensor to a float tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// A float tensor containing the real parts.
+    fn complex_into_float(tensor: ComplexTensor<B>, dtype: FloatDType) -> FloatTensor<B>;
+
+    /// converts the real part of the complex tensor to an int tensor
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// An int tensor containing the real parts.
+    fn complex_into_int(tensor: ComplexTensor<B>, dtype: IntDType) -> IntTensor<B>;
 
     /// Returns the magnitude (absolute value) of the complex tensor.
     ///
@@ -534,6 +578,58 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         let exp_neg_z = Self::complex_exp(Self::complex_neg(tensor));
         Self::complex_div(Self::complex_add(exp_z, exp_neg_z), two)
     }
+
+    /// Returns a new tensor with hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic sine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic sine values.
+    fn complex_sinh(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        let device = Self::complex_device(&tensor);
+        let two = Self::complex_full(
+            tensor.shape(),
+            Scalar::from(2.0_f32),
+            &device,
+            tensor.dtype().into(),
+        );
+        let exp_z = Self::complex_exp(tensor.clone());
+        let exp_neg_z = Self::complex_exp(Self::complex_neg(tensor));
+        Self::complex_div(Self::complex_sub(exp_z, exp_neg_z), two)
+    }
+
+    /// Returns a new tensor with hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic tangent of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
+    fn complex_tanh(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        let exp_z = Self::complex_exp(tensor.clone());
+        let exp_neg_z = Self::complex_exp(Self::complex_neg(tensor));
+        Self::complex_div(
+            Self::complex_sub(exp_z.clone(), exp_neg_z.clone()),
+            Self::complex_add(exp_z, exp_neg_z),
+        )
+    }
+
+    /// Converts a tensor to another complex point data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target complex point data type.
+    fn complex_cast(tensor: ComplexTensor<B>, dtype: ComplexDType) -> ComplexTensor<B>;
 
     /// Complex inverse sine function.
     ///

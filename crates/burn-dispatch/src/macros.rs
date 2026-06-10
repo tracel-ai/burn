@@ -328,103 +328,11 @@ macro_rules! float_to_device_arms {
     }};
 }
 
-/// Match arm generator for `complex_to_device`.
-///
-/// Similar to `to_device_arms`, but complex tensors are checked for autodiff support.
-macro_rules! complex_to_device_arms {
-    (
-        $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
-        $( [$B1:ident, $src_cfg:meta] => [ $( [$B2:ident, $dst_cfg:meta] ),+ ] );*
-    ) => {
-        match ($tensor.kind, $device) {
-            #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(kind), $crate::DispatchDevice::Autodiff(device)) => {
-                let ckp = $tensor.checkpointing;
-                complex_to_device_arms!(
-                    @autodiff
-                    *kind, &**device, ckp, $to_device;
-                    $([$B1, $src_cfg]);*
-                )
-
-            }
-            // --- Same backend to_device ---
-            $(
-                #[cfg($src_cfg)]
-                ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B1(d)) => {
-                    $crate::DispatchTensor {
-                        kind: $crate::DispatchTensorKind::$B1($crate::BackendTensor::Complex(
-                            $crate::backends::$B1::$to_device(kind.complex(), d)
-                        )),
-                        checkpointing: $tensor.checkpointing,
-                    }
-                }
-            )*
-
-            // --- Cross backend arms ---
-            // This loop generates the grid of combinations
-            $(
-                $(
-                    #[cfg(all($src_cfg, $dst_cfg))]
-                    ($crate::DispatchTensorKind::$B1(kind), $crate::DispatchDevice::$B2($device_ident)) => {
-                        type B1 = $crate::backends::$B1;
-                        type B2 = $crate::backends::$B2;
-                        let $inner = kind.complex();
-
-                        $crate::DispatchTensor {
-                            kind: $crate::DispatchTensorKind::$B2($crate::BackendTensor::Complex($body)),
-                            checkpointing: $tensor.checkpointing,
-                        }
-                    }
-                )+
-            )*
-            #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
-        }
-    };
-
-    // Autodiff(DispatchTensor)
-    (
-        @autodiff
-        $tensor:expr, $device:expr, $ckp:expr, $to_device:ident;
-        $( [$B1:ident, $src_cfg:meta] );*
-    ) => {{
-        match ($tensor, $device) {
-            // --- Same backend to_device ---
-            $(
-                #[cfg($src_cfg)]
-                ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
-                    let kind = $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new($crate::DispatchTensorKind::$B1($crate::BackendTensor::AutodiffComplex(
-                        with_autodiff_backend!($B1, $ckp, |B| {
-                            B::$to_device(tensor.autodiff_complex(), d)
-                        })
-                    ))));
-                    $crate::DispatchTensor {kind, checkpointing: $ckp}
-                }
-            )*
-            // TODO: should be possible
-            (_, _) => unimplemented!("Autodiff tensor cannot be moved between backends.")
-        }
-    }};
-}
-
 /// Handles float tensor movement between devices (that might support autodiff).
 macro_rules! float_to_device {
     ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
         backend_matrix!(
             float_to_device_arms,
-            $tensor,
-            $device,
-            $to_device,
-            |$inner, $device_ident| $body
-        )
-    };
-}
-
-/// Handles complex tensor movement between devices (that might support autodiff).
-macro_rules! complex_to_device {
-    ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
-        backend_matrix!(
-            complex_to_device_arms,
             $tensor,
             $device,
             $to_device,

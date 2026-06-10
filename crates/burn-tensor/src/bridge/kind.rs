@@ -21,9 +21,6 @@ pub struct Bool;
 /// A type-level representation of the kind of a complex tensor.
 #[derive(Clone, Debug)]
 pub struct Complex;
-// <L: Layout = InterleavedLayout>{
-//     _layout: core::marker::PhantomData<L>,
-// }
 
 mod sealed {
     pub trait Sealed {}
@@ -268,6 +265,10 @@ impl BridgeTensor {
     /// Returns `true` if this tensor is the quantized float variant.
     pub fn is_qfloat(&self) -> bool {
         matches!(self.kind(), BridgeKind::QFloat)
+    }
+    /// Returns `true` if this tensor is the complex variant.
+    pub fn is_complex(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Complex)
     }
 
     ext_fn! {

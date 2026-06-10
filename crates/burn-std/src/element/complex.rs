@@ -424,6 +424,20 @@ where
     pub fn norm(self) -> E {
         self.real.hypot(self.imag)
     }
+    /// Calculate 1/self using the generic formula for complex division.
+    pub fn recip(self) -> Self {
+        Self::one() / self
+    }
+
+    /// Returns `1/self` using floating-point operations.
+    ///
+    /// This may be more accurate than the generic `self.inv()` in cases
+    /// where `self.norm_sqr()` would overflow to ∞ or underflow to 0.
+    #[inline]
+    pub fn finv(self) -> Self {
+        let norm = Self::new(self.norm(), E::zero());
+        self.conj() / norm / norm
+    }
 
     /// Convert to polar form (r, theta), such that
     /// `self = r * exp(i * theta)`

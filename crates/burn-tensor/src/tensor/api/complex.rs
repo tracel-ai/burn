@@ -32,6 +32,38 @@ where
         Self::new(K::conj(self.primitive))
     }
 
+    /// Returns the complex reciprocal of each element.
+    ///
+    #[cfg_attr(doc, doc = r#"$\mathrm{recip}(a + bi) = \frac{1}{a + bi}$"#)]
+    #[cfg_attr(not(doc), doc = "`recip(a + bi) = 1 / (a + bi)`")]
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let device = Default::default();
+    /// let tensor = Tensor::<1, Complex>::from_parts([1.0, -2.0], [3.0, 4.0], &device);
+    /// let reciprocal = tensor.recip();
+    /// ```
+    pub fn recip(self) -> Self {
+        Self::new(K::recip(self.primitive))
+    }
+
+    /// Returns the complex finite inverse of each element.
+    ///
+    #[cfg_attr(doc, doc = r#"$\mathrm{finv}(a + bi) = \frac{1}{a + bi}$"#)]
+    #[cfg_attr(not(doc), doc = "`finv(a + bi) = 1 / (a + bi)`")]
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let device = Default::default();
+    /// let tensor = Tensor::<1, Complex>::from_parts([1.0, -2.0], [3.0, 4.0], &device);
+    /// let finite_inverse = tensor.finv();
+    /// ```
+    pub fn finv(self) -> Self {
+        Self::new(K::finv(self.primitive))
+    }
+
     /// Applies element wise power operation with a complex Tensor exponent.
     ///
     /// # Arguments

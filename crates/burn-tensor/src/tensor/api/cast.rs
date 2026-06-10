@@ -1,10 +1,11 @@
-use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
+use burn_backend::ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps, IntTensorOps};
 use burn_backend::{DType, FloatDType, IntDType};
 use burn_dispatch::Dispatch;
+use burn_std::ComplexDType;
 
 use crate::kind::Basic;
 use crate::ops::BridgeTensor;
-use crate::{Bool, Float, Int, Tensor};
+use crate::{Bool, Complex, Float, Int, Tensor};
 
 /// Trait for types that represent a valid cast target from a tensor of kind `K`.
 ///
@@ -113,6 +114,53 @@ impl<const D: usize> Cast<D, Bool> for FloatDType {
         Tensor::new(bool_cast_to_float_impl(tensor.primitive, dtype))
     }
 }
+// --- Complex input impls ---
+impl<const D: usize> Cast<D, Complex> for ComplexDType {
+    type OutputKind = Complex;
+
+    fn cast(tensor: Tensor<D, Complex>, dtype: Self) -> Tensor<D, Complex> {
+        if tensor.primitive.is_complex() {
+            let current: ComplexDType = tensor.dtype().into();
+            if current == dtype {
+                return tensor;
+            }
+            Tensor::new(complex_cast_impl(tensor.primitive, dtype))
+        } else {
+            panic!("Should be Complex primitive kind");
+        }
+    }
+}
+
+impl<const D: usize> Cast<D, Complex> for FloatDType {
+    type OutputKind = Float;
+
+    fn cast(tensor: Tensor<D, Complex>, dtype: Self) -> Tensor<D, Float> {
+        Tensor::new(complex_to_float_impl(tensor.primitive, dtype))
+    }
+}
+
+impl<const D: usize> Cast<D, Complex> for IntDType {
+    type OutputKind = Int;
+
+    fn cast(tensor: Tensor<D, Complex>, dtype: Self) -> Tensor<D, Int> {
+        Tensor::new(complex_to_int_impl(tensor.primitive, dtype))
+    }
+}
+
+/// Backward-compatible impl: only complex `DType` variants are accepted.
+///
+/// # Panics
+///
+/// Panics if `dtype` is not a complex variant (e.g., `DType::F32`).
+/// Use [`ComplexDType`] directly for cross-kind casting to complex.
+impl<const D: usize> Cast<D, Complex> for DType {
+    type OutputKind = Complex;
+
+    fn cast(tensor: Tensor<D, Complex>, dtype: Self) -> Tensor<D, Complex> {
+        let complex_dtype: ComplexDType = dtype.into();
+        <ComplexDType as Cast<D, Complex>>::cast(tensor, complex_dtype)
+    }
+}
 
 // =========================================================================
 // Non-generic implementation helpers (outlined from the generic API).
@@ -125,6 +173,20 @@ fn float_cast_impl(p: BridgeTensor, dtype: FloatDType) -> BridgeTensor {
 
 fn float_to_int_impl(p: BridgeTensor, dtype: IntDType) -> BridgeTensor {
     BridgeTensor::int(Dispatch::float_into_int(p.into_float(), dtype))
+}
+
+//TODO: float/int to complex helper methods
+
+fn complex_cast_impl(p: BridgeTensor, dtype: ComplexDType) -> BridgeTensor {
+    BridgeTensor::complex(Dispatch::complex_cast(p.into_complex(), dtype))
+}
+
+fn complex_to_float_impl(p: BridgeTensor, dtype: FloatDType) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::complex_into_float(p.into_complex(), dtype))
+}
+
+fn complex_to_int_impl(p: BridgeTensor, dtype: IntDType) -> BridgeTensor {
+    BridgeTensor::int(Dispatch::complex_into_int(p.into_complex(), dtype))
 }
 
 fn int_cast_impl(p: BridgeTensor, dtype: IntDType) -> BridgeTensor {
