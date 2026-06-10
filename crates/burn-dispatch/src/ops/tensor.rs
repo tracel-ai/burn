@@ -685,4 +685,8 @@ impl FloatTensorOps<Self> for Dispatch {
     fn float_is_inf(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_is_inf(tensor, out_dtype) => Bool)
     }
+
+    fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_hypot(lhs, rhs) => Float)
+    }
 }
