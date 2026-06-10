@@ -47,6 +47,34 @@ fn multiple_tensors_returned_sorted_by_name() {
 }
 
 #[test]
+fn tensors_with_varied_sizes_map_to_correct_names() {
+    // On-disk data order = write order (z, a, m), which differs from the name-sorted order the
+    // reader returns. The odd sizes force different alignment gaps between tensors, so this
+    // exercises the gap/offset arithmetic of the split-based "pop" loader: each tensor's bytes
+    // must still come back attached to the right name.
+    let z: Vec<f32> = (0..5).map(|i| 100.0 + i as f32).collect();
+    let a: Vec<f32> = (0..3).map(|i| i as f32).collect();
+    let m: Vec<f32> = (0..7).map(|i| 50.0 + i as f32).collect();
+
+    let packed = Writer::new(vec![
+        f32_tensor("zebra", &z, &[5], None),
+        f32_tensor("alpha", &a, &[3], None),
+        f32_tensor("mango", &m, &[7], None),
+    ])
+    .to_bytes()
+    .unwrap();
+
+    let reader = Reader::from_bytes(packed).unwrap();
+    let tensors = reader.get_tensors().unwrap();
+
+    let names: Vec<_> = tensors.iter().map(|t| t.name.clone()).collect();
+    assert_eq!(names, vec!["alpha", "mango", "zebra"]);
+    assert_eq!(read_f32(&tensors[0]), a);
+    assert_eq!(read_f32(&tensors[1]), m);
+    assert_eq!(read_f32(&tensors[2]), z);
+}
+
+#[test]
 fn user_metadata_round_trip() {
     let packed = Writer::new(vec![f32_tensor("w", &[1.0], &[1], None)])
         .with_metadata("producer", "burn-pack")

@@ -39,8 +39,10 @@ pub struct Reader {
 impl Reader {
     /// Load a pack from an in-memory [`Bytes`] buffer.
     ///
-    /// Each tensor's bytes are copied out of the buffer on [`get_tensors`](Self::get_tensors).
-    /// For large models, prefer [`from_file`](Self::from_file), which keeps tensor data lazy.
+    /// Each tensor's bytes are popped out of the buffer with [`Bytes::split`] on
+    /// [`get_tensors`](Self::get_tensors) — no per-tensor copy when the buffer's backing
+    /// allocation supports zero-copy splitting. For large models, prefer
+    /// [`from_file`](Self::from_file), which keeps tensor data lazy.
     pub fn from_bytes(bytes: Bytes) -> Result<Self, Error> {
         let header = read_header(&bytes)?;
         let metadata_end = HEADER_SIZE
@@ -106,8 +108,8 @@ impl Reader {
 
     /// Get all tensors in the pack.
     ///
-    /// File-backed tensors are read lazily on access; in-memory tensors are copied out of
-    /// the source buffer.
+    /// File-backed tensors are read lazily on access; in-memory tensors are popped out of the
+    /// source buffer with [`Bytes::split`] (no per-tensor copy when its backing supports it).
     pub fn get_tensors(&self) -> Result<Vec<Tensor>, Error> {
         let descriptors: Vec<(&String, &TensorDescriptor)> = self.metadata.tensors.iter().collect();
         let ranges = descriptors
@@ -197,8 +199,10 @@ impl Reader {
 
     /// Produce one [`Bytes`] per requested range, in the same order as `ranges`.
     ///
-    /// File-backed ranges are lazy ([`Bytes::from_file`]); in-memory ranges are copied out
-    /// of the source buffer.
+    /// File-backed ranges are read lazily ([`Bytes::from_file`]). In-memory tensors are popped
+    /// off the source buffer with [`Bytes::split`] (no per-tensor copy when the buffer's backing
+    /// allocation supports zero-copy splitting); backings that can't split fall back to copying
+    /// each tensor's range out of the buffer.
     fn slice_tensors(&self, ranges: &[(usize, usize)]) -> Result<Vec<Bytes>, Error> {
         match &self.source {
             #[cfg(feature = "std")]
@@ -208,21 +212,10 @@ impl Reader {
                     Bytes::from_file(path.clone(), (end - start) as u64, start as u64)
                 })
                 .collect()),
-            Source::Memory(source) => {
-                let data: &[u8] = source;
-                ranges
-                    .iter()
-                    .map(|&(start, end)| {
-                        let chunk = data.get(start..end).ok_or_else(|| {
-                            Error::ValidationError(format!(
-                                "Tensor data range {start}..{end} is out of bounds (buffer is {} bytes)",
-                                data.len()
-                            ))
-                        })?;
-                        Ok(Bytes::from_bytes_vec(chunk.to_vec()))
-                    })
-                    .collect()
-            }
+            Source::Memory(source) => match pop_tensors(source, ranges)? {
+                Some(tensors) => Ok(tensors),
+                None => copy_tensors(source, ranges),
+            },
         }
     }
 }
@@ -286,6 +279,81 @@ fn validate_total_size(
         )));
     }
     Ok(())
+}
+
+/// Pop tensors off the buffer with [`Bytes::split`] (zero-copy when the backing supports it).
+///
+/// Walks the buffer front-to-back, discarding the gap before each tensor (header/metadata/padding,
+/// then inter-tensor padding) and splitting off its bytes. `ranges` are absolute and in caller
+/// (name) order, so we pop in ascending-offset order and place each result back at its original
+/// index. Returns `Ok(None)` if the buffer's backing can't split — the caller then copies instead.
+///
+/// Note: this clones `source` up front, which is itself a copy for backings that don't support
+/// cheap (refcounted) duplication. Such backings also can't split, so this returns `None` after
+/// the clone and the caller falls back to copying; the clone becomes free once the backing
+/// supports zero-copy duplication + splitting.
+fn pop_tensors(source: &Bytes, ranges: &[(usize, usize)]) -> Result<Option<Vec<Bytes>>, Error> {
+    let mut order: Vec<usize> = (0..ranges.len()).collect();
+    order.sort_by_key(|&i| ranges[i].0);
+
+    let mut out: Vec<Option<Bytes>> = (0..ranges.len()).map(|_| None).collect();
+    let mut buf = source.clone();
+    let mut cursor = 0usize; // absolute bytes already popped off the front
+
+    for i in order {
+        let (start, end) = ranges[i];
+        let rest = match pop(buf, start - cursor)? {
+            Some((_, rest)) => rest,
+            None => return Ok(None),
+        };
+        let (tensor, rest) = match pop(rest, end - start)? {
+            Some(pair) => pair,
+            None => return Ok(None),
+        };
+        out[i] = Some(tensor);
+        buf = rest;
+        cursor = end;
+    }
+
+    Ok(Some(
+        out.into_iter()
+            .map(|b| b.expect("every tensor is popped exactly once"))
+            .collect(),
+    ))
+}
+
+/// Copy each tensor's range out of the buffer (one copy per tensor).
+///
+/// Fallback for backings that don't support zero-copy [`Bytes::split`].
+fn copy_tensors(source: &Bytes, ranges: &[(usize, usize)]) -> Result<Vec<Bytes>, Error> {
+    let data: &[u8] = source;
+    ranges
+        .iter()
+        .map(|&(start, end)| {
+            let chunk = data.get(start..end).ok_or_else(|| {
+                Error::ValidationError(format!(
+                    "Tensor data range {start}..{end} is out of bounds (buffer is {} bytes)",
+                    data.len()
+                ))
+            })?;
+            Ok(Bytes::from_bytes_vec(chunk.to_vec()))
+        })
+        .collect()
+}
+
+/// Split `n` bytes off the front of `bytes`, returning `Some((popped, remainder))`.
+///
+/// Bounds-checked so a corrupt/truncated pack returns a [`Error::ValidationError`] rather than
+/// panicking in the underlying split. Returns `Ok(None)` if the backing doesn't support
+/// splitting (the request was in bounds but the allocation can't be split).
+fn pop(bytes: Bytes, n: usize) -> Result<Option<(Bytes, Bytes)>, Error> {
+    if n > bytes.len() {
+        return Err(Error::ValidationError(format!(
+            "Tensor data is out of bounds: need {n} bytes but only {} remain",
+            bytes.len()
+        )));
+    }
+    Ok(bytes.split(n).ok())
 }
 
 /// Build a [`Tensor`] entry from a descriptor + its data bytes.
