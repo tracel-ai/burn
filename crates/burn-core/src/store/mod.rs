@@ -1,9 +1,9 @@
 //! Minimal, non-generic record system for saving and loading module parameters.
 //!
-//! A [`RecordNew`] holds a module's parameters (path + [`ParamId`] + [`TensorData`]) and
+//! A [`RecordNext`] holds a module's parameters (path + [`ParamId`] + [`TensorData`]) and
 //! serializes them with the [burnpack](burn_pack) format. It is produced and applied with the
-//! [`ModuleRecord`] extension trait ([`into_record_new`](ModuleRecord::into_record_new) /
-//! [`load_record_new`](ModuleRecord::load_record_new)).
+//! [`ModuleRecord`] extension trait ([`into_record_next`](ModuleRecord::into_record_next) /
+//! [`load_record_next`](ModuleRecord::load_record_next)).
 //!
 //! This module is intentionally tiny: traversal is a straightforward [`ModuleVisitor`] /
 //! [`ModuleMapper`] keyed by parameter path, with no filtering, adapters, or lazy snapshots.
@@ -23,7 +23,7 @@ use crate::tensor::{Bool, DType, Device, Int, Shape, Tensor, TensorData, kind::B
 
 use burn_pack::{Reader, Writer};
 
-/// Controls how a parameter's dtype is resolved when loading a [`RecordNew`].
+/// Controls how a parameter's dtype is resolved when loading a [`RecordNext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DTypePolicy {
     /// The module parameter adopts the record's dtype (data is loaded verbatim). Default.
@@ -35,7 +35,7 @@ pub enum DTypePolicy {
     CastToModule,
 }
 
-/// Error returned by [`RecordNew`] save/load and [`ModuleRecord`] apply operations.
+/// Error returned by [`RecordNext`] save/load and [`ModuleRecord`] apply operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecordError {
     /// An I/O or format error occurred while reading or writing the record.
@@ -73,24 +73,24 @@ struct RecordTensor {
 
 /// A non-generic record holding a module's parameters.
 ///
-/// Obtain one from a module with [`ModuleRecord::into_record_new`], then either save it
-/// ([`save`](RecordNew::save) / [`to_bytes`](RecordNew::to_bytes)) or apply it back with
-/// [`ModuleRecord::load_record_new`]. Load-time behavior is configured with the builder
+/// Obtain one from a module with [`ModuleRecord::into_record_next`], then either save it
+/// ([`save`](RecordNext::save) / [`to_bytes`](RecordNext::to_bytes)) or apply it back with
+/// [`ModuleRecord::load_record_next`]. Load-time behavior is configured with the builder
 /// methods; they are ignored when saving.
 ///
 /// The save-side dtype is intentionally not configurable: use `module.cast(dtype)` before
 /// taking the record. The record stores whatever dtype the module currently holds.
 #[derive(Clone)]
-pub struct RecordNew {
+pub struct RecordNext {
     tensors: Vec<RecordTensor>,
     dtype_policy: DTypePolicy,
     allow_partial: bool,
     validate: bool,
 }
 
-impl core::fmt::Debug for RecordNew {
+impl core::fmt::Debug for RecordNext {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("RecordNew")
+        f.debug_struct("RecordNext")
             .field("num_tensors", &self.tensors.len())
             .field("dtype_policy", &self.dtype_policy)
             .field("allow_partial", &self.allow_partial)
@@ -99,7 +99,7 @@ impl core::fmt::Debug for RecordNew {
     }
 }
 
-impl RecordNew {
+impl RecordNext {
     fn from_tensors(tensors: Vec<RecordTensor>) -> Self {
         Self {
             tensors,
@@ -127,7 +127,7 @@ impl RecordNew {
 
     /// Cast the record's data to the module parameter dtypes on load.
     ///
-    /// Sugar for [`with_dtype_policy(DTypePolicy::CastToModule)`](RecordNew::with_dtype_policy).
+    /// Sugar for [`with_dtype_policy(DTypePolicy::CastToModule)`](RecordNext::with_dtype_policy).
     pub fn cast_to_module_dtype(self) -> Self {
         self.with_dtype_policy(DTypePolicy::CastToModule)
     }
@@ -202,17 +202,17 @@ impl RecordNew {
 
 /// Extension trait adding the non-generic record API to every [`Module`].
 pub trait ModuleRecord: Module {
-    /// Collect this module's parameters into a [`RecordNew`].
-    fn into_record_new(&self) -> RecordNew {
+    /// Collect this module's parameters into a [`RecordNext`].
+    fn into_record_next(&self) -> RecordNext {
         let mut collector = Collector::default();
         self.visit(&mut collector);
-        RecordNew::from_tensors(collector.tensors)
+        RecordNext::from_tensors(collector.tensors)
     }
 
-    /// Apply a [`RecordNew`] to this module, returning the loaded module.
+    /// Apply a [`RecordNext`] to this module, returning the loaded module.
     ///
     /// Honors the record's [`DTypePolicy`], `validate`, and `allow_partial` settings.
-    fn apply_record(self, record: RecordNew) -> Result<Self, RecordError>
+    fn apply_record(self, record: RecordNext) -> Result<Self, RecordError>
     where
         Self: Sized,
     {
@@ -238,11 +238,11 @@ pub trait ModuleRecord: Module {
         Ok(module)
     }
 
-    /// Apply a [`RecordNew`] to this module, consuming and returning it.
+    /// Apply a [`RecordNext`] to this module, consuming and returning it.
     ///
     /// Panics if validation fails; use [`apply_record`](Self::apply_record) for the fallible
     /// variant.
-    fn load_record_new(self, record: RecordNew) -> Self
+    fn load_record_next(self, record: RecordNext) -> Self
     where
         Self: Sized,
     {
@@ -301,7 +301,7 @@ struct Applier {
 }
 
 impl Applier {
-    fn new(record: RecordNew) -> Self {
+    fn new(record: RecordNext) -> Self {
         let tensors = record
             .tensors
             .into_iter()
@@ -455,11 +455,11 @@ mod tests {
         let device = Default::default();
         let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
 
-        let bytes = model.into_record_new().to_bytes().unwrap();
-        let record = RecordNew::from_bytes(bytes).unwrap();
+        let bytes = model.into_record_next().to_bytes().unwrap();
+        let record = RecordNext::from_bytes(bytes).unwrap();
         assert_eq!(record.len(), 2);
 
-        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record_new(record);
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record_next(record);
         let (w, b) = weights(&loaded);
         assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(b, vec![5.0, 6.0]);
@@ -472,12 +472,12 @@ mod tests {
         let path = dir.path().join("tiny.bpk");
 
         Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device)
-            .into_record_new()
+            .into_record_next()
             .save(&path)
             .unwrap();
 
-        let record = RecordNew::load(&path).unwrap();
-        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record_new(record);
+        let record = RecordNext::load(&path).unwrap();
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record_next(record);
         let (w, b) = weights(&loaded);
         assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
         assert_eq!(b, vec![5.0, 6.0]);
@@ -487,7 +487,7 @@ mod tests {
     fn missing_tensor_requires_allow_partial() {
         let device = Default::default();
         // Tiny has weight+bias; TinyWide also expects `gamma`, which the record lacks.
-        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record_new();
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record_next();
 
         let strict = TinyWide::zeros(&device).apply_record(record.clone());
         assert!(matches!(strict, Err(RecordError::Validation(_))));
