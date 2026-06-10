@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::{collections::HashMap, grads::DistributedRegistration};
 use burn_backend::{
     Backend, TensorPrimitive,
-    distributed::{DistributedBackend, DistributedParams, TensorRef},
+    distributed::{DistributedParams, TensorRef},
 };
 use burn_std::container::TensorContainer;
 
@@ -16,7 +16,7 @@ pub(crate) struct DistributedGradientRegistration<B: Backend> {
     _b: PhantomData<B>,
 }
 
-impl<B: DistributedBackend> DistributedGradientRegistration<B> {
+impl<B: Backend> DistributedGradientRegistration<B> {
     /// Creates a new registration and immediately registers the distributed parameters
     /// with the sync server so it can coordinate gradient reductions across devices.
     pub(crate) fn new(
@@ -41,7 +41,7 @@ impl<B: DistributedBackend> DistributedGradientRegistration<B> {
     }
 }
 
-impl<B: DistributedBackend> DistributedRegistration for DistributedGradientRegistration<B> {
+impl<B: Backend> DistributedRegistration for DistributedGradientRegistration<B> {
     fn on_register(&mut self, id: &NodeId, container: &mut TensorContainer<GradID>) {
         if let Some(sharded_params) = self.sharded_parameters_map.get(id) {
             let n_required = self.n_required_map.get_mut(id).unwrap();

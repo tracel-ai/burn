@@ -1,6 +1,8 @@
 #![recursion_limit = "256"]
 
-#[cfg(feature = "ddp")]
+// Only the CUDA `launch_multi` path uses these at the top level; the remote module imports
+// them locally. Gating on both features avoids an unused-import warning for `remote,ddp`.
+#[cfg(all(feature = "ddp", feature = "cuda"))]
 use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
 use burn::{
     nn::transformer::TransformerEncoderConfig,
@@ -106,10 +108,41 @@ mod wgpu {
 
 #[cfg(feature = "remote")]
 mod remote {
-    use burn::tensor::{Device, DeviceKind};
+    use crate::ElemType;
+    #[cfg(feature = "ddp")]
+    use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
+    use burn::tensor::{Device, DeviceConfig, DeviceType, Element};
+    #[cfg(feature = "ddp")]
+    use burn::train::ExecutionStrategy;
 
+    /// Address of the `burn-remote` server to train against.
+    const ADDRESS: &str = "ws://localhost:3000";
+
+    /// List every device the remote server hosts and train across all of them.
+    #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        crate::launch_single(Device::remote("ws://localhost:3000"));
+        let mut devices = Device::enumerate(DeviceType::remote(ADDRESS));
+        devices
+            .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+            .unwrap();
+
+        crate::launch_single(devices.into_vec().pop().unwrap());
+    }
+
+    /// Same enumeration, but drive the devices with distributed data-parallel training.
+    #[cfg(feature = "ddp")]
+    pub fn run() {
+        let mut devices = Device::enumerate(DeviceType::remote(ADDRESS));
+        devices
+            .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+            .unwrap();
+
+        crate::launch(ExecutionStrategy::ddp(
+            devices.into_vec(),
+            DistributedConfig {
+                all_reduce_op: ReduceOperation::Mean,
+            },
+        ));
     }
 }
 

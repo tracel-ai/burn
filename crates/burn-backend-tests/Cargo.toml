@@ -45,7 +45,6 @@ autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
 fusion = ["burn-tensor/fusion", "burn-fusion/test-util"]
-distributed = ["std", "burn-tensor/distributed", "burn-fusion?/distributed"]
 
 # CubeCL backends
 cube = [
@@ -59,6 +58,9 @@ cube = [
 
 # Test configs
 quantization = []
+# Enables the collective (all-reduce) tests, which require a CUDA backend built with NCCL.
+# Kept separate from `cuda` so the rest of the suite can run on CUDA without NCCL.
+distributed = ["cuda"]
 
 [dependencies]
 burn-tensor = { workspace = true, features = ["autodiff"] }

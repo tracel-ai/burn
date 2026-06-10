@@ -456,7 +456,6 @@ where
                         components,
                     )
                 }
-                #[cfg(feature = "ddp")]
                 ExecutionStrategy::DistributedDataParallel { devices, context } => {
                     use crate::ddp::DdpTrainingStrategy;
 
