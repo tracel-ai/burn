@@ -398,24 +398,21 @@ mod lazy_clone {
         let data = cloned.weight_basic.to_data();
         assert_eq!(data.shape, [20, 20].into());
 
-        // Original should still be uninitialized.
-        assert!(!module.weight_basic.is_initialized());
+        data.assert_eq(&module.weight_basic.val().into_data(), true);
     }
 
     #[test]
-    fn lazy_clone_and_original_produce_independent_values() {
+    fn lazy_clone_and_original_have_same_init() {
         let device = test_device();
         let module = ModuleBasic::new(&device);
         let cloned = module.clone();
 
-        // Access clone first, then original. Both should produce valid but different
-        // tensors since each runs the random init function independently.
         let clone_data = cloned.weight_basic.to_data();
         let orig_data = module.weight_basic.to_data();
 
         assert_eq!(clone_data.shape, [20, 20].into());
         assert_eq!(orig_data.shape, [20, 20].into());
-        assert_ne!(clone_data, orig_data);
+        assert_eq!(clone_data, orig_data);
     }
 
     #[test]
@@ -428,7 +425,7 @@ mod lazy_clone {
         let shape = cloned.weight_basic.shape();
         assert_eq!(shape, [20, 20].into());
         assert!(cloned.weight_basic.is_initialized());
-        assert!(!module.weight_basic.is_initialized());
+        assert!(module.weight_basic.is_initialized());
     }
 
     #[test]
@@ -441,7 +438,7 @@ mod lazy_clone {
         // Create two uninitialized params from the same init function.
         let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
-            move |d, _| Tensor::ones([4, 4], d),
+            move |d, _| Tensor::random([4, 4], Default::default(), d),
             device,
             false,
             Shape::from([4, 4]),
@@ -452,12 +449,12 @@ mod lazy_clone {
         // Apply init_mapper on the clone to double all values.
         cloned = cloned.init_mapper(|t| t.mul_scalar(2.0));
 
-        // Original should produce ones, clone should produce twos.
-        let orig_data = param.val().to_data().to_vec::<f32>().unwrap();
-        let clone_data = cloned.val().to_data().to_vec::<f32>().unwrap();
-
-        assert!(orig_data.iter().all(|&v| (v - 1.0).abs() < 1e-6));
-        assert!(clone_data.iter().all(|&v| (v - 2.0).abs() < 1e-6));
+        // Random tensor should still have the same initialization point, but * 2.0
+        cloned
+            .val()
+            .div_scalar(2.0)
+            .into_data()
+            .assert_approx_eq::<f32>(&param.val().into_data(), Default::default());
     }
 
     #[test]
