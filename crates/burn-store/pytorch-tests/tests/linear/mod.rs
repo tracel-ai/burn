@@ -53,7 +53,7 @@ impl NetWithBias {
 mod tests {
 
     use burn::tensor::Tolerance;
-    use burn::store::ModuleSnapshot;
+    use burn_store::ModuleSnapshot;
 use burn_store::PytorchStore;
     type FT = f32;
 

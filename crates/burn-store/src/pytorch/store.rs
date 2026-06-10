@@ -1,6 +1,6 @@
 //! PyTorch store implementation for saving and loading models in PyTorch format.
 
-use burn_core::store::{
+use crate::{
     ApplyResult, ModuleSnapshot, ModuleStore, PathFilter, PyTorchToBurnAdapter, TensorSnapshot,
 };
 use crate::{KeyRemapper, map_indices_contiguous};

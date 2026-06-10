@@ -34,7 +34,7 @@
 //! supported, though full model saves (vs state_dict) may have limitations
 //! as they contain Python code references.
 
-use burn_core::store::TensorSnapshot;
+use crate::TensorSnapshot;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::record::serde::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};

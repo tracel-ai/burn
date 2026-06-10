@@ -1,15 +1,13 @@
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
 use super::applier::Applier;
 use super::apply_result::ApplyResult;
-use crate::store::collector::Collector;
-use crate::store::record::{RecordError, RecordNew};
-use crate::store::{ModuleAdapter, PathFilter, TensorSnapshot};
-use crate::module::Module;
+use crate::collector::Collector;
+use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
+use burn_core::module::Module;
 
 /// Extension trait for modules that provides tensor storage functionality.
 ///
@@ -95,19 +93,7 @@ pub trait ModuleSnapshot: Module {
         Self: Sized,
     {
         let mut applier = Applier::new(snapshots, filter, adapter, skip_enum_variants);
-        self.run_applier(&mut applier);
-        applier.into_result()
-    }
 
-    /// Run a pre-configured [`Applier`] over this module in place.
-    ///
-    /// Reads the module out, maps it with the applier, and writes the result
-    /// back without cloning the whole module.
-    #[doc(hidden)]
-    fn run_applier(&mut self, applier: &mut Applier)
-    where
-        Self: Sized,
-    {
         // Use unsafe to avoid cloning the entire module, which would double the memory usage
         // We read the module out, map it, then write it back
         // See https://github.com/tracel-ai/burn/issues/3754
@@ -116,73 +102,13 @@ pub trait ModuleSnapshot: Module {
             let module = core::ptr::read(self as *const Self);
 
             // Map the module to create a new one with updated tensors
-            let new_module = module.map(applier);
+            let new_module = module.map(&mut applier);
 
             // Write the new module back to self
             core::ptr::write(self as *mut Self, new_module);
         }
-    }
 
-    /// Collect this module's parameters into a [`RecordNew`].
-    ///
-    /// The returned record holds lazy tensor snapshots and can be saved as a
-    /// burnpack file or applied back to a module with [`load_record_new`](Self::load_record_new).
-    ///
-    /// This is the entry point for the new non-generic record system, built
-    /// alongside the legacy `crate::record` machinery.
-    fn into_record_new(&self) -> RecordNew {
-        RecordNew::from_snapshots(self.collect(None, None, false))
-    }
-
-    /// Apply a [`RecordNew`] to this module, consuming and returning it.
-    ///
-    /// Honors the record's dtype policy and filter. Panics if validation fails
-    /// (use [`apply_record`](Self::apply_record) for the fallible variant).
-    fn load_record_new(mut self, record: RecordNew) -> Self
-    where
-        Self: Sized,
-    {
-        self.apply_record(record).expect("Failed to load record");
-        self
-    }
-
-    /// Apply a [`RecordNew`] to this module in place, returning the apply result.
-    ///
-    /// Respects the record's [`DTypePolicy`](crate::store::DTypePolicy), filter,
-    /// `validate`, and `allow_partial` settings.
-    fn apply_record(&mut self, record: RecordNew) -> Result<ApplyResult, RecordError>
-    where
-        Self: Sized,
-    {
-        let RecordNew {
-            snapshots,
-            dtype_policy,
-            filter,
-            allow_partial,
-            validate,
-        } = record;
-
-        let mut applier =
-            Applier::new(snapshots, filter, None, false).with_dtype_policy(dtype_policy);
-        self.run_applier(&mut applier);
-        let result = applier.into_result();
-
-        if validate && !result.errors.is_empty() {
-            return Err(RecordError::Validation(format!(
-                "Apply errors: {:?}",
-                result.errors
-            )));
-        }
-
-        if !allow_partial && !result.missing.is_empty() {
-            let missing: Vec<String> = result.missing.iter().map(|(p, _)| p.clone()).collect();
-            return Err(RecordError::Validation(format!(
-                "Missing tensors: {:?}",
-                missing
-            )));
-        }
-
-        Ok(result)
+        applier.into_result()
     }
 
     /// Saves tensor snapshots into a [`ModuleStore`].

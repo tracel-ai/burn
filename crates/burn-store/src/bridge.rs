@@ -15,8 +15,8 @@ use alloc::vec::Vec;
 use burn_pack::{Error as PackError, Tensor as PackTensor};
 
 use super::{TensorSnapshot, TensorSnapshotError};
-use crate::module::ParamId;
-use crate::tensor::{Shape, TensorData};
+use burn_core::module::ParamId;
+use burn_core::tensor::{Shape, TensorData};
 
 /// Convert a lazy [`TensorSnapshot`] into a lazy [`PackTensor`] entry.
 pub fn snapshot_to_tensor(snapshot: &TensorSnapshot) -> PackTensor {

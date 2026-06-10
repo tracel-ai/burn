@@ -1,6 +1,6 @@
 //! SafeTensors store implementation using the official safetensors crate.
 
-use burn_core::store::{
+use crate::{
     ApplyResult, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter,
     TensorSnapshot,
 };
@@ -934,7 +934,7 @@ fn safetensors_to_snapshots_lazy(
         let data_fn = alloc::rc::Rc::new(move || {
             // Re-deserialize when needed (this is cheap, just parsing header)
             let tensors = safetensors::SafeTensors::deserialize(&data_clone).map_err(|e| {
-                burn_core::store::TensorSnapshotError::IoError(format!(
+                crate::TensorSnapshotError::IoError(format!(
                     "Failed to re-deserialize safetensors: {}",
                     e
                 ))
@@ -942,7 +942,7 @@ fn safetensors_to_snapshots_lazy(
 
             // Find our specific tensor
             let tensor = tensors.tensor(&name_clone).map_err(|e| {
-                burn_core::store::TensorSnapshotError::DataError(format!(
+                crate::TensorSnapshotError::DataError(format!(
                     "Tensor '{}' not found: {}",
                     name_clone, e
                 ))
@@ -954,7 +954,7 @@ fn safetensors_to_snapshots_lazy(
                 bytes,
                 shape: tensor.shape().into(),
                 dtype: safetensor_dtype_to_burn(tensor.dtype())
-                    .map_err(|_| burn_core::store::TensorSnapshotError::DataError("Invalid dtype".into()))?,
+                    .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
             })
         });
 
@@ -1002,10 +1002,10 @@ fn safetensors_to_snapshots_lazy_file(
         let data_fn = alloc::rc::Rc::new(move || {
             // Re-parse to get the tensor snapshot (this is cheap with mmap)
             let tensors = safetensors::SafeTensors::deserialize(&mmap_clone).map_err(|e| {
-                burn_core::store::TensorSnapshotError::IoError(format!("Failed to deserialize: {}", e))
+                crate::TensorSnapshotError::IoError(format!("Failed to deserialize: {}", e))
             })?;
             let tensor = tensors.tensor(&name_clone).map_err(|e| {
-                burn_core::store::TensorSnapshotError::DataError(format!(
+                crate::TensorSnapshotError::DataError(format!(
                     "Tensor '{}' not found: {}",
                     name_clone, e
                 ))
@@ -1016,7 +1016,7 @@ fn safetensors_to_snapshots_lazy_file(
                 bytes: burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
                 shape: tensor.shape().into(),
                 dtype: safetensor_dtype_to_burn(tensor.dtype())
-                    .map_err(|_| burn_core::store::TensorSnapshotError::DataError("Invalid dtype".into()))?,
+                    .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
             })
         });
 

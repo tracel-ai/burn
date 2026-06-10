@@ -2,10 +2,10 @@ use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
-use crate::tensor::{Bool, Int, Tensor};
+use burn_core::tensor::{Bool, Int, Tensor};
 
-use crate::store::{ModuleAdapter, PathFilter, TensorSnapshot};
-use crate::module::{ModuleVisitor, Param, ParamId};
+use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
+use burn_core::module::{ModuleVisitor, Param, ParamId};
 
 /// Collects tensor views from modules without copying data.
 ///
@@ -229,20 +229,16 @@ impl ModuleVisitor for Collector {
     }
 }
 
-// TODO(re-layering): these tests build real `burn-nn` modules, which depends on
-// burn-core and would form a dev-dependency cycle here (causing the `Linear: Module`
-// trait-unification failure). Relocate them to `burn-import` (or a dedicated test
-// crate) that can depend on both burn-core and burn-nn. Disabled in place for now.
-#[cfg(all(test, feature = "std", any()))]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
 
-    use crate as burn;
+    use burn_core as burn;
 
     use alloc::collections::BTreeMap;
     use alloc::string::String;
-    use crate::module::{Module, Param};
-    use crate::tensor::{Device, shape};
+    use burn_core::module::{Module, Param};
+    use burn_core::tensor::{Device, shape};
     use burn_nn::LinearConfig;
 
     #[test]
@@ -267,7 +263,7 @@ mod tests {
 
     #[test]
     fn root_level_parameters() {
-        use crate::module::ModuleVisitor;
+        use burn_core::module::ModuleVisitor;
 
         let device = Default::default();
 
@@ -800,7 +796,7 @@ mod tests {
         }
     }
 
-    use crate::store::traits::ModuleSnapshot;
+    use crate::traits::ModuleSnapshot;
     use burn_nn::Linear;
     use hashbrown::HashMap;
 

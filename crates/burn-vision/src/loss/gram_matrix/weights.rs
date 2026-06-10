@@ -3,7 +3,7 @@ use burn_core as burn;
 use super::vgg19::Vgg19;
 use burn::tensor::Device;
 use burn_core::network::downloader::download_file_as_bytes;
-use burn_core::store::ModuleSnapshot;
+use burn_store::ModuleSnapshot;
 use burn_store::PytorchStore;
 use std::fs::{File, create_dir_all, rename};
 use std::io::Write;

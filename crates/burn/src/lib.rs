@@ -135,12 +135,13 @@ pub mod rl {
 #[cfg(feature = "server")]
 pub use burn_core::tensor::server;
 
-/// Module snapshot tooling and the non-generic record system, plus (with the `store`
-/// feature) model storage and cross-framework import (PyTorch, SafeTensors, burnpack).
+/// The non-generic record system (always available), plus — with the `store` feature —
+/// the snapshot tooling and model storage / cross-framework import (PyTorch, SafeTensors,
+/// burnpack) from `burn-store`.
 pub mod store {
     pub use burn_core::store::*;
-    // `burn_store` re-exports the `burn_core::store` tooling too; the overlapping names
-    // resolve to the same items, so the two globs do not conflict.
+    // `burn_store` re-exports the record types from `burn_core::store`; those overlapping
+    // names resolve to the same items, so the two globs do not conflict.
     #[cfg(feature = "store")]
     pub use burn_store::*;
 }

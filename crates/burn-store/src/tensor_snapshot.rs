@@ -2,9 +2,9 @@ use alloc::rc::Rc;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use crate::module::ParamId;
-use crate::tensor::quantization::{QPARAM_ALIGN, QuantParam, params_shape};
-use crate::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
+use burn_core::module::ParamId;
+use burn_core::tensor::quantization::{QPARAM_ALIGN, QuantParam, params_shape};
+use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
 use half::f16;
 
 /// Returns the byte size of a quantization parameter type.
@@ -306,7 +306,7 @@ impl core::fmt::Debug for TensorSnapshot {
 mod tests {
     use super::*;
     use alloc::string::ToString;
-    use crate::tensor::{BoolStore, Device, shape};
+    use burn_core::tensor::{BoolStore, Device, shape};
 
     #[test]
     fn tensor_view_float() {

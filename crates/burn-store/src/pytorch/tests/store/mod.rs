@@ -3,7 +3,7 @@ use burn_core as burn;
 
 use std::path::PathBuf;
 
-use burn_core::store::ModuleStore;
+use crate::ModuleStore;
 use crate::pytorch::PytorchStore;
 use burn_core::module::Module;
 use burn_core::tensor::Tensor;
@@ -567,7 +567,7 @@ mod enum_variant_tests {
     use burn_core::tensor::Device;
 
     use super::*;
-    use burn_core::store::ModuleSnapshot;
+    use crate::ModuleSnapshot;
 
     /// Enum representing different convolution block types (similar to YOLOX architecture)
     #[derive(Module, Debug)]

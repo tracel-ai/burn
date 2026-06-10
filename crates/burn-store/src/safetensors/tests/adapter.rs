@@ -153,7 +153,7 @@ fn no_adapter_preserves_original() {
 #[test]
 #[cfg(all(feature = "std", target_has_atomic = "ptr"))]
 fn adapter_with_pytorch_import() {
-    use burn_core::store::PyTorchToBurnAdapter;
+    use crate::PyTorchToBurnAdapter;
 
     let device = Default::default();
 
@@ -193,7 +193,7 @@ fn adapter_with_pytorch_import() {
 
 #[test]
 fn half_precision_adapter_round_trip() {
-    use burn_core::store::HalfPrecisionAdapter;
+    use crate::HalfPrecisionAdapter;
     use burn_core::tensor::DType;
 
     let device = Default::default();
@@ -258,7 +258,7 @@ fn half_precision_adapter_round_trip() {
 
 #[test]
 fn half_precision_adapter_without_module() {
-    use burn_core::store::HalfPrecisionAdapter;
+    use crate::HalfPrecisionAdapter;
     use burn_core::tensor::DType;
     use burn_nn::{LayerNorm, LayerNormConfig};
 
@@ -307,7 +307,7 @@ fn half_precision_adapter_without_module() {
 
 #[test]
 fn half_precision_adapter_default_converts_layer_norm() {
-    use burn_core::store::HalfPrecisionAdapter;
+    use crate::HalfPrecisionAdapter;
     use burn_core::tensor::DType;
     use burn_nn::{LayerNorm, LayerNormConfig};
 

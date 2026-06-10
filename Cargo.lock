@@ -805,7 +805,6 @@ dependencies = [
  "serial_test",
  "spin",
  "tempfile",
- "textdistance",
  "thiserror 2.0.18",
 ]
 

@@ -7,12 +7,11 @@ use alloc::vec::Vec;
 
 use hashbrown::{HashMap, HashSet};
 
-use crate::module::{ModuleMapper, Param};
-use crate::tensor::{Bool, DType, Device, Int, Shape, Tensor};
+use burn_core::module::{ModuleMapper, Param};
+use burn_core::tensor::{Bool, Device, Int, Shape, Tensor};
 
-use crate::store::apply_result::{ApplyError, ApplyResult};
-use crate::store::record::DTypePolicy;
-use crate::store::{ModuleAdapter, PathFilter, TensorSnapshot};
+use crate::apply_result::{ApplyError, ApplyResult};
+use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 
 /// Applier that applies tensor snapshots to module parameters
 /// with proper adapter support using container type information
@@ -38,8 +37,6 @@ pub struct Applier {
     /// Skip enum variant names when matching paths
     /// When true, "feature.BaseConv.weight" will also try to match "feature.weight"
     skip_enum_variants: bool,
-    /// Policy controlling how the dtype is resolved when loading a tensor.
-    dtype_policy: DTypePolicy,
 }
 
 impl Applier {
@@ -74,19 +71,7 @@ impl Applier {
             errors: Vec::new(),
             visited_paths: HashMap::new(),
             skip_enum_variants,
-            dtype_policy: DTypePolicy::default(),
         }
-    }
-
-    /// Set the dtype policy controlling how the loaded tensor's dtype is resolved.
-    ///
-    /// - [`DTypePolicy::FromRecord`] (default): the module parameter adopts the
-    ///   record's dtype (data is loaded verbatim).
-    /// - [`DTypePolicy::CastToModule`]: the record's data is cast to the module
-    ///   parameter's current dtype before loading.
-    pub fn with_dtype_policy(mut self, policy: DTypePolicy) -> Self {
-        self.dtype_policy = policy;
-        self
     }
 
     /// Get the current path in the module hierarchy
@@ -164,17 +149,13 @@ impl Applier {
 
     /// Apply a tensor snapshot with shape validation and optional adapter transformation
     /// Returns None if snapshot not found, filtered, or validation fails
-    /// `target_dtype` is the dtype the loaded tensor should adopt:
-    /// - `None` (FromRecord): keep the record/snapshot dtype.
-    /// - `Some(dtype)` (CastToModule): cast the record data to the module's dtype.
     fn apply_tensor<const D: usize, K>(
         &mut self,
         target_device: &Device,
         target_shape: Shape,
-        target_dtype: Option<DType>,
     ) -> Option<Tensor<D, K>>
     where
-        K: crate::tensor::kind::Basic,
+        K: burn_core::tensor::kind::Basic,
     {
         let path = self.current_path();
         let container_stack_str = self.container_stack.join(".");
@@ -230,7 +211,7 @@ impl Applier {
         }
 
         // Load tensor data
-        let mut data = match snapshot.to_data() {
+        let data = match snapshot.to_data() {
             Ok(data) => data,
             Err(e) => {
                 self.errors.push(ApplyError::LoadError {
@@ -251,15 +232,8 @@ impl Applier {
             return None; // Signal caller to fall back to initialization
         }
 
-        // Resolve the dtype to load with. With `CastToModule`, cast the record's
-        // data to the module parameter's dtype; otherwise keep the record dtype.
-        let load_dtype = target_dtype.unwrap_or(snapshot.dtype);
-        if data.dtype != load_dtype {
-            data = data.convert_dtype(load_dtype);
-        }
-
         self.applied.push(path);
-        Some(Tensor::from_data(data, (target_device, load_dtype)))
+        Some(Tensor::from_data(data, (target_device, snapshot.dtype)))
     }
 }
 
@@ -288,13 +262,8 @@ impl ModuleMapper for Applier {
         let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
-        let target_dtype = match self.dtype_policy {
-            DTypePolicy::FromRecord => None,
-            DTypePolicy::CastToModule => Some(param.val().dtype()),
-        };
-
         // Try to apply snapshot with shape validation
-        match self.apply_tensor(&target_device, target_shape, target_dtype) {
+        match self.apply_tensor(&target_device, target_shape) {
             Some(tensor) => {
                 // We have a tensor to apply - load it
                 param.transform_for_load(tensor, param_id)
@@ -310,13 +279,8 @@ impl ModuleMapper for Applier {
         let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
-        let target_dtype = match self.dtype_policy {
-            DTypePolicy::FromRecord => None,
-            DTypePolicy::CastToModule => Some(param.val().dtype()),
-        };
-
         // Try to apply snapshot with shape validation
-        match self.apply_tensor(&target_device, target_shape, target_dtype) {
+        match self.apply_tensor(&target_device, target_shape) {
             Some(tensor) => {
                 // We have a tensor to apply - load it
                 param.transform_for_load(tensor, param_id)
@@ -335,13 +299,8 @@ impl ModuleMapper for Applier {
         let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
-        let target_dtype = match self.dtype_policy {
-            DTypePolicy::FromRecord => None,
-            DTypePolicy::CastToModule => Some(param.val().dtype()),
-        };
-
         // Try to apply snapshot with shape validation
-        match self.apply_tensor(&target_device, target_shape, target_dtype) {
+        match self.apply_tensor(&target_device, target_shape) {
             Some(tensor) => {
                 // We have a tensor to apply - load it
                 param.transform_for_load(tensor, param_id)
@@ -357,8 +316,8 @@ impl ModuleMapper for Applier {
 #[cfg(all(test, feature = "std", target_has_atomic = "ptr"))]
 mod tests {
     use super::*;
-    use crate::module::{ModuleMapper, Param, ParamId};
-    use crate::tensor::{DType, Tensor, TensorData};
+    use burn_core::module::{ModuleMapper, Param, ParamId};
+    use burn_core::tensor::{DType, Tensor, TensorData};
 
     #[test]
     fn root_level_parameters() {
@@ -369,14 +328,14 @@ mod tests {
         let bias = Param::<Tensor<1>>::from_data([5.0, 6.0], &device);
 
         // Create snapshots with root-level paths (single-element path, no nested modules)
-        let weight_snapshot = crate::store::TensorSnapshot::from_data(
+        let weight_snapshot = crate::TensorSnapshot::from_data(
             weight.val().to_data(),
             vec!["weight".to_string()], // root-level parameter name
             vec![],                     // no container
             ParamId::new(),
         );
 
-        let bias_snapshot = crate::store::TensorSnapshot::from_data(
+        let bias_snapshot = crate::TensorSnapshot::from_data(
             bias.val().to_data(),
             vec!["bias".to_string()], // root-level parameter name
             vec![],                   // no container
@@ -427,7 +386,7 @@ mod tests {
         assert_eq!(f64_data.dtype, DType::F64, "Test setup: data should be F64");
 
         // Create a snapshot with F64 data
-        let snapshot = crate::store::TensorSnapshot::from_data(
+        let snapshot = crate::TensorSnapshot::from_data(
             f64_data.clone(),
             vec!["weight".to_string()],
             vec![],
@@ -481,7 +440,7 @@ mod tests {
         assert_eq!(f32_data.dtype, DType::F32);
 
         // Create a snapshot with F32 data
-        let snapshot = crate::store::TensorSnapshot::from_data(
+        let snapshot = crate::TensorSnapshot::from_data(
             f32_data.clone(),
             vec!["weight".to_string()],
             vec![],
@@ -531,7 +490,7 @@ mod tests {
         );
 
         // Create a snapshot with F16 data
-        let snapshot = crate::store::TensorSnapshot::from_data(
+        let snapshot = crate::TensorSnapshot::from_data(
             f16_data.clone(),
             vec!["weight".to_string()],
             vec![],
@@ -589,7 +548,7 @@ mod tests {
         );
 
         // Create a snapshot with BF16 data
-        let snapshot = crate::store::TensorSnapshot::from_data(
+        let snapshot = crate::TensorSnapshot::from_data(
             bf16_data.clone(),
             vec!["weight".to_string()],
             vec![],

@@ -1,5 +1,5 @@
 use burn_std::network::downloader::download_file_as_bytes;
-use burn_core::store::ModuleSnapshot;
+use burn_store::ModuleSnapshot;
 use burn_store::PytorchStore;
 use std::fs::{File, create_dir_all};
 use std::io::Write;

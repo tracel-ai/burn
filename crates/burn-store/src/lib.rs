@@ -37,14 +37,31 @@
 
 extern crate alloc;
 
-// Re-export the snapshot tooling whose canonical home is [`burn_core::store`], so both
-// `crate::`-qualified paths within this crate and downstream `burn_store::` paths resolve
-// (this keeps the pre-split `burn_store` API surface for an easy migration).
-pub use burn_core::store::{
-    ApplyError, ApplyResult, Applier, BurnToPyTorchAdapter, ChainAdapter, Collector, DTypePolicy,
-    HalfPrecisionAdapter, IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter,
-    RecordError, RecordNew, PyTorchToBurnAdapter, TensorSnapshot, TensorSnapshotError,
+mod adapter;
+mod applier;
+mod apply_result;
+mod collector;
+mod filter;
+mod tensor_snapshot;
+mod traits;
+
+pub use adapter::{
+    BurnToPyTorchAdapter, ChainAdapter, HalfPrecisionAdapter, IdentityAdapter, ModuleAdapter,
+    PyTorchToBurnAdapter,
 };
+pub use applier::Applier;
+pub use apply_result::{ApplyError, ApplyResult};
+pub use collector::Collector;
+pub use filter::PathFilter;
+pub use tensor_snapshot::{TensorSnapshot, TensorSnapshotError};
+pub use traits::{ModuleSnapshot, ModuleStore};
+
+// The non-generic record system lives in `burn-core`; re-export it so `burn_store::RecordNew`
+// (and friends) resolve directly for an easy migration from the pre-split API.
+pub use burn_core::store::{DTypePolicy, ModuleRecord, RecordError, RecordNew};
+
+#[cfg(feature = "burnpack")]
+mod bridge;
 
 #[cfg(feature = "std")]
 mod keyremapper;

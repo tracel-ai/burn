@@ -10,7 +10,7 @@ pub struct Net {
 mod tests {
 
     use burn::nn::conv::Conv2dConfig;
-    use burn::store::ModuleSnapshot;
+    use burn_store::ModuleSnapshot;
 use burn_store::PytorchStore;
 
     use super::*;

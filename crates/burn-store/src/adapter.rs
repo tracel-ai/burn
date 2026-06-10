@@ -5,7 +5,7 @@
 //! - Mixed-precision storage (F32/F16 dtype casting via [`HalfPrecisionAdapter`])
 //! - Adapter chaining for composing multiple transformations
 
-use crate::store::TensorSnapshot;
+use crate::TensorSnapshot;
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -14,8 +14,8 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec;
 
-use crate::tensor::shape;
-use crate::tensor::{DType, TensorData};
+use burn_core::tensor::shape;
+use burn_core::tensor::{DType, TensorData};
 use hashbrown::HashSet;
 
 // Module type names as they appear in the container_type field
@@ -523,12 +523,9 @@ mod tests {
     use super::*;
     use alloc::rc::Rc;
     use alloc::sync::Arc;
-    use crate::tensor::{DType, Shape, TensorData};
+    use burn_core::tensor::{DType, Shape, TensorData};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    // TODO(re-layering): depends on `burn-nn` (dev-dependency cycle with burn-core).
-    // Relocate to `burn-import` or a dedicated test crate. Disabled in place for now.
-    #[cfg(any())]
     #[test]
     fn test_module_names_match_burn_nn() {
         // If these types are renamed or moved in `burn-nn`, this test will fail to compile.
@@ -569,7 +566,7 @@ mod tests {
             shape,
             path_parts,
             vec![container_type.to_string()],
-            crate::module::ParamId::new(),
+            burn_core::module::ParamId::new(),
         )
     }
 
@@ -878,7 +875,7 @@ mod tests {
             shape![2, 3],
             path_parts,
             vec![module_names::LINEAR.to_string()],
-            crate::module::ParamId::new(),
+            burn_core::module::ParamId::new(),
         );
 
         let adapted = adapter.adapt(&snapshot);
@@ -980,7 +977,7 @@ mod tests {
 
     #[test]
     fn test_half_precision_skips_non_float() {
-        use crate::tensor::quantization::QuantScheme;
+        use burn_core::tensor::quantization::QuantScheme;
 
         let adapter = HalfPrecisionAdapter::new();
 

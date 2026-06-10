@@ -10,7 +10,7 @@ use burn::{
         activation::{log_softmax, relu},
     },
 };
-use burn::store::ModuleSnapshot;
+use burn_store::ModuleSnapshot;
 use burn_store::PytorchStore;
 
 #[derive(Module, Debug)]

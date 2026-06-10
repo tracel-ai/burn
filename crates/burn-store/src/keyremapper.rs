@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 
 use regex::{self, Regex};
 
-use burn_core::store::TensorSnapshot;
+use crate::TensorSnapshot;
 
 /// Key remapper for transforming tensor names.
 ///

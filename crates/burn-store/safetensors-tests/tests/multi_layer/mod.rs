@@ -41,7 +41,7 @@ impl Net {
 #[cfg(test)]
 mod tests {
     use burn::tensor::Tolerance;
-    use burn::store::{ModuleSnapshot, PyTorchToBurnAdapter};
+    use burn_store::{ModuleSnapshot, PyTorchToBurnAdapter};
 use burn_store::SafetensorsStore;
 
     use super::*;

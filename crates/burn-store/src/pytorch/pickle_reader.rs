@@ -10,7 +10,7 @@
 //! - Extended PyTorch version compatibility (0.1.10 - 2.x)
 //! - Better separation of pickle parsing and tensor extraction
 //! - Support for both legacy and modern PyTorch formats
-use burn_core::store::TensorSnapshot;
+use crate::TensorSnapshot;
 use crate::pytorch::lazy_data::LazyDataSource;
 use alloc::rc::Rc;
 use alloc::string::{String, ToString};
@@ -770,7 +770,7 @@ fn rebuild_tensor_impl(
                     }
                     _ => {
                         // For any remaining unsupported types, return an error
-                        Err(burn_core::store::TensorSnapshotError::DataError(format!(
+                        Err(crate::TensorSnapshotError::DataError(format!(
                             "Unsupported dtype for tensor data reading: {:?}",
                             dtype
                         )))
@@ -834,7 +834,7 @@ fn rebuild_tensor_impl(
                     )),
                     _ => {
                         // For any remaining unsupported types, return an error
-                        Err(burn_core::store::TensorSnapshotError::DataError(format!(
+                        Err(crate::TensorSnapshotError::DataError(format!(
                             "Unsupported dtype for tensor data reading: {:?}",
                             dtype
                         )))

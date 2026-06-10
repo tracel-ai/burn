@@ -3,10 +3,8 @@ use std::path::PathBuf;
 
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
-use burn_core::store::bridge;
-use burn_core::store::{
-    IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot,
-};
+use crate::bridge;
+use crate::{IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot};
 use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
@@ -452,7 +450,7 @@ impl ModuleStore for BurnpackStore {
     fn apply_to<M: ModuleSnapshot>(
         &mut self,
         module: &mut M,
-    ) -> Result<burn_core::store::ApplyResult, Self::Error> {
+    ) -> Result<crate::ApplyResult, Self::Error> {
         // Get all snapshots using the cached method
         let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
 

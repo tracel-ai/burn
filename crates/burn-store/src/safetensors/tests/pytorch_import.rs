@@ -55,7 +55,7 @@ fn multi_layer_model_import() {
     // PyTorch stores as [out_features, in_features], Burn as [in_features, out_features]
     // Also, tensor names may differ (e.g., PyTorch uses different names for BatchNorm params)
     let mut store = SafetensorsStore::from_file(safetensors_path)
-        .with_from_adapter(burn_core::store::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
+        .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::new(&device);
 
@@ -95,7 +95,7 @@ fn safetensors_round_trip_with_pytorch_model() {
 
     // Load the model from PyTorch safetensors
     let mut load_store = SafetensorsStore::from_file(safetensors_path)
-        .with_from_adapter(burn_core::store::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
+        .with_from_adapter(crate::PyTorchToBurnAdapter) // Use adapter to handle PyTorch format
         .allow_partial(true); // Allow partial loading due to naming differences
     let mut model = Net::new(&device);
     let load_result = model.load_from(&mut load_store).unwrap();
