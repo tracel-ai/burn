@@ -120,26 +120,27 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn gen_map_zip(&self) -> TokenStream {
-        // let enum_name = self.name.to_string();
-        // let container_type = format!("Enum:{}", enum_name);
-        // // TODO: Finish this with a gen_variants_match_zip or smtg.
-        // let match_body = self.gen_variants_match_fn(|variant| {
-        //     let variant_str = variant.to_string();
-        //     quote! {
-        //         {
-        //             mapper.enter_module(#variant_str, #container_type);
-        //             let result = burn::module::Module::map_zip(module, mapper);
-        //             mapper.exit_module(#variant_str, #container_type);
-        //             Self::#variant(result)
-        //         }
-        //     }
-        // });
+        let enum_name = self.name.to_string();
+        let container_type = format!("Enum:{}", enum_name);
+        let match_body = self.gen_variants_match_fn(|variant| {
+            let variant_str = variant.to_string();
+            quote! {
+                {
+                    mapper.enter_module(#variant_str, #container_type);
+                    let other = match other {
+                        Self::#variant(other_module) => other_module,
+                        _ => unreachable!(),
+                    };
+                    let result = burn::module::Module::map_zip(module, other, mapper);
+                    mapper.exit_module(#variant_str, #container_type);
+                    Self::#variant(result)
+                }
+            }
+        });
 
-        // TODO:
         quote! {
             fn map_zip<Mapper: burn::module::ModuleZipMapper>(self, other: Self, mapper: &mut Mapper) -> Self {
-                unimplemented!("Unimplemented for struct enum modules.")
-                // #match_body
+                #match_body
             }
         }
     }

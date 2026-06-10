@@ -92,11 +92,16 @@ enum LrSchedulerConfig {
     Noam(NoamLrSchedulerConfig),
 }
 
+/// An enum for the different schedulers.
 #[derive(Clone)]
-enum LrSchedulerItem {
+pub enum LrSchedulerItem {
+    /// A [LinearLrScheduler].
     Linear(LinearLrScheduler),
+    /// A [CosineAnnealingLrScheduler].
     Cosine(CosineAnnealingLrScheduler),
+    /// An [ExponentialLrScheduler].
     Exponential(ExponentialLrScheduler),
+    /// A [NoamLrScheduler].
     Noam(NoamLrScheduler),
 }
 
