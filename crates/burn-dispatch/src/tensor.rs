@@ -345,6 +345,7 @@ impl DispatchTensorKind {
     }
 }
 
+#[cfg(feature = "autodiff")]
 trait IntoCheckpointingStrategy {
     const STRATEGY: CheckpointingStrategy;
 }
