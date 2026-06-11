@@ -537,9 +537,14 @@ macro_rules! reshape {
     ) => {{
         let dim = $crate::to_typed_dims!($n, $shape, justdim);
         let array = match $array.is_standard_layout() {
+            // Move the array into the new shape rather than going through
+            // `to_shape`: the latter returns a borrowed view here, which
+            // `into_shared` then clones, copying the buffer on every reshape.
+            // Moving rewrites the dimensions in place, and the buffer stays
+            // shared for copy-on-write like in any other operation.
             true => {
-                match $array.to_shape(dim) {
-                    Ok(val) => val.into_shared(),
+                match $array.into_shape_with_order(dim) {
+                    Ok(val) => val,
                     Err(err) => {
                         core::panic!("Shape should be compatible shape={dim:?}: {err:?}");
                     }
