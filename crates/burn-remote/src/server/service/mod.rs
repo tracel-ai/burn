@@ -21,4 +21,4 @@ mod policy;
 mod submit;
 
 pub(crate) use fetch::{FetchHandler, FetchSender, FetchService};
-pub(crate) use submit::{SubmitHandler, SubmitService, TaskForwarder};
+pub(crate) use submit::{BlockingForward, SubmitHandler, SubmitService, TaskForwarder};

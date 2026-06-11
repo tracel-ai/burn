@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use super::submit::{SubmitService, TaskForwarder};
+use super::submit::{SubmitService, TaskForwarder, is_sync_point};
 use crate::shared::{RemoteMessage, SessionId, Task};
 
 pub(super) struct SubmitPolicy<S> {
@@ -56,7 +56,14 @@ impl<S: SubmitService> SubmitPolicy<S> {
                     .await,
             );
         }
-        (self.state.forwarder.as_ref().unwrap())(task);
+        let forwarder = self.state.forwarder.as_ref().unwrap();
+        // Sync points (reads/sync/dtype and the two transfer halves) are carried to completion now;
+        // everything else rides the runner's batch, preserving the device handle's batching.
+        if is_sync_point(&task) {
+            forwarder.submit_blocking(task).await;
+        } else {
+            forwarder.submit(task);
+        }
     }
 
     /// Tear the session down once the submit loop ends. The worker, runner, and result queue are
@@ -178,8 +185,15 @@ mod tests {
             _session_id: SessionId,
             _device_index: u32,
         ) -> TaskForwarder {
-            let sink = self.forwarded.clone();
-            Box::new(move |task| sink.lock().unwrap().push(task))
+            let submit_sink = self.forwarded.clone();
+            let blocking_sink = self.forwarded.clone();
+            TaskForwarder::new(
+                move |task| submit_sink.lock().unwrap().push(task),
+                move |task| {
+                    let sink = blocking_sink.clone();
+                    Box::pin(async move { sink.lock().unwrap().push(task) }) as _
+                },
+            )
         }
 
         async fn close(&self, session_id: SessionId) {
@@ -193,7 +207,7 @@ mod tests {
     fn decide_init_binds_session_and_resets_forwarder() {
         let mut state = SubmitState::default();
         // A forwarder left over from a previous binding must be dropped on rebind.
-        state.forwarder = Some(Box::new(|_| {}));
+        state.forwarder = Some(TaskForwarder::new(|_| {}, |_| Box::pin(async {})));
 
         let id = SessionId::new();
         let action = state.decide(RemoteMessage::Init(id, 5));

@@ -32,13 +32,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use burn_backend::tensor::Device;
-use burn_backend::{DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle};
+use burn_backend::{DeviceId, DeviceService, DeviceServiceStage, ServerUtilitiesHandle, TensorData};
 use burn_communication::{Protocol, external_comm::ExternalCommService};
-use burn_ir::BackendIr;
+use burn_ir::{BackendIr, HandleKind, TensorId, TensorIr};
 use burn_router::{RouterClient, TensorInterpreter};
+use burn_std::id::StreamId;
 use tokio::runtime::Handle;
 
-use crate::server::local_comm::LocalCommService;
 use crate::server::service::FetchSender;
 use crate::shared::{SessionId, Task, TaskResponseContent};
 
@@ -56,11 +56,11 @@ struct SessionState<B: BackendIr> {
 /// — because it needs the tokio [`Handle`] and the comm services, which `init` can't provide.
 pub(crate) struct ServerDeviceService<B: BackendIr, P: Protocol> {
     device: Device<B>,
-    /// Runtime used to drive the async parts of a task: `block_on` for the blocking transfers and
-    /// `spawn` for detached readbacks and fetch-channel sends.
+    /// Runtime used to `spawn` the async parts of a task (detached readbacks, cross-server
+    /// hand-offs, fetch-channel sends). The runner itself never blocks on it — the blocking transfer
+    /// halves are resolved off the runner, in the submit forwarder.
     runtime: Handle,
     external_comm: Arc<ExternalCommService<B, P>>,
-    local_comm: Arc<LocalCommService<B>>,
     sessions: HashMap<SessionId, SessionState<B>>,
 }
 
@@ -69,13 +69,11 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
         device: Device<B>,
         runtime: Handle,
         external_comm: Arc<ExternalCommService<B, P>>,
-        local_comm: Arc<LocalCommService<B>>,
     ) -> Self {
         Self {
             device,
             runtime,
             external_comm,
-            local_comm,
             sessions: HashMap::new(),
         }
     }
@@ -93,11 +91,13 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
         );
     }
 
-    /// Tear a session down: flush and drop its interpreter (freeing its tensors), hand freed memory
-    /// back to the allocator, and reclaim any same-host transfers it left exposed.
+    /// Tear a session down: flush and drop its interpreter (freeing its tensors) and hand freed
+    /// memory back to the allocator.
     ///
     /// Mirrors the old per-session worker's close path: dropping `SessionState` drops the session's
-    /// [`FetchSender`], which closes the fetch writer's channel and ends it.
+    /// [`FetchSender`], which closes the fetch writer's channel and ends it. Reclaiming any same-host
+    /// transfers the session left exposed is done by the caller (`close`) off the runner, so this
+    /// stays a non-blocking runner task.
     pub(crate) fn remove_session(&mut self, session_id: SessionId) {
         if let Some(SessionState {
             interpreter: runner,
@@ -120,24 +120,80 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
             drop(runner);
             B::memory_cleanup(&device);
         }
+    }
 
-        // Reclaim any same-host transfers this session exposed that no target ever took.
-        let local_comm = self.local_comm.clone();
-        self.runtime
-            .block_on(async move { local_comm.purge_session(session_id).await });
+    /// Finish a same-host transfer: move the source's already-resolved primitive `kind` onto this
+    /// session's device and register it under `new_id`.
+    ///
+    /// The blocking half — waiting on the [`local_comm`](LocalCommService) rendezvous — happens off
+    /// the runner, in the submit forwarder; by the time this runs the primitive is in hand, so the
+    /// runner only does the (non-blocking) device move. Ordered, like every task, after the ops the
+    /// forwarder submitted before it.
+    pub(crate) fn register_local(
+        &mut self,
+        session_id: SessionId,
+        stream_id: StreamId,
+        new_id: TensorId,
+        kind: HandleKind<B>,
+    ) {
+        let Some(state) = self.sessions.get_mut(&session_id) else {
+            log::error!("RegisterTensorLocal for unknown session {session_id} dropped");
+            return;
+        };
+        stream_id.executes(|| state.interpreter.register_tensor_to_device(new_id, kind));
+    }
+
+    /// Source side of a same-host transfer: grab the device-resident primitive for `tensor` (no
+    /// host readback). Returns `None` if the session is gone.
+    ///
+    /// Only this device-touching half runs on the runner; the forwarder then parks the primitive in
+    /// the [`local_comm`](LocalCommService) rendezvous *off* the runner, so the runner doesn't block
+    /// on the (async) registry insert. Ordered, like every task, after the op that produced
+    /// `tensor`, so the handle is present.
+    pub(crate) fn get_tensor(
+        &self,
+        session_id: SessionId,
+        stream_id: StreamId,
+        tensor: TensorIr,
+    ) -> Option<HandleKind<B>> {
+        let state = self.sessions.get(&session_id)?;
+        Some(stream_id.executes(|| state.interpreter.get_tensor(&tensor)))
+    }
+
+    /// Finish a cross-server transfer: register the already-downloaded `data` under `new_id`.
+    ///
+    /// As with [`register_local`](Self::register_local), the blocking half — the cross-server
+    /// download — happens off the runner in the submit forwarder, so the runner only does the
+    /// (non-blocking) registration on the client stream that will consume `new_id`.
+    pub(crate) fn register_remote(
+        &mut self,
+        session_id: SessionId,
+        stream_id: StreamId,
+        new_id: TensorId,
+        data: TensorData,
+    ) {
+        let Some(state) = self.sessions.get_mut(&session_id) else {
+            log::error!("RegisterTensorRemote for unknown session {session_id} dropped");
+            return;
+        };
+        stream_id.executes(|| state.interpreter.register_tensor_data_id(new_id, data));
     }
 
     /// Execute a single [`Task`] against `session_id`'s state.
     ///
-    /// Runs on the device's runner thread. Sync work is wrapped in
+    /// Runs on the device's runner thread, and **never blocks it**: sync work is wrapped in
     /// [`StreamId::executes`](burn_std::id::StreamId::executes) so the runner's thread-local stream
-    /// id matches the one the client assigned to the op. Blocking transfers are driven with
-    /// `block_on`; detached readbacks and fetch-channel sends are spawned onto the runtime.
+    /// id matches the one the client assigned to the op, and the only async work — detached
+    /// readbacks, cross-server hand-offs and fetch-channel sends — is `spawn`ed onto the runtime.
+    /// The blocking parts of transfers (the same-host rendezvous, the cross-server download, and the
+    /// source-side `expose`) are all resolved off the runner in the submit forwarder; see
+    /// [`register_local`](Self::register_local) / [`register_remote`](Self::register_remote) /
+    /// [`get_tensor`](Self::get_tensor). Keeping the runner non-blocking is what stops a transfer
+    /// from wedging it (and, via the device handle's backpressure, the whole runtime).
     pub(crate) fn process_task(&mut self, session_id: SessionId, task: Task) {
         // Clone the shared (cheap `Arc` / `Handle`) handles up front so the per-session `&mut`
         // borrow below doesn't conflict with the service-wide fields.
         let external_comm = self.external_comm.clone();
-        let local_comm = self.local_comm.clone();
         let runtime = self.runtime.clone();
 
         let Some(state) = self.sessions.get_mut(&session_id) else {
@@ -154,53 +210,16 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
             Task::RegisterTensor(stream_id, id, data) => {
                 stream_id.executes(|| runner.register_tensor_data_id(id, data));
             }
-            Task::RegisterTensorRemote(stream_id, remote, new_id) => {
-                log::trace!(
-                    "Registering remote tensor (transfer {:?} from {:?})",
-                    remote.transfer_id,
-                    remote.address,
-                );
-                let data = runtime.block_on(async {
-                    external_comm
-                        .download_tensor(remote.address.clone(), remote.transfer_id)
-                        .await
-                });
-                match data {
-                    Some(data) => {
-                        // Register on the client stream that will consume `new_id`, carried over
-                        // the wire — not the runner thread's ambient stream.
-                        stream_id.executes(|| runner.register_tensor_data_id(new_id, data));
-                    }
-                    None => log::error!(
-                        "Failed to download tensor for transfer {:?} from {:?}",
-                        remote.transfer_id,
-                        remote.address,
-                    ),
-                }
-            }
-            Task::ExposeTensorLocal {
-                stream_id,
-                tensor,
-                transfer_id,
-            } => {
-                // Source side of a same-host transfer: grab the device-resident primitive (no host
-                // readback) and park it for the target session. Ordered after the op that produced
-                // `tensor`, so the handle is present.
-                let kind = stream_id.executes(|| runner.get_tensor(&tensor));
-                runtime.block_on(async {
-                    local_comm.expose(session_id, transfer_id, kind).await;
-                });
-            }
-            Task::RegisterTensorLocal {
-                stream_id,
-                transfer_id,
-                new_id,
-            } => {
-                // Target side of a same-host transfer: wait for the source (on its own device's
-                // runner thread) to expose, then move the primitive onto this device and register
-                // it. Blocks this device's runner until the source exposes.
-                let kind = runtime.block_on(async { local_comm.take(transfer_id).await });
-                stream_id.executes(|| runner.register_tensor_to_device(new_id, kind));
+            // The transfer tasks that would block the runner — the same-host rendezvous
+            // (`RegisterTensorLocal`), the cross-server download (`RegisterTensorRemote`) and the
+            // source-side `expose` (`ExposeTensorLocal`, whose rendezvous insert is awaited off the
+            // runner) — are all resolved in the submit forwarder and reach the runner only as the
+            // non-blocking [`register_local`](Self::register_local) /
+            // [`register_remote`](Self::register_remote) / [`get_tensor`](Self::get_tensor) calls.
+            Task::RegisterTensorLocal { .. }
+            | Task::RegisterTensorRemote(..)
+            | Task::ExposeTensorLocal { .. } => {
+                unreachable!("blocking transfer halves are resolved in the submit forwarder, not on the runner")
             }
             Task::ExposeTensorRemote {
                 stream_id,

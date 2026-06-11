@@ -1,6 +1,7 @@
 //! The `/submit` connection handler.
 
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use burn_communication::CommunicationChannel;
@@ -8,11 +9,66 @@ use burn_communication::CommunicationChannel;
 use super::policy::SubmitPolicy;
 use crate::shared::{RemoteMessage, SessionId, Task};
 
-/// A sink that forwards a decoded [`Task`] to its session's device runner.
+/// The future returned when forwarding a task that must be carried to completion.
+pub(crate) type BlockingForward = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+/// A sink that forwards decoded [`Task`]s to a session's device runner, mirroring the device
+/// handle's two dispatch modes so the runner's batching isn't defeated.
 ///
-/// Returned by [`SubmitService::session_forwarder`]; calling it enqueues the task on the device's
-/// cubecl runner channel — a synchronous, lock-free hand-off, so forwarding never `await`s.
-pub(crate) type TaskForwarder = Box<dyn Fn(Task) + Send + Sync>;
+/// Returned by [`SubmitService::session_forwarder`]. The device runner's channel *batches*
+/// enqueued closures and only runs a batch once it is flushed (or fills); flushing on every task
+/// would throw away that batching — the main reason the server rides the device handle — so the
+/// two modes are split by who is waiting on the result:
+///
+/// - [`submit`](Self::submit): fire-and-forget ops (op registration, tensor data, seed). Enqueued
+///   on the batched channel and left to ride along; nobody is blocked on them, and the next
+///   [`submit_blocking`](Self::submit_blocking) (a read/sync) flushes the batch that ran them.
+/// - [`submit_blocking`](Self::submit_blocking): a task someone is waiting on — a result-producing
+///   task (read/sync/dtype), or a tensor transfer. It flushes the batch and runs to completion.
+///   For transfers the rendezvous/download is awaited *off the runner* (so the runner never blocks
+///   and can't deadlock under concurrent cross-device transfers) before the register is enqueued.
+pub(crate) struct TaskForwarder {
+    submit: Box<dyn Fn(Task) + Send + Sync>,
+    submit_blocking: Box<dyn Fn(Task) -> BlockingForward + Send + Sync>,
+}
+
+impl TaskForwarder {
+    pub(crate) fn new(
+        submit: impl Fn(Task) + Send + Sync + 'static,
+        submit_blocking: impl Fn(Task) -> BlockingForward + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            submit: Box::new(submit),
+            submit_blocking: Box::new(submit_blocking),
+        }
+    }
+
+    /// Enqueue a fire-and-forget task on the runner's batched channel. Does not flush, so the task
+    /// rides the current batch until a [`submit_blocking`](Self::submit_blocking) flushes it.
+    pub(crate) fn submit(&self, task: Task) {
+        (self.submit)(task);
+    }
+
+    /// Forward a task that must complete before the connection moves on, returning once it has:
+    /// the batch is flushed and the task runs, with any transfer rendezvous awaited off the runner.
+    pub(crate) async fn submit_blocking(&self, task: Task) {
+        (self.submit_blocking)(task).await;
+    }
+}
+
+/// Whether `task` is a synchronization point that must be carried to completion now
+/// ([`submit_blocking`](TaskForwarder::submit_blocking)) rather than left to batch
+/// ([`submit`](TaskForwarder::submit)).
+///
+/// Fire-and-forget compute (op registration, tensor data, seed) batches; everything a client or a
+/// peer session is actively waiting on — reads, sync, dtype queries, and the two tensor-transfer
+/// halves — is a sync point.
+pub(crate) fn is_sync_point(task: &Task) -> bool {
+    !matches!(
+        task,
+        Task::RegisterOperation(..) | Task::RegisterTensor(..) | Task::Seed(..)
+    )
+}
 
 /// What a `/submit` connection needs from the session layer: a forwarder for a session's tasks,
 /// and a way to tear a session down. Async methods return `impl Future + Send` (as the

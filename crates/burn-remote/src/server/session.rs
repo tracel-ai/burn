@@ -9,7 +9,9 @@ use tokio::runtime::Handle;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::server::local_comm::LocalCommService;
-use crate::server::service::{FetchSender, FetchService, SubmitService, TaskForwarder};
+use crate::server::service::{
+    BlockingForward, FetchSender, FetchService, SubmitService, TaskForwarder,
+};
 use crate::server::service_device::ServerDeviceService;
 use crate::shared::{SessionId, Task, TaskResponse};
 
@@ -42,6 +44,12 @@ where
     devices: Vec<Device<B>>,
     /// One runner handle per device, parallel to `devices`.
     handles: Vec<DeviceHandle<ServerDeviceService<B, P>>>,
+    /// Same-host transfer rendezvous, shared with every device service. Held here too so the
+    /// submit forwarder can await a transfer's `take` *off* the runner thread.
+    local_comm: Arc<LocalCommService<B>>,
+    /// Cross-server transfer service, likewise held so the forwarder can await a download off the
+    /// runner thread.
+    external_comm: Arc<ExternalCommService<B, P>>,
     sessions: Mutex<HashMap<SessionId, SessionNet>>,
 }
 
@@ -76,12 +84,8 @@ where
             .iter()
             .enumerate()
             .map(|(index, device)| {
-                let service = ServerDeviceService::new(
-                    device.clone(),
-                    runtime.clone(),
-                    external_comm.clone(),
-                    local_comm.clone(),
-                );
+                let service =
+                    ServerDeviceService::new(device.clone(), runtime.clone(), external_comm.clone());
                 let device_id = DeviceId::new(server_tag, index as u16);
                 DeviceHandle::insert(device_id, service).unwrap_or_else(|err| {
                     panic!("Failed to register remote device runner {device_id}: {err:?}")
@@ -92,6 +96,8 @@ where
         Self {
             devices,
             handles,
+            local_comm,
+            external_comm,
             sessions: Mutex::new(HashMap::new()),
         }
     }
@@ -137,8 +143,10 @@ where
         }
 
         let (sender, receiver) = FetchSender::channel();
-        // Enqueue the session's creation on the device runner before any task for it can run
-        // (tasks go through the same FIFO channel).
+        // Enqueue the session's creation on the device runner before any task for it can run (tasks
+        // go through the same FIFO channel). It rides the batch like any fire-and-forget op and
+        // runs when the session's first sync point (a read/sync, or a transfer) flushes the batch —
+        // which is necessarily before anything depends on the session's state.
         self.handle(device_index)
             .submit(move |svc| svc.create_session(session_id, sender));
         sessions.insert(
@@ -161,24 +169,119 @@ where
     /// every task, instead of re-locking the sessions map per task.
     async fn session_forwarder(&self, session_id: SessionId, device_index: u32) -> TaskForwarder {
         self.ensure_session(session_id, device_index).await;
-        let handle = self.handle(device_index).clone();
-        Box::new(move |task: Task| {
-            handle.submit(move |svc| svc.process_task(session_id, task));
-        })
+        let submit_handle = self.handle(device_index).clone();
+        let blocking_handle = submit_handle.clone();
+        let local_comm = self.local_comm.clone();
+        let external_comm = self.external_comm.clone();
+        TaskForwarder::new(
+            // Fire-and-forget: enqueue on the runner's batched channel and move on.
+            move |task: Task| {
+                submit_handle.submit(move |svc| svc.process_task(session_id, task));
+            },
+            // Sync point: a transfer (whose rendezvous/download is awaited here, off the runner, so
+            // the runner never blocks and can't deadlock under concurrent cross-device transfers),
+            // or a result-producing/expose task run on the runner now — flushing the batch ahead.
+            move |task: Task| {
+                let handle = blocking_handle.clone();
+                let local_comm = local_comm.clone();
+                let external_comm = external_comm.clone();
+                Box::pin(async move {
+                    match task {
+                        Task::RegisterTensorLocal {
+                            stream_id,
+                            transfer_id,
+                            new_id,
+                        } => {
+                            // Wait for the source session (on another device's runner) to expose
+                            // the primitive, then hand it to this runner for the device move.
+                            let kind = local_comm.take(transfer_id).await;
+                            handle.submit(move |svc| {
+                                svc.register_local(session_id, stream_id, new_id, kind)
+                            });
+                        }
+                        Task::RegisterTensorRemote(stream_id, remote, new_id) => {
+                            log::trace!(
+                                "Downloading remote tensor (transfer {:?} from {:?})",
+                                remote.transfer_id,
+                                remote.address,
+                            );
+                            match external_comm
+                                .download_tensor(remote.address.clone(), remote.transfer_id)
+                                .await
+                            {
+                                Some(data) => handle.submit(move |svc| {
+                                    svc.register_remote(session_id, stream_id, new_id, data)
+                                }),
+                                None => log::error!(
+                                    "Failed to download tensor for transfer {:?} from {:?}",
+                                    remote.transfer_id,
+                                    remote.address,
+                                ),
+                            }
+                        }
+                        Task::ExposeTensorLocal {
+                            stream_id,
+                            tensor,
+                            transfer_id,
+                        } => {
+                            // Grab the device-resident primitive on the runner (the only half that
+                            // touches the device), then park it in the rendezvous off the runner so
+                            // the registry insert doesn't block it.
+                            match handle
+                                .submit_blocking(move |svc| svc.get_tensor(session_id, stream_id, tensor))
+                            {
+                                Ok(Some(kind)) => {
+                                    local_comm.expose(session_id, transfer_id, kind).await;
+                                }
+                                Ok(None) => log::error!(
+                                    "ExposeTensorLocal for unknown session {session_id} dropped"
+                                ),
+                                Err(err) => log::error!(
+                                    "get_tensor dispatch for session {session_id} failed: {err:?}"
+                                ),
+                            }
+                        }
+                        // A read/sync/dtype query or the cross-server expose: run it on the runner
+                        // now (this flushes the fire-and-forget ops batched before it). These never
+                        // block the runner (readbacks/hand-offs are spawned), so submit_blocking
+                        // returns promptly.
+                        other => {
+                            if let Err(err) =
+                                handle.submit_blocking(move |svc| svc.process_task(session_id, other))
+                            {
+                                log::error!(
+                                    "Blocking task dispatch for session {session_id} failed: {err:?}"
+                                );
+                            }
+                        }
+                    }
+                }) as BlockingForward
+            },
+        )
     }
 
-    /// Drop the session: enqueue its teardown on the device runner (after every task already
-    /// forwarded for it) and remove the manager-side entry. The runner's `remove_session` flushes
-    /// and drops the interpreter — releasing the session's backend state — and dropping its
-    /// [`FetchSender`] closes the fetch writer's channel.
+    /// Drop the session: run its teardown on the device runner (after every task already forwarded
+    /// for it), reclaim any transfers it left exposed, and remove the manager-side entry. The
+    /// runner's `remove_session` flushes and drops the interpreter — releasing the session's backend
+    /// state — and dropping its [`FetchSender`] closes the fetch writer's channel.
     async fn close(&self, session_id: SessionId) {
         let device_index = {
             let sessions = self.sessions.lock().await;
             sessions.get(&session_id).map(|net| net.device_index)
         };
         if let Some(device_index) = device_index {
-            self.handle(device_index)
-                .submit(move |svc| svc.remove_session(session_id));
+            // Run teardown on the runner now: `submit_blocking` flushes every fire-and-forget op
+            // still batched for the session and then runs `remove_session`, so nothing is dropped
+            // with work outstanding and the teardown can't be left unflushed at disconnect.
+            if let Err(err) = self
+                .handle(device_index)
+                .submit_blocking(move |svc| svc.remove_session(session_id))
+            {
+                log::error!("Failed to tear down session {session_id}: {err:?}");
+            }
+            // Reclaim any same-host transfers this session exposed that no target ever took. Done
+            // here, off the runner, so teardown stays a non-blocking runner task.
+            self.local_comm.purge_session(session_id).await;
         }
         self.sessions.lock().await.remove(&session_id);
     }
