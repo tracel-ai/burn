@@ -925,10 +925,19 @@ where
         dim: usize,
         indices: SharedArray<I>,
     ) -> SharedArray<E> {
+        // Read the indices from a contiguous slice rather than through the
+        // array's own iterator: the slice walks a pointer, while the
+        // iterator advances a dynamic-rank index on every element and costs
+        // more than the selection itself. The standardization is a view, and
+        // hence free, for contiguous indices; otherwise, it pays that
+        // iteration once, which the direct consumption would pay anyway.
+        let indices = indices.as_standard_layout();
         let array = tensor.select(
             Axis(dim),
             &indices
-                .into_iter()
+                .as_slice()
+                .unwrap()
+                .iter()
                 .map(|i| i.elem::<i64>() as usize)
                 .collect::<Vec<_>>(),
         );
