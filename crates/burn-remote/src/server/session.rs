@@ -9,16 +9,9 @@ use tokio::runtime::Handle;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::server::local_comm::LocalCommService;
-use crate::server::service::{FetchService, SubmitService, TaskForwarder};
+use crate::server::service::{FetchSender, FetchService, SubmitService, TaskForwarder};
 use crate::server::service_device::ServerDeviceService;
 use crate::shared::{SessionId, Task, TaskResponse};
-
-/// Capacity for the per-session response queue.
-///
-/// Sized larger than the typical in-flight read/sync count so that request processing
-/// doesn't block on backpressure during a burst, but small enough that a stuck response
-/// writer surfaces as a backpressure stall rather than memory growth.
-const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 
 /// Per-server base for the synthetic device ids that key each device's runner.
 ///
@@ -36,7 +29,7 @@ static SERVER_TAG: AtomicU16 = AtomicU16::new(0x8000);
 /// [`TensorInterpreter`](burn_router::TensorInterpreter) (and its own
 /// [`HandleContainer`](burn_ir::HandleContainer)), so different sessions never share tensor
 /// handles. The manager itself only tracks, per session, which device it is pinned to and the
-/// result receiver the fetch handler drains — the actual work runs on the device's runner thread
+/// fetch receiver the fetch handler drains — the actual work runs on the device's runner thread
 /// via the handle's optimized channel. Cross-session tensor transfers go through `external_comm`
 /// (cross-server) or `local_comm` (same-host).
 pub struct SessionManager<B, P>
@@ -52,8 +45,8 @@ where
     sessions: Mutex<HashMap<SessionId, SessionNet>>,
 }
 
-/// The manager-side state for a session: which device it lives on, and the result receiver the
-/// fetch handler claims (the interpreter and response sender live in the device service).
+/// The manager-side state for a session: which device it lives on, and the fetch receiver the
+/// fetch handler claims (the interpreter and [`FetchSender`] live in the device service).
 struct SessionNet {
     device_index: u32,
     receiver: Option<mpsc::Receiver<TaskResponse>>,
@@ -132,7 +125,7 @@ where
         })
     }
 
-    /// Create the session on its device runner (if new) and register its result queue.
+    /// Create the session on its device runner (if new) and register its fetch channel.
     ///
     /// Idempotent and safe to call from either handler: the first to touch a session creates it
     /// under the lock; a later caller sees it already present. The session is pinned to the device
@@ -143,7 +136,7 @@ where
             return;
         }
 
-        let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);
+        let (sender, receiver) = FetchSender::channel();
         // Enqueue the session's creation on the device runner before any task for it can run
         // (tasks go through the same FIFO channel).
         self.handle(device_index)
@@ -166,11 +159,7 @@ where
     /// Resolve the forwarder used to push [`Task`]s onto `session_id`'s device runner, creating
     /// the session on demand. The request loop resolves this once per connection and reuses it for
     /// every task, instead of re-locking the sessions map per task.
-    async fn session_forwarder(
-        &self,
-        session_id: SessionId,
-        device_index: u32,
-    ) -> TaskForwarder {
+    async fn session_forwarder(&self, session_id: SessionId, device_index: u32) -> TaskForwarder {
         self.ensure_session(session_id, device_index).await;
         let handle = self.handle(device_index).clone();
         Box::new(move |task: Task| {
@@ -181,7 +170,7 @@ where
     /// Drop the session: enqueue its teardown on the device runner (after every task already
     /// forwarded for it) and remove the manager-side entry. The runner's `remove_session` flushes
     /// and drops the interpreter — releasing the session's backend state — and dropping its
-    /// response sender closes the fetch writer's queue.
+    /// [`FetchSender`] closes the fetch writer's channel.
     async fn close(&self, session_id: SessionId) {
         let device_index = {
             let sessions = self.sessions.lock().await;
@@ -213,11 +202,11 @@ where
         self.devices.len() as u32
     }
 
-    /// Take the response receiver for `session_id`, creating the session on demand.
+    /// Take the fetch receiver for `session_id`, creating the session on demand.
     ///
-    /// Returns `Err` if a responder has already been registered for this session — the
-    /// protocol allows only one response socket per session.
-    async fn take_response_receiver(
+    /// Returns `Err` if a fetcher has already been registered for this session — the
+    /// protocol allows only one fetch socket per session.
+    async fn take_fetch_receiver(
         &self,
         session_id: SessionId,
         device_index: u32,
@@ -229,6 +218,6 @@ where
             .expect("session was just ensured");
         net.receiver
             .take()
-            .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
+            .ok_or_else(|| format!("Fetch receiver already taken for session {session_id}"))
     }
 }

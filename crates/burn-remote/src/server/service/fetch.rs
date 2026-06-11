@@ -8,10 +8,50 @@ use burn_std::DeviceSettings;
 use tokio::sync::mpsc;
 
 use super::base::parse_init_handshake;
-use crate::shared::{SessionId, TaskResponse, TaskResponseContent};
+use crate::shared::{RequestId, SessionId, TaskResponse, TaskResponseContent};
+
+/// Capacity for a session's fetch channel (see [`FetchSender`]).
+///
+/// Sized larger than the typical in-flight read/sync count so that task processing doesn't block
+/// on backpressure during a burst, but small enough that a stuck `/fetch` writer surfaces as a
+/// backpressure stall rather than unbounded memory growth.
+const FETCH_CHANNEL_CAPACITY: usize = 64;
+
+/// The sending half of a session's fetch channel: the device runner's link to the [`FetchHandler`].
+///
+/// Result-producing tasks (`ReadTensor`, `SyncBackend`, `DTypeUsage`) complete on the device's
+/// runner thread, far from the socket the client reads. Each one ships its result through this
+/// sender; the [`FetchHandler`] drains the matching receiver and writes the results back over the
+/// `/fetch` socket. The bounded channel is the sole link between the two, decoupling result
+/// production on the runner from the rate at which the client fetches.
+#[derive(Clone)]
+pub(crate) struct FetchSender {
+    inner: mpsc::Sender<TaskResponse>,
+}
+
+impl FetchSender {
+    /// Create the bounded channel connecting a session's device runner to its [`FetchHandler`].
+    pub(crate) fn channel() -> (Self, mpsc::Receiver<TaskResponse>) {
+        let (inner, receiver) = mpsc::channel(FETCH_CHANNEL_CAPACITY);
+        (Self { inner }, receiver)
+    }
+
+    /// Ship a completed task's result to the [`FetchHandler`], logging if its receiver has already
+    /// been dropped (the client closed the `/fetch` socket).
+    pub(crate) async fn send(&self, id: RequestId, content: TaskResponseContent) {
+        if self
+            .inner
+            .send(TaskResponse { content, id })
+            .await
+            .is_err()
+        {
+            log::warn!("Fetch receiver dropped before result for request {id} could be sent");
+        }
+    }
+}
 
 /// What a `/fetch` connection needs from the session layer: the device metadata returned on the
-/// init handshake, and the session's result receiver to drain.
+/// init handshake, and the session's fetch receiver to drain.
 pub(crate) trait FetchService: Send + Sync + 'static {
     /// The default settings of the device at `device_index`, returned on the handshake.
     fn device_settings(&self, device_index: u32) -> DeviceSettings;
@@ -20,9 +60,9 @@ pub(crate) trait FetchService: Send + Sync + 'static {
     /// enumerate every device behind the address.
     fn device_count(&self) -> u32;
 
-    /// Claim the session's result receiver. Errors if a fetcher is already registered — the
+    /// Claim the session's fetch receiver. Errors if a fetcher is already registered — the
     /// protocol allows only one fetch socket per session.
-    fn take_response_receiver(
+    fn take_fetch_receiver(
         &self,
         session_id: SessionId,
         device_index: u32,
@@ -51,11 +91,11 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
             std::thread::current().id()
         );
 
-        // Claim the session's result receiver. The protocol allows only one fetch socket per
+        // Claim the session's fetch receiver. The protocol allows only one fetch socket per
         // session, so a second fetcher is rejected here.
         let mut receiver = match self
             .service
-            .take_response_receiver(session_id, device_index)
+            .take_fetch_receiver(session_id, device_index)
             .await
         {
             Ok(r) => r,
@@ -67,8 +107,9 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
 
         log::debug!("Fetch writer running for session {session_id}");
 
-        // Drain the per-session result queue. The queue closes when every sender is dropped: the
-        // session's worker (on close/disconnect) and any in-flight readback tasks.
+        // Drain the session's fetch channel. It closes when every [`FetchSender`] is dropped: the
+        // session's state on the device runner (on close/disconnect) and any in-flight readback
+        // tasks.
         while let Some(response) = receiver.recv().await {
             let bytes = match rmp_serde::to_vec(&response) {
                 Ok(b) => b,

@@ -25,8 +25,8 @@
 //! all same-host transfers (source and target always live on *different* devices, hence different
 //! runner threads). Multiple sessions on the *same* device sharing a runner is best-effort: a
 //! blocking task on one stalls the others until it unblocks. Detached readbacks (`ReadTensor`,
-//! `ExposeTensorRemote`) and response sends are spawned onto the runtime so they never block the
-//! runner.
+//! `ExposeTensorRemote`) and fetch-channel sends are spawned onto the runtime so they never block
+//! the runner.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -37,15 +37,15 @@ use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::BackendIr;
 use burn_router::{RouterClient, TensorInterpreter};
 use tokio::runtime::Handle;
-use tokio::sync::mpsc;
 
 use crate::server::local_comm::LocalCommService;
-use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
+use crate::server::service::FetchSender;
+use crate::shared::{SessionId, Task, TaskResponseContent};
 
 /// Everything constant for the lifetime of one session on a device.
 struct SessionState<B: BackendIr> {
-    runner: TensorInterpreter<B>,
-    response_sender: mpsc::Sender<TaskResponse>,
+    interpreter: TensorInterpreter<B>,
+    fetch_sender: FetchSender,
 }
 
 /// One service per physical device. Owns the interpreters of every session pinned to that device
@@ -57,7 +57,7 @@ struct SessionState<B: BackendIr> {
 pub(crate) struct ServerDeviceService<B: BackendIr, P: Protocol> {
     device: Device<B>,
     /// Runtime used to drive the async parts of a task: `block_on` for the blocking transfers and
-    /// `spawn` for detached readbacks and response sends.
+    /// `spawn` for detached readbacks and fetch-channel sends.
     runtime: Handle,
     external_comm: Arc<ExternalCommService<B, P>>,
     local_comm: Arc<LocalCommService<B>>,
@@ -80,19 +80,15 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
         }
     }
 
-    /// Create a session's interpreter, registering its response queue. Runs on the runner thread,
+    /// Create a session's interpreter, registering its fetch channel. Runs on the runner thread,
     /// ordered before any task forwarded for the session.
-    pub(crate) fn create_session(
-        &mut self,
-        session_id: SessionId,
-        response_sender: mpsc::Sender<TaskResponse>,
-    ) {
+    pub(crate) fn create_session(&mut self, session_id: SessionId, fetch_sender: FetchSender) {
         let runner = TensorInterpreter::new(self.device.clone());
         self.sessions.insert(
             session_id,
             SessionState {
-                runner,
-                response_sender,
+                interpreter: runner,
+                fetch_sender,
             },
         );
     }
@@ -100,10 +96,14 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
     /// Tear a session down: flush and drop its interpreter (freeing its tensors), hand freed memory
     /// back to the allocator, and reclaim any same-host transfers it left exposed.
     ///
-    /// Mirrors the old per-session worker's close path: dropping `SessionState` drops the response
-    /// sender, which closes the fetch writer's queue and ends it.
+    /// Mirrors the old per-session worker's close path: dropping `SessionState` drops the session's
+    /// [`FetchSender`], which closes the fetch writer's channel and ends it.
     pub(crate) fn remove_session(&mut self, session_id: SessionId) {
-        if let Some(SessionState { runner, .. }) = self.sessions.remove(&session_id) {
+        if let Some(SessionState {
+            interpreter: runner,
+            ..
+        }) = self.sessions.remove(&session_id)
+        {
             let device = runner.device();
 
             // Flush outstanding backend work before dropping the runner so the session's tensors
@@ -132,7 +132,7 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
     /// Runs on the device's runner thread. Sync work is wrapped in
     /// [`StreamId::executes`](burn_std::id::StreamId::executes) so the runner's thread-local stream
     /// id matches the one the client assigned to the op. Blocking transfers are driven with
-    /// `block_on`; detached readbacks and response sends are spawned onto the runtime.
+    /// `block_on`; detached readbacks and fetch-channel sends are spawned onto the runtime.
     pub(crate) fn process_task(&mut self, session_id: SessionId, task: Task) {
         // Clone the shared (cheap `Arc` / `Handle`) handles up front so the per-session `&mut`
         // borrow below doesn't conflict with the service-wide fields.
@@ -144,8 +144,8 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
             log::error!("Task for unknown session {session_id} dropped");
             return;
         };
-        let runner = &state.runner;
-        let response_sender = &state.response_sender;
+        let runner = &state.interpreter;
+        let fetch_sender = &state.fetch_sender;
 
         match task {
             Task::RegisterOperation(stream_id, op) => {
@@ -230,44 +230,32 @@ impl<B: BackendIr, P: Protocol> ServerDeviceService<B, P> {
                 // doesn't stall the runner on the GPU→host copy. The client demuxes responses by
                 // request id, so out-of-order completion is fine.
                 let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
-                let sender = response_sender.clone();
+                let sender = fetch_sender.clone();
                 runtime.spawn(async move {
                     let data = fut.await;
-                    Self::send(&sender, request_id, TaskResponseContent::ReadTensor(data)).await;
+                    sender
+                        .send(request_id, TaskResponseContent::ReadTensor(data))
+                        .await;
                 });
             }
             Task::SyncBackend(request_id, stream_id) => {
                 let res = stream_id.executes(|| runner.sync());
-                let sender = response_sender.clone();
+                let sender = fetch_sender.clone();
                 runtime.spawn(async move {
-                    Self::send(&sender, request_id, TaskResponseContent::SyncBackend(res)).await;
+                    sender
+                        .send(request_id, TaskResponseContent::SyncBackend(res))
+                        .await;
                 });
             }
             Task::DTypeUsage(request_id, dtype) => {
                 let res = runner.dtype_usage(dtype);
-                let sender = response_sender.clone();
+                let sender = fetch_sender.clone();
                 runtime.spawn(async move {
-                    Self::send(&sender, request_id, TaskResponseContent::DTypeUsage(res)).await;
+                    sender
+                        .send(request_id, TaskResponseContent::DTypeUsage(res))
+                        .await;
                 });
             }
-        }
-    }
-
-    /// Send a response to the session's fetch queue, logging if the receiver is already gone.
-    async fn send(
-        sender: &mpsc::Sender<TaskResponse>,
-        request_id: RequestId,
-        content: TaskResponseContent,
-    ) {
-        if sender
-            .send(TaskResponse {
-                content,
-                id: request_id,
-            })
-            .await
-            .is_err()
-        {
-            log::warn!("Response receiver dropped before result for request {request_id} could be sent");
         }
     }
 }
