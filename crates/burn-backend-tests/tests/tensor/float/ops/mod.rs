@@ -34,6 +34,7 @@ mod gather_scatter_nd;
 mod grid_sample;
 mod hamming_window;
 mod hann_window;
+mod hypot;
 mod inf;
 mod init;
 mod iter_dim;

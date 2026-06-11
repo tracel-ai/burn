@@ -3533,6 +3533,63 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Hypot;
+
+        impl<B: Backend> Backward<B, 2> for Hypot {
+            type State = (NodeId, NodeId, BinaryOpsBroadcast);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let (lhs_id, rhs_id, broadcast) = ops.state;
+                let lhs: B::FloatTensorPrimitive = checkpointer.retrieve_node_output(lhs_id);
+                let rhs: B::FloatTensorPrimitive = checkpointer.retrieve_node_output(rhs_id);
+
+                let [lhs_4lhs, lhs_4rhs] = duplicate(&ops.parents, Some(lhs.clone()));
+                let [rhs_4lhs, rhs_4rhs] = duplicate(&ops.parents, Some(rhs.clone()));
+
+                binary::<B, _, _>(
+                    ops.parents,
+                    ops.node,
+                    grads,
+                    |grad| {
+                        // lhs / hypot(lhs, rhs) * grad
+                        let value =
+                            B::float_div(lhs, B::float_hypot(lhs_4lhs.unwrap(), rhs_4lhs.unwrap()));
+                        broadcast.backward_lhs::<B>(B::float_mul(grad, value))
+                    },
+                    |grad| {
+                        // rhs / hypot(lhs, rhs) * grad
+                        let value =
+                            B::float_div(rhs, B::float_hypot(lhs_4rhs.unwrap(), rhs_4rhs.unwrap()));
+                        broadcast.backward_rhs::<B>(B::float_mul(grad, value))
+                    },
+                );
+            }
+        }
+        let broadcast = BinaryOpsBroadcast::new::<B>(&lhs.primitive, &rhs.primitive);
+        match Hypot
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let lhs_state = prep.checkpoint(&lhs);
+                let rhs_state = prep.checkpoint(&rhs);
+                prep.finish(
+                    (lhs_state, rhs_state, broadcast),
+                    B::float_hypot(lhs.primitive, rhs.primitive),
+                )
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_hypot(lhs.primitive, rhs.primitive)),
+        }
+    }
+
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Sign;
