@@ -2,7 +2,6 @@
 use super::{autotune_reduce, autotune_sum};
 use crate::{
     CubeRuntime,
-    kernel::cast,
     ops::numeric::{empty_device_contiguous_dtype, zeros_client},
     tensor::CubeTensor,
 };
@@ -135,12 +134,10 @@ pub fn reduce<Run: CubeRuntime>(
 /// Reduce with a logical instruction ([`Any`](ReduceOperationConfig::Any) /
 /// [`All`](ReduceOperationConfig::All)) and return the result as a boolean tensor.
 ///
-/// The reduction itself produces a numeric `0/1` tensor whose dtype matches the
-/// input (cubek's `precision()` keeps `output = input` for `Any`/`All`). We then
-/// convert those flags to the boolean backing storage and relabel the tensor as
-/// `Bool`. For a boolean input the storage already matches, so the cast is a
-/// no-op and only the (kernel-free) dtype relabel happens; for float/int inputs
-/// the cast runs on the already-reduced (small) tensor.
+/// `Any` / `All` require the output dtype (like `Arg*` index outputs): the
+/// kernel writes the `0/1` flags directly into the numeric backing of the
+/// boolean storage (cubek has no bool elem), so the only step left here is the
+/// kernel-free relabel to `Bool`.
 ///
 /// `dim == None` reduces the whole tensor to a scalar; `Some(dim)` reduces a
 /// single axis, keeping it with length 1.
@@ -158,15 +155,14 @@ pub fn reduce_logical<Run: CubeRuntime>(
         "reduce_logical only supports Any / All, got {config:?}"
     );
     let out_bool = DType::Bool(out_dtype);
+    let backing = elem_type_to_dtype(dtype_to_elem_type(out_bool));
 
-    let reduced = match dim {
-        Some(d) => reduce_dim::<Run>(tensor, None, d, Default::default(), config),
-        None => reduce::<Run>(tensor, None, Default::default(), config),
+    let mut out = match dim {
+        Some(d) => reduce_dim::<Run>(tensor, Some(backing), d, Default::default(), config),
+        None => reduce::<Run>(tensor, Some(backing), Default::default(), config),
     }
     .expect("Any/All reduce on a valid axis cannot fail");
 
-    let backing = elem_type_to_dtype(dtype_to_elem_type(out_bool));
-    let mut out = cast(reduced, backing);
     out.dtype = out_bool; // same storage, relabel as Bool (no kernel)
     out
 }
@@ -197,8 +193,10 @@ pub fn reduce_dim<Run: CubeRuntime>(
             ReduceOperationConfig::ArgMax
                 | ReduceOperationConfig::ArgMin
                 | ReduceOperationConfig::ArgTopK(_)
+                | ReduceOperationConfig::Any
+                | ReduceOperationConfig::All
         ) || output_dtype.is_some(),
-        "The `output_dtype` has to be `Some` only when the `config` is `ArgMax`, `ArgMin` or `ArgTopK`.
+        "The `output_dtype` has to be `Some` when the `config` is `ArgMax`, `ArgMin`, `ArgTopK`, `Any` or `All`.
         "
     );
 
