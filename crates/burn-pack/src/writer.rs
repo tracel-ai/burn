@@ -117,7 +117,7 @@ impl Writer {
     /// Build the complete on-disk layout: header, serialized metadata, and the
     /// position and size of the (aligned) tensor data section.
     fn plan(&self) -> Result<Layout, Error> {
-        let (metadata, metadata_bytes) = self.build_metadata()?;
+        let (metadata, metadata_bytes, data_size) = self.build_metadata()?;
 
         let metadata_size: u32 = metadata_bytes.len().try_into().map_err(|_| {
             Error::IoError(format!(
@@ -134,7 +134,6 @@ impl Writer {
         };
 
         let data_section_start = aligned_data_section_start(metadata_bytes.len());
-        let data_size = Self::data_section_size(&metadata);
 
         Ok(Layout {
             metadata,
@@ -146,9 +145,12 @@ impl Writer {
     }
 
     /// Serialize the metadata structure (tensor descriptors + key-value pairs) to CBOR.
-    fn build_metadata(&self) -> Result<(Metadata, Vec<u8>), Error> {
+    ///
+    /// Also returns the size of the tensor data section, computed while assigning offsets.
+    fn build_metadata(&self) -> Result<(Metadata, Vec<u8>, usize), Error> {
+        let (tensors, data_size) = self.build_descriptors()?;
         let metadata = Metadata {
-            tensors: self.build_descriptors()?,
+            tensors,
             metadata: self.metadata.clone(),
         };
 
@@ -156,12 +158,15 @@ impl Writer {
         ciborium::ser::into_writer(&metadata, &mut metadata_bytes)
             .map_err(|e| Error::MetadataSerializationError(e.to_string()))?;
 
-        Ok((metadata, metadata_bytes))
+        Ok((metadata, metadata_bytes, data_size))
     }
 
     /// Build tensor descriptors, assigning each tensor an aligned offset within
     /// the data section so that absolute file positions are mmap-friendly.
-    fn build_descriptors(&self) -> Result<BTreeMap<String, TensorDescriptor>, Error> {
+    ///
+    /// Returns the descriptors plus the total data-section size — the running offset after the
+    /// last tensor. Offsets only grow, so this is also the highest descriptor end offset.
+    fn build_descriptors(&self) -> Result<(BTreeMap<String, TensorDescriptor>, usize), Error> {
         let mut tensors = BTreeMap::new();
         let mut current_offset = 0u64;
 
@@ -201,17 +206,7 @@ impl Writer {
             current_offset = end;
         }
 
-        Ok(tensors)
-    }
-
-    /// Size of the tensor data section, derived from the highest descriptor end offset.
-    fn data_section_size(metadata: &Metadata) -> usize {
-        metadata
-            .tensors
-            .values()
-            .map(|t| t.data_offsets.1)
-            .max()
-            .unwrap_or(0) as usize
+        Ok((tensors, current_offset as usize))
     }
 
     /// Emit the full container — header, metadata, alignment padding, then tensor data
