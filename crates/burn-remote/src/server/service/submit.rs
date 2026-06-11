@@ -4,26 +4,31 @@ use std::future::Future;
 use std::sync::Arc;
 
 use burn_communication::CommunicationChannel;
-use tokio::sync::mpsc;
 
 use super::policy::SubmitPolicy;
 use crate::shared::{RemoteMessage, SessionId, Task};
 
-/// What a `/submit` connection needs from the session layer: the worker channel for a session,
+/// A sink that forwards a decoded [`Task`] to its session's device runner.
+///
+/// Returned by [`SubmitService::session_forwarder`]; calling it enqueues the task on the device's
+/// cubecl runner channel — a synchronous, lock-free hand-off, so forwarding never `await`s.
+pub(crate) type TaskForwarder = Box<dyn Fn(Task) + Send + Sync>;
+
+/// What a `/submit` connection needs from the session layer: a forwarder for a session's tasks,
 /// and a way to tear a session down. Async methods return `impl Future + Send` (as the
 /// [`CommunicationChannel`] trait does) so a handler future built on them stays `Send` and can
 /// be spawned by the server.
 pub(crate) trait SubmitService: Send + Sync + 'static {
-    /// The channel forwarding tasks to `session_id`'s worker, creating the session (and
-    /// spawning its worker) on demand.
-    fn session_task_sender(
+    /// The forwarder routing tasks to `session_id`'s device runner, creating the session on
+    /// demand. Resolved once per connection and reused for every task.
+    fn session_forwarder(
         &self,
         session_id: SessionId,
         device_index: u32,
-    ) -> impl Future<Output = mpsc::Sender<Task>> + Send;
+    ) -> impl Future<Output = TaskForwarder> + Send;
 
-    /// Drop the session, letting its worker drain and exit. A `close` for an unknown session is
-    /// a no-op.
+    /// Drop the session, releasing its interpreter and result queue. A `close` for an unknown
+    /// session is a no-op.
     fn close(&self, session_id: SessionId) -> impl Future<Output = ()> + Send;
 }
 

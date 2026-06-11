@@ -4,9 +4,7 @@
 
 use std::sync::Arc;
 
-use tokio::sync::mpsc;
-
-use super::submit::SubmitService;
+use super::submit::{SubmitService, TaskForwarder};
 use crate::shared::{RemoteMessage, SessionId, Task};
 
 pub(super) struct SubmitPolicy<S> {
@@ -31,9 +29,7 @@ impl<S: SubmitService> SubmitPolicy<S> {
             match self.state.decide(message) {
                 Action::Continue => {}
                 Action::Forward { session_id, task } => {
-                    if !self.forward(session_id, task).await {
-                        return true;
-                    }
+                    self.forward(session_id, task).await;
                 }
                 Action::Close(id) => {
                     log::debug!("Close requested for session {id}");
@@ -49,27 +45,18 @@ impl<S: SubmitService> SubmitPolicy<S> {
         false
     }
 
-    /// Forward a task to the session worker, resolving and caching the worker channel on first
-    /// use. Returns `false` if the worker is gone (the connection should close), which shouldn't
-    /// happen while the session is live.
-    ///
-    /// A full channel applies async backpressure here — the `send` await yields and we stop
-    /// reading the socket — rather than blocking a runtime thread.
-    async fn forward(&mut self, session_id: SessionId, task: Task) -> bool {
-        if self.state.task_sender.is_none() {
-            self.state.task_sender = Some(
+    /// Forward a task to the session's device runner, resolving and caching the forwarder on first
+    /// use. The hand-off onto the runner channel is synchronous (lock-free), so there is nothing to
+    /// await once the forwarder is resolved.
+    async fn forward(&mut self, session_id: SessionId, task: Task) {
+        if self.state.forwarder.is_none() {
+            self.state.forwarder = Some(
                 self.service
-                    .session_task_sender(session_id, self.state.device_index)
+                    .session_forwarder(session_id, self.state.device_index)
                     .await,
             );
         }
-        let sender = self.state.task_sender.as_ref().unwrap();
-
-        if sender.send(task).await.is_err() {
-            log::error!("Session {session_id} worker channel closed; closing submit stream");
-            return false;
-        }
-        true
+        (self.state.forwarder.as_ref().unwrap())(task);
     }
 
     /// Tear the session down once the submit loop ends. The worker, runner, and result queue are
@@ -90,11 +77,12 @@ impl<S: SubmitService> SubmitPolicy<S> {
     }
 }
 
-/// Which session a submit connection is bound to, plus the channel to that session's worker.
+/// Which session a submit connection is bound to, plus the forwarder to that session's device
+/// runner.
 ///
 /// A single connection serves one session at a time but may be re-bound to a new session by a
 /// later `RemoteMessage::Init` (the client never does this today, but the protocol allows it),
-/// which is why the session id is optional and the worker channel is re-resolved on rebind.
+/// which is why the session id is optional and the forwarder is re-resolved on rebind.
 #[derive(Default)]
 struct SubmitState {
     /// The session this connection is currently bound to, set by `RemoteMessage::Init`.
@@ -104,9 +92,9 @@ struct SubmitState {
     /// Whether an explicit `RemoteMessage::Close` already tore the session down, so the final
     /// cleanup doesn't double-close.
     session_closed: bool,
-    /// The bound session's worker channel, resolved on the first task and reused for the rest of
+    /// The bound session's task forwarder, resolved on the first task and reused for the rest of
     /// the connection. Cleared on rebind so the new session is resolved afresh.
-    task_sender: Option<mpsc::Sender<Task>>,
+    forwarder: Option<TaskForwarder>,
 }
 
 /// What the submit loop should do with a single decoded [`RemoteMessage`].
@@ -135,8 +123,8 @@ impl SubmitState {
             RemoteMessage::Init(id, index) => {
                 self.session_id = Some(id);
                 self.device_index = index;
-                // Re-resolve the worker channel for the (re)bound session on the next task.
-                self.task_sender = None;
+                // Re-resolve the forwarder for the (re)bound session on the next task.
+                self.forwarder = None;
                 Action::Continue
             }
             RemoteMessage::Close(id) => {
@@ -164,21 +152,19 @@ mod tests {
             .block_on(fut)
     }
 
-    /// A fake [`SubmitService`] that records what it was asked to do: it hands out a single
-    /// worker channel (whose receiver the test holds) and logs every `close`.
+    /// A fake [`SubmitService`] that records what it was asked to do: every forwarded task lands
+    /// in a shared buffer (which the test inspects) and every `close` is logged.
     struct FakeService {
-        task_tx: mpsc::Sender<Task>,
+        forwarded: Arc<Mutex<Vec<Task>>>,
         closed: Mutex<Vec<SessionId>>,
     }
 
     impl FakeService {
-        fn new() -> (Arc<Self>, mpsc::Receiver<Task>) {
-            let (task_tx, task_rx) = mpsc::channel(16);
-            let service = Arc::new(Self {
-                task_tx,
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                forwarded: Arc::new(Mutex::new(Vec::new())),
                 closed: Mutex::new(Vec::new()),
-            });
-            (service, task_rx)
+            })
         }
 
         fn closed(&self) -> Vec<SessionId> {
@@ -187,12 +173,13 @@ mod tests {
     }
 
     impl SubmitService for FakeService {
-        async fn session_task_sender(
+        async fn session_forwarder(
             &self,
             _session_id: SessionId,
             _device_index: u32,
-        ) -> mpsc::Sender<Task> {
-            self.task_tx.clone()
+        ) -> TaskForwarder {
+            let sink = self.forwarded.clone();
+            Box::new(move |task| sink.lock().unwrap().push(task))
         }
 
         async fn close(&self, session_id: SessionId) {
@@ -200,21 +187,13 @@ mod tests {
         }
     }
 
-    fn drain<T>(rx: &mut mpsc::Receiver<T>) -> Vec<T> {
-        let mut out = Vec::new();
-        while let Ok(item) = rx.try_recv() {
-            out.push(item);
-        }
-        out
-    }
-
     // --- SubmitState::decide (pure) -------------------------------------------------------
 
     #[test]
-    fn decide_init_binds_session_and_resets_worker_channel() {
+    fn decide_init_binds_session_and_resets_forwarder() {
         let mut state = SubmitState::default();
-        // A worker channel left over from a previous binding must be dropped on rebind.
-        state.task_sender = Some(mpsc::channel(1).0);
+        // A forwarder left over from a previous binding must be dropped on rebind.
+        state.forwarder = Some(Box::new(|_| {}));
 
         let id = SessionId::new();
         let action = state.decide(RemoteMessage::Init(id, 5));
@@ -222,7 +201,7 @@ mod tests {
         assert!(matches!(action, Action::Continue));
         assert_eq!(state.session_id, Some(id));
         assert_eq!(state.device_index, 5);
-        assert!(state.task_sender.is_none());
+        assert!(state.forwarder.is_none());
         assert!(!state.session_closed);
     }
 
@@ -265,7 +244,7 @@ mod tests {
     #[test]
     fn policy_forwards_pre_close_tasks_and_stops_at_close() {
         block_on(async {
-            let (service, mut task_rx) = FakeService::new();
+            let service = FakeService::new();
             let mut policy = SubmitPolicy::new(service.clone());
             let id = SessionId::new();
 
@@ -283,7 +262,7 @@ mod tests {
             assert!(stop, "an explicit Close ends the connection");
             assert_eq!(service.closed(), vec![id]);
 
-            let forwarded = drain(&mut task_rx);
+            let forwarded = service.forwarded.lock().unwrap();
             assert_eq!(forwarded.len(), 2, "only the two pre-Close tasks forward");
             assert!(matches!(forwarded[0], Task::Seed(1)));
             assert!(matches!(forwarded[1], Task::Seed(2)));
@@ -293,7 +272,7 @@ mod tests {
     #[test]
     fn policy_aborts_on_task_before_init() {
         block_on(async {
-            let (service, _rx) = FakeService::new();
+            let service = FakeService::new();
             let mut policy = SubmitPolicy::new(service.clone());
 
             let stop = policy
@@ -308,7 +287,7 @@ mod tests {
     #[test]
     fn policy_cleanup_closes_a_session_that_ended_without_close() {
         block_on(async {
-            let (service, _rx) = FakeService::new();
+            let service = FakeService::new();
             let mut policy = SubmitPolicy::new(service.clone());
             let id = SessionId::new();
 
@@ -328,7 +307,7 @@ mod tests {
     #[test]
     fn policy_cleanup_does_not_double_close_after_explicit_close() {
         block_on(async {
-            let (service, _rx) = FakeService::new();
+            let service = FakeService::new();
             let mut policy = SubmitPolicy::new(service.clone());
             let id = SessionId::new();
 

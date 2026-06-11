@@ -17,12 +17,12 @@ use super::session::SessionManager;
 ///
 /// Each connection is a thin IO loop: [`FetchHandler`] answers the `/fetch` stream's init
 /// handshake and drains the session's result queue, while [`SubmitHandler`] decodes the
-/// `/submit` stream's message batches and forwards each task to the session's worker. The
-/// tasks actually run on that per-session worker thread (see
-/// [`SessionWorker`](super::worker::SessionWorker)), which holds the session's runner and
-/// processes its tasks in FIFO order — so a blocking op (e.g. an all-reduce barrier) parks
-/// only that session's worker rather than a shared runtime thread. The [`SessionManager`] owns
-/// the per-session state behind the [`SubmitService`](super::service::SubmitService) /
+/// `/submit` stream's message batches and forwards each task to the session's device runner. The
+/// tasks actually run on a per-device runner thread owned by a
+/// [`ServerDeviceService`](super::service_device::ServerDeviceService), which holds every
+/// session's runner and processes their tasks in FIFO order on the device's optimized channel.
+/// The [`SessionManager`] owns the per-session state behind the
+/// [`SubmitService`](super::service::SubmitService) /
 /// [`FetchService`](super::service::FetchService) traits the handlers depend on.
 pub struct RemoteServer<B, P>
 where
