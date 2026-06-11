@@ -74,11 +74,16 @@ impl TuiMetricsRendererWrapper {
         let (kill_signal_sender, kill_signal_receiver) = mpsc::channel();
 
         let interrupter_clone = interrupter.clone();
+        let renderer_sender = sender.clone();
         let handle_join = std::thread::Builder::new()
             .name("train-renderer".into())
             .spawn(move || {
-                let mut renderer =
-                    TuiMetricsRenderer::new(interrupter_clone, checkpoint, kill_signal_sender);
+                let mut renderer = TuiMetricsRenderer::new(
+                    interrupter_clone,
+                    checkpoint,
+                    kill_signal_sender,
+                    renderer_sender,
+                );
 
                 let tick_rate = Duration::from_millis(MAX_REFRESH_RATE_MILLIS);
                 loop {
@@ -123,7 +128,9 @@ impl TuiMetricsRendererWrapper {
 
     fn send_event(&self, event: TuiRendererEvent) {
         if self.kill_signal.lock().unwrap().try_recv().is_ok() {
-            panic!("Killing training from user input.")
+            self.interrupter
+                .stop(Some("Killing training from user input."));
+            return;
         }
         if let Err(e) = self.sender.send(event) {
             log::warn!("Failed to send TUI event: {e}");
@@ -153,6 +160,7 @@ struct TuiMetricsRenderer {
     close: bool,
     summary: Option<LearnerSummary>,
     kill_signal: Sender<()>,
+    sender: Sender<TuiRendererEvent>,
 }
 
 impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
@@ -297,7 +305,8 @@ impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
 impl Drop for TuiMetricsRendererWrapper {
     fn drop(&mut self) {
         if !std::thread::panicking() {
-            self.send_event(TuiRendererEvent::Close);
+            // Close may already have been sent by KillPopupAccept — sending again is harmless
+            let _ = self.sender.send(TuiRendererEvent::Close);
             if let Some(handle) = self.handle_join.take() {
                 let _ = handle.join();
             }
@@ -337,6 +346,7 @@ impl TuiMetricsRenderer {
         interrupter: Interrupter,
         checkpoint: Option<usize>,
         kill_signal: Sender<()>,
+        sender: Sender<TuiRendererEvent>,
     ) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture).unwrap();
@@ -371,6 +381,7 @@ impl TuiMetricsRenderer {
             close: false,
             summary: None,
             kill_signal,
+            sender,
         }
     }
 
@@ -500,11 +511,15 @@ impl TuiMetricsRenderer {
                         ),
                         Callback::new(
                             "Stop the training immediately.",
-                            "Kill the program. This will create a panic! which will make \
-                                 the current training fails. Any code following the training \
-                                 won't be executed.",
+                            "Kill the program. This will immediately stop the training and \
+                                 exit the process. Any code following the training won't be \
+                                 executed.",
                             'k',
-                            KillPopupAccept(self.kill_signal.clone()),
+                            KillPopupAccept {
+                                kill_signal: self.kill_signal.clone(),
+                                interrupter: self.interrupter.clone(),
+                                sender: self.sender.clone(),
+                            },
                         ),
                         Callback::new(
                             "Cancel",
@@ -600,13 +615,20 @@ impl TuiMetricsRenderer {
 }
 
 struct QuitPopupAccept(Interrupter);
-struct KillPopupAccept(Sender<()>);
+struct KillPopupAccept {
+    kill_signal: Sender<()>,
+    interrupter: Interrupter,
+    sender: Sender<TuiRendererEvent>,
+}
 struct PopupCancel;
 
 impl CallbackFn for KillPopupAccept {
     fn call(&self) -> bool {
-        self.0.send(()).unwrap();
-        panic!("Killing training from user input.");
+        self.kill_signal.send(()).unwrap();
+        self.interrupter
+            .stop(Some("Killing training from user input."));
+        let _ = self.sender.send(TuiRendererEvent::Close);
+        true
     }
 }
 
