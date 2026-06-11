@@ -431,6 +431,30 @@ where
         .unwrap()
     }
 
+    fn float_any(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, None, ReduceOperationConfig::Any, out_dtype)
+    }
+
+    fn float_any_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::Any, out_dtype)
+    }
+
+    fn float_all(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, None, ReduceOperationConfig::All, out_dtype)
+    }
+
+    fn float_all_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        reduce::reduce_logical(tensor, Some(dim), ReduceOperationConfig::All, out_dtype)
+    }
+
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
