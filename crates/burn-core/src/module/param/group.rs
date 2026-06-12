@@ -41,6 +41,7 @@ impl ModuleVisitor for ParamIdCollector {
 }
 
 /// A way to represent a group of parameter for a Burn module.
+#[derive(Clone)]
 pub struct ParamGroup {
     matcher: ParamGroupMatcher,
     excludes: Option<ParamGroupMatcher>,
