@@ -16,8 +16,8 @@ pub mod exponential;
 /// Cosine learning rate scheduler
 pub mod cosine;
 
-/// Multi learning rate scheduler.
-pub mod multi;
+// /// Multi learning rate scheduler.
+// pub mod multi;
 
 /// Step learning rate scheduler
 pub mod step;

@@ -87,8 +87,15 @@ impl ParamGroup {
 
     /// Matches parameters including this string (e.g., "backbone")
     pub fn from_predicate(path: impl Into<String>) -> Self {
+        ParamGroup::from_predicates(vec![path])
+    }
+
+    /// Matches parameters including all these string (e.g., "backbone" and "linear")
+    pub fn from_predicates(paths: Vec<impl Into<String>>) -> Self {
         Self {
-            matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Include(path.into()))),
+            matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Include(
+                paths.into_iter().map(|p| p.into()).collect(),
+            ))),
             excludes: None,
         }
     }
@@ -236,7 +243,7 @@ impl ParamGroupMatcher {
 enum PathMatcher {
     Exact(Vec<String>),
     Regex(Vec<Regex>),
-    Include(String),
+    Include(Vec<String>),
 }
 
 impl PathMatcher {
@@ -244,7 +251,7 @@ impl PathMatcher {
         match self {
             PathMatcher::Exact(paths) => paths.iter().any(|p| p == path),
             PathMatcher::Regex(regexs) => regexs.iter().any(|r| r.is_match(path)),
-            PathMatcher::Include(include) => path.contains(include),
+            PathMatcher::Include(includes) => includes.iter().all(|inc| path.contains(inc)),
         }
     }
 }

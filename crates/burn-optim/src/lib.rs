@@ -21,9 +21,6 @@ pub mod grad_clipping;
 #[cfg(feature = "std")]
 pub mod lr_scheduler;
 
-/// Parameter groups module.
-pub mod group;
-
 /// Type alias for the learning rate.
 ///
 /// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
