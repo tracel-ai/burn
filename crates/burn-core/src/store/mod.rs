@@ -331,8 +331,8 @@ impl Applier {
         module_dtype: impl FnOnce() -> DType,
     ) -> Option<Tensor<D, K>> {
         let path = self.path.join(".");
-        let mut data = match self.tensors.get(&path) {
-            Some(data) => data.clone(),
+        let data = match self.tensors.remove_entry(&path) {
+            Some(data) => data.1,
             None => {
                 self.missing.push(path);
                 return None;
@@ -344,9 +344,6 @@ impl Applier {
             DTypePolicy::FromRecord => data.dtype,
             DTypePolicy::CastToModule => module_dtype(),
         };
-        if data.dtype != dtype {
-            data = data.convert_dtype(dtype);
-        }
 
         if data.shape != target_shape {
             self.errors.push(format!(
@@ -356,9 +353,7 @@ impl Applier {
             return None;
         }
 
-        let tensor = Tensor::from_data(data, (device, dtype));
-        device.sync().unwrap();
-        Some(tensor)
+        Some(Tensor::from_data(data, (device, dtype)))
     }
 }
 
