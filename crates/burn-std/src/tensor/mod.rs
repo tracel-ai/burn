@@ -285,4 +285,36 @@ mod tests {
 
         assert_eq!(analysis, ReshapeAnalysis::Split)
     }
+
+    #[test]
+    fn test_split_strides_trailing_unit_dim_broadcast_view() {
+        // A `repeat_dim` broadcast view: [26, 1] with strides [1, 0],
+        // unsqueezed to [26, 1, 1]. Dim 0 must keep stride 1 — propagating
+        // the unit dim's stride 0 makes every row alias row 0 (this breaks
+        // e.g. `scatter` index tensors built via unsqueeze + repeat).
+        let strides = split_strides(&[26, 1], &[1, 0], &[26, 1, 1]);
+        assert_eq!(strides.as_ref(), &[1, 1, 1]);
+    }
+
+    #[test]
+    fn test_split_strides_trailing_unit_dims_arbitrary_strides() {
+        // Unit dims can carry arbitrary strides (broadcast 0, pitched
+        // values, ...). They must not anchor the stride walk.
+        let strides = split_strides(&[32, 1, 1, 1], &[1, 32, 32, 32], &[32, 1, 1, 1, 1]);
+        assert_eq!(strides.as_ref(), &[1, 1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn test_split_strides_split_of_broadcast_dim_keeps_zero() {
+        // Splitting a real broadcast (stride 0) dim keeps 0 on the split
+        // parts; the leading real dim keeps its stride.
+        let strides = split_strides(&[26, 16], &[1, 0], &[26, 4, 4]);
+        assert_eq!(strides.as_ref(), &[1, 0, 0]);
+    }
+
+    #[test]
+    fn test_split_strides_plain_unsqueeze() {
+        let strides = split_strides(&[26, 16], &[16, 1], &[26, 16, 1]);
+        assert_eq!(strides.as_ref(), &[16, 1, 1]);
+    }
 }
