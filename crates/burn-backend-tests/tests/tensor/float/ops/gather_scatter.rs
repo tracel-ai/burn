@@ -171,3 +171,25 @@ fn scatter_should_panic_on_mismatch_of_shapes() {
 
     tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
 }
+
+#[test]
+fn should_scatter_add_3d_dim0_with_index_view() {
+    // Index tensor expanded from 1D via unsqueeze + repeat_dim — a common
+    // pattern to scatter whole rows along dim 0. The repeat of a unit dim
+    // is a broadcast view; reshaping it must keep stride 1 on dim 0,
+    // otherwise every iteration reads `indices[0]` and all updates pile
+    // onto one row while the other rows get none.
+    let device = Default::default();
+    let tensor = TestTensor::<3>::from_data([[[1.0]], [[2.0]], [[3.0]], [[4.0]]], &device);
+    let values = TestTensor::<3>::from_data([[[10.0]], [[20.0]]], &device);
+    let indices = TestTensorInt::<1>::from_ints([2, 0], &device);
+    let indices: TestTensorInt<2> = indices.unsqueeze_dim(1).repeat_dim(1, 1);
+    let indices: TestTensorInt<3> = indices.unsqueeze_dim(2).repeat_dim(2, 1);
+
+    let output = tensor.scatter(0, indices, values, IndexingUpdateOp::Add);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[[21.0]], [[2.0]], [[13.0]], [[4.0]]]),
+        false,
+    );
+}
