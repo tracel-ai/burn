@@ -30,9 +30,10 @@ pub struct Reader {
 impl Reader {
     /// Load a pack from an in-memory [`Bytes`] buffer.
     ///
-    /// Each tensor's bytes are popped out of the buffer with [`Bytes::split`] on
-    /// [`get_tensors`](Self::get_tensors) — no per-tensor copy when the buffer's backing
-    /// allocation supports zero-copy splitting. For large models, prefer
+    /// Each tensor's bytes are a zero-copy [`Bytes::view`] into the buffer on
+    /// [`get_tensors`](Self::get_tensors) — no per-tensor copy. The buffer is
+    /// [shared](Bytes::shared) (a cheap `Arc` move, never a data copy) up front so those
+    /// views are available regardless of its original backing. For large models, prefer
     /// [`from_file`](Self::from_file), which keeps tensor data lazy.
     pub fn from_bytes(bytes: Bytes) -> Result<Self, Error> {
         let header = read_header(&bytes)?;
@@ -45,7 +46,7 @@ impl Reader {
         let metadata = parse_metadata(&bytes[HEADER_SIZE..metadata_end])?;
 
         let available = bytes.len();
-        Self::assemble(&header, metadata, Source::Memory(bytes), available)
+        Self::assemble(&header, metadata, Source::Memory(bytes.shared()), available)
     }
 
     /// Load a pack from a file.
@@ -99,17 +100,14 @@ impl Reader {
 
     /// Get all tensors in the pack, in sorted (alphabetical) name order.
     ///
-    /// File-backed tensors are read lazily on access. In-memory tensors are popped out of the
-    /// source buffer with [`Bytes::split`] (no per-tensor copy when the backing supports zero-copy
-    /// splitting); backings that can't split fall back to copying each tensor's range.
+    /// File-backed tensors are read lazily on access. In-memory tensors are zero-copy
+    /// [`Bytes::view`] windows into the (already [shared](Bytes::shared)) source buffer — no
+    /// per-tensor copy.
     pub fn get_tensors(&self) -> Result<Vec<Tensor>, Error> {
         match &self.source {
             #[cfg(feature = "std")]
             Source::File(path) => self.file_tensors(path),
-            Source::Memory(source) => match self.split_tensors(source)? {
-                Some(tensors) => Ok(tensors),
-                None => self.copy_tensors(source),
-            },
+            Source::Memory(source) => self.view_tensors(source),
         }
     }
 
@@ -203,63 +201,22 @@ impl Reader {
         Ok(tensors)
     }
 
-    /// Pop each tensor off the in-memory buffer with [`Bytes::split`] (zero-copy when the backing
-    /// supports it). Returns `Ok(None)` if the backing can't split — the caller then copies.
+    /// Back each in-memory tensor with a zero-copy [`Bytes::view`] into the source buffer.
     ///
-    /// Tensors are keyed (and returned) in name order, but laid out in offset order, so we visit
-    /// them by ascending offset to consume the buffer front-to-back, placing each result back at
-    /// its name-order index. The buffer is cloned up front, which is itself a copy for backings
-    /// that can't be duplicated cheaply — but those can't split either, so the first `pop` returns
-    /// `None` and the caller falls back to copying.
-    fn split_tensors(&self, source: &Bytes) -> Result<Option<Vec<Tensor>>, Error> {
-        let mut entries: Vec<(usize, &String, &TensorDescriptor, usize, usize)> =
-            Vec::with_capacity(self.metadata.tensors.len());
-        for (index, (name, descriptor)) in self.metadata.tensors.iter().enumerate() {
-            let (start, end) = self.tensor_range(name, descriptor)?;
-            entries.push((index, name, descriptor, start, end));
-        }
-        entries.sort_by_key(|&(_, _, _, start, _)| start);
-
-        let mut out: Vec<Option<Tensor>> = self.metadata.tensors.iter().map(|_| None).collect();
-        let mut buf = source.clone();
-        let mut cursor = 0usize; // absolute bytes already popped off the front
-
-        for (index, name, descriptor, start, end) in entries {
-            // Discard the gap before this tensor (header/metadata/padding, then inter-tensor
-            // padding), then split off its bytes.
-            let rest = match pop(buf, start - cursor)? {
-                Some((_, rest)) => rest,
-                None => return Ok(None),
-            };
-            let (data, rest) = match pop(rest, end - start)? {
-                Some(pair) => pair,
-                None => return Ok(None),
-            };
-            out[index] = Some(make_tensor(name, descriptor, data)?);
-            buf = rest;
-            cursor = end;
-        }
-
-        Ok(Some(
-            out.into_iter()
-                .map(|t| t.expect("every tensor is popped exactly once"))
-                .collect(),
-        ))
-    }
-
-    /// Copy each tensor's range out of the in-memory buffer (one copy per tensor).
-    ///
-    /// Fallback for backings that don't support zero-copy [`Bytes::split`].
-    fn copy_tensors(&self, source: &Bytes) -> Result<Vec<Tensor>, Error> {
+    /// The buffer is [shared](Bytes::shared) once at construction, so every view borrows the same
+    /// backing allocation without copying any tensor data — regardless of how the buffer was
+    /// originally allocated (heap, file, ...).
+    fn view_tensors(&self, source: &Bytes) -> Result<Vec<Tensor>, Error> {
         let mut tensors = Vec::with_capacity(self.metadata.tensors.len());
         for (name, descriptor) in &self.metadata.tensors {
             let (start, end) = self.tensor_range(name, descriptor)?;
-            let chunk = memory_chunk(source, start, end)?;
-            tensors.push(make_tensor(
-                name,
-                descriptor,
-                Bytes::from_bytes_vec(chunk.to_vec()),
-            )?);
+            let bytes = source.view(start, end).map_err(|_| {
+                Error::ValidationError(format!(
+                    "Tensor '{name}' data range {start}..{end} could not be viewed (buffer is {} bytes)",
+                    source.len()
+                ))
+            })?;
+            tensors.push(make_tensor(name, descriptor, bytes)?);
         }
         Ok(tensors)
     }
@@ -335,21 +292,6 @@ fn memory_chunk(source: &Bytes, start: usize, end: usize) -> Result<&[u8], Error
             data.len()
         ))
     })
-}
-
-/// Split `n` bytes off the front of `bytes`, returning `Some((popped, remainder))`.
-///
-/// Bounds-checked so a corrupt/truncated pack returns a [`Error::ValidationError`] rather than
-/// panicking in the underlying split. Returns `Ok(None)` if the backing doesn't support
-/// splitting (the request was in bounds but the allocation can't be split).
-fn pop(bytes: Bytes, n: usize) -> Result<Option<(Bytes, Bytes)>, Error> {
-    if n > bytes.len() {
-        return Err(Error::ValidationError(format!(
-            "Tensor data is out of bounds: need {n} bytes but only {} remain",
-            bytes.len()
-        )));
-    }
-    Ok(bytes.split(n).ok())
 }
 
 /// Build a [`Tensor`] entry from a descriptor + its data bytes.
