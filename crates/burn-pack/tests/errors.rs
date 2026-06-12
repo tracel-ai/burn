@@ -68,7 +68,10 @@ fn rejects_duplicate_tensor_names() {
         f32_tensor("w", &[1.0, 2.0], &[2], None),
         f32_tensor("w", &[3.0, 4.0], &[2], None),
     ]);
-    assert!(matches!(writer.to_bytes(), Err(Error::ValidationError(_))));
+    assert!(matches!(
+        writer.into_bytes(),
+        Err(Error::ValidationError(_))
+    ));
 }
 
 #[test]
@@ -78,7 +81,7 @@ fn rejects_truncated_data_section() {
     // size the metadata claims.
     let values: Vec<f32> = (0..512).map(|i| i as f32).collect();
     let packed = Writer::new(vec![f32_tensor("w", &values, &[512], None)])
-        .to_bytes()
+        .into_bytes()
         .unwrap();
 
     let slice: &[u8] = &packed;

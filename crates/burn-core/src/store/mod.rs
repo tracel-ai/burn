@@ -77,7 +77,7 @@ struct RecordTensor {
 /// A non-generic record holding a module's parameters.
 ///
 /// Obtain one from a module with [`ModuleRecord::into_record_next`], then either save it
-/// ([`save`](RecordNext::save) / [`to_bytes`](RecordNext::to_bytes)) or apply it back with
+/// ([`save`](RecordNext::save) / [`into_bytes`](RecordNext::into_bytes)) or apply it back with
 /// [`ModuleRecord::load_record_next`]. Load-time behavior is configured with the builder
 /// methods; they are ignored when saving.
 ///
@@ -148,8 +148,8 @@ impl RecordNext {
     }
 
     /// Serialize the record to an in-memory burnpack byte buffer.
-    pub fn to_bytes(&self) -> Result<crate::tensor::Bytes, RecordError> {
-        Ok(Writer::new(self.pack_tensors()).to_bytes()?)
+    pub fn into_bytes(self) -> Result<crate::tensor::Bytes, RecordError> {
+        Ok(Writer::new(self.pack_tensors()).into_bytes()?)
     }
 
     /// Reconstruct a record from an in-memory burnpack byte buffer.
@@ -159,7 +159,7 @@ impl RecordNext {
 
     /// Save the record to a burnpack file on disk.
     #[cfg(feature = "std")]
-    pub fn save<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), RecordError> {
+    pub fn save<P: AsRef<std::path::Path>>(self, path: P) -> Result<(), RecordError> {
         Writer::new(self.pack_tensors()).write_to_file(path)?;
         Ok(())
     }
@@ -170,16 +170,16 @@ impl RecordNext {
         Self::from_reader(Reader::from_file(path)?)
     }
 
-    fn pack_tensors(&self) -> Vec<burn_pack::Tensor> {
+    fn pack_tensors(self) -> Vec<burn_pack::Tensor> {
         self.tensors
-            .iter()
+            .into_iter()
             .map(|t| {
                 burn_pack::Tensor::new(
-                    t.path.clone(),
+                    t.path,
                     t.data.dtype,
-                    t.data.shape.clone(),
+                    t.data.shape,
                     Some(t.id.val()),
-                    t.data.bytes.clone(),
+                    t.data.bytes,
                 )
             })
             .collect()
@@ -446,7 +446,7 @@ mod tests {
         let device = Default::default();
         let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
 
-        let bytes = model.into_record_next().to_bytes().unwrap();
+        let bytes = model.into_record_next().into_bytes().unwrap();
         let record = RecordNext::from_bytes(bytes).unwrap();
         assert_eq!(record.len(), 2);
 

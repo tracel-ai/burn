@@ -98,7 +98,10 @@ fn save_and_load_module_via_file() {
 fn save_and_load_module_via_bytes() {
     let device = Default::default();
 
-    let bytes = Mlp::sample(&device).into_record_next().to_bytes().unwrap();
+    let bytes = Mlp::sample(&device)
+        .into_record_next()
+        .into_bytes()
+        .unwrap();
 
     let record = RecordNext::from_bytes(bytes).unwrap();
     let loaded = Mlp::zeros(&device).load_record_next(record);
@@ -115,7 +118,7 @@ fn missing_parameters_require_allow_partial() {
         first: Layer::from_values([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device),
     }
     .into_record_next();
-    let bytes = partial.to_bytes().unwrap();
+    let bytes = partial.into_bytes().unwrap();
 
     // Strict load into the full Mlp fails: `second.*` is missing from the record.
     let strict = RecordNext::from_bytes(bytes.clone()).unwrap();

@@ -353,7 +353,7 @@ mod tests {
     fn tensor_offsets_are_256_aligned() {
         // Odd sizes force the writer to insert padding between tensors.
         let packed = Writer::new(vec![tensor("a", 3), tensor("b", 1), tensor("c", 2)])
-            .to_bytes()
+            .into_bytes()
             .unwrap();
         let reader = Reader::from_bytes(packed).unwrap();
 

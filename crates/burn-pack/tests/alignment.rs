@@ -33,7 +33,7 @@ fn size_matches_to_bytes_length() {
     ]);
 
     let size = writer.size().unwrap();
-    let bytes = writer.to_bytes().unwrap();
+    let bytes = writer.into_bytes().unwrap();
     assert_eq!(size, bytes.len());
 }
 
@@ -44,7 +44,7 @@ fn write_into_matches_to_bytes_and_round_trips() {
     let mut buffer = vec![0u8; writer.size().unwrap()];
     writer.write_into(&mut buffer).unwrap();
 
-    let from_to_bytes = writer.to_bytes().unwrap();
+    let from_to_bytes = writer.into_bytes().unwrap();
     assert_eq!(&buffer[..], &from_to_bytes[..]);
 
     let reader = Reader::from_bytes(burn_pack::Bytes::from_bytes_vec(buffer)).unwrap();

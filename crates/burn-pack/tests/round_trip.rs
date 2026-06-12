@@ -9,7 +9,7 @@ use common::{f32_tensor, raw_tensor, read_f32};
 fn single_tensor_round_trip() {
     let tensor = f32_tensor("weight", &[1.0, 2.0, 3.0, 4.0], &[2, 2], Some(7));
 
-    let packed = Writer::new(vec![tensor]).to_bytes().unwrap();
+    let packed = Writer::new(vec![tensor]).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
     let tensors = reader.get_tensors().unwrap();
 
@@ -31,7 +31,7 @@ fn multiple_tensors_returned_sorted_by_name() {
         f32_tensor("alpha", &[1.0], &[1], None),
         f32_tensor("mango", &[5.0], &[1], None),
     ])
-    .to_bytes()
+    .into_bytes()
     .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
@@ -61,7 +61,7 @@ fn tensors_with_varied_sizes_map_to_correct_names() {
         f32_tensor("alpha", &a, &[3], None),
         f32_tensor("mango", &m, &[7], None),
     ])
-    .to_bytes()
+    .into_bytes()
     .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
@@ -79,7 +79,7 @@ fn user_metadata_round_trip() {
     let packed = Writer::new(vec![f32_tensor("w", &[1.0], &[1], None)])
         .with_metadata("producer", "burn-pack")
         .with_metadata("format", "burnpack")
-        .to_bytes()
+        .into_bytes()
         .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
@@ -97,7 +97,7 @@ fn param_id_present_and_absent() {
         f32_tensor("with_id", &[1.0], &[1], Some(123)),
         f32_tensor("without_id", &[2.0], &[1], None),
     ])
-    .to_bytes()
+    .into_bytes()
     .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
@@ -111,7 +111,7 @@ fn param_id_present_and_absent() {
 
 #[test]
 fn empty_pack() {
-    let packed = Writer::new(vec![]).to_bytes().unwrap();
+    let packed = Writer::new(vec![]).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
     assert!(reader.get_tensors().unwrap().is_empty());
     assert!(reader.tensor_names().is_empty());
@@ -141,7 +141,7 @@ fn dtype_and_byte_len_preserved() {
         })
         .collect();
 
-    let packed = Writer::new(tensors).to_bytes().unwrap();
+    let packed = Writer::new(tensors).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
     let read = reader.get_tensors().unwrap();
 
@@ -158,7 +158,7 @@ fn dtype_and_byte_len_preserved() {
 #[test]
 fn in_memory_round_trip() {
     let packed = Writer::new(vec![f32_tensor("w", &[1.5, 2.5, 3.5], &[3], None)])
-        .to_bytes()
+        .into_bytes()
         .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
@@ -187,7 +187,7 @@ fn read_single_tensor_data_by_name() {
         f32_tensor("a", &[1.0, 2.0], &[2], None),
         f32_tensor("b", &[3.0], &[1], None),
     ])
-    .to_bytes()
+    .into_bytes()
     .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();

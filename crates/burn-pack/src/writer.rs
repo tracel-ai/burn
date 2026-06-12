@@ -69,7 +69,7 @@ impl Writer {
     /// # Arguments
     ///
     /// * `buffer` - Mutable slice to write data into. Must be at least `size()` bytes.
-    pub fn write_into(&self, buffer: &mut [u8]) -> Result<(), Error> {
+    pub fn write_into(self, buffer: &mut [u8]) -> Result<(), Error> {
         let layout = self.plan()?;
         let total_size = layout.total_size();
 
@@ -89,7 +89,7 @@ impl Writer {
     ///
     /// This allocates a buffer internally and writes the burnpack data.
     /// For more control over buffer allocation, use `size()` + `write_into()`.
-    pub fn to_bytes(&self) -> Result<Bytes, Error> {
+    pub fn into_bytes(self) -> Result<Bytes, Error> {
         let layout = self.plan()?;
         let mut buffer = vec![0u8; layout.total_size()];
 
@@ -104,7 +104,7 @@ impl Writer {
 
     /// Write directly to a file (more memory efficient for large models).
     #[cfg(feature = "std")]
-    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+    pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
         let layout = self.plan()?;
         let file = File::create(path).map_err(|e| Error::IoError(e.to_string()))?;
 
@@ -211,7 +211,7 @@ impl Writer {
 
     /// Emit the full container — header, metadata, alignment padding, then tensor data
     /// — into `sink`, which decides where the bytes ultimately land.
-    fn write_container(&self, layout: &Layout, sink: &mut impl Sink) -> Result<(), Error> {
+    fn write_container(self, layout: &Layout, sink: &mut impl Sink) -> Result<(), Error> {
         sink.write(&layout.header.into_bytes())?;
         sink.write(&layout.metadata_bytes)?;
 
@@ -226,11 +226,11 @@ impl Writer {
 
     /// Write each tensor's data into `sink`, inserting alignment padding between
     /// tensors so every tensor lands at its descriptor's aligned offset.
-    fn write_tensors(&self, metadata: &Metadata, sink: &mut impl Sink) -> Result<(), Error> {
+    fn write_tensors(self, metadata: &Metadata, sink: &mut impl Sink) -> Result<(), Error> {
         // Position within the data section (relative to its aligned start).
         let mut data_offset = 0usize;
 
-        for tensor in &self.tensors {
+        for tensor in self.tensors.into_iter() {
             let (aligned_offset, data) = Self::resolve_tensor(tensor, metadata)?;
 
             if aligned_offset > data_offset {
@@ -238,7 +238,7 @@ impl Writer {
                 data_offset = aligned_offset;
             }
 
-            sink.write(data)?;
+            sink.write(&data)?;
             data_offset += data.len();
         }
 
@@ -247,10 +247,7 @@ impl Writer {
 
     /// Look up a tensor's aligned offset from the metadata and validate that its
     /// bytes match the length the descriptor reserved for it.
-    fn resolve_tensor<'t>(
-        tensor: &'t Tensor,
-        metadata: &Metadata,
-    ) -> Result<(usize, &'t [u8]), Error> {
+    fn resolve_tensor(tensor: Tensor, metadata: &Metadata) -> Result<(usize, Bytes), Error> {
         let descriptor = metadata.tensors.get(&tensor.name).ok_or_else(|| {
             Error::IoError(format!(
                 "Internal error: tensor '{}' not found in metadata",
@@ -268,7 +265,7 @@ impl Writer {
             )));
         }
 
-        Ok((start as usize, &tensor.bytes))
+        Ok((start as usize, tensor.bytes))
     }
 }
 

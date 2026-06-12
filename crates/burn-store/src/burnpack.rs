@@ -315,7 +315,7 @@ impl BurnpackStore {
     /// Get the bytes after writing (only valid for bytes mode after collecting)
     pub fn get_bytes(&self) -> Result<Bytes, PackError> {
         if let Some(writer) = &self.writer {
-            return writer.to_bytes();
+            return writer.into_bytes();
         }
 
         match &self.mode {
@@ -413,7 +413,7 @@ impl ModuleStore for BurnpackStore {
                 }
                 StoreMode::Bytes(_) => {
                     // Generate and store the bytes
-                    let bytes_data = writer.to_bytes()?;
+                    let bytes_data = writer.into_bytes()?;
                     // Update mode with bytes - this pattern is irrefutable in no-std mode
                     #[cfg_attr(not(feature = "std"), allow(irrefutable_let_patterns))]
                     let StoreMode::Bytes(bytes_ref) = &mut self.mode else {
