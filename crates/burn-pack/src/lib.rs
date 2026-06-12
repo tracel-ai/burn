@@ -33,17 +33,18 @@
 //! // Write to an in-memory buffer ...
 //! let packed = Writer::new(vec![tensor])
 //!     .with_metadata("producer", "burn-pack docs")
-//!     .to_bytes()
+//!     .into_bytes()
 //!     .unwrap();
 //!
 //! // ... and read it back.
 //! let reader = Reader::from_bytes(packed).unwrap();
-//! let tensors = reader.get_tensors().unwrap();
+//! assert_eq!(reader.metadata()["producer"], "burn-pack docs");
+//! // Consume the reader to get the tensors (zero-copy views into the source).
+//! let tensors = reader.into_tensors().unwrap();
 //! assert_eq!(tensors.len(), 1);
 //! assert_eq!(tensors[0].name, "weight");
 //! assert_eq!(tensors[0].shape.to_vec(), vec![2, 2]);
 //! assert_eq!(tensors[0].param_id, Some(42));
-//! assert_eq!(reader.metadata()["producer"], "burn-pack docs");
 //! ```
 //!
 //! # File format

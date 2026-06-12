@@ -17,7 +17,7 @@ use std::fs::File;
 #[cfg(feature = "std")]
 use std::io::Read;
 #[cfg(feature = "std")]
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Reader for loading burnpack containers.
 pub struct Reader {
@@ -30,11 +30,10 @@ pub struct Reader {
 impl Reader {
     /// Load a pack from an in-memory [`Bytes`] buffer.
     ///
-    /// Each tensor's bytes are a zero-copy [`Bytes::view`] into the buffer on
-    /// [`get_tensors`](Self::get_tensors) — no per-tensor copy. The buffer is
-    /// [shared](Bytes::shared) (a cheap `Arc` move, never a data copy) up front so those
-    /// views are available regardless of its original backing. For large models, prefer
-    /// [`from_file`](Self::from_file), which keeps tensor data lazy.
+    /// Loading is lazy: only the header and metadata are parsed here. The buffer is kept as-is
+    /// (no copy, no share) and is only turned into zero-copy [`Bytes::view`] windows when you
+    /// consume the reader with [`into_tensors`](Self::into_tensors). For large models, prefer
+    /// [`from_file`](Self::from_file), which keeps tensor data file-backed and lazy.
     pub fn from_bytes(bytes: Bytes) -> Result<Self, Error> {
         let header = read_header(&bytes)?;
         let metadata_end = HEADER_SIZE
@@ -46,14 +45,15 @@ impl Reader {
         let metadata = parse_metadata(&bytes[HEADER_SIZE..metadata_end])?;
 
         let available = bytes.len();
-        Self::assemble(&header, metadata, Source::Memory(bytes.shared()), available)
+        Self::assemble(&header, metadata, Source::Memory(bytes), available)
     }
 
     /// Load a pack from a file.
     ///
-    /// Only the header and metadata are read up front; each tensor's data is backed by
-    /// [`Bytes::from_file`] and read lazily when accessed. This integrates with the Burn
-    /// ecosystem's file allocation (pinned-memory staging) for fast file-to-GPU transfers.
+    /// Only the header and metadata are read up front; the whole file is wrapped in a single
+    /// lazy [`Bytes::from_file`] source, and each tensor's data is a [`Bytes::view`] window into
+    /// it, read from disk only when accessed. This integrates with the Burn ecosystem's file
+    /// allocation (pinned-memory staging) for fast file-to-GPU transfers.
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let mut file = File::open(&path).map_err(io_err)?;
@@ -73,7 +73,7 @@ impl Reader {
         file.read_exact(&mut metadata_bytes).map_err(io_err)?;
         let metadata = parse_metadata(&metadata_bytes)?;
 
-        let source = Source::File(path.as_ref().to_path_buf());
+        let source = Source::File(Bytes::from_file(path.as_ref(), file_size, 0));
         Self::assemble(&header, metadata, source, file_size as usize)
     }
 
@@ -98,23 +98,47 @@ impl Reader {
         })
     }
 
-    /// Get all tensors in the pack, in sorted (alphabetical) name order.
+    /// Consume the reader, returning all tensors in sorted (alphabetical) name order.
     ///
-    /// File-backed tensors are read lazily on access. In-memory tensors are zero-copy
-    /// [`Bytes::view`] windows into the (already [shared](Bytes::shared)) source buffer — no
-    /// per-tensor copy.
-    pub fn get_tensors(&self) -> Result<Vec<Tensor>, Error> {
-        match &self.source {
+    /// Each tensor's bytes are a zero-copy [`Bytes::view`] window into the source — no per-tensor
+    /// copy. For an in-memory source the buffer is [shared](Bytes::shared) once here (a cheap
+    /// `Arc` move, never a data copy) to make those views available; for a file source the windows
+    /// are file-backed and read lazily on access. Consuming `self` lets us hand the source's
+    /// ownership to the views directly, so loading never reads or copies tensor data eagerly.
+    pub fn into_tensors(self) -> Result<Vec<Tensor>, Error> {
+        let Reader {
+            metadata,
+            source,
+            data_offset,
+        } = self;
+
+        // Make the source view-capable: a plain in-memory buffer has no zero-copy window until
+        // it's shared behind an `Arc`, whereas a file-backed source already windows lazily (and
+        // must NOT be shared, or every view would materialize the whole file).
+        let source = match source {
+            Source::Memory(bytes) => bytes.shared(),
             #[cfg(feature = "std")]
-            Source::File(path) => self.file_tensors(path),
-            Source::Memory(source) => self.view_tensors(source),
+            Source::File(bytes) => bytes,
+        };
+
+        let mut tensors = Vec::with_capacity(metadata.tensors.len());
+        for (name, descriptor) in &metadata.tensors {
+            let (start, end) = tensor_range(data_offset, name, descriptor)?;
+            let bytes = source.view(start, end).map_err(|_| {
+                Error::ValidationError(format!(
+                    "Tensor '{name}' data range {start}..{end} could not be viewed (source is {} bytes)",
+                    source.len()
+                ))
+            })?;
+            tensors.push(make_tensor(name, descriptor, bytes)?);
         }
+        Ok(tensors)
     }
 
     /// The user-supplied key/value metadata stored alongside the tensors.
     ///
-    /// For per-tensor info (dtype/shape/param id), use [`get_tensors`](Self::get_tensors) — for a
-    /// file-backed reader this does not read any tensor data until a tensor's bytes are accessed.
+    /// For per-tensor info (dtype/shape/param id), use [`into_tensors`](Self::into_tensors) — for a
+    /// file-backed reader that does not read any tensor data until a tensor's bytes are accessed.
     pub fn metadata(&self) -> &alloc::collections::BTreeMap<String, String> {
         &self.metadata.metadata
     }
@@ -133,93 +157,63 @@ impl Reader {
             .tensors
             .get(name)
             .ok_or_else(|| Error::TensorNotFound(name.to_string()))?;
-        let (start, end) = self.tensor_range(name, descriptor)?;
+        let (start, end) = tensor_range(self.data_offset, name, descriptor)?;
 
         match &self.source {
             #[cfg(feature = "std")]
-            Source::File(path) => {
-                let bytes =
-                    Bytes::from_file(path.to_path_buf(), (end - start) as u64, start as u64);
-                let slice: &[u8] = &bytes;
+            Source::File(bytes) => {
+                // A file-backed view reads just this tensor's range from disk.
+                let view = bytes.view(start, end).map_err(|_| {
+                    Error::ValidationError(format!(
+                        "Tensor '{name}' data range {start}..{end} could not be viewed"
+                    ))
+                })?;
+                let slice: &[u8] = &view;
                 Ok(slice.to_vec())
             }
-            Source::Memory(source) => Ok(memory_chunk(source, start, end)?.to_vec()),
+            Source::Memory(bytes) => Ok(memory_chunk(bytes, start, end)?.to_vec()),
         }
     }
+}
 
-    /// Compute and validate the absolute `[start, end)` byte range of a tensor.
-    fn tensor_range(
-        &self,
-        name: &str,
-        descriptor: &TensorDescriptor,
-    ) -> Result<(usize, usize), Error> {
-        let to_usize = |offset: u64| -> Result<usize, Error> {
-            offset.try_into().map_err(|_| {
-                Error::ValidationError(format!(
-                    "Tensor '{name}' has corrupted offset data: offset {offset} exceeds platform maximum"
-                ))
-            })
-        };
-        let overflow = || {
+/// Compute and validate the absolute `[start, end)` byte range of a tensor.
+fn tensor_range(
+    data_offset: usize,
+    name: &str,
+    descriptor: &TensorDescriptor,
+) -> Result<(usize, usize), Error> {
+    let to_usize = |offset: u64| -> Result<usize, Error> {
+        offset.try_into().map_err(|_| {
             Error::ValidationError(format!(
-                "Tensor '{name}' has corrupted offset data: overflow"
+                "Tensor '{name}' has corrupted offset data: offset {offset} exceeds platform maximum"
             ))
-        };
+        })
+    };
+    let overflow = || {
+        Error::ValidationError(format!(
+            "Tensor '{name}' has corrupted offset data: overflow"
+        ))
+    };
 
-        let start = self
-            .data_offset
-            .checked_add(to_usize(descriptor.data_offsets.0)?)
-            .ok_or_else(overflow)?;
-        let end = self
-            .data_offset
-            .checked_add(to_usize(descriptor.data_offsets.1)?)
-            .ok_or_else(overflow)?;
+    let start = data_offset
+        .checked_add(to_usize(descriptor.data_offsets.0)?)
+        .ok_or_else(overflow)?;
+    let end = data_offset
+        .checked_add(to_usize(descriptor.data_offsets.1)?)
+        .ok_or_else(overflow)?;
 
-        if end < start {
-            return Err(Error::ValidationError(format!(
-                "Tensor '{name}' has corrupted offset data: end {end} < start {start}"
-            )));
-        }
-        if end - start > MAX_TENSOR_SIZE {
-            return Err(Error::ValidationError(format!(
-                "Tensor '{name}' size {} exceeds maximum allowed size of {MAX_TENSOR_SIZE} bytes (potential DoS attack)",
-                end - start
-            )));
-        }
-        Ok((start, end))
+    if end < start {
+        return Err(Error::ValidationError(format!(
+            "Tensor '{name}' has corrupted offset data: end {end} < start {start}"
+        )));
     }
-
-    /// Back each tensor lazily with its byte range in the file ([`Bytes::from_file`]).
-    #[cfg(feature = "std")]
-    fn file_tensors(&self, path: &Path) -> Result<Vec<Tensor>, Error> {
-        let mut tensors = Vec::with_capacity(self.metadata.tensors.len());
-        for (name, descriptor) in &self.metadata.tensors {
-            let (start, end) = self.tensor_range(name, descriptor)?;
-            let bytes = Bytes::from_file(path.to_path_buf(), (end - start) as u64, start as u64);
-            tensors.push(make_tensor(name, descriptor, bytes)?);
-        }
-        Ok(tensors)
+    if end - start > MAX_TENSOR_SIZE {
+        return Err(Error::ValidationError(format!(
+            "Tensor '{name}' size {} exceeds maximum allowed size of {MAX_TENSOR_SIZE} bytes (potential DoS attack)",
+            end - start
+        )));
     }
-
-    /// Back each in-memory tensor with a zero-copy [`Bytes::view`] into the source buffer.
-    ///
-    /// The buffer is [shared](Bytes::shared) once at construction, so every view borrows the same
-    /// backing allocation without copying any tensor data — regardless of how the buffer was
-    /// originally allocated (heap, file, ...).
-    fn view_tensors(&self, source: &Bytes) -> Result<Vec<Tensor>, Error> {
-        let mut tensors = Vec::with_capacity(self.metadata.tensors.len());
-        for (name, descriptor) in &self.metadata.tensors {
-            let (start, end) = self.tensor_range(name, descriptor)?;
-            let bytes = source.view(start, end).map_err(|_| {
-                Error::ValidationError(format!(
-                    "Tensor '{name}' data range {start}..{end} could not be viewed (buffer is {} bytes)",
-                    source.len()
-                ))
-            })?;
-            tensors.push(make_tensor(name, descriptor, bytes)?);
-        }
-        Ok(tensors)
-    }
+    Ok((start, end))
 }
 
 /// Parse and validate a header from a buffer that starts with it.
@@ -318,12 +312,15 @@ fn make_tensor(name: &str, descriptor: &TensorDescriptor, bytes: Bytes) -> Resul
 }
 
 /// Where a [`Reader`] gets its tensor data from.
+///
+/// Both variants hold a single [`Bytes`] spanning the whole container, and tensors are carved
+/// out of it with zero-copy [`Bytes::view`] windows.
 enum Source {
     /// The whole pack lives in memory.
     Memory(Bytes),
-    /// The pack lives in a file; tensor data is read lazily via [`Bytes::from_file`].
+    /// The pack lives in a file; tensor data is read lazily via file-backed [`Bytes::view`].
     #[cfg(feature = "std")]
-    File(PathBuf),
+    File(Bytes),
 }
 
 #[cfg(feature = "std")]

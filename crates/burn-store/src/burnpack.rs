@@ -46,8 +46,6 @@ pub struct BurnpackStore {
     from_adapter: Box<dyn ModuleAdapter>,
     /// Adapter applied when saving (Burn -> target)
     to_adapter: Box<dyn ModuleAdapter>,
-    /// Writer for saving
-    writer: Option<Writer>,
     /// Reader for loading
     reader: Option<Reader>,
     /// Cached tensor snapshots (parsed once, reused)
@@ -104,7 +102,6 @@ impl BurnpackStore {
             remapper: KeyRemapper::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
-            writer: None,
             reader: None,
             snapshots_cache: None,
         }
@@ -125,7 +122,6 @@ impl BurnpackStore {
             remapper: KeyRemapper::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
-            writer: None,
             reader: None,
             snapshots_cache: None,
         }
@@ -165,7 +161,6 @@ impl BurnpackStore {
             remapper: KeyRemapper::new(),
             from_adapter: Box::new(IdentityAdapter),
             to_adapter: Box::new(IdentityAdapter),
-            writer: None,
             reader: None,
             snapshots_cache: None,
         }
@@ -314,10 +309,7 @@ impl BurnpackStore {
 
     /// Get the bytes after writing (only valid for bytes mode after collecting)
     pub fn get_bytes(&self) -> Result<Bytes, PackError> {
-        if let Some(writer) = &self.writer {
-            return writer.into_bytes();
-        }
-
+        // `collect_from` caches the written bytes back into `self.mode` for bytes mode.
         match &self.mode {
             StoreMode::Bytes(Some(bytes)) => Ok(bytes.clone()),
             _ => Err(PackError::IoError("No bytes available".into())),
@@ -391,36 +383,32 @@ impl ModuleStore for BurnpackStore {
             writer = writer.with_metadata(key.as_str(), value.as_str());
         }
 
-        // Store the writer for finalization
-        self.writer = Some(writer);
+        // Write to storage based on mode, consuming the writer. For bytes mode the generated
+        // bytes are cached back into `self.mode` so `get_bytes` can return them afterwards.
+        match &self.mode {
+            #[cfg(feature = "std")]
+            StoreMode::File(path) => {
+                // Process path with auto-extension logic
+                let final_path = self.process_path(path);
 
-        // Write to storage based on mode
-        if let Some(writer) = &self.writer {
-            match &self.mode {
-                #[cfg(feature = "std")]
-                StoreMode::File(path) => {
-                    // Process path with auto-extension logic
-                    let final_path = self.process_path(path);
-
-                    // Check if file exists and overwrite is disabled
-                    if final_path.exists() && !self.overwrite {
-                        return Err(PackError::IoError(format!(
-                            "File already exists: {}. Use .overwrite(true) to overwrite.",
-                            final_path.display()
-                        )));
-                    }
-                    writer.write_to_file(&final_path)?;
+                // Check if file exists and overwrite is disabled
+                if final_path.exists() && !self.overwrite {
+                    return Err(PackError::IoError(format!(
+                        "File already exists: {}. Use .overwrite(true) to overwrite.",
+                        final_path.display()
+                    )));
                 }
-                StoreMode::Bytes(_) => {
-                    // Generate and store the bytes
-                    let bytes_data = writer.into_bytes()?;
-                    // Update mode with bytes - this pattern is irrefutable in no-std mode
-                    #[cfg_attr(not(feature = "std"), allow(irrefutable_let_patterns))]
-                    let StoreMode::Bytes(bytes_ref) = &mut self.mode else {
-                        unreachable!("We just matched Bytes variant");
-                    };
-                    *bytes_ref = Some(bytes_data);
-                }
+                writer.write_to_file(&final_path)?;
+            }
+            StoreMode::Bytes(_) => {
+                // Generate and store the bytes
+                let bytes_data = writer.into_bytes()?;
+                // Update mode with bytes - this pattern is irrefutable in no-std mode
+                #[cfg_attr(not(feature = "std"), allow(irrefutable_let_patterns))]
+                let StoreMode::Bytes(bytes_ref) = &mut self.mode else {
+                    unreachable!("We just matched Bytes variant");
+                };
+                *bytes_ref = Some(bytes_data);
             }
         }
 
@@ -491,11 +479,16 @@ impl BurnpackStore {
         // Ensure reader is loaded
         self.ensure_reader()?;
 
-        // Get tensors from reader, bridging to snapshots. File-backed readers keep the
+        // Consume the reader, bridging its tensors to snapshots. File-backed readers keep the
         // tensor data lazy (read on materialization); in-memory shared sources are zero-copy.
-        let reader = self.reader.as_ref().unwrap();
+        // Taking the reader hands the source's ownership to the tensor views, so nothing is read
+        // or copied eagerly. The snapshots cache below is what's reused on later calls.
+        let reader = self
+            .reader
+            .take()
+            .expect("reader initialized by ensure_reader");
         let snapshots: Vec<TensorSnapshot> = reader
-            .get_tensors()?
+            .into_tensors()?
             .into_iter()
             .map(bridge::tensor_to_snapshot)
             .collect();

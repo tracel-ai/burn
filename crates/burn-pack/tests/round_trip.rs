@@ -11,7 +11,7 @@ fn single_tensor_round_trip() {
 
     let packed = Writer::new(vec![tensor]).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
-    let tensors = reader.get_tensors().unwrap();
+    let tensors = reader.into_tensors().unwrap();
 
     assert_eq!(tensors.len(), 1);
     let t = &tensors[0];
@@ -35,23 +35,24 @@ fn multiple_tensors_returned_sorted_by_name() {
     .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
+    // Read names before consuming the reader, then consume it for the tensors.
+    assert_eq!(reader.tensor_names(), vec!["alpha", "mango", "zebra"]);
     let names: Vec<_> = reader
-        .get_tensors()
+        .into_tensors()
         .unwrap()
         .iter()
         .map(|t| t.name.clone())
         .collect();
 
     assert_eq!(names, vec!["alpha", "mango", "zebra"]);
-    assert_eq!(reader.tensor_names(), vec!["alpha", "mango", "zebra"]);
 }
 
 #[test]
 fn tensors_with_varied_sizes_map_to_correct_names() {
     // On-disk data order = write order (z, a, m), which differs from the name-sorted order the
     // reader returns. The odd sizes force different alignment gaps between tensors, so this
-    // exercises the gap/offset arithmetic of the split-based "pop" loader: each tensor's bytes
-    // must still come back attached to the right name.
+    // exercises the gap/offset arithmetic of the view-based loader: each tensor's zero-copy
+    // window must still come back attached to the right name.
     let z: Vec<f32> = (0..5).map(|i| 100.0 + i as f32).collect();
     let a: Vec<f32> = (0..3).map(|i| i as f32).collect();
     let m: Vec<f32> = (0..7).map(|i| 50.0 + i as f32).collect();
@@ -65,7 +66,7 @@ fn tensors_with_varied_sizes_map_to_correct_names() {
     .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
-    let tensors = reader.get_tensors().unwrap();
+    let tensors = reader.into_tensors().unwrap();
 
     let names: Vec<_> = tensors.iter().map(|t| t.name.clone()).collect();
     assert_eq!(names, vec!["alpha", "mango", "zebra"]);
@@ -86,7 +87,7 @@ fn user_metadata_round_trip() {
     assert_eq!(reader.metadata()["producer"], "burn-pack");
     assert_eq!(reader.metadata()["format"], "burnpack");
     // Per-tensor info comes from the tensors themselves.
-    let tensors = reader.get_tensors().unwrap();
+    let tensors = reader.into_tensors().unwrap();
     assert_eq!(tensors[0].dtype, DType::F32);
     assert_eq!(tensors[0].shape.to_vec(), vec![1]);
 }
@@ -101,7 +102,7 @@ fn param_id_present_and_absent() {
     .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
-    let tensors = reader.get_tensors().unwrap();
+    let tensors = reader.into_tensors().unwrap();
     let with = tensors.iter().find(|t| t.name == "with_id").unwrap();
     let without = tensors.iter().find(|t| t.name == "without_id").unwrap();
 
@@ -113,8 +114,8 @@ fn param_id_present_and_absent() {
 fn empty_pack() {
     let packed = Writer::new(vec![]).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
-    assert!(reader.get_tensors().unwrap().is_empty());
     assert!(reader.tensor_names().is_empty());
+    assert!(reader.into_tensors().unwrap().is_empty());
 }
 
 #[test]
@@ -143,7 +144,7 @@ fn dtype_and_byte_len_preserved() {
 
     let packed = Writer::new(tensors).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
-    let read = reader.get_tensors().unwrap();
+    let read = reader.into_tensors().unwrap();
 
     for (i, (dtype, elem)) in cases.iter().enumerate() {
         let t = read.iter().find(|t| t.name == format!("t{i}")).unwrap();
@@ -162,11 +163,12 @@ fn in_memory_round_trip() {
         .unwrap();
 
     let reader = Reader::from_bytes(packed).unwrap();
-    let tensors = reader.get_tensors().unwrap();
+    let tensors = reader.into_tensors().unwrap();
     assert_eq!(read_f32(&tensors[0]), vec![1.5, 2.5, 3.5]);
 }
 
-// Reading from a file backs each tensor with `Bytes::from_file`, read lazily on access.
+// Reading from a file backs each tensor with a file-backed `Bytes::view` window, read lazily on
+// access.
 #[cfg(feature = "std")]
 #[test]
 fn file_backed_tensors() {
@@ -177,7 +179,7 @@ fn file_backed_tensors() {
         .unwrap();
 
     let reader = Reader::from_file(&path).unwrap();
-    let tensors = reader.get_tensors().unwrap();
+    let tensors = reader.into_tensors().unwrap();
     assert_eq!(read_f32(&tensors[0]), vec![1.5, 2.5, 3.5]);
 }
 
@@ -198,7 +200,7 @@ fn shared_tensor_chunked_write_round_trip() {
 
     let packed = Writer::new(vec![tensor]).into_bytes().unwrap();
     let reader = Reader::from_bytes(packed).unwrap();
-    let read = reader.get_tensors().unwrap();
+    let read = reader.into_tensors().unwrap();
 
     assert_eq!(read.len(), 1);
     let materialized: &[u8] = &read[0].bytes;
@@ -243,9 +245,9 @@ fn file_round_trip() {
     .unwrap();
 
     let reader = Reader::from_file(&path).unwrap();
-    let tensors = reader.get_tensors().unwrap();
+    assert_eq!(reader.metadata()["producer"], "burn-pack");
+    let tensors = reader.into_tensors().unwrap();
     assert_eq!(tensors.len(), 1);
     assert_eq!(read_f32(&tensors[0]), vec![1.0, 2.0, 3.0, 4.0]);
     assert_eq!(tensors[0].param_id, Some(1));
-    assert_eq!(reader.metadata()["producer"], "burn-pack");
 }

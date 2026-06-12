@@ -24,9 +24,9 @@ use burn_pack::{Bytes, DType, Reader, Tensor, Writer};
 let raw: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0].iter().flat_map(|v| v.to_le_bytes()).collect();
 let tensor = Tensor::new("weight".to_string(), DType::F32, vec![2, 2], None, Bytes::from_bytes_vec(raw));
 
-let packed = Writer::new(vec![tensor]).to_bytes().unwrap();
+let packed = Writer::new(vec![tensor]).into_bytes().unwrap();
 let reader = Reader::from_bytes(packed).unwrap();
-assert_eq!(reader.get_tensors().unwrap()[0].shape.to_vec(), vec![2, 2]);
+assert_eq!(reader.into_tensors().unwrap()[0].shape.to_vec(), vec![2, 2]);
 ```
 
 Use `Writer::write_to_file` / `Reader::from_file` for disk I/O (the default `std` feature; disable

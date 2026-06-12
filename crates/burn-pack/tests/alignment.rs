@@ -39,16 +39,17 @@ fn size_matches_to_bytes_length() {
 
 #[test]
 fn write_into_matches_to_bytes_and_round_trips() {
-    let writer = Writer::new(vec![f32_tensor("w", &[1.0, 2.0, 3.0, 4.0], &[2, 2], None)]);
+    // `write_into` and `into_bytes` each consume the writer, so build one per call.
+    let make_writer = || Writer::new(vec![f32_tensor("w", &[1.0, 2.0, 3.0, 4.0], &[2, 2], None)]);
 
-    let mut buffer = vec![0u8; writer.size().unwrap()];
-    writer.write_into(&mut buffer).unwrap();
+    let mut buffer = vec![0u8; make_writer().size().unwrap()];
+    make_writer().write_into(&mut buffer).unwrap();
 
-    let from_to_bytes = writer.into_bytes().unwrap();
+    let from_to_bytes = make_writer().into_bytes().unwrap();
     assert_eq!(&buffer[..], &from_to_bytes[..]);
 
     let reader = Reader::from_bytes(burn_pack::Bytes::from_bytes_vec(buffer)).unwrap();
-    let tensors = reader.get_tensors().unwrap();
+    let tensors = reader.into_tensors().unwrap();
     assert_eq!(read_f32(&tensors[0]), vec![1.0, 2.0, 3.0, 4.0]);
 }
 

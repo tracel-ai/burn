@@ -187,7 +187,7 @@ impl RecordNext {
 
     fn from_reader(reader: Reader) -> Result<Self, RecordError> {
         let tensors = reader
-            .get_tensors()?
+            .into_tensors()?
             .into_iter()
             .map(|t| {
                 let id = t.param_id.map(ParamId::from).unwrap_or_else(ParamId::new);
@@ -356,7 +356,9 @@ impl Applier {
             return None;
         }
 
-        Some(Tensor::from_data(data, (device, dtype)))
+        let tensor = Tensor::from_data(data, (device, dtype));
+        device.sync().unwrap();
+        Some(tensor)
     }
 }
 
