@@ -2,7 +2,7 @@
 
 mod common;
 
-use burn_pack::{DType, Reader, Writer};
+use burn_pack::{Bytes, DType, Reader, Tensor, Writer};
 use common::{f32_tensor, raw_tensor, read_f32};
 
 #[test]
@@ -179,6 +179,31 @@ fn file_backed_tensors() {
     let reader = Reader::from_file(&path).unwrap();
     let tensors = reader.get_tensors().unwrap();
     assert_eq!(read_f32(&tensors[0]), vec![1.5, 2.5, 3.5]);
+}
+
+// A `shared()` tensor exposes zero-copy `view` windows, so the writer streams it
+// in bounded chunks rather than materializing it whole. Data larger than the
+// writer's internal chunk size exercises the multi-chunk path (several full
+// windows plus a partial tail); the concatenated windows must reproduce the
+// original bytes exactly.
+#[test]
+fn shared_tensor_chunked_write_round_trip() {
+    // Comfortably larger than the writer's 8 MiB chunk size, and not a whole
+    // multiple of it, so the final chunk is partial.
+    let len = 8 * 1024 * 1024 + 4096;
+    let data: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
+
+    let bytes = Bytes::from_bytes_vec(data.clone()).shared();
+    let tensor = Tensor::new("big".to_string(), DType::U8, vec![len], None, bytes);
+
+    let packed = Writer::new(vec![tensor]).into_bytes().unwrap();
+    let reader = Reader::from_bytes(packed).unwrap();
+    let read = reader.get_tensors().unwrap();
+
+    assert_eq!(read.len(), 1);
+    let materialized: &[u8] = &read[0].bytes;
+    assert_eq!(materialized.len(), len);
+    assert_eq!(materialized, &data[..]);
 }
 
 #[test]

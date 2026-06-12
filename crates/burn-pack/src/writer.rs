@@ -25,6 +25,16 @@ const fn align_offset(offset: u64, alignment: u64) -> u64 {
     offset.div_ceil(alignment) * alignment
 }
 
+/// Maximum number of bytes materialized from a single tensor at a time while
+/// streaming its data into a [`Sink`].
+///
+/// Large device-resident tensors are read back to host memory lazily, one
+/// [`Bytes::view`] window at a time, instead of all at once. This keeps the
+/// transient (often pinned) host staging buffer bounded by this size regardless
+/// of how large the tensor is. The value is a multiple of [`TENSOR_ALIGNMENT`]
+/// so each window starts on an aligned device offset.
+const WRITE_CHUNK_SIZE: usize = 8 * 1024 * 1024;
+
 /// Writer for creating Burnpack files
 pub struct Writer {
     /// Tensors to write
@@ -238,8 +248,45 @@ impl Writer {
                 data_offset = aligned_offset;
             }
 
-            sink.write(&data)?;
+            Self::write_tensor_data(&data, sink)?;
             data_offset += data.len();
+        }
+
+        Ok(())
+    }
+
+    /// Stream a single tensor's bytes into `sink`, materializing at most
+    /// [`WRITE_CHUNK_SIZE`] bytes at a time.
+    ///
+    /// When the backing supports zero-copy windows — device-resident
+    /// ([lazy](burn_std::Bytes) device readback), file, or shared buffers — each
+    /// chunk is taken as a [`Bytes::view`] and read just-in-time, then dropped
+    /// before the next one. A large device tensor is therefore copied to host in
+    /// bounded pieces rather than through one big (pinned) staging buffer, so the
+    /// whole tensor never has to be resident at once.
+    ///
+    /// Backings without a zero-copy window (e.g. a plain heap `Vec`) are already
+    /// host-resident, so [`Bytes::view`] reports it can't window them and the
+    /// remaining bytes are written in a single pass.
+    fn write_tensor_data(data: &Bytes, sink: &mut impl Sink) -> Result<(), Error> {
+        let len = data.len();
+        let mut offset = 0;
+
+        while offset < len {
+            let end = (offset + WRITE_CHUNK_SIZE).min(len);
+            match data.view(offset, end) {
+                Ok(chunk) => {
+                    sink.write(&chunk)?;
+                    offset = end;
+                }
+                // No zero-copy window available (already host-resident): write
+                // whatever remains in one shot. View support is a property of the
+                // backing, so this only ever happens on the first iteration.
+                Err(_) => {
+                    sink.write(&data[offset..])?;
+                    break;
+                }
+            }
         }
 
         Ok(())
