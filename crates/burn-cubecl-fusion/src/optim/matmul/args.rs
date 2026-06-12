@@ -22,11 +22,11 @@ use cubecl::{
 };
 use cubek::{
     matmul::{
+        args::{BatchedCoords, MatmulArgs},
         components::global::memory::{
             BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
             GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
         },
-        args::{BatchedCoords, MatmulArgs},
     },
     std::MatrixLayout,
 };

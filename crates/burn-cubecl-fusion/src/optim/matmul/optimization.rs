@@ -34,7 +34,9 @@ use cubek::{
             batch::{
                 double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
                 double_unit::DoubleUnitAlgorithm,
-                gemv_innerproduct::{DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm},
+                gemv_innerproduct::{
+                    DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm,
+                },
                 ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
                 simple::{SimpleAlgorithm, SimpleArgs},
                 simple_unit::SimpleUnitAlgorithm,
