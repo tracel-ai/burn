@@ -100,6 +100,10 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         tensor.backward()
     }
 
+    fn backward_retain(tensor: &AutodiffTensor<B>) -> Gradients {
+        tensor.backward_retain()
+    }
+
     fn grad(tensor: &AutodiffTensor<B>, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
         tensor.grad(grads)
     }

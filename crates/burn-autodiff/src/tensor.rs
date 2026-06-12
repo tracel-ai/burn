@@ -46,7 +46,7 @@ pub(crate) struct RootStep {
 }
 
 impl Step for RootStep {
-    fn step(self: Box<Self>, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
+    fn step(&self, _grads: &mut Gradients, _checkpointer: &mut Checkpointer) {
         // Nothing to do
     }
 
@@ -190,6 +190,13 @@ impl<B: Backend> AutodiffTensor<B> {
         let client = self.node.client.clone();
 
         AutodiffClient::backward::<B>(&client, self, BackwardMode::default())
+    }
+
+    /// Execute backward without consuming the graph, allowing repeated backward passes.
+    pub fn backward_retain(&self) -> Gradients {
+        let client = self.node.client.clone();
+
+        AutodiffClient::backward_retain::<B>(&client, self)
     }
 
     pub fn grad(&self, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
