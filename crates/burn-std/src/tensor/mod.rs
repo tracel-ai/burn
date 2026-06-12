@@ -143,7 +143,20 @@ pub fn broadcast_strides(
 pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) -> Strides {
     let mut strides_new = strides![1; shape_new.len()];
 
-    let mut old_idx = shape.len() - 1;
+    // Unit dims in the old shape never anchor a group of new dims, and their
+    // stride can be arbitrary (0 for broadcast views, pitched values, ...).
+    // Skip them so a real new dim never inherits a unit dim's stride —
+    // e.g. reshaping [26, 1] with strides [1, 0] (a `repeat_dim` broadcast
+    // view) to [26, 1, 1] must keep stride 1 on dim 0; propagating the 0
+    // would make every index along dim 0 alias the first element.
+    let skip_unit_dims = |mut idx: usize| {
+        while idx > 0 && shape[idx] == 1 {
+            idx -= 1;
+        }
+        idx
+    };
+
+    let mut old_idx = skip_unit_dims(shape.len() - 1);
     let mut current_stride = strides[old_idx];
     let mut dim_prod = 1;
 
@@ -153,7 +166,7 @@ pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) ->
         if *dim == 1 {
             continue;
         } else if dim_prod == shape[old_idx] {
-            old_idx = old_idx.saturating_sub(1);
+            old_idx = skip_unit_dims(old_idx.saturating_sub(1));
             current_stride = strides[old_idx];
             dim_prod = 1;
         } else {
