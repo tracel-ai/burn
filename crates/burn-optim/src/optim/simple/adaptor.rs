@@ -170,7 +170,7 @@ where
 
         let tensor = if let Some((grad, device)) = grad {
             let is_require_grad = tensor.is_require_grad();
-            #[cfg(feature = "distributed")]
+            #[cfg(feature = "std")]
             let is_distributed = tensor.is_distributed();
 
             let (key, record) = self.records.remove_entry(&id).unzip();
@@ -213,7 +213,7 @@ where
             if is_require_grad {
                 tensor = tensor.require_grad();
             }
-            #[cfg(feature = "distributed")]
+            #[cfg(feature = "std")]
             if is_distributed {
                 tensor = tensor.set_distributed(id)
             }

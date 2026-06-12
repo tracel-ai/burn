@@ -27,7 +27,6 @@ use burn_backend::{
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
 use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
 
-#[cfg(feature = "distributed")]
 use burn_backend::distributed::DistributedParams;
 
 use super::maxmin::MaxMinDim;
@@ -1861,7 +1860,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         // `require_grad` (and `distributed`) setting.
         let is_require_grad = Self::float_is_require_grad(&tensor);
 
-        #[cfg(feature = "distributed")]
         let distributed_params = tensor.node.distributed_params.clone();
 
         let mut tensor = AutodiffTensor::new(tensor.primitive);
@@ -1869,7 +1867,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         if is_require_grad {
             tensor = tensor.require_grad();
         }
-        #[cfg(feature = "distributed")]
         if let Some(params) = distributed_params {
             tensor = tensor.grad_distributed(params.param_id);
         }
@@ -3321,7 +3318,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 self.output.order
             }
 
-            #[cfg(feature = "distributed")]
             fn distributed_params(&self) -> Option<DistributedParams> {
                 self.output.distributed_params.clone()
             }

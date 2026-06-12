@@ -270,6 +270,16 @@ fn fuse(
             }
             FuseOp::Lower(op) => lower::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::LowerEqual(op) => lower_equal::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::BitwiseAnd(op) => bitwise_and::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::BitwiseOr(op) => bitwise_or::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::BitwiseXor(op) => bitwise_xor::<E, N>(inputs, outputs, locals, pos, op, config),
+            FuseOp::BitwiseLeftShift(op) => {
+                bitwise_left_shift::<E, N>(inputs, outputs, locals, pos, op, config)
+            }
+            FuseOp::BitwiseRightShift(op) => {
+                bitwise_right_shift::<E, N>(inputs, outputs, locals, pos, op, config)
+            }
+            FuseOp::BitwiseNot(op) => bitwise_not::<E, N>(inputs, outputs, locals, pos, op, config),
             FuseOp::ConditionalAssign {
                 cond,
                 lhs,
@@ -335,6 +345,45 @@ macro_rules! binary_op {
             let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
             let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
             let result = lhs $op rhs;
+
+            write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
+        }
+    };
+}
+
+macro_rules! binary_int_op {
+    ($ident:ident, $op:tt) => {
+        #[cube]
+        fn $ident<C: Int, N: Size>(
+            inputs: &GlobalArgs,
+            outputs: &mut GlobalArgs,
+            locals: &mut LocalArgs,
+            write_pos: usize,
+            #[comptime] op: BinaryFuseArgs,
+            #[comptime] config: &FuseBlockConfig,
+        ) {
+            let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+            let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
+            let result = lhs $op rhs;
+
+            write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
+        }
+    };
+}
+
+macro_rules! unary_int_op {
+    ($ident:ident, $op:tt) => {
+        #[cube]
+        fn $ident<C: Int, N: Size>(
+            inputs: &GlobalArgs,
+            outputs: &mut GlobalArgs,
+            locals: &mut LocalArgs,
+            write_pos: usize,
+            #[comptime] op: UnaryFuseArgs,
+            #[comptime] config: &FuseBlockConfig,
+        ) {
+            let input = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.input, config);
+            let result = $op input;
 
             write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
         }
@@ -843,6 +892,13 @@ binary_op!(add, +);
 binary_op!(mul, *);
 binary_op!(div, /);
 binary_op!(sub, -);
+
+binary_int_op!(bitwise_and, &);
+binary_int_op!(bitwise_or, |);
+binary_int_op!(bitwise_xor, ^);
+binary_int_op!(bitwise_left_shift, <<);
+binary_int_op!(bitwise_right_shift, >>);
+unary_int_op!(bitwise_not, !);
 
 comparison_op!(equal, ==);
 comparison_op!(greater, >);

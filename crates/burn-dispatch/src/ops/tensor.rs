@@ -39,6 +39,18 @@ impl FloatTensorOps<Self> for Dispatch {
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
+        // Relocating a non-tracked float tensor onto an autodiff device is a plain data move:
+        // place it on the underlying hardware device and leave the tensor non-tracked. The
+        // int/bool `to_device` paths already handle this case; only the float path used to
+        // panic. This is what lets gradient tensors — which are never autodiff-tracked — be
+        // moved onto the autodiff `device_main` during multi-device training.
+        #[cfg(feature = "autodiff")]
+        if let DispatchDevice::Autodiff(device_ad) = device
+            && !matches!(&tensor.kind, crate::DispatchTensorKind::Autodiff(_))
+        {
+            return Self::float_to_device(tensor, &device_ad.inner);
+        }
+
         float_to_device!(
             Float,
             float,

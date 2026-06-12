@@ -115,12 +115,6 @@ x86-v4 = ["burn-flex?/x86-v4"]
 apple-amx = ["burn-flex?/apple-amx"]
 
 template = ["burn-wgpu?/template"]
-distributed = [
-    "std",
-    "burn-core/distributed",
-    "burn-optim/distributed",
-    "burn-train?/ddp",
-]
 router = ["burn-router", "ir"]
 remote = ["burn-core/remote"]
 server = ["burn-core/server"]

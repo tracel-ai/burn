@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use crate::{
-    BatchNorm, BatchNormConfig, GroupNorm, GroupNormConfig, InstanceNorm, InstanceNormConfig,
-    LayerNorm, LayerNormConfig, RmsNorm, RmsNormConfig,
+    BatchNorm, BatchNormConfig, GroupNorm, GroupNormConfig, Identity, InstanceNorm,
+    InstanceNormConfig, LayerNorm, LayerNormConfig, RmsNorm, RmsNormConfig,
 };
 use burn::prelude::{Config, Module};
 use burn::tensor::Device;
@@ -19,6 +19,9 @@ use burn::tensor::Tensor;
 #[derive(Config, Debug)]
 #[non_exhaustive]
 pub enum NormalizationConfig {
+    /// ['Identity'] Configuration.
+    Identity,
+
     /// ['BatchNorm'] Configuration.
     Batch(BatchNormConfig),
 
@@ -69,6 +72,7 @@ impl NormalizationConfig {
     /// Initialize a ['Norm'] layer.
     pub fn init(&self, device: &Device) -> Normalization {
         match self {
+            NormalizationConfig::Identity => Identity::new().into(),
             NormalizationConfig::Batch(config) => config.init(device).into(),
             NormalizationConfig::Group(config) => config.init(device).into(),
             NormalizationConfig::Instance(config) => config.init(device).into(),
@@ -80,6 +84,7 @@ impl NormalizationConfig {
     /// Set the number of features.
     pub fn with_num_features(self, num_features: usize) -> Self {
         match self {
+            NormalizationConfig::Identity => self,
             NormalizationConfig::Batch(config) => BatchNormConfig {
                 num_features,
                 ..config
@@ -111,6 +116,7 @@ impl NormalizationConfig {
     /// Get the number of features.
     pub fn num_features(&self) -> usize {
         match self {
+            NormalizationConfig::Identity => 0,
             NormalizationConfig::Batch(config) => config.num_features,
             NormalizationConfig::Group(config) => config.num_channels,
             NormalizationConfig::Instance(config) => config.num_channels,
@@ -133,6 +139,9 @@ impl NormalizationConfig {
 #[derive(Module, Debug)]
 #[non_exhaustive]
 pub enum Normalization {
+    /// ['Identity'] layer.
+    Identity(Identity),
+
     /// [`BatchNorm`] layer.
     Batch(BatchNorm),
 
@@ -147,6 +156,12 @@ pub enum Normalization {
 
     /// ['RmsNorm'] layer.
     Rms(RmsNorm),
+}
+
+impl From<Identity> for Normalization {
+    fn from(layer: Identity) -> Self {
+        Self::Identity(layer)
+    }
 }
 
 impl From<BatchNorm> for Normalization {
@@ -187,6 +202,7 @@ impl Normalization {
     /// and produce an output of the same rank and shape.
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         match self {
+            Normalization::Identity(norm) => norm.forward(input),
             Normalization::Batch(norm) => norm.forward(input),
             Normalization::Group(norm) => norm.forward(input),
             Normalization::Instance(norm) => norm.forward(input),
@@ -198,6 +214,7 @@ impl Normalization {
     /// Get the number of features.
     pub fn num_features(&self) -> usize {
         match self {
+            Normalization::Identity(_) => 0,
             Normalization::Batch(norm) => norm.gamma.shape()[0],
             Normalization::Group(norm) => norm.num_channels,
             Normalization::Instance(norm) => norm.num_channels,
@@ -240,6 +257,24 @@ mod tests {
         assert_eq!(config.num_features(), 0);
         let config = config.with_num_features(12);
         assert_eq!(config.num_features(), 12);
+    }
+
+    #[test]
+    fn test_identity_norm() {
+        let device = Device::default().autodiff();
+
+        let num_features = 12;
+        let input: Tensor<4> = Tensor::ones([2, num_features, 3, 4], &device);
+
+        let config: NormalizationConfig = NormalizationConfig::Identity;
+
+        let layer = config.init(&device);
+        assert_eq!(layer.num_features(), 0);
+
+        let expected = input.clone();
+        let output = layer.forward(input);
+
+        output.to_data().assert_eq(&expected.to_data(), true);
     }
 
     #[test]

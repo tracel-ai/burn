@@ -1,6 +1,5 @@
 use alloc::vec::Vec;
 
-#[cfg(feature = "distributed")]
 use burn_backend::distributed::DistributedParams;
 
 #[cfg(target_has_atomic = "64")]
@@ -46,7 +45,6 @@ pub struct Node {
     pub requirement: Requirement,
     pub properties: ComputingProperty,
     pub client: AutodiffClientImpl,
-    #[cfg(feature = "distributed")]
     pub distributed_params: Option<DistributedParams>,
 }
 pub type NodeRef = Arc<Node>;
