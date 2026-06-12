@@ -26,7 +26,7 @@ use cubek::{
             BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
             GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
         },
-        launch::{BatchedCoords, MatmulArgs},
+        args::{BatchedCoords, MatmulArgs},
     },
     std::MatrixLayout,
 };

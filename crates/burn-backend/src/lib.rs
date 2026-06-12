@@ -18,7 +18,8 @@ pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_
 pub use burn_std::{
     AllocationProperty, BoolDType, BoolStore, Bytes, DType, DataError, DeviceHandle, Distribution,
     DistributionSampler, DistributionSamplerKind, Element, ElementConversion, ElementEq,
-    ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar, TensorData, Tolerance, bf16,
+    ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar, SplitPolicy, TensorData, Tolerance,
+    bf16,
     distribution, element, f16, stream_id::StreamId,
 };
 
