@@ -1,8 +1,8 @@
 //! Outgoing task buffering.
 
-use crate::shared::Task;
+use crate::shared::RemoteMessage;
 
-/// Accumulates outgoing [`Task`]s on the runner thread and decides when a batch is ready
+/// Accumulates outgoing [`RemoteMessage`]s on the runner thread and decides when a batch is ready
 /// for the wire.
 ///
 /// Pure buffering logic — no runtime, no socket. [`push`](Self::push) reports when the
@@ -12,7 +12,7 @@ use crate::shared::Task;
 /// Batching is wire-level only: every task keeps its own `StreamId`/`RequestId`, so the
 /// server sees the same per-task semantics whether tasks arrive batched or one per frame.
 pub(crate) struct OutgoingBatch {
-    tasks: Vec<Task>,
+    tasks: Vec<RemoteMessage>,
     threshold: usize,
 }
 
@@ -27,7 +27,7 @@ impl OutgoingBatch {
 
     /// Append a task. Returns `true` once the buffer has reached its flush threshold, i.e.
     /// the caller should [`take`](Self::take) and send.
-    pub(crate) fn push(&mut self, task: Task) -> bool {
+    pub(crate) fn push(&mut self, task: RemoteMessage) -> bool {
         self.tasks.push(task);
         self.tasks.len() >= self.threshold
     }
@@ -37,7 +37,7 @@ impl OutgoingBatch {
     }
 
     /// Drain the accumulated tasks, leaving the buffer empty for the next batch.
-    pub(crate) fn take(&mut self) -> Vec<Task> {
+    pub(crate) fn take(&mut self) -> Vec<RemoteMessage> {
         std::mem::take(&mut self.tasks)
     }
 }
@@ -45,10 +45,10 @@ impl OutgoingBatch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::shared::ComputeTask;
+    use crate::shared::Task;
 
-    fn task() -> Task {
-        Task::Compute(ComputeTask::Seed(0))
+    fn task() -> RemoteMessage {
+        RemoteMessage::Task(Task::Seed(0))
     }
 
     #[test]

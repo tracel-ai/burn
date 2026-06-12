@@ -177,4 +177,6 @@ impl Backend for LibTorch {
             _ => 1,
         }
     }
+
+    fn flush(_device: &Self::Device) {}
 }

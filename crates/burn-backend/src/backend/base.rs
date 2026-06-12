@@ -1,6 +1,7 @@
 use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
+use crate::distributed::DistributedOps;
 pub use crate::element::Element;
 use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
@@ -8,7 +9,6 @@ use crate::{TensorData, TensorMetadata};
 use alloc::string::String;
 use enumset::{EnumSet, EnumSetType};
 
-#[cfg(feature = "distributed")]
 use crate::distributed::{DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
@@ -89,6 +89,7 @@ pub trait Backend:
     + ActivationOps<Self>
     + QTensorOps<Self>
     + TransactionOps<Self>
+    + DistributedOps<Self>
     + Clone
     + Default
     + Sized
@@ -135,6 +136,9 @@ pub trait Backend:
     fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
     }
+
+    /// Flush any pending operation of the backend.
+    fn flush(_device: &Self::Device);
 
     /// Marks the given data as being used as a staging buffer for transfer between CPU and
     /// accelerators like GPUs.
@@ -325,7 +329,6 @@ pub trait AutodiffBackend: Backend {
     /// The autodiff backend tensor.
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
 
-    #[cfg(feature = "distributed")]
     /// Mark the tensor as distributed across multiple devices.
     /// The gradients will be aggregated during the backward pass.
     ///
@@ -337,13 +340,11 @@ pub trait AutodiffBackend: Backend {
         tensor
     }
 
-    #[cfg(feature = "distributed")]
     /// Returns the distributed parameters if the tensor was marked as distributed.
     fn distributed_params(_tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
         None
     }
 
-    #[cfg(feature = "distributed")]
     /// Returns true if the tensor was marked as distributed.
     fn is_distributed(_tensor: &FloatTensor<Self>) -> bool {
         false
