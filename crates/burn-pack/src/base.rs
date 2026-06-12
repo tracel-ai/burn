@@ -5,7 +5,7 @@
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
-use burn_core::tensor::DType;
+use burn_std::DType;
 use byteorder::{ByteOrder, LittleEndian};
 use serde::{Deserialize, Serialize};
 
@@ -116,7 +116,7 @@ const _: () = assert!(MAGIC_SIZE + VERSION_SIZE + METADATA_SIZE_FIELD_SIZE == HE
 
 /// Header structure for Burnpack files
 #[derive(Debug, Clone, Copy)]
-pub struct BurnpackHeader {
+pub struct Header {
     /// Magic number (4 bytes): 0x4255524E ("BURN")
     pub magic: u32,
     /// Format version (2 bytes)
@@ -125,9 +125,8 @@ pub struct BurnpackHeader {
     pub metadata_size: u32,
 }
 
-impl BurnpackHeader {
+impl Header {
     /// Create a new header with the given metadata size
-    #[allow(dead_code)]
     pub fn new(metadata_size: u32) -> Self {
         Self {
             magic: MAGIC_NUMBER,
@@ -146,14 +145,14 @@ impl BurnpackHeader {
     }
 
     /// Deserialize header from bytes
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, BurnpackError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() < HEADER_SIZE {
-            return Err(BurnpackError::InvalidHeader);
+            return Err(Error::InvalidHeader);
         }
 
         let magic = LittleEndian::read_u32(&bytes[magic_range()]);
         if magic != MAGIC_NUMBER {
-            return Err(BurnpackError::InvalidMagicNumber);
+            return Err(Error::InvalidMagicNumber);
         }
 
         let version = LittleEndian::read_u16(&bytes[version_range()]);
@@ -169,7 +168,7 @@ impl BurnpackHeader {
 
 /// Metadata structure serialized with CBOR
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BurnpackMetadata {
+pub(crate) struct Metadata {
     /// Tensor descriptors mapped by name for efficient lookup
     pub tensors: BTreeMap<String, TensorDescriptor>,
     /// Optional additional metadata
@@ -179,7 +178,7 @@ pub struct BurnpackMetadata {
 
 /// Individual tensor descriptor
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TensorDescriptor {
+pub(crate) struct TensorDescriptor {
     /// Data type of the tensor
     pub dtype: DType,
     /// Tensor shape dimensions
@@ -194,7 +193,7 @@ pub struct TensorDescriptor {
 
 /// Error types for Burnpack operations
 #[derive(Debug)]
-pub enum BurnpackError {
+pub enum Error {
     InvalidHeader,
     InvalidMagicNumber,
     InvalidVersion,
@@ -206,26 +205,26 @@ pub enum BurnpackError {
     ValidationError(String),
 }
 
-impl core::fmt::Display for BurnpackError {
+impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            BurnpackError::InvalidHeader => write!(f, "Invalid header: insufficient bytes"),
-            BurnpackError::InvalidMagicNumber => write!(f, "Invalid magic number"),
-            BurnpackError::InvalidVersion => write!(f, "Unsupported version"),
-            BurnpackError::MetadataSerializationError(e) => {
+            Error::InvalidHeader => write!(f, "Invalid header: insufficient bytes"),
+            Error::InvalidMagicNumber => write!(f, "Invalid magic number"),
+            Error::InvalidVersion => write!(f, "Unsupported version"),
+            Error::MetadataSerializationError(e) => {
                 write!(f, "Metadata serialization error: {}", e)
             }
-            BurnpackError::MetadataDeserializationError(e) => {
+            Error::MetadataDeserializationError(e) => {
                 write!(f, "Metadata deserialization error: {}", e)
             }
-            BurnpackError::IoError(e) => write!(f, "I/O error: {}", e),
-            BurnpackError::TensorNotFound(name) => write!(f, "Tensor not found: {}", name),
-            BurnpackError::TensorBytesSizeMismatch(e) => {
+            Error::IoError(e) => write!(f, "I/O error: {}", e),
+            Error::TensorNotFound(name) => write!(f, "Tensor not found: {}", name),
+            Error::TensorBytesSizeMismatch(e) => {
                 write!(f, "Tensor bytes size mismatch: {}", e)
             }
-            BurnpackError::ValidationError(e) => write!(f, "Validation error: {}", e),
+            Error::ValidationError(e) => write!(f, "Validation error: {}", e),
         }
     }
 }
 
-impl core::error::Error for BurnpackError {}
+impl core::error::Error for Error {}

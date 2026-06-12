@@ -1,5 +1,5 @@
 use burn_backend::{
-    Bytes, DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive,
+    Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
     get_device_settings,
     ops::QTensorOps,
     quantization::{
@@ -118,7 +118,7 @@ fn new_quantized<R: CubeRuntime>(
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
 
-            match data.split(num_bytes) {
+            match data.split(num_bytes, SplitPolicy::Shared) {
                 Ok((bytes_data, bytes_scales)) => client
                     .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_scales)]),
                 Err((data, _)) => client.create_tensors_from_slices(vec![

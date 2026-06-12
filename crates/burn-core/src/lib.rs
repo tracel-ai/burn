@@ -24,6 +24,9 @@ pub mod module;
 /// Module for the recorder.
 pub mod record;
 
+/// Minimal non-generic record system (burnpack-based), built alongside [`record`].
+pub mod store;
+
 /// Module for the tensor.
 pub mod tensor;
 // Tensor at root: `burn::Tensor`

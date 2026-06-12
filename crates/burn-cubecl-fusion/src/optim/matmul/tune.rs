@@ -14,7 +14,7 @@ use cubecl::{
 };
 use cubek::matmul::{
     definition::MatmulKind,
-    launch::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
+    strategy::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
 };
 use serde::{Deserialize, Serialize};
 
