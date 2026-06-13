@@ -58,10 +58,10 @@ where
             .map(|name| {
                 df.schema()
                     .try_get_full(name)
-                    .expect("Corresponding column should exist in the DataFrame")
-                    .0
+                    .map(|(index, _, _)| index)
+                    .map_err(|err| DataframeDatasetError::Other(err.to_string()))
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(DataframeDataset {
             df,
