@@ -24,7 +24,7 @@ fn should_support_hypot_broadcast() {
     let tensor_b = TestTensor::<2>::from_data(data_b, &Default::default());
 
     let result = tensor_a.hypot(tensor_b);
-    let expected = TensorData::from([[5.0, 5.0, 6.404], [3.606, 5.0, 5.831]]);
+    let expected = TensorData::from([[5.0, 5.656854, 6.404], [4.2426405, 5.0, 5.831]]);
 
     result
         .into_data()
