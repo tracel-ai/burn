@@ -575,7 +575,7 @@ mod require_grad {
     }
 }
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "cuda")]
 mod grad_distributed {
     use burn_tensor::TensorData;
     use burn_tensor::distributed::{DistributedContext, ReduceOperation};

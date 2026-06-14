@@ -3,10 +3,7 @@ use crate::{
     FusionUtilities, UnfusedOp,
     stream::{StreamId, execution::Operation},
 };
-#[cfg(feature = "distributed")]
-use burn_backend::distributed::DistributedBackend;
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
-#[cfg(feature = "distributed")]
 use burn_std::CommunicationId;
 
 use burn_backend::{TensorData, backend::ExecutionError};
@@ -402,10 +399,9 @@ where
     }
 
     /// Synchronize the collective operations.
-    #[cfg(feature = "distributed")]
     pub fn sync_collective<B>(&self, device: &B::Device)
     where
-        B: FusionBackend<FusionRuntime = R> + DistributedBackend,
+        B: FusionBackend<FusionRuntime = R>,
     {
         // Ensure that all operations are resolved before calling sync_collective.
         self.sync(|| ());
@@ -414,10 +410,9 @@ where
 
     /// Ensure that communication between the given devices is initialized.
     /// Initializing communication is generally blocking, so we make sure to flush those operations.
-    #[cfg(feature = "distributed")]
     pub fn ensure_collective_init<B>(&self, device_ids: Vec<DeviceId>)
     where
-        B: FusionBackend<FusionRuntime = R> + DistributedBackend,
+        B: FusionBackend<FusionRuntime = R>,
     {
         let utilities = self
             .server

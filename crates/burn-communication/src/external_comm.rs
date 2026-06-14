@@ -30,14 +30,14 @@ impl TensorTransferId {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum DataServiceMessage {
+enum ExternalCommMessage {
     TensorRequest(TensorTransferId),
     Tensor(TensorData),
 }
 
 type ClientChannelRef<C> = Arc<Mutex<<C as ProtocolClient>::Channel>>;
 
-pub struct TensorDataService<B: Backend, P: Protocol<Client: ProtocolClient>> {
+pub struct ExternalCommService<B: Backend, P: Protocol<Client: ProtocolClient>> {
     /// Maps tensor transfer IDs to their exposed state.
     pub exposed_tensors: Mutex<HashMap<TensorTransferId, TensorExposeState>>,
     /// Maps node addresses to their channels.
@@ -60,22 +60,22 @@ pub struct TensorExposeState {
 }
 
 /// Provides a routing function for a tensor data service for a communications server
-pub trait TensorDataServer<B: Backend, P: Protocol> {
+pub trait ExternalCommServer<B: Backend, P: Protocol> {
     /// Routes the tensor data service to the "/data" route
-    fn route_tensor_data_service(self, state: Arc<TensorDataService<B, P>>) -> Self;
+    fn route_external_comm(self, state: Arc<ExternalCommService<B, P>>) -> Self;
 }
 
 impl<B: Backend, S: ProtocolServer + Sized, P: Protocol<Server = S> + 'static>
-    TensorDataServer<B, P> for S
+    ExternalCommServer<B, P> for S
 {
-    fn route_tensor_data_service(self, state: Arc<TensorDataService<B, P>>) -> Self {
+    fn route_external_comm(self, state: Arc<ExternalCommService<B, P>>) -> Self {
         self.route("/data", async move |stream: S::Channel| {
             state.handle_data_channel(stream).await;
         })
     }
 }
 
-impl<B: Backend, P: Protocol> TensorDataService<B, P> {
+impl<B: Backend, P: Protocol> ExternalCommService<B, P> {
     pub fn new(cancel_token: CancellationToken) -> Self {
         Self {
             exposed_tensors: Mutex::new(HashMap::new()),
@@ -104,7 +104,7 @@ impl<B: Backend, P: Protocol> TensorDataService<B, P> {
         max_downloads: u32,
         transfer_id: TensorTransferId,
     ) {
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&DataServiceMessage::Tensor(tensor_data))
+        let bytes: bytes::Bytes = rmp_serde::to_vec(&ExternalCommMessage::Tensor(tensor_data))
             .unwrap()
             .into();
         let mut exposed_tensors = self.exposed_tensors.lock().await;
@@ -149,7 +149,7 @@ impl<B: Backend, P: Protocol> TensorDataService<B, P> {
 
         // Send the download request with the download id
         let bytes: bytes::Bytes =
-            rmp_serde::to_vec(&DataServiceMessage::TensorRequest(transfer_id))
+            rmp_serde::to_vec(&ExternalCommMessage::TensorRequest(transfer_id))
                 .unwrap()
                 .into();
         stream
@@ -163,7 +163,7 @@ impl<B: Backend, P: Protocol> TensorDataService<B, P> {
                 return None;
             };
 
-            let DataServiceMessage::Tensor(data) = rmp_serde::from_slice(&msg.data)
+            let ExternalCommMessage::Tensor(data) = rmp_serde::from_slice(&msg.data)
                 .expect("Can deserialize messages from the websocket.")
             else {
                 panic!("Message should have been TensorData")
@@ -238,9 +238,9 @@ impl<B: Backend, P: Protocol> TensorDataService<B, P> {
                 Ok(message) => {
                     if let Some(msg) = message {
                         let bytes = msg.data;
-                        let msg: DataServiceMessage = rmp_serde::from_slice(&bytes)
+                        let msg: ExternalCommMessage = rmp_serde::from_slice(&bytes)
                             .expect("Can deserialize messages from the websocket.");
-                        let DataServiceMessage::TensorRequest(transfer_id) = msg else {
+                        let ExternalCommMessage::TensorRequest(transfer_id) = msg else {
                             panic!("Received a message that wasn't a tensor request! {msg:?}");
                         };
 

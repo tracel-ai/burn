@@ -14,11 +14,23 @@ pub struct RemoteClient<C: ProtocolClient> {
 
 impl<C: ProtocolClient> RemoteClient<C> {
     pub fn init(device: RemoteDevice) -> Self {
-        // `DeviceHandle::new` is the path that initializes the service the first time it's
-        // called for a given device id — `RemoteService::init` then connects and runs the
-        // handshake. Subsequent calls return a handle to the existing service.
+        // `DeviceHandle::new` initializes the service the first time it's called for a given
+        // device id. `RemoteService::init` is deliberately cheap — it records the endpoint but
+        // does NOT connect, because cubecl holds a process-global lock across it; the actual
+        // connect + handshake happens lazily on first use (or via `ensure_connected`).
+        // Subsequent calls return a handle to the existing service.
         let handle = DeviceHandle::<RemoteService<C>>::new(device.to_id());
         Self { device, handle }
+    }
+
+    /// Force the lazily-established connection to be opened now, populating the device's
+    /// settings/device-count cells. Used by the settings path (`RemoteDevice::defaults` /
+    /// `enumerate`), which needs the handshake reply before any op has flushed. Runs the
+    /// connect on the service's runner thread, so it can't sit under cubecl's global lock.
+    pub(crate) fn ensure_connected(&self) {
+        self.handle
+            .submit_blocking(|s| s.ensure_connected())
+            .expect("Service call failed");
     }
 }
 

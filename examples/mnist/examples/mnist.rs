@@ -27,7 +27,7 @@ fn select_device() -> Device {
     return Device::rocm(burn::tensor::DeviceIndex::Default);
 
     #[cfg(feature = "remote")]
-    return Device::remote("ws://localhost:3000");
+    return Device::remote("ws://localhost:3000", 0);
 
     unreachable!("At least one backend will be selected.")
 }

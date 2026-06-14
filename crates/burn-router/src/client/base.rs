@@ -42,6 +42,12 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     /// Sync the interpreter, ensure that all computations are finished.
     fn sync(&self) -> Result<(), ExecutionError>;
+    /// Eagerly submit the operations registered so far without waiting for them to complete.
+    ///
+    /// Unlike [`sync`](Self::sync), this does not block on results — it only ensures the
+    /// buffered operations are handed off for execution (and, for the remote backend, sent to
+    /// the server) instead of sitting in a local buffer.
+    fn flush(&self);
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.

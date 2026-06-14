@@ -17,13 +17,13 @@ use alloc::vec::Vec;
 use burn_backend::Backend;
 use burn_backend::tensor::FloatTensor;
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 use crate::grads::GradSyncContext;
 
 struct TapeResult {
     tape: Vec<Vec<StepBoxed>>,
     checkpointer: Checkpointer,
-    #[cfg(feature = "distributed")]
+    #[cfg(feature = "std")]
     distributed: Option<GradSyncContext>,
 }
 
@@ -76,7 +76,7 @@ impl AutodiffServer {
         let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
 
         let grads = match mode {
-            #[cfg(feature = "distributed")]
+            #[cfg(feature = "std")]
             BackwardMode::Distributed(factory) if tape_result.distributed.is_some() => {
                 let on_register = factory(tape_result.distributed.clone().unwrap());
                 Gradients::new_distributed::<B>(root_node, root_tensor, on_register)
@@ -125,9 +125,9 @@ impl AutodiffServer {
 
         let mut tree = HashMap::default();
 
-        #[cfg(feature = "distributed")]
+        #[cfg(feature = "std")]
         let mut n_required_map = HashMap::default();
-        #[cfg(feature = "distributed")]
+        #[cfg(feature = "std")]
         let mut distributed_params = HashMap::default();
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
@@ -137,7 +137,7 @@ impl AutodiffServer {
 
             let depth = step.depth();
 
-            #[cfg(feature = "distributed")]
+            #[cfg(feature = "std")]
             step.distributed_params()
                 .and_then(|params| distributed_params.insert(id, params));
 
@@ -146,7 +146,7 @@ impl AutodiffServer {
                     .parents()
                     .iter()
                     .map(|p| {
-                        #[cfg(feature = "distributed")]
+                        #[cfg(feature = "std")]
                         {
                             *n_required_map.entry(p.id).or_insert(0) += 1;
                         }
@@ -163,7 +163,7 @@ impl AutodiffServer {
         });
 
         let checkpointer = builder.build(NodeTree::new(tree));
-        #[cfg(feature = "distributed")]
+        #[cfg(feature = "std")]
         let distributed = Some(GradSyncContext {
             n_required_map,
             distributed_params,
@@ -172,7 +172,7 @@ impl AutodiffServer {
         TapeResult {
             tape,
             checkpointer,
-            #[cfg(feature = "distributed")]
+            #[cfg(feature = "std")]
             distributed,
         }
     }
