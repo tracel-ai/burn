@@ -147,6 +147,11 @@ where
         let client = R::client(&Default::default());
         client.device_count(type_id)
     }
+
+    fn flush(device: &Self::Device) {
+        let client = R::client(device);
+        client.flush().unwrap();
+    }
 }
 
 impl<R: CubeRuntime> core::fmt::Debug for CubeBackend<R> {

@@ -266,6 +266,8 @@ impl Backend for Candle {
     fn device_count(_: u16) -> usize {
         1
     }
+
+    fn flush(_device: &Self::Device) {}
 }
 
 #[cfg(test)]

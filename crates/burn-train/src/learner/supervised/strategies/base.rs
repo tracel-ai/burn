@@ -1,9 +1,3 @@
-use std::sync::Arc;
-
-#[cfg(feature = "ddp")]
-use burn_core::tensor::distributed::{DistributedConfig, DistributedContext};
-use burn_core::{module::AutodiffModule, prelude::Device};
-
 use crate::{
     EarlyStoppingStrategyRef, InferenceModel, Interrupter, Learner, LearnerSummaryConfig,
     LearningCheckpointer, LearningResult, SupervisedTrainingEventProcessor, TrainLoader,
@@ -14,6 +8,9 @@ use crate::{
         store::EventStoreClient,
     },
 };
+use burn_core::tensor::distributed::{DistributedConfig, DistributedContext};
+use burn_core::{module::AutodiffModule, prelude::Device};
+use std::sync::Arc;
 
 /// A reference to an implementation of SupervisedLearningStrategy.
 pub type CustomLearningStrategy<LC> = Arc<dyn SupervisedLearningStrategy<LC>>;
@@ -36,7 +33,6 @@ pub enum ExecutionStrategy {
     MultiDevice(Vec<Device>, MultiDeviceOptim),
     /// Training with input distributed across devices, each device has its own copy of the model.
     /// Collective ops are used to sync the gradients after each pass.
-    #[cfg(feature = "ddp")]
     DistributedDataParallel {
         /// Devices on this node for the DDP
         devices: Vec<Device>,
@@ -51,7 +47,6 @@ impl ExecutionStrategy {
         match self {
             ExecutionStrategy::SingleDevice(device) => device,
             ExecutionStrategy::MultiDevice(devices, _optim) => &devices[0],
-            #[cfg(feature = "ddp")]
             ExecutionStrategy::DistributedDataParallel {
                 devices,
                 context: _,
@@ -70,7 +65,6 @@ impl ExecutionStrategy {
     }
 }
 
-#[cfg(feature = "ddp")]
 impl ExecutionStrategy {
     /// Creates a distributed data parallel (DDP) strategy.
     pub fn ddp(devices: Vec<Device>, config: DistributedConfig) -> Self {

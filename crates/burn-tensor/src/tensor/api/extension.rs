@@ -1,4 +1,4 @@
-use burn_backend::{Backend, TensorMetadata};
+use burn_backend::{Backend, ComplexTensorBackend, TensorMetadata};
 pub use burn_dispatch::DispatchTensor;
 use burn_dispatch::{BackendTensor, DispatchKindConversion};
 use burn_std::DType;
@@ -157,7 +157,7 @@ pub trait BackendPrimitive<B: Backend> {
     fn from_primitive(primitive: Self::Primitive) -> BackendTensor<B>;
 }
 
-impl<B: Backend> BackendPrimitive<B> for Float {
+impl<B: Backend + ComplexTensorBackend> BackendPrimitive<B> for Float {
     // NOTE: not implemented for QFloat
     type Primitive = B::FloatTensorPrimitive;
 
@@ -178,7 +178,7 @@ impl<B: Backend> BackendPrimitive<B> for Float {
     }
 }
 
-impl<B: Backend> BackendPrimitive<B> for Int {
+impl<B: Backend + ComplexTensorBackend> BackendPrimitive<B> for Int {
     type Primitive = B::IntTensorPrimitive;
 
     fn try_into_primitive(
@@ -198,7 +198,7 @@ impl<B: Backend> BackendPrimitive<B> for Int {
     }
 }
 
-impl<B: Backend> BackendPrimitive<B> for Bool {
+impl<B: Backend + ComplexTensorBackend> BackendPrimitive<B> for Bool {
     type Primitive = B::BoolTensorPrimitive;
 
     fn try_into_primitive(

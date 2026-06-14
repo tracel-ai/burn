@@ -16,7 +16,7 @@ extern crate alloc;
 
 /// Checkpoint module.
 pub mod checkpoint;
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 /// Distributed utils.
 pub mod distributed;
 /// Gradients module.

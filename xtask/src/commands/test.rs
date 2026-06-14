@@ -84,6 +84,12 @@ fn handle_backend_tests(
         test_args.extend(["--features", "std"])
     }
 
+    if matches!(backend, TestBackend::Cuda) {
+        // Collective (all-reduce) tests require a CUDA build with NCCL, which the CI runner
+        // provides. Kept behind its own feature so plain `--features cuda` still works without it.
+        test_args.extend(["--features", "distributed"]);
+    }
+
     if !matches!(backend, TestBackend::Ndarray | TestBackend::Flex) {
         // Fusion enabled tests first
         let mut fusion_args = test_args.clone();

@@ -1,4 +1,7 @@
+pub(crate) mod local_comm;
+pub(crate) mod service;
 pub(crate) mod session;
+pub(crate) mod worker;
 
 mod base;
 

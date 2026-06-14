@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use burn_backend::{
     DeviceId,
     distributed::{
-        CollectiveTensor, DistributedBackend, DistributedConfig, DistributedParams,
-        ReduceOperation, TensorRef,
+        CollectiveTensor, DistributedConfig, DistributedOps, DistributedParams, ReduceOperation,
+        TensorRef,
     },
     tensor::FloatTensor,
 };
@@ -103,7 +103,11 @@ macro_rules! dispatch_distributed_devices {
     };
 }
 
-impl DistributedBackend for Dispatch {
+// In builds without a collective-capable backend (Cuda/Remote), the distributed dispatch arms
+// are all cfg'd out, leaving only a diverging fallback — so the captured arguments and trailing
+// expressions are intentionally unused/unreachable.
+#[allow(unused_variables, unreachable_code)]
+impl DistributedOps<Self> for Dispatch {
     fn start_communication_server(devices: &[DispatchDevice], config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];
@@ -143,7 +147,10 @@ impl DistributedBackend for Dispatch {
         device_ids: Vec<DeviceId>,
     ) -> CollectiveTensor<Self> {
         // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
-        let tensor = unary_float!(@distributed tensor, float, |tensor| {
+        // Explicit type: the distributed dispatch only emits arms for collective-capable
+        // backends (Cuda, Remote), so a build with none of them leaves only the diverging
+        // fallback and the match would otherwise infer `!`.
+        let tensor: FloatTensor<Self> = unary_float!(@distributed tensor, float, |tensor| {
             let collective_tensor = B::all_reduce(tensor, op, device_ids);
             unsafe { collective_tensor.assume_resolved() }
         } => Float);

@@ -87,6 +87,12 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn device_count(type_id: u16) -> usize {
         B::device_count(type_id)
     }
+
+    fn flush(device: &Self::Device) {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        client.sync(move || B::flush(&device))
+    }
 }
 
 /// The status of a [fuser](OperationFuser).
@@ -187,6 +193,10 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
 
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation fuser](crate::OperationFuser).
+///
+/// Collective operations on the remote/router interpreter path are driven through the
+/// [`DistributedOps`](burn_backend::distributed::DistributedOps) supertrait of [`Backend`], which
+/// every fusion backend satisfies unconditionally.
 pub trait FusionBackend:
     BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {

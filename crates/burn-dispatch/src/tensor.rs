@@ -6,12 +6,11 @@ use burn_autodiff::checkpoint::strategy::{
 };
 use burn_backend::{Backend, ComplexTensorBackend, DType, Shape, TensorMetadata};
 
-
 use crate::CheckpointingStrategy;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
-use burn_backend::tensor::FloatTensor;
+use burn_backend::tensor::{ComplexTensor, FloatTensor};
 
 use alloc::{format, string::String};
 
@@ -195,6 +194,9 @@ impl<B: Backend + ComplexTensorBackend> BackendTensor<B> {
             BackendTensor::Quantized(_) => "Quantized",
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(_) => "Autodiff",
+            #[cfg(feature = "autodiff")]
+            BackendTensor::AutodiffComplex(_) => "AutodiffComplex",
+            BackendTensor::Complex(_) => "Complex",
         }
     }
 }
@@ -445,6 +447,7 @@ macro_rules! impl_dispatch_conversion {
             fn try_into_backend(tensor: DispatchTensor) -> Result<BackendTensor<$backend>, String> {
                 match tensor.kind {
                     DispatchTensorKind::$backend(t) => Ok(t),
+                    #[allow(unreachable_patterns)]
                     other => Err(format!(
                         "Expected {} tensor, got variant: {}",
                         stringify!($backend),
@@ -510,9 +513,17 @@ macro_rules! impl_dispatch_conversion {
                     BackendTensor::Quantized(t) => {
                         DispatchTensorKind::$backend(BackendTensor::Quantized(t))
                     }
+                    BackendTensor::Complex(t) => {
+                        let ad_tensor = BackendTensor::AutodiffComplex(t);
+                        let inner_dispatch = DispatchTensorKind::$backend(ad_tensor);
+                        DispatchTensorKind::Autodiff(Box::new(inner_dispatch))
+                    }
 
                     BackendTensor::Autodiff(_) => {
                         panic!("Unexpected Autodiff variant provided to `from_backend`",)
+                    }
+                    BackendTensor::AutodiffComplex(_) => {
+                        panic!("Unexpected Autodiff complex variant provided to `from_backend`",)
                     }
                 };
 

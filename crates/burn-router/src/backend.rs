@@ -60,4 +60,9 @@ impl<R: RouterChannel> Backend for BackendRouter<R> {
         // This is what was there before, not sure if it's actually correct
         1
     }
+
+    fn flush(device: &Self::Device) {
+        let client = get_client::<R>(device);
+        client.flush();
+    }
 }

@@ -2,7 +2,6 @@ mod activation;
 mod bool_tensor;
 //#[cfg(feature = "complex")]
 mod complex;
-#[cfg(feature = "distributed")]
 mod distributed;
 mod int_tensor;
 mod module;

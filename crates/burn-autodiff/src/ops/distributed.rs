@@ -2,11 +2,13 @@ use alloc::vec::Vec;
 use burn_backend::{
     DeviceId,
     distributed::{
-        CollectiveTensor, DistributedBackend, DistributedConfig, DistributedParams,
-        ReduceOperation, TensorRef,
+        CollectiveTensor, DistributedConfig, DistributedOps, DistributedParams, ReduceOperation,
+        TensorRef,
     },
     tensor::FloatTensor,
 };
+
+use burn_backend::Backend;
 
 use crate::{
     Autodiff,
@@ -14,7 +16,7 @@ use crate::{
     ops::{Backward, Ops, OpsKind, unary},
 };
 
-impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodiff<B, C> {
+impl<B: Backend, C: CheckpointStrategy> DistributedOps<Self> for Autodiff<B, C> {
     fn start_communication_server(devices: &[B::Device], config: DistributedConfig) {
         B::start_communication_server(devices, config);
     }
@@ -44,7 +46,7 @@ impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodi
         #[derive(Debug)]
         struct AllReduce;
 
-        impl<B: DistributedBackend> Backward<B, 1> for AllReduce {
+        impl<B: Backend> Backward<B, 1> for AllReduce {
             type State = (ReduceOperation, Vec<DeviceId>);
 
             fn backward(

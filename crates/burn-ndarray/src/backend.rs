@@ -128,6 +128,8 @@ impl Backend for NdArray {
     fn device_count(_: u16) -> usize {
         1
     }
+
+    fn flush(_device: &Self::Device) {}
 }
 
 impl BackendIr for NdArray {

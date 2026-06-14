@@ -51,13 +51,6 @@ tracing = [
     "burn-tch?/tracing",
     "burn-wgpu?/tracing",
 ]
-distributed = [
-    "std",
-    "burn-backend/distributed",
-    "burn-autodiff?/distributed",
-    "burn-cuda?/distributed",
-    "burn-remote?/distributed",
-]
 
 # Backends
 cuda = ["burn-cuda"]

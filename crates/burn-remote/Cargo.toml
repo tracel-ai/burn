@@ -34,11 +34,6 @@ server = [
     "tracing-core/default",
     "tracing-subscriber/default",
 ]
-distributed =  [
-    "burn-backend/distributed",
-    "burn-ir/distributed",
-    "burn-router/distributed",
-]
 
 
 [dependencies]

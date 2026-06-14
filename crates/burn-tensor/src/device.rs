@@ -8,8 +8,10 @@ use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, ComplexDType, DType, FloatDType, IntDType, TensorData};
 
+#[cfg(feature = "remote")]
+use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
-use enumset::{EnumSet, EnumSetType};
 
 /// A high-level device handle for tensor operations.
 ///
@@ -329,14 +331,25 @@ impl Device {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }
 
-    /// Remote device identified by a network address (e.g. `"ws://127.0.0.1:3000"`).
+    /// Remote device identified by a network address (e.g. `"ws://127.0.0.1:3000"`) and the
+    /// index of the device to select on that server.
     ///
-    /// Requires a running [`burn-remote`](burn_dispatch::backends::remote) server at
-    /// the given address. Operations on tensors created with this device are
-    /// shipped to the server and executed there.
+    /// Requires a running [`burn-remote`](burn_dispatch::backends::remote) server at the given
+    /// address. Operations on tensors created with this device are shipped to the server and
+    /// executed there. The `index` selects which of the server's devices to use (the server
+    /// hosts all of its backend's devices); use [`DeviceIndex::Default`] for the server's
+    /// default device. Two remote devices with the same address but different indices target
+    /// distinct devices on the same host.
+    ///
+    /// ```rust,ignore
+    /// Device::remote("ws://host:3000", 0);                    // first device
+    /// Device::remote("ws://host:3000", 1);                    // second device on same host
+    /// Device::remote("ws://host:3000", DeviceIndex::Default); // server-chosen default
+    /// ```
     #[cfg(feature = "remote")]
-    pub fn remote(address: &str) -> Self {
-        let device = burn_dispatch::devices::RemoteDevice::new(address);
+    pub fn remote(address: &str, index: impl Into<DeviceIndex>) -> Self {
+        let index = index.into().resolve();
+        let device = burn_dispatch::devices::RemoteDevice::new(address, index);
         device.connect(); // initializes the connection (required to get the device default settings)
         Self::new(device)
     }
@@ -602,41 +615,64 @@ impl Device {
     }
 
     /// Retrieves all available [`Device`]s that match the given [`DeviceType`] filter.
-    pub fn enumerate(filter: impl Into<EnumSet<DeviceType>>) -> Devices {
+    ///
+    /// Local backends (CPU, CUDA, WGPU, …) enumerate the hardware found on the host. The
+    /// [`Remote`](DeviceType::Remote) variant instead lists every device hosted by the
+    /// `burn-remote` server at the given address — it connects to the server to learn how
+    /// many devices it exposes:
+    ///
+    /// ```rust,ignore
+    /// // Every CUDA device on this machine.
+    /// let local = Device::enumerate(DeviceType::Cuda);
+    ///
+    /// // Every device hosted by a remote server.
+    /// let remote = Device::enumerate(DeviceType::remote("ws://host:3000"));
+    ///
+    /// // Filters combine with `|`.
+    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::remote("ws://host:3000"));
+    /// ```
+    pub fn enumerate(filter: impl Into<DeviceFilter>) -> Devices {
         #[allow(unused)]
         let mut devices = Vec::new();
 
         #[allow(clippy::never_loop)] // at least one backend is expected to be enabled.
         for device_type in filter.into() {
             #[allow(unused)]
-            let type_ids: &[DispatchDeviceId] = match device_type {
+            let type_id = match device_type {
                 #[cfg(feature = "cpu")]
-                DeviceType::Cpu => &[DispatchDeviceId::Cpu],
+                DeviceType::Cpu => DispatchDeviceId::Cpu,
                 #[cfg(feature = "cuda")]
-                DeviceType::Cuda => &[DispatchDeviceId::Cuda],
+                DeviceType::Cuda => DispatchDeviceId::Cuda,
                 #[cfg(feature = "rocm")]
-                DeviceType::Rocm => &[DispatchDeviceId::Rocm],
+                DeviceType::Rocm => DispatchDeviceId::Rocm,
                 #[cfg(feature = "wgpu")]
-                DeviceType::Wgpu => &[DispatchDeviceId::Wgpu],
+                DeviceType::Wgpu => DispatchDeviceId::Wgpu,
                 #[cfg(feature = "metal")]
-                DeviceType::Metal => &[DispatchDeviceId::Metal],
+                DeviceType::Metal => DispatchDeviceId::Metal,
                 #[cfg(feature = "vulkan")]
-                DeviceType::Vulkan => &[DispatchDeviceId::Vulkan],
+                DeviceType::Vulkan => DispatchDeviceId::Vulkan,
                 #[cfg(feature = "webgpu")]
-                DeviceType::WebGpu => &[DispatchDeviceId::WebGpu],
+                DeviceType::WebGpu => DispatchDeviceId::WebGpu,
                 #[cfg(feature = "flex")]
-                DeviceType::Flex => &[DispatchDeviceId::Flex],
+                DeviceType::Flex => DispatchDeviceId::Flex,
                 #[cfg(feature = "ndarray")]
-                DeviceType::NdArray => &[DispatchDeviceId::NdArray],
+                DeviceType::NdArray => DispatchDeviceId::NdArray,
                 #[cfg(feature = "tch")]
-                DeviceType::LibTorch => &[DispatchDeviceId::LibTorch],
+                DeviceType::LibTorch => DispatchDeviceId::LibTorch,
+                // Remote devices are keyed by address, not a backend type id, so they take a
+                // dedicated enumeration path (connecting to the server for its device count).
+                #[cfg(feature = "remote")]
+                DeviceType::Remote(address) => {
+                    for device in Dispatch::enumerate_remote(&address) {
+                        devices.push(Device::new(device));
+                    }
+                    continue;
+                }
             };
 
             #[allow(unreachable_code)] // need to have one backend enabled, so it is reachable
-            for type_id in type_ids {
-                for device in Dispatch::enumerate(*type_id) {
-                    devices.push(Device::new(device))
-                }
+            for device in Dispatch::enumerate(type_id) {
+                devices.push(Device::new(device))
             }
         }
 
@@ -672,13 +708,16 @@ async fn wgpu_init_async(device_kind: DeviceKind) -> burn_dispatch::devices::Wgp
     device
 }
 
-// TODO: this is essentially per-backend filter, we could have higher level filters e.g. Cpu (CpuDevice, Ndarray, Flex, LibTorchDevice::Cpu)
-
 /// Represents the devices that can be used.
 ///
-/// `DeviceType` is used to filter the available device types for [`Device::enumerate`].
+/// `DeviceType` is used to filter the available device types for [`Device::enumerate`]. Most
+/// variants are fieldless and select a backend's local hardware; [`Remote`](Self::Remote)
+/// carries the network address of a `burn-remote` server whose devices should be listed.
+///
+/// Variants combine into a [`DeviceFilter`] with the `|` operator, so a single
+/// [`Device::enumerate`] call can span several backends and remote hosts.
 #[allow(missing_docs)]
-#[derive(Debug, EnumSetType)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeviceType {
     #[cfg(feature = "cpu")]
     Cpu,
@@ -700,6 +739,78 @@ pub enum DeviceType {
     NdArray,
     #[cfg(feature = "tch")]
     LibTorch,
+    /// Devices hosted by the `burn-remote` server at the given address
+    /// (e.g. `"ws://host:3000"`). Unlike the other variants this is resolved at runtime by
+    /// connecting to the server, which reports how many devices it exposes.
+    #[cfg(feature = "remote")]
+    Remote(String),
+}
+
+#[cfg(feature = "remote")]
+impl DeviceType {
+    /// Filter selecting every device hosted by the `burn-remote` server at `address`
+    /// (e.g. `"ws://host:3000"`).
+    ///
+    /// Convenience for [`DeviceType::Remote`] that accepts anything string-like.
+    pub fn remote(address: impl Into<String>) -> Self {
+        DeviceType::Remote(address.into())
+    }
+}
+
+/// A set of [`DeviceType`]s passed to [`Device::enumerate`].
+///
+/// Built from a single [`DeviceType`], a `Vec<DeviceType>`, or by combining variants with the
+/// `|` operator (`DeviceType::Cuda | DeviceType::Cpu`). Because [`DeviceType::Remote`] carries
+/// an address, this is a plain list rather than a bitset.
+#[derive(Debug, Clone, Default)]
+pub struct DeviceFilter(Vec<DeviceType>);
+
+impl DeviceFilter {
+    /// Create an empty filter.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a [`DeviceType`] to the filter.
+    pub fn with(mut self, device_type: DeviceType) -> Self {
+        self.0.push(device_type);
+        self
+    }
+}
+
+impl From<DeviceType> for DeviceFilter {
+    fn from(value: DeviceType) -> Self {
+        DeviceFilter(vec![value])
+    }
+}
+
+impl From<Vec<DeviceType>> for DeviceFilter {
+    fn from(value: Vec<DeviceType>) -> Self {
+        DeviceFilter(value)
+    }
+}
+
+impl IntoIterator for DeviceFilter {
+    type Item = DeviceType;
+    type IntoIter = alloc::vec::IntoIter<DeviceType>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl core::ops::BitOr for DeviceType {
+    type Output = DeviceFilter;
+    fn bitor(self, rhs: Self) -> DeviceFilter {
+        DeviceFilter(vec![self, rhs])
+    }
+}
+
+impl core::ops::BitOr<DeviceType> for DeviceFilter {
+    type Output = DeviceFilter;
+    fn bitor(mut self, rhs: DeviceType) -> DeviceFilter {
+        self.0.push(rhs);
+        self
+    }
 }
 
 /// Configuration options used to initialize a device.
@@ -856,5 +967,27 @@ impl core::ops::Deref for Devices {
     type Target = [Device];
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+#[cfg(all(test, feature = "flex", feature = "autodiff"))]
+mod autodiff_move_tests {
+    use crate::{Device, Tensor};
+
+    // A non-tracked float tensor (e.g. a gradient) can be moved onto an autodiff device; it
+    // lands on the underlying hardware and stays non-tracked. Regression test for a panic in
+    // `float_to_device` ("Cannot move between autodiff and non-autodiff instances").
+    #[test]
+    fn move_non_autodiff_float_tensor_to_autodiff_device() {
+        let device = Device::default();
+        let ad_device = device.clone().autodiff();
+
+        let t = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+        let moved = t.to_device(&ad_device);
+
+        assert_eq!(
+            moved.to_data().to_vec::<f32>().unwrap(),
+            vec![1.0, 2.0, 3.0, 4.0]
+        );
     }
 }
