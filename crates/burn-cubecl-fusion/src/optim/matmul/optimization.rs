@@ -29,18 +29,22 @@ use cubek::{
         definition::{
             MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
         },
-        launch::launch_kernel_virtual,
         routines::{
-            BlueprintStrategy, Routine,
-            double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
-            double_unit::DoubleUnitAlgorithm,
+            BatchMatmulRoutine, BlueprintStrategy,
+            batch::{
+                double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
+                double_unit::DoubleUnitAlgorithm,
+                gemv_innerproduct::{
+                    DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm,
+                },
+                ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
+                simple::{SimpleAlgorithm, SimpleArgs},
+                simple_unit::SimpleUnitAlgorithm,
+            },
             gemm::GemmRoutine,
-            gemv_innerproduct::{DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm},
             gemv_unit_perpendicular::GemvUnitPerpendicularRoutine,
-            ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
-            simple::{SimpleAlgorithm, SimpleArgs},
-            simple_unit::SimpleUnitAlgorithm,
         },
+        strategy::launch_kernel_virtual,
     },
     std::MatrixLayout,
 };
@@ -684,7 +688,7 @@ impl FusedMatmulLaunch<'_> {
     }
 }
 
-fn launch_inner_fix_dtype<R: Runtime, A: Routine<()>>(
+fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
     client: &ComputeClient<R>,
     input: FusedMatmulInputLaunch<R>,
     output: GlobalArgsLaunch<R>,
