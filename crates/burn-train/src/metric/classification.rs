@@ -3,7 +3,9 @@ use std::num::NonZeroUsize;
 /// Necessary data for classification metrics.
 #[derive(Default, Debug, Clone)]
 pub struct ClassificationMetricConfig {
+    /// The rule used to turn predicted probabilities into class predictions.
     pub decision_rule: DecisionRule,
+    /// The reduction strategy applied across classes.
     pub class_reduction: ClassReduction,
 }
 

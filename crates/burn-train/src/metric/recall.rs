@@ -24,7 +24,8 @@ impl Default for RecallMetric {
 }
 
 impl RecallMetric {
-    fn new(config: ClassificationMetricConfig) -> Self {
+    /// Create the recall metric from a [classification configuration](ClassificationMetricConfig).
+    pub fn new(config: ClassificationMetricConfig) -> Self {
         let state = Default::default();
         let name = Arc::new(format!(
             "Recall @ {:?} [{:?}]",

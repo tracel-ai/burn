@@ -28,8 +28,9 @@ impl Default for FBetaScoreMetric {
 }
 
 impl FBetaScoreMetric {
-    #[allow(dead_code)]
-    fn new(config: ClassificationMetricConfig, beta: f64) -> Self {
+    /// Create the F-beta score metric from a [classification configuration](ClassificationMetricConfig)
+    /// and the `beta` weight.
+    pub fn new(config: ClassificationMetricConfig, beta: f64) -> Self {
         let name = Arc::new(format!(
             "FBetaScore ({}) @ {:?} [{:?}]",
             beta, config.decision_rule, config.class_reduction

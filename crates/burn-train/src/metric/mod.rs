@@ -70,6 +70,6 @@ pub use wer::*;
 pub(crate) mod classification;
 pub(crate) mod processor;
 
-pub use crate::metric::classification::ClassReduction;
+pub use crate::metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule};
 // Expose `ItemLazy` so it can be implemented for custom types
 pub use processor::ItemLazy;

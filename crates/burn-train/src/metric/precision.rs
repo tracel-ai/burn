@@ -24,7 +24,8 @@ impl Default for PrecisionMetric {
 }
 
 impl PrecisionMetric {
-    fn new(config: ClassificationMetricConfig) -> Self {
+    /// Create the precision metric from a [classification configuration](ClassificationMetricConfig).
+    pub fn new(config: ClassificationMetricConfig) -> Self {
         let state = Default::default();
         let name = Arc::new(format!(
             "Precision @ {:?} [{:?}]",
