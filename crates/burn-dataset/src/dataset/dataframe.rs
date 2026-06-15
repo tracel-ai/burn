@@ -409,7 +409,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Corresponding column should exist in the DataFrame: SchemaFieldNotFound(ErrString(\"non_existent\"))"]
     fn test_non_existing_struct_fields() {
         #[derive(Clone, Debug, Deserialize, PartialEq)]
         struct PartialTestData {
