@@ -82,7 +82,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     },
                     address_type,
                     // We assume at least one block.
-                    instruction: self.blocks.first().unwrap().op.clone(),
+                    instruction: self.blocks.first().unwrap().op,
                 },
                 ReduceVectorSettings {
                     vectorization_mode: VectorizationMode::Parallel,
