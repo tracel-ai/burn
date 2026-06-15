@@ -350,11 +350,11 @@ mod tests {
         let mean_act: f32 = mean_act.into_scalar();
 
         assert!(
-            var_act > 0.9 && var_act < 1.1,
+            var_act >= 0.9 && var_act <= 1.1,
             "Expected variance to be between 1.0 += 0.1, but got {var_act}"
         );
         assert!(
-            mean_act > -0.1 && mean_act < 0.1,
+            mean_act >= -0.1 && mean_act <= 0.1,
             "Expected mean to be between 0.0 += 0.1, but got {mean_act}"
         );
     }

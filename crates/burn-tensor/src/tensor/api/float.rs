@@ -11,12 +11,12 @@ use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Float, Int, TensorPrimitive};
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 use burn_backend::AutodiffBackend;
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::TensorMetadata;
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 use burn_backend::distributed::DistributedParamId;
 use burn_backend::ops::ActivationOps;
 use burn_backend::ops::FloatTensorOps;
@@ -791,7 +791,7 @@ impl<const D: usize> Tensor<D> {
     }
 }
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 impl<const D: usize> Tensor<D> {
     /// Returns true if the tensor is marked as distributed.
     pub fn is_distributed(&self) -> bool {
@@ -1241,7 +1241,7 @@ fn powf_scalar_impl(p: BridgeTensor, rhs: Scalar) -> BridgeTensor {
     }
 }
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 fn is_distributed_impl(p: &BridgeTensor) -> bool {
     let (kind, tensor) = p.as_parts();
     match kind {
@@ -1251,7 +1251,7 @@ fn is_distributed_impl(p: &BridgeTensor) -> bool {
     }
 }
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 fn set_distributed_impl(p: BridgeTensor, param_id: DistributedParamId) -> BridgeTensor {
     let (kind, tensor) = p.into_parts();
     match kind {

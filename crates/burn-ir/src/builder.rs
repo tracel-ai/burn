@@ -291,9 +291,12 @@ impl_ir_create!(
     dtype = output_dtype(tensors.iter().map(|t| &t.dtype)).unwrap()
 );
 
-#[cfg(feature = "distributed")]
 impl_ir_create!(
-    AllReduceOpIr { tensor: TensorIr },
+    AllReduceOpIr {
+        tensor: TensorIr,
+        op: burn_backend::distributed::ReduceOperation,
+        device_ids: Vec<DeviceIdIr>
+    },
     shape = tensor.shape.clone(),
     dtype = tensor.dtype
 );

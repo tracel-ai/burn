@@ -1,6 +1,6 @@
 use crate::FloatTensor;
 
-use super::{AutodiffBackend, Backend};
+use super::Backend;
 use burn::{
     backend::{
         TensorMetadata,
@@ -13,9 +13,6 @@ use burn::{
     },
     tensor::Shape,
 };
-use burn_cubecl::{CubeBackend, CubeRuntime};
-
-impl<R: CubeRuntime> AutodiffBackend for Autodiff<CubeBackend<R>> {}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {

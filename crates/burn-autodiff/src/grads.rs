@@ -8,15 +8,15 @@ use crate::{
     tensor::AutodiffTensor,
 };
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 use crate::collections::HashMap;
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 use burn_backend::distributed::DistributedParams;
 
 /// Gradient identifier.
 pub type GradID = u64;
 
-#[cfg(feature = "distributed")]
+#[cfg(feature = "std")]
 #[derive(Clone)]
 pub(crate) struct GradSyncContext {
     pub n_required_map: HashMap<NodeId, usize>,
@@ -37,7 +37,7 @@ pub(crate) enum BackwardMode {
     #[default]
     Standard,
     // Distributed registration hook.
-    #[cfg(feature = "distributed")]
+    #[cfg(feature = "std")]
     Distributed(Box<dyn FnOnce(GradSyncContext) -> Box<dyn DistributedRegistration>>),
 }
 
@@ -77,7 +77,7 @@ impl Gradients {
     }
 
     /// Creates a new gradients container with a registration hook for distributed gradients.
-    #[cfg(feature = "distributed")]
+    #[cfg(feature = "std")]
     pub fn new_distributed<B: Backend>(
         root_node: NodeRef,
         root_tensor: FloatTensor<B>,

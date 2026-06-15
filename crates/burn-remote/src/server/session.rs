@@ -1,11 +1,14 @@
 use burn_backend::tensor::Device;
-use burn_communication::{Protocol, data_service::TensorDataService};
+use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::BackendIr;
 use burn_router::TensorInterpreter;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
-use crate::shared::{SessionId, TaskResponse};
+use crate::server::local_comm::LocalCommService;
+use crate::server::service::{FetchService, SubmitService};
+use crate::server::worker::SessionHandler;
+use crate::shared::{SessionId, Task, TaskResponse};
 
 /// Capacity for the per-session response queue.
 ///
@@ -16,26 +19,34 @@ const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 
 /// Coordinates per-session state.
 ///
-/// Each [`Session`] owns its own [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer)
-/// — different sessions never share tensor handles, so concurrent sessions can't race on
-/// each other's backend state. Cross-session tensor transfers go through `data_service`,
-/// which already serializes the bytes through its own protocol.
+/// Each [`Session`] owns a dedicated [`SessionHandler`] that holds the session's
+/// [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer) — different
+/// sessions never share tensor handles, so concurrent sessions can't race on each other's backend
+/// state. Cross-session tensor transfers go through `external_comm` (cross-server) or `local_comm`
+/// (same-host), each of which has its own rendezvous.
 ///
-/// Within a session there is exactly one request-handling task (one tokio task per socket
-/// connection), so per-session ordering is preserved without any extra locking.
+/// Tasks run on the handler's worker threads, not the submit handler: the latter only decodes the
+/// incoming batch and forwards each [`Task`] to the session over a bounded channel. Inside the
+/// session a dispatcher routes each task to a per-stream worker thread, so per-stream ordering is
+/// preserved while independent streams — and other sessions — keep making progress even when one
+/// stream is parked on a blocking op (a same-host transfer rendezvous or an all-reduce barrier).
 pub struct SessionManager<B, P>
 where
     B: BackendIr,
     P: Protocol,
 {
-    device: Device<B>,
-    pub(crate) data_service: Arc<TensorDataService<B, P>>,
-    sessions: Mutex<HashMap<SessionId, Session<B>>>,
+    /// All devices this server hosts, indexed by the device index the client selects at
+    /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
+    devices: Vec<Device<B>>,
+    pub(crate) external_comm: Arc<ExternalCommService<B, P>>,
+    /// Rendezvous registry for same-host tensor transfers between this server's sessions.
+    pub(crate) local_comm: Arc<LocalCommService<B>>,
+    sessions: Mutex<HashMap<SessionId, Session>>,
 }
 
-struct Session<B: BackendIr> {
-    runner: TensorInterpreter<B>,
-    sender: mpsc::Sender<TaskResponse>,
+struct Session {
+    /// Inbound channel to the session's dispatcher thread; cloned once per submit connection.
+    task_sender: mpsc::Sender<Task>,
     receiver: Option<mpsc::Receiver<TaskResponse>>,
 }
 
@@ -44,78 +55,128 @@ where
     B: BackendIr,
     P: Protocol,
 {
-    pub fn new(device: Device<B>, data_service: Arc<TensorDataService<B, P>>) -> Self {
+    pub fn new(devices: Vec<Device<B>>, external_comm: Arc<ExternalCommService<B, P>>) -> Self {
+        assert!(
+            !devices.is_empty(),
+            "A remote server must host at least one device"
+        );
         Self {
-            device,
-            data_service,
+            devices,
+            external_comm,
+            local_comm: Arc::new(LocalCommService::new()),
             sessions: Mutex::new(HashMap::new()),
         }
     }
 
-    /// The backend default device settings, used by the response-init handshake before any
-    /// session-specific runner is needed.
-    pub fn device_settings(&self) -> burn_std::DeviceSettings {
-        use burn_backend::backend::DeviceOps;
-        self.device.defaults()
+    /// Resolve the device at `device_index`.
+    ///
+    /// The index is validated against the server's device count on the client init handshake, so
+    /// an out-of-range index here is a protocol/configuration error (e.g. a client enumerating
+    /// more devices than this server hosts). Fail loudly rather than silently collapsing onto
+    /// device 0 — for a collective that would reduce a device against itself and silently corrupt
+    /// the result instead of producing a clear failure.
+    pub(crate) fn device(&self, device_index: u32) -> Device<B> {
+        self.devices
+            .get(device_index as usize)
+            .cloned()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Requested device index {device_index} but server hosts only {} device(s)",
+                    self.devices.len()
+                )
+            })
     }
 
-    /// Resolve both the [`TensorInterpreter`] and the response sender for `session_id` in a single lock
-    /// acquisition, creating the session on demand. The request loop resolves these once per
-    /// connection and reuses them for every task, instead of re-locking the sessions map (and
-    /// re-cloning the runner) per task.
-    pub async fn session_handles(
+    async fn with_session<R>(
         &self,
         session_id: SessionId,
-    ) -> (TensorInterpreter<B>, mpsc::Sender<TaskResponse>) {
-        self.with_session(session_id, |s| (s.runner.clone(), s.sender.clone()))
+        device_index: u32,
+        f: impl FnOnce(&mut Session) -> R,
+    ) -> R {
+        let mut sessions = self.sessions.lock().await;
+        let entry = sessions.entry(session_id).or_insert_with(|| {
+            let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);
+            // The session is pinned to its device for its whole lifetime; the first handler
+            // (request or response) to touch it fixes the device index. Spawn the handler that
+            // owns the runner — this runs inside the tokio runtime, so the handler can capture
+            // the runtime handle its worker threads need for the async parts of a task.
+            let runner = TensorInterpreter::new(self.device(device_index));
+            let task_sender = SessionHandler::spawn(
+                session_id,
+                runner,
+                sender,
+                self.external_comm.clone(),
+                self.local_comm.clone(),
+            );
+            Session {
+                task_sender,
+                receiver: Some(receiver),
+            }
+        });
+        f(entry)
+    }
+}
+
+impl<B, P> SubmitService for SessionManager<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
+    /// Resolve the channel used to forward [`Task`]s to `session_id`'s dispatcher thread,
+    /// creating the session (and spawning its handler) on demand. The request loop resolves
+    /// this once per connection and reuses it for every task, instead of re-locking the
+    /// sessions map per task.
+    async fn session_task_sender(
+        &self,
+        session_id: SessionId,
+        device_index: u32,
+    ) -> mpsc::Sender<Task> {
+        self.with_session(session_id, device_index, |s| s.task_sender.clone())
             .await
     }
 
-    /// Get a clone of the [`TensorInterpreter`] for `session_id` only if the session already exists,
-    /// without creating one. Used on the close path so a `Close` for an unknown or
-    /// already-removed session doesn't resurrect a phantom runner just to drop it.
-    pub async fn try_runner(&self, session_id: SessionId) -> Option<TensorInterpreter<B>> {
-        let sessions = self.sessions.lock().await;
-        sessions.get(&session_id).map(|s| s.runner.clone())
+    /// Drop the session, detaching its handler. Removing the map entry drops the inbound task
+    /// sender it holds; once the request connection also drops its cloned task sender, the
+    /// dispatcher's channel closes, so the per-stream workers drain and exit and the handler
+    /// flushes its runner, releasing any backend state held only by this session's tensors.
+    async fn close(&self, session_id: SessionId) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.remove(&session_id);
+    }
+}
+
+impl<B, P> FetchService for SessionManager<B, P>
+where
+    B: BackendIr,
+    P: Protocol,
+{
+    /// The device settings for `device_index`, used by the response-init handshake before any
+    /// session-specific runner is needed.
+    fn device_settings(&self, device_index: u32) -> burn_std::DeviceSettings {
+        use burn_backend::backend::DeviceOps;
+        self.device(device_index).defaults()
+    }
+
+    /// The total number of devices this server hosts. Sent to the client on the init handshake
+    /// so it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
+    fn device_count(&self) -> u32 {
+        self.devices.len() as u32
     }
 
     /// Take the response receiver for `session_id`.
     ///
     /// Returns `Err` if a responder has already been registered for this session — the
     /// protocol allows only one response socket per session.
-    pub async fn take_response_receiver(
+    async fn take_response_receiver(
         &self,
         session_id: SessionId,
+        device_index: u32,
     ) -> Result<mpsc::Receiver<TaskResponse>, String> {
-        self.with_session(session_id, |s| {
+        self.with_session(session_id, device_index, |s| {
             s.receiver
                 .take()
                 .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
         })
         .await
-    }
-
-    /// Drop the session. The runner's handles are released here, so any backend state held
-    /// only by this session's tensors becomes eligible for cleanup.
-    pub async fn close(&self, session_id: SessionId) {
-        let mut sessions = self.sessions.lock().await;
-        sessions.remove(&session_id);
-    }
-
-    async fn with_session<R>(
-        &self,
-        session_id: SessionId,
-        f: impl FnOnce(&mut Session<B>) -> R,
-    ) -> R {
-        let mut sessions = self.sessions.lock().await;
-        let entry = sessions.entry(session_id).or_insert_with(|| {
-            let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);
-            Session {
-                runner: TensorInterpreter::new(self.device.clone()),
-                sender,
-                receiver: Some(receiver),
-            }
-        });
-        f(entry)
     }
 }

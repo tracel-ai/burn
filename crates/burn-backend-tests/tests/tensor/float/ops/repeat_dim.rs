@@ -164,3 +164,19 @@ fn should_repeat_dim_0_times_empty() {
 
     assert_eq!(output.shape(), [2, 3, 0].into());
 }
+
+#[test]
+fn should_support_unsqueeze_of_repeat_dim_view() {
+    // `repeat_dim` on a size-1 dim returns a broadcast view (stride 0 on
+    // that dim). A following unsqueeze (reshape) must not let the unit
+    // dim's stride leak onto real dims: [3, 1] with strides [1, 0]
+    // reshaped to [3, 1, 1] has to keep stride 1 on dim 0, otherwise
+    // every row reads element 0.
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &device);
+    let view: TestTensor<2> = tensor.unsqueeze_dim(1).repeat_dim(1, 1);
+    let view: TestTensor<3> = view.unsqueeze_dim(2);
+
+    view.into_data()
+        .assert_eq(&TensorData::from([[[1.0]], [[2.0]], [[3.0]]]), false);
+}

@@ -53,11 +53,6 @@ fusion-experimental = ["fusion"]
 
 template = []
 
-distributed = [
-    "std",
-    "burn-backend/distributed",
-    "burn-fusion?/distributed",
-]
 
 [dependencies]
 burn-cubecl-fusion = { workspace = true, optional = true }

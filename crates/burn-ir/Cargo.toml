@@ -21,7 +21,6 @@ doc = ["default"]
 tracing = [
     "burn-backend/tracing",
 ]
-distributed = ["burn-backend/distributed"]
 
 [dependencies]
 serde = { workspace = true }

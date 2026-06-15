@@ -1,6 +1,6 @@
 use crate::FloatTensor;
 
-use super::{AutodiffBackend, Backend};
+use super::Backend;
 use burn::{
     backend::{
         TensorMetadata,
@@ -10,12 +10,9 @@ use burn::{
             grads::Gradients,
             ops::{Backward, Ops, OpsKind, broadcast_shape},
         },
-        wgpu::{CubeBackend, WgpuRuntime},
     },
     tensor::Shape,
 };
-
-impl AutodiffBackend for Autodiff<CubeBackend<WgpuRuntime>> {}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //

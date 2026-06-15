@@ -22,7 +22,9 @@ remote = ["burn/remote"]
 cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 metal = ["burn/metal"]
-ddp = ["burn/distributed"]
+# DDP (distributed data-parallel) training. The distributed runtime is always available with
+# `std`, so this feature is just a marker that selects the DDP code paths in the example.
+ddp = []
 
 [dependencies]
 # Burn

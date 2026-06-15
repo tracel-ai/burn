@@ -5,7 +5,7 @@
 
 use alloc::vec::Vec;
 use burn_backend::ops::FloatTensorOps;
-use burn_backend::{DeviceOps, distributed::DistributedBackend};
+use burn_backend::{DeviceOps, distributed::DistributedOps};
 use burn_dispatch::{Dispatch, DispatchTensor};
 pub use burn_std::distributed::*;
 

@@ -143,7 +143,20 @@ pub fn broadcast_strides(
 pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) -> Strides {
     let mut strides_new = strides![1; shape_new.len()];
 
-    let mut old_idx = shape.len() - 1;
+    // Unit dims in the old shape never anchor a group of new dims, and their
+    // stride can be arbitrary (0 for broadcast views, pitched values, ...).
+    // Skip them so a real new dim never inherits a unit dim's stride —
+    // e.g. reshaping [26, 1] with strides [1, 0] (a `repeat_dim` broadcast
+    // view) to [26, 1, 1] must keep stride 1 on dim 0; propagating the 0
+    // would make every index along dim 0 alias the first element.
+    let skip_unit_dims = |mut idx: usize| {
+        while idx > 0 && shape[idx] == 1 {
+            idx -= 1;
+        }
+        idx
+    };
+
+    let mut old_idx = skip_unit_dims(shape.len() - 1);
     let mut current_stride = strides[old_idx];
     let mut dim_prod = 1;
 
@@ -153,7 +166,7 @@ pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) ->
         if *dim == 1 {
             continue;
         } else if dim_prod == shape[old_idx] {
-            old_idx = old_idx.saturating_sub(1);
+            old_idx = skip_unit_dims(old_idx.saturating_sub(1));
             current_stride = strides[old_idx];
             dim_prod = 1;
         } else {
@@ -284,5 +297,37 @@ mod tests {
         );
 
         assert_eq!(analysis, ReshapeAnalysis::Split)
+    }
+
+    #[test]
+    fn test_split_strides_trailing_unit_dim_broadcast_view() {
+        // A `repeat_dim` broadcast view: [26, 1] with strides [1, 0],
+        // unsqueezed to [26, 1, 1]. Dim 0 must keep stride 1 — propagating
+        // the unit dim's stride 0 makes every row alias row 0 (this breaks
+        // e.g. `scatter` index tensors built via unsqueeze + repeat).
+        let strides = split_strides(&[26, 1], &[1, 0], &[26, 1, 1]);
+        assert_eq!(strides.as_ref(), &[1, 1, 1]);
+    }
+
+    #[test]
+    fn test_split_strides_trailing_unit_dims_arbitrary_strides() {
+        // Unit dims can carry arbitrary strides (broadcast 0, pitched
+        // values, ...). They must not anchor the stride walk.
+        let strides = split_strides(&[32, 1, 1, 1], &[1, 32, 32, 32], &[32, 1, 1, 1, 1]);
+        assert_eq!(strides.as_ref(), &[1, 1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn test_split_strides_split_of_broadcast_dim_keeps_zero() {
+        // Splitting a real broadcast (stride 0) dim keeps 0 on the split
+        // parts; the leading real dim keeps its stride.
+        let strides = split_strides(&[26, 16], &[1, 0], &[26, 4, 4]);
+        assert_eq!(strides.as_ref(), &[1, 0, 0]);
+    }
+
+    #[test]
+    fn test_split_strides_plain_unsqueeze() {
+        let strides = split_strides(&[26, 16], &[16, 1], &[26, 16, 1]);
+        assert_eq!(strides.as_ref(), &[16, 1, 1]);
     }
 }

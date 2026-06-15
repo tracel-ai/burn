@@ -24,8 +24,6 @@ tracing = ["burn-core/tracing", "burn-optim/tracing"]
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui", "unicode-width"]
 rl = ["burn-rl"]
-# Distributed Data Parallel
-ddp = ["burn-optim/distributed", "burn-core/distributed"]
 
 [dependencies]
 burn-core = { workspace = true, features = [
