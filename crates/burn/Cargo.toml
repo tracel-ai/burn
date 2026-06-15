@@ -31,6 +31,7 @@ default = [
     "burn-nn/default",
     "burn-optim?/default",
     "burn-autodiff?/default",
+    "burn-vision?/default",
 ]
 doc = [
     "default",
