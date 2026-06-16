@@ -764,4 +764,10 @@ impl FloatTensorOps<Self> for NdArray {
             NdArrayOps::unfold(array, dim, size, step)
         })
     }
+
+    fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!((lhs, rhs), FloatElem, |lhs, rhs| {
+            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &FloatElem, b: &FloatElem| a.hypot(*b))
+        })
+    }
 }
