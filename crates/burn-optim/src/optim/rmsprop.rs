@@ -1,6 +1,5 @@
 use burn_core as burn;
 
-use burn::record::Record;
 use burn::store::OptimState;
 
 use super::{
@@ -136,7 +135,7 @@ impl Optimizer for RmsProp {
 }
 
 /// State of [RmsProp](RmsProp)
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct RmsPropState<const D: usize> {
     /// Current squared average state.
     pub square_avg: SquareAvgState<D>,
@@ -147,7 +146,7 @@ pub struct RmsPropState<const D: usize> {
 }
 
 /// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct SquareAvgState<const D: usize> {
     /// Current squared average.
     pub square_avg: Tensor<D>,
@@ -187,7 +186,7 @@ impl<const D: usize> SquareAvgState<D> {
 }
 
 /// [CenteredState](CenteredState) is to store and pass optimizer step params.
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct CenteredState<const D: usize> {
     /// The averaged gradient to calculate the centered gradient, if available.
     pub grad_avg: Option<Tensor<D>>,
@@ -290,7 +289,7 @@ impl RmsPropMomentum {
 }
 
 /// [RmsPropMomentumState](RmsPropMomentumState) is to store and pass optimizer step params.
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct RmsPropMomentumState<const D: usize> {
     buf: Tensor<D>,
 }

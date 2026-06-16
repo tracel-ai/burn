@@ -143,6 +143,13 @@ impl Reader {
         &self.metadata.metadata
     }
 
+    /// The typed scalars stored alongside the tensors.
+    ///
+    /// Empty for files written before scalar support.
+    pub fn scalars(&self) -> &alloc::collections::BTreeMap<String, crate::Scalar> {
+        &self.metadata.scalars
+    }
+
     /// The names of all tensors in the pack, in sorted (alphabetical) order.
     pub fn tensor_names(&self) -> Vec<&str> {
         self.metadata.tensors.keys().map(|n| n.as_str()).collect()

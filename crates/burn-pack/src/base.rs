@@ -166,6 +166,23 @@ impl Header {
     }
 }
 
+/// A typed scalar value stored alongside tensors in a burnpack container.
+///
+/// Scalars are kept in the CBOR metadata section (not the tensor data section), so they carry
+/// no alignment cost. The field is optional in the format: files written before scalar support
+/// simply omit it, and readers default it to empty.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum Scalar {
+    /// A signed integer.
+    Int(i64),
+    /// An unsigned integer.
+    UInt(u64),
+    /// A floating-point number.
+    Float(f64),
+    /// A boolean.
+    Bool(bool),
+}
+
 /// Metadata structure serialized with CBOR
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Metadata {
@@ -174,6 +191,11 @@ pub(crate) struct Metadata {
     /// Optional additional metadata
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub metadata: BTreeMap<String, String>,
+    /// Optional typed scalars mapped by name.
+    ///
+    /// Defaulted on read for backward compatibility with files written before scalar support.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub scalars: BTreeMap<String, Scalar>,
 }
 
 /// Individual tensor descriptor

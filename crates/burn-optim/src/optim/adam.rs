@@ -1,6 +1,5 @@
 use burn_core as burn;
 
-use burn::record::Record;
 use burn::store::OptimState;
 
 use burn::config::Config;
@@ -51,7 +50,7 @@ pub struct Adam {
 }
 
 /// Adam state.
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct AdamState<const D: usize> {
     /// The current adaptive momentum.
     pub momentum: AdaptiveMomentumState<D>,
@@ -120,7 +119,7 @@ impl AdamConfig {
 }
 
 /// Adaptive momentum state.
-#[derive(Record, OptimState, new, Clone)]
+#[derive(OptimState, new, Clone)]
 pub struct AdaptiveMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,

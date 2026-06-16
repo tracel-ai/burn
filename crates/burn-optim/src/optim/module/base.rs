@@ -6,7 +6,6 @@ use burn_core::store::{OptimState, OptimStateSink, OptimStateSource};
 use burn_core::tensor::kind::BridgeTensor;
 
 use crate::LearningRate;
-use burn::record::Record;
 use burn::tensor::{Device, Tensor};
 
 /// An opinionated trait to simplify the process of implementing an optimizer.
@@ -17,9 +16,9 @@ use burn::tensor::{Device, Tensor};
 pub trait Optimizer: Send + Sync + Clone + 'static {
     /// The state of the optimizer for a single parameter of rank `D`.
     ///
-    /// It implements [`Record`] (so it can be serialized) and [`OptimState`] (so it can be
-    /// decomposed into named tensors for the burnpack format).
-    type State<const D: usize>: Send + Sync + Record + Clone + OptimState + 'static;
+    /// It implements [`OptimState`] so it can be decomposed into named tensors and scalars for the
+    /// burnpack format.
+    type State<const D: usize>: Send + Sync + Clone + OptimState + 'static;
 
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///

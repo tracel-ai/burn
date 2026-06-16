@@ -3,11 +3,11 @@
 use burn_core as burn;
 
 use super::GradientsParams;
-use crate::LearningRate;
+use crate::{LearningRate, OptimizerRecord};
 use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
-use burn::record::Record;
-use burn::tensor::{Device, Tensor};
+use burn::store::{OptimState, OptimStateSink, OptimStateSource, RecordError};
+use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
 use alloc::vec;
@@ -450,7 +450,7 @@ fn set_params_from_flat_inner<M: Module>(module: M, flat: Tensor<1>) -> M {
 }
 
 /// L-BFGS optimizer state
-#[derive(Clone, Record)]
+#[derive(Clone, OptimState)]
 pub struct LBFGSState {
     /// Historical displacement vectors
     pub history_s: Vec<Tensor<1>>,
@@ -520,6 +520,63 @@ pub struct LBFGS {
 }
 
 impl LBFGS {
+    /// Decompose the optimizer state into a serializable [`OptimizerRecord`] (burnpack format).
+    ///
+    /// L-BFGS keeps a single global state rather than per-parameter state, so its tensors are
+    /// named directly (e.g. `history_s.0`) and carry no parameter id.
+    pub fn to_record(&self) -> OptimizerRecord {
+        let mut sink = OptimStateSink::default();
+        OptimState::state_flatten(&self.state, "", &mut sink);
+
+        let tensors = sink
+            .tensors
+            .into_iter()
+            .map(|(name, data)| burn_pack::Tensor::new(name, data.dtype, data.shape, None, data.bytes))
+            .collect();
+        let scalars = sink.scalars.into_iter().collect();
+
+        OptimizerRecord { tensors, scalars }
+    }
+
+    /// Load the optimizer state from an [`OptimizerRecord`], placing tensors on `device`.
+    pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
+        let mut source = OptimStateSource::new(record.scalars);
+        for tensor in record.tensors {
+            let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
+            source.insert_tensor(tensor.name, data);
+        }
+        if let Some(state) = LBFGSState::state_unflatten("", &mut source, device) {
+            self.state = state;
+        }
+        self
+    }
+
+    /// Serialize the optimizer state to an in-memory burnpack byte buffer.
+    pub fn into_bytes(&self) -> Result<Bytes, RecordError> {
+        self.to_record().into_bytes()
+    }
+
+    /// Load the optimizer state from an in-memory burnpack byte buffer.
+    pub fn from_bytes(self, bytes: Bytes, device: &Device) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::from_bytes(bytes)?, device))
+    }
+
+    /// Save the optimizer state to a burnpack file on disk.
+    #[cfg(feature = "std")]
+    pub fn save<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), RecordError> {
+        self.to_record().save(path)
+    }
+
+    /// Load the optimizer state from a burnpack file on disk, placing tensors on `device`.
+    #[cfg(feature = "std")]
+    pub fn load<P: AsRef<std::path::Path>>(
+        self,
+        path: P,
+        device: &Device,
+    ) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::load(path)?, device))
+    }
+
     /// A single optimization step for any tensor that represents the parameters of a model.
     pub fn step<M, F>(&mut self, lr: LearningRate, mut module: M, mut closure: F) -> (M, f64)
     where
@@ -905,6 +962,59 @@ mod tests {
         assert!((optimized_data - 2.0570652485).abs() < tol);
         assert!((optimized_bias - 0.8106800914).abs() < tol);
     }
+
+    // A burnpack round-trip of the L-BFGS state (which holds `Vec<Tensor>` history buffers, optional
+    // tensors and optional scalars) must restore enough that a further step agrees with the original.
+    #[test]
+    fn test_lbfgs_burnpack_round_trip() {
+        let device = Device::default().autodiff();
+        let tol = 1e-6;
+        let x_data = Tensor::<2>::from_data([[1.0], [2.0], [3.0]], &device);
+        let y_true = Tensor::<2>::from_data([[3.0], [5.0], [7.0]], &device);
+        let module = given_linear_layer(
+            TensorData::from([[0.5f64]]),
+            TensorData::from([0.1f64]),
+            &device,
+        );
+
+        let make_closure = || {
+            let x = x_data.clone();
+            let y = y_true.clone();
+            move |mod_in: Linear| {
+                let output = mod_in.forward(x.clone());
+                let loss = burn_nn::loss::MseLoss::new().forward(
+                    output,
+                    y.clone(),
+                    burn_nn::loss::Reduction::Sum,
+                );
+                let grads = loss.backward();
+                let grads_params = GradientsParams::from_grads(grads, &mod_in);
+                (loss.into_scalar::<f64>(), grads_params)
+            }
+        };
+
+        let mut optimizer = LBFGSConfig::new()
+            .with_line_search_fn(LineSearchFn::StrongWolfe)
+            .init();
+        let (module, _) = optimizer.step(0.001, module, &mut make_closure());
+
+        // Round-trip the optimizer state. State tensors live on the inner (non-autodiff) backend.
+        let bytes = optimizer.into_bytes().unwrap();
+        let mut reloaded = LBFGSConfig::new()
+            .with_line_search_fn(LineSearchFn::StrongWolfe)
+            .init()
+            .from_bytes(bytes, &Device::default())
+            .unwrap();
+
+        // A further identical step on each optimizer must agree — exercising the restored history.
+        let (_, loss_original) = optimizer.step(0.001, module.clone(), &mut make_closure());
+        let (_, loss_reloaded) = reloaded.step(0.001, module, &mut make_closure());
+        assert!(
+            (loss_original - loss_reloaded).abs() < tol,
+            "losses differ after burnpack round-trip: {loss_original} vs {loss_reloaded}"
+        );
+    }
+
     #[test]
     fn test_lbfgs_no_strong_wolfe_comparison() {
         let device = Device::default().autodiff();

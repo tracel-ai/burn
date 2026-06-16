@@ -1,6 +1,5 @@
 use burn_core as burn;
 
-use burn::record::Record;
 use burn::store::OptimState;
 
 use burn::config::Config;
@@ -349,7 +348,7 @@ impl Muon {
 }
 
 /// Muon state.
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct MuonState<const D: usize> {
     /// Current momentum state
     pub momentum: MomentumState<D>,

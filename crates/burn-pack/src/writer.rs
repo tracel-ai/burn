@@ -1,5 +1,5 @@
 use super::base::{
-    Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, Metadata, TENSOR_ALIGNMENT,
+    Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, Metadata, Scalar, TENSOR_ALIGNMENT,
     TensorDescriptor, aligned_data_section_start,
 };
 use super::tensor::Tensor;
@@ -41,6 +41,8 @@ pub struct Writer {
     pub(crate) tensors: Vec<Tensor>,
     /// Metadata key-value pairs
     pub(crate) metadata: BTreeMap<String, String>,
+    /// Typed scalars keyed by name
+    pub(crate) scalars: BTreeMap<String, Scalar>,
 }
 
 impl Writer {
@@ -49,12 +51,19 @@ impl Writer {
         Self {
             tensors,
             metadata: BTreeMap::new(),
+            scalars: BTreeMap::new(),
         }
     }
 
     /// Builder pattern: add metadata and return self
     pub fn with_metadata(mut self, key: &str, value: &str) -> Self {
         self.metadata.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    /// Builder pattern: add a typed scalar and return self.
+    pub fn with_scalar(mut self, key: &str, value: Scalar) -> Self {
+        self.scalars.insert(key.to_string(), value);
         self
     }
 
@@ -162,6 +171,7 @@ impl Writer {
         let metadata = Metadata {
             tensors,
             metadata: self.metadata.clone(),
+            scalars: self.scalars.clone(),
         };
 
         let mut metadata_bytes = Vec::new();

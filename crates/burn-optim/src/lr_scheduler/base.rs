@@ -1,24 +1,118 @@
 pub(super) use alloc::string::String;
+use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
 use burn_core as burn;
 
-use burn::record::Record;
+use burn::store::{RecordError, Scalar, ScalarValue, join_path};
+use burn::tensor::Bytes;
+use burn_pack::{Reader, Writer};
 
 use crate::LearningRate;
 
 /// Learning rate scheduler defines how the learning rate will evolve during training.
 pub trait LrScheduler: Clone + Send + Sync {
-    /// Scheduler associative type to be used when saving and loading the state.
-    type Record: Record + Clone + 'static;
-
     /// Perform the scheduler step, potentially updating its state, and returning the effective
     /// learning rate.
     fn step(&mut self) -> LearningRate;
 
-    /// Get the current state of the scheduler as a [record](Record).
-    fn to_record(&self) -> Self::Record;
+    /// Get the current state of the scheduler as a [record](LrSchedulerRecord).
+    fn to_record(&self) -> LrSchedulerRecord;
 
-    /// Load the state of the scheduler as a [record](Record).
-    fn load_record(self, record: Self::Record) -> Self;
+    /// Load the state of the scheduler from a [record](LrSchedulerRecord).
+    fn load_record(self, record: LrSchedulerRecord) -> Self;
+}
+
+/// The serialized state of a [learning rate scheduler](LrScheduler), stored in the
+/// [burnpack](burn_pack) format.
+///
+/// Scheduler state is just a handful of scalars (step counters, current learning rate), so the
+/// record holds named typed scalars and no tensors. Composed schedulers nest their children's
+/// records under an index prefix via [`with_record`](Self::with_record) / [`record`](Self::record).
+#[derive(Default, Clone, Debug)]
+pub struct LrSchedulerRecord {
+    scalars: BTreeMap<String, Scalar>,
+}
+
+impl LrSchedulerRecord {
+    /// Create an empty record.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Whether the record holds no scalars.
+    pub fn is_empty(&self) -> bool {
+        self.scalars.is_empty()
+    }
+
+    /// Store a scalar under `key`.
+    pub fn with_scalar<V: ScalarValue>(mut self, key: &str, value: V) -> Self {
+        self.scalars.insert(String::from(key), value.to_scalar());
+        self
+    }
+
+    /// Read the scalar stored under `key`, if present and of a compatible type.
+    pub fn scalar<V: ScalarValue>(&self, key: &str) -> Option<V> {
+        self.scalars.get(key).copied().and_then(V::from_scalar)
+    }
+
+    /// Merge a child `record`'s scalars under `prefix` (used to compose schedulers).
+    pub fn with_record(mut self, prefix: &str, record: LrSchedulerRecord) -> Self {
+        for (key, value) in record.scalars {
+            self.scalars.insert(join_path(prefix, &key), value);
+        }
+        self
+    }
+
+    /// Extract the child record previously merged under `prefix`.
+    pub fn record(&self, prefix: &str) -> LrSchedulerRecord {
+        let head = join_path(prefix, "");
+        let scalars = self
+            .scalars
+            .iter()
+            .filter_map(|(key, value)| {
+                key.strip_prefix(&head)
+                    .map(|stripped| (String::from(stripped), *value))
+            })
+            .collect();
+        LrSchedulerRecord { scalars }
+    }
+
+    /// Serialize the record to an in-memory burnpack byte buffer.
+    pub fn into_bytes(self) -> Result<Bytes, RecordError> {
+        Ok(self.into_writer().into_bytes()?)
+    }
+
+    /// Reconstruct a record from an in-memory burnpack byte buffer.
+    pub fn from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
+        let reader = Reader::from_bytes(bytes)?;
+        Ok(Self {
+            scalars: reader.scalars().clone(),
+        })
+    }
+
+    /// Save the record to a burnpack file on disk.
+    #[cfg(feature = "std")]
+    pub fn save<P: AsRef<std::path::Path>>(self, path: P) -> Result<(), RecordError> {
+        self.into_writer().write_to_file(path)?;
+        Ok(())
+    }
+
+    /// Load the record from a burnpack file on disk.
+    #[cfg(feature = "std")]
+    pub fn load<P: AsRef<std::path::Path>>(path: P) -> Result<Self, RecordError> {
+        let reader = Reader::from_file(path)?;
+        Ok(Self {
+            scalars: reader.scalars().clone(),
+        })
+    }
+
+    fn into_writer(self) -> Writer {
+        let mut writer = Writer::new(Vec::new());
+        for (key, value) in &self.scalars {
+            writer = writer.with_scalar(key, *value);
+        }
+        writer
+    }
 }
 
 #[cfg(test)]

@@ -7,8 +7,12 @@ enum FieldKind {
     Tensor,
     /// An `Option<Tensor<D>>` leaf (carrying the inner `Tensor<D>` type).
     OptionTensor(Type),
-    /// A scalar leaf serialized through `ToString`/`FromStr`.
+    /// A `Vec<Tensor<D>>` field (carrying the inner `Tensor<D>` type).
+    VecTensor(Type),
+    /// A scalar leaf serialized through [`ScalarValue`].
     Scalar,
+    /// An `Option<scalar>` leaf (carrying the inner scalar type).
+    OptionScalar(Type),
     /// A nested [`OptimState`] field.
     Nested,
     /// An `Option<Nested>` field (carrying the inner nested type).
@@ -23,7 +27,7 @@ fn head_ident(ty: &Type) -> Option<String> {
     }
 }
 
-/// Returns the single generic type argument of a type (the `T` in `Option<T>`).
+/// Returns the single generic type argument of a type (the `T` in `Option<T>` / `Vec<T>`).
 fn single_generic_arg(ty: &Type) -> Option<Type> {
     let Type::Path(path) = ty else { return None };
     let segment = path.path.segments.last()?;
@@ -60,9 +64,16 @@ fn is_scalar(ident: &str) -> bool {
 fn classify(ty: &Type) -> FieldKind {
     match head_ident(ty).as_deref() {
         Some("Tensor") => FieldKind::Tensor,
+        Some("Vec") => match single_generic_arg(ty) {
+            Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => {
+                FieldKind::VecTensor(inner)
+            }
+            _ => panic!("OptimState only supports `Vec<Tensor<D>>` for sequence fields."),
+        },
         Some("Option") => match single_generic_arg(ty) {
             Some(inner) => match head_ident(&inner).as_deref() {
                 Some("Tensor") => FieldKind::OptionTensor(inner),
+                Some(ident) if is_scalar(ident) => FieldKind::OptionScalar(inner),
                 _ => FieldKind::OptionNested(inner),
             },
             None => FieldKind::Nested,
@@ -115,12 +126,54 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
                         .map(|data| <#inner>::from_data(data, device));
                 });
             }
-            FieldKind::Scalar => {
+            FieldKind::VecTensor(inner) => {
                 flatten.push(quote! {
-                    out.push_scalar(prefix, #leaf, self.#ident.to_string());
+                    out.push_scalar(
+                        prefix,
+                        concat!(#leaf, ".len"),
+                        burn::store::ScalarValue::to_scalar(self.#ident.len()),
+                    );
+                    for (__index, __value) in self.#ident.iter().enumerate() {
+                        let __leaf = burn::store::join_index(#leaf, __index);
+                        out.push_tensor(prefix, &__leaf, __value.clone().into_data());
+                    }
                 });
                 unflatten.push(quote! {
-                    let #ident = src.take_scalar(prefix, #leaf)?.parse::<#ty>().ok()?;
+                    let #ident = {
+                        let __len: usize = burn::store::ScalarValue::from_scalar(
+                            src.take_scalar(prefix, concat!(#leaf, ".len"))?,
+                        )?;
+                        let mut __items = ::alloc::vec::Vec::with_capacity(__len);
+                        for __index in 0..__len {
+                            let __leaf = burn::store::join_index(#leaf, __index);
+                            __items.push(<#inner>::from_data(
+                                src.take_tensor(prefix, &__leaf)?,
+                                device,
+                            ));
+                        }
+                        __items
+                    };
+                });
+            }
+            FieldKind::Scalar => {
+                flatten.push(quote! {
+                    out.push_scalar(prefix, #leaf, burn::store::ScalarValue::to_scalar(self.#ident));
+                });
+                unflatten.push(quote! {
+                    let #ident: #ty =
+                        burn::store::ScalarValue::from_scalar(src.take_scalar(prefix, #leaf)?)?;
+                });
+            }
+            FieldKind::OptionScalar(inner) => {
+                flatten.push(quote! {
+                    if let Some(value) = self.#ident {
+                        out.push_scalar(prefix, #leaf, burn::store::ScalarValue::to_scalar(value));
+                    }
+                });
+                unflatten.push(quote! {
+                    let #ident: Option<#inner> = src
+                        .take_scalar(prefix, #leaf)
+                        .and_then(burn::store::ScalarValue::from_scalar);
                 });
             }
             FieldKind::Nested => {

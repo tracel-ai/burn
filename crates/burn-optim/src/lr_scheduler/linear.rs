@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
 use burn::config::Config;
 
@@ -63,19 +63,20 @@ pub struct LinearLrScheduler {
 }
 
 impl LrScheduler for LinearLrScheduler {
-    type Record = usize;
 
     fn step(&mut self) -> LearningRate {
         self.remaining_iters -= (self.remaining_iters != 0) as usize;
         self.final_lr - self.step_size * self.remaining_iters as f64
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.remaining_iters
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::new().with_scalar("value", self.remaining_iters)
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.remaining_iters = record;
+    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+        if let Some(value) = record.scalar("value") {
+            self.remaining_iters = value;
+        }
         self
     }
 }

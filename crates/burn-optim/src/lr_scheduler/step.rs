@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use burn::config::Config;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
 
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).
@@ -79,8 +79,6 @@ pub struct StepLrScheduler {
 }
 
 impl LrScheduler for StepLrScheduler {
-    type Record = i32;
-
     fn step(&mut self) -> LearningRate {
         self.iter_idx = self
             .iter_idx
@@ -93,12 +91,14 @@ impl LrScheduler for StepLrScheduler {
                 .powi((self.iter_idx as usize / self.step_size) as i32)
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.iter_idx
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::new().with_scalar("value", self.iter_idx)
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.iter_idx = record;
+    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+        if let Some(value) = record.scalar("value") {
+            self.iter_idx = value;
+        }
         self
     }
 }
@@ -200,7 +200,7 @@ mod tests {
     fn test_number_of_calls_within_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(i32::MAX - 1);
+        scheduler = scheduler.load_record(LrSchedulerRecord::new().with_scalar("value", i32::MAX - 1));
         scheduler.step();
     }
 
@@ -209,7 +209,7 @@ mod tests {
     fn test_number_of_calls_over_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(i32::MAX - 1);
+        scheduler = scheduler.load_record(LrSchedulerRecord::new().with_scalar("value", i32::MAX - 1));
         scheduler.step();
         scheduler.step();
     }

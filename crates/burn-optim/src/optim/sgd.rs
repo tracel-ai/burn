@@ -7,7 +7,6 @@ use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::LearningRate;
 use crate::grad_clipping::GradientClippingConfig;
 use burn::config::Config;
-use burn::record::Record;
 use burn::store::OptimState;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
@@ -33,7 +32,7 @@ pub struct Sgd {
 }
 
 /// State of [Sgd](Sgd).
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct SgdState<const D: usize> {
     /// The current state of the momentum (if any).
     pub momentum: Option<MomentumState<D>>,

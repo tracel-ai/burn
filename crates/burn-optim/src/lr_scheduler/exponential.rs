@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
 use burn::config::Config;
 
@@ -55,19 +55,20 @@ pub struct ExponentialLrScheduler {
 }
 
 impl LrScheduler for ExponentialLrScheduler {
-    type Record = LearningRate;
 
     fn step(&mut self) -> LearningRate {
         self.previous_lr *= self.gamma;
         self.previous_lr
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.previous_lr
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::new().with_scalar("value", self.previous_lr)
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.previous_lr = record;
+    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+        if let Some(value) = record.scalar("value") {
+            self.previous_lr = value;
+        }
         self
     }
 }

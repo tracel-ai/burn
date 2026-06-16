@@ -6,13 +6,13 @@ use burn::store::RecordError;
 use burn::tensor::Bytes;
 use burn_core as burn;
 
-use burn_pack::{Reader, Writer};
+use burn_pack::{Reader, Scalar, Writer};
 
 /// A serialized optimizer state, stored in the [burnpack](burn_pack) format.
 ///
 /// Unlike a module record (keyed by module path), an optimizer record is keyed per parameter:
 /// each parameter's state is decomposed into tensors named `"{param_id}.{field}"` (carrying the
-/// originating `param_id`) plus a few scalar entries kept in the burnpack metadata map.
+/// originating `param_id`) plus a few typed scalar entries kept in the burnpack scalar map.
 ///
 /// Obtain one from a [`ModuleOptimizer`](crate::optim::ModuleOptimizer) with
 /// [`to_record`](crate::optim::ModuleOptimizer::to_record), then save it
@@ -21,7 +21,7 @@ use burn_pack::{Reader, Writer};
 #[derive(Default)]
 pub struct OptimizerRecord {
     pub(crate) tensors: Vec<burn_pack::Tensor>,
-    pub(crate) scalars: BTreeMap<String, String>,
+    pub(crate) scalars: BTreeMap<String, Scalar>,
 }
 
 impl core::fmt::Debug for OptimizerRecord {
@@ -70,13 +70,13 @@ impl OptimizerRecord {
     fn into_writer(self) -> Writer {
         let mut writer = Writer::new(self.tensors);
         for (key, value) in &self.scalars {
-            writer = writer.with_metadata(key, value);
+            writer = writer.with_scalar(key, *value);
         }
         writer
     }
 
     fn from_reader(reader: Reader) -> Result<Self, RecordError> {
-        let scalars = reader.metadata().clone();
+        let scalars = reader.scalars().clone();
         let tensors = reader.into_tensors()?;
         Ok(Self { tensors, scalars })
     }

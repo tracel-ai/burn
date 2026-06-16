@@ -5,7 +5,7 @@
 //! would (`into_record_next` / `save` / `load` / `load_record_next`).
 
 use burn::module::{Module, Param};
-use burn::store::{ModuleRecord, RecordNext};
+use burn::store::{ModuleRecordExt, ModuleRecord};
 use burn::tensor::Tensor;
 use burn_core as burn;
 use burn_tensor::Device;
@@ -88,7 +88,7 @@ fn save_and_load_module_via_file() {
     record.save(&path).unwrap();
 
     // Load the record and apply it onto a freshly initialized (zeroed) module.
-    let record = RecordNext::load(&path).unwrap();
+    let record = ModuleRecord::load(&path).unwrap();
     let loaded = Mlp::zeros(&device).load_record_next(record);
 
     assert_matches_sample(&loaded);
@@ -103,7 +103,7 @@ fn save_and_load_module_via_bytes() {
         .into_bytes()
         .unwrap();
 
-    let record = RecordNext::from_bytes(bytes).unwrap();
+    let record = ModuleRecord::from_bytes(bytes).unwrap();
     let loaded = Mlp::zeros(&device).load_record_next(record);
 
     assert_matches_sample(&loaded);
@@ -121,11 +121,11 @@ fn missing_parameters_require_allow_partial() {
     let bytes = partial.into_bytes().unwrap();
 
     // Strict load into the full Mlp fails: `second.*` is missing from the record.
-    let strict = RecordNext::from_bytes(bytes.clone()).unwrap();
+    let strict = ModuleRecord::from_bytes(bytes.clone()).unwrap();
     assert!(Mlp::zeros(&device).try_load_record_next(strict).is_err());
 
     // With `allow_partial`, the present params load and the rest keep their init.
-    let lenient = RecordNext::from_bytes(bytes).unwrap().allow_partial(true);
+    let lenient = ModuleRecord::from_bytes(bytes).unwrap().allow_partial(true);
     let loaded = Mlp::zeros(&device).load_record_next(lenient);
 
     let (w1, b1) = loaded.first.values();

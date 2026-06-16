@@ -1,7 +1,6 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::record::Record;
 use burn::store::OptimState;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
@@ -58,7 +57,7 @@ pub struct AdamW {
 }
 
 /// AdamW state.
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct AdamWState<const D: usize> {
     /// Th current adaptive momentum state.
     pub momentum: AdaptiveMomentumState<D>,

@@ -115,7 +115,7 @@ mod writer;
 pub use base::MAX_FILE_SIZE;
 pub use base::{
     Error, FORMAT_VERSION, HEADER_SIZE, Header, MAGIC_NUMBER, MAX_CBOR_RECURSION_DEPTH,
-    MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, TENSOR_ALIGNMENT,
+    MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE, Scalar, TENSOR_ALIGNMENT,
     aligned_data_section_start,
 };
 pub use reader::Reader;

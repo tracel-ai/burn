@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
 use burn::config::Config;
 
@@ -70,7 +70,6 @@ pub struct CosineAnnealingLrScheduler {
 }
 
 impl LrScheduler for CosineAnnealingLrScheduler {
-    type Record = usize;
 
     fn step(&mut self) -> LearningRate {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
@@ -85,12 +84,14 @@ impl LrScheduler for CosineAnnealingLrScheduler {
                         .cos())
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.current_iter
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::new().with_scalar("value", self.current_iter)
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.current_iter = record;
+    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+        if let Some(value) = record.scalar("value") {
+            self.current_iter = value;
+        }
         self
     }
 }

@@ -1,6 +1,5 @@
 use burn_core as burn;
 
-use burn::record::Record;
 use burn::store::OptimState;
 
 use burn::config::Config;
@@ -35,7 +34,7 @@ pub struct AdaGrad {
 }
 
 /// AdaGrad state.
-#[derive(Record, OptimState, Clone, new)]
+#[derive(OptimState, Clone, new)]
 pub struct AdaGradState<const D: usize> {
     lr_decay: LrDecayState<D>,
 }
@@ -100,7 +99,7 @@ impl AdaGradConfig {
 }
 
 /// Learning rate decay state (also includes sum state).
-#[derive(Record, OptimState, new, Clone)]
+#[derive(OptimState, new, Clone)]
 pub struct LrDecayState<const D: usize> {
     time: usize,
     sum: Tensor<D>,
