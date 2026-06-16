@@ -81,6 +81,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                         accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                     },
                     address_type,
+                    // We assume at least one block.
+                    instruction: self.blocks.first().unwrap().op,
                 },
                 ReduceVectorSettings {
                     vectorization_mode: VectorizationMode::Parallel,

@@ -1,0 +1,36 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "The burnpack binary serialization format for Burn"
+documentation = "https://docs.rs/burn-pack"
+edition.workspace = true
+keywords = [
+    "deep-learning",
+    "machine-learning",
+    "tensor",
+    "storage",
+    "serialization",
+]
+license.workspace = true
+name = "burn-pack"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-pack"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+std = ["burn-std/std", "byteorder/std", "ciborium/std"]
+
+[dependencies]
+burn-std = { workspace = true }
+
+# External dependencies
+byteorder = { workspace = true, default-features = false }
+ciborium = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
