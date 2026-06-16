@@ -21,9 +21,10 @@
 
 <div align="left">
 
-Training and inference usually live in separate worlds. You train a model in Python, then export it
-to an inference engine like vLLM, ONNX, or TensorRT to run it. That export step is brittle and lossy,
-and it rules out some architectures and use cases.
+Training and inference usually live in separate worlds. Models are typically trained in Python then
+exported to an open format like ONNX or optimized for production engines like vLLM, ONNX Runtime, or
+TensorRT. This export step is often brittle and lossy, ruling out complex architectures and advanced
+deployment use cases.
 
 Burn doesn't separate the two. Everything is lowered to the same multi-platform tensor operations, so
 the code you train is the code you run. That makes things like on-device personalization and
