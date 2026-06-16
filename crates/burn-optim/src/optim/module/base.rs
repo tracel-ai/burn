@@ -2,7 +2,7 @@ use alloc::sync::Arc;
 use core::any::Any;
 
 use burn_core as burn;
-use burn_core::store::{OptimState, OptimStateSink, OptimStateSource};
+use crate::{OptimState, OptimStateSink, OptimStateSource};
 use burn_core::tensor::kind::BridgeTensor;
 
 use crate::LearningRate;

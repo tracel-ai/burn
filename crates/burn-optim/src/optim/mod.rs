@@ -16,6 +16,7 @@ mod module;
 mod muon;
 mod rmsprop;
 mod sgd;
+mod state;
 mod visitor;
 
 pub use adagrad::*;
@@ -30,3 +31,4 @@ pub use module::*;
 pub use muon::*;
 pub use rmsprop::*;
 pub use sgd::*;
+pub use state::*;

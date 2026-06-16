@@ -1,96 +1,24 @@
-//! Minimal decomposition of an optimizer state into named tensors and scalars.
+//! Decomposition of an optimizer state into named tensors and scalars for the burnpack format.
 //!
-//! Optimizer state is keyed per-[`ParamId`](crate::module::ParamId) rather than per module path,
-//! and each parameter's state is usually a small struct holding a few tensors plus scalar
+//! Optimizer state is keyed per-[`ParamId`](burn_core::module::ParamId) rather than per module
+//! path, and each parameter's state is usually a small struct holding a few tensors plus scalar
 //! bookkeeping (e.g. a step counter). [`OptimState`] flattens such a struct into a flat list of
-//! named tensors (suitable for the [burnpack](burn_pack) format) plus a few typed scalars, and
-//! reconstructs it on load.
+//! named tensors plus a few typed [scalars](burn_pack::Scalar), and reconstructs it on load.
 //!
-//! Implementations are generated with `#[derive(OptimState)]`; see the derive for the supported
-//! field shapes (`Tensor<D>`, `Option<Tensor<D>>`, `Vec<Tensor<D>>`, scalars, optional scalars,
-//! nested states and optional nested states).
+//! Implementations are generated with `#[derive(OptimState)]`; the derive supports the field
+//! shapes `Tensor<D>`, `Option<Tensor<D>>`, `Vec<Tensor<D>>`, scalars, optional scalars, nested
+//! states and optional nested states. Scalar fields rely on `burn_pack`'s [`From`]/[`TryFrom`]
+//! conversions to [`Scalar`](burn_pack::Scalar).
 
 use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::tensor::{Device, TensorData};
+use burn_core::tensor::{Device, TensorData};
+use burn_pack::Scalar;
 
 pub use burn_derive::OptimState;
-pub use burn_pack::Scalar;
-
-/// A value that can be stored as a burnpack [`Scalar`].
-///
-/// Implemented for the primitive numeric and boolean types so that `#[derive(OptimState)]` can
-/// serialize scalar state fields (step counters, learning rates, flags) without routing them
-/// through strings.
-pub trait ScalarValue: Sized {
-    /// Encode the value as a [`Scalar`].
-    fn to_scalar(self) -> Scalar;
-    /// Decode the value from a [`Scalar`], returning `None` on a type/range mismatch.
-    fn from_scalar(scalar: Scalar) -> Option<Self>;
-}
-
-macro_rules! impl_scalar_int {
-    ($($t:ty => $variant:ident),* $(,)?) => {
-        $(
-            impl ScalarValue for $t {
-                fn to_scalar(self) -> Scalar {
-                    Scalar::$variant(self as _)
-                }
-                fn from_scalar(scalar: Scalar) -> Option<Self> {
-                    match scalar {
-                        Scalar::Int(v) => v.try_into().ok(),
-                        Scalar::UInt(v) => v.try_into().ok(),
-                        _ => None,
-                    }
-                }
-            }
-        )*
-    };
-}
-
-impl_scalar_int!(i8 => Int, i16 => Int, i32 => Int, i64 => Int, isize => Int);
-impl_scalar_int!(u8 => UInt, u16 => UInt, u32 => UInt, u64 => UInt, usize => UInt);
-
-impl ScalarValue for f64 {
-    fn to_scalar(self) -> Scalar {
-        Scalar::Float(self)
-    }
-    fn from_scalar(scalar: Scalar) -> Option<Self> {
-        match scalar {
-            Scalar::Float(v) => Some(v),
-            Scalar::Int(v) => Some(v as f64),
-            Scalar::UInt(v) => Some(v as f64),
-            _ => None,
-        }
-    }
-}
-
-impl ScalarValue for f32 {
-    fn to_scalar(self) -> Scalar {
-        Scalar::Float(self as f64)
-    }
-    fn from_scalar(scalar: Scalar) -> Option<Self> {
-        match scalar {
-            Scalar::Float(v) => Some(v as f32),
-            _ => None,
-        }
-    }
-}
-
-impl ScalarValue for bool {
-    fn to_scalar(self) -> Scalar {
-        Scalar::Bool(self)
-    }
-    fn from_scalar(scalar: Scalar) -> Option<Self> {
-        match scalar {
-            Scalar::Bool(v) => Some(v),
-            _ => None,
-        }
-    }
-}
 
 /// Join a `prefix` and a `leaf` into a dot-separated path (`"prefix.leaf"`).
 ///

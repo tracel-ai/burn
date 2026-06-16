@@ -171,6 +171,9 @@ impl Header {
 /// Scalars are kept in the CBOR metadata section (not the tensor data section), so they carry
 /// no alignment cost. The field is optional in the format: files written before scalar support
 /// simply omit it, and readers default it to empty.
+///
+/// Convert to/from the primitive numeric and boolean types with [`From`] / [`TryFrom`]
+/// (e.g. `Scalar::from(3usize)`, `u32::try_from(scalar)`).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Scalar {
     /// A signed integer.
@@ -181,6 +184,97 @@ pub enum Scalar {
     Float(f64),
     /// A boolean.
     Bool(bool),
+}
+
+/// Error returned when a [`Scalar`] cannot be converted to a requested primitive type
+/// (wrong variant or out of range).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScalarConversionError;
+
+impl core::fmt::Display for ScalarConversionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "scalar value does not fit the requested type")
+    }
+}
+
+impl core::error::Error for ScalarConversionError {}
+
+macro_rules! impl_scalar_int {
+    ($($t:ty => $variant:ident),* $(,)?) => {
+        $(
+            impl From<$t> for Scalar {
+                fn from(value: $t) -> Self {
+                    Scalar::$variant(value as _)
+                }
+            }
+
+            impl TryFrom<Scalar> for $t {
+                type Error = ScalarConversionError;
+                fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+                    match scalar {
+                        Scalar::Int(v) => v.try_into().map_err(|_| ScalarConversionError),
+                        Scalar::UInt(v) => v.try_into().map_err(|_| ScalarConversionError),
+                        _ => Err(ScalarConversionError),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+impl_scalar_int!(
+    i8 => Int, i16 => Int, i32 => Int, i64 => Int, isize => Int,
+    u8 => UInt, u16 => UInt, u32 => UInt, u64 => UInt, usize => UInt,
+);
+
+impl From<f64> for Scalar {
+    fn from(value: f64) -> Self {
+        Scalar::Float(value)
+    }
+}
+
+impl From<f32> for Scalar {
+    fn from(value: f32) -> Self {
+        Scalar::Float(value as f64)
+    }
+}
+
+impl From<bool> for Scalar {
+    fn from(value: bool) -> Self {
+        Scalar::Bool(value)
+    }
+}
+
+impl TryFrom<Scalar> for f64 {
+    type Error = ScalarConversionError;
+    fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+        match scalar {
+            Scalar::Float(v) => Ok(v),
+            Scalar::Int(v) => Ok(v as f64),
+            Scalar::UInt(v) => Ok(v as f64),
+            _ => Err(ScalarConversionError),
+        }
+    }
+}
+
+impl TryFrom<Scalar> for f32 {
+    type Error = ScalarConversionError;
+    fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+        match scalar {
+            Scalar::Float(v) => Ok(v as f32),
+            _ => Err(ScalarConversionError),
+        }
+    }
+}
+
+impl TryFrom<Scalar> for bool {
+    type Error = ScalarConversionError;
+    fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+        match scalar {
+            Scalar::Bool(v) => Ok(v),
+            _ => Err(ScalarConversionError),
+        }
+    }
 }
 
 /// Metadata structure serialized with CBOR

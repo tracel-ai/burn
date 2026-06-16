@@ -9,7 +9,7 @@ enum FieldKind {
     OptionTensor(Type),
     /// A `Vec<Tensor<D>>` field (carrying the inner `Tensor<D>` type).
     VecTensor(Type),
-    /// A scalar leaf serialized through [`ScalarValue`].
+    /// A scalar leaf serialized via `burn_pack::Scalar`'s `From`/`TryFrom` conversions.
     Scalar,
     /// An `Option<scalar>` leaf (carrying the inner scalar type).
     OptionScalar(Type),
@@ -131,21 +131,22 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
                     out.push_scalar(
                         prefix,
                         concat!(#leaf, ".len"),
-                        burn::store::ScalarValue::to_scalar(self.#ident.len()),
+                        burn_pack::Scalar::from(self.#ident.len()),
                     );
                     for (__index, __value) in self.#ident.iter().enumerate() {
-                        let __leaf = burn::store::join_index(#leaf, __index);
+                        let __leaf = crate::join_index(#leaf, __index);
                         out.push_tensor(prefix, &__leaf, __value.clone().into_data());
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __len: usize = burn::store::ScalarValue::from_scalar(
+                        let __len = <usize as ::core::convert::TryFrom<burn_pack::Scalar>>::try_from(
                             src.take_scalar(prefix, concat!(#leaf, ".len"))?,
-                        )?;
+                        )
+                        .ok()?;
                         let mut __items = ::alloc::vec::Vec::with_capacity(__len);
                         for __index in 0..__len {
-                            let __leaf = burn::store::join_index(#leaf, __index);
+                            let __leaf = crate::join_index(#leaf, __index);
                             __items.push(<#inner>::from_data(
                                 src.take_tensor(prefix, &__leaf)?,
                                 device,
@@ -157,50 +158,52 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
             }
             FieldKind::Scalar => {
                 flatten.push(quote! {
-                    out.push_scalar(prefix, #leaf, burn::store::ScalarValue::to_scalar(self.#ident));
+                    out.push_scalar(prefix, #leaf, burn_pack::Scalar::from(self.#ident));
                 });
                 unflatten.push(quote! {
-                    let #ident: #ty =
-                        burn::store::ScalarValue::from_scalar(src.take_scalar(prefix, #leaf)?)?;
+                    let #ident = <#ty as ::core::convert::TryFrom<burn_pack::Scalar>>::try_from(
+                        src.take_scalar(prefix, #leaf)?,
+                    )
+                    .ok()?;
                 });
             }
             FieldKind::OptionScalar(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = self.#ident {
-                        out.push_scalar(prefix, #leaf, burn::store::ScalarValue::to_scalar(value));
+                        out.push_scalar(prefix, #leaf, burn_pack::Scalar::from(value));
                     }
                 });
                 unflatten.push(quote! {
-                    let #ident: Option<#inner> = src
-                        .take_scalar(prefix, #leaf)
-                        .and_then(burn::store::ScalarValue::from_scalar);
+                    let #ident: Option<#inner> = src.take_scalar(prefix, #leaf).and_then(|__s| {
+                        <#inner as ::core::convert::TryFrom<burn_pack::Scalar>>::try_from(__s).ok()
+                    });
                 });
             }
             FieldKind::Nested => {
                 flatten.push(quote! {
                     {
-                        let __path = burn::store::join_path(prefix, #leaf);
-                        burn::store::OptimState::state_flatten(&self.#ident, &__path, out);
+                        let __path = crate::join_path(prefix, #leaf);
+                        crate::OptimState::state_flatten(&self.#ident, &__path, out);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __path = burn::store::join_path(prefix, #leaf);
-                        <#ty as burn::store::OptimState>::state_unflatten(&__path, src, device)?
+                        let __path = crate::join_path(prefix, #leaf);
+                        <#ty as crate::OptimState>::state_unflatten(&__path, src, device)?
                     };
                 });
             }
             FieldKind::OptionNested(inner) => {
                 flatten.push(quote! {
                     if let Some(value) = &self.#ident {
-                        let __path = burn::store::join_path(prefix, #leaf);
-                        burn::store::OptimState::state_flatten(value, &__path, out);
+                        let __path = crate::join_path(prefix, #leaf);
+                        crate::OptimState::state_flatten(value, &__path, out);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
-                        let __path = burn::store::join_path(prefix, #leaf);
-                        <#inner as burn::store::OptimState>::state_unflatten(&__path, src, device)
+                        let __path = crate::join_path(prefix, #leaf);
+                        <#inner as crate::OptimState>::state_unflatten(&__path, src, device)
                     };
                 });
             }
@@ -208,14 +211,14 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
     }
 
     quote! {
-        impl #impl_generics burn::store::OptimState for #name #ty_generics #where_clause {
-            fn state_flatten(&self, prefix: &str, out: &mut burn::store::OptimStateSink) {
+        impl #impl_generics crate::OptimState for #name #ty_generics #where_clause {
+            fn state_flatten(&self, prefix: &str, out: &mut crate::OptimStateSink) {
                 #(#flatten)*
             }
 
             fn state_unflatten(
                 prefix: &str,
-                src: &mut burn::store::OptimStateSource,
+                src: &mut crate::OptimStateSource,
                 device: &burn::tensor::Device,
             ) -> Option<Self> {
                 #(#unflatten)*

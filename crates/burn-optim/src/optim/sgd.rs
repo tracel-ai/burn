@@ -7,7 +7,7 @@ use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::LearningRate;
 use crate::grad_clipping::GradientClippingConfig;
 use burn::config::Config;
-use burn::store::OptimState;
+use crate::OptimState;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 

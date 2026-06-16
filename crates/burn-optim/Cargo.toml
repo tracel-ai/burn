@@ -30,6 +30,7 @@ tracing = ["burn-core/tracing"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 burn-core = { workspace = true, features = ["autodiff", "extension"] }
+burn-derive = { workspace = true }
 burn-pack = { workspace = true, default-features = false }
 
 num-traits = { workspace = true }

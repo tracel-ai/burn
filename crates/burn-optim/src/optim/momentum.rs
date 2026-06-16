@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::store::OptimState;
+use crate::OptimState;
 use burn::tensor::Device;
 use burn::tensor::{ElementConversion, Tensor};
 

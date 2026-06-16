@@ -6,7 +6,8 @@ use super::GradientsParams;
 use crate::{LearningRate, OptimizerRecord};
 use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
-use burn::store::{OptimState, OptimStateSink, OptimStateSource, RecordError};
+use crate::{OptimState, OptimStateSink, OptimStateSource};
+use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 

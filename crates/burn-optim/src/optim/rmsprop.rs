@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use burn::store::OptimState;
+use crate::OptimState;
 
 use super::{
     Optimizer,

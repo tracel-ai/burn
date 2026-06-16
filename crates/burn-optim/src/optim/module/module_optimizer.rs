@@ -2,15 +2,15 @@ use burn_core as burn;
 
 use super::Optimizer;
 use crate::{
-    DynOptimizer, DynState, LearningRate, MultiGradientsParams, OptimizerRecord,
-    grad_clipping::GradientClipping, optim::GradientsParams,
+    DynOptimizer, DynState, LearningRate, MultiGradientsParams, OptimStateSink, OptimStateSource,
+    OptimizerRecord, grad_clipping::GradientClipping, optim::GradientsParams,
 };
 
 use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
-use burn::store::{OptimStateSink, OptimStateSource, RecordError};
+use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use hashbrown::HashMap;
 use std::sync::Arc;

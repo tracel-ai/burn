@@ -3,9 +3,10 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use burn_core as burn;
 
-use burn::store::{RecordError, Scalar, ScalarValue, join_path};
+use crate::join_path;
+use burn::store::RecordError;
 use burn::tensor::Bytes;
-use burn_pack::{Reader, Writer};
+use burn_pack::{Reader, Scalar, Writer};
 
 use crate::LearningRate;
 
@@ -45,14 +46,17 @@ impl LrSchedulerRecord {
     }
 
     /// Store a scalar under `key`.
-    pub fn with_scalar<V: ScalarValue>(mut self, key: &str, value: V) -> Self {
-        self.scalars.insert(String::from(key), value.to_scalar());
+    pub fn with_scalar<V: Into<Scalar>>(mut self, key: &str, value: V) -> Self {
+        self.scalars.insert(String::from(key), value.into());
         self
     }
 
     /// Read the scalar stored under `key`, if present and of a compatible type.
-    pub fn scalar<V: ScalarValue>(&self, key: &str) -> Option<V> {
-        self.scalars.get(key).copied().and_then(V::from_scalar)
+    pub fn scalar<V: TryFrom<Scalar>>(&self, key: &str) -> Option<V> {
+        self.scalars
+            .get(key)
+            .copied()
+            .and_then(|scalar| V::try_from(scalar).ok())
     }
 
     /// Merge a child `record`'s scalars under `prefix` (used to compose schedulers).
