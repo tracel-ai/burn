@@ -1,56 +1,40 @@
 use burn_core as burn;
 
-use super::{SimpleOptimizer, record::AdaptorRecord};
+use super::OptimizerStep;
 use crate::{
-    LearningRate, MultiGradientsParams,
+    DynOptimizer, DynState, LearningRate, MultiGradientsParams,
     grad_clipping::GradientClipping,
     optim::{GradientsParams, Optimizer},
 };
 
 use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
 use burn::tensor::{Device, Tensor};
-use core::marker::PhantomData;
 use hashbrown::HashMap;
+use std::sync::Arc;
 
 /// Wrapper struct that adapts any [simple optimizer](SimpleOptimizer) into
 /// an [optimizer](Optimizer).
 #[derive(Clone)]
-pub struct OptimizerAdaptor<O, M>
-where
-    O: SimpleOptimizer,
-    M: AutodiffModule,
-{
-    optim: O,
-    records: HashMap<ParamId, AdaptorRecord<O>>,
-    module: PhantomData<M>,
+pub struct ModuleOptimizer {
+    optim: Arc<dyn DynOptimizer>,
+    states: HashMap<ParamId, DynState>,
     grad_clipping: Option<GradientClipping>,
 }
 
-impl<O, M> From<O> for OptimizerAdaptor<O, M>
+impl<O> From<O> for ModuleOptimizer
 where
-    M: AutodiffModule,
-    O: SimpleOptimizer,
+    O: OptimizerStep,
 {
     fn from(optim: O) -> Self {
         Self {
-            optim,
-            records: HashMap::new(),
-            module: PhantomData,
+            optim: Arc::new(optim),
+            states: HashMap::new(),
             grad_clipping: None,
         }
     }
 }
 
-impl<O, M> OptimizerAdaptor<O, M>
-where
-    O: SimpleOptimizer,
-    M: AutodiffModule,
-{
-    /// Access the wrapped [`SimpleOptimizer`].
-    pub fn optim(&self) -> &O {
-        &self.optim
-    }
-
+impl ModuleOptimizer {
     /// Check if the optimizer has gradient clipping.
     pub fn has_gradient_clipping(&self) -> bool {
         self.grad_clipping.is_some()
@@ -75,10 +59,15 @@ where
         self
     }
 
-    fn step_common(&mut self, lr: LearningRate, module: M, mut grads: GradAdaptor) -> M {
-        module.map(&mut SimpleOptimizerMapper::<O>::new(
+    fn step_common<M: AutodiffModule>(
+        &mut self,
+        lr: LearningRate,
+        module: M,
+        mut grads: GradAdaptor,
+    ) -> M {
+        module.map(&mut SimpleOptimizerMapper::new(
             &self.optim,
-            &mut self.records,
+            &mut self.states,
             &mut grads,
             lr,
             self.grad_clipping.as_ref(),
@@ -86,29 +75,33 @@ where
     }
 }
 
-impl<O, M> Optimizer<M> for OptimizerAdaptor<O, M>
-where
-    M: AutodiffModule,
-    O: SimpleOptimizer,
-{
-    type Record = HashMap<ParamId, AdaptorRecord<O>>;
-
-    fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M {
+impl ModuleOptimizer {
+    pub fn step<M: AutodiffModule>(
+        &mut self,
+        lr: LearningRate,
+        module: M,
+        grads: GradientsParams,
+    ) -> M {
         self.step_common(lr, module, grads.into())
     }
 
-    fn step_multi(&mut self, lr: LearningRate, module: M, grads: MultiGradientsParams) -> M {
+    pub fn step_multi<M: AutodiffModule>(
+        &mut self,
+        lr: LearningRate,
+        module: M,
+        grads: MultiGradientsParams,
+    ) -> M {
         self.step_common(lr, module, grads.into())
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.records.clone()
-    }
+    // pub fn to_record(&self) -> Self::Record {
+    //     todo!()
+    // }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.records = record;
-        self
-    }
+    // pub fn load_record(mut self, record: Self::Record) -> Self {
+    //     // self.states = record;
+    //     self
+    // }
 }
 
 /// Wrapper to unify the `remove` method for [GradientsParams] and [MultiGradientsParams].
@@ -149,21 +142,15 @@ impl GradAdaptor {
 }
 
 #[derive(new)]
-struct SimpleOptimizerMapper<'a, O>
-where
-    O: SimpleOptimizer,
-{
-    optimizer: &'a O,
-    records: &'a mut HashMap<ParamId, AdaptorRecord<O>>,
+struct SimpleOptimizerMapper<'a> {
+    optimizer: &'a Arc<dyn DynOptimizer>,
+    states: &'a mut HashMap<ParamId, DynState>,
     grads: &'a mut GradAdaptor,
     lr: LearningRate,
     grad_clipping: Option<&'a GradientClipping>,
 }
 
-impl<O> ModuleMapper for SimpleOptimizerMapper<'_, O>
-where
-    O: SimpleOptimizer,
-{
+impl ModuleMapper for SimpleOptimizerMapper<'_> {
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, tensor, mapper) = param.consume();
         let grad = self.grads.remove(id);
@@ -173,7 +160,7 @@ where
             #[cfg(feature = "std")]
             let is_distributed = tensor.is_distributed();
 
-            let (key, record) = self.records.remove_entry(&id).unzip();
+            let (key, state) = self.states.remove_entry(&id).unzip();
             let tensor = if tensor.device() != device {
                 tensor.to_device(&device)
             } else {
@@ -185,7 +172,7 @@ where
                 device,
                 "The gradient is on the provided device"
             );
-            let clipped_grad = if let Some(g_clipping) = self.grad_clipping {
+            let clipped_grad: Tensor<D> = if let Some(g_clipping) = self.grad_clipping {
                 g_clipping.clip_gradient(grad)
             } else {
                 grad
@@ -197,19 +184,20 @@ where
                 "Tensor and gradients are on the same device."
             );
 
-            let (tensor, state) = self.optimizer.step(
+            let (tensor, state) = self.optimizer.step_dyn(
+                D,
                 self.lr,
-                tensor.inner(),
-                clipped_grad,
-                record.map(|record| O::to_device(record.into_state(), &device)),
+                tensor.inner().into_bridge(),
+                clipped_grad.into_bridge(),
+                state.map(|state| self.optimizer.to_device_dyn(state, &device)),
             );
 
             if let Some(state) = state {
-                self.records
-                    .insert(key.unwrap_or(id), AdaptorRecord::from_state(state));
+                self.states.insert(key.unwrap_or(id), state);
             }
 
-            let mut tensor = Tensor::from_inner(tensor);
+            let mut tensor = Tensor::from_inner(Tensor::from_bridge(tensor));
+
             if is_require_grad {
                 tensor = tensor.require_grad();
             }

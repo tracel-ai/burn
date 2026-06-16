@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use crate::optim::SimpleOptimizer;
+use crate::optim::OptimizerStep;
 use burn::record::{PrecisionSettings, Record};
 use burn::tensor::Device;
 use core::any::Any;
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use alloc::boxed::Box;
 
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
-pub enum AdaptorRecordV1<O: SimpleOptimizer> {
+pub enum AdaptorRecordV1<O: OptimizerStep> {
     /// Rank 0.
     Rank0(O::State<0>),
 
@@ -39,7 +39,7 @@ pub enum AdaptorRecordV1<O: SimpleOptimizer> {
     Rank8(O::State<8>),
 }
 
-impl<O: SimpleOptimizer> Clone for AdaptorRecordV1<O> {
+impl<O: OptimizerStep> Clone for AdaptorRecordV1<O> {
     fn clone(&self) -> Self {
         match self {
             AdaptorRecordV1::Rank0(record) => AdaptorRecordV1::Rank0(record.clone()),
@@ -58,7 +58,7 @@ impl<O: SimpleOptimizer> Clone for AdaptorRecordV1<O> {
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
-pub enum AdaptorRecordItemV1<O: SimpleOptimizer, S: PrecisionSettings> {
+pub enum AdaptorRecordItemV1<O: OptimizerStep, S: PrecisionSettings> {
     /// Rank 0.
     Rank0(<O::State<0> as Record>::Item<S>),
 
@@ -89,7 +89,7 @@ pub enum AdaptorRecordItemV1<O: SimpleOptimizer, S: PrecisionSettings> {
 
 impl<O> AdaptorRecordV1<O>
 where
-    O: SimpleOptimizer,
+    O: OptimizerStep,
 {
     /// Convert the record into the state.
     ///
@@ -147,7 +147,7 @@ where
 
 impl<O> Record for AdaptorRecordV1<O>
 where
-    O: SimpleOptimizer,
+    O: OptimizerStep,
 {
     type Item<S: PrecisionSettings> = AdaptorRecordItemV1<O, S>;
 

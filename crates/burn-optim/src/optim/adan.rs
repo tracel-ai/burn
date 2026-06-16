@@ -5,7 +5,7 @@ use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::{module::AutodiffModule, record::Record};
 
-use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
+use super::{OptimizerStep, adaptor::ModuleOptimizer};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]
@@ -60,7 +60,7 @@ pub struct AdanState<const D: usize> {
     pub momentum: AdaptiveNesterovMomentumState<D>,
 }
 
-impl SimpleOptimizer for Adan {
+impl OptimizerStep for Adan {
     type State<const D: usize> = AdanState<D>;
 
     fn step<const D: usize>(
@@ -119,8 +119,8 @@ impl AdanConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Adan, M> {
-        let mut optim = OptimizerAdaptor::from(self.build());
+    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<Adan, M> {
+        let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
@@ -448,7 +448,7 @@ mod tests {
         LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    fn create_adan() -> OptimizerAdaptor<Adan, Linear> {
+    fn create_adan() -> ModuleOptimizer<Adan, Linear> {
         let config = AdanConfig::new();
         Adan {
             momentum: AdaptiveNesterovMomentum {

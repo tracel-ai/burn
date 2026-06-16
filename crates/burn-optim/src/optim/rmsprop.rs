@@ -3,8 +3,8 @@ use burn_core as burn;
 use burn::{module::AutodiffModule, record::Record};
 
 use super::{
-    SimpleOptimizer,
-    adaptor::OptimizerAdaptor,
+    OptimizerStep,
+    adaptor::ModuleOptimizer,
     decay::{WeightDecay, WeightDecayConfig},
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
@@ -53,8 +53,8 @@ impl RmsPropConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<RmsProp, M> {
-        let mut optim = OptimizerAdaptor::from(self.build());
+    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<RmsProp, M> {
+        let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
@@ -75,7 +75,7 @@ pub struct RmsProp {
     weight_decay: Option<WeightDecay>,
 }
 
-impl SimpleOptimizer for RmsProp {
+impl OptimizerStep for RmsProp {
     type State<const D: usize> = RmsPropState<D>;
 
     fn step<const D: usize>(
@@ -537,7 +537,7 @@ mod tests {
         LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    fn create_rmsprop() -> OptimizerAdaptor<RmsProp, Linear> {
+    fn create_rmsprop() -> ModuleOptimizer<RmsProp, Linear> {
         RmsPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,

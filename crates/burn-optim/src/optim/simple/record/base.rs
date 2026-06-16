@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use super::{AdaptorRecordItemV1, AdaptorRecordV1};
-use crate::optim::SimpleOptimizer;
+use crate::optim::OptimizerStep;
 use burn::record::{PrecisionSettings, Record};
 use burn::tensor::Device;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Records are versioned for backward compatibility, so old records can be loaded.
 pub enum AdaptorRecord<O>
 where
-    O: SimpleOptimizer,
+    O: OptimizerStep,
 {
     /// Version 1.
     V1(AdaptorRecordV1<O>),
@@ -20,14 +20,14 @@ where
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
-pub enum AdaptorRecordItem<O: SimpleOptimizer, S: PrecisionSettings> {
+pub enum AdaptorRecordItem<O: OptimizerStep, S: PrecisionSettings> {
     /// Version 1.
     V1(AdaptorRecordItemV1<O, S>),
 }
 
 impl<O> Record for AdaptorRecord<O>
 where
-    O: SimpleOptimizer,
+    O: OptimizerStep,
 {
     type Item<S: PrecisionSettings> = AdaptorRecordItem<O, S>;
 
@@ -46,7 +46,7 @@ where
 
 impl<O> Clone for AdaptorRecord<O>
 where
-    O: SimpleOptimizer,
+    O: OptimizerStep,
 {
     fn clone(&self) -> Self {
         match self {
@@ -57,7 +57,7 @@ where
 
 impl<O> AdaptorRecord<O>
 where
-    O: SimpleOptimizer,
+    O: OptimizerStep,
 {
     /// Converts the record into the optimizer state.
     ///

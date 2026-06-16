@@ -8,8 +8,8 @@ use burn::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    SimpleOptimizer,
-    adaptor::OptimizerAdaptor,
+    OptimizerStep,
+    adaptor::ModuleOptimizer,
     decay::WeightDecayConfig,
     momentum::{Momentum, MomentumConfig, MomentumState},
 };
@@ -206,8 +206,8 @@ impl MuonConfig {
     ///     .with_ns_steps(7)
     ///     .init();
     /// ```
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Muon, M> {
-        OptimizerAdaptor::from(self.build())
+    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<Muon, M> {
+        ModuleOptimizer::from(self.build())
     }
 }
 
@@ -354,7 +354,7 @@ pub struct MuonState<const D: usize> {
     pub momentum: MomentumState<D>,
 }
 
-impl SimpleOptimizer for Muon {
+impl OptimizerStep for Muon {
     type State<const D: usize> = MuonState<D>;
 
     /// Perform a single Muon optimization step.

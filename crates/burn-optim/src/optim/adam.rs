@@ -7,8 +7,8 @@ use burn::tensor::Device;
 use burn::tensor::Tensor;
 
 use super::{
-    SimpleOptimizer,
-    adaptor::OptimizerAdaptor,
+    OptimizerStep,
+    adaptor::ModuleOptimizer,
     decay::{WeightDecay, WeightDecayConfig},
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
@@ -56,7 +56,7 @@ pub struct AdamState<const D: usize> {
     pub momentum: AdaptiveMomentumState<D>,
 }
 
-impl SimpleOptimizer for Adam {
+impl OptimizerStep for Adam {
     type State<const D: usize> = AdamState<D>;
 
     fn step<const D: usize>(
@@ -109,8 +109,8 @@ impl AdamConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Adam, M> {
-        let mut optim = OptimizerAdaptor::from(self.build());
+    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<Adam, M> {
+        let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
@@ -507,7 +507,7 @@ mod tests {
         LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    fn create_adam() -> OptimizerAdaptor<Adam, Linear> {
+    fn create_adam() -> ModuleOptimizer<Adam, Linear> {
         let config = AdamConfig::new();
         Adam {
             momentum: AdaptiveMomentum {

@@ -7,8 +7,8 @@ use burn::tensor::Device;
 use burn::tensor::Tensor;
 
 use super::{
-    SimpleOptimizer,
-    adaptor::OptimizerAdaptor,
+    OptimizerStep,
+    adaptor::ModuleOptimizer,
     decay::{WeightDecay, WeightDecayConfig},
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
@@ -39,7 +39,7 @@ pub struct AdaGradState<const D: usize> {
     lr_decay: LrDecayState<D>,
 }
 
-impl SimpleOptimizer for AdaGrad {
+impl OptimizerStep for AdaGrad {
     type State<const D: usize> = AdaGradState<D>;
 
     fn step<const D: usize>(
@@ -89,8 +89,8 @@ impl AdaGradConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<AdaGrad, M> {
-        let mut optim = OptimizerAdaptor::from(self.build());
+    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer {
+        let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
@@ -289,7 +289,7 @@ mod tests {
         LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    fn create_adagrad() -> OptimizerAdaptor<AdaGrad, Linear> {
+    fn create_adagrad() -> ModuleOptimizer<AdaGrad, Linear> {
         let config = AdaGradConfig::new();
         AdaGrad {
             lr_decay: LrDecay {

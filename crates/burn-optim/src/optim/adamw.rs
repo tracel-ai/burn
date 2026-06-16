@@ -5,7 +5,7 @@ use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::{module::AutodiffModule, record::Record};
 
-use super::{AdaptiveMomentumState, SimpleOptimizer, adaptor::OptimizerAdaptor};
+use super::{AdaptiveMomentumState, OptimizerStep, adaptor::ModuleOptimizer};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]
@@ -63,7 +63,7 @@ pub struct AdamWState<const D: usize> {
     pub momentum: AdaptiveMomentumState<D>,
 }
 
-impl SimpleOptimizer for AdamW {
+impl OptimizerStep for AdamW {
     type State<const D: usize> = AdamWState<D>;
 
     /// A single optimization step for any tensor that represents the parameters of a model.
@@ -132,8 +132,8 @@ impl AdamWConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<AdamW, M> {
-        let mut optim = OptimizerAdaptor::from(self.build());
+    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<AdamW, M> {
+        let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
@@ -586,7 +586,7 @@ mod tests {
         LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    fn create_adamw() -> OptimizerAdaptor<AdamW, Linear> {
+    fn create_adamw() -> ModuleOptimizer<AdamW, Linear> {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {
