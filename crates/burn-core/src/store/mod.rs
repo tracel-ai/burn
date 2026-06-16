@@ -243,7 +243,7 @@ pub trait ModuleRecord: Module {
 
     /// Apply a [`RecordNext`] to this module, consuming and returning it.
     ///
-    /// Panics if validation fails; use [`apply_record`](Self::apply_record) for the fallible
+    /// Panics if validation fails; use [`try_load_record_next`](Self::try_load_record_next) for the fallible
     /// variant.
     fn load_record_next(self, record: RecordNext) -> Self
     where
