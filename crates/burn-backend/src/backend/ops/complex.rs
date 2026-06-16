@@ -185,7 +185,10 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The transposed tensor.
-    fn complex_transpose(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_transpose(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        let ndims = tensor.shape().num_dims();
+        Self::complex_swap_dims(tensor, ndims - 2, ndims - 1)
+    }
 
     /// Adds two tensors together.
     ///

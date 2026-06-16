@@ -200,6 +200,65 @@ fn test_complex_transpose() {
 }
 
 #[test]
+fn complex_cast() {
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: 2.0,
+            },
+            ComplexScalar::<f32> {
+                real: 3.0,
+                imag: 4.0,
+            },
+        ]]),
+        &Default::default(),
+    );
+
+    let result = tensor.cast(burn_backend::ComplexDType::Complex64);
+    let data = result.into_data();
+
+    let expected = TensorData::from([[
+        ComplexScalar::<f64> {
+            real: 1.0,
+            imag: 2.0,
+        },
+        ComplexScalar::<f64> {
+            real: 3.0,
+            imag: 4.0,
+        },
+    ]]);
+
+    data.assert_eq(&expected, false);
+}
+
+#[test]
+fn complex_cast_to_float() {
+    let tensor = TestTensor::<2>::from_data(
+        TensorData::from([[
+            ComplexScalar::<f32> {
+                real: 1.0,
+                imag: 2.0,
+            },
+            ComplexScalar::<f32> {
+                real: 3.0,
+                imag: 4.0,
+            },
+        ]]),
+        &Default::default(),
+    );
+
+    let result = tensor.cast(burn_backend::FloatDType::F32);
+    let data = result.into_data();
+
+    let expected = TensorData::from([[
+        1.0,
+        3.0,
+    ]]);
+
+    data.assert_eq(&expected, false);
+}
+#[test]
 fn test_complex_swap_dims() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([

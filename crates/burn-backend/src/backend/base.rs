@@ -14,7 +14,7 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 use super::DeviceOps;
 
 /// The mapping of types used by Backend and traits.
-pub trait BackendTypes: Clone + core::fmt::Debug + 'static {
+pub trait BackendTypes: Clone + core::fmt::Debug + Send + Sync + 'static {
     /// Device type.
     type Device: DeviceOps;
 

@@ -1,6 +1,6 @@
 use burn_std::{Scalar, TensorData};
 
-use crate::{Complex, Device, Float, Tensor, TensorCreationOptions, kind::ComplexMath};
+use crate::{Cast, Complex, Device, Float, Tensor, TensorCreationOptions, kind::ComplexMath};
 
 impl<const D: usize> Tensor<D, Complex> {
     /// Creates a complex tensor from interleaved host data.
@@ -10,6 +10,32 @@ impl<const D: usize> Tensor<D, Complex> {
             complexes.into(),
             TensorCreationOptions::new(device.clone()).with_dtype(out_dtype.into()),
         )
+    }
+    /// Converts a tensor to the specified data type.
+    ///
+    /// Supports both within-kind casting (e.g., `FloatDType::F64`) and cross-kind casting
+    /// (e.g., `IntDType::I64` to produce an int tensor).
+    ///
+    /// This is a no-op when casting to the current dtype within the same kind.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, FloatDType, IntDType};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let complex_tensor = Tensor::<1>::from_floats(ComplexScalar::new(1.0, 2.5), &device);
+    ///
+    ///     // Within-kind cast (complex to complex)
+    ///     let complex64_tensor = complex_tensor.clone().cast(ComplexDType::Complex64);
+    ///
+    ///     // Cross-kind cast (complex to float)
+    ///     let float_tensor = complex_tensor.cast(FloatDType::F32);
+    /// }
+    /// ```
+    pub fn cast<T: Cast<D, Complex>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
+        T::cast(self, dtype)
     }
 }
 impl<const D: usize, K> Tensor<D, K>

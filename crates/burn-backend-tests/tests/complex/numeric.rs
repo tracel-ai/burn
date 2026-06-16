@@ -1,6 +1,6 @@
 use burn_tensor::Tensor;
 use burn_tensor::Tolerance;
-use burn_tensor::{ComplexScalar, TensorData, Float};
+use burn_tensor::{ComplexScalar, TensorData};
 use burn_tensor::{Distribution, Int};
 
 #[test]
@@ -138,6 +138,8 @@ fn test_complex_sub() {
 
 //     data.assert_eq(&expected, false);
 // }
+
+
 
 #[test]
 fn test_complex_mul() {
