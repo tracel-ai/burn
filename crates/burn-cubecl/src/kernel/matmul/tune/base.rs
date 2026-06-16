@@ -155,24 +155,12 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
-        // CPU GEMM only makes sense on CPU runtimes. Disable the whole group otherwise so
-        // it is never even tried on a GPU.
-        let cpu = TuneGroup::<MatmulAutotuneKey>::new("cpu", move |key| {
-            if num_cpu_cores.is_none() {
-                return PRIORITY_NEVER;
-            }
-
-            // TODO(cubek): `cpu_gemm` overflows the stack on large problems (observed at
-            // 4096^3 and above; 2048^3 and below are fine). A stack overflow aborts the
-            // process uncatchably, so autotune cannot just discard the candidate — guard it
-            // out of the large-scale range until the cubek-side fix lands. `Large` is `any
-            // dim >= 2048`, so this also skips the (working) 2048^3 case, which is the safe
-            // conservative choice given the crash boundary sits inside the `Large` bucket.
-            match key.analysis.scale_global {
-                MatmulGlobalScale::Large => PRIORITY_NEVER,
-                _ => PRIORITY_MAX,
-            }
-        });
+        // CPU-only group
+        let cpu =
+            TuneGroup::<MatmulAutotuneKey>::new("cpu", move |_key| match num_cpu_cores.is_some() {
+                true => PRIORITY_MAX,
+                false => PRIORITY_NEVER,
+            });
 
         fn double_buffering_priority(key: &MatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(false, key) {
@@ -280,7 +268,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             .group(&unit, move |_key| PRIORITY_MAX),
         );
 
-        // CPU GEMM (only active on CPU runtimes, gated by the `cpu` group).
+        // CPU GEMM (CPU-only via the `cpu` group; the size limit is specific to this strategy).
         let cpu_gemm_strategy =
             Strategy::CpuGemm(BlueprintStrategy::Inferred(CpuGemmStrategy::default()));
         set = set.with(
@@ -288,7 +276,14 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 launch_matmul::<R>(&cpu_gemm_strategy, lhs, rhs, out)
                     .map_err(|err| format!("{err:?}"))
             })
-            .group(&cpu, move |_key| PRIORITY_MAX),
+            .group(&cpu, move |key| {
+                // TODO(cubecl): the `cpu_gemm` strategy overflows the stack on large problems
+                // (observed at 4096^3 and above; 2048^3 and below are fine), so skip it there.
+                match key.analysis.scale_global {
+                    MatmulGlobalScale::Large => PRIORITY_NEVER,
+                    _ => PRIORITY_MAX,
+                }
+            }),
         );
 
         // Accelerated matmuls
