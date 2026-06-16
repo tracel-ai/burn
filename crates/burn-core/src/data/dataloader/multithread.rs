@@ -7,7 +7,7 @@ use rand::{Rng, SeedableRng};
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
-use std::sync::{Arc, Mutex, OnceLock, mpsc, mpsc::SyncSender};
+use std::sync::{Arc, OnceLock, mpsc, mpsc::SyncSender};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -29,7 +29,7 @@ pub struct MultiThreadDataLoader<I, O> {
 
     // Spawned once and reused across every `iter()` call so each worker keeps a
     // stable CubeCL stream (and its memory pool) instead of leaking one per epoch (#4792).
-    workers: OnceLock<Mutex<WorkerPool<O>>>,
+    workers: OnceLock<WorkerPool<O>>,
 }
 
 /// A message that can be sent between threads.
@@ -177,7 +177,7 @@ where
     }
 
     /// Lazily spawns the persistent worker pool (once) and returns it.
-    fn workers(&self) -> &Mutex<WorkerPool<O>> {
+    fn workers(&self) -> &WorkerPool<O> {
         self.workers.get_or_init(|| {
             let dataloaders = self.initialize();
             let item_counts: Vec<usize> = dataloaders.iter().map(|d| d.num_items()).collect();
@@ -212,11 +212,11 @@ where
                 handles.push(handle);
             }
 
-            Mutex::new(WorkerPool {
+            WorkerPool {
                 senders,
                 handles,
                 item_counts,
-            })
+            }
         })
     }
 }
@@ -227,7 +227,7 @@ where
     O: Send + 'static + std::fmt::Debug,
 {
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
-        let workers = self.workers().lock().unwrap();
+        let workers = self.workers();
 
         let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
         let unit: Option<String> = Some("items".to_string());
@@ -243,7 +243,6 @@ where
 
         // Drop our sender so the channel disconnects once every worker is done.
         drop(sender);
-        drop(workers);
 
         Box::new(MultiThreadsDataloaderIterator::new(
             receiver,
