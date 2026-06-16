@@ -19,6 +19,7 @@ use cubek::matmul::{
             ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
             simple_unit::SimpleUnitSelectionArgs,
         },
+        cpu_gemm::CpuGemmStrategy,
         gemm::GemmStrategy,
     },
     strategy::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
@@ -154,6 +155,25 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
+        // CPU GEMM only makes sense on CPU runtimes. Disable the whole group otherwise so
+        // it is never even tried on a GPU.
+        let cpu = TuneGroup::<MatmulAutotuneKey>::new("cpu", move |key| {
+            if num_cpu_cores.is_none() {
+                return PRIORITY_NEVER;
+            }
+
+            // TODO(cubek): `cpu_gemm` overflows the stack on large problems (observed at
+            // 4096^3 and above; 2048^3 and below are fine). A stack overflow aborts the
+            // process uncatchably, so autotune cannot just discard the candidate — guard it
+            // out of the large-scale range until the cubek-side fix lands. `Large` is `any
+            // dim >= 2048`, so this also skips the (working) 2048^3 case, which is the safe
+            // conservative choice given the crash boundary sits inside the `Large` bucket.
+            match key.analysis.scale_global {
+                MatmulGlobalScale::Large => PRIORITY_NEVER,
+                _ => PRIORITY_MAX,
+            }
+        });
+
         fn double_buffering_priority(key: &MatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(false, key) {
                 max
@@ -258,6 +278,17 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 },
             )
             .group(&unit, move |_key| PRIORITY_MAX),
+        );
+
+        // CPU GEMM (only active on CPU runtimes, gated by the `cpu` group).
+        let cpu_gemm_strategy =
+            Strategy::CpuGemm(BlueprintStrategy::Inferred(CpuGemmStrategy::default()));
+        set = set.with(
+            Tunable::new(&cpu_gemm_strategy.to_string(), move |(lhs, rhs, out)| {
+                launch_matmul::<R>(&cpu_gemm_strategy, lhs, rhs, out)
+                    .map_err(|err| format!("{err:?}"))
+            })
+            .group(&cpu, move |_key| PRIORITY_MAX),
         );
 
         // Accelerated matmuls

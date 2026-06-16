@@ -8,7 +8,7 @@ use burn_backend::{
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata};
+use burn_std::{FloatDType, Metadata, SplitPolicy};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -118,7 +118,7 @@ fn new_quantized<R: CubeRuntime>(
         Some(data) => {
             let num_bytes = shape_value.num_elements() * data_size;
 
-            match data.split(num_bytes) {
+            match data.split(num_bytes, SplitPolicy::Shared) {
                 Ok((bytes_data, bytes_scales)) => client
                     .create_tensors(vec![(data_desc, bytes_data), (scales_desc, bytes_scales)]),
                 Err((data, _)) => client.create_tensors_from_slices(vec![

@@ -80,6 +80,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                         output: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                         accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                     },
+                    instruction: self.blocks[0].op,
                     address_type,
                 },
                 ReduceVectorSettings {
