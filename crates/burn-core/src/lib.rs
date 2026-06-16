@@ -25,6 +25,7 @@ pub mod data;
 pub mod module;
 
 /// Serde deserialization of nested values, for importing weights from external formats.
+#[cfg(feature = "record-item-custom-serde")]
 pub mod nested;
 
 /// Module for saving and loading module/optimizer state in the burnpack format.
