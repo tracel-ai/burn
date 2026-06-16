@@ -6,9 +6,9 @@ use burn::{
     data::dataloader::DataLoaderBuilder,
     module::AutodiffModule,
     nn::loss::{MseLoss, Reduction::Mean},
-    optim::{AdamConfig, GradientsParams, Optimizer},
+    optim::{AdamConfig, GradientsParams},
     prelude::*,
-    record::CompactRecorder,
+    store::ModuleRecordExt,
 };
 
 #[derive(Config, Debug)]
@@ -127,6 +127,6 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
 
     // Save the trained model
     model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
+        .into_record_next().save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }

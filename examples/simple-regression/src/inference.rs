@@ -1,7 +1,6 @@
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::Dataset},
-    module::Module,
-    record::{NoStdTrainingRecorder, Recorder},
+    store::{ModuleRecord, ModuleRecordExt},
     tensor::Device,
 };
 use rgb::RGB8;
@@ -14,13 +13,12 @@ use crate::{
 
 pub fn infer(artifact_dir: &str, device: impl Into<Device>) {
     let device = device.into();
-    let record = NoStdTrainingRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist; run train first");
 
     let model = RegressionModelConfig::new()
         .init(&device)
-        .load_record(record);
+        .load_record_next(record);
 
     // Use a sample of 1000 items from the test split
     let dataset = HousingDataset::test();

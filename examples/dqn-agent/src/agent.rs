@@ -1,5 +1,5 @@
 use burn::module::Module;
-use burn::record::Record;
+use burn::store::{ModuleRecord, ModuleRecordExt};
 use burn::rl::{
     Batchable, LearnerTransitionBatch, Policy, PolicyLearner, PolicyState, RLTrainOutput,
     SliceAccess,
@@ -198,15 +198,15 @@ pub struct DqnState<M: DiscreteActionModel> {
 }
 
 impl<M: DiscreteActionModel> PolicyState for DqnState<M> {
-    type Record = M::Record;
+    type Record = ModuleRecord;
 
     fn into_record(self) -> Self::Record {
-        self.model.clone().into_record()
+        self.model.clone().into_record_next()
     }
 
     fn load_record(&self, record: Self::Record) -> Self {
         Self {
-            model: self.model.clone().load_record(record),
+            model: self.model.clone().load_record_next(record),
         }
     }
 }

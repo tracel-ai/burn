@@ -5,12 +5,10 @@ use crate::module::{
 };
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::Visibility;
 
 pub(crate) struct EnumModuleCodegen {
     pub name: Ident,
     pub variants: Vec<EnumVariant>,
-    pub vis: Visibility,
     pub generics: ModuleGenerics,
 }
 
@@ -197,7 +195,6 @@ impl EnumModuleCodegen {
         Ok(Self {
             name: ast.ident.clone(),
             variants: parse_variants(ast, &mut generics)?,
-            vis: ast.vis.clone(),
             generics,
         })
     }
@@ -244,7 +241,6 @@ impl EnumModuleCodegen {
 /// Module enum variant
 pub(crate) struct EnumVariant {
     pub ident: syn::Ident,
-    pub ty: syn::Type,
     pub field_type: ModuleFieldType,
 }
 
@@ -279,7 +275,6 @@ pub(crate) fn parse_variants(
 
                 variants.push(EnumVariant {
                     ident: variant.ident.clone(),
-                    ty: field.ty.clone(),
                     field_type,
                 });
             }

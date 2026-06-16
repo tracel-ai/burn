@@ -392,7 +392,7 @@ impl BiRnn {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LinearRecord;
+    use crate::Linear;
     use burn::module::Param;
     use burn::tensor::{Distribution, TensorData};
     use burn::tensor::{ElementConversion, Tolerance};
@@ -407,11 +407,11 @@ mod tests {
         initializer: Initializer,
         device: &Device,
     ) -> GateController {
-        let record_1 = LinearRecord {
+        let record_1 = Linear {
             weight: Param::from_data(TensorData::from([[weights]]), device),
             bias: Some(Param::from_data(TensorData::from([biases]), device)),
         };
-        let record_2 = LinearRecord {
+        let record_2 = Linear {
             weight: Param::from_data(TensorData::from([[weights]]), device),
             bias: Some(Param::from_data(TensorData::from([biases]), device)),
         };
@@ -538,11 +538,11 @@ mod tests {
             let d_input = input_weights[0].len();
             let d_output = input_weights.len();
 
-            let input_record = LinearRecord {
+            let input_record = Linear {
                 weight: Param::from_data(TensorData::from(input_weights), device),
                 bias: Some(Param::from_data(TensorData::from(input_biases), device)),
             };
-            let hidden_record = LinearRecord {
+            let hidden_record = Linear {
                 weight: Param::from_data(TensorData::from(hidden_weights), device),
                 bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
             };

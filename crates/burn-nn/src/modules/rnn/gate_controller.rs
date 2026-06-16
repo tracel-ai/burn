@@ -67,35 +67,16 @@ impl GateController {
     /// lstm.
     #[cfg(test)]
     pub fn create_with_weights(
-        d_input: usize,
-        d_output: usize,
-        bias: bool,
-        initializer: Initializer,
-        input_record: crate::LinearRecord,
-        hidden_record: crate::LinearRecord,
+        _d_input: usize,
+        _d_output: usize,
+        _bias: bool,
+        _initializer: Initializer,
+        input_transform: Linear,
+        hidden_transform: Linear,
     ) -> Self {
-        let l1 = LinearConfig {
-            d_input,
-            d_output,
-            bias,
-            initializer: initializer.clone(),
-            layout: LinearLayout::Row,
-        }
-        .init(&input_record.weight.device())
-        .load_record(input_record);
-        let l2 = LinearConfig {
-            d_input,
-            d_output,
-            bias,
-            initializer,
-            layout: LinearLayout::Row,
-        }
-        .init(&hidden_record.weight.device())
-        .load_record(hidden_record);
-
         Self {
-            input_transform: l1,
-            hidden_transform: l2,
+            input_transform,
+            hidden_transform,
         }
     }
 }

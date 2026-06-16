@@ -482,8 +482,9 @@ mod tests {
 
         match &layer {
             Activation::SwiGlu(inner) => {
-                let state = inner.clone().into_record();
-                reference = reference.load_record(state);
+                use burn::store::ModuleRecordExt;
+                let state = inner.clone().into_record_next();
+                reference = reference.load_record_next(state);
             }
             _ => unreachable!(),
         };

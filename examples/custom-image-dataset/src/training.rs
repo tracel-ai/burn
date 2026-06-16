@@ -10,7 +10,7 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::SgdConfig,
     prelude::*,
-    record::CompactRecorder,
+    store::ModuleRecordExt,
     train::{
         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
@@ -108,7 +108,7 @@ pub fn train(config: TrainingConfig, device: Device) {
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_checkpointer()
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -126,6 +126,6 @@ pub fn train(config: TrainingConfig, device: Device) {
 
     result
         .model
-        .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
+        .into_record_next().save(format!("{ARTIFACT_DIR}/model"))
         .expect("Trained model should be saved successfully");
 }

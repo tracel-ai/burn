@@ -2,18 +2,17 @@ use crate::{data::MnistBatcher, training::TrainingConfig};
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
     prelude::*,
-    record::{CompactRecorder, Recorder},
+    store::{ModuleRecord, ModuleRecordExt},
 };
 
 pub fn infer(artifact_dir: &str, device: impl Into<Device>, item: MnistItem) {
     let device = device.into();
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
-    let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist; run train first");
 
-    let model = config.model.init(&device).load_record(record);
+    let model = config.model.init(&device).load_record_next(record);
 
     let label = item.label;
     let batcher = MnistBatcher::default();

@@ -7,12 +7,11 @@ use crate::module::generics::{
 use super::codegen::ModuleCodegen;
 use proc_macro2::{Ident, TokenStream};
 use quote::{ToTokens, quote};
-use syn::{Field, Visibility};
+use syn::Field;
 
 pub(crate) struct StructModuleCodegen {
     pub name: Ident,
     pub fields: Vec<ModuleField>,
-    pub vis: Visibility,
     pub generics: ModuleGenerics,
 }
 
@@ -239,7 +238,6 @@ impl StructModuleCodegen {
         Ok(Self {
             name: ast.ident.clone(),
             fields: parse_module_fields(ast, &mut generics)?,
-            vis: ast.vis.clone(),
             generics,
         })
     }
@@ -310,11 +308,6 @@ impl ModuleFieldType {
     /// (i.e., a real module that is neither skipped nor constant).
     pub fn is_parameter_module(&self) -> bool {
         self.is_module && self.attr.is_none()
-    }
-
-    /// Returns true for modules that should be persisted, including constants.
-    pub fn is_persistent_module(&self) -> bool {
-        self.is_module && !matches!(self.attr, Some(ModuleFieldAttribute::Skip))
     }
 
     /// Returns true for generic fields that are assumed to be modules.
