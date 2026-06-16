@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use crate::OptimState;
+use crate::RecordState;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -348,7 +348,7 @@ impl Muon {
 }
 
 /// Muon state.
-#[derive(OptimState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct MuonState<const D: usize> {
     /// Current momentum state
     pub momentum: MomentumState<D>,

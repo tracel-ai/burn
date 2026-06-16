@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use crate::OptimState;
+use crate::RecordState;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 
@@ -54,7 +54,7 @@ pub struct Adan {
 }
 
 /// Adan state.
-#[derive(OptimState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct AdanState<const D: usize> {
     /// The current adaptive Nesterov momentum state.
     pub momentum: AdaptiveNesterovMomentumState<D>,
@@ -129,7 +129,7 @@ impl AdanConfig {
 }
 
 /// Adaptive Nesterov momentum state.
-#[derive(OptimState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct AdaptiveNesterovMomentumState<const D: usize> {
     /// The number of iterations aggregated.
     pub time: usize,

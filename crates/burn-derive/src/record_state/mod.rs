@@ -13,7 +13,7 @@ enum FieldKind {
     Scalar,
     /// An `Option<scalar>` leaf (carrying the inner scalar type).
     OptionScalar(Type),
-    /// A nested [`OptimState`] field.
+    /// A nested [`RecordState`] field.
     Nested,
     /// An `Option<Nested>` field (carrying the inner nested type).
     OptionNested(Type),
@@ -68,7 +68,7 @@ fn classify(ty: &Type) -> FieldKind {
             Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => {
                 FieldKind::VecTensor(inner)
             }
-            _ => panic!("OptimState only supports `Vec<Tensor<D>>` for sequence fields."),
+            _ => panic!("RecordState only supports `Vec<Tensor<D>>` for sequence fields."),
         },
         Some("Option") => match single_generic_arg(ty) {
             Some(inner) => match head_ident(&inner).as_deref() {
@@ -90,9 +90,9 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
     let fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(named) => &named.named,
-            _ => panic!("OptimState can only be derived for structs with named fields."),
+            _ => panic!("RecordState can only be derived for structs with named fields."),
         },
-        _ => panic!("OptimState can only be derived for structs."),
+        _ => panic!("RecordState can only be derived for structs."),
     };
 
     let mut flatten = Vec::new();
@@ -183,13 +183,13 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
                 flatten.push(quote! {
                     {
                         let __path = crate::join_path(prefix, #leaf);
-                        crate::OptimState::state_flatten(&self.#ident, &__path, out);
+                        crate::RecordState::state_flatten(&self.#ident, &__path, out);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
                         let __path = crate::join_path(prefix, #leaf);
-                        <#ty as crate::OptimState>::state_unflatten(&__path, src, device)?
+                        <#ty as crate::RecordState>::state_unflatten(&__path, src, device)?
                     };
                 });
             }
@@ -197,13 +197,13 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
                 flatten.push(quote! {
                     if let Some(value) = &self.#ident {
                         let __path = crate::join_path(prefix, #leaf);
-                        crate::OptimState::state_flatten(value, &__path, out);
+                        crate::RecordState::state_flatten(value, &__path, out);
                     }
                 });
                 unflatten.push(quote! {
                     let #ident = {
                         let __path = crate::join_path(prefix, #leaf);
-                        <#inner as crate::OptimState>::state_unflatten(&__path, src, device)
+                        <#inner as crate::RecordState>::state_unflatten(&__path, src, device)
                     };
                 });
             }
@@ -211,14 +211,14 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
     }
 
     quote! {
-        impl #impl_generics crate::OptimState for #name #ty_generics #where_clause {
-            fn state_flatten(&self, prefix: &str, out: &mut crate::OptimStateSink) {
+        impl #impl_generics crate::RecordState for #name #ty_generics #where_clause {
+            fn state_flatten(&self, prefix: &str, out: &mut crate::StateSink) {
                 #(#flatten)*
             }
 
             fn state_unflatten(
                 prefix: &str,
-                src: &mut crate::OptimStateSource,
+                src: &mut crate::StateSource,
                 device: &burn::tensor::Device,
             ) -> Option<Self> {
                 #(#unflatten)*

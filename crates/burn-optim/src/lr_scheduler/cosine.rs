@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
+use crate::RecordState;
 use crate::LearningRate;
 use burn::config::Config;
 
@@ -85,15 +86,23 @@ impl LrScheduler for CosineAnnealingLrScheduler {
     }
 
     fn to_record(&self) -> LrSchedulerRecord {
-        LrSchedulerRecord::new().with_scalar("value", self.current_iter)
+        LrSchedulerRecord::from_state(&CosineAnnealingLrSchedulerState {
+            current_iter: self.current_iter,
+        })
     }
 
     fn load_record(mut self, record: LrSchedulerRecord) -> Self {
-        if let Some(value) = record.scalar("value") {
-            self.current_iter = value;
+        if let Some(state) = record.into_state::<CosineAnnealingLrSchedulerState>() {
+            self.current_iter = state.current_iter;
         }
         self
     }
+}
+
+/// The serializable state of a [cosine annealing scheduler](CosineAnnealingLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct CosineAnnealingLrSchedulerState {
+    current_iter: usize,
 }
 
 #[cfg(test)]

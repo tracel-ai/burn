@@ -6,7 +6,7 @@ use super::GradientsParams;
 use crate::{LearningRate, OptimizerRecord};
 use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
-use crate::{OptimState, OptimStateSink, OptimStateSource};
+use crate::{RecordState, StateSink, StateSource};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
@@ -451,7 +451,7 @@ fn set_params_from_flat_inner<M: Module>(module: M, flat: Tensor<1>) -> M {
 }
 
 /// L-BFGS optimizer state
-#[derive(Clone, OptimState)]
+#[derive(Clone, RecordState)]
 pub struct LBFGSState {
     /// Historical displacement vectors
     pub history_s: Vec<Tensor<1>>,
@@ -526,8 +526,8 @@ impl LBFGS {
     /// L-BFGS keeps a single global state rather than per-parameter state, so its tensors are
     /// named directly (e.g. `history_s.0`) and carry no parameter id.
     pub fn to_record(&self) -> OptimizerRecord {
-        let mut sink = OptimStateSink::default();
-        OptimState::state_flatten(&self.state, "", &mut sink);
+        let mut sink = StateSink::default();
+        RecordState::state_flatten(&self.state, "", &mut sink);
 
         let tensors = sink
             .tensors
@@ -541,7 +541,7 @@ impl LBFGS {
 
     /// Load the optimizer state from an [`OptimizerRecord`], placing tensors on `device`.
     pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
-        let mut source = OptimStateSource::new(record.scalars);
+        let mut source = StateSource::new(record.scalars);
         for tensor in record.tensors {
             let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
             source.insert_tensor(tensor.name, data);

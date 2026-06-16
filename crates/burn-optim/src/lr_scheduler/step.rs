@@ -3,7 +3,7 @@ use burn_core as burn;
 use burn::config::Config;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::LearningRate;
+use crate::{LearningRate, RecordState};
 
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).
 ///
@@ -92,15 +92,23 @@ impl LrScheduler for StepLrScheduler {
     }
 
     fn to_record(&self) -> LrSchedulerRecord {
-        LrSchedulerRecord::new().with_scalar("value", self.iter_idx)
+        LrSchedulerRecord::from_state(&StepLrSchedulerState {
+            iter_idx: self.iter_idx,
+        })
     }
 
     fn load_record(mut self, record: LrSchedulerRecord) -> Self {
-        if let Some(value) = record.scalar("value") {
-            self.iter_idx = value;
+        if let Some(state) = record.into_state::<StepLrSchedulerState>() {
+            self.iter_idx = state.iter_idx;
         }
         self
     }
+}
+
+/// The serializable state of a [step learning rate scheduler](StepLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct StepLrSchedulerState {
+    iter_idx: i32,
 }
 
 #[cfg(test)]
@@ -200,7 +208,7 @@ mod tests {
     fn test_number_of_calls_within_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(LrSchedulerRecord::new().with_scalar("value", i32::MAX - 1));
+        scheduler = scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState { iter_idx: i32::MAX - 1 }));
         scheduler.step();
     }
 
@@ -209,7 +217,7 @@ mod tests {
     fn test_number_of_calls_over_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(LrSchedulerRecord::new().with_scalar("value", i32::MAX - 1));
+        scheduler = scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState { iter_idx: i32::MAX - 1 }));
         scheduler.step();
         scheduler.step();
     }

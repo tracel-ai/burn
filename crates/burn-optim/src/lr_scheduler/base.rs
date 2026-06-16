@@ -3,9 +3,9 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use burn_core as burn;
 
-use crate::join_path;
+use crate::{RecordState, StateSink, StateSource, join_path};
 use burn::store::RecordError;
-use burn::tensor::Bytes;
+use burn::tensor::{Bytes, Device};
 use burn_pack::{Reader, Scalar, Writer};
 
 use crate::LearningRate;
@@ -79,6 +79,30 @@ impl LrSchedulerRecord {
             })
             .collect();
         LrSchedulerRecord { scalars }
+    }
+
+    /// Build a record from a scheduler [state](RecordState).
+    ///
+    /// Scheduler state is scalar-only, so this reuses the same [`RecordState`] decomposition as
+    /// optimizer states (it panics in debug builds if a tensor leaf is produced).
+    pub fn from_state<S: RecordState>(state: &S) -> Self {
+        let mut sink = StateSink::default();
+        state.state_flatten("", &mut sink);
+        debug_assert!(
+            sink.tensors.is_empty(),
+            "learning rate scheduler state is expected to be scalar-only"
+        );
+        Self {
+            scalars: sink.scalars.into_iter().collect(),
+        }
+    }
+
+    /// Reconstruct a scheduler [state](RecordState) from this record.
+    ///
+    /// Uses the default device; scheduler state is scalar-only so no tensor is ever allocated.
+    pub fn into_state<S: RecordState>(&self) -> Option<S> {
+        let mut source = StateSource::new(self.scalars.clone());
+        S::state_unflatten("", &mut source, &Device::default())
     }
 
     /// Serialize the record to an in-memory burnpack byte buffer.

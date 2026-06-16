@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
+use crate::RecordState;
 use crate::LearningRate;
 use burn::config::Config;
 
@@ -62,15 +63,24 @@ impl LrScheduler for ExponentialLrScheduler {
     }
 
     fn to_record(&self) -> LrSchedulerRecord {
-        LrSchedulerRecord::new().with_scalar("value", self.previous_lr)
+        LrSchedulerRecord::from_state(&ExponentialLrSchedulerState {
+            previous_lr: self.previous_lr,
+        })
     }
 
     fn load_record(mut self, record: LrSchedulerRecord) -> Self {
-        if let Some(value) = record.scalar("value") {
-            self.previous_lr = value;
+        if let Some(state) = record.into_state::<ExponentialLrSchedulerState>() {
+            self.previous_lr = state.previous_lr;
         }
         self
     }
+}
+
+/// The serializable state of an [exponential scheduler](ExponentialLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct ExponentialLrSchedulerState {
+    // `f64` (not the `LearningRate` alias) so the derive recognizes it as a scalar leaf.
+    previous_lr: f64,
 }
 
 #[cfg(test)]

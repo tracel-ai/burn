@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use super::Optimizer;
 use crate::{
-    DynOptimizer, DynState, LearningRate, MultiGradientsParams, OptimStateSink, OptimStateSource,
+    DynOptimizer, DynState, LearningRate, MultiGradientsParams, StateSink, StateSource,
     OptimizerRecord, grad_clipping::GradientClipping, optim::GradientsParams,
 };
 
@@ -106,7 +106,7 @@ impl ModuleOptimizer {
 
         for (id, state) in self.states.iter() {
             let prefix = id.val().to_string();
-            let mut sink = OptimStateSink::default();
+            let mut sink = StateSink::default();
             self.optim.state_flatten(&prefix, state, &mut sink);
 
             for (name, data) in sink.tensors {
@@ -130,7 +130,7 @@ impl ModuleOptimizer {
     pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
         // The rank of each parameter's state is recovered from its tensor shapes.
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
-        let mut source = OptimStateSource::new(record.scalars);
+        let mut source = StateSource::new(record.scalars);
 
         for tensor in record.tensors {
             let id = tensor

@@ -1,6 +1,7 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
+use crate::RecordState;
 use crate::LearningRate;
 use burn::config::Config;
 
@@ -70,15 +71,23 @@ impl LrScheduler for LinearLrScheduler {
     }
 
     fn to_record(&self) -> LrSchedulerRecord {
-        LrSchedulerRecord::new().with_scalar("value", self.remaining_iters)
+        LrSchedulerRecord::from_state(&LinearLrSchedulerState {
+            remaining_iters: self.remaining_iters,
+        })
     }
 
     fn load_record(mut self, record: LrSchedulerRecord) -> Self {
-        if let Some(value) = record.scalar("value") {
-            self.remaining_iters = value;
+        if let Some(state) = record.into_state::<LinearLrSchedulerState>() {
+            self.remaining_iters = state.remaining_iters;
         }
         self
     }
+}
+
+/// The serializable state of a [linear scheduler](LinearLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct LinearLrSchedulerState {
+    remaining_iters: usize,
 }
 
 #[cfg(test)]

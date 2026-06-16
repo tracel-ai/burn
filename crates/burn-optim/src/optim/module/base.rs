@@ -2,7 +2,7 @@ use alloc::sync::Arc;
 use core::any::Any;
 
 use burn_core as burn;
-use crate::{OptimState, OptimStateSink, OptimStateSource};
+use crate::{RecordState, StateSink, StateSource};
 use burn_core::tensor::kind::BridgeTensor;
 
 use crate::LearningRate;
@@ -16,9 +16,9 @@ use burn::tensor::{Device, Tensor};
 pub trait Optimizer: Send + Sync + Clone + 'static {
     /// The state of the optimizer for a single parameter of rank `D`.
     ///
-    /// It implements [`OptimState`] so it can be decomposed into named tensors and scalars for the
+    /// It implements [`RecordState`] so it can be decomposed into named tensors and scalars for the
     /// burnpack format.
-    type State<const D: usize>: Send + Sync + Clone + OptimState + 'static;
+    type State<const D: usize>: Send + Sync + Clone + RecordState + 'static;
 
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///
@@ -145,14 +145,14 @@ pub(crate) trait DynOptimizer: Send + Sync {
     fn to_device_dyn(&self, state: DynState, device: &Device) -> DynState;
 
     /// Decompose a state into named tensors and scalars under `prefix`.
-    fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut OptimStateSink);
+    fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut StateSink);
 
     /// Rebuild a state of the given `rank` from named tensors and scalars under `prefix`.
     fn state_unflatten(
         &self,
         rank: usize,
         prefix: &str,
-        src: &mut OptimStateSource,
+        src: &mut StateSource,
         device: &Device,
     ) -> DynState;
 }
@@ -185,9 +185,9 @@ impl<O: Optimizer> DynOptimizer for O {
         })
     }
 
-    fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut OptimStateSink) {
+    fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut StateSink) {
         dispatch_rank!(state.rank(), D => {
-            OptimState::state_flatten(state.downcast_ref::<O::State<D>>(), prefix, out);
+            RecordState::state_flatten(state.downcast_ref::<O::State<D>>(), prefix, out);
         })
     }
 
@@ -195,11 +195,11 @@ impl<O: Optimizer> DynOptimizer for O {
         &self,
         rank: usize,
         prefix: &str,
-        src: &mut OptimStateSource,
+        src: &mut StateSource,
         device: &Device,
     ) -> DynState {
         dispatch_rank!(rank, D => {
-            let state = <O::State<D> as OptimState>::state_unflatten(prefix, src, device)
+            let state = <O::State<D> as RecordState>::state_unflatten(prefix, src, device)
                 .expect("The optimizer state should be present in the record.");
             DynState::create(state, D)
         })

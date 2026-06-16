@@ -9,7 +9,7 @@ use proc_macro::TokenStream;
 
 pub(crate) mod config;
 pub(crate) mod module;
-pub(crate) mod optim_state;
+pub(crate) mod record_state;
 pub(crate) mod record;
 pub(crate) mod shared;
 
@@ -82,8 +82,8 @@ pub fn config_derive(input: TokenStream) -> TokenStream {
 }
 
 /// Derive macro for the optimizer state, decomposing it into named tensors and scalars.
-#[proc_macro_derive(OptimState)]
-pub fn optim_state_derive(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(RecordState)]
+pub fn record_state_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
-    optim_state::derive_impl(&input)
+    record_state::derive_impl(&input)
 }

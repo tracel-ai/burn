@@ -1,7 +1,7 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use crate::OptimState;
+use crate::RecordState;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 
@@ -13,7 +13,7 @@ pub struct WeightDecayConfig {
 }
 
 /// State of [weight decay](WeightDecay).
-#[derive(OptimState, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct WeightDecayState<const D: usize> {
     pub(crate) grad_last_step: Tensor<D>,
 }

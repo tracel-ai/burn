@@ -3,6 +3,7 @@ use burn_core as burn;
 use burn::config::Config;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
+use crate::RecordState;
 use crate::LearningRate;
 
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
@@ -67,15 +68,21 @@ impl LrScheduler for NoamLrScheduler {
     }
 
     fn to_record(&self) -> LrSchedulerRecord {
-        LrSchedulerRecord::new().with_scalar("value", self.step)
+        LrSchedulerRecord::from_state(&NoamLrSchedulerState { step: self.step })
     }
 
     fn load_record(mut self, record: LrSchedulerRecord) -> Self {
-        if let Some(value) = record.scalar("value") {
-            self.step = value;
+        if let Some(state) = record.into_state::<NoamLrSchedulerState>() {
+            self.step = state.step;
         }
         self
     }
+}
+
+/// The serializable state of a [noam scheduler](NoamLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct NoamLrSchedulerState {
+    step: f64,
 }
 
 #[cfg(test)]
