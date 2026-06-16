@@ -215,26 +215,26 @@ pub trait ModuleRecord: Module {
     /// Apply a [`RecordNext`] to this module, returning the loaded module.
     ///
     /// Honors the record's [`DTypePolicy`], `validate`, and `allow_partial` settings.
-    fn apply_record(self, record: RecordNext) -> Result<Self, RecordError>
+    fn try_load_record_next(self, record: RecordNext) -> Result<Self, RecordError>
     where
         Self: Sized,
     {
         let validate = record.validate;
         let allow_partial = record.allow_partial;
 
-        let mut applier = Applier::new(record);
-        let module = self.map(&mut applier);
+        let mut mapper = RecordNextMapper::new(record);
+        let module = self.map(&mut mapper);
 
-        if validate && !applier.errors.is_empty() {
+        if validate && !mapper.errors.is_empty() {
             return Err(RecordError::Validation(format!(
                 "Apply errors: {:?}",
-                applier.errors
+                mapper.errors
             )));
         }
-        if !allow_partial && !applier.missing.is_empty() {
+        if !allow_partial && !mapper.missing.is_empty() {
             return Err(RecordError::Validation(format!(
                 "Missing tensors: {:?}",
-                applier.missing
+                mapper.missing
             )));
         }
 
@@ -249,7 +249,8 @@ pub trait ModuleRecord: Module {
     where
         Self: Sized,
     {
-        self.apply_record(record).expect("Failed to load record")
+        self.try_load_record_next(record)
+            .expect("Failed to load record")
     }
 }
 
@@ -295,7 +296,7 @@ impl ModuleVisitor for Collector {
 }
 
 /// Mapper that loads recorded tensors back onto matching parameters by module path.
-struct Applier {
+struct RecordNextMapper {
     path: Vec<String>,
     tensors: HashMap<String, TensorData>,
     dtype_policy: DTypePolicy,
@@ -303,7 +304,7 @@ struct Applier {
     errors: Vec<String>,
 }
 
-impl Applier {
+impl RecordNextMapper {
     fn new(record: RecordNext) -> Self {
         let tensors = record
             .tensors
@@ -377,7 +378,7 @@ macro_rules! map_kind {
     };
 }
 
-impl ModuleMapper for Applier {
+impl ModuleMapper for RecordNextMapper {
     fn enter_module(&mut self, name: &str, _container_type: &str) {
         self.path.push(name.to_string());
     }
@@ -477,10 +478,10 @@ mod tests {
         // Tiny has weight+bias; TinyWide also expects `gamma`, which the record lacks.
         let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record_next();
 
-        let strict = TinyWide::zeros(&device).apply_record(record.clone());
+        let strict = TinyWide::zeros(&device).try_load_record_next(record.clone());
         assert!(matches!(strict, Err(RecordError::Validation(_))));
 
-        let partial = TinyWide::zeros(&device).apply_record(record.allow_partial(true));
+        let partial = TinyWide::zeros(&device).try_load_record_next(record.allow_partial(true));
         assert!(partial.is_ok());
         let loaded = partial.unwrap();
         // weight/bias were loaded; gamma kept its (zero) initialization.

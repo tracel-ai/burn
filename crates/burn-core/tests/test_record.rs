@@ -122,7 +122,7 @@ fn missing_parameters_require_allow_partial() {
 
     // Strict load into the full Mlp fails: `second.*` is missing from the record.
     let strict = RecordNext::from_bytes(bytes.clone()).unwrap();
-    assert!(Mlp::zeros(&device).apply_record(strict).is_err());
+    assert!(Mlp::zeros(&device).try_load_record_next(strict).is_err());
 
     // With `allow_partial`, the present params load and the rest keep their init.
     let lenient = RecordNext::from_bytes(bytes).unwrap().allow_partial(true);
