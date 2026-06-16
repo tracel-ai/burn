@@ -1,7 +1,8 @@
 use super::MetricMetadata;
-use super::state::{FormatOptions, NumericMetricState};
+use super::state::{FormatOptions, PredictionAccumulatorState};
 use crate::metric::{
-    ClassReduction, ConfusionStatsInput, Metric, MetricName, Numeric, SerializedEntry,
+    ClassReduction, ConfusionStatsInput, Metric, MetricAttributes, MetricName, Numeric,
+    NumericAggregation, NumericAttributes, SerializedEntry,
 };
 use burn_core::tensor::{Int, Tensor};
 use std::sync::Arc;
@@ -19,7 +20,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct AucPrMetric {
     name: MetricName,
-    state: NumericMetricState,
+    state: PredictionAccumulatorState,
     class_reduction: ClassReduction,
 }
 
@@ -104,13 +105,18 @@ impl Metric for AucPrMetric {
         input: &ConfusionStatsInput,
         _metadata: &MetricMetadata,
     ) -> SerializedEntry {
-        let [n, c] = input.predictions.dims();
+        self.state
+            .accumulate(input.predictions.clone(), input.targets.clone());
+
+        // Recompute over the whole epoch: AP is rank-based, not a per-batch mean.
+        let (predictions, targets) = self.state.tensors();
+        let [n, c] = predictions.dims();
 
         let (scores, targets) = match self.class_reduction {
-            ClassReduction::Macro => (input.predictions.clone(), input.targets.clone().float()),
+            ClassReduction::Macro => (predictions, targets.float()),
             ClassReduction::Micro => (
-                input.predictions.clone().reshape([n * c, 1]),
-                input.targets.clone().float().reshape([n * c, 1]),
+                predictions.reshape([n * c, 1]),
+                targets.float().reshape([n * c, 1]),
             ),
         };
 
@@ -125,7 +131,7 @@ impl Metric for AucPrMetric {
 
         let metric = if keep.dims()[0] == 0 {
             log::warn!(
-                "AUC-PR is undefined (no class has positive samples in the batch); reporting \
+                "AUC-PR is undefined (no class has positive samples in the epoch); reporting \
                  0.5 as a neutral fallback."
             );
             0.5
@@ -135,7 +141,6 @@ impl Metric for AucPrMetric {
 
         self.state.update(
             100.0 * metric,
-            n,
             FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
@@ -147,15 +152,24 @@ impl Metric for AucPrMetric {
     fn name(&self) -> MetricName {
         self.name.clone()
     }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: Some("%".to_string()),
+            higher_is_better: true,
+            aggregation: NumericAggregation::Last,
+        }
+        .into()
+    }
 }
 
 impl Numeric for AucPrMetric {
     fn value(&self) -> super::NumericEntry {
-        self.state.current_value()
+        self.state.value()
     }
 
     fn running_value(&self) -> super::NumericEntry {
-        self.state.running_value()
+        self.state.value()
     }
 }
 
@@ -254,5 +268,43 @@ mod tests {
 
         TensorData::from([metric.value().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
+    }
+
+    #[test]
+    fn test_auc_pr_accumulates_across_batches() {
+        let dev = Default::default();
+
+        // Whole dataset as a single batch.
+        let mut single = AucPrMetric::binary();
+        single.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.9], [0.4], [0.8], [0.2], [0.6], [0.1]], &dev),
+                Tensor::from_data([[1], [0], [1], [0], [1], [0]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        // Same dataset split across two batches.
+        let mut split = AucPrMetric::binary();
+        split.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                Tensor::from_data([[1], [0], [1]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+        split.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.2], [0.6], [0.1]], &dev),
+                Tensor::from_data([[0], [1], [0]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        // Epoch value is independent of batching.
+        TensorData::from([split.value().current()]).assert_approx_eq::<f64>(
+            &TensorData::from([single.value().current()]),
+            Tolerance::default(),
+        );
     }
 }

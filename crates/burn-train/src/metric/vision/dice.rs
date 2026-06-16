@@ -171,6 +171,7 @@ impl<const D: usize> Metric for DiceMetric<D> {
         crate::metric::NumericAttributes {
             unit: None,
             higher_is_better: true,
+            ..Default::default()
         }
         .into()
     }
