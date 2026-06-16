@@ -37,10 +37,10 @@ without the performance drop.
 
 ## Rust for Research?
 
-Rust used to be a poor fit for research: long builds broke the fast edit-compile-run loop that draws
-people to Python in the first place. Not anymore. Burn is built around incremental compilation, so
-changing model code recompiles in under 5 seconds, even in release mode. You get a Python-like
-feedback loop with the speed and safety of Rust.
+Rust used to be a tough sell for research: long compilation times disrupted the fast
+edit-compile-run loop that draws researchers to Python. Burn changes this paradigm. Designed around
+incremental compilation, modifying model code recompiles in under 5 seconds, even in release mode.
+This delivers a Python-like feedback loop with the speed and safety of Rust.
 
 ## Ecosystem
 
