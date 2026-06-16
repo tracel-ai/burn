@@ -26,9 +26,10 @@ exported to an open format like ONNX or optimized for production engines like vL
 TensorRT. This export step is often brittle and lossy, ruling out complex architectures and advanced
 deployment use cases.
 
-Burn doesn't separate the two. Everything is lowered to the same multi-platform tensor operations, so
-the code you train is the code you run. That makes things like on-device personalization and
-federated learning straightforward, and you can go from prototype to deployment in a single codebase.
+Burn unifies the two. By executing multi-platform tensor operations via a single, unified API, the
+exact code used for training is the exact code that runs in production. This makes workloads like
+on-device personalization and federated learning straightforward, while enabling teams to go from
+prototype to deployment in a single codebase.
 
 Burn keeps the feel of PyTorch, with dynamic shapes and graphs, but JIT-compiles streams of tensor
 operations, performing automatic kernel fusion. You get the flexibility of dynamic graphs
