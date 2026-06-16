@@ -1,21 +1,25 @@
-use std::any::Any;
-use std::sync::Arc;
+use alloc::sync::Arc;
+use core::any::Any;
 
 use burn_core as burn;
+use burn_core::store::{OptimState, OptimStateSink, OptimStateSource};
 use burn_core::tensor::kind::BridgeTensor;
 
 use crate::LearningRate;
 use burn::record::Record;
 use burn::tensor::{Device, Tensor};
 
-/// Simple optimizer is an opinionated trait to simplify the process of implementing an
-/// optimizer.
+/// An opinionated trait to simplify the process of implementing an optimizer.
 ///
-/// Implementations don't have to handle missing gradients, loading and exporting records, navigate the
-/// module parameter structure, handle tracked and untracked tensors, and the likes.
-pub trait OptimizerStep: Send + Sync + Clone + 'static {
-    /// The state of the optimizer. It also implements [record](Record), so that it can be saved.
-    type State<const D: usize>: Send + Sync + Record + Clone + 'static;
+/// Implementations don't have to handle missing gradients, loading and exporting records,
+/// navigate the module parameter structure, handle tracked and untracked tensors, and the likes.
+/// Wrap one in a [`ModuleOptimizer`](crate::optim::ModuleOptimizer) to optimize a whole module.
+pub trait Optimizer: Send + Sync + Clone + 'static {
+    /// The state of the optimizer for a single parameter of rank `D`.
+    ///
+    /// It implements [`Record`] (so it can be serialized) and [`OptimState`] (so it can be
+    /// decomposed into named tensors for the burnpack format).
+    type State<const D: usize>: Send + Sync + Record + Clone + OptimState + 'static;
 
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///
@@ -32,28 +36,93 @@ pub trait OptimizerStep: Send + Sync + Clone + 'static {
     /// Change the device of the state.
     ///
     /// This function will be called accordingly to have the state on the same device as the
-    /// gradient and the tensor when the [step](SimpleOptimizer::step) function is called.
+    /// gradient and the tensor when the [step](Optimizer::step) function is called.
     fn to_device<const D: usize>(state: Self::State<D>, device: &Device) -> Self::State<D>;
 }
 
+/// A type-erased optimizer state for a single parameter.
+///
+/// It wraps a concrete `O::State<D>` together with its rank `D` so that the rank can be recovered
+/// when the state is later interpreted by the originating [`Optimizer`] (during a step, a device
+/// transfer or serialization).
 #[derive(Clone)]
 pub struct DynState {
     state: Arc<dyn Any + Send + Sync>,
+    rank: usize,
 }
 
 impl DynState {
-    pub fn downcast<T: Clone + 'static>(self) -> T {
-        todo!()
-    }
-
-    pub fn create<T: Send + Sync + 'static>(state: T) -> Self {
+    /// Erase a concrete optimizer state of rank `rank`.
+    pub fn create<T: Send + Sync + 'static>(state: T, rank: usize) -> Self {
         Self {
             state: Arc::new(state),
+            rank,
         }
+    }
+
+    /// Recover the concrete state. Panics if `T` does not match the stored type.
+    pub fn downcast<T: Clone + 'static>(&self) -> T {
+        self.state
+            .downcast_ref::<T>()
+            .expect("The dynamic optimizer state should match the optimizer state type.")
+            .clone()
+    }
+
+    /// The rank of the parameter this state belongs to.
+    pub fn rank(&self) -> usize {
+        self.rank
     }
 }
 
+/// Dispatch a runtime `rank` to a body parameterized by a `const D: usize`.
+macro_rules! dispatch_rank {
+    ($rank:expr, $d:ident => $body:block) => {
+        match $rank {
+            0 => {
+                const $d: usize = 0;
+                $body
+            }
+            1 => {
+                const $d: usize = 1;
+                $body
+            }
+            2 => {
+                const $d: usize = 2;
+                $body
+            }
+            3 => {
+                const $d: usize = 3;
+                $body
+            }
+            4 => {
+                const $d: usize = 4;
+                $body
+            }
+            5 => {
+                const $d: usize = 5;
+                $body
+            }
+            6 => {
+                const $d: usize = 6;
+                $body
+            }
+            7 => {
+                const $d: usize = 7;
+                $body
+            }
+            8 => {
+                const $d: usize = 8;
+                $body
+            }
+            other => panic!("Unsupported tensor rank for optimizer state: {other}"),
+        }
+    };
+}
+
+/// Object-safe view over an [`Optimizer`], allowing [`ModuleOptimizer`](crate::optim::ModuleOptimizer)
+/// to stay non-generic. Rank-generic operations are dispatched on a runtime rank.
 pub(crate) trait DynOptimizer: Send + Sync {
+    /// Perform an optimizer step for a single parameter of the given `rank`.
     fn step_dyn(
         &self,
         rank: usize,
@@ -62,10 +131,24 @@ pub(crate) trait DynOptimizer: Send + Sync {
         grad: BridgeTensor,
         state: Option<DynState>,
     ) -> (BridgeTensor, Option<DynState>);
+
+    /// Move a state to the given device.
     fn to_device_dyn(&self, state: DynState, device: &Device) -> DynState;
+
+    /// Decompose a state into named tensors and scalars under `prefix`.
+    fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut OptimStateSink);
+
+    /// Rebuild a state of the given `rank` from named tensors and scalars under `prefix`.
+    fn state_unflatten(
+        &self,
+        rank: usize,
+        prefix: &str,
+        src: &mut OptimStateSource,
+        device: &Device,
+    ) -> DynState;
 }
 
-impl<O: OptimizerStep> DynOptimizer for O {
+impl<O: Optimizer> DynOptimizer for O {
     fn step_dyn(
         &self,
         rank: usize,
@@ -74,23 +157,43 @@ impl<O: OptimizerStep> DynOptimizer for O {
         grad: BridgeTensor,
         state: Option<DynState>,
     ) -> (BridgeTensor, Option<DynState>) {
-        match rank {
-            1 => {
-                let (grad, state) = O::step(
-                    &self,
-                    lr,
-                    Tensor::<1>::from_bridge(tensor),
-                    Tensor::<1>::from_bridge(grad),
-                    state.map(|s| s.downcast()),
-                );
+        dispatch_rank!(rank, D => {
+            let (tensor, state) = self.step(
+                lr,
+                Tensor::<D>::from_bridge(tensor),
+                Tensor::<D>::from_bridge(grad),
+                state.map(|state| state.downcast::<O::State<D>>()),
+            );
 
-                (grad.into_bridge(), state.map(|s| DynState::create(s)))
-            }
-            _ => panic!("Unsupported rank"),
-        }
+            (tensor.into_bridge(), state.map(|state| DynState::create(state, D)))
+        })
     }
 
     fn to_device_dyn(&self, state: DynState, device: &Device) -> DynState {
-        todo!()
+        dispatch_rank!(state.rank(), D => {
+            let state = O::to_device::<D>(state.downcast::<O::State<D>>(), device);
+            DynState::create(state, D)
+        })
+    }
+
+    fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut OptimStateSink) {
+        dispatch_rank!(state.rank(), D => {
+            let state = state.downcast::<O::State<D>>();
+            OptimState::state_flatten(&state, prefix, out);
+        })
+    }
+
+    fn state_unflatten(
+        &self,
+        rank: usize,
+        prefix: &str,
+        src: &mut OptimStateSource,
+        device: &Device,
+    ) -> DynState {
+        dispatch_rank!(rank, D => {
+            let state = <O::State<D> as OptimState>::state_unflatten(prefix, src, device)
+                .expect("The optimizer state should be present in the record.");
+            DynState::create(state, D)
+        })
     }
 }

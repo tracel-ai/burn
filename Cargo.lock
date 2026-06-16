@@ -1029,6 +1029,7 @@ dependencies = [
  "burn-core",
  "burn-flex",
  "burn-nn",
+ "burn-pack",
  "derive-new",
  "hashbrown 0.16.1",
  "log",

@@ -1,14 +1,17 @@
 use burn_core as burn;
 
-use super::OptimizerStep;
+use super::Optimizer;
 use crate::{
-    DynOptimizer, DynState, LearningRate, MultiGradientsParams,
-    grad_clipping::GradientClipping,
-    optim::{GradientsParams, Optimizer},
+    DynOptimizer, DynState, LearningRate, MultiGradientsParams, OptimizerRecord,
+    grad_clipping::GradientClipping, optim::GradientsParams,
 };
 
+use alloc::collections::BTreeMap;
+use alloc::string::ToString;
+use alloc::vec::Vec;
 use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
-use burn::tensor::{Device, Tensor};
+use burn::store::{OptimStateSink, OptimStateSource, RecordError};
+use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use hashbrown::HashMap;
 use std::sync::Arc;
 
@@ -23,7 +26,7 @@ pub struct ModuleOptimizer {
 
 impl<O> From<O> for ModuleOptimizer
 where
-    O: OptimizerStep,
+    O: Optimizer,
 {
     fn from(optim: O) -> Self {
         Self {
@@ -76,6 +79,7 @@ impl ModuleOptimizer {
 }
 
 impl ModuleOptimizer {
+    /// Update the `module` parameters with the given `gradients`, advancing the optimizer state.
     pub fn step<M: AutodiffModule>(
         &mut self,
         lr: LearningRate,
@@ -85,6 +89,7 @@ impl ModuleOptimizer {
         self.step_common(lr, module, grads.into())
     }
 
+    /// Like [`step`](Self::step), but accumulating gradients sourced from multiple devices.
     pub fn step_multi<M: AutodiffModule>(
         &mut self,
         lr: LearningRate,
@@ -94,14 +99,85 @@ impl ModuleOptimizer {
         self.step_common(lr, module, grads.into())
     }
 
-    // pub fn to_record(&self) -> Self::Record {
-    //     todo!()
-    // }
+    /// Decompose the optimizer state into a serializable [`OptimizerRecord`].
+    pub fn to_record(&self) -> OptimizerRecord {
+        let mut tensors = Vec::new();
+        let mut scalars = BTreeMap::new();
 
-    // pub fn load_record(mut self, record: Self::Record) -> Self {
-    //     // self.states = record;
-    //     self
-    // }
+        for (id, state) in self.states.iter() {
+            let prefix = id.val().to_string();
+            let mut sink = OptimStateSink::default();
+            self.optim.state_flatten(&prefix, state, &mut sink);
+
+            for (name, data) in sink.tensors {
+                tensors.push(burn_pack::Tensor::new(
+                    name,
+                    data.dtype,
+                    data.shape,
+                    Some(id.val()),
+                    data.bytes,
+                ));
+            }
+            for (name, value) in sink.scalars {
+                scalars.insert(name, value);
+            }
+        }
+
+        OptimizerRecord { tensors, scalars }
+    }
+
+    /// Load the optimizer state from an [`OptimizerRecord`], placing tensors on `device`.
+    pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
+        // The rank of each parameter's state is recovered from its tensor shapes.
+        let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
+        let mut source = OptimStateSource::new(record.scalars);
+
+        for tensor in record.tensors {
+            let id = tensor
+                .param_id
+                .expect("Optimizer record tensors should carry a parameter id.");
+            let name = tensor.name;
+            let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
+            ranks.entry(id).or_insert(data.shape.len());
+            source.insert_tensor(name, data);
+        }
+
+        let mut states = HashMap::new();
+        for (id, rank) in ranks {
+            let prefix = id.to_string();
+            let state = self.optim.state_unflatten(rank, &prefix, &mut source, device);
+            states.insert(ParamId::from(id), state);
+        }
+
+        self.states = states;
+        self
+    }
+
+    /// Serialize the optimizer state to an in-memory burnpack byte buffer.
+    pub fn into_bytes(&self) -> Result<Bytes, RecordError> {
+        self.to_record().into_bytes()
+    }
+
+    /// Load the optimizer state from an in-memory burnpack byte buffer.
+    pub fn from_bytes(self, bytes: Bytes, device: &Device) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::from_bytes(bytes)?, device))
+    }
+
+    /// Save the optimizer state to a burnpack file on disk.
+    #[cfg(feature = "std")]
+    pub fn save<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), RecordError> {
+        self.to_record().save(path)
+    }
+
+    /// Load the optimizer state from a burnpack file on disk, placing tensors on `device`.
+    #[cfg(feature = "std")]
+    pub fn load<P: AsRef<std::path::Path>>(
+        self,
+        path: P,
+        device: &Device,
+    ) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::load(path)?, device))
+    }
 }
 
 /// Wrapper to unify the `remove` method for [GradientsParams] and [MultiGradientsParams].

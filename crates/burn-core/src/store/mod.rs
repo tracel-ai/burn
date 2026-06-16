@@ -26,6 +26,9 @@ use crate::tensor::{Bool, DType, Device, Float, Int, Shape, Tensor, TensorData, 
 
 use burn_pack::{Reader, Writer};
 
+mod optim;
+pub use optim::*;
+
 /// Controls how a parameter's dtype is resolved when loading a [`RecordNext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DTypePolicy {

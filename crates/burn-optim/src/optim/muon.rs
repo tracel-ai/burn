@@ -1,6 +1,7 @@
 use burn_core as burn;
 
-use burn::{module::AutodiffModule, record::Record};
+use burn::record::Record;
+use burn::store::OptimState;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -8,7 +9,7 @@ use burn::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    OptimizerStep,
+    Optimizer,
     adaptor::ModuleOptimizer,
     decay::WeightDecayConfig,
     momentum::{Momentum, MomentumConfig, MomentumState},
@@ -206,7 +207,7 @@ impl MuonConfig {
     ///     .with_ns_steps(7)
     ///     .init();
     /// ```
-    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<Muon, M> {
+    pub fn init(&self) -> ModuleOptimizer {
         ModuleOptimizer::from(self.build())
     }
 }
@@ -348,13 +349,13 @@ impl Muon {
 }
 
 /// Muon state.
-#[derive(Record, Clone, new)]
+#[derive(Record, OptimState, Clone, new)]
 pub struct MuonState<const D: usize> {
     /// Current momentum state
     pub momentum: MomentumState<D>,
 }
 
-impl OptimizerStep for Muon {
+impl Optimizer for Muon {
     type State<const D: usize> = MuonState<D>;
 
     /// Perform a single Muon optimization step.
@@ -506,16 +507,15 @@ mod tests {
 
         let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
 
-        let mut optimizer = MuonConfig::new().init::<Linear>();
+        let mut optimizer = MuonConfig::new().init();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(0.01, linear, grads);
 
         let state_before = optimizer.to_record();
-        let state_before_copy = optimizer.to_record();
+        let bytes = optimizer.into_bytes().unwrap();
 
-        let optimizer_new = MuonConfig::new().init::<Linear>();
-        let optimizer_loaded = optimizer_new.load_record(state_before_copy);
+        let optimizer_loaded = MuonConfig::new().init().from_bytes(bytes, &device).unwrap();
         let state_after = optimizer_loaded.to_record();
 
         assert_eq!(state_before.len(), state_after.len());
@@ -537,7 +537,7 @@ mod tests {
 
         let mut optimizer = MuonConfig::new()
             .with_weight_decay(Some(WeightDecayConfig::new(0.01)))
-            .init::<Linear>();
+            .init();
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);

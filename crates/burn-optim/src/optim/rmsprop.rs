@@ -1,9 +1,10 @@
 use burn_core as burn;
 
-use burn::{module::AutodiffModule, record::Record};
+use burn::record::Record;
+use burn::store::OptimState;
 
 use super::{
-    OptimizerStep,
+    Optimizer,
     adaptor::ModuleOptimizer,
     decay::{WeightDecay, WeightDecayConfig},
 };
@@ -53,7 +54,7 @@ impl RmsPropConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<RmsProp, M> {
+    pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
@@ -75,7 +76,7 @@ pub struct RmsProp {
     weight_decay: Option<WeightDecay>,
 }
 
-impl OptimizerStep for RmsProp {
+impl Optimizer for RmsProp {
     type State<const D: usize> = RmsPropState<D>;
 
     fn step<const D: usize>(
@@ -135,7 +136,7 @@ impl OptimizerStep for RmsProp {
 }
 
 /// State of [RmsProp](RmsProp)
-#[derive(Record, Clone, new)]
+#[derive(Record, OptimState, Clone, new)]
 pub struct RmsPropState<const D: usize> {
     /// Current squared average state.
     pub square_avg: SquareAvgState<D>,
@@ -146,7 +147,7 @@ pub struct RmsPropState<const D: usize> {
 }
 
 /// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
-#[derive(Record, Clone, new)]
+#[derive(Record, OptimState, Clone, new)]
 pub struct SquareAvgState<const D: usize> {
     /// Current squared average.
     pub square_avg: Tensor<D>,
@@ -186,7 +187,7 @@ impl<const D: usize> SquareAvgState<D> {
 }
 
 /// [CenteredState](CenteredState) is to store and pass optimizer step params.
-#[derive(Record, Clone, new)]
+#[derive(Record, OptimState, Clone, new)]
 pub struct CenteredState<const D: usize> {
     /// The averaged gradient to calculate the centered gradient, if available.
     pub grad_avg: Option<Tensor<D>>,
@@ -289,7 +290,7 @@ impl RmsPropMomentum {
 }
 
 /// [RmsPropMomentumState](RmsPropMomentumState) is to store and pass optimizer step params.
-#[derive(Record, Clone, new)]
+#[derive(Record, OptimState, Clone, new)]
 pub struct RmsPropMomentumState<const D: usize> {
     buf: Tensor<D>,
 }
@@ -315,7 +316,7 @@ mod tests {
     use burn::tensor::Tolerance;
 
     use super::*;
-    use crate::optim::{GradientsParams, Optimizer};
+    use crate::optim::GradientsParams;
     use burn::module::{Module, Param};
     use burn::tensor::{Distribution, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
@@ -334,31 +335,16 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
 
+        let bytes = optimizer.into_bytes().unwrap();
+        assert!(!bytes.is_empty());
+
         #[cfg(feature = "std")]
-        {
-            use burn::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
-
-            BinFileRecorder::<FullPrecisionSettings>::default()
-                .record(
-                    optimizer.to_record(),
-                    std::env::temp_dir().as_path().join("test_optim_rmsprop"),
-                )
-                .unwrap();
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
-
-            let result = BinBytesRecorder::<FullPrecisionSettings>::default()
-                .record(optimizer.to_record(), ())
-                .unwrap();
-            assert!(!result.is_empty());
-        }
+        optimizer
+            .save(std::env::temp_dir().as_path().join("test_optim_rmsprop"))
+            .unwrap();
 
         let state_optim_before = optimizer.to_record();
-        let state_optim_before_copy = optimizer.to_record();
-        let optimizer = create_rmsprop();
-        let optimizer = optimizer.load_record(state_optim_before_copy);
+        let optimizer = create_rmsprop().from_bytes(bytes, &device).unwrap();
         let state_optim_after = optimizer.to_record();
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
@@ -537,7 +523,7 @@ mod tests {
         LinearConfig::new(6, 6).init(device).load_record(record)
     }
 
-    fn create_rmsprop() -> ModuleOptimizer<RmsProp, Linear> {
+    fn create_rmsprop() -> ModuleOptimizer {
         RmsPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,

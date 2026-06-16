@@ -6,3 +6,4 @@ pub mod adaptor;
 
 /// Record module for optimizers.
 pub mod record;
+pub use record::*;

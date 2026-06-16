@@ -1,14 +1,14 @@
 use burn_core as burn;
 
-use super::OptimizerStep;
+use super::Optimizer;
 use super::adaptor::ModuleOptimizer;
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::LearningRate;
 use crate::grad_clipping::GradientClippingConfig;
 use burn::config::Config;
-use burn::module::AutodiffModule;
 use burn::record::Record;
+use burn::store::OptimState;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 
@@ -33,7 +33,7 @@ pub struct Sgd {
 }
 
 /// State of [Sgd](Sgd).
-#[derive(Record, Clone, new)]
+#[derive(Record, OptimState, Clone, new)]
 pub struct SgdState<const D: usize> {
     /// The current state of the momentum (if any).
     pub momentum: Option<MomentumState<D>>,
@@ -49,7 +49,7 @@ impl SgdConfig {
     }
 
     /// Initializes the SGD optimizer from the configuration.
-    pub fn init<M: AutodiffModule>(&self) -> ModuleOptimizer<Sgd, M> {
+    pub fn init(&self) -> ModuleOptimizer {
         let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.gradient_clipping {
             optim = optim.with_grad_clipping(config.init());
@@ -58,7 +58,7 @@ impl SgdConfig {
     }
 }
 
-impl OptimizerStep for Sgd {
+impl Optimizer for Sgd {
     type State<const D: usize> = SgdState<D>;
 
     fn step<const D: usize>(
@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use crate::{
         grad_clipping::GradientClipping,
-        optim::{GradientsParams, Optimizer},
+        optim::GradientsParams,
     };
     use burn::tensor::{Distribution, Shape};
     use burn_nn::{Linear, LinearConfig};
@@ -147,9 +147,10 @@ mod tests {
         let _layer = optim.step(LEARNING_RATE, layer, grads);
 
         let record = optim.to_record();
+        let bytes = optim.into_bytes().unwrap();
         let optim_new = sgd_with_all();
         let record_new = optim_new.to_record();
-        let optim_new = optim_new.load_record(record.clone());
+        let optim_new = optim_new.from_bytes(bytes, &device).unwrap();
         let state_restored = optim_new.to_record();
 
         assert_ne!(record.len(), record_new.len());
@@ -164,7 +165,7 @@ mod tests {
         LinearConfig::new(20, 20).init(device)
     }
 
-    fn sgd_with_all() -> ModuleOptimizer<Sgd, Linear> {
+    fn sgd_with_all() -> ModuleOptimizer {
         SgdConfig {
             weight_decay: Some(WeightDecayConfig { penalty: 0.05 }),
             momentum: Some(MomentumConfig {
