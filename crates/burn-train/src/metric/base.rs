@@ -127,6 +127,16 @@ impl<T> Adaptor<()> for T {
     fn adapt(&self) {}
 }
 
+/// How a numeric metric's per-batch values are reduced into an epoch value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NumericAggregation {
+    /// Sample-weighted mean of the per-batch values.
+    #[default]
+    Mean,
+    /// Last logged value, already computed over the whole epoch.
+    Last,
+}
+
 /// Attributes that describe intrinsic properties of a numeric metric.
 #[derive(Clone, Debug)]
 pub struct NumericAttributes {
@@ -134,6 +144,8 @@ pub struct NumericAttributes {
     pub unit: Option<String>,
     /// Whether larger values are better (true) or smaller are better (false).
     pub higher_is_better: bool,
+    /// How per-batch values are reduced into the epoch value.
+    pub aggregation: NumericAggregation,
 }
 
 impl From<NumericAttributes> for MetricAttributes {
@@ -147,6 +159,7 @@ impl Default for NumericAttributes {
         Self {
             unit: None,
             higher_is_better: true,
+            aggregation: NumericAggregation::default(),
         }
     }
 }

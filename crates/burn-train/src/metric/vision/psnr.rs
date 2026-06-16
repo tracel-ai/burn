@@ -195,6 +195,7 @@ impl Metric for PsnrMetric {
         NumericAttributes {
             unit: Some("dB".to_string()),
             higher_is_better: true,
+            ..Default::default()
         }
         .into()
     }
