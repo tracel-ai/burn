@@ -6,7 +6,7 @@ use burn_std::QuantLevel;
 use cubek::{
     matmul::{
         definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
-        launch::Strategy,
+        strategy::Strategy,
     },
     std::InputBinding,
 };

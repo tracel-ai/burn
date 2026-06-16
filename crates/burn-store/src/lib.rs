@@ -112,8 +112,8 @@ mod safetensors;
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 
 #[cfg(feature = "burnpack")]
+mod bridge;
+#[cfg(feature = "burnpack")]
 mod burnpack;
 #[cfg(feature = "burnpack")]
-pub use burnpack::writer::BurnpackWriter;
-#[cfg(feature = "burnpack")]
-pub use burnpack::{base::BurnpackError, store::BurnpackStore};
+pub use burnpack::BurnpackStore;

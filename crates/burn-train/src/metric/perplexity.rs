@@ -228,6 +228,7 @@ impl Metric for PerplexityMetric {
         NumericAttributes {
             unit: None,
             higher_is_better: false,
+            ..Default::default()
         }
         .into()
     }

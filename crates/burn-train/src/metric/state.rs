@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use burn_core::tensor::{Bool, Tensor};
+
 use crate::metric::{MetricName, NumericEntry, SerializedEntry, format_float};
 
 /// Useful utility to implement numeric metrics.
@@ -15,12 +17,85 @@ pub struct NumericMetricState {
     current: f64,
     current_count: usize,
 }
+/// Accumulates raw predictions and targets across batches.
+///
+/// Used by rank-based metrics (AUROC, AUC-PR) that must recompute over the
+/// whole epoch. Buffers are freed on [`reset`](Self::reset).
+#[derive(Clone)]
+pub struct PredictionAccumulatorState {
+    predictions: Vec<Tensor<2>>,
+    targets: Vec<Tensor<2, Bool>>,
+    current: f64,
+}
 
 /// Formatting options for the [numeric metric state](NumericMetricState).
 pub struct FormatOptions {
     name: Arc<String>,
     unit: Option<String>,
     precision: Option<usize>,
+}
+
+impl PredictionAccumulatorState {
+    /// Create a new [prediction accumulator state](PredictionAccumulatorState).
+    pub fn new() -> Self {
+        Self {
+            predictions: vec![],
+            targets: vec![],
+            current: f64::NAN,
+        }
+    }
+
+    /// Accumulate a batch of predictions and targets.
+    pub fn accumulate(&mut self, preds: Tensor<2>, targets: Tensor<2, Bool>) {
+        self.predictions.push(preds);
+        self.targets.push(targets);
+    }
+
+    /// All accumulated predictions and targets, concatenated along the samples.
+    pub fn tensors(&self) -> (Tensor<2>, Tensor<2, Bool>) {
+        (
+            Tensor::cat(self.predictions.clone(), 0),
+            Tensor::cat(self.targets.clone(), 0),
+        )
+    }
+
+    /// Record the value computed over the accumulated set and return the entry
+    /// to log. Metrics using this state must declare
+    /// [`NumericAggregation::Last`](crate::metric::NumericAggregation).
+    pub fn update(&mut self, value: f64, format: FormatOptions) -> SerializedEntry {
+        self.current = value;
+
+        let serialized = NumericEntry::Value(value).serialize();
+
+        let formatted_value = match format.precision {
+            Some(precision) => format_float(value, precision),
+            None => format!("{value}"),
+        };
+        let formatted = match format.unit {
+            Some(unit) => format!("epoch {formatted_value} {unit}"),
+            None => format!("epoch {formatted_value}"),
+        };
+
+        SerializedEntry::new(formatted, serialized)
+    }
+
+    /// Current value (computed over the accumulated set).
+    pub fn value(&self) -> NumericEntry {
+        NumericEntry::Value(self.current)
+    }
+
+    /// Reset the state, freeing the accumulated tensors.
+    pub fn reset(&mut self) {
+        self.predictions.clear();
+        self.targets.clear();
+        self.current = f64::NAN;
+    }
+}
+
+impl Default for PredictionAccumulatorState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FormatOptions {

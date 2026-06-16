@@ -19,7 +19,8 @@ pub use burn_std::{
     AllocationProperty, BoolDType, BoolStore, Bytes, ComplexDType, ComplexScalar, DType, DataError,
     DeviceHandle, Distribution, DistributionSampler, DistributionSamplerKind, Element,
     ElementConversion, ElementEq, ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar,
-    TensorData, Tolerance, bf16, complex_utils, distribution, element, f16, stream_id::StreamId,
+    SplitPolicy, TensorData, Tolerance, bf16, complex_utils, distribution, element, f16,
+    stream_id::StreamId,
 };
 
 /// Shape definition.

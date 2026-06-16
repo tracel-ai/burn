@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
 use burn_backend::{DType, TensorMetadata};
-use burn_std::Metadata;
+use burn_std::{BoolDType, Metadata};
 use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy,
@@ -131,6 +131,42 @@ pub fn reduce<Run: CubeRuntime>(
     Ok(tensor)
 }
 
+/// Reduce with a logical instruction ([`Any`](ReduceOperationConfig::Any) /
+/// [`All`](ReduceOperationConfig::All)) and return the result as a boolean tensor.
+///
+/// `Any` / `All` require the output dtype (like `Arg*` index outputs): the
+/// kernel writes the `0/1` flags directly into the numeric backing of the
+/// boolean storage (cubek has no bool elem), so the only step left here is the
+/// kernel-free relabel to `Bool`.
+///
+/// `dim == None` reduces the whole tensor to a scalar; `Some(dim)` reduces a
+/// single axis, keeping it with length 1.
+pub fn reduce_logical<Run: CubeRuntime>(
+    tensor: CubeTensor<Run>,
+    dim: Option<usize>,
+    config: ReduceOperationConfig,
+    out_dtype: BoolDType,
+) -> CubeTensor<Run> {
+    debug_assert!(
+        matches!(
+            config,
+            ReduceOperationConfig::Any | ReduceOperationConfig::All
+        ),
+        "reduce_logical only supports Any / All, got {config:?}"
+    );
+    let out_bool = DType::Bool(out_dtype);
+    let backing = elem_type_to_dtype(dtype_to_elem_type(out_bool));
+
+    let mut out = match dim {
+        Some(d) => reduce_dim::<Run>(tensor, Some(backing), d, Default::default(), config),
+        None => reduce::<Run>(tensor, Some(backing), Default::default(), config),
+    }
+    .expect("Any/All reduce on a valid axis cannot fail");
+
+    out.dtype = out_bool; // same storage, relabel as Bool (no kernel)
+    out
+}
+
 fn argsort(shape: &[usize]) -> Vec<usize> {
     let mut indices = (0..shape.len()).collect::<Vec<_>>();
     indices.sort_by_key(|&i| &shape[i]);
@@ -157,8 +193,10 @@ pub fn reduce_dim<Run: CubeRuntime>(
             ReduceOperationConfig::ArgMax
                 | ReduceOperationConfig::ArgMin
                 | ReduceOperationConfig::ArgTopK(_)
+                | ReduceOperationConfig::Any
+                | ReduceOperationConfig::All
         ) || output_dtype.is_some(),
-        "The `output_dtype` has to be `Some` only when the `config` is `ArgMax`, `ArgMin` or `ArgTopK`.
+        "The `output_dtype` has to be `Some` when the `config` is `ArgMax`, `ArgMin`, `ArgTopK`, `Any` or `All`.
         "
     );
 
