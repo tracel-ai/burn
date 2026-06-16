@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use super::Optimizer;
-use super::adaptor::ModuleOptimizer;
 use super::decay::{WeightDecay, WeightDecayConfig};
+use super::module_optimizer::ModuleOptimizer;
 use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::LearningRate;
 use crate::grad_clipping::GradientClippingConfig;
@@ -99,10 +99,7 @@ impl Optimizer for Sgd {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        grad_clipping::GradientClipping,
-        optim::GradientsParams,
-    };
+    use crate::{grad_clipping::GradientClipping, optim::GradientsParams};
     use burn::tensor::{Distribution, Shape};
     use burn_nn::{Linear, LinearConfig};
 

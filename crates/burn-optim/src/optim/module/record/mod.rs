@@ -2,9 +2,9 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use burn_core as burn;
 use burn::store::RecordError;
 use burn::tensor::Bytes;
+use burn_core as burn;
 
 use burn_pack::{Reader, Writer};
 

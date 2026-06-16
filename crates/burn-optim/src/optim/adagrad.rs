@@ -9,8 +9,8 @@ use burn::tensor::Tensor;
 
 use super::{
     Optimizer,
-    adaptor::ModuleOptimizer,
     decay::{WeightDecay, WeightDecayConfig},
+    module_optimizer::ModuleOptimizer,
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 

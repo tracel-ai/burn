@@ -1,12 +1,12 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::tensor::Device;
-use burn::tensor::Tensor;
 use burn::record::Record;
 use burn::store::OptimState;
+use burn::tensor::Device;
+use burn::tensor::Tensor;
 
-use super::{Optimizer, adaptor::ModuleOptimizer};
+use super::{Optimizer, module_optimizer::ModuleOptimizer};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]

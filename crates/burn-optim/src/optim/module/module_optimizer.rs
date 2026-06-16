@@ -68,7 +68,7 @@ impl ModuleOptimizer {
         module: M,
         mut grads: GradAdaptor,
     ) -> M {
-        module.map(&mut SimpleOptimizerMapper::new(
+        module.map(&mut ModuleOptimizerMapper::new(
             &self.optim,
             &mut self.states,
             &mut grads,
@@ -145,7 +145,9 @@ impl ModuleOptimizer {
         let mut states = HashMap::new();
         for (id, rank) in ranks {
             let prefix = id.to_string();
-            let state = self.optim.state_unflatten(rank, &prefix, &mut source, device);
+            let state = self
+                .optim
+                .state_unflatten(rank, &prefix, &mut source, device);
             states.insert(ParamId::from(id), state);
         }
 
@@ -218,7 +220,7 @@ impl GradAdaptor {
 }
 
 #[derive(new)]
-struct SimpleOptimizerMapper<'a> {
+struct ModuleOptimizerMapper<'a> {
     optimizer: &'a Arc<dyn DynOptimizer>,
     states: &'a mut HashMap<ParamId, DynState>,
     grads: &'a mut GradAdaptor,
@@ -226,7 +228,7 @@ struct SimpleOptimizerMapper<'a> {
     grad_clipping: Option<&'a GradientClipping>,
 }
 
-impl ModuleMapper for SimpleOptimizerMapper<'_> {
+impl ModuleMapper for ModuleOptimizerMapper<'_> {
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, tensor, mapper) = param.consume();
         let grad = self.grads.remove(id);

@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     Optimizer,
-    adaptor::ModuleOptimizer,
     decay::WeightDecayConfig,
+    module_optimizer::ModuleOptimizer,
     momentum::{Momentum, MomentumConfig, MomentumState},
 };
 use crate::LearningRate;

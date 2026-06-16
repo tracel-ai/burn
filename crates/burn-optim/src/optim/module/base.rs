@@ -60,12 +60,22 @@ impl DynState {
         }
     }
 
-    /// Recover the concrete state. Panics if `T` does not match the stored type.
-    pub fn downcast<T: Clone + 'static>(&self) -> T {
+    /// Recover the concrete state by value, moving it out when this is the only handle and
+    /// cloning only when the underlying state is still shared. Panics if `T` does not match the
+    /// stored type.
+    pub fn downcast<T: Clone + Send + Sync + 'static>(self) -> T {
+        let state = self
+            .state
+            .downcast::<T>()
+            .expect("The dynamic optimizer state should match the optimizer state type.");
+        Arc::try_unwrap(state).unwrap_or_else(|state| (*state).clone())
+    }
+
+    /// Borrow the concrete state without cloning. Panics if `T` does not match the stored type.
+    pub fn downcast_ref<T: 'static>(&self) -> &T {
         self.state
             .downcast_ref::<T>()
             .expect("The dynamic optimizer state should match the optimizer state type.")
-            .clone()
     }
 
     /// The rank of the parameter this state belongs to.
@@ -178,8 +188,7 @@ impl<O: Optimizer> DynOptimizer for O {
 
     fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut OptimStateSink) {
         dispatch_rank!(state.rank(), D => {
-            let state = state.downcast::<O::State<D>>();
-            OptimState::state_flatten(&state, prefix, out);
+            OptimState::state_flatten(state.downcast_ref::<O::State<D>>(), prefix, out);
         })
     }
 

@@ -9,8 +9,8 @@ use burn::tensor::Tensor;
 
 use super::{
     Optimizer,
-    adaptor::ModuleOptimizer,
     decay::{WeightDecay, WeightDecayConfig},
+    module_optimizer::ModuleOptimizer,
 };
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
@@ -295,7 +295,8 @@ mod tests {
         let x = Tensor::<2>::ones([2, 6], &device)
             .mul_scalar(0.4)
             .require_grad();
-        let grads_original = GradientsParams::from_grads(linear.forward(x.clone()).backward(), &linear);
+        let grads_original =
+            GradientsParams::from_grads(linear.forward(x.clone()).backward(), &linear);
         let grads_reloaded = GradientsParams::from_grads(linear.forward(x).backward(), &linear);
 
         let from_original = optimizer.step(LEARNING_RATE, linear.clone(), grads_original);

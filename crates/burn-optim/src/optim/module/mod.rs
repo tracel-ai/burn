@@ -2,7 +2,7 @@ mod base;
 pub use base::*;
 
 /// Adaptor module for optimizers.
-pub mod adaptor;
+pub mod module_optimizer;
 
 /// Record module for optimizers.
 pub mod record;
