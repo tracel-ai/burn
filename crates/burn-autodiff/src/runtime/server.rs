@@ -135,6 +135,9 @@ impl AutodiffServer {
             // Clean up consumed node
             consumed.push(id);
 
+            // println!("id: {id}");
+            // println!("step name: {}", step.concrete_name());
+
             let depth = step.depth();
 
             #[cfg(feature = "std")]

@@ -94,6 +94,9 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
     dim1: usize,
     dim2: usize,
 ) -> CubeTensor<R> {
+    // println!("swap_dims");
+    // println!("tensor: {:?}", tensor.meta.strides);
+
     tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = tensor.dtype
@@ -127,6 +130,8 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
             *packed_dim = rank - dim1 - 1;
         }
     }
+
+    // println!("after: {:?}", tensor.meta.strides);
 
     tensor
 }

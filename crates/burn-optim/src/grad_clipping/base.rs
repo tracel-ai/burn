@@ -66,19 +66,35 @@ impl GradientClipping {
 
     fn clip_by_norm<const D: usize>(&self, grad: Tensor<D>, threshold: f32) -> Tensor<D> {
         let norm = Self::l2_norm(grad.clone());
+        // println!("norm: {norm}");
         let min_positive = grad
             .dtype()
             .finfo()
             .unwrap_or(burn::tensor::FloatDType::F32.finfo())
             .min_positive;
+        // // TODO: remove.
+        // let min_positive = 1e-5;
         let clip_coef = threshold / norm.add_scalar(min_positive);
+        // println!("coef: {clip_coef}");
         let clip_coef_clamped = clip_coef.clamp_max(1.0);
+        // println!("coef clip_coef_clamped: {clip_coef_clamped}");
         grad.mul(clip_coef_clamped.unsqueeze())
     }
 
     fn l2_norm<const D: usize>(tensor: Tensor<D>) -> Tensor<1> {
+        // println!("min grad: {}", tensor.clone().min());
+        // println!("max grad: {}", tensor.clone().max());
+        // if tensor.clone().contains_nan().into_scalar() {
+        //     println!("grad: {}", tensor);
+        // }
         let squared = tensor.square();
+        // println!("squared min: {}", squared.clone().min());
+        // println!("squared max: {}", squared.clone().max());
+        // println!("squared nans: {}", squared.clone().contains_nan());
         let sum = squared.sum();
+        // println!("sum: {sum}");
+        let sum = sum.add_scalar(1e-5);
+        // println!("sum + eps: {sum}");
         sum.sqrt()
     }
 }

@@ -154,6 +154,11 @@ where
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let dtype = lhs.dtype;
+
+        // println!("Cubecl matmul");
+        // println!("lhs: {:?}", lhs.meta.strides);
+        // println!("rhs: {:?}", rhs.meta.strides);
+
         matmul(lhs, rhs, None, MatmulStrategy::default(), dtype).unwrap()
     }
 

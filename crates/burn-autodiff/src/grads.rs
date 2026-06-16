@@ -1,5 +1,5 @@
 use alloc::boxed::Box;
-use burn_backend::{Backend, TensorMetadata, TensorPrimitive, tensor::FloatTensor};
+use burn_backend::{Backend, TensorMetadata, TensorPrimitive, read_sync, tensor::FloatTensor};
 use burn_std::tensor::container::TensorContainer;
 
 use crate::{
@@ -118,6 +118,7 @@ impl Gradients {
 
     /// Gets a grad tensor from the container.
     pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
+        println!("{}", tensor.node.id.value);
         self.container
             .get::<TensorPrimitive<B>>(&tensor.node.id.value)
             .map(|tensor| tensor.tensor())
@@ -129,6 +130,16 @@ impl Gradients {
     ///
     /// If the registered tensor is distributed, launches a syncing operation on the gradients.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
+        // let data = read_sync(B::float_into_data(value.clone())).unwrap();
+        // println!("gradients register node: {node_id}");
+        // let bytes = data.as_bytes();
+        // if bytes[0] == 255 && bytes[1] == 255 && bytes[2] == 255 {
+        //     println!("FOUND NAAAAN");
+        //     println!("node for nan: {node_id}");
+        //     // let data = data.to_vec::<f32>().unwrap();
+        //     // println!("data: {data:?}");
+        // }
+
         let out =
             if let Some(tensor_old) = self.container.remove::<TensorPrimitive<B>>(&node_id.value) {
                 B::float_add(value, tensor_old.tensor())

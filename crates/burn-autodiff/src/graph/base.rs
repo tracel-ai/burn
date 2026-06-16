@@ -1,3 +1,5 @@
+use std::any::type_name;
+
 use super::NodeId;
 use crate::{checkpoint::base::Checkpointer, grads::Gradients, graph::Parent};
 use alloc::boxed::Box;
@@ -20,6 +22,10 @@ pub trait Step: Send + core::fmt::Debug {
     /// Defaults to `None`; steps that carry distributed parameters override this.
     fn distributed_params(&self) -> Option<DistributedParams> {
         None
+    }
+
+    fn concrete_name(&self) -> &'static str {
+        type_name::<Self>()
     }
 }
 

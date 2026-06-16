@@ -20,7 +20,7 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, ExecutionError, TensorData, TensorMetadata, get_device_settings,
+    Backend, BackendTypes, ExecutionError, TensorData, TensorMetadata, get_device_settings,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -927,6 +927,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let (shape_original, shape) = ops.state;
                 let ndims_out = shape.num_dims();
+
+                // println!("reshape bw");
+                // println!("shape original: {shape_original}");
+                // println!("shape new: {shape}");
+                // println!("n_dims_out: {ndims_out}");
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     let shape_grad = grad.shape();
@@ -2420,13 +2425,40 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 checkpointer: &mut Checkpointer,
             ) {
                 let (tensor_id, value) = ops.state;
-                let tensor = checkpointer.retrieve_node_output(tensor_id);
+                let tensor: <B as BackendTypes>::FloatTensorPrimitive =
+                    checkpointer.retrieve_node_output(tensor_id);
+
+                // println!("powf_bw");
+                // println!("{value}");
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // let data = burn_backend::read_sync(B::float_into_data(grad.clone())).unwrap();
+                    // println!("before");
+                    // let data = data.to_vec::<f32>().unwrap();
+                    // println!("data: {data:?}");
+
+                    // let data = burn_backend::read_sync(B::float_into_data(tensor.clone())).unwrap();
+                    // println!("before tensor");
+                    // let data = data.to_vec::<f32>().unwrap();
+                    // println!("data tensor: {data:?}");
+
                     let tmp = B::float_powf_scalar(tensor, (value - 1.).into());
+
+                    // let data = burn_backend::read_sync(B::float_into_data(tmp.clone())).unwrap();
+                    // println!("tmp");
+                    // let data = data.to_vec::<f32>().unwrap();
+                    // println!("data tmp: {data:?}");
+
                     let value = B::float_mul_scalar(tmp, value.into());
 
-                    B::float_mul(grad, value)
+                    let res = B::float_mul(grad, value);
+
+                    // println!("after");
+                    // let data = burn_backend::read_sync(B::float_into_data(res.clone())).unwrap();
+                    // let data = data.to_vec::<f32>().unwrap();
+                    // println!("data: {data:?}");
+
+                    res
                 });
             }
         }

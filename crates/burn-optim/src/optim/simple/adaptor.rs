@@ -180,6 +180,10 @@ where
                 tensor
             };
 
+            // println!("Simple optim for param: {}", id);
+            // println!("min grad: {}", grad.clone().min());
+            // println!("max grad: {}", grad.clone().max());
+
             debug_assert_eq!(
                 grad.device(),
                 device,
@@ -190,6 +194,10 @@ where
             } else {
                 grad
             };
+
+            // println!("After clip");
+            // println!("min grad: {}", clipped_grad.clone().min());
+            // println!("max grad: {}", clipped_grad.clone().max());
 
             debug_assert_eq!(
                 tensor.device(),

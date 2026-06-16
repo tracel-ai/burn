@@ -188,10 +188,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),
                 false,
             ),
-            (
-                Strategy::Gemm(BlueprintStrategy::Inferred(Default::default())),
-                false,
-            ),
+            // (
+            //     Strategy::Gemm(BlueprintStrategy::Inferred(Default::default())),
+            //     false,
+            // ),
             (
                 Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(Default::default())),
                 false,
@@ -243,19 +243,19 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
         // Gemm no stage
         // In unit because not accelerated
-        let gemm_no_stage_strategy = Strategy::Gemm(BlueprintStrategy::Inferred(GemmStrategy {
-            target_num_planes: None,
-        }));
-        set = set.with(
-            Tunable::new(
-                &gemm_no_stage_strategy.to_string(),
-                move |(lhs, rhs, out)| {
-                    launch_matmul::<R>(&gemm_no_stage_strategy, lhs, rhs, out)
-                        .map_err(|err| format!("{err:?}"))
-                },
-            )
-            .group(&unit, move |_key| PRIORITY_MAX),
-        );
+        // let gemm_no_stage_strategy = Strategy::Gemm(BlueprintStrategy::Inferred(GemmStrategy {
+        //     target_num_planes: None,
+        // }));
+        // set = set.with(
+        //     Tunable::new(
+        //         &gemm_no_stage_strategy.to_string(),
+        //         move |(lhs, rhs, out)| {
+        //             launch_matmul::<R>(&gemm_no_stage_strategy, lhs, rhs, out)
+        //                 .map_err(|err| format!("{err:?}"))
+        //         },
+        //     )
+        //     .group(&unit, move |_key| PRIORITY_MAX),
+        // );
 
         // Accelerated matmuls
         for (strategy, double_buf, group_extra, tile_group) in [

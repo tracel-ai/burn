@@ -103,6 +103,7 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: The gradients of each parameter in the current model.
     pub fn optimizer_step(&mut self, grads: GradientsParams) {
+        // println!("OPTIM STEP");
         self.model = self.model().optimize(&mut self.optim, self.lr, grads);
     }
 
