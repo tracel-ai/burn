@@ -10,7 +10,6 @@ use proc_macro::TokenStream;
 pub(crate) mod config;
 pub(crate) mod module;
 pub(crate) mod record_state;
-pub(crate) mod record;
 pub(crate) mod shared;
 
 /// Derive macro for the `Module` trait.
@@ -65,13 +64,6 @@ pub(crate) mod shared;
 pub fn module_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();
     module::derive_impl(&input)
-}
-
-/// Derive macro for the record.
-#[proc_macro_derive(Record)]
-pub fn record_derive(input: TokenStream) -> TokenStream {
-    let input = syn::parse(input).unwrap();
-    record::derive_impl(&input)
 }
 
 /// Derive macro for the config.

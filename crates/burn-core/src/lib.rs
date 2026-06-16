@@ -21,10 +21,7 @@ pub mod data;
 /// Module for the neural network module.
 pub mod module;
 
-/// Module for the recorder.
-pub mod record;
-
-/// Minimal non-generic record system (burnpack-based), built alongside [`record`].
+/// Module for saving and loading module/optimizer state in the burnpack format.
 pub mod store;
 
 /// Module for the tensor.

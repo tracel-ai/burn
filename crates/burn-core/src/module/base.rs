@@ -1,5 +1,4 @@
 use super::{Param, ParamId, Quantizer};
-use crate::record::Record;
 use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Device, Int, Tensor};
@@ -67,9 +66,6 @@ macro_rules! module {
 /// }
 /// ```
 pub trait Module: Clone + Send + core::fmt::Debug {
-    /// Type to save and load the module.
-    type Record: Record;
-
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
     fn collect_devices(&self, devices: Devices) -> Devices;
@@ -142,67 +138,6 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
     /// Map each tensor parameter in the module with a [mapper](ModuleMapper).
     fn map<Mapper: ModuleMapper>(self, mapper: &mut Mapper) -> Self;
-
-    /// Load the module state from a record.
-    fn load_record(self, record: Self::Record) -> Self;
-
-    /// Convert the module into a record containing the state.
-    fn into_record(self) -> Self::Record;
-
-    #[cfg(feature = "std")]
-    /// Save the module to a file using the provided [file recorder](crate::record::FileRecorder).
-    ///
-    /// List of supported file recorders:
-    ///
-    /// * [default](crate::record::DefaultFileRecorder)
-    /// * [bincode](crate::record::BinFileRecorder)
-    /// * [bincode compressed with gzip](crate::record::BinGzFileRecorder)
-    /// * [json pretty](crate::record::PrettyJsonFileRecorder)
-    /// * [json compressed with gzip](crate::record::JsonGzFileRecorder)
-    /// * [named mpk](crate::record::NamedMpkFileRecorder)
-    /// * [named mpk compressed with gzip](crate::record::NamedMpkGzFileRecorder)
-    ///
-    /// ## Notes
-    ///
-    /// The file extension is automatically added depending on the file recorder provided, you
-    /// don't have to specify it.
-    fn save_file<FR, PB>(
-        self,
-        file_path: PB,
-        recorder: &FR,
-    ) -> Result<(), crate::record::RecorderError>
-    where
-        FR: crate::record::FileRecorder,
-        PB: Into<std::path::PathBuf>,
-    {
-        let record = Self::into_record(self);
-        recorder.record(record, file_path.into())
-    }
-
-    #[cfg(feature = "std")]
-    /// Load the module from a file using the provided [file recorder](crate::record::FileRecorder).
-    ///
-    /// The recorder should be the same as the one used to save the module, see
-    /// [save_file](Self::save_file).
-    ///
-    /// ## Notes
-    ///
-    /// The file extension is automatically added depending on the file recorder provided, you
-    /// don't have to specify it.
-    fn load_file<FR, PB>(
-        self,
-        file_path: PB,
-        recorder: &FR,
-        device: &Device,
-    ) -> Result<Self, crate::record::RecorderError>
-    where
-        FR: crate::record::FileRecorder,
-        PB: Into<std::path::PathBuf>,
-    {
-        let record = recorder.load(file_path.into(), device)?;
-
-        Ok(self.load_record(record))
-    }
 
     /// Quantize the weights of the module.
     fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
