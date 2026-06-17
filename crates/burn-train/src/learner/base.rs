@@ -184,7 +184,7 @@ impl<LC: LearningComponentsTypes> LearningCheckpointer<LC> {
     ) -> Learner<LC> {
         let record = self
             .model
-            .restore(epoch, &device)
+            .restore(epoch, device)
             .expect("Can load model checkpoint.");
         learner.load_model(record);
 
