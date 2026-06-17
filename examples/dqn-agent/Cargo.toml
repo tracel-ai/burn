@@ -1,7 +1,18 @@
+# This example is excluded from the main Burn workspace because `gym-rs` pulls in native SDL2
+# dependencies that don't build in every environment (e.g. CI). The empty `[workspace]` table below
+# makes this crate its own workspace root, so it can be built standalone from this directory:
+#
+#     cargo build
+#
+# (Depending on your system you may need `CMAKE_POLICY_VERSION_MINIMUM=3.5` and/or
+# `CFLAGS="-std=gnu11"` for the vendored SDL2 build.)
+[workspace]
+
 [package]
 name = "dqn-agent"
-edition.workspace = true
+edition = "2024"
 version = "0.22.0-pre.1"
+publish = false
 
 [features]
 default = ["burn/default", "burn/tui"]
@@ -15,7 +26,7 @@ rocm = ["burn/rocm"]
 
 [dependencies]
 # Disable autotune default for now.
-burn = { workspace = true, features = [
+burn = { path = "../../crates/burn", version = "0.22.0-pre.1", default-features = false, features = [
     "train",
     "metrics",
     "std",
@@ -25,8 +36,5 @@ burn = { workspace = true, features = [
 ] }
 # Just for this example.
 gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }
-rand.workspace = true
-derive-new = { workspace = true }
-
-[lints]
-workspace = true
+rand = { version = "0.10.1", default-features = false, features = ["std_rng"] }
+derive-new = { version = "0.7.0", default-features = false }
