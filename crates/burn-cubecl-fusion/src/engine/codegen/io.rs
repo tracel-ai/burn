@@ -475,15 +475,18 @@ pub fn write<C: Scalar, N: Size>(
     }
 }
 
-/// Writes a [Vector] value element-by-element to an output tensor whose vector_size
-/// differs from the computation width. Mirrors [read_input_aligned] for the write path.
+/// Writes a [Vector] value to an output tensor whose `vector_size` differs from the computation
+/// width. Mirrors [read_input_aligned] for the write path.
 ///
-/// This only handles outputs that are *less* vectorized than the computation
-/// (`output vector_size <= config.width`), de-vectorizing the value into the output slots.
-/// The inverse — an output more vectorized than the block that writes it — cannot be expressed
-/// as a valid store (it would store a narrow value into a wider vector slot, and multiple units
-/// would race on the same output line); the vectorization planner guarantees it never happens by
-/// falling back to a `vector_size` of 1 for such outputs (see issue #5060).
+/// The output buffer is typed as `vector<C, output_vs>`, so every store must target a full line —
+/// never a scalar into a vector slot (the invalid IR of issue #5060).
+///
+/// * `output_vs <= config.width` (the normal case the planner produces, including the fully
+///   de-vectorized `output_vs == 1`): each output line is fully covered by this unit's computed
+///   lanes, so we build and store whole lines with no read and no cross-unit races.
+/// * `output_vs > config.width` (degenerate; the planner clamps such outputs to `vector_size` 1 so
+///   it should not occur): this unit owns only part of each output line, so we read-modify-write
+///   the line to keep the store valid instead of emitting an invalid scalar-into-vector store.
 #[cube]
 fn write_output_aligned<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
@@ -497,40 +500,54 @@ fn write_output_aligned<C: Scalar, N: Size>(
 ) {
     let tensor = outputs.tensors.index(pos);
     set_polyfill::<DynElem, DynSize>(comptime![tensor.ty]);
-
-    // Safety net: an output more vectorized than the computation width cannot be written here.
-    // The planner clamps such outputs to a `vector_size` of 1, so reaching this is a planning bug.
-    if comptime![tensor.tensor.vector_size() > config.width] {
-        comptime![panic!(
-            "Invalid fused output vectorization: output vector_size ({}) exceeds the fused block \
-             width ({}). This is a vectorization planning bug (see #5060).",
-            tensor.tensor.vector_size(),
-            config.width
-        )];
-    }
+    let output_vs = comptime![tensor.tensor.vector_size()];
 
     match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
-            let offset = (ref_pos * config.width) / tensor.tensor.vector_size();
             let output = outputs.tensors.index_mut(pos);
             let stride = output.tensor.stride(config.rank - 1);
 
-            #[unroll]
-            for i in 0..config.width {
-                let idx = offset + i * stride;
-                let val = if comptime![value.vector_size() == config.width] {
-                    Vector::cast_from(value.extract(i))
-                } else {
-                    Vector::cast_from(value.extract(i % value.vector_size()))
-                };
-                output.tensor[idx] = val;
+            if comptime![output_vs <= config.width] {
+                // Each group of `output_vs` computed lanes forms one full output line.
+                let base = (ref_pos * config.width) / output_vs;
+
+                #[unroll]
+                for slot in 0..comptime![config.width / output_vs] {
+                    let mut line = Vector::<DynElem, DynSize>::empty();
+                    #[unroll]
+                    for j in 0..output_vs {
+                        let i = slot * output_vs + j;
+                        let val = if comptime![value.vector_size() == config.width] {
+                            value.extract(i)
+                        } else {
+                            value.extract(i % value.vector_size())
+                        };
+                        line.insert(j, DynElem::cast_from(val));
+                    }
+                    output.tensor[base + slot * stride] = line;
+                }
+            } else {
+                // This unit owns lanes `[sub, sub + config.width)` of a single output line.
+                let line_idx = (ref_pos * config.width) / output_vs;
+                let sub = (ref_pos * config.width) % output_vs;
+                let mut line = output.tensor[line_idx];
+
+                #[unroll]
+                for j in 0..config.width {
+                    let val = if comptime![value.vector_size() == config.width] {
+                        value.extract(j)
+                    } else {
+                        value.extract(j % value.vector_size())
+                    };
+                    line.insert(sub + j, DynElem::cast_from(val));
+                }
+                output.tensor[line_idx] = line;
             }
         }
         LayoutInfo::Unknown => {
-            // When layout differs from ref, each of the config.width elements may map
-            // to a different offset in the output (or to the same offset when the output
-            // has broadcast dimensions). Compute each element's offset individually to
-            // avoid cross-contamination of neighboring elements.
+            // When layout differs from ref, each of the `config.width` elements may map to a
+            // different output offset (or to the same offset when the output has broadcast
+            // dimensions), so each element's flat offset is computed individually.
             let base_flat = ref_pos * config.width;
 
             #[unroll]
@@ -548,11 +565,21 @@ fn write_output_aligned<C: Scalar, N: Size>(
                 let output = outputs.tensors.index_mut(pos);
 
                 let val = if comptime![value.vector_size() == config.width] {
-                    Vector::cast_from(value.extract(i))
+                    value.extract(i)
                 } else {
-                    Vector::cast_from(value.extract(i % value.vector_size()))
+                    value.extract(i % value.vector_size())
                 };
-                output.tensor[offset] = val;
+
+                if comptime![output_vs == 1] {
+                    output.tensor[offset] = Vector::cast_from(val);
+                } else {
+                    // Read-modify-write the enclosing line so the store stays valid.
+                    let line_idx = offset / output_vs;
+                    let sub = offset % output_vs;
+                    let mut line = output.tensor[line_idx];
+                    line.insert(sub, DynElem::cast_from(val));
+                    output.tensor[line_idx] = line;
+                }
             }
         }
     }
