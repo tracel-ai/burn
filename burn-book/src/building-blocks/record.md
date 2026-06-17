@@ -55,9 +55,9 @@ Load-time behavior is configured with builder methods on the record (ignored whe
 - `.cast_to_module_dtype()` / `.with_dtype_policy(..)` — cast the record's data to the module
   parameter dtypes on load (by default the parameter adopts the record's dtype).
 
-The save-side dtype is not configurable: the record stores whatever dtype the module currently holds,
-so call `module.cast(dtype)` before taking the record to change it. Use `try_load_record` for the
-fallible variant of `load_record`.
+The save-side dtype is not configurable: the record stores whatever dtype the module currently holds.
+To control the dtype applied on load, use `.cast_to_module_dtype()` / `.with_dtype_policy(..)` above.
+Use `try_load_record` for the fallible variant of `load_record`.
 
 ### `OptimizerRecord` and `LrSchedulerRecord`
 
@@ -65,9 +65,10 @@ The optimizer and learning rate scheduler expose the same shape of API, used to 
 training:
 
 ```rust, ignore
-// Optimizer state (tensors live on a device).
+// Optimizer state (no device needed on load; state migrates to each parameter's device on the
+// next step).
 optimizer.save("optim")?;
-let optimizer = optimizer.load("optim", &device)?;
+let optimizer = optimizer.load("optim")?;
 
 // Learning rate scheduler state (scalars only).
 scheduler.to_record().save("scheduler")?;

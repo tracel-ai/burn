@@ -8,15 +8,18 @@ use crate::{
 
 use alloc::collections::BTreeMap;
 use alloc::string::ToString;
+use alloc::sync::Arc;
 use alloc::vec::Vec;
-
-/// Scalar key (per parameter) under which the parameter's state rank is persisted.
-const RANK_KEY: &str = "__rank";
 use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use hashbrown::HashMap;
-use std::sync::Arc;
+
+/// Scalar key (per parameter) under which the parameter's state rank is persisted.
+///
+/// Reserved: a custom [`Optimizer::State`](crate::Optimizer::State) must not have a top-level
+/// scalar field named `__rank`, as it would collide with this key in the record.
+const RANK_KEY: &str = "__rank";
 
 /// Optimizes a whole module by applying a per-parameter [`Optimizer`] to each of its parameters.
 ///

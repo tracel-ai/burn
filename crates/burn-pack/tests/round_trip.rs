@@ -253,6 +253,29 @@ fn file_round_trip() {
 }
 
 #[test]
+fn extensionless_path_appends_bpk() {
+    let dir = tempfile::tempdir().unwrap();
+    // No extension on the path: the writer should append `.bpk`, and the reader should find it
+    // when given the same extension-less path.
+    let path = dir.path().join("model");
+
+    Writer::new(vec![f32_tensor("weight", &[1.0, 2.0], &[2], Some(7))])
+        .write_to_file(&path)
+        .unwrap();
+
+    assert!(
+        path.with_extension("bpk").exists(),
+        "writer should have created `model.bpk`"
+    );
+    assert!(!path.exists(), "no extension-less `model` file should exist");
+
+    let reader = Reader::from_file(&path).unwrap();
+    let tensors = reader.into_tensors().unwrap();
+    assert_eq!(read_f32(&tensors[0]), vec![1.0, 2.0]);
+    assert_eq!(tensors[0].param_id, Some(7));
+}
+
+#[test]
 fn typed_scalars_round_trip() {
     let packed = Writer::new(vec![f32_tensor("w", &[1.0], &[1], None)])
         .with_scalar("step", Scalar::UInt(42))

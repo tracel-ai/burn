@@ -73,9 +73,9 @@ struct RecordTensor {
 
 /// A non-generic record holding a module's parameters.
 ///
-/// Obtain one from a module with [`Module::into_record`](crate::module::Module::into_record), then
-/// either save it ([`save`](ModuleRecord::save) / [`into_bytes`](ModuleRecord::into_bytes)) or apply
-/// it back with [`Module::load_record`](crate::module::Module::load_record). Load-time behavior is
+/// Obtain one from a module with [`Module::into_record`], then either save it
+/// ([`save`](ModuleRecord::save) / [`into_bytes`](ModuleRecord::into_bytes)) or apply it back with
+/// [`Module::load_record`]. Load-time behavior is
 /// configured with the builder methods; they are ignored when saving.
 ///
 /// The save-side dtype is intentionally not configurable: use `module.cast(dtype)` before

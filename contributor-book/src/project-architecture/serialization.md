@@ -79,7 +79,8 @@ Load-time behavior is configured with builder methods on the record, ignored whe
   parameter's current dtype (`DTypePolicy::CastToModule`).
 
 The save-side dtype is not configurable: the record stores whatever dtype the module currently
-holds, so use `module.cast(dtype)` before taking the record to change it.
+holds. The dtype applied on load is controlled by the record's `DTypePolicy`
+(`.cast_to_module_dtype()` / `.with_dtype_policy(..)`).
 
 This module in `burn-core` is intentionally tiny — no filtering, key remapping, or adapters. The
 richer snapshot/import tooling (filtering, key remapping, PyTorch/SafeTensors cross-framework stores)
@@ -93,7 +94,8 @@ few typed scalar entries kept in the burnpack scalar map (including a `__rank` s
 can be reconstructed without inferring rank from tensor shapes).
 
 - `optimizer.to_record()` flattens each parameter's `DynState` into tensors and scalars.
-- `optimizer.load_record(record, &device)` reconstructs the states, placing tensors on `device`.
+- `optimizer.load_record(record)` reconstructs the states (no device argument: tensors load on the
+  default device and migrate to each parameter's device on the next step).
 
 ### `LrSchedulerRecord` (`burn-optim`)
 
