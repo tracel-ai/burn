@@ -66,14 +66,7 @@ impl GateController {
     /// allowing for predictable behavior. Used only for testing in
     /// lstm.
     #[cfg(test)]
-    pub fn create_with_weights(
-        _d_input: usize,
-        _d_output: usize,
-        _bias: bool,
-        _initializer: Initializer,
-        input_transform: Linear,
-        hidden_transform: Linear,
-    ) -> Self {
+    pub fn create_with_weights(input_transform: Linear, hidden_transform: Linear) -> Self {
         Self {
             input_transform,
             hidden_transform,

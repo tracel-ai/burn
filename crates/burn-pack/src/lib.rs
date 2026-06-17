@@ -122,6 +122,9 @@ pub use reader::Reader;
 pub use tensor::Tensor;
 pub use writer::Writer;
 
+/// The canonical file extension for burnpack files (without the leading dot).
+pub const EXTENSION: &str = "bpk";
+
 // Re-export the core types so callers can build [`Tensor`] entries and inspect descriptors
 // without depending on `burn-std` directly.
 pub use burn_std::{Bytes, DType, Shape};

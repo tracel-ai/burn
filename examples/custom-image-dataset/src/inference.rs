@@ -4,7 +4,7 @@ use burn::{
         dataset::vision::{Annotation, ImageDatasetItem},
     },
     module::Module,
-    store::{ModuleRecord, ModuleRecordExt},
+    store::ModuleRecord,
     tensor::backend::Backend,
 };
 
@@ -16,7 +16,7 @@ pub fn infer(artifact_dir: &str, device: Device, item: ImageDatasetItem) {
     let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist");
 
-    let model = Cnn::new(NUM_CLASSES.into(), &device).load_record_next(record);
+    let model = Cnn::new(NUM_CLASSES.into(), &device).load_record(record);
 
     let mut label = 0;
     if let Annotation::Label(category) = item.annotation {

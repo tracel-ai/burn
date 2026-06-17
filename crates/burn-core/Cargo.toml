@@ -54,9 +54,6 @@ std = [
 vision = ["burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
 
-# Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
-record-item-custom-serde = ["thiserror"]
-
 # Backends
 remote = ["burn-tensor/remote"]
 server = ["burn-tensor/server"]
@@ -116,7 +113,6 @@ num-traits = { workspace = true }
 rmp-serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 spin = { workspace = true }                             # Using in place of use std::sync::Mutex when std is disabled
-thiserror = { workspace = true, optional = true }
 
 [target.'cfg(target_has_atomic = "ptr")'.dependencies]
 regex = { workspace = true }

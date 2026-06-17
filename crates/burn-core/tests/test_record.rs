@@ -2,10 +2,10 @@
 //!
 //! Saves a (nested) module to a burnpack record, loads it back into a freshly initialized
 //! module, and checks the parameters round-trip — exercising the public API exactly as a user
-//! would (`into_record_next` / `save` / `load` / `load_record_next`).
+//! would (`into_record` / `save` / `load` / `load_record`).
 
 use burn::module::{Module, Param};
-use burn::store::{ModuleRecordExt, ModuleRecord};
+use burn::store::ModuleRecord;
 use burn::tensor::Tensor;
 use burn_core as burn;
 use burn_tensor::Device;
@@ -83,13 +83,13 @@ fn save_and_load_module_via_file() {
     let path = dir.path().join("mlp.bpk");
 
     // Save a trained module to a record on disk.
-    let record = Mlp::sample(&device).into_record_next();
+    let record = Mlp::sample(&device).into_record();
     assert_eq!(record.len(), 4); // first.weight, first.bias, second.weight, second.bias
     record.save(&path).unwrap();
 
     // Load the record and apply it onto a freshly initialized (zeroed) module.
     let record = ModuleRecord::load(&path).unwrap();
-    let loaded = Mlp::zeros(&device).load_record_next(record);
+    let loaded = Mlp::zeros(&device).load_record(record);
 
     assert_matches_sample(&loaded);
 }
@@ -99,12 +99,12 @@ fn save_and_load_module_via_bytes() {
     let device = Default::default();
 
     let bytes = Mlp::sample(&device)
-        .into_record_next()
+        .into_record()
         .into_bytes()
         .unwrap();
 
     let record = ModuleRecord::from_bytes(bytes).unwrap();
-    let loaded = Mlp::zeros(&device).load_record_next(record);
+    let loaded = Mlp::zeros(&device).load_record(record);
 
     assert_matches_sample(&loaded);
 }
@@ -117,16 +117,16 @@ fn missing_parameters_require_allow_partial() {
     let partial = FirstOnly {
         first: Layer::from_values([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device),
     }
-    .into_record_next();
+    .into_record();
     let bytes = partial.into_bytes().unwrap();
 
     // Strict load into the full Mlp fails: `second.*` is missing from the record.
     let strict = ModuleRecord::from_bytes(bytes.clone()).unwrap();
-    assert!(Mlp::zeros(&device).try_load_record_next(strict).is_err());
+    assert!(Mlp::zeros(&device).try_load_record(strict).is_err());
 
     // With `allow_partial`, the present params load and the rest keep their init.
     let lenient = ModuleRecord::from_bytes(bytes).unwrap().allow_partial(true);
-    let loaded = Mlp::zeros(&device).load_record_next(lenient);
+    let loaded = Mlp::zeros(&device).load_record(lenient);
 
     let (w1, b1) = loaded.first.values();
     assert_eq!(w1, vec![1.0, 2.0, 3.0, 4.0]);

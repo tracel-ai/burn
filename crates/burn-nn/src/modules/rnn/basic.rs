@@ -401,10 +401,6 @@ mod tests {
     fn create_single_feature_gate_controller(
         weights: f32,
         biases: f32,
-        d_input: usize,
-        d_output: usize,
-        bias: bool,
-        initializer: Initializer,
         device: &Device,
     ) -> GateController {
         let record_1 = Linear {
@@ -415,14 +411,7 @@ mod tests {
             weight: Param::from_data(TensorData::from([[weights]]), device),
             bias: Some(Param::from_data(TensorData::from([biases]), device)),
         };
-        GateController::create_with_weights(
-            d_input,
-            d_output,
-            bias,
-            initializer,
-            record_1,
-            record_2,
-        )
+        GateController::create_with_weights(record_1, record_2)
     }
 
     #[test]
@@ -453,15 +442,7 @@ mod tests {
         let device = Default::default();
         let mut rnn = config.init(&device);
 
-        rnn.gate = create_single_feature_gate_controller(
-            0.5,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierUniform { gain: 1.0 },
-            &device,
-        );
+        rnn.gate = create_single_feature_gate_controller(0.5, 0.0, &device);
 
         // single timestep with single feature
         let input = Tensor::<3>::from_data(TensorData::from([[[0.1]]]), &device);
@@ -535,9 +516,6 @@ mod tests {
             hidden_biases: [f32; D1],
             device: &Device,
         ) -> GateController {
-            let d_input = input_weights[0].len();
-            let d_output = input_weights.len();
-
             let input_record = Linear {
                 weight: Param::from_data(TensorData::from(input_weights), device),
                 bias: Some(Param::from_data(TensorData::from(input_biases), device)),
@@ -546,14 +524,7 @@ mod tests {
                 weight: Param::from_data(TensorData::from(hidden_weights), device),
                 bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
             };
-            GateController::create_with_weights(
-                d_input,
-                d_output,
-                true,
-                Initializer::XavierUniform { gain: 1.0 },
-                input_record,
-                hidden_record,
-            )
+            GateController::create_with_weights(input_record, hidden_record)
         }
 
         // [batch_size=1, seq_length=4, input_size=2]
@@ -701,15 +672,7 @@ mod tests {
         let config = RnnConfig::new(1, 1, false).with_reverse(true);
         let mut rnn = config.init(&device);
 
-        rnn.gate = create_single_feature_gate_controller(
-            0.5,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierUniform { gain: 1.0 },
-            &device,
-        );
+        rnn.gate = create_single_feature_gate_controller(0.5, 0.0, &device);
 
         // Create input with 3 timesteps: [0.1, 0.2, 0.3]
         // Shape: [batch_size=1, seq_length=3, input_features=1]

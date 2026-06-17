@@ -122,8 +122,17 @@ impl Writer {
     }
 
     /// Write directly to a file (more memory efficient for large models).
+    ///
+    /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
     #[cfg(feature = "std")]
     pub fn write_to_file<P: AsRef<Path>>(self, path: P) -> Result<(), Error> {
+        let path = path.as_ref();
+        let path = if path.extension().is_none() {
+            path.with_extension(crate::EXTENSION)
+        } else {
+            path.to_path_buf()
+        };
+
         let layout = self.plan()?;
         let file = File::create(path).map_err(|e| Error::IoError(e.to_string()))?;
 

@@ -12,7 +12,7 @@ use crate::{
 use burn::{
     data::dataloader::batcher::Batcher,
     prelude::*,
-    store::{ModuleRecord, ModuleRecordExt},
+    store::ModuleRecord,
 };
 use std::sync::Arc;
 
@@ -52,7 +52,7 @@ pub fn infer<D: TextClassificationDataset + 'static>(
         config.seq_length,
     )
     .init(&device)
-    .load_record_next(record); // Initialize model with loaded weights
+    .load_record(record); // Initialize model with loaded weights
 
     // Run inference on the given text samples
     println!("Running inference ...");

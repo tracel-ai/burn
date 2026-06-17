@@ -230,9 +230,9 @@ mod tests {
 
     use super::*;
     use crate::GradientsParams;
-    use burn::module::{Module, Param};
+    use burn::module::Param;
     use burn::tensor::{Distribution, Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::{Linear, LinearConfig};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -301,8 +301,8 @@ mod tests {
         let from_original = optimizer.step(LEARNING_RATE, linear.clone(), grads_original);
         let from_reloaded = reloaded.step(LEARNING_RATE, linear, grads_reloaded);
 
-        let weight_original = from_original.into_record().weight.to_data();
-        let weight_reloaded = from_reloaded.into_record().weight.to_data();
+        let weight_original = from_original.weight.to_data();
+        let weight_reloaded = from_reloaded.weight.to_data();
         weight_original.assert_approx_eq::<f32>(&weight_reloaded, Tolerance::absolute(1e-6));
     }
 
@@ -340,7 +340,7 @@ mod tests {
             linear = optimizer.step(LEARNING_RATE, linear, grads);
         }
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weight_updated = state_updated.weight.to_data();
         let bias_updated = state_updated.bias.unwrap().to_data();
 
@@ -454,7 +454,7 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weights_expected = TensorData::from([
             [-0.340528, 0.118929, 0.384336, 0.300010, 0.066034, 0.047154],
             [
@@ -525,17 +525,15 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
-        };
-
-        LinearConfig::new(6, 6).init(device).load_record(record)
+        }
     }
 
     fn create_adam() -> ModuleOptimizer {

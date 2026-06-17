@@ -11,7 +11,6 @@ use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
     prelude::*,
-    store::ModuleRecordExt,
     train::{
         Learner, SupervisedTraining,
         metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric, PerplexityMetric},
@@ -87,5 +86,5 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
 
     config.save(format!("{artifact_dir}/config.json")).unwrap();
 
-    result.model.into_record_next().save(format!("{artifact_dir}/model")).unwrap();
+    result.model.into_record().save(format!("{artifact_dir}/model")).unwrap();
 }

@@ -260,8 +260,11 @@ impl TryFrom<Scalar> for f64 {
 impl TryFrom<Scalar> for f32 {
     type Error = ScalarConversionError;
     fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+        // Mirror `f64`'s acceptance of integer variants; float reads may be lossy (documented).
         match scalar {
             Scalar::Float(v) => Ok(v as f32),
+            Scalar::Int(v) => Ok(v as f32),
+            Scalar::UInt(v) => Ok(v as f32),
             _ => Err(ScalarConversionError),
         }
     }
@@ -344,3 +347,44 @@ impl core::fmt::Display for Error {
 }
 
 impl core::error::Error for Error {}
+
+#[cfg(test)]
+mod scalar_tests {
+    use super::*;
+
+    #[test]
+    fn int_round_trips_through_checked_conversion() {
+        assert_eq!(i32::try_from(Scalar::from(-5i32)).unwrap(), -5);
+        assert_eq!(u8::try_from(Scalar::from(200u8)).unwrap(), 200);
+        assert_eq!(usize::try_from(Scalar::from(42usize)).unwrap(), 42);
+    }
+
+    #[test]
+    fn out_of_range_int_conversion_is_rejected() {
+        // u64 value beyond i32::MAX cannot become i32.
+        let big = Scalar::from(5_000_000_000u64);
+        assert!(i32::try_from(big).is_err());
+        // Negative value cannot become u32.
+        assert!(u32::try_from(Scalar::from(-1i32)).is_err());
+        // 300 does not fit in u8.
+        assert!(u8::try_from(Scalar::from(300u32)).is_err());
+    }
+
+    #[test]
+    fn float_and_bool_variant_mismatches_are_rejected() {
+        // An integer field must not read a stored float.
+        assert!(i64::try_from(Scalar::Float(1.5)).is_err());
+        // A bool field must not read a stored int.
+        assert!(bool::try_from(Scalar::Int(1)).is_err());
+        // A float field must not read a stored bool.
+        assert!(f64::try_from(Scalar::Bool(true)).is_err());
+    }
+
+    #[test]
+    fn float_accepts_int_variants_symmetrically() {
+        assert_eq!(f64::try_from(Scalar::Int(3)).unwrap(), 3.0);
+        assert_eq!(f32::try_from(Scalar::Int(3)).unwrap(), 3.0);
+        assert_eq!(f64::try_from(Scalar::Float(2.5)).unwrap(), 2.5);
+        assert_eq!(f32::try_from(Scalar::Float(2.5)).unwrap(), 2.5);
+    }
+}

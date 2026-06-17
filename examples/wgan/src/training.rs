@@ -4,7 +4,6 @@ use burn::optim::{GradientsParams, RmsPropConfig};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     prelude::*,
-    store::ModuleRecordExt,
     tensor::Distribution,
 };
 use image::{Rgb32FImage, RgbImage, buffer::ConvertBuffer, error::ImageResult};
@@ -198,9 +197,9 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
 
     // Save the trained models
     generator
-        .into_record_next().save(format!("{artifact_dir}/generator"))
+        .into_record().save(format!("{artifact_dir}/generator"))
         .expect("Generator should be saved successfully");
     discriminator
-        .into_record_next().save(format!("{artifact_dir}/discriminator"))
+        .into_record().save(format!("{artifact_dir}/discriminator"))
         .expect("Discriminator should be saved successfully");
 }

@@ -1,7 +1,7 @@
 use crate::training::{TrainingConfig, save_image};
 use burn::{
     prelude::*,
-    store::{ModuleRecord, ModuleRecordExt},
+    store::ModuleRecord,
     tensor::Distribution,
 };
 
@@ -12,7 +12,7 @@ pub fn generate(artifact_dir: &str, device: Device) {
     let record = ModuleRecord::load(format!("{artifact_dir}/generator"))
         .expect("Trained model should exist; run train first");
     let (mut generator, _) = config.model.init(&device);
-    generator = generator.load_record_next(record);
+    generator = generator.load_record(record);
 
     // Get a batch of noise
     let noise = Tensor::<2>::random(

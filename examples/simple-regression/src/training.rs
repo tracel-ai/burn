@@ -5,7 +5,6 @@ use burn::train::{Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     prelude::*,
-    store::ModuleRecordExt,
     train::metric::LossMetric,
 };
 
@@ -83,6 +82,6 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
 
     result
         .model
-        .into_record_next().save(format!("{artifact_dir}/model"))
+        .into_record().save(format!("{artifact_dir}/model"))
         .expect("Failed to save trained model");
 }

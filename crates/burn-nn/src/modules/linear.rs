@@ -155,7 +155,7 @@ impl ModuleDisplay for Linear {
 mod tests {
     use super::*;
     use burn::module::ParamId;
-    use burn::store::{ModuleRecord, ModuleRecordExt};
+    use burn::store::ModuleRecord;
     use burn::tensor::ElementConversion;
     use burn::tensor::Tolerance;
     use burn::tensor::{Shape, TensorData};
@@ -276,11 +276,11 @@ mod tests {
         let linear = LinearConfig::new(6, 12).init(&device);
 
         let weight_before = linear.weight.val().to_data();
-        let data = linear.into_record_next().into_bytes().unwrap();
+        let data = linear.into_record().into_bytes().unwrap();
 
         let linear = LinearConfig::new(6, 12)
             .init(&device)
-            .load_record_next(ModuleRecord::from_bytes(data).unwrap());
+            .load_record(ModuleRecord::from_bytes(data).unwrap());
 
         linear.weight.val().to_data().assert_eq(&weight_before, true);
     }

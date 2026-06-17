@@ -3,12 +3,15 @@ use burn_core as burn;
 use super::Optimizer;
 use crate::{
     DynOptimizer, DynState, LearningRate, MultiGradientsParams, StateSink, StateSource,
-    OptimizerRecord, grad_clipping::GradientClipping, optim::GradientsParams,
+    OptimizerRecord, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
 };
 
 use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::vec::Vec;
+
+/// Scalar key (per parameter) under which the parameter's state rank is persisted.
+const RANK_KEY: &str = "__rank";
 use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
@@ -109,6 +112,13 @@ impl ModuleOptimizer {
             let mut sink = StateSink::default();
             self.optim.state_flatten(&prefix, state, &mut sink);
 
+            // Persist the parameter rank explicitly so the state can be reconstructed even when it
+            // carries no tensors, and without inferring the rank from tensor shapes.
+            scalars.insert(
+                join_path(&prefix, RANK_KEY),
+                burn_pack::Scalar::from(state.rank()),
+            );
+
             for (name, data) in sink.tensors {
                 tensors.push(burn_pack::Tensor::new(
                     name,
@@ -128,8 +138,19 @@ impl ModuleOptimizer {
 
     /// Load the optimizer state from an [`OptimizerRecord`], placing tensors on `device`.
     pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
-        // The rank of each parameter's state is recovered from its tensor shapes.
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
+
+        // Recover each parameter's rank from its persisted `__rank` scalar (authoritative). Keys
+        // are `"{param_id}.__rank"`, so strip the dotted suffix to recover the id.
+        let suffix = alloc::format!(".{RANK_KEY}");
+        for (name, value) in record.scalars.iter() {
+            if let Some(id_str) = name.strip_suffix(&suffix) {
+                if let (Ok(id), Ok(rank)) = (id_str.parse::<u64>(), usize::try_from(*value)) {
+                    ranks.insert(id, rank);
+                }
+            }
+        }
+
         let mut source = StateSource::new(record.scalars);
 
         for tensor in record.tensors {
@@ -138,6 +159,7 @@ impl ModuleOptimizer {
                 .expect("Optimizer record tensors should carry a parameter id.");
             let name = tensor.name;
             let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
+            // Fall back to inferring rank from a tensor shape if no `__rank` scalar was present.
             ranks.entry(id).or_insert(data.shape.len());
             source.insert_tensor(name, data);
         }
@@ -145,10 +167,11 @@ impl ModuleOptimizer {
         let mut states = HashMap::new();
         for (id, rank) in ranks {
             let prefix = id.to_string();
-            let state = self
-                .optim
-                .state_unflatten(rank, &prefix, &mut source, device);
-            states.insert(ParamId::from(id), state);
+            // Skip parameters whose state can't be reconstructed (truncated/foreign record); they
+            // are re-initialized lazily on the next step rather than aborting the load.
+            if let Some(state) = self.optim.state_unflatten(rank, &prefix, &mut source, device) {
+                states.insert(ParamId::from(id), state);
+            }
         }
 
         self.states = states;

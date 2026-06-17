@@ -7,7 +7,6 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
     prelude::*,
-    store::ModuleRecordExt,
     train::{
         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
@@ -110,7 +109,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     result
         .model
-        .into_record_next()
+        .into_record()
         .save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }

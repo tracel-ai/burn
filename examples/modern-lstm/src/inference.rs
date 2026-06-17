@@ -9,7 +9,7 @@ use crate::{
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::Dataset},
     prelude::*,
-    store::{ModuleRecord, ModuleRecordExt},
+    store::ModuleRecord,
 };
 use polars::prelude::*;
 
@@ -20,7 +20,7 @@ pub fn infer(artifact_dir: &str, device: Device) {
     let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist; run train first");
 
-    let model: LstmNetwork = config.model.init(&device).load_record_next(record);
+    let model: LstmNetwork = config.model.init(&device).load_record(record);
 
     let dataset = SequenceDataset::new(NUM_SEQUENCES / 5, SEQ_LENGTH, NOISE_LEVEL);
     let items: Vec<SequenceDatasetItem> = dataset.iter().collect();

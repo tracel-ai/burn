@@ -148,13 +148,17 @@ pub(crate) trait DynOptimizer: Send + Sync {
     fn state_flatten(&self, prefix: &str, state: &DynState, out: &mut StateSink);
 
     /// Rebuild a state of the given `rank` from named tensors and scalars under `prefix`.
+    ///
+    /// Returns `None` when the record does not contain a reconstructable state for this parameter
+    /// (e.g. a truncated or foreign file); the caller leaves that parameter without state, so it is
+    /// re-initialized on the next step.
     fn state_unflatten(
         &self,
         rank: usize,
         prefix: &str,
         src: &mut StateSource,
         device: &Device,
-    ) -> DynState;
+    ) -> Option<DynState>;
 }
 
 impl<O: Optimizer> DynOptimizer for O {
@@ -197,11 +201,10 @@ impl<O: Optimizer> DynOptimizer for O {
         prefix: &str,
         src: &mut StateSource,
         device: &Device,
-    ) -> DynState {
+    ) -> Option<DynState> {
         dispatch_rank!(rank, D => {
-            let state = <O::State<D> as RecordState>::state_unflatten(prefix, src, device)
-                .expect("The optimizer state should be present in the record.");
-            DynState::create(state, D)
+            let state = <O::State<D> as RecordState>::state_unflatten(prefix, src, device)?;
+            Some(DynState::create(state, D))
         })
     }
 }

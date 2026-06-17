@@ -796,17 +796,15 @@ mod tests {
 
     use super::*;
     use crate::GradientsParams;
-    use burn::module::{Module, Param};
+    use burn::module::Param;
     use burn::tensor::{Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::Linear;
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
-        };
-
-        LinearConfig::new(6, 6).init(device).load_record(record)
+        }
     }
     #[test]
     fn test_cubic_interpolate() {

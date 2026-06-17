@@ -62,8 +62,8 @@ These methods are available for all modules.
 | `module.map(mapper)`                    | N/A                                      |
 | `module.into_record()`                  | Similar to `state_dict`                  |
 | `module.load_record(record)`            | Similar to `load_state_dict(state_dict)` |
-| `module.save_file(file_path, recorder)` | N/A                                      |
-| `module.load_file(file_path, recorder)` | N/A                                      |
+| `module.into_record().save(file_path)`  | Similar to `torch.save(state_dict, ...)` |
+| `ModuleRecord::load(file_path)`         | Similar to `torch.load(...)`             |
 
 Similar to the backend trait, there is also the `AutodiffModule` trait to signify a module with
 autodiff support.

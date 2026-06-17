@@ -1,7 +1,6 @@
 use burn::{
     grad_clipping::GradientClippingConfig,
     optim::AdamWConfig,
-    record::CompactRecorder,
     tensor::Device,
     train::{
         OffPolicyConfig, RLTraining,

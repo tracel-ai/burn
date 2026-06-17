@@ -20,7 +20,6 @@ use burn::{
         linear::LinearLrSchedulerConfig,
     },
     prelude::*,
-    store::ModuleRecordExt,
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
@@ -147,7 +146,7 @@ pub fn run(device: Device) {
 
     result
         .model
-        .into_record_next().save(format!("{ARTIFACT_DIR}/model"))
+        .into_record().save(format!("{ARTIFACT_DIR}/model"))
         .expect("Failed to save trained model");
 
     config

@@ -1,11 +1,12 @@
 use crate::model::Model;
 use burn::{
+    module::Module,
     prelude::Device,
-    store::{ModuleRecord, ModuleRecordExt},
+    store::ModuleRecord,
     tensor::Bytes,
 };
 
-// NOTE: regenerate this asset in the burnpack format (e.g. `model.into_record_next().save(..)`);
+// NOTE: regenerate this asset in the burnpack format (e.g. `model.into_record().save(..)`);
 // the legacy bincode `model.bin` will not parse as burnpack at runtime.
 static STATE_ENCODED: &[u8] = include_bytes!("../model.bin");
 
@@ -21,5 +22,5 @@ pub async fn build_and_load_model() -> Model {
     let record = ModuleRecord::from_bytes(Bytes::from_bytes_vec(STATE_ENCODED.to_vec()))
         .expect("Failed to decode state");
 
-    model.load_record_next(record)
+    model.load_record(record)
 }

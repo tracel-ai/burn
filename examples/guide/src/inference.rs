@@ -2,7 +2,7 @@ use crate::{data::MnistBatcher, training::TrainingConfig};
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
     prelude::*,
-    store::{ModuleRecord, ModuleRecordExt},
+    store::ModuleRecord,
 };
 
 pub fn infer(artifact_dir: &str, device: impl Into<Device>, item: MnistItem) {
@@ -12,7 +12,7 @@ pub fn infer(artifact_dir: &str, device: impl Into<Device>, item: MnistItem) {
     let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist; run train first");
 
-    let model = config.model.init(&device).load_record_next(record);
+    let model = config.model.init(&device).load_record(record);
 
     let label = item.label;
     let batcher = MnistBatcher::default();

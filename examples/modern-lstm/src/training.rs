@@ -8,7 +8,6 @@ use burn::{
     nn::loss::{MseLoss, Reduction::Mean},
     optim::{AdamConfig, GradientsParams},
     prelude::*,
-    store::ModuleRecordExt,
 };
 
 #[derive(Config, Debug)]
@@ -127,6 +126,6 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
 
     // Save the trained model
     model
-        .into_record_next().save(format!("{artifact_dir}/model"))
+        .into_record().save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }

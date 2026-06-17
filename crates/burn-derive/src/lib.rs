@@ -73,7 +73,14 @@ pub fn config_derive(input: TokenStream) -> TokenStream {
     config::derive_impl(&item)
 }
 
-/// Derive macro for the optimizer state, decomposing it into named tensors and scalars.
+/// Derive macro for a recordable state (optimizer or learning-rate scheduler), decomposing it
+/// into named tensors and scalars for the burnpack format.
+///
+/// Supported field shapes: `Tensor<D>`, `Option<Tensor<D>>`, `Vec<Tensor<D>>`, scalars
+/// (`usize`/`isize`/`u8`..`u64`/`i8`..`i64`/`f32`/`f64`/`bool`), `Option<scalar>`, a nested
+/// `RecordState`, and `Option<Nested>`. Scalar fields must use a concrete primitive type, not a
+/// type alias (e.g. `f64`, not `LearningRate`): classification is syntactic, so an alias is treated
+/// as a nested state.
 #[proc_macro_derive(RecordState)]
 pub fn record_state_derive(input: TokenStream) -> TokenStream {
     let input = syn::parse(input).unwrap();

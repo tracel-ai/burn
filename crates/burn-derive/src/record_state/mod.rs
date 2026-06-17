@@ -1,7 +1,7 @@
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type};
 
-/// How an optimizer-state field is serialized.
+/// How a state field is serialized.
 enum FieldKind {
     /// A `Tensor<D>` leaf.
     Tensor,
@@ -41,6 +41,9 @@ fn single_generic_arg(ty: &Type) -> Option<Type> {
 }
 
 fn is_scalar(ident: &str) -> bool {
+    // Only the widths `burn_pack::Scalar` has `From`/`TryFrom` conversions for. `i128`/`u128` are
+    // intentionally excluded — `Scalar` tops out at 64-bit, so a 128-bit field is treated as a
+    // nested `RecordState` and fails with a clear trait-bound error rather than a silent truncation.
     matches!(
         ident,
         "usize"
@@ -49,26 +52,29 @@ fn is_scalar(ident: &str) -> bool {
             | "u16"
             | "u32"
             | "u64"
-            | "u128"
             | "i8"
             | "i16"
             | "i32"
             | "i64"
-            | "i128"
             | "f32"
             | "f64"
             | "bool"
     )
 }
 
-fn classify(ty: &Type) -> FieldKind {
-    match head_ident(ty).as_deref() {
+fn classify(ty: &Type) -> Result<FieldKind, syn::Error> {
+    Ok(match head_ident(ty).as_deref() {
         Some("Tensor") => FieldKind::Tensor,
         Some("Vec") => match single_generic_arg(ty) {
             Some(inner) if head_ident(&inner).as_deref() == Some("Tensor") => {
                 FieldKind::VecTensor(inner)
             }
-            _ => panic!("RecordState only supports `Vec<Tensor<D>>` for sequence fields."),
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    ty,
+                    "RecordState only supports `Vec<Tensor<D>>` for sequence fields.",
+                ));
+            }
         },
         Some("Option") => match single_generic_arg(ty) {
             Some(inner) => match head_ident(&inner).as_deref() {
@@ -80,19 +86,36 @@ fn classify(ty: &Type) -> FieldKind {
         },
         Some(ident) if is_scalar(ident) => FieldKind::Scalar,
         _ => FieldKind::Nested,
-    }
+    })
 }
 
 pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
+    match try_derive_impl(ast) {
+        Ok(tokens) => tokens,
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+fn try_derive_impl(ast: &DeriveInput) -> Result<proc_macro::TokenStream, syn::Error> {
     let name = &ast.ident;
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(named) => &named.named,
-            _ => panic!("RecordState can only be derived for structs with named fields."),
+            other => {
+                return Err(syn::Error::new_spanned(
+                    other,
+                    "RecordState can only be derived for structs with named fields.",
+                ));
+            }
         },
-        _ => panic!("RecordState can only be derived for structs."),
+        _ => {
+            return Err(syn::Error::new_spanned(
+                name,
+                "RecordState can only be derived for structs.",
+            ));
+        }
     };
 
     let mut flatten = Vec::new();
@@ -105,7 +128,7 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
         let ty = &field.ty;
         ctor.push(quote! { #ident });
 
-        match classify(ty) {
+        match classify(ty)? {
             FieldKind::Tensor => {
                 flatten.push(quote! {
                     out.push_tensor(prefix, #leaf, self.#ident.clone().into_data());
@@ -203,14 +226,18 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
                 unflatten.push(quote! {
                     let #ident = {
                         let __path = crate::join_path(prefix, #leaf);
-                        <#inner as crate::RecordState>::state_unflatten(&__path, src, device)
+                        if src.has_under(&__path) {
+                            <#inner as crate::RecordState>::state_unflatten(&__path, src, device)
+                        } else {
+                            None
+                        }
                     };
                 });
             }
         }
     }
 
-    quote! {
+    Ok(quote! {
         impl #impl_generics crate::RecordState for #name #ty_generics #where_clause {
             fn state_flatten(&self, prefix: &str, out: &mut crate::StateSink) {
                 #(#flatten)*
@@ -226,5 +253,5 @@ pub(crate) fn derive_impl(ast: &DeriveInput) -> proc_macro::TokenStream {
             }
         }
     }
-    .into()
+    .into())
 }

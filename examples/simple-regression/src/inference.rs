@@ -1,6 +1,7 @@
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::Dataset},
-    store::{ModuleRecord, ModuleRecordExt},
+    module::Module,
+    store::ModuleRecord,
     tensor::Device,
 };
 use rgb::RGB8;
@@ -18,7 +19,7 @@ pub fn infer(artifact_dir: &str, device: impl Into<Device>) {
 
     let model = RegressionModelConfig::new()
         .init(&device)
-        .load_record_next(record);
+        .load_record(record);
 
     // Use a sample of 1000 items from the test split
     let dataset = HousingDataset::test();

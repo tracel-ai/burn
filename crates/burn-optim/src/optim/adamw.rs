@@ -225,10 +225,10 @@ impl AdaptiveMomentumW {
 mod tests {
     use super::*;
     use crate::GradientsParams;
-    use burn::module::{Module, Param};
+    use burn::module::Param;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::{Linear, LinearConfig};
 
     type FT = f32;
 
@@ -292,7 +292,7 @@ mod tests {
             linear = optimizer.step(LEARNING_RATE, linear, grads);
         }
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weight_updated = state_updated.weight.to_data();
         let bias_updated = state_updated.bias.unwrap().to_data();
 
@@ -406,7 +406,7 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weights_expected = TensorData::from([
             [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
             [
@@ -485,7 +485,7 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weights_expected = TensorData::from([
             [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
             [
@@ -558,17 +558,15 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
-        };
-
-        LinearConfig::new(6, 6).init(device).load_record(record)
+        }
     }
 
     fn create_adamw() -> ModuleOptimizer {

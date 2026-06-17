@@ -9,7 +9,7 @@ use crate::{
     TrainingModelOutput,
 };
 use burn_core::module::{AutodiffModule, Module};
-use burn_core::store::{ModuleRecord, ModuleRecordExt};
+use burn_core::store::ModuleRecord;
 use burn_core::tensor::Device;
 use burn_optim::lr_scheduler::{LrScheduler, LrSchedulerRecord};
 use burn_optim::{GradientsParams, ModuleOptimizer, MultiGradientsParams, OptimizerRecord};
@@ -117,7 +117,7 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
 
     /// Load the module state from a [record](LearnerModelRecord).
     pub fn load_model(&mut self, record: LearnerModelRecord) {
-        self.model = self.model.clone().load_record_next(record);
+        self.model = self.model.clone().load_record(record);
     }
 
     /// Load the state of the learner's optimizer from a [record](LearnerOptimizerRecord).
@@ -176,7 +176,7 @@ impl<LC: LearningComponentsTypes> LearningCheckpointer<LC> {
                 }
                 CheckpointingAction::Save => {
                     self.model
-                        .save(epoch, learner.model.clone().into_record_next())
+                        .save(epoch, learner.model.clone().into_record())
                         .expect("Can save model checkpoint.");
                     self.optim
                         .save(epoch, learner.optim.to_record())

@@ -10,7 +10,6 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::SgdConfig,
     prelude::*,
-    store::ModuleRecordExt,
     train::{
         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
@@ -126,6 +125,6 @@ pub fn train(config: TrainingConfig, device: Device) {
 
     result
         .model
-        .into_record_next().save(format!("{ARTIFACT_DIR}/model"))
+        .into_record().save(format!("{ARTIFACT_DIR}/model"))
         .expect("Trained model should be saved successfully");
 }

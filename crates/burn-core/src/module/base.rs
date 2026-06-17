@@ -143,6 +143,45 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
         self.map(quantizer)
     }
+
+    /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
+    ///
+    /// The record can be saved to a burnpack file or byte buffer and applied back with
+    /// [`load_record`](Module::load_record).
+    fn into_record(self) -> crate::store::ModuleRecord
+    where
+        Self: Sized,
+    {
+        crate::store::ModuleRecord::from_module(self)
+    }
+
+    /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, returning the loaded
+    /// module.
+    ///
+    /// Honors the record's [`DTypePolicy`](crate::store::DTypePolicy), `validate`, and
+    /// `allow_partial` settings.
+    fn try_load_record(
+        self,
+        record: crate::store::ModuleRecord,
+    ) -> Result<Self, crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        record.apply(self)
+    }
+
+    /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, consuming and returning
+    /// it.
+    ///
+    /// Panics if validation fails; use [`try_load_record`](Module::try_load_record) for the
+    /// fallible variant.
+    fn load_record(self, record: crate::store::ModuleRecord) -> Self
+    where
+        Self: Sized,
+    {
+        self.try_load_record(record)
+            .expect("Failed to load record")
+    }
 }
 
 /// Module visitor trait for traversing and inspecting module parameters.

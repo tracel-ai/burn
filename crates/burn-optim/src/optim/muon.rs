@@ -425,23 +425,18 @@ impl Optimizer for Muon {
 mod tests {
     use super::*;
     use crate::{GradientsParams, Optimizer};
-    use burn::module::{Module, Param};
+    use burn::module::Param;
     use burn::tensor::{Distribution, Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::{Linear, LinearConfig};
 
     const TOLERANCE: f64 = 1e-8;
 
     fn given_linear_layer_no_bias(weight: TensorData) -> Linear {
         let device = Device::default().autodiff();
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, &device),
-            bias: None, //No bias for Muon optimizer
-        };
-
-        LinearConfig::new(4, 4)
-            .with_bias(false)
-            .init(&device)
-            .load_record(record)
+            bias: None, // No bias for Muon optimizer
+        }
     }
 
     #[test]
@@ -542,7 +537,7 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(0.01, linear, grads);
 
-        let state = linear.into_record();
+        let state = linear;
         let weight = state.weight.to_data();
 
         for val in weight.as_slice::<f32>().unwrap() {

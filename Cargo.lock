@@ -808,7 +808,6 @@ dependencies = [
  "serial_test",
  "spin",
  "tempfile",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1151,6 +1150,7 @@ dependencies = [
  "burn-core",
  "burn-nn",
  "burn-pack",
+ "burn-tensor",
  "byteorder",
  "bytes",
  "ciborium",
@@ -1159,12 +1159,14 @@ dependencies = [
  "hashbrown 0.16.1",
  "lzma-rust2 0.16.4",
  "memmap2",
+ "num-traits",
  "regex",
  "safetensors 0.7.0",
  "serde",
  "tar",
  "tempfile",
  "textdistance",
+ "thiserror 2.0.18",
  "zip 8.6.0",
 ]
 

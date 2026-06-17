@@ -17,7 +17,6 @@ use burn::{
     nn::{attention::SeqLengthOption, transformer::TransformerEncoderConfig},
     optim::AdamConfig,
     prelude::*,
-    store::ModuleRecordExt,
     train::metric::{
         AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
     },
@@ -108,5 +107,5 @@ pub fn train<D: TextClassificationDataset + 'static>(
 
     // Save the configuration and the trained model
     config.save(format!("{artifact_dir}/config.json")).unwrap();
-    result.model.into_record_next().save(format!("{artifact_dir}/model")).unwrap();
+    result.model.into_record().save(format!("{artifact_dir}/model")).unwrap();
 }

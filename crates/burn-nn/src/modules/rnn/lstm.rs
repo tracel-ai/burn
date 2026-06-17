@@ -532,15 +532,7 @@ mod tests {
         let config = LstmConfig::new(1, 1, false);
         let mut lstm = config.init(&device);
 
-        fn create_gate_controller(
-            weights: f32,
-            biases: f32,
-            d_input: usize,
-            d_output: usize,
-            bias: bool,
-            initializer: Initializer,
-            device: &Device,
-        ) -> GateController {
+        fn create_gate_controller(weights: f32, biases: f32, device: &Device) -> GateController {
             let record_1 = Linear {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
@@ -549,52 +541,13 @@ mod tests {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
-            GateController::create_with_weights(
-                d_input,
-                d_output,
-                bias,
-                initializer,
-                record_1,
-                record_2,
-            )
+            GateController::create_with_weights(record_1, record_2)
         }
 
-        lstm.input_gate = create_gate_controller(
-            0.5,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierUniform { gain: 1.0 },
-            &device,
-        );
-        lstm.forget_gate = create_gate_controller(
-            0.7,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierUniform { gain: 1.0 },
-            &device,
-        );
-        lstm.cell_gate = create_gate_controller(
-            0.9,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierUniform { gain: 1.0 },
-            &device,
-        );
-        lstm.output_gate = create_gate_controller(
-            1.1,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierUniform { gain: 1.0 },
-            &device,
-        );
+        lstm.input_gate = create_gate_controller(0.5, 0.0, &device);
+        lstm.forget_gate = create_gate_controller(0.7, 0.0, &device);
+        lstm.cell_gate = create_gate_controller(0.9, 0.0, &device);
+        lstm.output_gate = create_gate_controller(1.1, 0.0, &device);
 
         // single timestep with single feature
         let input = Tensor::<3>::from_data(TensorData::from([[[0.1]]]), &device);
@@ -694,9 +647,6 @@ mod tests {
             hidden_biases: [f32; D1],
             device: &Device,
         ) -> GateController {
-            let d_input = input_weights[0].len();
-            let d_output = input_weights.len();
-
             let input_record = Linear {
                 weight: Param::from_data(TensorData::from(input_weights), device),
                 bias: Some(Param::from_data(TensorData::from(input_biases), device)),
@@ -705,14 +655,7 @@ mod tests {
                 weight: Param::from_data(TensorData::from(hidden_weights), device),
                 bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
             };
-            GateController::create_with_weights(
-                d_input,
-                d_output,
-                true,
-                Initializer::XavierUniform { gain: 1.0 },
-                input_record,
-                hidden_record,
-            )
+            GateController::create_with_weights(input_record, hidden_record)
         }
 
         let input = Tensor::<3>::from_data(
