@@ -470,6 +470,15 @@ pub struct LBFGSState {
 }
 
 impl LBFGSState {
+    /// The device of the state's tensors, if any have been populated.
+    fn current_device(&self) -> Option<Device> {
+        self.prev_flat_grad
+            .as_ref()
+            .or(self.d.as_ref())
+            .or(self.history_s.first())
+            .map(|t| t.device())
+    }
+
     /// Moves all historical tensors to the target device.
     pub fn to_device(self, device: &Device) -> Self {
         Self {
@@ -539,18 +548,18 @@ impl LBFGS {
         OptimizerRecord { tensors, scalars }
     }
 
-    /// Load the optimizer state from an [`OptimizerRecord`], placing tensors on `device`.
+    /// Load the optimizer state from an [`OptimizerRecord`].
     ///
-    /// Unlike [`ModuleOptimizer`](crate::optim::ModuleOptimizer), L-BFGS does not migrate its state
-    /// to the gradient device on each step (it keeps one global flattened state), so `device` must
-    /// be the device the optimization will run on.
-    pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
+    /// State tensors are materialized on the default device; the state is migrated to the gradient
+    /// device on the next [`step`](LBFGS::step), so no device argument is needed.
+    pub fn load_record(mut self, record: OptimizerRecord) -> Self {
+        let device = Device::default();
         let mut source = StateSource::new(record.scalars);
         for tensor in record.tensors {
             let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
             source.insert_tensor(tensor.name, data);
         }
-        if let Some(state) = LBFGSState::state_unflatten("", &mut source, device) {
+        if let Some(state) = LBFGSState::state_unflatten("", &mut source, &device) {
             self.state = state;
         }
         self
@@ -562,8 +571,8 @@ impl LBFGS {
     }
 
     /// Load the optimizer state from an in-memory burnpack byte buffer.
-    pub fn from_bytes(self, bytes: Bytes, device: &Device) -> Result<Self, RecordError> {
-        Ok(self.load_record(OptimizerRecord::from_bytes(bytes)?, device))
+    pub fn from_bytes(self, bytes: Bytes) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::from_bytes(bytes)?))
     }
 
     /// Save the optimizer state to a burnpack file on disk.
@@ -572,14 +581,10 @@ impl LBFGS {
         self.to_record().save(path)
     }
 
-    /// Load the optimizer state from a burnpack file on disk, placing tensors on `device`.
+    /// Load the optimizer state from a burnpack file on disk.
     #[cfg(feature = "std")]
-    pub fn load<P: AsRef<std::path::Path>>(
-        self,
-        path: P,
-        device: &Device,
-    ) -> Result<Self, RecordError> {
-        Ok(self.load_record(OptimizerRecord::load(path)?, device))
+    pub fn load<P: AsRef<std::path::Path>>(self, path: P) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::load(path)?))
     }
 
     /// A single optimization step for any tensor that represents the parameters of a model.
@@ -594,6 +599,13 @@ impl LBFGS {
 
         let mut flat_grad = flatten_grads_inner::<M>(&module, &grads);
         let mut x_flat = flatten_params_inner::<M>(&module);
+
+        // Migrate the state to the gradient's device when they differ (e.g. just after loading a
+        // record on the default device). This is a no-op once the state is built from gradients.
+        let device = flat_grad.device();
+        if self.state.current_device().is_some_and(|d| d != device) {
+            self.state = core::mem::take(&mut self.state).to_device(&device);
+        }
 
         let opt_cond =
             flat_grad.clone().abs().max().into_scalar::<f64>() <= self.config.tolerance_grad;
@@ -1006,7 +1018,7 @@ mod tests {
         let mut reloaded = LBFGSConfig::new()
             .with_line_search_fn(LineSearchFn::StrongWolfe)
             .init()
-            .from_bytes(bytes, &Device::default())
+            .from_bytes(bytes)
             .unwrap();
 
         // A further identical step on each optimizer must agree — exercising the restored history.
