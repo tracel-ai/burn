@@ -267,7 +267,10 @@ fn extensionless_path_appends_bpk() {
         path.with_extension("bpk").exists(),
         "writer should have created `model.bpk`"
     );
-    assert!(!path.exists(), "no extension-less `model` file should exist");
+    assert!(
+        !path.exists(),
+        "no extension-less `model` file should exist"
+    );
 
     let reader = Reader::from_file(&path).unwrap();
     let tensors = reader.into_tensors().unwrap();
