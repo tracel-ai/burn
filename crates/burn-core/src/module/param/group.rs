@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use burn_std::id::ParamId;
 use burn_tensor::{Bool, Int, Tensor};
+#[cfg(feature = "std")]
 use regex::Regex;
 
 use crate::module::{Module, ModuleVisitor, Param};
@@ -128,6 +129,7 @@ impl ParamGroup {
         }
     }
 
+    #[cfg(feature = "std")]
     /// Matches parameters by regex pattern (e.g., "^model\.layer\.\d+$")
     ///
     /// # Errors
@@ -136,6 +138,7 @@ impl ParamGroup {
         ParamGroup::from_regexes(vec![pattern])
     }
 
+    #[cfg(feature = "std")]
     /// Matches parameters for all the regex patterns (AND logic).
     /// (e.g., "^encoder\.layer\.\d+", and "bias$" )
     ///
@@ -156,6 +159,7 @@ impl ParamGroup {
         })
     }
 
+    #[cfg(feature = "std")]
     /// Matches parameters for any the regex patterns (OR logic).
     /// (e.g., "^encoder\.layer\.\d+$", or "^decoder\.layer\.\d+$" )
     ///
@@ -312,6 +316,7 @@ impl ParamGroupMatcher {
 #[derive(Clone)]
 enum PathMatcher {
     Exact(Vec<String>),
+    #[cfg(feature = "std")]
     Regex(Vec<Regex>),
     Include(Vec<String>),
 }
@@ -320,6 +325,7 @@ impl PathMatcher {
     pub(crate) fn matches(&self, path: &str) -> bool {
         match self {
             PathMatcher::Exact(paths) => paths.iter().any(|p| p == path),
+            #[cfg(feature = "std")]
             PathMatcher::Regex(regexs) => regexs.iter().all(|r| r.is_match(path)),
             PathMatcher::Include(includes) => includes.iter().all(|inc| path.contains(inc)),
         }
