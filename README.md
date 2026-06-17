@@ -13,8 +13,8 @@
 
 ---
 
-**Burn is both a tensor library and a deep learning framework, optimized for
-<br /> numerical computing, training and inference.**
+**Burn is both a tensor library and a deep learning framework, optimized for <br /> numerical
+computing, training and inference.**
 
 <br/>
 </div>
@@ -31,9 +31,9 @@ exact code used for training is the exact code that runs in production. This mak
 on-device personalization and federated learning straightforward, while enabling teams to go from
 prototype to deployment in a single codebase.
 
-Burn keeps the feel of PyTorch, with dynamic shapes and graphs, but JIT-compiles streams of tensor
-operations, performing automatic kernel fusion. You get the flexibility of dynamic graphs
-without the performance drop.
+Burn preserves the intuitive ergonomics of PyTorch, with dynamic shapes and graphs, but JIT-compiles
+streams of tensor operations, performing automatic kernel fusion. You get the flexibility of dynamic
+graphs without the performance drop.
 
 ## Rust for Research?
 
@@ -64,13 +64,14 @@ plenty of room to help shape what comes next.
 | Models        | [models](https://github.com/tracel-ai/models)         | Curated pre-trained models and examples built with Burn                                                                                                           |
 | Tooling       | [burn-bench](https://github.com/tracel-ai/burn-bench) | Benchmark and compare backends, tracking performance over time                                                                                                    |
 
-Burn's [CubeCL](https://github.com/tracel-ai/cubecl) backends (CUDA, ROCm, Metal, Vulkan, WebGPU, CPU) compose with autodiff, fusion and remote-execution decorators,
-while external and simpler backends (LibTorch and pure-Rust CPU/`no_std`) compose with autodiff only.
-See [Supported Backends](#supported-backends) below for the full matrix.
+Burn's [CubeCL](https://github.com/tracel-ai/cubecl) backends (CUDA, ROCm, Metal, Vulkan, WebGPU,
+CPU) compose with autodiff, fusion and remote-execution decorators, while external and simpler
+backends (LibTorch and pure-Rust CPU/`no_std`) compose with autodiff only. See
+[Supported Backends](#supported-backends) below for the full matrix.
 
 Every project here is open-source and actively developed. Want to help build the Rust AI ecosystem?
-The [good first issues](https://github.com/tracel-ai/burn/contribute) are a great place to start, and
-the [Contributing](#contributing) guide will get you set up.
+The [good first issues](https://github.com/tracel-ai/burn/contribute) are a great place to start,
+and the [Contributing](#contributing) guide will get you set up.
 
 <details>
 <summary>
