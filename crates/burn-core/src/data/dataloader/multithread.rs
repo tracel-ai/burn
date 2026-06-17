@@ -7,7 +7,7 @@ use rand::{Rng, SeedableRng};
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
-use std::sync::{Arc, OnceLock, mpsc};
+use std::sync::{Arc, OnceLock, mpsc, mpsc::SyncSender};
 use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
@@ -26,6 +26,10 @@ pub struct MultiThreadDataLoader<I, O> {
 
     // The lazily initialized data loaders
     dataloaders: OnceLock<Vec<BatchDataLoader<I, O>>>,
+
+    // Spawned once and reused across every `iter()` call so each worker keeps a
+    // stable CubeCL stream (and its memory pool) instead of leaking one per epoch (#4792).
+    workers: OnceLock<WorkerPool<O>>,
 }
 
 /// A message that can be sent between threads.
@@ -40,9 +44,29 @@ pub enum Message<O> {
 
 struct MultiThreadsDataloaderIterator<O> {
     num_done: usize,
-    workers: Vec<thread::JoinHandle<()>>,
+    num_workers: usize,
     receiver: mpsc::Receiver<Message<O>>,
     progresses: Vec<Progress>,
+}
+
+/// Per-epoch channel a worker streams its batches into; handed to the worker to start a pass.
+type WorkerCommand<O> = SyncSender<Message<O>>;
+
+struct WorkerPool<O> {
+    /// One command channel per worker; sending a per-epoch sender starts a pass.
+    senders: Vec<mpsc::Sender<WorkerCommand<O>>>,
+    handles: Vec<thread::JoinHandle<()>>,
+    item_counts: Vec<usize>,
+}
+
+impl<O> Drop for WorkerPool<O> {
+    fn drop(&mut self) {
+        // Dropping the senders makes each worker's `recv()` return Err, ending its loop.
+        self.senders.clear();
+        for handle in self.handles.drain(..) {
+            let _ = handle.join();
+        }
+    }
 }
 
 impl<I, O> MultiThreadDataLoader<I, O>
@@ -101,6 +125,7 @@ where
             device,
             seed,
             dataloaders: OnceLock::new(),
+            workers: OnceLock::new(),
         }
     }
 
@@ -150,6 +175,50 @@ where
             })
             .as_ref()
     }
+
+    /// Lazily spawns the persistent worker pool (once) and returns it.
+    fn workers(&self) -> &WorkerPool<O> {
+        self.workers.get_or_init(|| {
+            let dataloaders = self.initialize();
+            let item_counts: Vec<usize> = dataloaders.iter().map(|d| d.num_items()).collect();
+
+            let mut senders = Vec::with_capacity(dataloaders.len());
+            let mut handles = Vec::with_capacity(dataloaders.len());
+
+            for (index, dataloader) in dataloaders.iter().enumerate() {
+                let dataloader = dataloader.clone();
+                let (command_sender, command_receiver) = mpsc::channel::<WorkerCommand<O>>();
+
+                let handle = thread::Builder::new()
+                    .name(std::format!("dataloader-{index}"))
+                    .spawn(move || {
+                        while let Ok(sender) = command_receiver.recv() {
+                            let mut iterator = dataloader.iter();
+                            while let Some(item) = iterator.next() {
+                                let progress = iterator.progress();
+
+                                // Consumer dropped the receiver: abandon this pass,
+                                // don't terminate the worker.
+                                if sender.send(Message::Batch(index, item, progress)).is_err() {
+                                    break;
+                                }
+                            }
+                            sender.send(Message::Done).ok();
+                        }
+                    })
+                    .unwrap();
+
+                senders.push(command_sender);
+                handles.push(handle);
+            }
+
+            WorkerPool {
+                senders,
+                handles,
+                item_counts,
+            }
+        })
+    }
 }
 
 impl<I, O> DataLoader<O> for MultiThreadDataLoader<I, O>
@@ -158,45 +227,27 @@ where
     O: Send + 'static + std::fmt::Debug,
 {
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a> {
-        // This will initialize the loader if it hasn't been initialized yet
-        let dataloaders = self.initialize();
+        let workers = self.workers();
 
         let (sender, receiver) = mpsc::sync_channel::<Message<O>>(MAX_QUEUED_ITEMS);
+        let unit: Option<String> = Some("items".to_string());
 
-        let mut progresses = Vec::with_capacity(dataloaders.len());
+        let mut progresses = Vec::with_capacity(workers.senders.len());
+        for (command_sender, &num_items) in workers.senders.iter().zip(workers.item_counts.iter()) {
+            progresses.push(Progress::new(0, num_items, unit.clone()));
+            command_sender
+                .send(sender.clone())
+                .expect("Dataloader worker thread should be alive");
+        }
+        let num_workers = workers.senders.len();
 
-        let handlers: Vec<_> = dataloaders
-            .iter()
-            .enumerate()
-            .map(|(index, dataloader)| {
-                let dataloader_cloned = dataloader.clone();
-                let sender_cloned = sender.clone();
-                let unit: Option<String> = Some("items".to_string());
-                progresses.push(Progress::new(0, dataloader_cloned.num_items(), unit));
-
-                std::thread::Builder::new()
-                    .name(std::format!("dataloader-{index}"))
-                    .spawn(move || {
-                        let mut iterator = dataloader_cloned.iter();
-                        while let Some(item) = iterator.next() {
-                            let progress = iterator.progress();
-
-                            match sender_cloned.send(Message::Batch(index, item, progress)) {
-                                Ok(_) => {}
-                                // The receiver is probably gone, no need to panic, just need to stop
-                                // iterating.
-                                Err(_) => return,
-                            };
-                        }
-                        // Same thing.
-                        sender_cloned.send(Message::Done).ok();
-                    })
-                    .unwrap()
-            })
-            .collect();
+        // Drop our sender so the channel disconnects once every worker is done.
+        drop(sender);
 
         Box::new(MultiThreadsDataloaderIterator::new(
-            receiver, handlers, progresses,
+            receiver,
+            num_workers,
+            progresses,
         ))
     }
 
@@ -233,12 +284,12 @@ where
 impl<O> MultiThreadsDataloaderIterator<O> {
     pub fn new(
         receiver: mpsc::Receiver<Message<O>>,
-        workers: Vec<thread::JoinHandle<()>>,
+        num_workers: usize,
         progresses: Vec<Progress>,
     ) -> Self {
         MultiThreadsDataloaderIterator {
             num_done: 0,
-            workers,
+            num_workers,
             receiver,
             progresses,
         }
@@ -263,31 +314,27 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
-        if self.workers.is_empty() {
+        if self.num_workers == 0 {
             return None;
         }
 
         loop {
-            let item = self.receiver.recv();
-            let item = item.unwrap();
-
-            match item {
-                Message::Batch(index, item, progress) => {
+            match self.receiver.recv() {
+                Ok(Message::Batch(index, item, progress)) => {
                     if let Some(current) = self.progresses.get_mut(index) {
                         *current = progress;
                     }
                     return Some(item);
                 }
-                Message::Done => {
+                Ok(Message::Done) => {
                     self.num_done += 1;
+                    if self.num_done == self.num_workers {
+                        // Workers stay alive for the next epoch; nothing to join.
+                        return None;
+                    }
                 }
-            };
-
-            if self.num_done == self.workers.len() {
-                while let Some(worker) = self.workers.pop() {
-                    worker.join().unwrap();
-                }
-                return None;
+                // Every worker dropped its sender (the pool is shutting down).
+                Err(_) => return None,
             }
         }
     }
@@ -442,5 +489,65 @@ mod tests {
 
         assert_eq!(single_thread_cnt, multi_thread_cnt);
         assert_eq!(items_single_thread, items_multi_thread);
+    }
+
+    // Iterating the same loader over several epochs must keep yielding the full dataset (#4792).
+    #[test]
+    fn test_multi_thread_batch_dataloader_multiple_epochs() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+
+        let expected: HashSet<_> = dataset.iter().collect();
+
+        let dataloader = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        for _epoch in 0..3 {
+            let mut items = HashSet::new();
+            for batch in dataloader.iter() {
+                for item in batch {
+                    items.insert(item);
+                }
+            }
+            assert_eq!(items, expected);
+        }
+    }
+
+    // Dropping an iterator early must not kill the workers; the next pass still yields everything.
+    #[test]
+    fn test_multi_thread_batch_dataloader_resumes_after_early_drop() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FakeDataset::<String>::new(27));
+
+        let expected: HashSet<_> = dataset.iter().collect();
+
+        let dataloader = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(5)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        // Consume a single batch then drop the iterator early.
+        {
+            let mut iterator = dataloader.iter();
+            let _ = iterator.next();
+        }
+
+        let mut items = HashSet::new();
+        for batch in dataloader.iter() {
+            for item in batch {
+                items.insert(item);
+            }
+        }
+        assert_eq!(items, expected);
     }
 }
