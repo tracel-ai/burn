@@ -184,19 +184,21 @@ impl<LC: LearningComponentsTypes> LearningCheckpointer<LC> {
     ) -> Learner<LC> {
         let record = self
             .model
-            .restore(epoch, device)
+            .restore(epoch, &device)
             .expect("Can load model checkpoint.");
         learner.load_model(record);
 
+        // Optimizer and scheduler should not be on the autodiff device
+        let inner_device = device.clone().inner();
         let record = self
             .optim
-            .restore(epoch, device)
+            .restore(epoch, &inner_device)
             .expect("Can load optimizer checkpoint.");
         learner.load_optim(record);
 
         let record = self
             .lr_scheduler
-            .restore(epoch, device)
+            .restore(epoch, &inner_device)
             .expect("Can load learning rate scheduler checkpoint.");
         learner.load_scheduler(record);
 

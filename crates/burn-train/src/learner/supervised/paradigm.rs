@@ -414,6 +414,21 @@ where
             )),
         ));
 
+        // Main device for checkpoint loading, falling back to the model's current device if it's a custom strategy
+        let mut learner = learner;
+        if let Some(checkpoint) = components.checkpoint
+            && let Some(checkpointer) = &components.checkpointer
+        {
+            let main_device = match &training_strategy {
+                TrainingStrategy::Default(execution_strategy) => {
+                    execution_strategy.main_device().clone()
+                }
+                TrainingStrategy::Custom(_) => learner.model.devices()[0].clone(),
+            };
+            let device_ad = autodiff_device(main_device, self.grad_checkpointing);
+            learner = checkpointer.load_checkpoint(learner, &device_ad, checkpoint);
+        }
+
         match training_strategy {
             TrainingStrategy::Custom(learning_paradigm) => learning_paradigm.train(
                 learner,
