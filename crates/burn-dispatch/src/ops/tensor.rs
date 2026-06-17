@@ -31,10 +31,6 @@ impl FloatTensorOps<Self> for Dispatch {
     }
 
     fn float_device(tensor: &FloatTensor<Self>) -> DispatchDevice {
-        // println!("float_device: {tensor:?}");
-        // let device = tensor.device();
-        // println!("  {device:?}");
-        // device
         tensor.device()
     }
 
