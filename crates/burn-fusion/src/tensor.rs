@@ -51,7 +51,7 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
                 "{{ id: {:?}, shape: {:?}, device: {:?} }}",
                 self.id,
                 self.shape,
-                self.client.device().clone(),
+                self.client.device(),
             )
             .as_str(),
         )
@@ -59,6 +59,7 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
 }
 
 impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
+    type Device = R::FusionDevice;
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -69,6 +70,10 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
 
     fn rank(&self) -> usize {
         self.shape.num_dims()
+    }
+
+    fn device(&self) -> Self::Device {
+        self.client.device().clone()
     }
 }
 

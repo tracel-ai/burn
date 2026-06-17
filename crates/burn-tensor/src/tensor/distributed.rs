@@ -4,7 +4,7 @@
 //! the lifecycle of distributed synchronization clients.
 
 use alloc::vec::Vec;
-use burn_backend::ops::FloatTensorOps;
+use burn_backend::TensorMetadata;
 use burn_backend::{DeviceOps, distributed::DistributedOps};
 use burn_dispatch::{Dispatch, DispatchTensor};
 pub use burn_std::distributed::*;
@@ -56,7 +56,7 @@ pub struct CollectiveTensor<const D: usize> {
 impl<const D: usize> CollectiveTensor<D> {
     /// Synchronizes the collective operation and returns a valid tensor handle.
     pub fn resolve(self) -> Tensor<D> {
-        Dispatch::sync_collective(&Dispatch::float_device(&self.handle));
+        Dispatch::sync_collective(&self.handle.device());
         Tensor::new(BridgeTensor::float(self.handle))
     }
 

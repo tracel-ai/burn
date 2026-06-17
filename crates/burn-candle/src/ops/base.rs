@@ -237,10 +237,6 @@ pub fn reshape(tensor: CandleTensor, shape: Shape) -> CandleTensor {
     CandleTensor::new(tensor.tensor.reshape(shape.to_vec()).unwrap())
 }
 
-pub fn device(tensor: &CandleTensor) -> CandleDevice {
-    tensor.tensor.device().clone().into()
-}
-
 pub fn shape(tensor: &CandleTensor) -> Shape {
     tensor.shape()
 }

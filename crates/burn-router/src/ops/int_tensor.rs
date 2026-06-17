@@ -41,10 +41,6 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
-        tensor.client.device()
-    }
-
     fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
         if &tensor.client.device() == device {
             return tensor;

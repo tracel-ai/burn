@@ -81,10 +81,6 @@ impl<R: RouterChannel> BoolTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
-        tensor.client.device()
-    }
-
     fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
         if &tensor.client.device() == device {
             return tensor;

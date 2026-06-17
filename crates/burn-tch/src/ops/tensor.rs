@@ -90,10 +90,6 @@ impl FloatTensorOps<Self> for LibTorch {
         })
     }
 
-    fn float_device(tensor: &TchTensor) -> LibTorchDevice {
-        tensor.tensor.device().into()
-    }
-
     fn float_to_device(tensor: TchTensor, device: &LibTorchDevice) -> TchTensor {
         TchOps::to_device(tensor, device)
     }

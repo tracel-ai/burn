@@ -25,10 +25,6 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_to_device(tensor, device)
     }
 
-    fn bool_device(tensor: &BoolTensor<B>) -> Device<B> {
-        B::bool_device(tensor)
-    }
-
     fn bool_reshape(tensor: BoolTensor<B>, shape: Shape) -> BoolTensor<B> {
         B::bool_reshape(tensor, shape)
     }
