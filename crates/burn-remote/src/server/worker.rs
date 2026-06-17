@@ -31,6 +31,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use burn_backend::Shape;
 use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::{
     BackendIr, OperationIr, OptimizationBindings, OptimizationId, ScalarIr, TensorId, TensorIr,
@@ -361,28 +362,50 @@ where
     }
 }
 
+/// Server-allocated ids for a replay's intermediate tensors carry this high bit so they can never
+/// collide with client-allocated ids (whose monotonic counter never reaches `1 << 63`). The bit is
+/// purely server-internal: intermediates are produced and freed within a single replay and are
+/// never referenced by the client.
+const INTERMEDIATE_ID_BIT: u64 = 1 << 63;
+static INTERMEDIATE_ID_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn alloc_intermediate_id() -> TensorId {
+    let value = INTERMEDIATE_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    TensorId::new(value | INTERMEDIATE_ID_BIT)
+}
+
 /// Replay a cached relative op-graph against the interpreter, rebound to concrete tensors.
 ///
-/// The cached `graph` is in relative form: its tensor ids are positional, shapes are relative
-/// dims, and scalars are placeholders. Each op is cloned and rewritten in place from `bindings`
-/// (relative tensor id -> concrete id + global shape; placeholder -> concrete scalar) before being
-/// handed to the unchanged [`TensorInterpreter::register_op`], reproducing exactly the sequence of
-/// global ops the client would have streamed op-by-op.
+/// The cached `graph` is in relative form: its tensor ids are positional, shape dims are relative
+/// ids, and scalars are placeholders. `bindings` carry only the boundary tensor ids and the
+/// relative→concrete shape-dim map. For each op we:
+/// - resolve every tensor id to its boundary binding, or a freshly allocated intermediate id
+///   (memoized per relative id so all references to one intermediate agree);
+/// - rebuild every tensor's concrete shape from the shape-dim map (so intermediates get correct
+///   shapes too, without being sent);
+/// - substitute scalar placeholders;
+///
+/// then hand the rebound op to the unchanged [`TensorInterpreter::register_op`], reproducing the
+/// exact sequence of global ops the client would have streamed op-by-op.
 fn replay_optimization<B: BackendIr>(
     runner: &TensorInterpreter<B>,
     graph: &[OperationIr],
     bindings: &OptimizationBindings,
 ) {
-    let tensors: HashMap<TensorId, &TensorIr> =
-        bindings.tensors.iter().map(|(rel, ir)| (*rel, ir)).collect();
+    let dims: HashMap<usize, usize> = bindings.shapes.iter().copied().collect();
+    // Seeded with the boundary (relative -> concrete); intermediates are filled in on demand.
+    let mut ids: HashMap<TensorId, TensorId> = bindings.tensors.iter().copied().collect();
 
     for op in graph {
         let mut op = op.clone();
         op.for_each_tensor_mut(&mut |tensor: &mut TensorIr| {
-            if let Some(concrete) = tensors.get(&tensor.id) {
-                tensor.shape = concrete.shape.clone();
-                tensor.id = concrete.id;
-            }
+            tensor.id = *ids.entry(tensor.id).or_insert_with(alloc_intermediate_id);
+            let shape: Vec<usize> = tensor
+                .shape
+                .iter()
+                .map(|dim| dims.get(dim).copied().unwrap_or(*dim))
+                .collect();
+            tensor.shape = Shape::from(shape);
         });
         op.for_each_scalar_mut(&mut |scalar: &mut ScalarIr| {
             if let ScalarIr::UInt(placeholder) = *scalar

@@ -12,8 +12,8 @@ use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use burn_backend::DType;
 use burn_backend::ops::FloatTensorOps;
+use burn_backend::{DType, Shape};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_fusion::stream::{Context, OrderedExecution};
 use burn_fusion::{
@@ -22,7 +22,7 @@ use burn_fusion::{
 };
 use burn_ir::{
     BackendIr, OperationIr, OptimizationBindings, OptimizationId, ScalarIr, TensorHandle, TensorId,
-    TensorIr, TensorStatus,
+    TensorStatus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -254,33 +254,38 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterOptimizati
 
         let client = get_client::<R>(&self.device);
 
-        // Build the relative -> concrete (backend-id + global-shape) bindings for every tensor the
-        // graph references, and collect the surviving outputs.
-        let mut tensors: Vec<(TensorId, TensorIr)> = Vec::with_capacity(context.tensors.len());
-        // (fusion-global id used as the handle-container key, concrete tensor).
-        let mut outputs: Vec<(TensorId, TensorIr)> = Vec::new();
+        // Send bindings only for the graph's *boundary*: external inputs (reuse their concrete id)
+        // and surviving outputs (allocate a fresh id and register a handle). Intermediate tensors
+        // are left out entirely — the replay allocates their ids and derives their shapes from the
+        // shape-dim map below, so the payload doesn't grow with the number of fused ops.
+        let mut tensors: Vec<(TensorId, TensorId)> = Vec::new();
+        // (fusion-global id used as the handle-container key, concrete id, shape, dtype).
+        let mut outputs: Vec<(TensorId, TensorId, Shape, DType)> = Vec::new();
         for (relative_id, global) in context.tensors.iter() {
-            let concrete_id = match context.handles.get_handle_ref(&global.id) {
-                // Already on the backend (an input to this graph): reuse its concrete id.
-                Some(handle) => handle.id(),
-                // Produced by this graph: allocate a fresh id the backend registers the result under.
-                None => client.create_empty_handle(),
-            };
-            let concrete = TensorIr {
-                id: concrete_id,
-                shape: global.shape.clone(),
-                status: global.status,
-                dtype: global.dtype,
-            };
-            tensors.push((*relative_id, concrete.clone()));
-
-            let survives = produced.contains(relative_id)
-                && !read_write.contains(relative_id)
-                && !dropped.contains(relative_id);
-            if survives {
-                outputs.push((global.id, concrete));
+            // A tensor that already has a handle is an input — it's resident on the backend (a
+            // prior op's output, a `from_data` tensor registered out-of-band, etc.). One with no
+            // handle is produced by this graph's computation: a surviving output (allocate + send)
+            // or an intermediate (the server owns its id and never hears about it).
+            if let Some(handle) = context.handles.get_handle_ref(&global.id) {
+                tensors.push((*relative_id, handle.id()));
+            } else {
+                let survives = produced.contains(relative_id)
+                    && !read_write.contains(relative_id)
+                    && !dropped.contains(relative_id);
+                if survives {
+                    let concrete_id = client.create_empty_handle();
+                    tensors.push((*relative_id, concrete_id));
+                    outputs.push((global.id, concrete_id, global.shape.clone(), global.dtype));
+                }
             }
         }
+
+        // The relative-dim → concrete-dim map, enough to rebuild every tensor's concrete shape.
+        let shapes: Vec<(usize, usize)> = context
+            .shapes_relative2global
+            .iter()
+            .map(|(relative, concrete)| (*relative, *concrete))
+            .collect();
 
         // Concrete scalar values, indexed by their placeholder id.
         let mut scalars = vec![ScalarIr::UInt(0); context.scalars.len()];
@@ -292,14 +297,17 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterOptimizati
         }
 
         // Register lightweight handles for surviving outputs so later ops / reads resolve them.
-        for (fusion_id, concrete) in outputs {
-            let handle =
-                RouterTensor::new(concrete.id, concrete.shape, concrete.dtype, client.clone());
+        for (fusion_id, concrete_id, shape, dtype) in outputs {
+            let handle = RouterTensor::new(concrete_id, shape, dtype, client.clone());
             context.handles.register_handle(fusion_id, handle);
         }
 
         // Register the relative graph once (first invocation only), then invoke it by id.
-        let bindings = OptimizationBindings { tensors, scalars };
+        let bindings = OptimizationBindings {
+            tensors,
+            shapes,
+            scalars,
+        };
         let id = match self.server_id {
             Some(id) => id,
             None => {

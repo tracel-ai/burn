@@ -410,7 +410,7 @@ mod tests {
 #[cfg(all(test, feature = "fusion", feature = "server"))]
 mod fusion_tests {
     use crate::{RemoteBackend, RemoteDevice, RemoteFusionBackend};
-    use burn_backend::{Backend, TensorData};
+    use burn_backend::{Backend, Shape, TensorData};
 
     fn input() -> TensorData {
         TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -419,16 +419,18 @@ mod fusion_tests {
     /// Run the same small multi-op graph `iters` times on backend `B`, reading the result each
     /// iteration. Every iteration has an identical op structure, so a fusion backend registers the
     /// optimization once and replays it by id on the later iterations.
+    ///
+    /// The graph deliberately includes a reshape, so one of the intermediate tensors (`c`) has a
+    /// *different* shape than the inputs/outputs — exercising the server's reconstruction of
+    /// intermediate shapes from the shape-dim map (rather than them being sent per replay).
     fn run<B: Backend<Device = RemoteDevice>>(device: &RemoteDevice, iters: usize) -> Vec<Vec<f32>> {
         let mut out = Vec::new();
         for _ in 0..iters {
-            let a = B::float_from_data(input(), device);
-            let b = B::float_from_data(input(), device);
-            // A few rank-preserving fusable ops producing intermediates (`c`, `d`) and one output.
-            let c = B::float_add(a, b);
-            let d = B::float_exp(c);
-            let y = B::float_log(d);
-            let data = burn_std::reader::try_read_sync(B::float_into_data(y))
+            let a = B::float_from_data(input(), device); // [2, 3]
+            let b = B::float_exp(a); // [2, 3]
+            let c = B::float_reshape(b, Shape::from([3, 2])); // [3, 2] intermediate (distinct shape)
+            let d = B::float_log(c); // [3, 2]
+            let data = burn_std::reader::try_read_sync(B::float_into_data(d))
                 .expect("remote read should resolve synchronously")
                 .expect("read should succeed");
             out.push(data.to_vec::<f32>().unwrap());
