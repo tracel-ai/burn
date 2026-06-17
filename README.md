@@ -64,9 +64,9 @@ plenty of room to help shape what comes next.
 | Models        | [models](https://github.com/tracel-ai/models)         | Curated pre-trained models and examples built with Burn                                                                                                           |
 | Tooling       | [burn-bench](https://github.com/tracel-ai/burn-bench) | Benchmark and compare backends, tracking performance over time                                                                                                    |
 
-Burn's own backends (CUDA, ROCm, Metal, Vulkan, WebGPU, LibTorch and pure-Rust CPU/`no_std`) compose
-with autodiff, fusion and remote-execution decorators. See [Supported Backends](#supported-backends)
-below for the full matrix.
+Burn's [CubeCL](https://github.com/tracel-ai/cubecl) backends (CUDA, ROCm, Metal, Vulkan, WebGPU, CPU) compose with autodiff, fusion and remote-execution decorators,
+while external and simpler backends (LibTorch and pure-Rust CPU/`no_std`) compose with autodiff only.
+See [Supported Backends](#supported-backends) below for the full matrix.
 
 Every project here is open-source and actively developed. Want to help build the Rust AI ecosystem?
 The [good first issues](https://github.com/tracel-ai/burn/contribute) are a great place to start, and
