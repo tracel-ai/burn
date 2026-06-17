@@ -146,7 +146,7 @@ mod tests {
         let bytes = optim.into_bytes().unwrap();
         let optim_new = sgd_with_all();
         let record_new = optim_new.to_record();
-        let optim_new = optim_new.from_bytes(bytes, &device).unwrap();
+        let optim_new = optim_new.from_bytes(bytes).unwrap();
         let state_restored = optim_new.to_record();
 
         assert_ne!(record.len(), record_new.len());

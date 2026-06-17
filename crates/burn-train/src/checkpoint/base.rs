@@ -25,6 +25,10 @@ pub enum CheckpointerError {
 /// Implemented for the burnpack record types used during training: the module
 /// ([`ModuleRecord`]), the optimizer ([`OptimizerRecord`]) and the learning rate scheduler
 /// ([`LrSchedulerRecord`]).
+///
+/// Records are device-free: a checkpoint is just file-backed bytes. Device placement is decided
+/// when a record is applied (the module keeps its existing parameter device; optimizer state
+/// migrates to each parameter's device on the next step), not when the checkpoint is loaded.
 pub trait Checkpoint: Sized + Send + 'static {
     /// Save the record to `path`.
     fn save(self, path: PathBuf) -> Result<(), CheckpointerError>;
@@ -82,9 +86,9 @@ where
     /// * `record` - The record.
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError>;
 
-    /// Delete the record at the given epoch if present.
+    /// Delete the checkpoint saved at the given epoch if present.
     fn delete(&self, epoch: usize) -> Result<(), CheckpointerError>;
 
-    /// Restore the record at the given epoch.
+    /// Restore the record from the checkpoint saved at the given epoch.
     fn restore(&self, epoch: usize) -> Result<R, CheckpointerError>;
 }

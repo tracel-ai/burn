@@ -113,7 +113,7 @@ impl StateSource {
 ///
 /// Generated with `#[derive(RecordState)]`. The `prefix` threads the parameter identity (and any
 /// nested field path) through the recursion; leaves are named `{prefix}.{field}`.
-pub trait RecordState: Sized {
+pub trait RecordState: Sized + Send + Sync + 'static {
     /// Flatten `self` into `out`, naming every leaf under `prefix`.
     fn state_flatten(&self, prefix: &str, out: &mut StateSink);
 

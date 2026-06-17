@@ -255,7 +255,7 @@ mod tests {
             .unwrap();
 
         let state_optim_before = optimizer.to_record();
-        let optimizer = create_adam().from_bytes(bytes, &device).unwrap();
+        let optimizer = create_adam().from_bytes(bytes).unwrap();
         let state_optim_after = optimizer.to_record();
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
@@ -280,14 +280,13 @@ mod tests {
             linear = optimizer.step(LEARNING_RATE, linear, grads);
         }
 
-        // Round-trip the optimizer state through the burnpack format. Optimizer state lives on the
-        // inner (non-autodiff) backend, so it is reloaded on the non-autodiff device.
+        // Round-trip the optimizer state through the burnpack format. No device is needed on load:
+        // each parameter's state is migrated to that parameter's device on the next step.
         let bytes = optimizer.into_bytes().unwrap();
-        let device_inner = Device::default();
         let mut reloaded = AdamConfig::new()
             .with_amsgrad(true)
             .init()
-            .from_bytes(bytes, &device_inner)
+            .from_bytes(bytes)
             .unwrap();
 
         // One more identical step on each optimizer must yield identical parameters.

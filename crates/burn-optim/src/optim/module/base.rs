@@ -16,9 +16,9 @@ use burn::tensor::{Device, Tensor};
 pub trait Optimizer: Send + Sync + Clone + 'static {
     /// The state of the optimizer for a single parameter of rank `D`.
     ///
-    /// It implements [`RecordState`] so it can be decomposed into named tensors and scalars for the
-    /// burnpack format.
-    type State<const D: usize>: Send + Sync + Clone + RecordState + 'static;
+    /// It implements [`RecordState`] (which itself requires `Send + Sync + 'static`) so it can be
+    /// decomposed into named tensors and scalars for the burnpack format.
+    type State<const D: usize>: Clone + RecordState;
 
     /// The optimizer step is performed for one tensor at a time with its gradient and state.
     ///
@@ -45,7 +45,7 @@ pub trait Optimizer: Send + Sync + Clone + 'static {
 /// when the state is later interpreted by the originating [`Optimizer`] (during a step, a device
 /// transfer or serialization).
 #[derive(Clone)]
-pub struct DynState {
+pub(crate) struct DynState {
     state: Arc<dyn Any + Send + Sync>,
     rank: usize,
 }

@@ -509,7 +509,7 @@ mod tests {
         let state_before = optimizer.to_record();
         let bytes = optimizer.into_bytes().unwrap();
 
-        let optimizer_loaded = MuonConfig::new().init().from_bytes(bytes, &device).unwrap();
+        let optimizer_loaded = MuonConfig::new().init().from_bytes(bytes).unwrap();
         let state_after = optimizer_loaded.to_record();
 
         assert_eq!(state_before.len(), state_after.len());

@@ -540,6 +540,10 @@ impl LBFGS {
     }
 
     /// Load the optimizer state from an [`OptimizerRecord`], placing tensors on `device`.
+    ///
+    /// Unlike [`ModuleOptimizer`](crate::optim::ModuleOptimizer), L-BFGS does not migrate its state
+    /// to the gradient device on each step (it keeps one global flattened state), so `device` must
+    /// be the device the optimization will run on.
     pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
         let mut source = StateSource::new(record.scalars);
         for tensor in record.tensors {

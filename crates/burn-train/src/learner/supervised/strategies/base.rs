@@ -129,8 +129,7 @@ pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
         let starting_epoch = match training_components.checkpoint {
             Some(checkpoint) => {
                 if let Some(checkpointer) = &mut training_components.checkpointer {
-                    learner =
-                        checkpointer.load_checkpoint(learner, &Default::default(), checkpoint);
+                    learner = checkpointer.load_checkpoint(learner, checkpoint);
                 }
                 checkpoint + 1
             }

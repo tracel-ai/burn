@@ -593,10 +593,9 @@ where
     }
 
     fn load_record(self, record: Self::Record) -> Self {
-        let device = self.device();
         let policy_model = self.policy_model.load_record(record.policy_model);
         let target_model = self.target_model.load_record(record.target_model);
-        let optimizer = self.optimizer.load_record(record.optimizer, &device);
+        let optimizer = self.optimizer.load_record(record.optimizer);
         Self {
             policy_model,
             target_model,

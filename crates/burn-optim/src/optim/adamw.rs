@@ -253,7 +253,7 @@ mod tests {
             .unwrap();
 
         let state_optim_before = optimizer.to_record();
-        let optimizer = create_adamw().from_bytes(bytes, &device).unwrap();
+        let optimizer = create_adamw().from_bytes(bytes).unwrap();
         let state_optim_after = optimizer.to_record();
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());

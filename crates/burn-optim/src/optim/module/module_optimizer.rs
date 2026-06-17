@@ -18,8 +18,12 @@ use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use hashbrown::HashMap;
 use std::sync::Arc;
 
-/// Wrapper struct that adapts any [simple optimizer](SimpleOptimizer) into
-/// an [optimizer](Optimizer).
+/// Optimizes a whole module by applying a per-parameter [`Optimizer`] to each of its parameters.
+///
+/// It is non-generic over the module and optimizer: any `O: Optimizer` is type-erased behind a
+/// dynamic optimizer, and per-parameter states are kept as type-erased states keyed by
+/// [`ParamId`](burn::module::ParamId). Build one with `optimizer.into()` or
+/// `OptimizerConfig::init()`.
 #[derive(Clone)]
 pub struct ModuleOptimizer {
     optim: Arc<dyn DynOptimizer>,
@@ -136,8 +140,14 @@ impl ModuleOptimizer {
         OptimizerRecord { tensors, scalars }
     }
 
-    /// Load the optimizer state from an [`OptimizerRecord`], placing tensors on `device`.
-    pub fn load_record(mut self, record: OptimizerRecord, device: &Device) -> Self {
+    /// Load the optimizer state from an [`OptimizerRecord`].
+    ///
+    /// State tensors are materialized on the default device; no device argument is needed because
+    /// each parameter's state is migrated to that parameter's (gradient's) device on the next
+    /// [`step`](ModuleOptimizer::step) — see the `to_device` call in the step path. The load device
+    /// is therefore irrelevant to correctness.
+    pub fn load_record(mut self, record: OptimizerRecord) -> Self {
+        let device = Device::default();
         let mut ranks: BTreeMap<u64, usize> = BTreeMap::new();
 
         // Recover each parameter's rank from its persisted `__rank` scalar (authoritative). Keys
@@ -169,7 +179,7 @@ impl ModuleOptimizer {
             let prefix = id.to_string();
             // Skip parameters whose state can't be reconstructed (truncated/foreign record); they
             // are re-initialized lazily on the next step rather than aborting the load.
-            if let Some(state) = self.optim.state_unflatten(rank, &prefix, &mut source, device) {
+            if let Some(state) = self.optim.state_unflatten(rank, &prefix, &mut source, &device) {
                 states.insert(ParamId::from(id), state);
             }
         }
@@ -184,8 +194,8 @@ impl ModuleOptimizer {
     }
 
     /// Load the optimizer state from an in-memory burnpack byte buffer.
-    pub fn from_bytes(self, bytes: Bytes, device: &Device) -> Result<Self, RecordError> {
-        Ok(self.load_record(OptimizerRecord::from_bytes(bytes)?, device))
+    pub fn from_bytes(self, bytes: Bytes) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::from_bytes(bytes)?))
     }
 
     /// Save the optimizer state to a burnpack file on disk.
@@ -194,14 +204,10 @@ impl ModuleOptimizer {
         self.to_record().save(path)
     }
 
-    /// Load the optimizer state from a burnpack file on disk, placing tensors on `device`.
+    /// Load the optimizer state from a burnpack file on disk.
     #[cfg(feature = "std")]
-    pub fn load<P: AsRef<std::path::Path>>(
-        self,
-        path: P,
-        device: &Device,
-    ) -> Result<Self, RecordError> {
-        Ok(self.load_record(OptimizerRecord::load(path)?, device))
+    pub fn load<P: AsRef<std::path::Path>>(self, path: P) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::load(path)?))
     }
 }
 

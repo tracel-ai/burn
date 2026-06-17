@@ -121,8 +121,11 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     }
 
     /// Load the state of the learner's optimizer from a [record](LearnerOptimizerRecord).
-    pub fn load_optim(&mut self, record: LearnerOptimizerRecord, device: &Device) {
-        self.optim = self.optim.clone().load_record(record, device);
+    ///
+    /// No device is needed: the optimizer state is migrated to each parameter's device on the next
+    /// step (see [`ModuleOptimizer::load_record`](burn_optim::ModuleOptimizer::load_record)).
+    pub fn load_optim(&mut self, record: LearnerOptimizerRecord) {
+        self.optim = self.optim.clone().load_record(record);
     }
 
     /// Load the state of the learner's scheduler from a [record](LearnerSchedulerRecord).
@@ -190,12 +193,12 @@ impl<LC: LearningComponentsTypes> LearningCheckpointer<LC> {
     }
 
     /// Load a training checkpoint.
-    pub fn load_checkpoint(
-        &self,
-        mut learner: Learner<LC>,
-        device: &Device,
-        epoch: usize,
-    ) -> Learner<LC> {
+    ///
+    /// No device is taken: checkpoints are device-free burnpack records (file-backed bytes). On
+    /// load, the model keeps the device of the learner's existing parameters, and the optimizer
+    /// state is migrated to each parameter's device on the next step. The training device is fixed
+    /// earlier, when the learner's model is created/forked.
+    pub fn load_checkpoint(&self, mut learner: Learner<LC>, epoch: usize) -> Learner<LC> {
         let record = self
             .model
             .restore(epoch)
@@ -206,7 +209,7 @@ impl<LC: LearningComponentsTypes> LearningCheckpointer<LC> {
             .optim
             .restore(epoch)
             .expect("Can load optimizer checkpoint.");
-        learner.load_optim(record, device);
+        learner.load_optim(record);
 
         let record = self
             .lr_scheduler
