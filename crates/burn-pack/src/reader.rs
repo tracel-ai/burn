@@ -56,7 +56,7 @@ impl Reader {
     /// allocation (pinned-memory staging) for fast file-to-GPU transfers.
     ///
     /// If `path` has no extension and does not exist as given, the canonical
-    /// [`crate::EXTENSION`] (`.bpk`) is appended — mirroring [`Writer::write_to_file`].
+    /// [`crate::EXTENSION`] (`.bpk`) is appended.
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let path = path.as_ref();

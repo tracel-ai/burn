@@ -3,7 +3,7 @@
 //! A [`ModuleRecord`](crate::store::ModuleRecord) holds a module's parameters (path +
 //! [`ParamId`](crate::module::ParamId) + [`TensorData`](crate::tensor::TensorData)) and
 //! serializes them with the [burnpack](burn_pack) format. It is produced and applied through the
-//! [`Module`] trait itself ([`Module::into_record`](crate::module::Module::into_record) /
+//! [`Module`](crate::module::Module) trait itself ([`Module::into_record`](crate::module::Module::into_record) /
 //! [`Module::load_record`](crate::module::Module::load_record)).
 //!
 //! This module is intentionally tiny: traversal is a straightforward
