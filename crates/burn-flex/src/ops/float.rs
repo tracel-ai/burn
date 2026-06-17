@@ -1085,6 +1085,16 @@ impl FloatTensorOps<Flex> for Flex {
             |x: f64| x.is_infinite(),
         )
     }
+
+    fn float_hypot(lhs: FloatTensor<Flex>, rhs: FloatTensor<Flex>) -> FloatTensor<Flex> {
+        binary_op(
+            lhs,
+            rhs,
+            |a: f32, b| a.hypot(b),
+            |a: f64, b| a.hypot(b),
+            None,
+        )
+    }
 }
 
 // Tests kept here exercise flex-specific behavior: direct `Flex::`

@@ -91,6 +91,7 @@ impl Metric for CpuMemory {
         NumericAttributes {
             unit: Some("Gb".to_string()),
             higher_is_better: false,
+            ..Default::default()
         }
         .into()
     }

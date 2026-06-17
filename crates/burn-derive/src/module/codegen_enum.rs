@@ -1,22 +1,18 @@
-use super::{codegen::ModuleCodegen, record_enum::EnumModuleRecordCodegen};
+use super::codegen::ModuleCodegen;
 use crate::module::{
     codegen_struct::{ModuleFieldType, parse_module_field_type},
     generics::{ModuleGenerics, parse_module_generics},
 };
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::Visibility;
 
 pub(crate) struct EnumModuleCodegen {
     pub name: Ident,
     pub variants: Vec<EnumVariant>,
-    pub vis: Visibility,
     pub generics: ModuleGenerics,
 }
 
 impl ModuleCodegen for EnumModuleCodegen {
-    type RecordCodegen = EnumModuleRecordCodegen;
-
     fn gen_num_params(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|_| {
             quote! {
@@ -147,37 +143,6 @@ impl ModuleCodegen for EnumModuleCodegen {
         }
     }
 
-    fn gen_into_record(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant| {
-            quote! {
-                Self::Record::#variant(burn::module::Module::into_record(module))
-            }
-        });
-
-        quote! {
-            fn into_record(self) -> Self::Record {
-                #match_body
-            }
-        }
-    }
-
-    fn gen_load_record(&self) -> TokenStream {
-        let match_body = self.gen_variants_match_fn(|variant| {
-            quote! {
-                {
-                    let Self::Record::#variant(r) = record else {panic!("Can't parse record from a different variant");};
-                    Self::#variant(burn::module::Module::load_record(module, r))
-                }
-            }
-        });
-
-        quote! {
-            fn load_record(self, record: Self::Record) -> Self {
-                #match_body
-            }
-        }
-    }
-
     fn gen_clone(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {
@@ -190,10 +155,6 @@ impl ModuleCodegen for EnumModuleCodegen {
                 #match_body
             }
         }
-    }
-
-    fn record_codegen(self) -> Self::RecordCodegen {
-        EnumModuleRecordCodegen::new(self.variants, self.vis)
     }
 
     fn module_generics(&self) -> &ModuleGenerics {
@@ -234,7 +195,6 @@ impl EnumModuleCodegen {
         Ok(Self {
             name: ast.ident.clone(),
             variants: parse_variants(ast, &mut generics)?,
-            vis: ast.vis.clone(),
             generics,
         })
     }
@@ -281,7 +241,6 @@ impl EnumModuleCodegen {
 /// Module enum variant
 pub(crate) struct EnumVariant {
     pub ident: syn::Ident,
-    pub ty: syn::Type,
     pub field_type: ModuleFieldType,
 }
 
@@ -316,7 +275,6 @@ pub(crate) fn parse_variants(
 
                 variants.push(EnumVariant {
                     ident: variant.ident.clone(),
-                    ty: field.ty.clone(),
                     field_type,
                 });
             }

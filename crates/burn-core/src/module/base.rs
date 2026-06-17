@@ -1,5 +1,4 @@
 use super::{Param, ParamId, Quantizer};
-use crate::record::Record;
 use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Device, Int, Tensor};
@@ -67,9 +66,6 @@ macro_rules! module {
 /// }
 /// ```
 pub trait Module: Clone + Send + core::fmt::Debug {
-    /// Type to save and load the module.
-    type Record: Record;
-
     /// Return all the devices found in the underneath module tree added to the given vector
     /// without duplicates.
     fn collect_devices(&self, devices: Devices) -> Devices;
@@ -143,70 +139,91 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Map each tensor parameter in the module with a [mapper](ModuleMapper).
     fn map<Mapper: ModuleMapper>(self, mapper: &mut Mapper) -> Self;
 
-    /// Load the module state from a record.
-    fn load_record(self, record: Self::Record) -> Self;
-
-    /// Convert the module into a record containing the state.
-    fn into_record(self) -> Self::Record;
-
-    #[cfg(feature = "std")]
-    /// Save the module to a file using the provided [file recorder](crate::record::FileRecorder).
-    ///
-    /// List of supported file recorders:
-    ///
-    /// * [default](crate::record::DefaultFileRecorder)
-    /// * [bincode](crate::record::BinFileRecorder)
-    /// * [bincode compressed with gzip](crate::record::BinGzFileRecorder)
-    /// * [json pretty](crate::record::PrettyJsonFileRecorder)
-    /// * [json compressed with gzip](crate::record::JsonGzFileRecorder)
-    /// * [named mpk](crate::record::NamedMpkFileRecorder)
-    /// * [named mpk compressed with gzip](crate::record::NamedMpkGzFileRecorder)
-    ///
-    /// ## Notes
-    ///
-    /// The file extension is automatically added depending on the file recorder provided, you
-    /// don't have to specify it.
-    fn save_file<FR, PB>(
-        self,
-        file_path: PB,
-        recorder: &FR,
-    ) -> Result<(), crate::record::RecorderError>
-    where
-        FR: crate::record::FileRecorder,
-        PB: Into<std::path::PathBuf>,
-    {
-        let record = Self::into_record(self);
-        recorder.record(record, file_path.into())
-    }
-
-    #[cfg(feature = "std")]
-    /// Load the module from a file using the provided [file recorder](crate::record::FileRecorder).
-    ///
-    /// The recorder should be the same as the one used to save the module, see
-    /// [save_file](Self::save_file).
-    ///
-    /// ## Notes
-    ///
-    /// The file extension is automatically added depending on the file recorder provided, you
-    /// don't have to specify it.
-    fn load_file<FR, PB>(
-        self,
-        file_path: PB,
-        recorder: &FR,
-        device: &Device,
-    ) -> Result<Self, crate::record::RecorderError>
-    where
-        FR: crate::record::FileRecorder,
-        PB: Into<std::path::PathBuf>,
-    {
-        let record = recorder.load(file_path.into(), device)?;
-
-        Ok(self.load_record(record))
-    }
-
     /// Quantize the weights of the module.
     fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
         self.map(quantizer)
+    }
+
+    /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
+    ///
+    /// The record can be saved to a burnpack file or byte buffer and applied back with
+    /// [`load_record`](Module::load_record).
+    fn into_record(self) -> crate::store::ModuleRecord
+    where
+        Self: Sized,
+    {
+        crate::store::ModuleRecord::from_module(self)
+    }
+
+    /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, returning the loaded
+    /// module.
+    ///
+    /// Honors the record's [`DTypePolicy`](crate::store::DTypePolicy), `validate`, and
+    /// `allow_partial` settings.
+    fn try_load_record(
+        self,
+        record: crate::store::ModuleRecord,
+    ) -> Result<Self, crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        record.apply(self)
+    }
+
+    /// Apply a [`ModuleRecord`](crate::store::ModuleRecord) to this module, consuming and returning
+    /// it.
+    ///
+    /// Panics if validation fails; use [`try_load_record`](Module::try_load_record) for the
+    /// fallible variant.
+    fn load_record(self, record: crate::store::ModuleRecord) -> Self
+    where
+        Self: Sized,
+    {
+        self.try_load_record(record).expect("Failed to load record")
+    }
+
+    /// Save this module's parameters to a burnpack file on disk.
+    ///
+    /// Convenience for [`into_record`](Module::into_record) followed by
+    /// [`ModuleRecord::save`](crate::store::ModuleRecord::save). For non-default load behavior
+    /// (dtype policy, partial loading, validation), go through the record directly.
+    #[cfg(feature = "std")]
+    fn save_file<P: AsRef<std::path::Path>>(self, path: P) -> Result<(), crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        self.into_record().save(path)
+    }
+
+    /// Load this module's parameters from a burnpack file on disk, returning the loaded module.
+    ///
+    /// Uses the default load behavior. Panics on I/O or validation errors; use
+    /// [`try_load_file`](Module::try_load_file) for the fallible variant, or go through
+    /// [`ModuleRecord`](crate::store::ModuleRecord) to configure dtype policy, partial loading or
+    /// validation.
+    #[cfg(feature = "std")]
+    fn load_file<P: AsRef<std::path::Path>>(self, path: P) -> Self
+    where
+        Self: Sized,
+    {
+        self.try_load_file(path)
+            .expect("Failed to load module from file")
+    }
+
+    /// Fallible variant of [`load_file`](Module::load_file).
+    ///
+    /// Reads the record from `path` with [`ModuleRecord::load`](crate::store::ModuleRecord::load)
+    /// and applies it through [`try_load_record`](Module::try_load_record).
+    #[cfg(feature = "std")]
+    fn try_load_file<P: AsRef<std::path::Path>>(
+        self,
+        path: P,
+    ) -> Result<Self, crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        let record = crate::store::ModuleRecord::load(path)?;
+        self.try_load_record(record)
     }
 }
 

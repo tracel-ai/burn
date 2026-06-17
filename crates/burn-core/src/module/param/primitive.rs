@@ -12,8 +12,6 @@ impl<T> Module for Option<T>
 where
     T: Module + Debug + Send + Clone,
 {
-    type Record = Option<T::Record>;
-
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         if let Some(module) = self {
             module.visit(visitor)
@@ -22,21 +20,6 @@ where
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         self.map(|module| module.map(mapper))
-    }
-
-    fn load_record(self, record: Self::Record) -> Self {
-        let is_constant = self.num_params() == 0;
-
-        if is_constant {
-            return self;
-        }
-
-        self.zip(record)
-            .map(|(module, record)| module.load_record(record))
-    }
-
-    fn into_record(self) -> Self::Record {
-        self.map(Module::into_record)
     }
 
     fn to_device(self, device: &Device) -> Self {
@@ -84,8 +67,6 @@ impl<T> Module for Vec<T>
 where
     T: Module + Debug + Send + Clone,
 {
-    type Record = Vec<T::Record>;
-
     fn num_params(&self) -> usize {
         let mut num_params = 0;
         for module in self.iter() {
@@ -114,25 +95,6 @@ where
                 mapper.exit_module(&index_str, "Vec");
                 mapped
             })
-            .collect()
-    }
-
-    fn into_record(self) -> Self::Record {
-        self.into_iter().map(Module::into_record).collect()
-    }
-
-    fn load_record(self, record: Self::Record) -> Self {
-        assert_eq!(
-            self.len(),
-            record.len(),
-            r#"[Load Record Error] The vec record does not the same length as the module.
-            Make sure you module initialization is compatible with the record being loaded.
-            "#,
-        );
-
-        self.into_iter()
-            .zip(record)
-            .map(|(module, record)| module.load_record(record))
             .collect()
     }
 
@@ -190,8 +152,6 @@ impl<const N: usize, T> Module for [T; N]
 where
     T: Module + Debug + Send + Clone,
 {
-    type Record = [T::Record; N];
-
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
         for module in self.iter() {
             devices = module.collect_devices(devices);
@@ -230,19 +190,6 @@ where
         result
             .try_into()
             .unwrap_or_else(|v: Vec<T>| panic!("Expected array of length {}, got {}", N, v.len()))
-    }
-
-    fn load_record(self, record: Self::Record) -> Self {
-        self.into_iter()
-            .zip(record)
-            .map(|(module, record)| module.load_record(record))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
-    }
-
-    fn into_record(self) -> Self::Record {
-        self.map(Module::into_record)
     }
 
     fn to_device(self, device: &Device) -> Self {
@@ -295,8 +242,6 @@ macro_rules! impl_module_tuple {
         where
             $($l: Module + Debug + Send + Clone,)*
         {
-            type Record = ($($l::Record),*);
-
             fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
                 $(devices = self.$i.collect_devices(devices);)*
                 devices
@@ -331,13 +276,6 @@ macro_rules! impl_module_tuple {
                 ,)*)
             }
 
-            fn load_record(self, record: Self::Record) -> Self {
-                ($(self.$i.load_record(record.$i),)*)
-            }
-
-            fn into_record(self) -> Self::Record {
-                ($(self.$i.into_record(),)*)
-            }
         }
 
         impl<$($l,)*> AutodiffModule for ($($l,)*)
@@ -379,27 +317,3 @@ impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6][0, 1, 2, 3, 4, 5, 6]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7][0, 1, 2, 3, 4, 5, 6, 7]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8, L9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dont_override_constant_module_when_loading_record() {
-        let module = Some(42);
-
-        let record = Module::into_record(module);
-        let loaded = Module::load_record(module, record);
-
-        assert_eq!(loaded, module);
-    }
-    #[test]
-    fn dont_override_constant_module_when_loading_none_record() {
-        let module = Some(42);
-
-        let record = None;
-        let loaded = Module::load_record(module, record);
-
-        assert_eq!(loaded, module);
-    }
-}

@@ -1,5 +1,5 @@
 use burn_backend::{
-    Bytes, DType, ExecutionError, Shape, TensorData, TensorMetadata, TensorPrimitive,
+    Bytes, DType, ExecutionError, Shape, SplitPolicy, TensorData, TensorMetadata, TensorPrimitive,
     get_device_settings,
     ops::QTensorOps,
     quantization::{
@@ -8,7 +8,7 @@ use burn_backend::{
     },
     tensor::{Device, FloatTensor, QuantizedTensor},
 };
-use burn_std::{FloatDType, Metadata, SplitPolicy};
+use burn_std::{FloatDType, Metadata};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 

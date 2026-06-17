@@ -46,18 +46,18 @@ snippet.
 ## Artifacts
 
 When creating a `SupervisedTraining` instance, all the collected data will be saved under the directory provided as
-the argument to the `new` method. Here is an example of the data layout for a model recorded using
-the compressed message pack format, with the accuracy and loss metrics registered:
+the argument to the `new` method. Here is an example of the data layout for a model checkpointed to
+the burnpack format, with the accuracy and loss metrics registered:
 
 ```
 ├── experiment.log
 ├── checkpoint
-│   ├── model-1.mpk.gz
-│   ├── optim-1.mpk.gz
-│   └── scheduler-1.mpk.gz
-│   ├── model-2.mpk.gz
-│   ├── optim-2.mpk.gz
-│   └── scheduler-2.mpk.gz
+│   ├── model-1.bpk
+│   ├── optim-1.bpk
+│   └── scheduler-1.bpk
+│   ├── model-2.bpk
+│   ├── optim-2.bpk
+│   └── scheduler-2.bpk
 ├── train
 │   ├── epoch-1
 │   │   ├── Accuracy.log

@@ -17,7 +17,11 @@ fn select_device() -> Device {
     #[cfg(feature = "tch-cpu")]
     return Device::libtorch();
 
-    #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
+    #[cfg(feature = "vulkan")]
+    return Device::vulkan(burn::tensor::DeviceKind::DefaultDevice);
+    #[cfg(feature = "metal")]
+    return Device::metal(burn::tensor::DeviceKind::DefaultDevice);
+    #[cfg(feature = "wgpu")]
     return Device::wgpu(burn::tensor::DeviceKind::DefaultDevice);
 
     #[cfg(feature = "cuda")]

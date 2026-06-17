@@ -82,18 +82,3 @@ impl FieldTypeAnalyzer {
             .map(AttributeAnalyzer::new)
     }
 }
-
-pub(crate) fn parse_fields(ast: &syn::DeriveInput) -> Vec<Field> {
-    let mut fields = Vec::new();
-
-    match &ast.data {
-        syn::Data::Struct(struct_data) => {
-            for field in struct_data.fields.iter() {
-                fields.push(field.clone());
-            }
-        }
-        syn::Data::Enum(_) => panic!("Only struct can be derived"),
-        syn::Data::Union(_) => panic!("Only struct can be derived"),
-    };
-    fields
-}

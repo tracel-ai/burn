@@ -2574,4 +2574,23 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             )
             .output()
     }
+
+    fn float_hypot(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        binary_float_ops!(HypotOps, B::float_hypot);
+
+        let streams = StreamId::current();
+
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Hypot(desc.clone())),
+                HypotOps::<B>::new(desc),
+            )
+            .output()
+    }
 }

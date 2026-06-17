@@ -5,6 +5,9 @@
 
 //! The core crate of Burn.
 
+// `derive_new` provides the `#[derive(new)]` macro used across the crate; the lint mistakenly
+// reports the `#[macro_use]` as unused.
+#[allow(unused_imports)]
 #[macro_use]
 extern crate derive_new;
 
@@ -21,8 +24,8 @@ pub mod data;
 /// Module for the neural network module.
 pub mod module;
 
-/// Module for the recorder.
-pub mod record;
+/// Module for saving and loading module/optimizer state in the burnpack format.
+pub mod store;
 
 /// Module for the tensor.
 pub mod tensor;

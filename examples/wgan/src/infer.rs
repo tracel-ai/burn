@@ -1,16 +1,11 @@
 use crate::training::{TrainingConfig, save_image};
-use burn::{
-    prelude::*,
-    record::{CompactRecorder, Recorder},
-    tensor::Distribution,
-};
+use burn::{prelude::*, store::ModuleRecord, tensor::Distribution};
 
 pub fn generate(artifact_dir: &str, device: Device) {
     // Loading model
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
-    let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/generator").into(), &device)
+    let record = ModuleRecord::load(format!("{artifact_dir}/generator"))
         .expect("Trained model should exist; run train first");
     let (mut generator, _) = config.model.init(&device);
     generator = generator.load_record(record);

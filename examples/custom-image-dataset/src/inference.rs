@@ -4,7 +4,7 @@ use burn::{
         dataset::vision::{Annotation, ImageDatasetItem},
     },
     module::Module,
-    record::{CompactRecorder, Recorder},
+    store::ModuleRecord,
     tensor::backend::Backend,
 };
 
@@ -13,8 +13,7 @@ use crate::{data::ClassificationBatcher, model::Cnn};
 const NUM_CLASSES: u8 = 10;
 
 pub fn infer(artifact_dir: &str, device: Device, item: ImageDatasetItem) {
-    let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist");
 
     let model = Cnn::new(NUM_CLASSES.into(), &device).load_record(record);

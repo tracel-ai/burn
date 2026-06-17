@@ -121,22 +121,12 @@ pub trait SupervisedLearningStrategy<LC: LearningComponentsTypes> {
     /// Train the learner's model with this strategy.
     fn train(
         &self,
-        mut learner: Learner<LC>,
+        learner: Learner<LC>,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
         mut training_components: TrainingComponents<LC>,
     ) -> LearningResult<InferenceModel<LC>> {
-        let starting_epoch = match training_components.checkpoint {
-            Some(checkpoint) => {
-                if let Some(checkpointer) = &mut training_components.checkpointer {
-                    learner =
-                        checkpointer.load_checkpoint(learner, &Default::default(), checkpoint);
-                }
-                checkpoint + 1
-            }
-            None => 1,
-        };
-
+        let starting_epoch = training_components.checkpoint.unwrap_or(0) + 1;
         let summary_config = training_components.summary.clone();
 
         // Event processor start training

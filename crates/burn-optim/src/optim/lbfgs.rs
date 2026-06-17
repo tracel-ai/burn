@@ -3,11 +3,12 @@
 use burn_core as burn;
 
 use super::GradientsParams;
-use crate::LearningRate;
+use crate::{LearningRate, OptimizerRecord};
+use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
-use burn::record::Record;
-use burn::tensor::{Device, Tensor};
+use burn::store::RecordError;
+use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
 use alloc::vec;
@@ -450,7 +451,7 @@ fn set_params_from_flat_inner<M: Module>(module: M, flat: Tensor<1>) -> M {
 }
 
 /// L-BFGS optimizer state
-#[derive(Clone, Record)]
+#[derive(Clone, RecordState)]
 pub struct LBFGSState {
     /// Historical displacement vectors
     pub history_s: Vec<Tensor<1>>,
@@ -469,6 +470,15 @@ pub struct LBFGSState {
 }
 
 impl LBFGSState {
+    /// The device of the state's tensors, if any have been populated.
+    fn current_device(&self) -> Option<Device> {
+        self.prev_flat_grad
+            .as_ref()
+            .or(self.d.as_ref())
+            .or(self.history_s.first())
+            .map(|t| t.device())
+    }
+
     /// Moves all historical tensors to the target device.
     pub fn to_device(self, device: &Device) -> Self {
         Self {
@@ -520,6 +530,65 @@ pub struct LBFGS {
 }
 
 impl LBFGS {
+    /// Decompose the optimizer state into a serializable [`OptimizerRecord`] (burnpack format).
+    ///
+    /// L-BFGS keeps a single global state rather than per-parameter state, so its tensors are
+    /// named directly (e.g. `history_s.0`) and carry no parameter id.
+    pub fn to_record(&self) -> OptimizerRecord {
+        let mut sink = StateSink::default();
+        RecordState::state_flatten(&self.state, "", &mut sink);
+
+        let tensors = sink
+            .tensors
+            .into_iter()
+            .map(|(name, data)| {
+                burn_pack::Tensor::new(name, data.dtype, data.shape, None, data.bytes)
+            })
+            .collect();
+        let scalars = sink.scalars.into_iter().collect();
+
+        OptimizerRecord { tensors, scalars }
+    }
+
+    /// Load the optimizer state from an [`OptimizerRecord`].
+    ///
+    /// State tensors are materialized on the default device; the state is migrated to the gradient
+    /// device on the next [`step`](LBFGS::step), so no device argument is needed.
+    pub fn load_record(mut self, record: OptimizerRecord) -> Self {
+        let device = Device::default();
+        let mut source = StateSource::new(record.scalars);
+        for tensor in record.tensors {
+            let data = TensorData::from_bytes(tensor.bytes, tensor.shape, tensor.dtype);
+            source.insert_tensor(tensor.name, data);
+        }
+        if let Some(state) = LBFGSState::state_unflatten("", &mut source, &device) {
+            self.state = state;
+        }
+        self
+    }
+
+    /// Serialize the optimizer state to an in-memory burnpack byte buffer.
+    pub fn into_bytes(&self) -> Result<Bytes, RecordError> {
+        self.to_record().into_bytes()
+    }
+
+    /// Load the optimizer state from an in-memory burnpack byte buffer.
+    pub fn from_bytes(self, bytes: Bytes) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::from_bytes(bytes)?))
+    }
+
+    /// Save the optimizer state to a burnpack file on disk.
+    #[cfg(feature = "std")]
+    pub fn save<P: AsRef<std::path::Path>>(&self, path: P) -> Result<(), RecordError> {
+        self.to_record().save(path)
+    }
+
+    /// Load the optimizer state from a burnpack file on disk.
+    #[cfg(feature = "std")]
+    pub fn load<P: AsRef<std::path::Path>>(self, path: P) -> Result<Self, RecordError> {
+        Ok(self.load_record(OptimizerRecord::load(path)?))
+    }
+
     /// A single optimization step for any tensor that represents the parameters of a model.
     pub fn step<M, F>(&mut self, lr: LearningRate, mut module: M, mut closure: F) -> (M, f64)
     where
@@ -532,6 +601,13 @@ impl LBFGS {
 
         let mut flat_grad = flatten_grads_inner::<M>(&module, &grads);
         let mut x_flat = flatten_params_inner::<M>(&module);
+
+        // Migrate the state to the gradient's device when they differ (e.g. just after loading a
+        // record on the default device). This is a no-op once the state is built from gradients.
+        let device = flat_grad.device();
+        if self.state.current_device().is_some_and(|d| d != device) {
+            self.state = core::mem::take(&mut self.state).to_device(&device);
+        }
 
         let opt_cond =
             flat_grad.clone().abs().max().into_scalar::<f64>() <= self.config.tolerance_grad;
@@ -738,17 +814,15 @@ mod tests {
 
     use super::*;
     use crate::GradientsParams;
-    use burn::module::{Module, Param};
+    use burn::module::Param;
     use burn::tensor::{Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::Linear;
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
-        };
-
-        LinearConfig::new(6, 6).init(device).load_record(record)
+        }
     }
     #[test]
     fn test_cubic_interpolate() {
@@ -905,6 +979,59 @@ mod tests {
         assert!((optimized_data - 2.0570652485).abs() < tol);
         assert!((optimized_bias - 0.8106800914).abs() < tol);
     }
+
+    // A burnpack round-trip of the L-BFGS state (which holds `Vec<Tensor>` history buffers, optional
+    // tensors and optional scalars) must restore enough that a further step agrees with the original.
+    #[test]
+    fn test_lbfgs_burnpack_round_trip() {
+        let device = Device::default().autodiff();
+        let tol = 1e-6;
+        let x_data = Tensor::<2>::from_data([[1.0], [2.0], [3.0]], &device);
+        let y_true = Tensor::<2>::from_data([[3.0], [5.0], [7.0]], &device);
+        let module = given_linear_layer(
+            TensorData::from([[0.5f64]]),
+            TensorData::from([0.1f64]),
+            &device,
+        );
+
+        let make_closure = || {
+            let x = x_data.clone();
+            let y = y_true.clone();
+            move |mod_in: Linear| {
+                let output = mod_in.forward(x.clone());
+                let loss = burn_nn::loss::MseLoss::new().forward(
+                    output,
+                    y.clone(),
+                    burn_nn::loss::Reduction::Sum,
+                );
+                let grads = loss.backward();
+                let grads_params = GradientsParams::from_grads(grads, &mod_in);
+                (loss.into_scalar::<f64>(), grads_params)
+            }
+        };
+
+        let mut optimizer = LBFGSConfig::new()
+            .with_line_search_fn(LineSearchFn::StrongWolfe)
+            .init();
+        let (module, _) = optimizer.step(0.001, module, &mut make_closure());
+
+        // Round-trip the optimizer state. State tensors live on the inner (non-autodiff) backend.
+        let bytes = optimizer.into_bytes().unwrap();
+        let mut reloaded = LBFGSConfig::new()
+            .with_line_search_fn(LineSearchFn::StrongWolfe)
+            .init()
+            .from_bytes(bytes)
+            .unwrap();
+
+        // A further identical step on each optimizer must agree — exercising the restored history.
+        let (_, loss_original) = optimizer.step(0.001, module.clone(), &mut make_closure());
+        let (_, loss_reloaded) = reloaded.step(0.001, module, &mut make_closure());
+        assert!(
+            (loss_original - loss_reloaded).abs() < tol,
+            "losses differ after burnpack round-trip: {loss_original} vs {loss_reloaded}"
+        );
+    }
+
     #[test]
     fn test_lbfgs_no_strong_wolfe_comparison() {
         let device = Device::default().autodiff();

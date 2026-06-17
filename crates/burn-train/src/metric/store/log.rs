@@ -16,6 +16,7 @@ impl EventStore for LogEventStore {
 
         match event {
             Event::MetricsInit(definitions) => {
+                self.aggregate.register_definitions(&definitions);
                 definitions.iter().for_each(|def| {
                     self.loggers
                         .iter_mut()

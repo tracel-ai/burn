@@ -101,6 +101,11 @@ mod keyremapper;
 #[cfg(feature = "std")]
 pub use keyremapper::{KeyRemapper, map_indices_contiguous};
 
+/// Serde-based deserialization of nested values, used for importing model weights from external
+/// formats (e.g. PyTorch's pickle `.pt` files).
+#[cfg(feature = "pytorch")]
+pub mod nested;
+
 #[cfg(feature = "pytorch")]
 pub mod pytorch;
 #[cfg(feature = "pytorch")]
@@ -112,8 +117,8 @@ mod safetensors;
 pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 
 #[cfg(feature = "burnpack")]
+mod bridge;
+#[cfg(feature = "burnpack")]
 mod burnpack;
 #[cfg(feature = "burnpack")]
-pub use burnpack::writer::BurnpackWriter;
-#[cfg(feature = "burnpack")]
-pub use burnpack::{base::BurnpackError, store::BurnpackStore};
+pub use burnpack::BurnpackStore;

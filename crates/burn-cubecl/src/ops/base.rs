@@ -36,7 +36,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
     let bytes = tensor
         .client
-        .read_one_tensor_async(binding)
+        .read_lazy_async(binding)
         .await
         .map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),

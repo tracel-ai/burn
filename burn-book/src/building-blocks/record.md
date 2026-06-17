@@ -1,72 +1,85 @@
 # Record
 
-Records are how states are saved with Burn. Compared to most other frameworks, Burn has its own
-advanced saving mechanism that allows interoperability between backends with minimal possible
-runtime errors. There are multiple reasons why Burn decided to create its own saving formats.
+Records are how training state is saved and loaded with Burn. A record holds plain tensor data
+(decoupled from the backend in use), so weights saved with one backend can be loaded on another, and
+parameter initialization stays lazy.
 
-First, Rust has [serde](https://serde.rs/), which is an extremely well-developed serialization and
-deserialization library that also powers the `safetensors` format developed by Hugging Face. If used
-properly, all the validations are done when deserializing, which removes the need to write
-validation code. Since modules in Burn are created with configurations, they can't implement
-serialization and deserialization. That's why the record system was created: allowing you to save
-the state of modules independently of the backend in use extremely fast while still giving you all
-the flexibility possible to include any non-serializable field within your module.
+All records serialize to the **burnpack** format (`.bpk`), Burn's compact binary container
+implemented by the `burn-pack` crate.
 
-**Why not use safetensors?**
+## The burnpack format
 
-[`safetensors`](https://github.com/huggingface/safetensors) uses serde with the JSON file format and
-only supports serializing and deserializing tensors. The record system in Burn gives you the
-possibility to serialize any type, which is very useful for optimizers that save their state, but
-also for any non-standard, cutting-edge modeling needs you may have. Additionally, the record system
-performs automatic precision conversion by using Rust types, making it more reliable with fewer
-manual manipulations.
+A burnpack file has three parts:
 
-It is important to note that the `safetensors` format uses the word _safe_ to distinguish itself
-from Pickle, which is vulnerable to Python code injection. On our end, the simple fact that we use
-Rust already ensures that no code injection is possible. If your storage mechanism doesn't handle
-data corruption, you might prefer a recorder that performs checksum validation (i.e., any recorder
-with Gzip compression).
+- a small fixed-size **header** (a `"BURN"` magic number, a format version, and the metadata length);
+- a **metadata** blob (CBOR) describing each tensor (name, dtype, shape, data offsets, optional
+  parameter id), any named **typed scalars**, and user key/value pairs;
+- a **tensor data section** where each tensor's bytes start on a 256-byte boundary, so the data can
+  be read back with zero-copy / memory-mapped loading.
 
-## Recorder
+Storing typed scalars (integers, floats, booleans) alongside tensors is what lets the optimizer and
+learning rate scheduler persist their non-tensor state in the same format.
 
-Recorders are independent of the backend and serialize records with precision and a format. Note
-that the format can also be in-memory, allowing you to save the records directly into bytes.
+## The three record types
 
-| Recorder               | Format                   | Compression |
-| ---------------------- | ------------------------ | ----------- |
-| DefaultFileRecorder    | File - Named MessagePack | None        |
-| NamedMpkFileRecorder   | File - Named MessagePack | None        |
-| NamedMpkGzFileRecorder | File - Named MessagePack | Gzip        |
-| BinFileRecorder        | File - Binary            | None        |
-| BinGzFileRecorder      | File - Binary            | Gzip        |
-| JsonGzFileRecorder     | File - Json              | Gzip        |
-| PrettyJsonFileRecorder | File - Pretty Json       | Gzip        |
-| BinBytesRecorder       | In Memory - Binary       | None        |
+| Record               | Holds                          | Produced from                                  |
+| -------------------- | ------------------------------ | ---------------------------------------------- |
+| `ModuleRecord`       | a module's parameters          | `module.into_record()`                         |
+| `OptimizerRecord`    | the optimizer state            | `optimizer.to_record()`                        |
+| `LrSchedulerRecord`  | the learning rate scheduler    | `scheduler.to_record()`                        |
 
-Each recorder supports precision settings decoupled from the precision used for training or
-inference. These settings allow you to define the floating-point and integer types that will be used
-for serialization and deserialization.
+Each record can be written to a file (`save` / `load`, which appends the `.bpk` extension when the
+path has none) or to an in-memory byte buffer (`into_bytes` / `from_bytes`, useful for `no-std`
+deployment where the bytes are embedded with the compiled code).
 
-| Setting                   | Float Precision | Integer Precision |
-| ------------------------- | --------------- | ----------------- |
-| `DoublePrecisionSettings` | `f64`           | `i64`             |
-| `FullPrecisionSettings`   | `f32`           | `i32`             |
-| `HalfPrecisionSettings`   | `f16`           | `i16`             |
+### `ModuleRecord`
 
-Note that when loading a record into a module, the type conversion is automatically handled, so you
-can't encounter errors. The only crucial aspect is using the same recorder for both serialization
-and deserialization; otherwise, you will encounter loading errors.
+`ModuleRecord` (in `burn::store`) holds a module's parameters keyed by their path within the module.
+It is produced and applied through the `Module` trait itself:
 
-**Which recorder should you use?**
+```rust, ignore
+use burn::store::ModuleRecord;
 
-- If you want fast serialization and deserialization, choose a recorder without compression. The one
-  with the lowest file size without compression is the binary format; otherwise, the named
-  MessagePack could be used.
-- If you want to save models for storage, you can use compression, but avoid using the binary
-  format, as it may not be backward compatible.
-- If you want to debug your model's weights, you can use the pretty JSON format.
-- If you want to deploy with `no-std`, use the in-memory binary format and include the bytes with
-  the compiled code.
+// Take a record and save it.
+model.into_record().save("model")?; // writes model.bpk
 
-For examples on saving and loading records, take a look at
-[Saving and Loading Models](../saving-and-loading.md).
+// Load it back and apply it to an initialized module.
+let record = ModuleRecord::load("model")?;
+let model = ModelConfig::new().init(&device).load_record(record);
+```
+
+Load-time behavior is configured with builder methods on the record (ignored when saving):
+
+- `.allow_partial(true)` — load even when some module parameters are absent from the record;
+- `.validate(false)` — skip shape-mismatch / missing-tensor validation;
+- `.cast_to_module_dtype()` / `.with_dtype_policy(..)` — cast the record's data to the module
+  parameter dtypes on load (by default the parameter adopts the record's dtype).
+
+The save-side dtype is not configurable: the record stores whatever dtype the module currently holds.
+To control the dtype applied on load, use `.cast_to_module_dtype()` / `.with_dtype_policy(..)` above.
+Use `try_load_record` for the fallible variant of `load_record`.
+
+### `OptimizerRecord` and `LrSchedulerRecord`
+
+The optimizer and learning rate scheduler expose the same shape of API, used to checkpoint and resume
+training:
+
+```rust, ignore
+// Optimizer state (no device needed on load; state migrates to each parameter's device on the
+// next step).
+optimizer.save("optim")?;
+let optimizer = optimizer.load("optim")?;
+
+// Learning rate scheduler state (scalars only).
+scheduler.to_record().save("scheduler")?;
+let scheduler = scheduler.load_record(LrSchedulerRecord::load("scheduler")?);
+```
+
+When training with the `Learner`, these records are saved and restored for you by the checkpointer —
+see [Learner](./learner.md).
+
+## Cross-framework formats
+
+To import weights from other ecosystems (PyTorch `.pt`, SafeTensors) or to use the more advanced
+store features (key remapping, filtering, half-precision storage), use the `burn-store` crate. See
+[Saving and Loading Models](../saving-and-loading.md) for examples.
