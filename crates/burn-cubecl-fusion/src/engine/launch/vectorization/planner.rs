@@ -1,10 +1,11 @@
 use super::{
-    super::{BlockPlan, HandleOutput, LaunchPlan},
+    super::{BlockPlan, HandleOutput, LaunchPlan, ReferenceSelection},
     Vect,
 };
 use crate::{
     CubeFusionHandle,
     engine::{
+        codegen::ir::FuseArg,
         launch::{
             HandleInput,
             runner::{Vectorization, VectorizationHandle},
@@ -13,6 +14,7 @@ use crate::{
         trace::{FuseResources, TensorView, block::FuseBlock},
     },
 };
+use std::collections::BTreeSet;
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
@@ -307,6 +309,69 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
 
             previous_widths.push(block_plan.width);
+        }
+
+        // Reconcile each owned output's registered `vector_size` with the widths of the blocks
+        // that write it.
+        //
+        // The codegen write path (`write_output_aligned`) can only de-vectorize a value into an
+        // output whose `vector_size` is 1, or store it directly when the output `vector_size`
+        // equals the block `width`. Width-forcing settings (`Deactivated`,
+        // `EqualThanPreviousBlock`) rewrite `block_plan.width` *after* `apply_vectorization_block`
+        // has set the output vectorization, so an output can end up registered with a
+        // `vector_size` larger than the `width` of a block that writes it. That produces an
+        // invalid store of a narrow value into a wider output vector slot (e.g.
+        // `store(ptr<vector<f32, 16>>, f32)`), see issue #5060.
+        //
+        // When the registered `vector_size` does not match the width of every writing block, fall
+        // back to a `vector_size` of 1 so the output is written element-by-element, which is
+        // always valid regardless of the block width.
+        //
+        // Outputs that serve as a block's layout reference are skipped: their `vector_size` defines
+        // that block's `width` (so they are compatible by construction), and de-vectorizing them
+        // would desynchronize the reference position math.
+        let reference_outputs: BTreeSet<usize> = plan
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.reference {
+                ReferenceSelection::Concrete {
+                    layout: FuseArg::Output(pos, ..),
+                    ..
+                }
+                | ReferenceSelection::SwapDims {
+                    original: FuseArg::Output(pos, ..),
+                    ..
+                }
+                | ReferenceSelection::VirtualShape {
+                    original: FuseArg::Output(pos, ..),
+                    ..
+                } => Some(*pos),
+                _ => None,
+            })
+            .collect();
+
+        for (output_pos, handle) in plan.handle_outputs.iter_mut().enumerate() {
+            if reference_outputs.contains(&output_pos) {
+                continue;
+            }
+
+            if let HandleOutput::Owned {
+                relative_id,
+                vectorization,
+                ..
+            } = handle
+                && *vectorization != 1
+            {
+                let compatible = plan
+                    .blocks
+                    .iter()
+                    .filter(|block_plan| block_plan.writes.contains_key(relative_id))
+                    .all(|block_plan| block_plan.width == *vectorization);
+
+                if !compatible {
+                    *vectorization = 1;
+                }
+            }
         }
     }
 }

@@ -477,6 +477,13 @@ pub fn write<C: Scalar, N: Size>(
 
 /// Writes a [Vector] value element-by-element to an output tensor whose vector_size
 /// differs from the computation width. Mirrors [read_input_aligned] for the write path.
+///
+/// This only handles outputs that are *less* vectorized than the computation
+/// (`output vector_size <= config.width`), de-vectorizing the value into the output slots.
+/// The inverse — an output more vectorized than the block that writes it — cannot be expressed
+/// as a valid store (it would store a narrow value into a wider vector slot, and multiple units
+/// would race on the same output line); the vectorization planner guarantees it never happens by
+/// falling back to a `vector_size` of 1 for such outputs (see issue #5060).
 #[cube]
 fn write_output_aligned<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
@@ -490,6 +497,17 @@ fn write_output_aligned<C: Scalar, N: Size>(
 ) {
     let tensor = outputs.tensors.index(pos);
     set_polyfill::<DynElem, DynSize>(comptime![tensor.ty]);
+
+    // Safety net: an output more vectorized than the computation width cannot be written here.
+    // The planner clamps such outputs to a `vector_size` of 1, so reaching this is a planning bug.
+    if comptime![tensor.tensor.vector_size() > config.width] {
+        comptime![panic!(
+            "Invalid fused output vectorization: output vector_size ({}) exceeds the fused block \
+             width ({}). This is a vectorization planning bug (see #5060).",
+            tensor.tensor.vector_size(),
+            config.width
+        )];
+    }
 
     match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
