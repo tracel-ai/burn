@@ -3,8 +3,8 @@ use burn_rl::{Policy, PolicyLearner, PolicyState};
 use crate::RLAgentRecord;
 use crate::{
     RLComponentsTypes, RLPolicyRecord,
-    checkpoint::{AsyncCheckpointer, Checkpoint, CheckpointingAction, CheckpointingStrategy},
     checkpoint::Checkpointer,
+    checkpoint::{AsyncCheckpointer, Checkpoint, CheckpointingAction, CheckpointingStrategy},
     metric::store::EventStoreClient,
 };
 

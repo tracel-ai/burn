@@ -3,8 +3,8 @@ use burn_core as burn;
 use burn::config::Config;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::RecordState;
 use crate::LearningRate;
+use crate::RecordState;
 
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
 #[derive(Config, Debug)]
@@ -57,7 +57,6 @@ impl NoamLrSchedulerConfig {
 }
 
 impl LrScheduler for NoamLrScheduler {
-
     fn step(&mut self) -> LearningRate {
         self.step += 1.0;
 

@@ -9,11 +9,7 @@ use crate::{
     model::TextClassificationModelConfig,
     training::ExperimentConfig,
 };
-use burn::{
-    data::dataloader::batcher::Batcher,
-    prelude::*,
-    store::ModuleRecord,
-};
+use burn::{data::dataloader::batcher::Batcher, prelude::*, store::ModuleRecord};
 use std::sync::Arc;
 
 // Define inference function
@@ -40,8 +36,8 @@ pub fn infer<D: TextClassificationDataset + 'static>(
 
     // Load pre-trained model weights
     println!("Loading weights ...");
-    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
-        .expect("Trained model weights tb");
+    let record =
+        ModuleRecord::load(format!("{artifact_dir}/model")).expect("Trained model weights tb");
 
     // Create model using loaded weights
     println!("Creating model ...");

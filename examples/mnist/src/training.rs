@@ -146,7 +146,8 @@ pub fn run(device: Device) {
 
     result
         .model
-        .into_record().save(format!("{ARTIFACT_DIR}/model"))
+        .into_record()
+        .save(format!("{ARTIFACT_DIR}/model"))
         .expect("Failed to save trained model");
 
     config

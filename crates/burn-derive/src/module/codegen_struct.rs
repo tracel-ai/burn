@@ -16,7 +16,6 @@ pub(crate) struct StructModuleCodegen {
 }
 
 impl ModuleCodegen for StructModuleCodegen {
-
     fn gen_num_params(&self) -> TokenStream {
         let body = self.gen_fields_fn(|name, field_type| {
             if field_type.is_parameter_module() || field_type.maybe_generic_module() {

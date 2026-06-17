@@ -282,7 +282,11 @@ mod tests {
             .init(&device)
             .load_record(ModuleRecord::from_bytes(data).unwrap());
 
-        linear.weight.val().to_data().assert_eq(&weight_before, true);
+        linear
+            .weight
+            .val()
+            .to_data()
+            .assert_eq(&weight_before, true);
     }
 
     #[test]

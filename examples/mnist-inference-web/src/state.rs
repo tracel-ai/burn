@@ -1,10 +1,5 @@
 use crate::model::Model;
-use burn::{
-    module::Module,
-    prelude::Device,
-    store::ModuleRecord,
-    tensor::Bytes,
-};
+use burn::{module::Module, prelude::Device, store::ModuleRecord, tensor::Bytes};
 
 // Trained parameters in the burnpack format, produced by the `mnist` example
 // (`model.into_record().save(..)`) and copied here. Regenerate with the same command if the

@@ -1,9 +1,5 @@
 use crate::training::{TrainingConfig, save_image};
-use burn::{
-    prelude::*,
-    store::ModuleRecord,
-    tensor::Distribution,
-};
+use burn::{prelude::*, store::ModuleRecord, tensor::Distribution};
 
 pub fn generate(artifact_dir: &str, device: Device) {
     // Loading model

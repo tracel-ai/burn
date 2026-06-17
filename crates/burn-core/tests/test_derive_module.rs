@@ -127,7 +127,6 @@ pub fn test_device() -> Device {
     burn_tensor::Device::flex()
 }
 
-
 mod lazy_clone {
     use burn_tensor::Device;
 

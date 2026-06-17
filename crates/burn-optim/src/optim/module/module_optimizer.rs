@@ -2,8 +2,8 @@ use burn_core as burn;
 
 use super::Optimizer;
 use crate::{
-    DynOptimizer, DynState, LearningRate, MultiGradientsParams, StateSink, StateSource,
-    OptimizerRecord, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
+    DynOptimizer, DynState, LearningRate, MultiGradientsParams, OptimizerRecord, StateSink,
+    StateSource, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
 };
 
 use alloc::collections::BTreeMap;
@@ -154,10 +154,10 @@ impl ModuleOptimizer {
         // are `"{param_id}.__rank"`, so strip the dotted suffix to recover the id.
         let suffix = alloc::format!(".{RANK_KEY}");
         for (name, value) in record.scalars.iter() {
-            if let Some(id_str) = name.strip_suffix(&suffix) {
-                if let (Ok(id), Ok(rank)) = (id_str.parse::<u64>(), usize::try_from(*value)) {
-                    ranks.insert(id, rank);
-                }
+            if let Some(id_str) = name.strip_suffix(&suffix)
+                && let (Ok(id), Ok(rank)) = (id_str.parse::<u64>(), usize::try_from(*value))
+            {
+                ranks.insert(id, rank);
             }
         }
 
@@ -179,7 +179,10 @@ impl ModuleOptimizer {
             let prefix = id.to_string();
             // Skip parameters whose state can't be reconstructed (truncated/foreign record); they
             // are re-initialized lazily on the next step rather than aborting the load.
-            if let Some(state) = self.optim.state_unflatten(rank, &prefix, &mut source, &device) {
+            if let Some(state) = self
+                .optim
+                .state_unflatten(rank, &prefix, &mut source, &device)
+            {
                 states.insert(ParamId::from(id), state);
             }
         }

@@ -98,10 +98,7 @@ fn save_and_load_module_via_file() {
 fn save_and_load_module_via_bytes() {
     let device = Default::default();
 
-    let bytes = Mlp::sample(&device)
-        .into_record()
-        .into_bytes()
-        .unwrap();
+    let bytes = Mlp::sample(&device).into_record().into_bytes().unwrap();
 
     let record = ModuleRecord::from_bytes(bytes).unwrap();
     let loaded = Mlp::zeros(&device).load_record(record);

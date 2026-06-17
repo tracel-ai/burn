@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::RecordState;
 use crate::LearningRate;
+use crate::RecordState;
 use burn::config::Config;
 
 /// The configuration for creating a [Cosine Annealing learning rate scheduler with warm
@@ -71,7 +71,6 @@ pub struct CosineAnnealingLrScheduler {
 }
 
 impl LrScheduler for CosineAnnealingLrScheduler {
-
     fn step(&mut self) -> LearningRate {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
         // first call. We could've used i64 with an initial value -1, but keeping it in usize saves

@@ -179,8 +179,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     where
         Self: Sized,
     {
-        self.try_load_record(record)
-            .expect("Failed to load record")
+        self.try_load_record(record).expect("Failed to load record")
     }
 }
 

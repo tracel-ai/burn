@@ -208,7 +208,9 @@ mod tests {
     fn test_number_of_calls_within_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState { iter_idx: i32::MAX - 1 }));
+        scheduler = scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState {
+            iter_idx: i32::MAX - 1,
+        }));
         scheduler.step();
     }
 
@@ -217,7 +219,9 @@ mod tests {
     fn test_number_of_calls_over_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState { iter_idx: i32::MAX - 1 }));
+        scheduler = scheduler.load_record(LrSchedulerRecord::from_state(&StepLrSchedulerState {
+            iter_idx: i32::MAX - 1,
+        }));
         scheduler.step();
         scheduler.step();
     }

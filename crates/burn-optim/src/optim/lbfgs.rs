@@ -4,9 +4,9 @@ use burn_core as burn;
 
 use super::GradientsParams;
 use crate::{LearningRate, OptimizerRecord};
+use crate::{RecordState, StateSink, StateSource};
 use burn::config::Config;
 use burn::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor, Param};
-use crate::{RecordState, StateSink, StateSource};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
@@ -541,7 +541,9 @@ impl LBFGS {
         let tensors = sink
             .tensors
             .into_iter()
-            .map(|(name, data)| burn_pack::Tensor::new(name, data.dtype, data.shape, None, data.bytes))
+            .map(|(name, data)| {
+                burn_pack::Tensor::new(name, data.dtype, data.shape, None, data.bytes)
+            })
             .collect();
         let scalars = sink.scalars.into_iter().collect();
 

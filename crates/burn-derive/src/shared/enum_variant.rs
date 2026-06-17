@@ -49,4 +49,3 @@ where
         syn::Fields::Unit => (quote! {}, quote! {}),
     }
 }
-

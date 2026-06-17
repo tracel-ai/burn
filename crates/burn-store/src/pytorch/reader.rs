@@ -35,9 +35,9 @@
 //! as they contain Python code references.
 
 use crate::TensorSnapshot;
+use crate::nested::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use crate::nested::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::fs::File;

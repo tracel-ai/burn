@@ -5,9 +5,9 @@ use super::decay::{WeightDecay, WeightDecayConfig};
 use super::module_optimizer::ModuleOptimizer;
 use super::momentum::{Momentum, MomentumConfig, MomentumState};
 use crate::LearningRate;
+use crate::RecordState;
 use crate::grad_clipping::GradientClippingConfig;
 use burn::config::Config;
-use crate::RecordState;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
 

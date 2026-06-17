@@ -90,7 +90,6 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         self
     }
 
-
     fn to_device(self, device: &Device) -> Self {
         let mut tensor = self.value.lock().unwrap();
         let tensor_out = tensor.clone().to_device(device);

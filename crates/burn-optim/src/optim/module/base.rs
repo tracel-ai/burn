@@ -1,8 +1,8 @@
 use alloc::sync::Arc;
 use core::any::Any;
 
-use burn_core as burn;
 use crate::{RecordState, StateSink, StateSource};
+use burn_core as burn;
 use burn_core::tensor::kind::BridgeTensor;
 
 use crate::LearningRate;

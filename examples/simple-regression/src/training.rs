@@ -82,6 +82,7 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
 
     result
         .model
-        .into_record().save(format!("{artifact_dir}/model"))
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Failed to save trained model");
 }

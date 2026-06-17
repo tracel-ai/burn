@@ -86,5 +86,9 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
 
     config.save(format!("{artifact_dir}/config.json")).unwrap();
 
-    result.model.into_record().save(format!("{artifact_dir}/model")).unwrap();
+    result
+        .model
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
+        .unwrap();
 }

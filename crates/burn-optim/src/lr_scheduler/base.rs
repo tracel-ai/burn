@@ -1,5 +1,5 @@
-pub(super) use alloc::string::String;
 use alloc::collections::BTreeMap;
+pub(super) use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core as burn;
 

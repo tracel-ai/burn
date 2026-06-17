@@ -140,8 +140,8 @@ impl RecordState for () {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core as burn;
     use burn::tensor::Tensor;
+    use burn_core as burn;
 
     /// Flatten `state` then rebuild it from the produced tensors and scalars.
     fn round_trip<T: RecordState>(state: &T) -> Option<T> {

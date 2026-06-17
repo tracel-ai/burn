@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use core::fmt;
 use burn_tensor::Bytes;
+use core::fmt;
 use num_traits::cast::ToPrimitive;
 
 /// The main data structure used for deserialization.
@@ -187,9 +187,7 @@ impl NestedValue {
             _ => None,
         }
     }
-
 }
-
 
 fn write_vec_truncated<T: core::fmt::Debug>(
     vec: &[T],

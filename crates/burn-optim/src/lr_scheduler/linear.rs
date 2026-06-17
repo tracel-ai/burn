@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::RecordState;
 use crate::LearningRate;
+use crate::RecordState;
 use burn::config::Config;
 
 /// The configuration for creating a [linear learning rate scheduler](LinearLrScheduler).
@@ -64,7 +64,6 @@ pub struct LinearLrScheduler {
 }
 
 impl LrScheduler for LinearLrScheduler {
-
     fn step(&mut self) -> LearningRate {
         self.remaining_iters -= (self.remaining_iters != 0) as usize;
         self.final_lr - self.step_size * self.remaining_iters as f64
