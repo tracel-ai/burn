@@ -405,6 +405,13 @@ where
             )),
         ));
 
+        let mut learner = learner;
+        if let Some(checkpoint) = components.checkpoint
+            && let Some(checkpointer) = &components.checkpointer
+        {
+            learner = checkpointer.load_checkpoint(learner, checkpoint);
+        }
+
         match training_strategy {
             TrainingStrategy::Custom(learning_paradigm) => learning_paradigm.train(
                 learner,

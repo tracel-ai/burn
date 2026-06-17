@@ -371,6 +371,13 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
             inference_device: self.inference_device,
         };
 
+        let mut learner_agent = learner_agent;
+        if let Some(checkpoint) = components.checkpoint
+            && let Some(checkpointer) = &components.checkpointer
+        {
+            learner_agent = checkpointer.load_checkpoint(learner_agent, checkpoint);
+        }
+
         match self.learning_strategy {
             RLStrategies::OffPolicyStrategy(config) => {
                 let strategy = OffPolicyStrategy::new(config);
