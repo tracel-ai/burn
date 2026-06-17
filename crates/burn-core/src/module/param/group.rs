@@ -9,10 +9,10 @@ use crate::module::{Module, ModuleVisitor, Param};
 /// Errors tied to [ParamGroup]'s.
 #[derive(Debug)]
 pub enum ParamGroupError {
-    /// Parameters used to match a parameter are invalid.
+    /// Parameter used to match are invalid.
     InvalidParameter(String),
-    /// Error while creating a group.
-    CreationError(String),
+    /// Failed to create the group.
+    GroupInitError(String),
 }
 
 #[derive(Default)]
@@ -86,12 +86,13 @@ impl ParamGroup {
         }
     }
 
-    /// Matches parameters including this string (e.g., "backbone")
+    /// Matches parameters that include the predicate in their paths (e.g., "backbone")
     pub fn from_predicate(path: impl Into<String>) -> Self {
         ParamGroup::from_predicates(vec![path])
     }
 
-    /// Matches parameters including all these string (e.g., "backbone" and "linear")
+    /// Matches parameters that include all the predicates in their path (AND logic).
+    /// (e.g., parameter path contains "backbone" and "linear")
     pub fn from_predicates(paths: Vec<impl Into<String>>) -> Self {
         Self {
             matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Include(
@@ -101,12 +102,45 @@ impl ParamGroup {
         }
     }
 
+    /// Matches parameters that include any of the predicates in their path (OR logic).
+    /// (e.g., parameter path contains "backbone" or "linear")
+    pub fn from_any_predicates(paths: Vec<impl Into<String>>) -> Self {
+        let mut matchers: Vec<ParamGroupMatcher> = paths
+            .into_iter()
+            .map(|p| ParamGroupMatcher::Path(Arc::new(PathMatcher::Include(vec![p.into()]))))
+            .collect();
+        let mut main_matcher = if let Some(value) = matchers.pop() {
+            value
+        } else {
+            return Self {
+                matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Include(vec![]))),
+                excludes: None,
+            };
+        };
+
+        matchers
+            .iter()
+            .for_each(|m| main_matcher = main_matcher.clone().fuse(m));
+
+        Self {
+            matcher: main_matcher,
+            excludes: None,
+        }
+    }
+
     /// Matches parameters by regex pattern (e.g., "^model\.layer\.\d+$")
+    ///
+    /// # Errors
+    /// Returns a [regex::Error] if the string cannot be compiled into a valid regex.
     pub fn from_regex<S: AsRef<str>>(pattern: S) -> Result<Self, regex::Error> {
         ParamGroup::from_regexes(vec![pattern])
     }
 
-    /// Matches parameters by regex patterns (e.g., "^model\.layer\.\d+$", etc.)
+    /// Matches parameters for all the regex patterns (AND logic).
+    /// (e.g., "^encoder\.layer\.\d+", and "bias$" )
+    ///
+    /// # Errors
+    /// Returns a [regex::Error] if the strings cannot be compiled into a valid regex.
     pub fn from_regexes<I, S>(patterns: I) -> Result<Self, regex::Error>
     where
         I: IntoIterator<Item = S>,
@@ -118,6 +152,42 @@ impl ParamGroup {
         }
         Ok(Self {
             matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(new_patterns))),
+            excludes: None,
+        })
+    }
+
+    /// Matches parameters for any the regex patterns (OR logic).
+    /// (e.g., "^encoder\.layer\.\d+$", or "^decoder\.layer\.\d+$" )
+    ///
+    /// # Errors
+    /// Returns a [regex::Error] if the strings cannot be compiled into a valid regex.
+    pub fn from_any_regexes<I, S>(patterns: I) -> Result<Self, regex::Error>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut matchers = vec![];
+        for pattern in patterns {
+            matchers.push(ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(vec![
+                Regex::new(pattern.as_ref())?,
+            ]))));
+        }
+
+        let mut main_matcher = if let Some(value) = matchers.pop() {
+            value
+        } else {
+            return Ok(Self {
+                matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Include(vec![]))),
+                excludes: None,
+            });
+        };
+
+        matchers
+            .iter()
+            .for_each(|m| main_matcher = main_matcher.clone().fuse(m));
+
+        Ok(Self {
+            matcher: main_matcher,
             excludes: None,
         })
     }
@@ -146,8 +216,7 @@ impl ParamGroup {
         }
     }
 
-    // TODO: Should we ignore exclusions?
-    /// Exclude an existing group from the current group. If the other group already has exclusions, they are ignored.
+    /// Exclude the given group from the current group
     pub fn exclude(&mut self, group: &Self) {
         self.excludes = match &self.excludes {
             Some(excluded) => Some(excluded.clone().fuse(&group.matcher)),
@@ -176,7 +245,7 @@ impl ParamGroupMatcher {
     ) -> Result<bool, ParamGroupError> {
         match self {
             Self::All => Ok(true),
-            Self::Explicit(ids) => Ok(ids.contains(&id)),
+            Self::Explicit(ids) => Ok(ids.contains(id)),
             Self::Path(matcher) => path
                 .ok_or_else(|| {
                     ParamGroupError::InvalidParameter(
@@ -251,7 +320,7 @@ impl PathMatcher {
     pub(crate) fn matches(&self, path: &str) -> bool {
         match self {
             PathMatcher::Exact(paths) => paths.iter().any(|p| p == path),
-            PathMatcher::Regex(regexs) => regexs.iter().any(|r| r.is_match(path)),
+            PathMatcher::Regex(regexs) => regexs.iter().all(|r| r.is_match(path)),
             PathMatcher::Include(includes) => includes.iter().all(|inc| path.contains(inc)),
         }
     }
@@ -376,5 +445,40 @@ mod tests {
 
         assert!(group.matches(&id, Some("model.backbone.weight")).unwrap());
         assert!(!group.matches(&id, Some("model.backbone.bias")).unwrap());
+    }
+
+    #[test]
+    fn from_any_predicates_matches_any_predicate() {
+        let group = ParamGroup::from_any_predicates(vec!["backbone", "encoder"]);
+        let id = ParamId::new();
+
+        assert!(group.matches(&id, Some("model.backbone.weight")).unwrap());
+        assert!(group.matches(&id, Some("model.encoder.weight")).unwrap());
+        assert!(!group.matches(&id, Some("model.decoder.weight")).unwrap());
+    }
+
+    #[test]
+    fn from_any_regexes_matches_any_pattern() {
+        let group =
+            ParamGroup::from_any_regexes(vec![r"^model\.layer\.[0-9]+\.weight$", r"^model\.bias$"])
+                .unwrap();
+        let id = ParamId::new();
+
+        assert!(group.matches(&id, Some("model.layer.3.weight")).unwrap());
+        assert!(group.matches(&id, Some("model.bias")).unwrap());
+        assert!(!group.matches(&id, Some("model.layer.weight")).unwrap());
+        assert!(!group.matches(&id, Some("model.other.weight")).unwrap());
+    }
+
+    #[test]
+    fn from_regexes_with_invalid_pattern() {
+        let result = ParamGroup::from_regex(r"[invalid(");
+        assert!(result.is_err());
+
+        let result = ParamGroup::from_regexes(vec![r"[invalid("]);
+        assert!(result.is_err());
+
+        let result = ParamGroup::from_any_regexes(vec![r"[invalid("]);
+        assert!(result.is_err());
     }
 }
