@@ -70,7 +70,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     let target_shape = targets.shape();
     let max_target_len = target_shape.dims::<2>()[1];
     let max_l_prime_len = 2 * max_target_len + 1;
-    let device = log_probs.device().clone();
+    let device = log_probs.device();
     let int_dtype: burn_std::IntDType = targets.dtype().into();
     let settings = get_device_settings::<B>(&device);
 
