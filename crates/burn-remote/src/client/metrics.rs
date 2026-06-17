@@ -12,15 +12,15 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use burn_ir::{OperationIr, OptimizationBindings, OptimizationId};
+use burn_ir::{GraphBindings, GraphId, OperationIr};
 use burn_std::config::config;
 use burn_std::config::log_remote;
 use burn_std::config::remote::RemoteLogLevel;
 
 const MIB: u64 = 1024 * 1024;
 
-/// Serialized size (bytes) of each registered optimization graph, to value its replays.
-static GRAPH_SIZES: Mutex<Option<HashMap<OptimizationId, usize>>> = Mutex::new(None);
+/// Serialized size (bytes) of each registered graph, to value its replays.
+static GRAPH_SIZES: Mutex<Option<HashMap<GraphId, usize>>> = Mutex::new(None);
 /// Bytes a non-fusion client would have streamed for the optimization-covered work (approximated
 /// by the serialized graph re-sent on every replay).
 static BASELINE: AtomicU64 = AtomicU64::new(0);
@@ -39,7 +39,7 @@ fn serialized_len<T: serde::Serialize>(value: &T) -> usize {
 }
 
 /// Record that `graph` was registered once under `id` (the one-time cost of caching it).
-pub(crate) fn record_registration(id: OptimizationId, graph: &[OperationIr]) {
+pub(crate) fn record_registration(id: GraphId, graph: &[OperationIr]) {
     if level() == RemoteLogLevel::Disabled {
         return;
     }
@@ -53,12 +53,12 @@ pub(crate) fn record_registration(id: OptimizationId, graph: &[OperationIr]) {
     ACTUAL.fetch_add(size as u64, Ordering::Relaxed);
 
     log_remote(RemoteLogLevel::Full, || {
-        format!("[remote] registered optimization {id:?}: {size} bytes (sent once)")
+        format!("[remote] registered graph {id:?}: {size} bytes (sent once)")
     });
 }
 
-/// Record a replay of optimization `id`: we sent `bindings` instead of re-streaming the graph.
-pub(crate) fn record_execution(id: OptimizationId, bindings: &OptimizationBindings) {
+/// Record a replay of graph `id`: we sent `bindings` instead of re-streaming the graph.
+pub(crate) fn record_execution(id: GraphId, bindings: &GraphBindings) {
     if level() == RemoteLogLevel::Disabled {
         return;
     }
@@ -81,7 +81,7 @@ pub(crate) fn record_execution(id: OptimizationId, bindings: &OptimizationBindin
     if level() >= RemoteLogLevel::Full {
         log_remote(RemoteLogLevel::Full, || {
             format!(
-                "[remote] replayed optimization {id:?}: sent {bindings_size} bytes instead of \
+                "[remote] replayed graph {id:?}: sent {bindings_size} bytes instead of \
                  ~{graph_size}; cumulative saved {saved} bytes"
             )
         });

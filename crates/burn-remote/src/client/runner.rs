@@ -92,26 +92,22 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         self.handle.submit_blocking(|s| s.flush()).unwrap();
     }
 
-    fn register_optimization(
+    fn register_graph(
         &self,
-        optimization_id: burn_ir::OptimizationId,
+        graph_id: burn_ir::GraphId,
         relative_graph: Vec<burn_ir::OperationIr>,
     ) {
-        super::metrics::record_registration(optimization_id, &relative_graph);
+        super::metrics::record_registration(graph_id, &relative_graph);
         let stream_id = StreamId::current();
         self.handle
-            .submit(move |s| s.register_optimization(stream_id, optimization_id, relative_graph));
+            .submit(move |s| s.register_graph(stream_id, graph_id, relative_graph));
     }
 
-    fn execute_optimization(
-        &self,
-        optimization_id: burn_ir::OptimizationId,
-        bindings: burn_ir::OptimizationBindings,
-    ) {
-        super::metrics::record_execution(optimization_id, &bindings);
+    fn execute_graph(&self, graph_id: burn_ir::GraphId, bindings: burn_ir::GraphBindings) {
+        super::metrics::record_execution(graph_id, &bindings);
         let stream_id = StreamId::current();
         self.handle
-            .submit(move |s| s.execute_optimization(stream_id, optimization_id, bindings));
+            .submit(move |s| s.execute_graph(stream_id, graph_id, bindings));
     }
 }
 

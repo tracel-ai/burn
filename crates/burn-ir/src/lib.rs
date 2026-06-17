@@ -8,16 +8,16 @@ extern crate alloc;
 
 mod backend;
 mod builder;
+mod graph;
 mod handle;
 mod operation;
-mod optimization;
 mod scalar;
 mod tensor;
 
 pub use backend::*;
 pub use builder::*;
+pub use graph::*;
 pub use handle::*;
 pub use operation::*;
-pub use optimization::*;
 pub use scalar::*;
 pub use tensor::*;

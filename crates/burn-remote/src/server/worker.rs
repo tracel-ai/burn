@@ -31,11 +31,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use burn_backend::Shape;
 use burn_communication::{Protocol, external_comm::ExternalCommService};
-use burn_ir::{
-    BackendIr, OperationIr, OptimizationBindings, OptimizationId, ScalarIr, TensorId, TensorIr,
-};
+use burn_ir::{BackendIr, GraphBindings, GraphId, OperationIr, ScalarIr, TensorId, TensorIr};
 use burn_router::{RouterClient, TensorInterpreter};
 use tokio::{runtime::Handle, sync::mpsc};
 
@@ -65,12 +62,12 @@ where
     response_sender: mpsc::Sender<TaskResponse>,
     external_comm: Arc<ExternalCommService<B, P>>,
     local_comm: Arc<LocalCommService<B>>,
-    /// Cache of client-registered reusable op-graphs, keyed by id (see [`Task::RegisterOptimization`]).
+    /// Cache of client-registered reusable op-graphs, keyed by id (see [`Task::RegisterGraph`]).
     ///
     /// `Mutex` only for interior mutability under `process_task(&self)`; the worker thread is the
     /// sole accessor, the lock is never held across an `await`, and the map is dropped with the
     /// session.
-    optimizations: Mutex<HashMap<OptimizationId, Vec<OperationIr>>>,
+    graphs: Mutex<HashMap<GraphId, Vec<OperationIr>>>,
 }
 
 impl<B, P> SessionHandler<B, P>
@@ -102,7 +99,7 @@ where
             response_sender,
             external_comm,
             local_comm,
-            optimizations: Mutex::new(HashMap::new()),
+            graphs: Mutex::new(HashMap::new()),
         };
 
         let (sender, receiver) = mpsc::channel(TASK_CHANNEL_CAPACITY);
@@ -189,31 +186,28 @@ where
                 stream_id.executes(|| runner.register_op(op));
                 Ok(())
             }
-            Task::RegisterOptimization {
+            Task::RegisterGraph {
                 stream_id,
-                optimization_id,
+                graph_id,
                 relative_graph,
             } => {
                 // Pure bookkeeping: cache the reusable graph for later replay. Kept under the
                 // stream context for consistency even though it touches no backend state.
                 stream_id.executes(|| {
-                    self.optimizations
-                        .lock()
-                        .unwrap()
-                        .insert(optimization_id, relative_graph);
+                    self.graphs.lock().unwrap().insert(graph_id, relative_graph);
                 });
                 Ok(())
             }
-            Task::ExecuteOptimization {
+            Task::ExecuteGraph {
                 stream_id,
-                optimization_id,
+                graph_id,
                 bindings,
             } => {
-                let cache = self.optimizations.lock().unwrap();
-                let graph = cache.get(&optimization_id).ok_or_else(|| {
-                    format!("Execute of unknown optimization {optimization_id:?}")
-                })?;
-                stream_id.executes(|| replay_optimization(runner, graph, &bindings));
+                let cache = self.graphs.lock().unwrap();
+                let graph = cache
+                    .get(&graph_id)
+                    .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?;
+                stream_id.executes(|| replay_graph(runner, graph, bindings));
                 Ok(())
             }
             Task::RegisterTensor(stream_id, id, data) => {
@@ -377,41 +371,44 @@ fn alloc_intermediate_id() -> TensorId {
 /// Replay a cached relative op-graph against the interpreter, rebound to concrete tensors.
 ///
 /// The cached `graph` is in relative form: its tensor ids are positional, shape dims are relative
-/// ids, and scalars are placeholders. `bindings` carry only the boundary tensor ids and the
-/// relative→concrete shape-dim map. For each op we:
+/// ids, and scalars are placeholders. `bindings` already arrive packaged the way the replay uses
+/// them — the boundary `tensors` map is moved straight into the working id table and grown with
+/// intermediate ids on demand, and `shapes` is a dense table indexed by relative dim id. For each
+/// op we:
 /// - resolve every tensor id to its boundary binding, or a freshly allocated intermediate id
-///   (memoized per relative id so all references to one intermediate agree);
-/// - rebuild every tensor's concrete shape from the shape-dim map (so intermediates get correct
+///   (memoized so all references to one intermediate agree);
+/// - rewrite every tensor's shape dims in place via the shape table (so intermediates get correct
 ///   shapes too, without being sent);
 /// - substitute scalar placeholders;
 ///
 /// then hand the rebound op to the unchanged [`TensorInterpreter::register_op`], reproducing the
 /// exact sequence of global ops the client would have streamed op-by-op.
-fn replay_optimization<B: BackendIr>(
+fn replay_graph<B: BackendIr>(
     runner: &TensorInterpreter<B>,
     graph: &[OperationIr],
-    bindings: &OptimizationBindings,
+    bindings: GraphBindings,
 ) {
-    let dims: HashMap<usize, usize> = bindings.shapes.iter().copied().collect();
-    // Seeded with the boundary (relative -> concrete); intermediates are filled in on demand.
-    let mut ids: HashMap<TensorId, TensorId> = bindings.tensors.iter().copied().collect();
+    let GraphBindings {
+        tensors,
+        shapes,
+        scalars,
+    } = bindings;
+    // The boundary map *is* the working id table — seeded here, intermediates added on demand.
+    let mut ids: HashMap<TensorId, TensorId> = tensors.into_iter().collect();
 
     for op in graph {
         let mut op = op.clone();
         op.for_each_tensor_mut(&mut |tensor: &mut TensorIr| {
             tensor.id = *ids.entry(tensor.id).or_insert_with(alloc_intermediate_id);
-            let shape: Vec<usize> = tensor
-                .shape
-                .iter()
-                .map(|dim| dims.get(dim).copied().unwrap_or(*dim))
-                .collect();
-            tensor.shape = Shape::from(shape);
+            for dim in tensor.shape.iter_mut() {
+                *dim = shapes.get(*dim).copied().unwrap_or(*dim);
+            }
         });
         op.for_each_scalar_mut(&mut |scalar: &mut ScalarIr| {
             if let ScalarIr::UInt(placeholder) = *scalar
-                && (placeholder as usize) < bindings.scalars.len()
+                && (placeholder as usize) < scalars.len()
             {
-                *scalar = bindings.scalars[placeholder as usize];
+                *scalar = scalars[placeholder as usize];
             }
         });
         runner.register_op(op);

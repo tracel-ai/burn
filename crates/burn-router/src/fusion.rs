@@ -1,37 +1,38 @@
-//! Generic client-side fusion for any [router backend](crate::BackendRouter).
+//! Generic client-side graph caching for any [router backend](crate::BackendRouter).
 //!
 //! Wrapping a router backend as [`Fusion`](burn_fusion::Fusion) turns recurring groups of tensor
-//! operations into reusable, client-cached "optimizations". A single greedy [`RouterFuser`]
-//! accumulates every operation and is drained only at a sync point, so one optimization covers each
-//! connected block between syncs. On execution the group is registered once on the backend (via the
+//! operations into reusable, client-cached graphs. A single greedy [`RouterFuser`] accumulates
+//! every operation and is drained only at a sync point, so one graph covers each connected block
+//! between syncs. On execution the group is registered once on the backend (via the
 //! [`RouterClient`]) and thereafter invoked by id with only the changing bindings — for the remote
-//! backend this means a recurring computation (e.g. a model block) crosses the network once instead
-//! of every step.
+//! backend this means a recurring computation (e.g. a model block) crosses the network once
+//! instead of every step.
+//!
+//! `burn-fusion` names its hook `Optimization`; here that hook *is* a cached graph execution
+//! ([`RouterGraphExecution`]), to distinguish it from a compute backend's kernel fusion.
 
 use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use burn_backend::DType;
 use burn_backend::ops::FloatTensorOps;
-use burn_backend::{DType, Shape};
-use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_fusion::stream::{Context, OrderedExecution};
 use burn_fusion::{
     FuserProperties, FuserStatus, FusionBackend, FusionRuntime, NumOperations, OperationFuser,
     Optimization,
 };
 use burn_ir::{
-    BackendIr, OperationIr, OptimizationBindings, OptimizationId, ScalarIr, TensorHandle, TensorId,
-    TensorStatus,
+    BackendIr, GraphBindings, GraphId, OperationIr, ScalarIr, TensorHandle, TensorId, TensorStatus,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{BackendRouter, RouterChannel, RouterClient, RouterTensor, get_client};
 
-static OPT_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
+static GRAPH_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-fn next_optimization_id() -> OptimizationId {
-    OptimizationId(OPT_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
+fn next_graph_id() -> GraphId {
+    GraphId(GRAPH_ID_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 // The router backend already implements `Backend`; these two impls add the `BackendIr` +
@@ -41,35 +42,39 @@ fn next_optimization_id() -> OptimizationId {
 impl<R: RouterChannel> BackendIr for BackendRouter<R> {
     type Handle = RouterTensor<R::Client>;
 
-    fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
+    fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_backend::tensor::FloatTensor<Self> {
         handle.handle
     }
 
-    fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
+    fn int_tensor(handle: TensorHandle<Self::Handle>) -> burn_backend::tensor::IntTensor<Self> {
         handle.handle
     }
 
-    fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
+    fn bool_tensor(handle: TensorHandle<Self::Handle>) -> burn_backend::tensor::BoolTensor<Self> {
         handle.handle
     }
 
-    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+    fn quantized_tensor(
+        handle: TensorHandle<Self::Handle>,
+    ) -> burn_backend::tensor::QuantizedTensor<Self> {
         handle.handle
     }
 
-    fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
+    fn float_tensor_handle(tensor: burn_backend::tensor::FloatTensor<Self>) -> Self::Handle {
         tensor
     }
 
-    fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle {
+    fn int_tensor_handle(tensor: burn_backend::tensor::IntTensor<Self>) -> Self::Handle {
         tensor
     }
 
-    fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
+    fn bool_tensor_handle(tensor: burn_backend::tensor::BoolTensor<Self>) -> Self::Handle {
         tensor
     }
 
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
+    fn quantized_tensor_handle(
+        tensor: burn_backend::tensor::QuantizedTensor<Self>,
+    ) -> Self::Handle {
         tensor
     }
 }
@@ -78,7 +83,10 @@ impl<R: RouterChannel> FusionBackend for BackendRouter<R> {
     type FusionRuntime = RouterFusionRuntime<R>;
     type FullPrecisionBackend = Self;
 
-    fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle {
+    fn cast_float(
+        tensor: burn_backend::tensor::FloatTensor<Self>,
+        dtype: DType,
+    ) -> Self::Handle {
         Self::float_cast(tensor, dtype.into())
     }
 }
@@ -86,8 +94,8 @@ impl<R: RouterChannel> FusionBackend for BackendRouter<R> {
 /// The [fusion runtime](FusionRuntime) for a [router backend](BackendRouter).
 ///
 /// Its [handle](FusionRuntime::FusionHandle) is a [`RouterTensor`] — a lightweight reference to a
-/// backend-resident tensor plus the client to reach it — and its optimization is a backend-cached
-/// op-graph (see [`RouterOptimization`]).
+/// backend-resident tensor plus the client to reach it — and its "optimization" is a backend-cached
+/// op-graph (see [`RouterGraphExecution`]).
 pub struct RouterFusionRuntime<R: RouterChannel> {
     _p: PhantomData<R>,
 }
@@ -99,8 +107,8 @@ impl<R: RouterChannel> core::fmt::Debug for RouterFusionRuntime<R> {
 }
 
 impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
-    type OptimizationState = RouterOptimizationState;
-    type Optimization = RouterOptimization<R>;
+    type OptimizationState = RouterGraphExecutionState;
+    type Optimization = RouterGraphExecution<R>;
     type FusionHandle = RouterTensor<R::Client>;
     type FusionDevice = R::Device;
 
@@ -114,7 +122,7 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
 /// Because [`status`](OperationFuser::status) always reports [`FuserStatus::Open`], the fusion
 /// engine keeps deferring in lazy mode and only drains the queue at a sync point (a read, `sync`,
 /// or `flush`). At that point [`finish`](OperationFuser::finish) yields a single
-/// [`RouterOptimization`] covering the whole accumulated (connected) block.
+/// [`RouterGraphExecution`] covering the whole accumulated (connected) block.
 pub struct RouterFuser<R: RouterChannel> {
     device: R::Device,
     ops: Vec<OperationIr>,
@@ -138,13 +146,13 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
     }
 }
 
-impl<R: RouterChannel> OperationFuser<RouterOptimization<R>> for RouterFuser<R> {
+impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         self.ops.push(operation.clone());
     }
 
-    fn finish(&mut self) -> RouterOptimization<R> {
-        RouterOptimization::new(self.ops.clone(), self.device.clone())
+    fn finish(&mut self) -> RouterGraphExecution<R> {
+        RouterGraphExecution::new(self.ops.clone(), self.device.clone())
     }
 
     fn reset(&mut self) {
@@ -166,7 +174,7 @@ impl<R: RouterChannel> OperationFuser<RouterOptimization<R>> for RouterFuser<R> 
         self.ops.len()
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<RouterOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<RouterGraphExecution<R>>> {
         Box::new(self.clone())
     }
 }
@@ -174,118 +182,157 @@ impl<R: RouterChannel> OperationFuser<RouterOptimization<R>> for RouterFuser<R> 
 /// A reusable group of operations, registered once on the backend and thereafter invoked by id.
 ///
 /// The recorded [`graph`](Self::graph) is in *relative* form (positional tensor ids, relative
-/// shape dims, scalar placeholders), which is invariant across invocations — that is what lets the
-/// backend cache it and the client reuse it. On each [`execute`](Optimization::execute) only the
-/// concrete bindings are computed from the [`Context`] and sent; the (large) graph itself travels
-/// only on the first invocation.
-pub struct RouterOptimization<R: RouterChannel> {
+/// shape-dim ids, scalar placeholders), which is invariant across invocations — that is what lets
+/// the backend cache it and the client reuse it. On each [`execute`](Optimization::execute) only
+/// the concrete bindings are computed from the [`Context`] and sent; the (large) graph itself
+/// travels only on the first invocation.
+pub struct RouterGraphExecution<R: RouterChannel> {
     graph: Vec<OperationIr>,
     device: R::Device,
+    /// Relative ids of the graph's boundary, precomputed once from the (static) graph so each
+    /// replay is O(boundary) instead of re-scanning every tensor. Inputs are tensors not produced
+    /// by a compute op (external data / prior results, incl. `Init`/`from_data` outputs); outputs
+    /// are compute-produced tensors that survive (neither consumed in place nor dropped here).
+    input_ids: Vec<TensorId>,
+    output_ids: Vec<TensorId>,
     /// Backend-side id, assigned and registered on the first execution and reused afterwards.
-    server_id: Option<OptimizationId>,
+    graph_id: Option<GraphId>,
     _p: PhantomData<R>,
 }
 
-/// Serializable state for a [`RouterOptimization`].
+/// Serializable state for a [`RouterGraphExecution`].
 ///
 /// The backend id is intentionally not serialized — it is per-connection state, so a deserialized
-/// optimization re-registers itself on first use.
+/// graph re-registers itself on first use.
 #[derive(Serialize, Deserialize)]
-pub struct RouterOptimizationState {
+pub struct RouterGraphExecutionState {
     graph: Vec<OperationIr>,
 }
 
-impl<R: RouterChannel> RouterOptimization<R> {
+impl<R: RouterChannel> RouterGraphExecution<R> {
     fn new(graph: Vec<OperationIr>, device: R::Device) -> Self {
+        let (input_ids, output_ids) = classify_boundary(&graph);
         Self {
             graph,
             device,
-            server_id: None,
+            input_ids,
+            output_ids,
+            graph_id: None,
             _p: PhantomData,
         }
     }
 }
 
-impl<R: RouterChannel> core::fmt::Debug for RouterOptimization<R> {
+/// Precompute the graph's boundary as `(input relative ids, surviving-output relative ids)`.
+///
+/// - **Inputs** are tensors that aren't produced by a *compute* op: external data and prior-block
+///   results read by the graph, plus `Init`/`from_data` outputs (whose handle is registered
+///   out-of-band, so they're really inputs even though an `Init` op "produces" them).
+/// - **Outputs** are compute-produced tensors that survive — neither consumed in place
+///   (`ReadWrite` anywhere) nor dropped within the graph. This mirrors the fusion engine's own
+///   `drain_queue` freeing logic, keeping client-side handle state consistent with the unfused path.
+///
+/// Intermediate tensors (compute-produced and consumed/dropped here) are in neither list — the
+/// replay owns their ids — so a replay only ever touches the boundary.
+fn classify_boundary(graph: &[OperationIr]) -> (Vec<TensorId>, Vec<TensorId>) {
+    let mut referenced: HashSet<TensorId> = HashSet::new();
+    let mut compute_produced: HashSet<TensorId> = HashSet::new();
+    let mut consumed: HashSet<TensorId> = HashSet::new();
+    for op in graph {
+        if let OperationIr::Drop(tensor) = op {
+            consumed.insert(tensor.id);
+        }
+        if !matches!(op, OperationIr::Init(_)) {
+            for tensor in op.outputs() {
+                compute_produced.insert(tensor.id);
+            }
+        }
+        for tensor in op.nodes() {
+            referenced.insert(tensor.id);
+            if tensor.status == TensorStatus::ReadWrite {
+                consumed.insert(tensor.id);
+            }
+        }
+    }
+
+    let inputs = referenced
+        .iter()
+        .filter(|id| !compute_produced.contains(id))
+        .copied()
+        .collect();
+    let outputs = compute_produced
+        .iter()
+        .filter(|id| !consumed.contains(id))
+        .copied()
+        .collect();
+    (inputs, outputs)
+}
+
+impl<R: RouterChannel> core::fmt::Debug for RouterGraphExecution<R> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("RouterOptimization")
+        f.debug_struct("RouterGraphExecution")
             .field("len", &self.graph.len())
             .finish()
     }
 }
 
-impl<R: RouterChannel> NumOperations for RouterOptimization<R> {
+impl<R: RouterChannel> NumOperations for RouterGraphExecution<R> {
     fn len(&self) -> usize {
         self.graph.len()
     }
 
     fn name(&self) -> &'static str {
-        "RouterOptimization"
+        "RouterGraphExecution"
     }
 }
 
-impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterOptimization<R> {
+impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecution<R> {
     fn execute(
         &mut self,
         context: &mut Context<RouterTensor<R::Client>>,
         _execution: &OrderedExecution<RouterFusionRuntime<R>>,
     ) {
-        // Classify the relative graph's tensors. A tensor is "produced" if it is an output of some
-        // op; it is consumed/freed within the block if it appears anywhere with `ReadWrite` status
-        // or has an explicit `Drop`. A produced tensor that is neither is a surviving output we
-        // must register a handle for. This mirrors the engine's own `drain_queue` freeing logic, so
-        // the client-side handle state stays consistent with the unfused path.
-        let mut produced: HashSet<TensorId> = HashSet::new();
-        let mut read_write: HashSet<TensorId> = HashSet::new();
-        let mut dropped: HashSet<TensorId> = HashSet::new();
-        for op in &self.graph {
-            if let OperationIr::Drop(tensor) = op {
-                dropped.insert(tensor.id);
-            }
-            for tensor in op.outputs() {
-                produced.insert(tensor.id);
-            }
-            for tensor in op.nodes() {
-                if tensor.status == TensorStatus::ReadWrite {
-                    read_write.insert(tensor.id);
-                }
-            }
-        }
-
         let client = get_client::<R>(&self.device);
 
-        // Send bindings only for the graph's *boundary*: external inputs (reuse their concrete id)
-        // and surviving outputs (allocate a fresh id and register a handle). Intermediate tensors
-        // are left out entirely — the replay allocates their ids and derives their shapes from the
-        // shape-dim map below, so the payload doesn't grow with the number of fused ops.
-        let mut tensors: Vec<(TensorId, TensorId)> = Vec::new();
-        // (fusion-global id used as the handle-container key, concrete id, shape, dtype).
-        let mut outputs: Vec<(TensorId, TensorId, Shape, DType)> = Vec::new();
-        for (relative_id, global) in context.tensors.iter() {
-            // A tensor that already has a handle is an input — it's resident on the backend (a
-            // prior op's output, a `from_data` tensor registered out-of-band, etc.). One with no
-            // handle is produced by this graph's computation: a surviving output (allocate + send)
-            // or an intermediate (the server owns its id and never hears about it).
-            if let Some(handle) = context.handles.get_handle_ref(&global.id) {
-                tensors.push((*relative_id, handle.id()));
-            } else {
-                let survives = produced.contains(relative_id)
-                    && !read_write.contains(relative_id)
-                    && !dropped.contains(relative_id);
-                if survives {
-                    let concrete_id = client.create_empty_handle();
-                    tensors.push((*relative_id, concrete_id));
-                    outputs.push((global.id, concrete_id, global.shape.clone(), global.dtype));
-                }
+        // Walk only the precomputed boundary — never every tensor — so a replay is O(boundary).
+        // Inputs reuse their resident concrete id; surviving outputs get a fresh id and a handle.
+        // Intermediates are never touched here: the replay owns their ids and derives their shapes
+        // from the shape table below.
+        let mut tensors: Vec<(TensorId, TensorId)> =
+            Vec::with_capacity(self.input_ids.len() + self.output_ids.len());
+
+        for &input_id in &self.input_ids {
+            let global_id = match context.tensors.get(&input_id) {
+                Some(global) => global.id,
+                None => continue,
+            };
+            if let Some(handle) = context.handles.get_handle_ref(&global_id) {
+                tensors.push((input_id, handle.id()));
             }
         }
 
-        // The relative-dim → concrete-dim map, enough to rebuild every tensor's concrete shape.
-        let shapes: Vec<(usize, usize)> = context
-            .shapes_relative2global
-            .iter()
-            .map(|(relative, concrete)| (*relative, *concrete))
-            .collect();
+        for &output_id in &self.output_ids {
+            // Extract owned metadata first so the `context.tensors` borrow ends before we touch
+            // `context.handles`.
+            let output = context
+                .tensors
+                .get(&output_id)
+                .map(|global| (global.id, global.shape.clone(), global.dtype));
+            if let Some((fusion_id, shape, dtype)) = output {
+                let concrete_id = client.create_empty_handle();
+                tensors.push((output_id, concrete_id));
+                let handle = RouterTensor::new(concrete_id, shape, dtype, client.clone());
+                context.handles.register_handle(fusion_id, handle);
+            }
+        }
+
+        // Dense shape-dim table indexed by relative dim id (dim ids are dense `0..N`).
+        let mut shapes = vec![0usize; context.shapes_relative2global.len()];
+        for (relative, concrete) in context.shapes_relative2global.iter() {
+            if *relative < shapes.len() {
+                shapes[*relative] = *concrete;
+            }
+        }
 
         // Concrete scalar values, indexed by their placeholder id.
         let mut scalars = vec![ScalarIr::UInt(0); context.scalars.len()];
@@ -296,37 +343,31 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterOptimizati
             }
         }
 
-        // Register lightweight handles for surviving outputs so later ops / reads resolve them.
-        for (fusion_id, concrete_id, shape, dtype) in outputs {
-            let handle = RouterTensor::new(concrete_id, shape, dtype, client.clone());
-            context.handles.register_handle(fusion_id, handle);
-        }
-
         // Register the relative graph once (first invocation only), then invoke it by id.
-        let bindings = OptimizationBindings {
+        let bindings = GraphBindings {
             tensors,
             shapes,
             scalars,
         };
-        let id = match self.server_id {
+        let id = match self.graph_id {
             Some(id) => id,
             None => {
-                let id = next_optimization_id();
-                self.server_id = Some(id);
-                client.register_optimization(id, self.graph.clone());
+                let id = next_graph_id();
+                self.graph_id = Some(id);
+                client.register_graph(id, self.graph.clone());
                 id
             }
         };
-        client.execute_optimization(id, bindings);
+        client.execute_graph(id, bindings);
     }
 
-    fn to_state(&self) -> RouterOptimizationState {
-        RouterOptimizationState {
+    fn to_state(&self) -> RouterGraphExecutionState {
+        RouterGraphExecutionState {
             graph: self.graph.clone(),
         }
     }
 
-    fn from_state(device: &R::Device, state: RouterOptimizationState) -> Self {
+    fn from_state(device: &R::Device, state: RouterGraphExecutionState) -> Self {
         Self::new(state.graph, device.clone())
     }
 }

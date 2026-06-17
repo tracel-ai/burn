@@ -261,30 +261,30 @@ impl<C: ProtocolClient> RemoteService<C> {
         self.submit_task(Task::RegisterOperation(stream_id, op));
     }
 
-    /// Buffer a fire-and-forget "register a reusable optimization graph" task.
-    pub fn register_optimization(
+    /// Buffer a fire-and-forget "register a reusable op-graph" task.
+    pub fn register_graph(
         &mut self,
         stream_id: StreamId,
-        optimization_id: burn_ir::OptimizationId,
+        graph_id: burn_ir::GraphId,
         relative_graph: Vec<OperationIr>,
     ) {
-        self.submit_task(Task::RegisterOptimization {
+        self.submit_task(Task::RegisterGraph {
             stream_id,
-            optimization_id,
+            graph_id,
             relative_graph,
         });
     }
 
-    /// Buffer a fire-and-forget "execute a registered optimization" task.
-    pub fn execute_optimization(
+    /// Buffer a fire-and-forget "execute a registered graph" task.
+    pub fn execute_graph(
         &mut self,
         stream_id: StreamId,
-        optimization_id: burn_ir::OptimizationId,
-        bindings: burn_ir::OptimizationBindings,
+        graph_id: burn_ir::GraphId,
+        bindings: burn_ir::GraphBindings,
     ) {
-        self.submit_task(Task::ExecuteOptimization {
+        self.submit_task(Task::ExecuteGraph {
             stream_id,
-            optimization_id,
+            graph_id,
             bindings,
         });
     }
