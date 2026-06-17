@@ -1,0 +1,3 @@
+[remote]
+logger = { file = "/tmp/remote-server.log", level = "full" }
+

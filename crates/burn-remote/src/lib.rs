@@ -29,17 +29,16 @@ mod __client {
     /// For backends that aren't part of `DispatchDevice` but implement
     /// `BackendIr`, call [`server::start_websocket`] directly with the
     /// concrete backend type parameter.
+    #[cfg(not(feature = "fusion"))]
     pub type RemoteBackend = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
 
-    /// The remote backend with client-side fusion enabled.
-    ///
-    /// Same as [`RemoteBackend`] but recurring groups of operations are cached on the server and
-    /// invoked by id, so a repeated computation (e.g. a model block per step) is sent over the
-    /// network once instead of every step. Requires the `fusion` feature.
+    /// With the `fusion` feature enabled, the remote backend is wrapped in
+    /// [`Fusion`](burn_fusion::Fusion) — exactly like the CubeCL backends — so recurring groups of
+    /// operations are cached on the server and invoked by id, sending a repeated computation
+    /// (e.g. a model block per step) over the network once instead of every step.
     #[cfg(feature = "fusion")]
-    pub type RemoteFusionBackend = burn_fusion::Fusion<
-        BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>,
-    >;
+    pub type RemoteBackend =
+        burn_fusion::Fusion<BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>>;
 
     pub use client::RemoteDevice;
 }
@@ -409,8 +408,14 @@ mod tests {
 
 #[cfg(all(test, feature = "fusion", feature = "server"))]
 mod fusion_tests {
-    use crate::{RemoteBackend, RemoteDevice, RemoteFusionBackend};
+    use crate::{RemoteBackend, RemoteDevice, client::RemoteChannel, shared::RemoteProtocol};
     use burn_backend::{Backend, Shape, TensorData};
+    use burn_communication::Protocol;
+    use burn_router::BackendRouter;
+
+    // `RemoteBackend` is `Fusion<PlainRemote>` under the `fusion` feature; `PlainRemote` is the
+    // unwrapped router backend, used as the reference to compare against.
+    type PlainRemote = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
 
     fn input() -> TensorData {
         TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -461,8 +466,8 @@ mod fusion_tests {
         let fused_device = RemoteDevice::new("ws://localhost:3110", 0);
 
         let iters = 5;
-        let expected = run::<RemoteBackend>(&plain_device, iters);
-        let actual = run::<RemoteFusionBackend>(&fused_device, iters);
+        let expected = run::<PlainRemote>(&plain_device, iters);
+        let actual = run::<RemoteBackend>(&fused_device, iters);
 
         assert_eq!(actual.len(), iters);
         assert_eq!(expected.len(), iters);

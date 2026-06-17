@@ -1,5 +1,8 @@
 [fusion]
-logger = { file = "/tmp/fusion.log", level = "full" }
+logger = { file = "/tmp/fusion.log", level = "disabled" }
+
+[remote]
+logger = { file = "/tmp/remote.log", level = "full" }
 
 [cubecl.profiling]
 logger = { log = "info", level = "disabled" }
@@ -7,7 +10,7 @@ logger = { log = "info", level = "disabled" }
 [cubecl.autotune]
 level = "balanced"
 cache = "target"
-logger = { info = true, level = "full" }
+logger = { info = true, level = "disabled" }
 
 [cubecl.compilation]
 logger = { level = "disabled" }
