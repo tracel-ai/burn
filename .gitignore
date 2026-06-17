@@ -23,3 +23,5 @@ uv.lock
 
 # tags files
 tags
+
+examples/**/Cargo.lock

@@ -20,7 +20,6 @@ use burn::{
         linear::LinearLrSchedulerConfig,
     },
     prelude::*,
-    record::{CompactRecorder, NoStdTrainingRecorder},
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
@@ -98,7 +97,7 @@ pub fn run(device: Device) {
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_checkpointer()
         .early_stopping(MetricEarlyStoppingStrategy::new(
             &LossMetric::new(),
             Aggregate::Mean,
@@ -147,10 +146,8 @@ pub fn run(device: Device) {
 
     result
         .model
-        .save_file(
-            format!("{ARTIFACT_DIR}/model"),
-            &NoStdTrainingRecorder::new(),
-        )
+        .into_record()
+        .save(format!("{ARTIFACT_DIR}/model"))
         .expect("Failed to save trained model");
 
     config

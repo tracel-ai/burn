@@ -7,7 +7,6 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::AdamConfig,
     prelude::*,
-    record::CompactRecorder,
     train::{
         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
@@ -97,7 +96,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_checkpointer()
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -110,6 +109,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }

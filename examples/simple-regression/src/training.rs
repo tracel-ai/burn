@@ -5,7 +5,6 @@ use burn::train::{Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     prelude::*,
-    record::{CompactRecorder, NoStdTrainingRecorder},
     train::metric::LossMetric,
 };
 
@@ -71,7 +70,7 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_checkpointer()
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -83,9 +82,7 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
 
     result
         .model
-        .save_file(
-            format!("{artifact_dir}/model"),
-            &NoStdTrainingRecorder::new(),
-        )
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Failed to save trained model");
 }

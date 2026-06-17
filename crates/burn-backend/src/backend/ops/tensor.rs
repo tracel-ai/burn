@@ -1128,6 +1128,51 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with square root values.
     fn float_sqrt(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
+    /// Returns a new tensor with the Euclidean distance values.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `lhs` and `rhs` with hypotenuse values.
+    fn float_hypot(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B> {
+        // default implementation for any backend that can't either iterator over elements or doesn't have
+        // a native hypot implementation
+
+        // Mirrors glibc's approach: scale by max(|lhs|, |rhs|) to avoid
+        // overflow/underflow in the intermediate squaring step.
+        //
+        // hypot(x, y) = |max| * sqrt(1 + (min/max)^2)
+        //
+        // Edge cases:
+        //   - If max == 0, both inputs are 0, result is 0 (division guarded by clamp)
+        //   - If max is inf, result is inf (propagates naturally through sqrt)
+        //   - NaN propagates naturally
+        let abs_lhs = B::float_abs(lhs);
+        let abs_rhs = B::float_abs(rhs);
+
+        let diff = B::float_clamp_min(B::float_sub(abs_rhs.clone(), abs_lhs.clone()), 0.0.into());
+        let max = B::float_add(abs_lhs.clone(), diff.clone());
+        let min = B::float_sub(abs_rhs, diff);
+
+        // Clamp max to at least epsilon to avoid 0/0; result will be 0 anyway
+        // since min <= max, so (min/clamped_max)^2 won't blow up meaningfully.
+        let max_safe = B::float_clamp_min(
+            max.clone(),
+            max.dtype().finfo().unwrap().min_positive.into(),
+        );
+
+        let ratio = B::float_div(min, max_safe);
+        let ratio_sq = B::float_mul(ratio.clone(), ratio);
+
+        let inner = B::float_add_scalar(ratio_sq, 1.0.into());
+
+        B::float_mul(max, B::float_sqrt(inner))
+    }
+
     /// Returns a new tensor with absolute values.
     ///
     /// # Arguments

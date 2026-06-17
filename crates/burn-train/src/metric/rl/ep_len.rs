@@ -55,6 +55,7 @@ impl Metric for EpisodeLengthMetric {
         NumericAttributes {
             unit: Some(String::from("steps")),
             higher_is_better: true,
+            ..Default::default()
         }
         .into()
     }

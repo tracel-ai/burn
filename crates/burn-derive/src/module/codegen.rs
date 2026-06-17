@@ -1,16 +1,14 @@
-use super::{display, record::ModuleRecordCodegen};
+use super::display;
 use crate::{
     module::generics::{GenericKind, ModuleGenerics},
     shared::generics::GenericsHelper,
 };
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Attribute, Generics, parse_quote};
 
 /// Basic trait to be implemented for Module generation.
 pub(crate) trait ModuleCodegen {
-    type RecordCodegen: ModuleRecordCodegen;
-
     fn gen_num_params(&self) -> TokenStream;
     fn gen_visit(&self) -> TokenStream;
     fn gen_collect_devices(&self) -> TokenStream;
@@ -19,11 +17,7 @@ pub(crate) trait ModuleCodegen {
     fn gen_map(&self) -> TokenStream;
     fn gen_valid(&self) -> TokenStream;
     fn gen_from_inner(&self) -> TokenStream;
-    fn gen_into_record(&self) -> TokenStream;
-    fn gen_load_record(&self) -> TokenStream;
     fn gen_clone(&self) -> TokenStream;
-
-    fn record_codegen(self) -> Self::RecordCodegen;
 
     fn gen_display(&self) -> TokenStream;
 
@@ -48,28 +42,16 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let fork = codegen.gen_fork();
     let valid_fn = codegen.gen_valid();
     let from_inner_fn = codegen.gen_from_inner();
-    let into_record_fn = codegen.gen_into_record();
-    let load_record_fn = codegen.gen_load_record();
     let clone_fn = codegen.gen_clone();
-
-    let record = codegen.record_codegen();
-    let record_name = Ident::new(format!("{name}Record").as_str(), name.span());
-    let (record_type, record_generics) = record.gen_record_type(&record_name, &generics.module);
 
     let (generics_module, generics_ty_module, generics_where_module) =
         generics.module.split_for_impl();
     let (generics_module_autodiff, generics_ty_module_autodiff, generics_where_module_autodiff) =
         generics.module_autodiff.split_for_impl();
-    let (_, generics_ty_record, _) = record_generics.split_for_impl();
 
     let mut codegen = quote! {
 
         impl #generics_module burn::module::Module for #name #generics_ty_module #generics_where_module {
-            type Record = #record_name #generics_ty_record;
-
-            #load_record_fn
-            #into_record_fn
-
             #num_params_fn
 
             #visit
@@ -103,8 +85,6 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
         impl #generics_module Clone for #name #generics_ty_module #generics_where_module {
             #clone_fn
         }
-
-        #record_type
     };
 
     if !has_custom_display(&ast.attrs) {

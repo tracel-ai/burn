@@ -167,6 +167,8 @@ pub enum FloatOperationIr {
     GridSample2d(GridSample2dOpIr),
     /// Operation corresponding to [powf](burn_backend::ops::FloatTensorOps::float_powi).
     Powf(BinaryOpIr),
+    /// Operation corresponding to [hypot](burn_backend::ops::FloatTensorOps::float_hypot).
+    Hypot(BinaryOpIr),
 }
 
 /// Operation intermediate representation specific to module.
@@ -2670,6 +2672,7 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTanh(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::Hypot(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -2708,6 +2711,7 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTanh(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Hypot(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -2800,6 +2804,10 @@ impl FloatOperationIr {
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
             FloatOperationIr::Powf(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Hypot(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }

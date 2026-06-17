@@ -73,6 +73,7 @@ impl Metric for IterationSpeedMetric {
         NumericAttributes {
             unit: Some("iter/sec".to_string()),
             higher_is_better: true,
+            ..Default::default()
         }
         .into()
     }

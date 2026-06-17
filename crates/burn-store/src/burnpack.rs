@@ -1,0 +1,512 @@
+#[cfg(feature = "std")]
+use std::path::PathBuf;
+
+#[cfg(feature = "std")]
+use crate::KeyRemapper;
+use crate::bridge;
+use crate::{
+    IdentityAdapter, ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter, TensorSnapshot,
+};
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
+use burn_core::tensor::Bytes;
+use burn_pack::{Error as PackError, Reader, Tensor as PackTensor, Writer};
+
+/// Store mode for BurnpackStore
+enum StoreMode {
+    #[cfg(feature = "std")]
+    File(PathBuf),
+    Bytes(Option<Bytes>),
+}
+
+/// BurnpackStore - A Burn-specific file format store using CBOR for metadata
+pub struct BurnpackStore {
+    /// Store mode - either file path or bytes
+    mode: StoreMode,
+    /// Optional filter for selective loading/saving
+    filter: Option<PathFilter>,
+    /// Additional metadata
+    metadata: BTreeMap<String, String>,
+    /// Allow partial loading (ignore missing tensors)
+    allow_partial: bool,
+    /// Validate tensors during loading (check shapes and dtypes)
+    validate: bool,
+    /// Allow overwriting existing files (default: false)
+    overwrite: bool,
+    /// Automatically append .bpk extension if not present (default: true)
+    #[cfg(feature = "std")]
+    auto_extension: bool,
+    /// Key remapper for tensor name transformations
+    #[cfg(feature = "std")]
+    remapper: KeyRemapper,
+    /// Adapter applied when loading (source -> Burn)
+    from_adapter: Box<dyn ModuleAdapter>,
+    /// Adapter applied when saving (Burn -> target)
+    to_adapter: Box<dyn ModuleAdapter>,
+    /// Reader for loading
+    reader: Option<Reader>,
+    /// Cached tensor snapshots (parsed once, reused)
+    snapshots_cache: Option<BTreeMap<String, TensorSnapshot>>,
+}
+
+impl BurnpackStore {
+    /// Get the default metadata that includes Burn framework information.
+    ///
+    /// This includes:
+    /// - `format`: "burnpack"
+    /// - `producer`: "burn"
+    /// - `version`: The version of burn-store crate (from CARGO_PKG_VERSION)
+    ///
+    /// These metadata fields are automatically added to all saved models.
+    pub fn default_metadata() -> BTreeMap<String, String> {
+        let mut metadata = BTreeMap::new();
+        metadata.insert("format".into(), "burnpack".into());
+        metadata.insert("producer".into(), "burn".into());
+        metadata.insert("version".into(), env!("CARGO_PKG_VERSION").into());
+        metadata
+    }
+    /// Create a new store from a file path
+    ///
+    /// By default, automatically appends `.bpk` extension if the path doesn't have one.
+    /// Use `.auto_extension(false)` to disable this behavior.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use burn_store::BurnpackStore;
+    /// // Automatically appends .bpk
+    /// let store = BurnpackStore::from_file("model");  // creates "model.bpk"
+    ///
+    /// // Already has extension, no append
+    /// let store = BurnpackStore::from_file("model.bpk");  // uses "model.bpk"
+    /// let store = BurnpackStore::from_file("model.myext");  // uses "model.myext"
+    ///
+    /// // Disable auto-extension
+    /// let store = BurnpackStore::from_file("model").auto_extension(false);  // uses "model"
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn from_file<P: AsRef<std::path::Path>>(path: P) -> Self {
+        Self {
+            mode: StoreMode::File(path.as_ref().to_path_buf()),
+            filter: None,
+            metadata: Self::default_metadata(),
+            allow_partial: false,
+            validate: true,
+            overwrite: false,
+            #[cfg(feature = "std")]
+            auto_extension: true,
+            #[cfg(feature = "std")]
+            remapper: KeyRemapper::new(),
+            from_adapter: Box::new(IdentityAdapter),
+            to_adapter: Box::new(IdentityAdapter),
+            reader: None,
+            snapshots_cache: None,
+        }
+    }
+
+    /// Create a new store from bytes (for reading) or empty (for writing)
+    pub fn from_bytes(bytes: Option<Bytes>) -> Self {
+        Self {
+            mode: StoreMode::Bytes(bytes),
+            filter: None,
+            metadata: Self::default_metadata(),
+            allow_partial: false,
+            validate: true,
+            overwrite: false,
+            #[cfg(feature = "std")]
+            auto_extension: false, // Not used for bytes mode
+            #[cfg(feature = "std")]
+            remapper: KeyRemapper::new(),
+            from_adapter: Box::new(IdentityAdapter),
+            to_adapter: Box::new(IdentityAdapter),
+            reader: None,
+            snapshots_cache: None,
+        }
+    }
+
+    /// Create a new store from static bytes with zero-copy loading enabled.
+    ///
+    /// This is optimized for embedded model weights where the data lives in the
+    /// binary's `.rodata` section. Tensor data is sliced without copying, keeping
+    /// the static reference alive.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// static MODEL_DATA: &[u8] = include_bytes!("model.bpk");
+    /// let store = BurnpackStore::from_static(MODEL_DATA);
+    /// ```
+    pub fn from_static(data: &'static [u8]) -> Self {
+        use burn_core::tensor::AllocationProperty;
+
+        // Create bytes::Bytes from static data (zero-copy, stays in .rodata)
+        let shared = bytes::Bytes::from_static(data);
+
+        // Wrap in cubecl Bytes with shared-bytes allocation controller
+        let bytes = Bytes::from_shared(shared, AllocationProperty::Other);
+
+        Self {
+            mode: StoreMode::Bytes(Some(bytes)),
+            filter: None,
+            metadata: Self::default_metadata(),
+            allow_partial: false,
+            validate: true,
+            overwrite: false,
+            #[cfg(feature = "std")]
+            auto_extension: false,
+            #[cfg(feature = "std")]
+            remapper: KeyRemapper::new(),
+            from_adapter: Box::new(IdentityAdapter),
+            to_adapter: Box::new(IdentityAdapter),
+            reader: None,
+            snapshots_cache: None,
+        }
+    }
+
+    /// Add metadata key-value pair
+    pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Clear all metadata (including defaults)
+    ///
+    /// This removes all metadata including the default format, producer, and version fields.
+    /// Use with caution as some tools may expect these fields to be present.
+    pub fn clear_metadata(mut self) -> Self {
+        self.metadata.clear();
+        self
+    }
+
+    /// Allow partial loading (ignore missing tensors)
+    ///
+    /// When set to `true`, the store will not fail if some tensors are missing
+    /// during loading. This is useful when loading a subset of a model's parameters.
+    ///
+    /// Default: `false`
+    pub fn allow_partial(mut self, allow: bool) -> Self {
+        self.allow_partial = allow;
+        self
+    }
+
+    /// Enable or disable validation during loading
+    ///
+    /// When validation is enabled, the store will check that loaded tensors
+    /// match the expected shapes and data types. Disabling validation can
+    /// improve performance but may lead to runtime errors if data is corrupted.
+    ///
+    /// Default: `true`
+    pub fn validate(mut self, validate: bool) -> Self {
+        self.validate = validate;
+        self
+    }
+
+    /// Allow overwriting existing files when saving
+    ///
+    /// When set to `false`, attempting to save to an existing file will result in an error.
+    /// When set to `true`, existing files will be overwritten without warning.
+    ///
+    /// Default: `false`
+    pub fn overwrite(mut self, overwrite: bool) -> Self {
+        self.overwrite = overwrite;
+        self
+    }
+
+    /// Enable or disable automatic .bpk extension appending
+    ///
+    /// When enabled (default), automatically appends `.bpk` to the file path
+    /// if no extension is detected. If an extension is already present, it is preserved.
+    ///
+    /// When disabled, uses the exact path provided without modification.
+    ///
+    /// Default: `true`
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use burn_store::BurnpackStore;
+    /// // With auto_extension enabled (default)
+    /// let store = BurnpackStore::from_file("model");  // -> "model.bpk"
+    ///
+    /// // With auto_extension disabled
+    /// let store = BurnpackStore::from_file("model")
+    ///     .auto_extension(false);  // -> "model"
+    /// ```
+    #[cfg(feature = "std")]
+    pub fn auto_extension(mut self, enable: bool) -> Self {
+        self.auto_extension = enable;
+        self
+    }
+
+    /// Set the adapter for loading tensors (converting from source format to Burn).
+    pub fn with_from_adapter(mut self, adapter: impl ModuleAdapter + 'static) -> Self {
+        self.from_adapter = Box::new(adapter);
+        self
+    }
+
+    /// Set the adapter for saving tensors (converting from Burn to target format).
+    pub fn with_to_adapter(mut self, adapter: impl ModuleAdapter + 'static) -> Self {
+        self.to_adapter = Box::new(adapter);
+        self
+    }
+
+    /// Set path filter for selective loading/saving
+    pub fn with_filter(mut self, filter: PathFilter) -> Self {
+        self.filter = Some(filter);
+        self
+    }
+
+    /// Add regex pattern to filter
+    #[cfg(feature = "std")]
+    pub fn with_regex(mut self, pattern: &str) -> Self {
+        let filter = self.filter.unwrap_or_default();
+        self.filter = Some(filter.with_regex(pattern));
+        self
+    }
+
+    /// Add exact path to filter
+    pub fn with_full_path(mut self, path: impl Into<String>) -> Self {
+        let filter = self.filter.unwrap_or_default();
+        self.filter = Some(filter.with_full_path(path));
+        self
+    }
+
+    /// Match all tensors (no filtering)
+    pub fn match_all(mut self) -> Self {
+        self.filter = Some(PathFilter::new().match_all());
+        self
+    }
+
+    /// Set key remapper for tensor name transformations during loading
+    #[cfg(feature = "std")]
+    pub fn remap(mut self, remapper: KeyRemapper) -> Self {
+        self.remapper = remapper;
+        self
+    }
+
+    /// Add a single regex pattern for key remapping
+    #[cfg(feature = "std")]
+    pub fn with_remap_pattern<S1, S2>(mut self, from: S1, to: S2) -> Self
+    where
+        S1: AsRef<str>,
+        S2: Into<String>,
+    {
+        self.remapper = self
+            .remapper
+            .add_pattern(from.as_ref(), to.into())
+            .expect("Invalid regex pattern");
+        self
+    }
+
+    /// Set the path filter
+    pub fn filter(mut self, filter: PathFilter) -> Self {
+        self.filter = Some(filter);
+        self
+    }
+
+    /// Get the bytes after writing (only valid for bytes mode after collecting)
+    pub fn get_bytes(&self) -> Result<Bytes, PackError> {
+        // `collect_from` caches the written bytes back into `self.mode` for bytes mode.
+        match &self.mode {
+            StoreMode::Bytes(Some(bytes)) => Ok(bytes.clone()),
+            _ => Err(PackError::IoError("No bytes available".into())),
+        }
+    }
+
+    /// Process the file path with auto-extension logic
+    #[cfg(feature = "std")]
+    fn process_path(&self, path: &std::path::Path) -> PathBuf {
+        if !self.auto_extension {
+            return path.to_path_buf();
+        }
+
+        // Check if path already has an extension
+        if path.extension().is_some() {
+            // Has extension, use as-is
+            return path.to_path_buf();
+        }
+
+        // No extension, append .bpk
+        let mut new_path = path.to_path_buf();
+        new_path.set_extension("bpk");
+        new_path
+    }
+
+    /// Ensure the reader is initialized, loading from storage if needed
+    fn ensure_reader(&mut self) -> Result<&Reader, PackError> {
+        if self.reader.is_none() {
+            let reader = match &self.mode {
+                #[cfg(feature = "std")]
+                StoreMode::File(path) => {
+                    let final_path = self.process_path(path);
+                    Reader::from_file(&final_path)?
+                }
+                StoreMode::Bytes(Some(bytes)) => Reader::from_bytes(bytes.clone())?,
+                StoreMode::Bytes(None) => {
+                    return Err(PackError::IoError("No bytes to read from".into()));
+                }
+            };
+            self.reader = Some(reader);
+        }
+
+        self.reader
+            .as_ref()
+            .ok_or_else(|| PackError::IoError("Reader not initialized".into()))
+    }
+}
+
+impl ModuleStore for BurnpackStore {
+    type Error = PackError;
+
+    fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
+        // Invalidate cache since we're writing new data
+        self.snapshots_cache = None;
+        self.reader = None;
+
+        // Collect snapshots from module with adapter
+        let snapshots = module.collect(self.filter.clone(), Some(self.to_adapter.clone()), false);
+
+        // Bridge snapshots to tensor-agnostic burnpack entries (materializing their data)
+        let tensors: Vec<PackTensor> = snapshots
+            .iter()
+            .map(bridge::snapshot_to_tensor)
+            .collect::<Result<_, _>>()?;
+
+        // Initialize writer with tensors
+        let mut writer = Writer::new(tensors);
+
+        // Add metadata using builder pattern
+        for (key, value) in &self.metadata {
+            writer = writer.with_metadata(key.as_str(), value.as_str());
+        }
+
+        // Write to storage based on mode, consuming the writer. For bytes mode the generated
+        // bytes are cached back into `self.mode` so `get_bytes` can return them afterwards.
+        match &self.mode {
+            #[cfg(feature = "std")]
+            StoreMode::File(path) => {
+                // Process path with auto-extension logic
+                let final_path = self.process_path(path);
+
+                // Check if file exists and overwrite is disabled
+                if final_path.exists() && !self.overwrite {
+                    return Err(PackError::IoError(format!(
+                        "File already exists: {}. Use .overwrite(true) to overwrite.",
+                        final_path.display()
+                    )));
+                }
+                writer.write_to_file(&final_path)?;
+            }
+            StoreMode::Bytes(_) => {
+                // Generate and store the bytes
+                let bytes_data = writer.into_bytes()?;
+                // Update mode with bytes - this pattern is irrefutable in no-std mode
+                #[cfg_attr(not(feature = "std"), allow(irrefutable_let_patterns))]
+                let StoreMode::Bytes(bytes_ref) = &mut self.mode else {
+                    unreachable!("We just matched Bytes variant");
+                };
+                *bytes_ref = Some(bytes_data);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn apply_to<M: ModuleSnapshot>(
+        &mut self,
+        module: &mut M,
+    ) -> Result<crate::ApplyResult, Self::Error> {
+        // Get all snapshots using the cached method
+        let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
+
+        // Apply all snapshots at once to the module
+        // Burnpack is Burn's native format, so no enum variant skipping needed
+        // Filter is applied here during apply, not during cache population
+        let result = module.apply(
+            snapshots,
+            self.filter.clone(),
+            Some(self.from_adapter.clone()),
+            false,
+        );
+
+        // Validate if needed
+        if self.validate && !result.errors.is_empty() {
+            return Err(PackError::ValidationError(format!(
+                "Import errors: {:?}",
+                result.errors
+            )));
+        }
+
+        // Check for missing tensors if partial loading is not allowed
+        if !self.allow_partial && !result.missing.is_empty() {
+            return Err(PackError::ValidationError(format!(
+                "Missing tensors: {:?}",
+                result.missing
+            )));
+        }
+
+        Ok(result)
+    }
+
+    fn get_snapshot(&mut self, name: &str) -> Result<Option<&TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap().get(name))
+    }
+
+    fn get_all_snapshots(&mut self) -> Result<&BTreeMap<String, TensorSnapshot>, Self::Error> {
+        // Ensure cache is populated
+        self.ensure_snapshots_cache()?;
+        Ok(self.snapshots_cache.as_ref().unwrap())
+    }
+
+    fn keys(&mut self) -> Result<Vec<String>, Self::Error> {
+        // Always use the cache to ensure remapping is applied consistently
+        Ok(self.get_all_snapshots()?.keys().cloned().collect())
+    }
+}
+
+impl BurnpackStore {
+    /// Ensure the snapshots cache is populated
+    fn ensure_snapshots_cache(&mut self) -> Result<(), PackError> {
+        if self.snapshots_cache.is_some() {
+            return Ok(());
+        }
+
+        // Ensure reader is loaded
+        self.ensure_reader()?;
+
+        // Consume the reader, bridging its tensors to snapshots. File-backed readers keep the
+        // tensor data lazy (read on materialization); in-memory shared sources are zero-copy.
+        // Taking the reader hands the source's ownership to the tensor views, so nothing is read
+        // or copied eagerly. The snapshots cache below is what's reused on later calls.
+        let reader = self
+            .reader
+            .take()
+            .expect("reader initialized by ensure_reader");
+        let snapshots: Vec<TensorSnapshot> = reader
+            .into_tensors()?
+            .into_iter()
+            .map(bridge::tensor_to_snapshot)
+            .collect();
+
+        // Apply remapping if configured (but NOT filtering - that's done at apply time)
+        #[cfg(feature = "std")]
+        let snapshots = if !self.remapper.patterns.is_empty() {
+            let (remapped, _remapped_names) = self.remapper.remap(snapshots);
+            remapped
+        } else {
+            snapshots
+        };
+
+        // Build the cache as BTreeMap
+        let cache: BTreeMap<String, TensorSnapshot> =
+            snapshots.into_iter().map(|s| (s.full_path(), s)).collect();
+
+        self.snapshots_cache = Some(cache);
+        Ok(())
+    }
+}

@@ -4,6 +4,7 @@ use burn_backend::element::{Element, ElementConversion};
 use burn_backend::{DType, quantization::QuantValue};
 use core::fmt::Debug;
 use core::marker::PhantomData;
+use ndarray::Dimension;
 use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
@@ -925,10 +926,19 @@ where
         dim: usize,
         indices: SharedArray<I>,
     ) -> SharedArray<E> {
+        // Read the indices from a contiguous slice rather than through the
+        // array's own iterator: the slice walks a pointer, while the
+        // iterator advances a dynamic-rank index on every element and costs
+        // more than the selection itself. The standardization is a view, and
+        // hence free, for contiguous indices; otherwise, it pays that
+        // iteration once, which the direct consumption would pay anyway.
+        let indices = indices.as_standard_layout();
         let array = tensor.select(
             Axis(dim),
             &indices
-                .into_iter()
+                .as_slice()
+                .unwrap()
+                .iter()
                 .map(|i| i.elem::<i64>() as usize)
                 .collect::<Vec<_>>(),
         );
@@ -954,15 +964,67 @@ where
         output_array.into_shared()
     }
 
+    fn broadcast_dims<D>(lhs: D::Pattern, rhs: D::Pattern) -> Option<D::Pattern>
+    where
+        D: Dimension + IntoDimension<Dim = D>,
+    {
+        if lhs == rhs {
+            Some(lhs)
+        } else {
+            let lhs = lhs.into_dimension();
+            let rhs = rhs.into_dimension();
+            let lhs = lhs.slice();
+            let rhs = rhs.slice();
+
+            let total_dims = core::cmp::max(lhs.len(), rhs.len());
+            let mut target_shape = vec![0; total_dims];
+            // Iterate backwards (from the trailing dimensions inward)
+            for i in 0..total_dims {
+                let lhs_dim = lhs
+                    .len()
+                    .checked_sub(1 + i)
+                    .map(|idx| lhs[idx])
+                    .unwrap_or(1);
+                let rhs_dim = rhs
+                    .len()
+                    .checked_sub(1 + i)
+                    .map(|idx| rhs[idx])
+                    .unwrap_or(1);
+
+                if lhs_dim == rhs_dim {
+                    target_shape[total_dims - 1 - i] = lhs_dim;
+                } else if lhs_dim == 1 {
+                    target_shape[total_dims - 1 - i] = rhs_dim;
+                } else if rhs_dim == 1 {
+                    target_shape[total_dims - 1 - i] = lhs_dim;
+                } else {
+                    // Dimensions are completely incompatible (e.g., trying to match 3 and 5)
+                    return None;
+                }
+            }
+
+            let dyn_dim = IxDyn(&target_shape);
+            D::Dim::from_dimension(&dyn_dim).map(|d| d.into_pattern())
+        }
+    }
+
     pub(crate) fn elementwise_op<OtherE>(
         lhs: SharedArray<E>,
         rhs: SharedArray<OtherE>,
         var_name: impl FnMut(&E, &OtherE) -> E,
     ) -> SharedArray<E> {
-        let lhs = lhs.broadcast(rhs.dim()).unwrap_or(lhs.view());
-        let rhs = rhs.broadcast(lhs.dim()).unwrap_or(rhs.view());
+        if let Some(target) = Self::broadcast_dims::<IxDyn>(lhs.dim(), rhs.dim()) {
+            let lhs = lhs.broadcast(target.clone()).unwrap();
+            let rhs = rhs.broadcast(target).unwrap();
 
-        Zip::from(lhs).and(rhs).map_collect(var_name).into_shared()
+            Zip::from(lhs).and(rhs).map_collect(var_name).into_shared()
+        } else {
+            panic!(
+                "Incompatible shapes for broadcasting: {:?} and {:?}",
+                lhs.shape(),
+                rhs.shape()
+            );
+        }
     }
 
     pub(crate) fn elementwise_op_scalar(

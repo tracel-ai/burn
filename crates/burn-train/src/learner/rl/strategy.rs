@@ -51,20 +51,7 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
         mut training_components: RLComponents<RLC>,
         env_init: RLC::EnvInit,
     ) -> RLResult<RLC::Policy> {
-        let starting_epoch = match training_components.checkpoint {
-            Some(checkpoint) => {
-                if let Some(checkpointer) = &mut training_components.checkpointer {
-                    learner_agent = checkpointer.load_checkpoint(
-                        learner_agent,
-                        &Default::default(),
-                        checkpoint,
-                    );
-                }
-                checkpoint + 1
-            }
-            None => 1,
-        };
-
+        let starting_epoch = training_components.checkpoint.unwrap_or(0) + 1;
         let summary_config = training_components.summary.clone();
 
         // Event processor start training

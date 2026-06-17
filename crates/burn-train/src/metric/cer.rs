@@ -154,6 +154,7 @@ impl Metric for CharErrorRate {
         super::NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: false,
+            ..Default::default()
         }
         .into()
     }

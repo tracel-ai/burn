@@ -1,5 +1,4 @@
 use crate::model::ModelConfig;
-use burn::record::NoStdTrainingRecorder;
 use burn::train::{
     EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
     SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
@@ -17,7 +16,6 @@ use burn::{
     module::AutodiffModule,
     optim::AdamConfig,
     prelude::*,
-    record::CompactRecorder,
     tensor::Device,
     train::{
         InferenceStep, LearnerEvent, MetricEarlyStoppingStrategy, StoppingCondition, TrainingItem,
@@ -97,7 +95,7 @@ pub fn run(device: Device) {
 
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_checkpointer()
         .early_stopping(early_stopping)
         .num_epochs(config.num_epochs)
         .summary()
@@ -113,10 +111,8 @@ pub fn run(device: Device) {
 
     result
         .model
-        .save_file(
-            format!("{ARTIFACT_DIR}/model"),
-            &NoStdTrainingRecorder::new(),
-        )
+        .into_record()
+        .save(format!("{ARTIFACT_DIR}/model"))
         .expect("Failed to save trained model");
 }
 

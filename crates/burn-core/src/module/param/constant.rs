@@ -3,83 +3,22 @@ use burn_tensor::kind::{Autodiff, Basic};
 use core::fmt::Display;
 
 use crate as burn;
-use crate::{
-    module::{
-        AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault,
-        ModuleMapper, ModuleVisitor,
-    },
-    record::{PrecisionSettings, Record},
+use crate::module::{
+    AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor,
 };
 use burn_tensor::{Device, Tensor};
 
-#[deprecated(
-    since = "0.21.0",
-    note = "ConstantRecord is misleading as it doesn't persist data. Use EmptyRecord instead."
-)]
-/// A record representing the absence of persistent module state.
-pub type ConstantRecord = EmptyRecord;
-
-/// A record representing the absence of persistent module state.
-///
-/// `EmptyRecord` is used for modules that do not store any data to be
-/// serialized or restored (e.g., modules marked with `#[module(skip)]`
-/// or modules without parameters).
-///
-/// This record contains no fields and serializes to `None`.
-#[derive(Debug, Clone, Copy, new, Default, PartialEq, Eq)]
-pub struct EmptyRecord;
-
-impl serde::Serialize for EmptyRecord {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        // nothing to serialize
-        S::serialize_none(serializer)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for EmptyRecord {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_option(serde::de::IgnoredAny).ok();
-        Ok(EmptyRecord::new())
-    }
-}
-
-impl Record for EmptyRecord {
-    type Item<S: PrecisionSettings> = EmptyRecord;
-
-    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        self
-    }
-
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &Device) -> Self {
-        item
-    }
-}
 /// Constant macro.
 #[macro_export]
 macro_rules! empty {
     (module) => {
-        type Record = burn::module::EmptyRecord;
-
         fn visit<V: burn::module::ModuleVisitor>(&self, _visitor: &mut V) {
             // Nothing to do
         }
 
         fn map<M: burn::module::ModuleMapper>(self, _mapper: &mut M) -> Self {
             self
-        }
-
-        fn load_record(self, _record: Self::Record) -> Self {
-            self
-        }
-
-        fn into_record(self) -> Self::Record {
-            burn::module::EmptyRecord::new()
         }
 
         fn to_device(self, _: &burn::tensor::Device) -> Self {
@@ -160,19 +99,9 @@ impl burn::module::ModuleDisplayDefault for str {
 
 // TODO: tensor record should persist
 impl<const D: usize, K: Basic> Module for Tensor<D, K> {
-    type Record = EmptyRecord;
-
     fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {}
 
     fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
-        self
-    }
-
-    fn into_record(self) -> Self::Record {
-        EmptyRecord
-    }
-
-    fn load_record(self, _record: Self::Record) -> Self {
         self
     }
 
@@ -278,22 +207,12 @@ impl<T> Module for Ignored<T>
 where
     T: Sync + Send + core::fmt::Debug + Clone,
 {
-    type Record = EmptyRecord;
-
     fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {
         // Nothing to do
     }
 
     fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
         self
-    }
-
-    fn load_record(self, _record: Self::Record) -> Self {
-        self
-    }
-
-    fn into_record(self) -> Self::Record {
-        EmptyRecord::new()
     }
 
     fn to_device(self, _: &Device) -> Self {
@@ -364,35 +283,6 @@ mod tests {
     use burn::module::Module;
 
     use crate as burn;
-
-    #[cfg(feature = "autodiff")]
-    #[test]
-    fn tensor_load_record_setting() {
-        use crate::{
-            record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
-            test_device,
-        };
-        use burn_tensor::Tensor;
-
-        let device = &test_device().autodiff();
-        let tensor = Tensor::<2>::ones([3, 3], device);
-
-        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
-        let bytes = Recorder::record(&byte_recorder, tensor.clone().into_record(), ()).unwrap();
-
-        let no_grad_is_require_grad = tensor
-            .clone()
-            .no_grad()
-            .load_record(Recorder::load(&byte_recorder, bytes.clone(), device).unwrap())
-            .is_require_grad();
-
-        let with_default_is_require_grad = tensor
-            .load_record(Recorder::load(&byte_recorder, bytes.clone(), device).unwrap())
-            .is_require_grad();
-
-        assert!(!no_grad_is_require_grad);
-        assert!(!with_default_is_require_grad);
-    }
 
     #[test]
     fn empty_module_with_phantom() {

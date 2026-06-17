@@ -369,6 +369,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
                 accumulation: self.reduce.acc.into_elem().into(),
             },
             address_type,
+            instruction: reduce_instruction2config(&self.reduce.inst),
         };
 
         let (blueprint, settings) = match self.strategy.clone() {
@@ -441,7 +442,12 @@ fn launch_reduce_mixed_precision<Run: Runtime>(
     dtype_output: DType,
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
-    let config = match instruction {
+    let config = reduce_instruction2config(&instruction);
+    launch_reduce::<Run>(kwargs, config, dtype_input, dtype_output, dtype_acc)
+}
+
+pub(crate) fn reduce_instruction2config(instruction: &ReduceInstruction) -> ReduceOperationConfig {
+    match instruction {
         ReduceInstruction::ArgMax => ReduceOperationConfig::ArgMax,
         ReduceInstruction::ArgMin => ReduceOperationConfig::ArgMin,
         ReduceInstruction::Prod => ReduceOperationConfig::Prod,
@@ -450,8 +456,7 @@ fn launch_reduce_mixed_precision<Run: Runtime>(
         ReduceInstruction::Max => ReduceOperationConfig::Max,
         ReduceInstruction::Min => ReduceOperationConfig::Min,
         ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
-    };
-    launch_reduce::<Run>(kwargs, config, dtype_input, dtype_output, dtype_acc)
+    }
 }
 
 fn launch_reduce<Run: Runtime>(

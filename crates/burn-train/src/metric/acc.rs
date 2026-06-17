@@ -84,6 +84,7 @@ impl Metric for AccuracyMetric {
         super::NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: true,
+            ..Default::default()
         }
         .into()
     }

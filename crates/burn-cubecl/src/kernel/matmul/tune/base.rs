@@ -12,13 +12,16 @@ use cubecl::{
 use cubek::matmul::{
     components::tile::TileMatmulKind,
     definition::MatmulKind,
-    launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
-        BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        double_unit::DoubleUnitSelectionArgs, gemm::GemmStrategy,
-        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-        simple_unit::SimpleUnitSelectionArgs,
+        BlueprintStrategy, TileSizeSelection,
+        batch::{
+            double_buffering::DoubleBufferingArgs, double_unit::DoubleUnitSelectionArgs,
+            ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+            simple_unit::SimpleUnitSelectionArgs,
+        },
+        gemm::GemmStrategy,
     },
+    strategy::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
 };
 
 fn matmul_input_gen<R: CubeRuntime>(

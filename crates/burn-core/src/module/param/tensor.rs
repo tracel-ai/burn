@@ -118,23 +118,12 @@ impl<const D: usize> Param<Tensor<D>> {
 }
 
 impl<const D: usize> Module for Param<Tensor<D>> {
-    type Record = Param<Tensor<D>>;
-
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_float(self)
     }
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_float(self)
-    }
-
-    fn into_record(self) -> Self::Record {
-        self.transform_for_save()
-    }
-
-    fn load_record(self, record: Self::Record) -> Self {
-        let (record_param_id, record_tensor, _) = record.consume();
-        self.transform_for_load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device) -> Self {
@@ -182,23 +171,12 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D>> {
 impl<const D: usize> ModuleDisplay for Param<Tensor<D>> {}
 
 impl<const D: usize> Module for Param<Tensor<D, Int>> {
-    type Record = Param<Tensor<D, Int>>;
-
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_int(self)
     }
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_int(self)
-    }
-
-    fn into_record(self) -> Self::Record {
-        self.transform_for_save()
-    }
-
-    fn load_record(self, record: Self::Record) -> Self {
-        let (record_param_id, record_tensor, _) = record.consume();
-        self.transform_for_load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device) -> Self {
@@ -237,23 +215,12 @@ impl<const D: usize> ModuleDisplayDefault for Param<Tensor<D, Int>> {
 impl<const D: usize> ModuleDisplay for Param<Tensor<D, Int>> {}
 
 impl<const D: usize> Module for Param<Tensor<D, Bool>> {
-    type Record = Param<Tensor<D, Bool>>;
-
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         visitor.visit_bool(self)
     }
 
     fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         mapper.map_bool(self)
-    }
-
-    fn into_record(self) -> Self::Record {
-        self.transform_for_save()
-    }
-
-    fn load_record(self, record: Self::Record) -> Self {
-        let (record_param_id, record_tensor, _) = record.consume();
-        self.transform_for_load(record_tensor, record_param_id)
     }
 
     fn to_device(self, device: &Device) -> Self {
@@ -338,37 +305,7 @@ impl<const D: usize> AutodiffModule for Param<Tensor<D, Bool>> {
 #[cfg(all(test, feature = "std", feature = "autodiff"))]
 mod tests {
     use super::*;
-    use crate::{
-        module::Module,
-        record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
-        test_device,
-    };
-
-    #[test]
-    fn test_load_record_setting() {
-        let device = test_device().autodiff();
-        let tensor = Tensor::<2>::ones([3, 3], &device).require_grad();
-
-        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
-        let bytes = byte_recorder
-            .record(
-                Param::initialized(ParamId::new(), tensor.clone()).into_record(),
-                (),
-            )
-            .unwrap();
-
-        let no_grad_is_require_grad = Param::initialized(ParamId::new(), tensor.clone())
-            .no_grad()
-            .load_record(byte_recorder.load(bytes.clone(), &device).unwrap())
-            .is_require_grad();
-
-        let with_default_is_require_grad = Param::initialized(ParamId::new(), tensor)
-            .load_record(byte_recorder.load(bytes, &device).unwrap())
-            .is_require_grad();
-
-        assert!(!no_grad_is_require_grad);
-        assert!(with_default_is_require_grad);
-    }
+    use crate::{module::Module, test_device};
 
     #[test]
     fn test_param_require_grad_stateful() {

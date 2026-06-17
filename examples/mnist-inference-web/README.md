@@ -29,7 +29,8 @@ makes it possible to build and run the model with the `wasm32-unknown-unknown` t
 special system library, such as [WASI](https://wasi.dev/). (See [Cargo.toml](./Cargo.toml) on how to
 include burn dependencies without `std`).
 
-For this demo, we use trained parameters (`model.bin`) and model (`model.rs`) from the
+For this demo, we use trained parameters (`model.bpk`, in the burnpack format) and model
+(`model.rs`) from the
 [`burn` MNIST example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
 
 The inference API for JavaScript is exposed with the help of

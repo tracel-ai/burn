@@ -382,13 +382,10 @@ pub(crate) fn handle_command(
                     set_burn_device("tch"); // test-tch
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
-                        handle_test_args(
-                            &["--features", "tch,record-item-custom-serde"],
-                            args.release,
-                        ),
+                        handle_test_args(&["--features", "tch"], args.release),
                         None,
                         None,
-                        "std with features: tch,record-item-custom-serde",
+                        "std with features: tch",
                     )?;
 
                     // burn-nn (pretrained and local tests)

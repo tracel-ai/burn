@@ -1,11 +1,11 @@
 use burn_core as burn;
 
+use crate::RecordState;
 use burn::config::Config;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::{module::AutodiffModule, record::Record};
 
-use super::{AdaptiveMomentumState, SimpleOptimizer, adaptor::OptimizerAdaptor};
+use super::{AdaptiveMomentumState, Optimizer, module_optimizer::ModuleOptimizer};
 use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]
@@ -57,13 +57,13 @@ pub struct AdamW {
 }
 
 /// AdamW state.
-#[derive(Record, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct AdamWState<const D: usize> {
     /// Th current adaptive momentum state.
     pub momentum: AdaptiveMomentumState<D>,
 }
 
-impl SimpleOptimizer for AdamW {
+impl Optimizer for AdamW {
     type State<const D: usize> = AdamWState<D>;
 
     /// A single optimization step for any tensor that represents the parameters of a model.
@@ -132,8 +132,8 @@ impl AdamWConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<AdamW, M> {
-        let mut optim = OptimizerAdaptor::from(self.build());
+    pub fn init(&self) -> ModuleOptimizer {
+        let mut optim = ModuleOptimizer::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
@@ -224,11 +224,11 @@ impl AdaptiveMomentumW {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{GradientsParams, Optimizer};
-    use burn::module::{Module, Param};
+    use crate::GradientsParams;
+    use burn::module::Param;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::{Linear, LinearConfig};
 
     type FT = f32;
 
@@ -244,31 +244,16 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(LEARNING_RATE, linear, grads);
 
+        let bytes = optimizer.into_bytes().unwrap();
+        assert!(!bytes.is_empty());
+
         #[cfg(feature = "std")]
-        {
-            use burn::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
-
-            BinFileRecorder::<FullPrecisionSettings>::default()
-                .record(
-                    optimizer.to_record(),
-                    std::env::temp_dir().as_path().join("test_optim_adamw"),
-                )
-                .unwrap();
-        }
-        #[cfg(not(feature = "std"))]
-        {
-            use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
-
-            let result = BinBytesRecorder::<FullPrecisionSettings>::default()
-                .record(optimizer.to_record(), ())
-                .unwrap();
-            assert!(!result.is_empty());
-        }
+        optimizer
+            .save(std::env::temp_dir().as_path().join("test_optim_adamw"))
+            .unwrap();
 
         let state_optim_before = optimizer.to_record();
-        let state_optim_before_copy = optimizer.to_record();
-        let optimizer = create_adamw();
-        let optimizer = optimizer.load_record(state_optim_before_copy);
+        let optimizer = create_adamw().from_bytes(bytes).unwrap();
         let state_optim_after = optimizer.to_record();
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
@@ -307,7 +292,7 @@ mod tests {
             linear = optimizer.step(LEARNING_RATE, linear, grads);
         }
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weight_updated = state_updated.weight.to_data();
         let bias_updated = state_updated.bias.unwrap().to_data();
 
@@ -421,7 +406,7 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weights_expected = TensorData::from([
             [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
             [
@@ -500,7 +485,7 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         let weights_expected = TensorData::from([
             [-0.337295, 0.117827, 0.380358, 0.296868, 0.065232, 0.046534],
             [
@@ -573,20 +558,18 @@ mod tests {
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(LEARNING_RATE, linear, grads);
 
-        let state_updated = linear.into_record();
+        let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());
     }
 
     fn given_linear_layer(weight: TensorData, bias: TensorData, device: &Device) -> Linear {
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, device),
             bias: Some(Param::from_data(bias, device)),
-        };
-
-        LinearConfig::new(6, 6).init(device).load_record(record)
+        }
     }
 
-    fn create_adamw() -> OptimizerAdaptor<AdamW, Linear> {
+    fn create_adamw() -> ModuleOptimizer {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {
