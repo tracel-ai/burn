@@ -18,9 +18,7 @@ pub use transition_buffer::*;
 pub(crate) mod tests {
     use crate::{Batchable, Policy, PolicyState};
 
-    use burn_core::record::Record;
     use burn_core::tensor::Device;
-    use burn_core::{self as burn};
 
     /// Mock policy for testing
     ///
@@ -108,7 +106,7 @@ pub(crate) mod tests {
     #[derive(Clone)]
     pub(crate) struct MockPolicyState;
 
-    #[derive(Clone, Record)]
+    #[derive(Clone)]
     pub(crate) struct MockRecord {
         item: usize,
     }

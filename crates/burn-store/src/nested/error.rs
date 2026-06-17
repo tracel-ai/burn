@@ -1,6 +1,4 @@
-use crate::record::RecorderError;
-
-/// The error type for Record serde.
+/// The error type for nested-value serde.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// Failed to deserialize.
@@ -29,12 +27,5 @@ impl serde::de::Error for Error {
 impl serde::ser::Error for Error {
     fn custom<T: std::fmt::Display>(msg: T) -> Self {
         Error::Serialize(msg.to_string())
-    }
-}
-
-// Implement From trait for Error to RecorderError
-impl From<Error> for RecorderError {
-    fn from(error: Error) -> Self {
-        RecorderError::DeserializeError(error.to_string())
     }
 }

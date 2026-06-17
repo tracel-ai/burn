@@ -14,14 +14,13 @@ load our trained model.
 # use burn::{
 #     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
 #     prelude::*,
-#     record::{CompactRecorder, Recorder},
+#     store::ModuleRecord,
 # };
 #
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
-    let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist; run train first");
 
     let model = config.model.init::<B>(&device).load_record(record);
@@ -37,8 +36,8 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem)
 ```
 
 The first step is to load the configuration of the training to fetch the correct model
-configuration. Then we can fetch the record using the same recorder as we used during training.
-Finally we can init the model with the configuration and the record. For simplicity we can use the
+configuration. Then we can load the saved record from its burnpack file. Finally we can init the
+model with the configuration and apply the record. For simplicity we can use the
 same batcher used during the training to pass from a MnistItem to a tensor.
 
 By running the infer function, you should see the predictions of your model!

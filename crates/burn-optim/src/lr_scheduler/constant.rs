@@ -1,4 +1,4 @@
-use super::LrScheduler;
+use super::{LrScheduler, LrSchedulerRecord};
 use crate::LearningRate;
 
 /// Constant learning rate implementing [learning rate scheduler](LrScheduler).
@@ -18,29 +18,29 @@ impl From<LearningRate> for ConstantLr {
 }
 
 impl LrScheduler for ConstantLr {
-    type Record = ();
-
     fn step(&mut self) -> LearningRate {
         self.lr
     }
 
-    fn to_record(&self) -> Self::Record {}
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::new()
+    }
 
-    fn load_record(self, _record: Self::Record) -> Self {
+    fn load_record(self, _record: LrSchedulerRecord) -> Self {
         self
     }
 }
 
 impl LrScheduler for LearningRate {
-    type Record = ();
-
     fn step(&mut self) -> LearningRate {
         *self
     }
 
-    fn to_record(&self) -> Self::Record {}
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::new()
+    }
 
-    fn load_record(self, _record: Self::Record) -> Self {
+    fn load_record(self, _record: LrSchedulerRecord) -> Self {
         self
     }
 }

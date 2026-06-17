@@ -378,6 +378,9 @@ macro_rules! impl_dispatch_conversion {
         #[cfg($cfg)]
         impl DispatchKindConversion<$backend> for DispatchTensor {
             fn try_into_backend(tensor: DispatchTensor) -> Result<BackendTensor<$backend>, String> {
+                // The catch-all is unreachable in single-backend builds (the enum then has one
+                // variant), but required when several backend features are enabled.
+                #[allow(unreachable_patterns)]
                 match tensor.kind {
                     DispatchTensorKind::$backend(t) => Ok(t),
                     other => Err(format!(

@@ -24,7 +24,6 @@ Since the MNIST task is a classification problem, we will use the `Classificatio
 #     nn::loss::CrossEntropyLossConfig,
 #     optim::AdamConfig,
 #     prelude::*,
-#     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
 #         ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, InferenceStep,
@@ -71,7 +70,6 @@ for our model.
 #     nn::loss::CrossEntropyLossConfig,
 #     optim::AdamConfig,
 #     prelude::*,
-#     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
 #         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
@@ -159,7 +157,6 @@ Let us move on to establishing the practical training configuration.
 #     nn::loss::CrossEntropyLossConfig,
 #     optim::AdamConfig,
 #     prelude::*,
-#     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
 #         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
@@ -247,7 +244,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_file_checkpointer(CompactRecorder::new())
+        .with_checkpointer()
         .num_epochs(config.num_epochs)
         .summary();
 
@@ -260,7 +257,8 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }
 ```
@@ -275,9 +273,9 @@ defines the necessary backend bounds on the data loader for `B::InnerBackend` (s
 nearly impossible to forget to deactivate gradient calculation.
 
 Next, we create a supervised training runner with the dataloaders for training and validation and
-we register the accuracy and loss metric on both training and validation steps. We also configure the
-checkpointer using the `CompactRecorder` to indicate how weights should be stored. This struct implements the `Recorder` trait, which makes
-it capable of saving records for persistency.
+we register the accuracy and loss metric on both training and validation steps. We also enable
+checkpointing with `with_checkpointer()`, which periodically saves the model, optimizer, and learning
+rate scheduler state to burnpack files under the experiment directory so training can be resumed.
 
 For the sake of simplicity in this example, we employ the test set as the validation
 set; however, we do not recommend this practice for actual usage.
@@ -292,8 +290,7 @@ learner struct, but it will be an essential nuance to grasp if you implement you
 
 Once the learner and supervised training instance are created, we can call `training.launch` and provide the learner.
 
-Finally, the trained model is returned by the `launch` method. The trained weights are then saved using
-the `CompactRecorder`. This recorder employs the `MessagePack` format with half precision, `f16` for
-floats and `i16` for integers. Other recorders are available, offering support for various formats,
-such as `BinCode` and `JSON`, with or without compression. Any backend, regardless of precision, can
-load recorded data of any kind.
+Finally, the trained model is returned by the `launch` method. The trained weights are then saved by
+taking a record with `into_record()` and calling `save`, which writes a burnpack (`.bpk`) file. A
+record holds plain tensor data, so any backend, regardless of precision, can load recorded weights of
+any kind.

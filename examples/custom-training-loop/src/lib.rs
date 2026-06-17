@@ -2,7 +2,7 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     module::AutodiffModule,
     nn::loss::CrossEntropyLoss,
-    optim::{AdamConfig, GradientsParams, Optimizer},
+    optim::{AdamConfig, GradientsParams},
     prelude::*,
 };
 use guide::{data::MnistBatcher, model::ModelConfig};

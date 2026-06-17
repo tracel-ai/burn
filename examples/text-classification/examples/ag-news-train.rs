@@ -59,7 +59,7 @@ pub fn launch_single(mut device: Device) {
 
 pub fn launch(strategy: ExecutionStrategy) {
     let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(256, 1024, 8, 4)
+        TransformerEncoderConfig::new(128, 512, 4, 4)
             .with_norm_first(true)
             .with_quiet_softmax(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),

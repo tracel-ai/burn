@@ -123,49 +123,19 @@ impl ModuleWithAttributes<ModuleBasic, PaddingConfig> {
     }
 }
 
-#[allow(dead_code)]
-mod compiletime_clone_impl_check {
-    use burn_core::{
-        module::{Module, ModuleDisplay},
-        record::{PrecisionSettings, Record},
-    };
-
-    use super::*;
-
-    type RecordItem<M, S> = <<M as Module>::Record as Record>::Item<S>;
-
-    fn implements_clone<T: Clone>() {}
-
-    fn basic_implements_clone<S: PrecisionSettings>() {
-        implements_clone::<RecordItem<ModuleBasic, S>>();
-        implements_clone::<RecordItem<ModuleComposed, S>>();
-    }
-
-    fn generic_implements_clone<S, M>()
-    where
-        S: PrecisionSettings,
-        M: Module + ModuleDisplay,
-        RecordItem<M, S>: Clone,
-    {
-        implements_clone::<RecordItem<ModuleWithGenericModule<M>, S>>();
-        implements_clone::<RecordItem<ModuleEnumWithGenericModule<M>, S>>();
-    }
-}
-
 pub fn test_device() -> Device {
     burn_tensor::Device::flex()
 }
 
 mod state {
-    use burn_core::module::EmptyRecord;
-
     use super::*;
+    use burn::store::RecordError;
 
     #[test]
     fn should_load_from_record_basic() {
         let device = test_device();
         let module_1 = ModuleBasic::new(&device);
-        let mut module_2 = ModuleBasic::new(&device);
+        let module_2 = ModuleBasic::new(&device);
 
         // Access module_1 to trigger initialization before cloning.
         // Cloning an uninitialized module preserves lazy state (no memory allocation),
@@ -175,9 +145,8 @@ mod state {
             module_2.weight_basic.to_data()
         );
 
-        let state_1 = module_1.clone().into_record();
-
-        module_2 = module_2.load_record(state_1);
+        let record = module_1.clone().into_record();
+        let module_2 = module_2.load_record(record);
 
         assert_eq!(
             module_1.weight_basic.to_data(),
@@ -189,20 +158,29 @@ mod state {
     fn should_load_from_record_compose() {
         let device = test_device();
         let module_1 = ModuleComposed::new(&device);
-        let mut module_2 = ModuleComposed::new(&device);
+        let module_2 = ModuleComposed::new(&device);
         assert_ne!(module_1.weight.to_data(), module_2.weight.to_data());
         assert_ne!(
             module_1.basic.weight_basic.to_data(),
             module_2.basic.weight_basic.to_data()
         );
 
-        let state_1 = module_1.clone().into_record();
-        module_2 = module_2.load_record(state_1);
+        let record = module_1.clone().into_record();
+        let module_2 = module_2.load_record(record);
 
         assert_eq!(module_1.weight.to_data(), module_2.weight.to_data());
         assert_eq!(
             module_1.basic.weight_basic.to_data(),
             module_2.basic.weight_basic.to_data()
+        );
+        // The tuple of nested modules round-trips too.
+        assert_eq!(
+            module_1.tuple.0.weight_basic.to_data(),
+            module_2.tuple.0.weight_basic.to_data()
+        );
+        assert_eq!(
+            module_1.tuple.1.weight_basic.to_data(),
+            module_2.tuple.1.weight_basic.to_data()
         );
     }
 
@@ -210,13 +188,13 @@ mod state {
     fn should_load_from_record_enum() {
         let device = test_device();
         let module_1 = ModuleEnum::Basic(ModuleBasic::new(&device));
-        let mut module_2 = ModuleEnum::Basic(ModuleBasic::new(&device));
+        let module_2 = ModuleEnum::Basic(ModuleBasic::new(&device));
 
         // Trigger initialization before cloning so clone has the same values.
         let ModuleEnum::Basic(ref module_1_basic) = module_1 else {
             panic!("Invalid module type")
         };
-        let ModuleEnum::Basic(module_2_basic) = module_2.clone() else {
+        let ModuleEnum::Basic(ref module_2_basic) = module_2 else {
             panic!("Invalid module type")
         };
         assert_ne!(
@@ -224,9 +202,8 @@ mod state {
             module_2_basic.weight_basic.to_data()
         );
 
-        let state_1 = module_1.clone().into_record();
-
-        module_2 = module_2.load_record(state_1);
+        let record = module_1.clone().into_record();
+        let module_2 = module_2.load_record(record);
 
         let ModuleEnum::Basic(module_2_basic) = module_2 else {
             panic!("Invalid module type")
@@ -238,12 +215,45 @@ mod state {
     }
 
     #[test]
+    fn should_load_from_record_const_generic() {
+        let device = test_device();
+        let module_1 = ModuleWithConstGeneric {
+            modules: [ModuleBasic::new(&device), ModuleBasic::new(&device)],
+        };
+        let module_2 = ModuleWithConstGeneric {
+            modules: [ModuleBasic::new(&device), ModuleBasic::new(&device)],
+        };
+
+        // Trigger initialization before cloning so clone has the same values.
+        assert_ne!(
+            module_1.modules[0].weight_basic.to_data(),
+            module_2.modules[0].weight_basic.to_data(),
+        );
+        assert_ne!(
+            module_1.modules[1].weight_basic.to_data(),
+            module_2.modules[1].weight_basic.to_data(),
+        );
+
+        let record = module_1.clone().into_record();
+        let module_2 = module_2.load_record(record);
+
+        assert_eq!(
+            module_1.modules[0].weight_basic.to_data(),
+            module_2.modules[0].weight_basic.to_data(),
+        );
+        assert_eq!(
+            module_1.modules[1].weight_basic.to_data(),
+            module_2.modules[1].weight_basic.to_data(),
+        );
+    }
+
+    #[test]
     fn should_load_from_record_based_on_attributes() {
         let device = test_device();
         let mut module_1 = ModuleWithAttributes::new(&device);
-        let mut module_2 = ModuleWithAttributes::new(&device);
+        let module_2 = ModuleWithAttributes::new(&device);
 
-        assert_ne!(module_1.weight.to_data(), module_2.weight.to_data(),);
+        assert_ne!(module_1.weight.to_data(), module_2.weight.to_data());
 
         let ModuleEnumWithGenericModule::Basic(ref m1_basic) = module_1.nested else {
             panic!("Invalid module type")
@@ -251,49 +261,34 @@ mod state {
         let ModuleEnumWithGenericModule::Basic(ref m2_basic) = module_2.nested else {
             panic!("Invalid module type")
         };
-
         assert_ne!(
             m1_basic.weight_basic.to_data(),
             m2_basic.weight_basic.to_data(),
         );
 
-        assert_eq!(module_1.tensor.to_data(), module_2.tensor.to_data());
-        assert_eq!(
-            module_1.cached_mask.as_ref().unwrap().to_data(),
-            module_2.cached_mask.as_ref().unwrap().to_data()
-        );
-
-        assert_eq!(module_1.other_prob, module_2.other_prob);
-        assert_eq!(module_1.debug_state, module_2.debug_state);
-
-        // Alter state of skipped fields to validate persistence
+        // Alter the non-persistent fields (skipped fields and plain tensors) to validate that they
+        // are not captured by the module record.
         module_1.cached_mask = Some(module_1.cached_mask.unwrap() * 2);
         module_1.tensor = module_1.tensor * 2;
         module_1.other_prob = 0.;
         module_1.debug_state = "Hello World!".into();
         module_1.config = PaddingConfig::Other;
 
-        let state_1 = module_1.clone().into_record();
+        let record = module_1.clone().into_record();
+        let module_2 = module_2.load_record(record);
 
-        assert_eq!(state_1.cached_mask, EmptyRecord);
-        assert_eq!(state_1.other_prob, EmptyRecord);
-        assert_eq!(state_1.debug_state, EmptyRecord);
-        assert_eq!(state_1.config, EmptyRecord);
-
-        module_2 = module_2.load_record(state_1);
-
+        // Modules & params are loaded.
+        assert_eq!(module_1.weight.to_data(), module_2.weight.to_data());
         let ModuleEnumWithGenericModule::Basic(m2_basic) = module_2.nested else {
             panic!("Invalid module type")
         };
-
-        // Modules & params
-        assert_eq!(module_1.weight.to_data(), module_2.weight.to_data(),);
         assert_eq!(
             m1_basic.weight_basic.to_data(),
             m2_basic.weight_basic.to_data(),
         );
 
-        // `#[module(skip)]` field and other skip-by-default
+        // `#[module(skip)]` fields and plain (non-param) tensors are not persisted: module_2 keeps
+        // its own initialization.
         assert_ne!(module_1.other_prob, module_2.other_prob);
         assert_ne!(module_1.debug_state, module_2.debug_state);
         assert!(matches!(module_1.config, PaddingConfig::Other));
@@ -306,48 +301,16 @@ mod state {
     }
 
     #[test]
-    fn should_load_from_record_const_generic() {
-        let device = test_device();
-        let module_1 = ModuleWithConstGeneric {
-            modules: [ModuleBasic::new(&device), ModuleBasic::new(&device)],
-        };
-        let mut module_2 = ModuleWithConstGeneric {
-            modules: [ModuleBasic::new(&device), ModuleBasic::new(&device)],
-        };
-
-        // Trigger initialization before cloning so clone has the same values.
-        assert_ne!(
-            module_1.modules[0].weight_basic.to_data(),
-            module_2.modules[0].weight_basic.to_data(),
-        );
-        assert_ne!(
-            module_1.modules[1].weight_basic.to_data(),
-            module_2.modules[1].weight_basic.to_data(),
-        );
-
-        let state_1 = module_1.clone().into_record();
-
-        module_2 = module_2.load_record(state_1);
-
-        assert_eq!(
-            module_1.modules[0].weight_basic.to_data(),
-            module_2.modules[0].weight_basic.to_data(),
-        );
-        assert_eq!(
-            module_1.modules[1].weight_basic.to_data(),
-            module_2.modules[1].weight_basic.to_data(),
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "Can't parse record from a different variant")]
-    fn should_panic_load_from_incorrect_enum_variant() {
+    fn incompatible_enum_variant_record_fails_to_load() {
         let device = test_device();
         let module_1 = ModuleEnum::Basic(ModuleBasic::new(&device));
         let module_2 = ModuleEnum::Composed(ModuleComposed::new(&device));
-        let state_1 = module_1.clone().into_record();
 
-        module_2.load_record(state_1);
+        // The Basic variant's record does not provide the Composed variant's params, so a strict
+        // (default) load reports the missing tensors as a validation error.
+        let record = module_1.into_record();
+        let result = module_2.try_load_record(record);
+        assert!(matches!(result, Err(RecordError::Validation(_))));
     }
 }
 
@@ -547,10 +510,11 @@ mod require_grad {
     fn should_have_grad_when_from_record() {
         let device = test_device().autodiff();
         let module = ModuleBasic::new(&device);
-        let record = ModuleBasicRecord {
-            weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
-        };
+
+        // Round-tripping through a record must preserve the params' require_grad state.
+        let record = module.clone().into_record();
         let module = module.load_record(record);
+
         let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
 
         assert!(grad_x.is_some());

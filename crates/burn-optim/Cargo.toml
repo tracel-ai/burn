@@ -21,7 +21,7 @@ doc = [
     # Doc features
     "burn-core/doc",
 ]
-std = ["burn-core/std", "num-traits/std", "serde/std", "log"]
+std = ["burn-core/std", "burn-pack/std", "num-traits/std", "serde/std", "log"]
 tracing = ["burn-core/tracing"]
 
 # collective = ["burn-collective"]
@@ -29,7 +29,9 @@ tracing = ["burn-core/tracing"]
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
-burn-core = { workspace = true, features = ["autodiff"]}
+burn-core = { workspace = true, features = ["autodiff", "extension"] }
+burn-derive = { workspace = true }
+burn-pack = { workspace = true, default-features = false }
 
 num-traits = { workspace = true }
 derive-new = { workspace = true }

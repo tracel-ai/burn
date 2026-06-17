@@ -1,83 +1,65 @@
 use std::path::{Path, PathBuf};
 
-use super::{Checkpointer, CheckpointerError};
-use burn_core::{
-    record::{FileRecorder, Record},
-    tensor::Device,
-};
+use super::{Checkpoint, Checkpointer, CheckpointerError};
 
 /// The file checkpointer.
-pub struct FileCheckpointer<FR> {
+///
+/// Saves each record as a [burnpack](burn_core::store) file in the given directory.
+pub struct FileCheckpointer {
     directory: PathBuf,
     name: String,
-    recorder: FR,
 }
 
-impl<FR> FileCheckpointer<FR> {
+impl FileCheckpointer {
     /// Creates a new file checkpointer.
     ///
     /// # Arguments
     ///
-    /// * `recorder` - The file recorder.
     /// * `directory` - The directory to save the checkpoints.
     /// * `name` - The name of the checkpoint.
-    pub fn new(recorder: FR, directory: impl AsRef<Path>, name: &str) -> Self {
+    pub fn new(directory: impl AsRef<Path>, name: &str) -> Self {
         let directory = directory.as_ref();
         std::fs::create_dir_all(directory).ok();
 
         Self {
             directory: directory.to_path_buf(),
             name: name.to_string(),
-            recorder,
         }
     }
 
     fn path_for_epoch(&self, epoch: usize) -> PathBuf {
-        self.directory.join(format!("{}-{}", self.name, epoch))
+        self.directory.join(format!("{}-{}.bpk", self.name, epoch))
     }
 }
 
-impl<FR, R> Checkpointer<R> for FileCheckpointer<FR>
+impl<R> Checkpointer<R> for FileCheckpointer
 where
-    R: Record,
-    FR: FileRecorder,
+    R: Checkpoint,
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
         log::trace!("Saving checkpoint {} to {}", epoch, file_path.display());
 
-        self.recorder
-            .record(record, file_path)
-            .map_err(CheckpointerError::RecorderError)?;
-
-        Ok(())
+        record.save(file_path)
     }
 
-    fn restore(&self, epoch: usize, device: &Device) -> Result<R, CheckpointerError> {
+    fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
         log::info!(
             "Restoring checkpoint {} from {}",
             epoch,
             file_path.display()
         );
-        let record = self
-            .recorder
-            .load(file_path, device)
-            .map_err(CheckpointerError::RecorderError)?;
 
-        Ok(record)
+        R::load(file_path)
     }
 
     fn delete(&self, epoch: usize) -> Result<(), CheckpointerError> {
-        let file_to_remove = format!(
-            "{}.{}",
-            self.path_for_epoch(epoch).display(),
-            FR::file_extension(),
-        );
+        let file_path = self.path_for_epoch(epoch);
 
-        if std::path::Path::new(&file_to_remove).exists() {
-            log::trace!("Removing checkpoint {file_to_remove}");
-            std::fs::remove_file(file_to_remove).map_err(CheckpointerError::IOError)?;
+        if file_path.exists() {
+            log::trace!("Removing checkpoint {}", file_path.display());
+            std::fs::remove_file(file_path).map_err(CheckpointerError::IOError)?;
         }
 
         Ok(())

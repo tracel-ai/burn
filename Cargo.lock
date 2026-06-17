@@ -781,7 +781,6 @@ name = "burn-core"
 version = "0.22.0-pre.1"
 dependencies = [
  "ahash",
- "bincode",
  "burn-backend",
  "burn-backend-extension",
  "burn-dataset",
@@ -792,7 +791,6 @@ dependencies = [
  "burn-std",
  "burn-tensor",
  "derive-new",
- "flate2",
  "half",
  "hashbrown 0.16.1",
  "log",
@@ -800,15 +798,12 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rand 0.10.1",
- "regex",
- "rmp-serde",
  "rstest",
  "serde",
  "serde_json",
  "serial_test",
  "spin",
  "tempfile",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1027,8 +1022,10 @@ version = "0.22.0-pre.1"
 dependencies = [
  "burn-autodiff",
  "burn-core",
+ "burn-derive",
  "burn-flex",
  "burn-nn",
+ "burn-pack",
  "derive-new",
  "hashbrown 0.16.1",
  "log",
@@ -1149,6 +1146,7 @@ dependencies = [
  "burn-core",
  "burn-nn",
  "burn-pack",
+ "burn-tensor",
  "byteorder",
  "bytes",
  "ciborium",
@@ -1157,12 +1155,14 @@ dependencies = [
  "hashbrown 0.16.1",
  "lzma-rust2 0.16.4",
  "memmap2",
+ "num-traits",
  "regex",
  "safetensors 0.7.0",
  "serde",
  "tar",
  "tempfile",
  "textdistance",
+ "thiserror 2.0.18",
  "zip 8.6.0",
 ]
 

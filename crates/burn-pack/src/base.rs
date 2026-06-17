@@ -166,6 +166,120 @@ impl Header {
     }
 }
 
+/// A typed scalar value stored alongside tensors in a burnpack container.
+///
+/// Scalars are kept in the CBOR metadata section (not the tensor data section), so they carry
+/// no alignment cost. The field is optional in the format: files written before scalar support
+/// simply omit it, and readers default it to empty.
+///
+/// Convert to/from the primitive numeric and boolean types with [`From`] / [`TryFrom`]
+/// (e.g. `Scalar::from(3usize)`, `u32::try_from(scalar)`).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum Scalar {
+    /// A signed integer.
+    Int(i64),
+    /// An unsigned integer.
+    UInt(u64),
+    /// A floating-point number.
+    Float(f64),
+    /// A boolean.
+    Bool(bool),
+}
+
+/// Error returned when a [`Scalar`] cannot be converted to a requested primitive type
+/// (wrong variant or out of range).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScalarConversionError;
+
+impl core::fmt::Display for ScalarConversionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "scalar value does not fit the requested type")
+    }
+}
+
+impl core::error::Error for ScalarConversionError {}
+
+macro_rules! impl_scalar_int {
+    ($($t:ty => $variant:ident),* $(,)?) => {
+        $(
+            impl From<$t> for Scalar {
+                fn from(value: $t) -> Self {
+                    Scalar::$variant(value as _)
+                }
+            }
+
+            impl TryFrom<Scalar> for $t {
+                type Error = ScalarConversionError;
+                fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+                    match scalar {
+                        Scalar::Int(v) => v.try_into().map_err(|_| ScalarConversionError),
+                        Scalar::UInt(v) => v.try_into().map_err(|_| ScalarConversionError),
+                        _ => Err(ScalarConversionError),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+impl_scalar_int!(
+    i8 => Int, i16 => Int, i32 => Int, i64 => Int, isize => Int,
+    u8 => UInt, u16 => UInt, u32 => UInt, u64 => UInt, usize => UInt,
+);
+
+impl From<f64> for Scalar {
+    fn from(value: f64) -> Self {
+        Scalar::Float(value)
+    }
+}
+
+impl From<f32> for Scalar {
+    fn from(value: f32) -> Self {
+        Scalar::Float(value as f64)
+    }
+}
+
+impl From<bool> for Scalar {
+    fn from(value: bool) -> Self {
+        Scalar::Bool(value)
+    }
+}
+
+impl TryFrom<Scalar> for f64 {
+    type Error = ScalarConversionError;
+    fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+        match scalar {
+            Scalar::Float(v) => Ok(v),
+            Scalar::Int(v) => Ok(v as f64),
+            Scalar::UInt(v) => Ok(v as f64),
+            _ => Err(ScalarConversionError),
+        }
+    }
+}
+
+impl TryFrom<Scalar> for f32 {
+    type Error = ScalarConversionError;
+    fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+        // Mirror `f64`'s acceptance of integer variants; float reads may be lossy (documented).
+        match scalar {
+            Scalar::Float(v) => Ok(v as f32),
+            Scalar::Int(v) => Ok(v as f32),
+            Scalar::UInt(v) => Ok(v as f32),
+            _ => Err(ScalarConversionError),
+        }
+    }
+}
+
+impl TryFrom<Scalar> for bool {
+    type Error = ScalarConversionError;
+    fn try_from(scalar: Scalar) -> Result<Self, Self::Error> {
+        match scalar {
+            Scalar::Bool(v) => Ok(v),
+            _ => Err(ScalarConversionError),
+        }
+    }
+}
+
 /// Metadata structure serialized with CBOR
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Metadata {
@@ -174,6 +288,11 @@ pub(crate) struct Metadata {
     /// Optional additional metadata
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub metadata: BTreeMap<String, String>,
+    /// Optional typed scalars mapped by name.
+    ///
+    /// Defaulted on read for backward compatibility with files written before scalar support.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub scalars: BTreeMap<String, Scalar>,
 }
 
 /// Individual tensor descriptor
@@ -228,3 +347,44 @@ impl core::fmt::Display for Error {
 }
 
 impl core::error::Error for Error {}
+
+#[cfg(test)]
+mod scalar_tests {
+    use super::*;
+
+    #[test]
+    fn int_round_trips_through_checked_conversion() {
+        assert_eq!(i32::try_from(Scalar::from(-5i32)).unwrap(), -5);
+        assert_eq!(u8::try_from(Scalar::from(200u8)).unwrap(), 200);
+        assert_eq!(usize::try_from(Scalar::from(42usize)).unwrap(), 42);
+    }
+
+    #[test]
+    fn out_of_range_int_conversion_is_rejected() {
+        // u64 value beyond i32::MAX cannot become i32.
+        let big = Scalar::from(5_000_000_000u64);
+        assert!(i32::try_from(big).is_err());
+        // Negative value cannot become u32.
+        assert!(u32::try_from(Scalar::from(-1i32)).is_err());
+        // 300 does not fit in u8.
+        assert!(u8::try_from(Scalar::from(300u32)).is_err());
+    }
+
+    #[test]
+    fn float_and_bool_variant_mismatches_are_rejected() {
+        // An integer field must not read a stored float.
+        assert!(i64::try_from(Scalar::Float(1.5)).is_err());
+        // A bool field must not read a stored int.
+        assert!(bool::try_from(Scalar::Int(1)).is_err());
+        // A float field must not read a stored bool.
+        assert!(f64::try_from(Scalar::Bool(true)).is_err());
+    }
+
+    #[test]
+    fn float_accepts_int_variants_symmetrically() {
+        assert_eq!(f64::try_from(Scalar::Int(3)).unwrap(), 3.0);
+        assert_eq!(f32::try_from(Scalar::Int(3)).unwrap(), 3.0);
+        assert_eq!(f64::try_from(Scalar::Float(2.5)).unwrap(), 2.5);
+        assert_eq!(f32::try_from(Scalar::Float(2.5)).unwrap(), 2.5);
+    }
+}

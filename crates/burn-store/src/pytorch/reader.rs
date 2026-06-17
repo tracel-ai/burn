@@ -35,9 +35,9 @@
 //! as they contain Python code references.
 
 use crate::TensorSnapshot;
+use crate::nested::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use burn_core::record::serde::{adapter::DefaultAdapter, data::NestedValue, de::Deserializer};
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::fs::File;
@@ -64,7 +64,7 @@ pub enum PytorchError {
     /// Key not found
     KeyNotFound(String),
     /// Serde deserialization error
-    Serde(burn_core::record::serde::error::Error),
+    Serde(crate::nested::error::Error),
 }
 
 impl From<std::io::Error> for PytorchError {
@@ -85,8 +85,8 @@ impl From<zip::result::ZipError> for PytorchError {
     }
 }
 
-impl From<burn_core::record::serde::error::Error> for PytorchError {
-    fn from(e: burn_core::record::serde::error::Error) -> Self {
+impl From<crate::nested::error::Error> for PytorchError {
+    fn from(e: crate::nested::error::Error) -> Self {
         PytorchError::Serde(e)
     }
 }
