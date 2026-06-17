@@ -781,7 +781,6 @@ name = "burn-core"
 version = "0.22.0-pre.1"
 dependencies = [
  "ahash",
- "bincode",
  "burn-backend",
  "burn-backend-extension",
  "burn-dataset",
@@ -792,7 +791,6 @@ dependencies = [
  "burn-std",
  "burn-tensor",
  "derive-new",
- "flate2",
  "half",
  "hashbrown 0.16.1",
  "log",
@@ -800,8 +798,6 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rand 0.10.1",
- "regex",
- "rmp-serde",
  "rstest",
  "serde",
  "serde_json",

@@ -181,6 +181,50 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     {
         self.try_load_record(record).expect("Failed to load record")
     }
+
+    /// Save this module's parameters to a burnpack file on disk.
+    ///
+    /// Convenience for [`into_record`](Module::into_record) followed by
+    /// [`ModuleRecord::save`](crate::store::ModuleRecord::save). For non-default load behavior
+    /// (dtype policy, partial loading, validation), go through the record directly.
+    #[cfg(feature = "std")]
+    fn save_file<P: AsRef<std::path::Path>>(self, path: P) -> Result<(), crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        self.into_record().save(path)
+    }
+
+    /// Load this module's parameters from a burnpack file on disk, returning the loaded module.
+    ///
+    /// Uses the default load behavior. Panics on I/O or validation errors; use
+    /// [`try_load_file`](Module::try_load_file) for the fallible variant, or go through
+    /// [`ModuleRecord`](crate::store::ModuleRecord) to configure dtype policy, partial loading or
+    /// validation.
+    #[cfg(feature = "std")]
+    fn load_file<P: AsRef<std::path::Path>>(self, path: P) -> Self
+    where
+        Self: Sized,
+    {
+        self.try_load_file(path)
+            .expect("Failed to load module from file")
+    }
+
+    /// Fallible variant of [`load_file`](Module::load_file).
+    ///
+    /// Reads the record from `path` with [`ModuleRecord::load`](crate::store::ModuleRecord::load)
+    /// and applies it through [`try_load_record`](Module::try_load_record).
+    #[cfg(feature = "std")]
+    fn try_load_file<P: AsRef<std::path::Path>>(
+        self,
+        path: P,
+    ) -> Result<Self, crate::store::RecordError>
+    where
+        Self: Sized,
+    {
+        let record = crate::store::ModuleRecord::load(path)?;
+        self.try_load_record(record)
+    }
 }
 
 /// Module visitor trait for traversing and inspecting module parameters.

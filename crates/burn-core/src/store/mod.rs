@@ -474,4 +474,81 @@ mod tests {
             vec![0.0, 0.0]
         );
     }
+
+    /// Build a `Tiny` whose parameters are zero-valued and carry the given dtype.
+    fn tiny_with_dtype(device: &Device, dtype: DType) -> Tiny {
+        Tiny {
+            weight: Param::from_tensor(
+                Tensor::<2>::from_data([[0.0, 0.0], [0.0, 0.0]], device).cast(dtype),
+            ),
+            bias: Param::from_tensor(Tensor::<1>::from_data([0.0, 0.0], device).cast(dtype)),
+        }
+    }
+
+    #[test]
+    fn dtype_policy_from_record_keeps_record_dtype() {
+        let device = Default::default();
+        // Record holds f32 data.
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record();
+
+        // Target params are f64, but the default policy (FromRecord) loads the data verbatim (f32).
+        let loaded = tiny_with_dtype(&device, DType::F64).load_record(record);
+        assert_eq!(loaded.weight.val().dtype(), DType::F32);
+        assert_eq!(loaded.bias.val().dtype(), DType::F32);
+    }
+
+    #[test]
+    fn dtype_policy_cast_to_module_uses_module_dtype() {
+        let device = Default::default();
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record();
+
+        // CastToModule casts the record's f32 data to the module's f64 params on load.
+        let loaded =
+            tiny_with_dtype(&device, DType::F64).load_record(record.cast_to_module_dtype());
+        assert_eq!(loaded.weight.val().dtype(), DType::F64);
+        assert_eq!(loaded.bias.val().dtype(), DType::F64);
+        // Values survive the cast.
+        assert_eq!(
+            loaded.weight.val().to_data().to_vec::<f64>().unwrap(),
+            vec![1.0, 2.0, 3.0, 4.0]
+        );
+    }
+
+    /// Build a `Tiny` whose `bias` shape (len 3) does not match the record's (len 2).
+    fn tiny_wrong_bias_shape(device: &Device) -> Tiny {
+        Tiny {
+            weight: Param::from_data([[0.0, 0.0], [0.0, 0.0]], device),
+            bias: Param::from_data([0.0, 0.0, 0.0], device),
+        }
+    }
+
+    #[test]
+    fn shape_mismatch_fails_validation() {
+        let device = Default::default();
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record();
+
+        // `bias` shape mismatch is reported as a validation error by default.
+        let result = tiny_wrong_bias_shape(&device).try_load_record(record);
+        assert!(matches!(result, Err(RecordError::Validation(_))));
+    }
+
+    #[test]
+    fn validate_false_ignores_shape_mismatch() {
+        let device = Default::default();
+        let record = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device).into_record();
+
+        // With validation disabled, the shape-mismatched `bias` is skipped (keeps its value)
+        // while the matching `weight` still loads.
+        let loaded = tiny_wrong_bias_shape(&device)
+            .try_load_record(record.validate(false))
+            .unwrap();
+        assert_eq!(
+            loaded.weight.val().to_data().to_vec::<f32>().unwrap(),
+            vec![1.0, 2.0, 3.0, 4.0]
+        );
+        assert_eq!(
+            loaded.bias.val().to_data().to_vec::<f32>().unwrap(),
+            vec![0.0, 0.0, 0.0]
+        );
+    }
 }
