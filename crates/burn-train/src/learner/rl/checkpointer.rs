@@ -65,7 +65,7 @@ impl<RLC: RLComponentsTypes> RLCheckpointer<RLC> {
 
         let record = self
             .learning_agent
-            .restore(epoch, device)
+            .restore(epoch, &device.clone().inner())
             .expect("Can load learning agent checkpoint.");
         let mut learning_agent = learning_agent.load_record(record);
         learning_agent.update_policy(policy);
