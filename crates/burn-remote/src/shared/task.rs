@@ -1,6 +1,6 @@
 use burn_backend::{DTypeUsageSet, ExecutionError, TensorData};
 use burn_communication::{Address, external_comm::TensorTransferId};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, OptimizationBindings, OptimizationId, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
     id::{IdGenerator, StreamId},
@@ -68,6 +68,22 @@ pub enum Task {
     /// identity, and the server-side backend (fusion, etc.) handles any batching of
     /// its own.
     RegisterOperation(StreamId, OperationIr),
+    /// Register a reusable group of operations under `optimization_id`, in relative form.
+    ///
+    /// Sent once per distinct graph; the server caches it (per session) and replays it on every
+    /// [`ExecuteOptimization`](Task::ExecuteOptimization). This is how the fusion-enabled client
+    /// avoids re-sending a recurring op sequence (e.g. a model block) on every step.
+    RegisterOptimization {
+        stream_id: StreamId,
+        optimization_id: OptimizationId,
+        relative_graph: Vec<OperationIr>,
+    },
+    /// Replay a registered optimization with the given concrete bindings.
+    ExecuteOptimization {
+        stream_id: StreamId,
+        optimization_id: OptimizationId,
+        bindings: OptimizationBindings,
+    },
     RegisterTensor(StreamId, TensorId, TensorData),
     RegisterTensorRemote(StreamId, TensorRemote, TensorId),
     ExposeTensorRemote {

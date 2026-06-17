@@ -91,6 +91,26 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
     fn flush(&self) {
         self.handle.submit_blocking(|s| s.flush()).unwrap();
     }
+
+    fn register_optimization(
+        &self,
+        optimization_id: burn_ir::OptimizationId,
+        relative_graph: Vec<burn_ir::OperationIr>,
+    ) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.register_optimization(stream_id, optimization_id, relative_graph));
+    }
+
+    fn execute_optimization(
+        &self,
+        optimization_id: burn_ir::OptimizationId,
+        bindings: burn_ir::OptimizationBindings,
+    ) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.execute_optimization(stream_id, optimization_id, bindings));
+    }
 }
 
 impl<C: ProtocolClient> RemoteClient<C> {

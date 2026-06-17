@@ -1054,6 +1054,7 @@ dependencies = [
  "burn-backend",
  "burn-communication",
  "burn-flex",
+ "burn-fusion",
  "burn-ir",
  "burn-router",
  "burn-std",
@@ -1097,12 +1098,14 @@ version = "0.22.0-pre.1"
 dependencies = [
  "burn-backend",
  "burn-flex",
+ "burn-fusion",
  "burn-ir",
  "burn-std",
  "burn-tensor",
  "burn-wgpu",
  "hashbrown 0.16.1",
  "log",
+ "serde",
  "spin",
 ]
 

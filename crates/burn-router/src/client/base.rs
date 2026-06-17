@@ -5,7 +5,7 @@ use burn_backend::{
     DType, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, OptimizationBindings, OptimizationId, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use core::ops::DerefMut;
 use hashbrown::HashMap;
@@ -58,6 +58,29 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn seed(&self, seed: u64);
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
+
+    /// Register a reusable group of operations (in relative form) under `optimization_id`, so it
+    /// can later be replayed by id with [`execute_optimization`](Self::execute_optimization).
+    ///
+    /// Used by the fusion layer to avoid re-sending a recurring op-graph. The default panics —
+    /// only clients that genuinely cache op-groups remotely (the remote backend) override it.
+    fn register_optimization(
+        &self,
+        _optimization_id: OptimizationId,
+        _relative_graph: Vec<OperationIr>,
+    ) {
+        panic!("This router client does not support optimization caching");
+    }
+
+    /// Replay a previously [registered](Self::register_optimization) optimization with the given
+    /// concrete bindings. The default panics (see [`register_optimization`](Self::register_optimization)).
+    fn execute_optimization(
+        &self,
+        _optimization_id: OptimizationId,
+        _bindings: OptimizationBindings,
+    ) {
+        panic!("This router client does not support optimization caching");
+    }
 }
 
 pub(crate) struct RouterClientLocator {

@@ -28,10 +28,13 @@
 //! shared runtime, so a barrier (or rendezvous) on one session can't stall another session's
 //! worker or a runtime thread.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use burn_communication::{Protocol, external_comm::ExternalCommService};
-use burn_ir::BackendIr;
+use burn_ir::{
+    BackendIr, OperationIr, OptimizationBindings, OptimizationId, ScalarIr, TensorId, TensorIr,
+};
 use burn_router::{RouterClient, TensorInterpreter};
 use tokio::{runtime::Handle, sync::mpsc};
 
@@ -61,6 +64,12 @@ where
     response_sender: mpsc::Sender<TaskResponse>,
     external_comm: Arc<ExternalCommService<B, P>>,
     local_comm: Arc<LocalCommService<B>>,
+    /// Cache of client-registered reusable op-graphs, keyed by id (see [`Task::RegisterOptimization`]).
+    ///
+    /// `Mutex` only for interior mutability under `process_task(&self)`; the worker thread is the
+    /// sole accessor, the lock is never held across an `await`, and the map is dropped with the
+    /// session.
+    optimizations: Mutex<HashMap<OptimizationId, Vec<OperationIr>>>,
 }
 
 impl<B, P> SessionHandler<B, P>
@@ -92,6 +101,7 @@ where
             response_sender,
             external_comm,
             local_comm,
+            optimizations: Mutex::new(HashMap::new()),
         };
 
         let (sender, receiver) = mpsc::channel(TASK_CHANNEL_CAPACITY);
@@ -176,6 +186,33 @@ where
         match task {
             Task::RegisterOperation(stream_id, op) => {
                 stream_id.executes(|| runner.register_op(op));
+                Ok(())
+            }
+            Task::RegisterOptimization {
+                stream_id,
+                optimization_id,
+                relative_graph,
+            } => {
+                // Pure bookkeeping: cache the reusable graph for later replay. Kept under the
+                // stream context for consistency even though it touches no backend state.
+                stream_id.executes(|| {
+                    self.optimizations
+                        .lock()
+                        .unwrap()
+                        .insert(optimization_id, relative_graph);
+                });
+                Ok(())
+            }
+            Task::ExecuteOptimization {
+                stream_id,
+                optimization_id,
+                bindings,
+            } => {
+                let cache = self.optimizations.lock().unwrap();
+                let graph = cache.get(&optimization_id).ok_or_else(|| {
+                    format!("Execute of unknown optimization {optimization_id:?}")
+                })?;
+                stream_id.executes(|| replay_optimization(runner, graph, &bindings));
                 Ok(())
             }
             Task::RegisterTensor(stream_id, id, data) => {
@@ -321,5 +358,39 @@ where
                     "Response receiver dropped before result for request {request_id} could be sent"
                 )
             })
+    }
+}
+
+/// Replay a cached relative op-graph against the interpreter, rebound to concrete tensors.
+///
+/// The cached `graph` is in relative form: its tensor ids are positional, shapes are relative
+/// dims, and scalars are placeholders. Each op is cloned and rewritten in place from `bindings`
+/// (relative tensor id -> concrete id + global shape; placeholder -> concrete scalar) before being
+/// handed to the unchanged [`TensorInterpreter::register_op`], reproducing exactly the sequence of
+/// global ops the client would have streamed op-by-op.
+fn replay_optimization<B: BackendIr>(
+    runner: &TensorInterpreter<B>,
+    graph: &[OperationIr],
+    bindings: &OptimizationBindings,
+) {
+    let tensors: HashMap<TensorId, &TensorIr> =
+        bindings.tensors.iter().map(|(rel, ir)| (*rel, ir)).collect();
+
+    for op in graph {
+        let mut op = op.clone();
+        op.for_each_tensor_mut(&mut |tensor: &mut TensorIr| {
+            if let Some(concrete) = tensors.get(&tensor.id) {
+                tensor.shape = concrete.shape.clone();
+                tensor.id = concrete.id;
+            }
+        });
+        op.for_each_scalar_mut(&mut |scalar: &mut ScalarIr| {
+            if let ScalarIr::UInt(placeholder) = *scalar
+                && (placeholder as usize) < bindings.scalars.len()
+            {
+                *scalar = bindings.scalars[placeholder as usize];
+            }
+        });
+        runner.register_op(op);
     }
 }

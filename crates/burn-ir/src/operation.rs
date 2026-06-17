@@ -60,6 +60,17 @@ impl CustomOpIr {
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         Box::new(self.outputs.iter())
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        for t in self.inputs.iter_mut() {
+            f(t);
+        }
+        for t in self.outputs.iter_mut() {
+            f(t);
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {}
 }
 
 /// Describe all tensor operations possible.
@@ -2140,6 +2151,49 @@ impl OperationIr {
             OperationIr::Activation(repr) => repr.mark_read_only(nodes),
         }
     }
+
+    /// Visit every [`TensorIr`] in this operation mutably (inputs and outputs).
+    ///
+    /// Visits exactly the same set of tensors as [`inputs`](Self::inputs) and
+    /// [`outputs`](Self::outputs) combined.
+    pub fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            OperationIr::BaseFloat(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::BaseInt(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::BaseBool(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::NumericFloat(_dtype, repr) => repr.for_each_tensor_mut(f),
+            OperationIr::NumericInt(_dtype, repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Bool(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Int(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Float(_dtype, repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Module(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Init(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Custom(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Drop(repr) => f(repr),
+            OperationIr::Distributed(repr) => repr.for_each_tensor_mut(f),
+            OperationIr::Activation(repr) => repr.for_each_tensor_mut(f),
+        }
+    }
+
+    /// Visit every [`ScalarIr`] in this operation mutably.
+    pub fn for_each_scalar_mut(&mut self, f: &mut dyn FnMut(&mut ScalarIr)) {
+        match self {
+            OperationIr::BaseFloat(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::BaseInt(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::BaseBool(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::NumericFloat(_dtype, repr) => repr.for_each_scalar_mut(f),
+            OperationIr::NumericInt(_dtype, repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Bool(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Int(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Float(_dtype, repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Module(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Init(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Custom(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Drop(_repr) => {}
+            OperationIr::Distributed(repr) => repr.for_each_scalar_mut(f),
+            OperationIr::Activation(repr) => repr.for_each_scalar_mut(f),
+        }
+    }
 }
 
 impl BaseOperationIr {
@@ -2331,6 +2385,154 @@ impl BaseOperationIr {
         };
 
         output
+    }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            BaseOperationIr::Reshape(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::SwapDims(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Permute(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Expand(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Flip(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Slice(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::SliceAssign(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.value);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Gather(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.indices);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Scatter(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.indices);
+                f(&mut repr.value);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::ScatterNd(repr) => {
+                f(&mut repr.data);
+                f(&mut repr.indices);
+                f(&mut repr.values);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::GatherNd(repr) => {
+                f(&mut repr.data);
+                f(&mut repr.indices);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Select(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.indices);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::SelectAssign(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.indices);
+                f(&mut repr.value);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::MaskWhere(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.mask);
+                f(&mut repr.value);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::MaskFill(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.mask);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Equal(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::EqualElem(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::RepeatDim(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Cat(repr) => {
+                for t in repr.tensors.iter_mut() {
+                    f(t);
+                }
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Cast(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Unfold(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Empty(repr) => {
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Ones(repr) => {
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Zeros(repr) => {
+                f(&mut repr.out);
+            }
+            BaseOperationIr::NotEqual(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::NotEqualElem(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::All(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::Any(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::AllDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BaseOperationIr::AnyDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, f: &mut dyn FnMut(&mut ScalarIr)) {
+        match self {
+            BaseOperationIr::MaskFill(repr) => f(&mut repr.value),
+            BaseOperationIr::EqualElem(repr) => f(&mut repr.rhs),
+            BaseOperationIr::NotEqualElem(repr) => f(&mut repr.rhs),
+            _ => {}
+        }
     }
 }
 
@@ -2629,6 +2831,257 @@ impl NumericOperationIr {
 
         output
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            NumericOperationIr::Add(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::AddScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Sub(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::SubScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Mul(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::MulScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Div(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::DivScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Rem(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::RemScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::GreaterElem(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::GreaterEqualElem(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::LowerElem(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::LowerEqualElem(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Greater(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::GreaterEqual(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Lower(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::LowerEqual(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::ArgMax(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::ArgTopK(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::TopK(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::ArgMin(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Clamp(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Abs(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Full(repr) => {
+                f(&mut repr.out);
+            }
+            NumericOperationIr::MeanDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Mean(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Sum(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::SumDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Prod(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::ProdDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Max(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::MaxDimWithIndices(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.out);
+                f(&mut repr.out_indices);
+            }
+            NumericOperationIr::MinDimWithIndices(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.out);
+                f(&mut repr.out_indices);
+            }
+            NumericOperationIr::Min(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::MaxDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::MinDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::MaxAbs(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::MaxAbsDim(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::IntRandom(repr) => {
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Powi(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::PowiScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::CumMin(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::CumMax(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::CumProd(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::CumSum(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Neg(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Sign(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::ClampMin(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::ClampMax(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::Sort(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            NumericOperationIr::SortWithIndices(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+                f(&mut repr.out_indices);
+            }
+            NumericOperationIr::ArgSort(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, f: &mut dyn FnMut(&mut ScalarIr)) {
+        match self {
+            NumericOperationIr::AddScalar(repr) => f(&mut repr.rhs),
+            NumericOperationIr::SubScalar(repr) => f(&mut repr.rhs),
+            NumericOperationIr::MulScalar(repr) => f(&mut repr.rhs),
+            NumericOperationIr::DivScalar(repr) => f(&mut repr.rhs),
+            NumericOperationIr::RemScalar(repr) => f(&mut repr.rhs),
+            NumericOperationIr::GreaterElem(repr) => f(&mut repr.rhs),
+            NumericOperationIr::GreaterEqualElem(repr) => f(&mut repr.rhs),
+            NumericOperationIr::LowerElem(repr) => f(&mut repr.rhs),
+            NumericOperationIr::LowerEqualElem(repr) => f(&mut repr.rhs),
+            NumericOperationIr::PowiScalar(repr) => f(&mut repr.rhs),
+            NumericOperationIr::ClampMin(repr) => f(&mut repr.rhs),
+            NumericOperationIr::ClampMax(repr) => f(&mut repr.rhs),
+            NumericOperationIr::Full(repr) => f(&mut repr.value),
+            NumericOperationIr::Clamp(repr) => {
+                f(&mut repr.min);
+                f(&mut repr.max);
+            }
+            _ => {}
+        }
+    }
 }
 
 impl FloatOperationIr {
@@ -2815,6 +3268,163 @@ impl FloatOperationIr {
 
         output
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            FloatOperationIr::Matmul(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Cross(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Random(repr) => {
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Exp(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Log(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Log1p(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Erf(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Recip(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::PowfScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Sqrt(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Cos(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Sin(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Tanh(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Round(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Floor(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Ceil(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Trunc(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::IntoInt(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Quantize(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.qparams.scales);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Dequantize(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::IsNan(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::IsInf(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::GridSample2d(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.grid);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Tan(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Cosh(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Sinh(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::ArcCos(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::ArcCosh(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::ArcSin(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::ArcSinh(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::ArcTan(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::ArcTanh(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::ArcTan2(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Powf(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            FloatOperationIr::Hypot(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, f: &mut dyn FnMut(&mut ScalarIr)) {
+        if let FloatOperationIr::PowfScalar(repr) = self {
+            f(&mut repr.rhs);
+        }
+    }
 }
 
 impl IntOperationIr {
@@ -2907,6 +3517,80 @@ impl IntOperationIr {
 
         output
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            IntOperationIr::Matmul(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::IntoFloat(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseAnd(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseAndScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseOr(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseOrScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseXor(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseXorScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseNot(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseLeftShift(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseLeftShiftScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseRightShift(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            IntOperationIr::BitwiseRightShiftScalar(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.out);
+            }
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, f: &mut dyn FnMut(&mut ScalarIr)) {
+        match self {
+            IntOperationIr::BitwiseAndScalar(repr) => f(&mut repr.rhs),
+            IntOperationIr::BitwiseOrScalar(repr) => f(&mut repr.rhs),
+            IntOperationIr::BitwiseXorScalar(repr) => f(&mut repr.rhs),
+            IntOperationIr::BitwiseLeftShiftScalar(repr) => f(&mut repr.rhs),
+            IntOperationIr::BitwiseRightShiftScalar(repr) => f(&mut repr.rhs),
+            _ => {}
+        }
+    }
 }
 
 impl BoolOperationIr {
@@ -2959,6 +3643,40 @@ impl BoolOperationIr {
 
         output
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            BoolOperationIr::IntoFloat(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BoolOperationIr::IntoInt(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BoolOperationIr::Not(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.out);
+            }
+            BoolOperationIr::And(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            BoolOperationIr::Or(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+            BoolOperationIr::Xor(repr) => {
+                f(&mut repr.lhs);
+                f(&mut repr.rhs);
+                f(&mut repr.out);
+            }
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {}
 }
 
 impl ModuleOperationIr {
@@ -3578,6 +4296,354 @@ impl ModuleOperationIr {
 
         output
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            ModuleOperationIr::Embedding(repr) => {
+                f(&mut repr.weights);
+                f(&mut repr.indices);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::EmbeddingBackward(repr) => {
+                f(&mut repr.weights);
+                f(&mut repr.out_grad);
+                f(&mut repr.indices);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Linear(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::LinearXBackward(repr) => {
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::LinearWeightBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::LinearBiasBackward(repr) => {
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1dXBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1dWeightBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1dBiasBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.bias);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2dXBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2dWeightBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2dBiasBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.bias);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3dXBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3dWeightBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3dBiasBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.bias);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::DeformableConv2d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.offset);
+                f(&mut repr.weight);
+                if let Some(mask) = &mut repr.mask {
+                    f(mask);
+                }
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::DeformableConv2dBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.offset);
+                f(&mut repr.weight);
+                f(&mut repr.out_grad);
+                if let Some(mask) = &mut repr.mask {
+                    f(mask);
+                }
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.input_grad);
+                f(&mut repr.offset_grad);
+                f(&mut repr.weight_grad);
+                if let Some(mask_grad) = &mut repr.mask_grad {
+                    f(mask_grad);
+                }
+                if let Some(bias_grad) = &mut repr.bias_grad {
+                    f(bias_grad);
+                }
+            }
+            ModuleOperationIr::ConvTranspose1d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose2d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose3d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    f(bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool1d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool2d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool1dBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool2dBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool1d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool2d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool1dBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool1d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool1dWithIndices(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+                f(&mut repr.out_indices);
+            }
+            ModuleOperationIr::MaxPool1dWithIndicesBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.indices);
+                f(&mut repr.grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool2d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool2dWithIndices(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+                f(&mut repr.out_indices);
+            }
+            ModuleOperationIr::MaxPool2dWithIndicesBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.indices);
+                f(&mut repr.grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Interpolate(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::InterpolateBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Rfft(repr) => {
+                f(&mut repr.signal);
+                f(&mut repr.out_re);
+                f(&mut repr.out_im);
+            }
+            ModuleOperationIr::IRfft(repr) => {
+                f(&mut repr.input_re);
+                f(&mut repr.input_im);
+                f(&mut repr.out_signal);
+            }
+            ModuleOperationIr::Attention(repr) => {
+                f(&mut repr.query);
+                f(&mut repr.key);
+                f(&mut repr.value);
+                if let Some(mask) = &mut repr.mask {
+                    f(mask);
+                }
+                if let Some(attn_bias) = &mut repr.attn_bias {
+                    f(attn_bias);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::CtcLoss(repr) => {
+                f(&mut repr.log_probs);
+                f(&mut repr.targets);
+                f(&mut repr.input_lengths);
+                f(&mut repr.target_lengths);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::CtcLossBackward(repr) => {
+                f(&mut repr.log_probs);
+                f(&mut repr.targets);
+                f(&mut repr.input_lengths);
+                f(&mut repr.target_lengths);
+                f(&mut repr.grad_loss);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::LayerNorm(repr) => {
+                f(&mut repr.input);
+                f(&mut repr.gamma);
+                if let Some(beta) = &mut repr.beta {
+                    f(beta);
+                }
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::Unfold4d(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose1dBiasBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.bias);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose2dWeightBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose2dBiasBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.bias);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose3dWeightBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.weight);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose3dBiasBackward(repr) => {
+                f(&mut repr.x);
+                f(&mut repr.bias);
+                f(&mut repr.output_grad);
+                f(&mut repr.out);
+            }
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, f: &mut dyn FnMut(&mut ScalarIr)) {
+        match self {
+            ModuleOperationIr::LayerNorm(repr) => f(&mut repr.epsilon),
+            ModuleOperationIr::Attention(repr) => {
+                if let Some(scale) = &mut repr.options.scale {
+                    f(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    f(softcap);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 impl DistributedOperationIr {
@@ -3607,6 +4673,18 @@ impl DistributedOperationIr {
 
         output
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        match self {
+            DistributedOperationIr::AllReduce(repr) => {
+                f(&mut repr.tensor);
+                f(&mut repr.out);
+            }
+            DistributedOperationIr::SyncCollective => {}
+        }
+    }
+
+    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {}
 }
 
 impl InitOperationIr {
@@ -3616,6 +4694,12 @@ impl InitOperationIr {
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         Box::new([&self.out].into_iter())
     }
+
+    fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+        f(&mut self.out);
+    }
+
+    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {}
 }
 
 impl TensorIr {
@@ -3896,8 +4980,30 @@ macro_rules! activation_ir_tensor_access {
                 }
                 output
             }
+
+            fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {
+                match self {
+                    $( Self::$variant(repr) => {
+                        $( f(&mut repr.$field); )+
+                        f(&mut repr.out);
+                    } )+
+                }
+            }
         }
     };
+}
+
+impl ActivationOperationIr {
+    fn for_each_scalar_mut(&mut self, f: &mut dyn FnMut(&mut ScalarIr)) {
+        match self {
+            ActivationOperationIr::LeakyRelu(repr) => f(&mut repr.rhs),
+            ActivationOperationIr::HardSigmoid(repr) => {
+                f(&mut repr.alpha);
+                f(&mut repr.beta);
+            }
+            _ => {}
+        }
+    }
 }
 
 activation_ir_tensor_access! {
@@ -3915,4 +5021,66 @@ activation_ir_tensor_access! {
     Softmax => [input],
     LogSoftmax => [input],
     Softmin => [input],
+}
+
+#[cfg(test)]
+mod for_each_tests {
+    use super::*;
+    use burn_backend::{DType, Shape};
+
+    fn tensor(id: u64) -> TensorIr {
+        TensorIr::uninit(TensorId::new(id), Shape::from([2, 2]), DType::F32)
+    }
+
+    #[test]
+    fn for_each_tensor_mut_visits_all_tensors() {
+        // NumericFloat MulScalar (a ScalarOpIr with a scalar `rhs`).
+        let mut mul = OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::MulScalar(ScalarOpIr {
+                lhs: tensor(1),
+                rhs: ScalarIr::Float(2.0),
+                out: tensor(2),
+            }),
+        );
+
+        // Bump every tensor id by 100.
+        mul.for_each_tensor_mut(&mut |t| t.id = TensorId::new(t.id.value() + 100));
+
+        let ids: Vec<u64> = mul
+            .inputs()
+            .chain(mul.outputs())
+            .map(|t| t.id.value())
+            .collect();
+        assert_eq!(ids, vec![101, 102]);
+
+        // The scalar must be visited (and rewritable).
+        let mut scalars = Vec::new();
+        mul.for_each_scalar_mut(&mut |s| {
+            scalars.push(*s);
+            *s = ScalarIr::Float(9.0);
+        });
+        assert_eq!(scalars, vec![ScalarIr::Float(2.0)]);
+        let mut after = Vec::new();
+        mul.for_each_scalar_mut(&mut |s| after.push(*s));
+        assert_eq!(after, vec![ScalarIr::Float(9.0)]);
+
+        // BaseFloat Reshape (a ShapeOpIr, input + out, no scalars).
+        let mut reshape = OperationIr::BaseFloat(BaseOperationIr::Reshape(ShapeOpIr {
+            input: tensor(10),
+            out: tensor(11),
+        }));
+
+        reshape.for_each_tensor_mut(&mut |t| t.id = TensorId::new(t.id.value() + 100));
+        let ids: Vec<u64> = reshape
+            .inputs()
+            .chain(reshape.outputs())
+            .map(|t| t.id.value())
+            .collect();
+        assert_eq!(ids, vec![110, 111]);
+
+        let mut scalar_count = 0;
+        reshape.for_each_scalar_mut(&mut |_| scalar_count += 1);
+        assert_eq!(scalar_count, 0);
+    }
 }

@@ -31,6 +31,16 @@ mod __client {
     /// concrete backend type parameter.
     pub type RemoteBackend = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
 
+    /// The remote backend with client-side fusion enabled.
+    ///
+    /// Same as [`RemoteBackend`] but recurring groups of operations are cached on the server and
+    /// invoked by id, so a repeated computation (e.g. a model block per step) is sent over the
+    /// network once instead of every step. Requires the `fusion` feature.
+    #[cfg(feature = "fusion")]
+    pub type RemoteFusionBackend = burn_fusion::Fusion<
+        BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>,
+    >;
+
     pub use client::RemoteDevice;
 }
 #[cfg(feature = "client")]
@@ -392,6 +402,77 @@ mod tests {
         let back = doubled.to_device(&local);
         let numbers: Vec<f32> = back.to_data().to_vec().unwrap();
         assert_eq!(numbers, vec![2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
+
+        rt.shutdown_background();
+    }
+}
+
+#[cfg(all(test, feature = "fusion", feature = "server"))]
+mod fusion_tests {
+    use crate::{RemoteBackend, RemoteDevice, RemoteFusionBackend};
+    use burn_backend::{Backend, TensorData};
+
+    fn input() -> TensorData {
+        TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    }
+
+    /// Run the same small multi-op graph `iters` times on backend `B`, reading the result each
+    /// iteration. Every iteration has an identical op structure, so a fusion backend registers the
+    /// optimization once and replays it by id on the later iterations.
+    fn run<B: Backend<Device = RemoteDevice>>(device: &RemoteDevice, iters: usize) -> Vec<Vec<f32>> {
+        let mut out = Vec::new();
+        for _ in 0..iters {
+            let a = B::float_from_data(input(), device);
+            let b = B::float_from_data(input(), device);
+            // A few rank-preserving fusable ops producing intermediates (`c`, `d`) and one output.
+            let c = B::float_add(a, b);
+            let d = B::float_exp(c);
+            let y = B::float_log(d);
+            let data = burn_std::reader::try_read_sync(B::float_into_data(y))
+                .expect("remote read should resolve synchronously")
+                .expect("read should succeed");
+            out.push(data.to_vec::<f32>().unwrap());
+        }
+        out
+    }
+
+    /// The fusion-enabled remote backend must produce exactly the same results as the plain remote
+    /// backend across a repeated computation that exercises register-once + replay-by-id.
+    #[test]
+    fn fusion_matches_plain_remote() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(crate::server::start_websocket_async::<burn_flex::Flex>(
+            vec![Default::default()],
+            3100,
+        ));
+        rt.spawn(crate::server::start_websocket_async::<burn_flex::Flex>(
+            vec![Default::default()],
+            3110,
+        ));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let plain_device = RemoteDevice::new("ws://localhost:3100", 0);
+        let fused_device = RemoteDevice::new("ws://localhost:3110", 0);
+
+        let iters = 5;
+        let expected = run::<RemoteBackend>(&plain_device, iters);
+        let actual = run::<RemoteFusionBackend>(&fused_device, iters);
+
+        assert_eq!(actual.len(), iters);
+        assert_eq!(expected.len(), iters);
+        for (a, e) in actual.iter().zip(expected.iter()) {
+            assert_eq!(a.len(), e.len());
+            for (av, ev) in a.iter().zip(e.iter()) {
+                assert!(
+                    (av - ev).abs() < 1e-5,
+                    "fusion result {av} differs from plain remote {ev}"
+                );
+            }
+        }
 
         rt.shutdown_background();
     }
