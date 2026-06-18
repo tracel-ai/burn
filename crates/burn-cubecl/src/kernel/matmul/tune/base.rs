@@ -276,14 +276,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 launch_matmul::<R>(&cpu_gemm_strategy, lhs, rhs, out)
                     .map_err(|err| format!("{err:?}"))
             })
-            .group(&cpu, move |key| {
-                // TODO(cubecl): the `cpu_gemm` strategy overflows the stack on large problems
-                // (observed at 4096^3 and above; 2048^3 and below are fine), so skip it there.
-                match key.analysis.scale_global {
-                    MatmulGlobalScale::Large => PRIORITY_NEVER,
-                    _ => PRIORITY_MAX,
-                }
-            }),
+            .group(&cpu, move |_key| PRIORITY_MAX),
         );
 
         // Accelerated matmuls
