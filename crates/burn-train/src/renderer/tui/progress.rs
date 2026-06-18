@@ -196,7 +196,11 @@ impl ProgressEstimate {
     }
 
     fn init(&mut self, progress: &ProgressSnapshot, starting_epoch: usize) {
-        let epoch = progress.global.items_processed - starting_epoch;
+        let epoch = progress
+            .global
+            .items_processed
+            .saturating_sub(starting_epoch)
+            .max(1);
         let local = &progress.split;
 
         let epoch_items = (epoch - 1) * local.items_total;
@@ -213,14 +217,18 @@ fn calculate_progress(
     starting_epoch: usize,
     ignore_num_items: usize,
 ) -> f64 {
-    let epoch_total = progress.global.items_total - starting_epoch;
-    let epoch = progress.global.items_processed - starting_epoch;
+    let epoch_total = progress.global.items_total.saturating_sub(starting_epoch);
+    let epoch = progress
+        .global
+        .items_processed
+        .saturating_sub(starting_epoch)
+        .max(1);
     let local = &progress.split;
 
     let total_items = local.items_total * epoch_total;
     let epoch_items = (epoch - 1) * local.items_total;
     let iteration_items = local.items_processed;
-    let num_items = epoch_items + iteration_items - ignore_num_items;
+    let num_items = (epoch_items + iteration_items).saturating_sub(ignore_num_items);
 
     num_items as f64 / total_items as f64
 }
@@ -292,5 +300,20 @@ mod tests {
 
         // Two epochs remaining while the first is 11% done, minus 10 warmup items.
         assert_eq!(0.05, result);
+    }
+
+    #[test]
+    fn calculate_progress_when_extending_past_completed_run() {
+        // Resuming a checkpoint to extend training can momentarily report fewer
+        // completed epochs than the starting epoch, which used to underflow.
+        let progress = ProgressSnapshot::new(
+            Progress::new(1, 3, Some("epochs".to_string())),
+            Progress::new(5, 10, Some("items".to_string())),
+        );
+
+        let result = calculate_progress(&progress, 2, 0);
+
+        // One epoch remaining, currently half done, instead of an overflow panic.
+        assert_eq!(0.5, result);
     }
 }
