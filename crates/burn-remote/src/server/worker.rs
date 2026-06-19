@@ -32,9 +32,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use burn_communication::{Protocol, external_comm::ExternalCommService};
-use burn_backend::Slice;
-use burn_ir::{BackendIr, GraphBindings, GraphId, OperationIr, ScalarIr, TensorId, TensorIr};
-use burn_router::{RouterClient, TensorInterpreter};
+use burn_ir::{BackendIr, GraphId};
+use burn_router::{Graph, TensorInterpreter};
 use tokio::{runtime::Handle, sync::mpsc};
 
 use crate::server::local_comm::LocalCommService;
@@ -70,7 +69,7 @@ where
     /// *after* releasing it — the lock guards only the map, never the backend dispatch. That keeps
     /// the cache from becoming a serialization point if graph execution is ever driven from more
     /// than the current single-FIFO worker.
-    graphs: Mutex<HashMap<GraphId, Arc<Vec<OperationIr>>>>,
+    graphs: Mutex<HashMap<GraphId, Graph>>,
 }
 
 impl<B, P> SessionHandler<B, P>
@@ -118,7 +117,7 @@ where
     }
 
     /// Drain the task channel, running each task to completion in arrival order.
-    fn worker_loop(self, handle: Handle, mut receiver: mpsc::Receiver<Task>) {
+    fn worker_loop(mut self, handle: Handle, mut receiver: mpsc::Receiver<Task>) {
         let session_id = self.session_id;
 
         // Drive every task to completion on this thread. The synchronous parts (collective
@@ -182,11 +181,10 @@ where
     /// right pending callback on the client. Async work (data-service transfers,
     /// `read_tensor_async`) runs without a stream context — the relevant stream id is captured into
     /// the future at construction time via `executes`.
-    async fn process_task(&self, task: Task) -> Result<(), String> {
-        let runner = &self.runner;
+    async fn process_task(&mut self, task: Task) -> Result<(), String> {
         match task {
             Task::RegisterOperation(stream_id, op) => {
-                stream_id.executes(|| runner.register_op(op));
+                stream_id.executes(|| self.runner.register_op(op));
                 Ok(())
             }
             Task::RegisterGraph {
@@ -200,7 +198,7 @@ where
                     self.graphs
                         .lock()
                         .unwrap()
-                        .insert(graph_id, Arc::new(relative_graph));
+                        .insert(graph_id, Graph::new(relative_graph));
                 });
                 Ok(())
             }
@@ -209,8 +207,8 @@ where
                 graph_id,
                 bindings,
             } => {
-                // Clone the Arc out under a short lock, then replay after releasing it: the lock
-                // guards only the cache lookup, never the backend dispatch in `replay_graph`.
+                // Clone the graph handle out under a short lock, then replay after releasing it:
+                // the lock guards only the cache lookup, never the backend dispatch.
                 let graph = {
                     let cache = self.graphs.lock().unwrap();
                     cache
@@ -218,11 +216,11 @@ where
                         .cloned()
                         .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?
                 };
-                stream_id.executes(|| replay_graph(runner, &graph, bindings));
+                stream_id.executes(|| graph.replay(&mut self.runner, bindings));
                 Ok(())
             }
             Task::RegisterTensor(stream_id, id, data) => {
-                stream_id.executes(|| runner.register_tensor_data_id(id, data));
+                stream_id.executes(|| self.runner.register_tensor_data_id(id, data));
                 Ok(())
             }
             Task::RegisterAlias {
@@ -230,7 +228,7 @@ where
                 new_id,
                 src_id,
             } => {
-                stream_id.executes(|| runner.register_alias(new_id, src_id));
+                stream_id.executes(|| self.runner.register_alias(new_id, src_id));
                 Ok(())
             }
             Task::RegisterTensorRemote(stream_id, remote, new_id) => {
@@ -251,7 +249,7 @@ where
                     })?;
                 // Register on the client stream that will consume `new_id`, carried over the
                 // wire — not the arbitrary tokio worker running this task.
-                stream_id.executes(|| runner.register_tensor_data_id(new_id, data));
+                stream_id.executes(|| self.runner.register_tensor_data_id(new_id, data));
                 Ok(())
             }
             Task::ExposeTensorLocal {
@@ -264,7 +262,7 @@ where
                 // pick up. Runs in order on this session's worker, so it is ordered after the op
                 // that produced `tensor` — the handle is guaranteed present. Read it back on the
                 // client stream that produced it, carried over the wire.
-                let kind = stream_id.executes(|| runner.get_tensor(&tensor));
+                let kind = stream_id.executes(|| self.runner.get_tensor(&tensor));
                 self.local_comm
                     .expose(self.session_id, transfer_id, kind)
                     .await;
@@ -281,7 +279,7 @@ where
                 // registered first — same ordering contract as `RegisterTensorRemote`. The wait
                 // blocks only this session's worker, not the source session's.
                 let kind = self.local_comm.take(transfer_id).await;
-                stream_id.executes(|| runner.register_tensor_to_device(new_id, kind));
+                stream_id.executes(|| self.runner.register_tensor_to_device(new_id, kind));
                 Ok(())
             }
             Task::ExposeTensorRemote {
@@ -296,7 +294,7 @@ where
                 // cross-server hand-off doesn't stall this session's op registration on a
                 // GPU→host copy. A target that downloads before the expose lands simply blocks on
                 // the data service's `new_tensor_notify`, so there is no race.
-                let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
+                let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
                 let external_comm = self.external_comm.clone();
                 tokio::spawn(async move {
                     match fut.await {
@@ -313,7 +311,7 @@ where
                 Ok(())
             }
             Task::Seed(seed) => {
-                runner.seed(seed);
+                self.runner.seed(seed);
                 Ok(())
             }
             Task::ReadTensor(request_id, stream_id, tensor) => {
@@ -324,7 +322,7 @@ where
                 // here would stall the worker on the GPU→host copy and stop us registering
                 // subsequent ops, draining the device queue into a bubble. The client demuxes
                 // responses by request id, so out-of-order completion is fine.
-                let fut = stream_id.executes(|| runner.read_tensor_async(tensor));
+                let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
                 let sender = self.response_sender.clone();
                 tokio::spawn(async move {
                     let data = fut.await;
@@ -344,12 +342,12 @@ where
                 Ok(())
             }
             Task::SyncBackend(request_id, stream_id) => {
-                let res = stream_id.executes(|| runner.sync());
+                let res = stream_id.executes(|| self.runner.sync());
                 self.send_response(request_id, TaskResponseContent::SyncBackend(res))
                     .await
             }
             Task::DTypeUsage(request_id, dtype) => {
-                let res = runner.dtype_usage(dtype);
+                let res = self.runner.dtype_usage(dtype);
                 self.send_response(request_id, TaskResponseContent::DTypeUsage(res))
                     .await
             }
@@ -375,68 +373,3 @@ where
     }
 }
 
-/// Server-allocated ids for a replay's intermediate tensors carry this high bit so they can never
-/// collide with client-allocated ids (whose monotonic counter never reaches `1 << 63`). The bit is
-/// purely server-internal: intermediates are produced and freed within a single replay and are
-/// never referenced by the client.
-const INTERMEDIATE_ID_BIT: u64 = 1 << 63;
-static INTERMEDIATE_ID_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
-fn alloc_intermediate_id() -> TensorId {
-    let value = INTERMEDIATE_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    TensorId::new(value | INTERMEDIATE_ID_BIT)
-}
-
-/// Replay a cached relative op-graph against the interpreter, rebound to concrete tensors.
-///
-/// The cached `graph` is in relative form: its tensor ids are positional, shape dims are relative
-/// ids, and scalars are placeholders. `bindings` already arrive packaged the way the replay uses
-/// them — the boundary `tensors` map is moved straight into the working id table and grown with
-/// intermediate ids on demand, and `shapes` is a dense table indexed by relative dim id. For each
-/// op we:
-/// - resolve every tensor id to its boundary binding, or a freshly allocated intermediate id
-///   (memoized so all references to one intermediate agree);
-/// - rewrite every tensor's shape dims in place via the shape table (so intermediates get correct
-///   shapes too, without being sent);
-/// - substitute scalar placeholders;
-///
-/// then hand the rebound op to the unchanged [`TensorInterpreter::register_op`], reproducing the
-/// exact sequence of global ops the client would have streamed op-by-op.
-fn replay_graph<B: BackendIr>(
-    runner: &TensorInterpreter<B>,
-    graph: &[OperationIr],
-    bindings: GraphBindings,
-) {
-    let GraphBindings {
-        tensors,
-        shapes,
-        scalars,
-        ranges,
-    } = bindings;
-    // The boundary map *is* the working id table — seeded here, intermediates added on demand.
-    let mut ids: HashMap<TensorId, TensorId> = tensors.into_iter().collect();
-    for op in graph {
-        let mut op = op.clone();
-        op.for_each_tensor_mut(&mut |tensor: &mut TensorIr| {
-            tensor.id = *ids.entry(tensor.id).or_insert_with(alloc_intermediate_id);
-            for dim in tensor.shape.iter_mut() {
-                *dim = shapes.get(*dim).copied().unwrap_or(*dim);
-            }
-        });
-        op.for_each_scalar_mut(&mut |scalar: &mut ScalarIr| {
-            if let ScalarIr::UInt(placeholder) = *scalar
-                && (placeholder as usize) < scalars.len()
-            {
-                *scalar = scalars[placeholder as usize];
-            }
-        });
-        // Restore concrete slice bounds: relativization replaced each range with a placeholder
-        // whose `start` is the binding id (see `OperationConverter::relative_range`).
-        op.for_each_range_mut(&mut |range: &mut Slice| {
-            if let Some(concrete) = ranges.get(range.start as usize) {
-                *range = *concrete;
-            }
-        });
-        runner.register_op(op);
-    }
-}

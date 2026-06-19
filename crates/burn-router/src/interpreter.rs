@@ -7,7 +7,6 @@ use crate::{
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
 use alloc::boxed::Box;
-use alloc::sync::Arc;
 use burn_backend::{
     Backend, DType, DeviceOps, ExecutionError, Shape, TensorData, distributed::DistributedOps,
     tensor::IndexingUpdateOp,
@@ -17,7 +16,7 @@ use burn_ir::{
     HandleContainer, HandleKind, IntOperationIr, ModuleOperationIr, NumericOperationIr,
     OperationIr, TensorId, TensorIr, TensorStatus,
 };
-use burn_std::{DeviceSettings, future::DynFut, stub::Mutex};
+use burn_std::{DeviceSettings, future::DynFut};
 
 /// An interpreter's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
@@ -37,10 +36,12 @@ impl<B: BackendIr> InterpreterContext<B> {
 }
 
 /// A tensor interpreter is responsible for executing tensor operations for a given [intermediate backend](BackendIr).
-#[derive(Clone)]
+///
+/// Single-owner and **not** `Clone`: the interpreter is driven by exactly one thread (the remote
+/// server's per-session worker), so the handle container is owned directly rather than behind a
+/// lock — every op takes `&mut self`, with no per-op `Mutex` on the hot path.
 pub struct TensorInterpreter<B: BackendIr> {
-    // Mutex for the mutable handles
-    context: Arc<Mutex<InterpreterContext<B>>>,
+    context: InterpreterContext<B>,
     device: B::Device,
 }
 
@@ -56,16 +57,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// Create a new interpreter.
     pub fn new(device: B::Device) -> Self {
         Self {
-            context: Arc::new(Mutex::new(InterpreterContext {
+            context: InterpreterContext {
                 handles: HandleContainer::new(),
-            })),
+            },
             device,
         }
     }
 
     /// Get the tensor handle for the given [tensor representation](TensorIr).
-    pub fn get_tensor_handle(&self, tensor: &TensorIr) -> B::Handle {
-        let handles = &mut self.context.lock().unwrap().handles;
+    pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> B::Handle {
+        let handles = &mut self.context.handles;
         handles.get_tensor_handle(tensor).handle
     }
 
@@ -75,8 +76,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// `B::Handle`), this returns the concrete float/int/bool primitive so the caller can hand
     /// it to `B::*_to_device`. Used by the same-host transfer path, which moves a tensor between
     /// two interpreters living in the same server process without a host round-trip.
-    pub fn get_tensor(&self, tensor: &TensorIr) -> HandleKind<B> {
-        let handles = &mut self.context.lock().unwrap().handles;
+    pub fn get_tensor(&mut self, tensor: &TensorIr) -> HandleKind<B> {
+        let handles = &mut self.context.handles;
         let dtype = tensor.dtype;
         if dtype.is_float() {
             HandleKind::Float(handles.get_float_tensor::<B>(tensor))
@@ -95,8 +96,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// The counterpart of [`get_tensor`](Self::get_tensor): the source interpreter hands over its
     /// primitive, and the destination calls `B::*_to_device` onto its own device. When both
     /// interpreters share the same device, the backend's `to_device` is a cheap no-op.
-    pub fn register_tensor_to_device(&self, id: TensorId, tensor: HandleKind<B>) {
-        let mut ctx = self.context.lock().unwrap();
+    pub fn register_tensor_to_device(&mut self, id: TensorId, tensor: HandleKind<B>) {
+        let ctx = &mut self.context;
         match tensor {
             HandleKind::Float(tensor) => {
                 let tensor = B::float_to_device(tensor, &self.device);
@@ -118,17 +119,16 @@ impl<B: BackendIr> TensorInterpreter<B> {
 
     /// Create a tensor with the given handle and shape.
     pub fn register_tensor<C: RouterClient>(
-        &self,
+        &mut self,
         handle: B::Handle,
         shape: Shape,
         dtype: DType,
         client: C,
     ) -> RouterTensor<C> {
-        let mut ctx = self.context.lock().unwrap();
+        let ctx = &mut self.context;
         let id = ctx.create_empty_handle();
 
         ctx.handles.register_handle(id, handle);
-        core::mem::drop(ctx);
 
         RouterTensor::new(id, shape, dtype, client)
     }
@@ -139,8 +139,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
     /// [`RouterClient::register_alias`](crate::RouterClient::register_alias)). Cloning the backend
     /// handle is a cheap `Arc`-style refcount bump, so the buffer survives until *both* ids are
     /// freed — consuming the alias on one stream can't pull it out from under the other.
-    pub fn register_alias(&self, new_id: TensorId, src_id: TensorId) {
-        let mut ctx = self.context.lock().unwrap();
+    pub fn register_alias(&mut self, new_id: TensorId, src_id: TensorId) {
+        let ctx = &mut self.context;
         let handle = ctx
             .handles
             .get_handle_ref(&src_id)
@@ -150,8 +150,8 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 
     /// Register a tensor from its data and id.
-    pub fn register_tensor_data_id(&self, id: TensorId, data: TensorData) {
-        let mut ctx = self.context.lock().unwrap();
+    pub fn register_tensor_data_id(&mut self, id: TensorId, data: TensorData) {
+        let ctx = &mut self.context;
         let dtype = data.dtype;
 
         if dtype.is_float() {
@@ -167,12 +167,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
             todo!();
         }
 
-        core::mem::drop(ctx);
     }
 
     /// Register a tensor and returns its intermediate representation.
-    pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorIr {
-        let mut ctx = self.context.lock().unwrap();
+    pub fn register_tensor_data_desc(&mut self, data: TensorData) -> TensorIr {
+        let ctx = &mut self.context;
         let id = ctx.create_empty_handle();
         let shape = data.shape.clone();
         let dtype = data.dtype;
@@ -190,7 +189,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
             todo!();
         }
 
-        core::mem::drop(ctx);
 
         TensorIr {
             id,
@@ -206,14 +204,11 @@ impl<B: BackendIr> TensorInterpreter<B> {
     }
 }
 
-// This is a Remote TensorInterpreter
-impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
-    type Device = B::Device;
-
+impl<B: BackendIr> TensorInterpreter<B> {
     /// Execute a tensor operation.
-    fn register_op(&self, op: OperationIr) {
+    pub fn register_op(&mut self, op: OperationIr) {
         // Remove unused tensor handles
-        let mut ctx = self.context.lock().unwrap();
+        let ctx = &mut self.context;
 
         let handles = &mut ctx.handles;
         match &op {
@@ -2105,8 +2100,12 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
         }
     }
 
-    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
-        let mut ctx = self.context.lock().unwrap();
+    /// Read a tensor's data, returning a future for the host readback.
+    pub fn read_tensor_async(
+        &mut self,
+        tensor: TensorIr,
+    ) -> DynFut<Result<TensorData, ExecutionError>> {
+        let ctx = &mut self.context;
 
         enum Output<B: Backend> {
             Float(B::FloatTensorPrimitive),
@@ -2136,33 +2135,23 @@ impl<B: BackendIr> RouterClient for TensorInterpreter<B> {
         }
     }
 
-    fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
-        let desc = self.register_tensor_data_desc(data);
-        RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
-    }
-
-    fn device(&self) -> Self::Device {
+    /// The device this interpreter executes on.
+    pub fn device(&self) -> B::Device {
         self.device.clone()
     }
 
-    fn sync(&self) -> Result<(), ExecutionError> {
+    /// Block until all queued backend work has completed.
+    pub fn sync(&self) -> Result<(), ExecutionError> {
         B::sync(&self.device)
     }
 
-    fn seed(&self, seed: u64) {
+    /// Seed the backend's RNG.
+    pub fn seed(&self, seed: u64) {
         B::seed(&self.device, seed)
     }
 
-    fn create_empty_handle(&self) -> TensorId {
-        let mut ctx = self.context.lock().unwrap();
-        ctx.create_empty_handle()
-    }
-
-    fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet {
+    /// The set of supported usages for `dtype` on this backend.
+    pub fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet {
         B::dtype_usage(&self.device, dtype)
-    }
-
-    fn flush(&self) {
-        B::flush(&self.device);
     }
 }

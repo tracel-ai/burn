@@ -11,6 +11,7 @@ mod channel;
 mod client;
 #[cfg(feature = "fusion")]
 mod fusion;
+mod graph;
 mod interpreter;
 mod ops;
 mod tensor;
@@ -21,6 +22,7 @@ pub use channel::*;
 pub use client::*;
 #[cfg(feature = "fusion")]
 pub use fusion::*;
+pub use graph::*;
 pub use interpreter::*;
 pub use tensor::*;
 
