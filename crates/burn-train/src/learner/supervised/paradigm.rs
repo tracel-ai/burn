@@ -1,7 +1,6 @@
 use crate::checkpoint::{
-    AsyncCheckpointer, Checkpoint, Checkpointer, CheckpointingStrategy,
-    ComposedCheckpointingStrategy, FileCheckpointer, KeepLastNCheckpoints,
-    MetricCheckpointingStrategy,
+    AsyncCheckpointer, Checkpointer, CheckpointingStrategy, ComposedCheckpointingStrategy,
+    FileCheckpointer, KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
 use crate::components::{InferenceModelOutput, TrainingModelOutput};
 use crate::learner::EarlyStoppingStrategy;
