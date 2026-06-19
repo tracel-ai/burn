@@ -1,20 +1,9 @@
 //! Regression test for fusion broadcast/reduce output vectorization (issue #5060).
 //!
-//! Bug: a fused broadcast/reduce trace could register an owned output with a `vector_size`
-//! larger than the `width` of the block that writes it. The codegen write path then emitted an
-//! invalid store of a scalar into a vector slot, e.g.
-//!
-//! ```text
-//! store(%64, %489) : (ptr<vector<f32, 16>>, f32) -> ();
-//! ```
-//!
-//! which corrupts adjacent lanes (and fails to compile on validating backends).
-//!
-//! A softmax (`max -> broadcast sub -> exp -> sum -> broadcast div`) over the last dimension is
-//! the minimal trigger: it produces the multi-block reduce/broadcast fusion whose final
-//! elementwise output's last dim is divisible by a wide vector size while a reduce block forces
-//! the write width down. The bug only manifests on backends that pick a wide output
-//! vectorization; the assertion below catches the resulting corruption on any backend that does.
+//! A fused broadcast/reduce trace could register an owned output with a `vector_size` wider than
+//! the write width of the block that produces it, emitting an invalid scalar-into-vector store that
+//! corrupts adjacent lanes. A softmax over the last dimension is the minimal trigger. The bug only
+//! manifests on backends that pick a wide output vectorization, so this is a lightweight guard.
 
 use super::*;
 use burn_tensor::{TensorData, Tolerance};
@@ -34,7 +23,11 @@ fn softmax_reference(input: &[f32], rows: usize, cols: usize) -> Vec<f32> {
     expected
 }
 
-fn check_softmax(rows: usize, cols: usize) {
+#[test]
+fn test_reduce_broadcast_softmax_vectorized_output() {
+    // `cols` is a multiple of common wide vector sizes (16/8/4/2) so the output gets a wide
+    // vectorization while the reduce forces a narrower write width.
+    let (rows, cols) = (64, 16);
     let device = Default::default();
     let n = (rows * cols) as i64;
 
@@ -57,17 +50,4 @@ fn check_softmax(rows: usize, cols: usize) {
     let expected = TensorData::new(softmax_reference(&input, rows, cols), [rows, cols]);
 
     actual.assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
-}
-
-#[test]
-fn test_reduce_broadcast_softmax_vectorized_output() {
-    // `cols` is a multiple of common wide vector sizes (16/8/4/2) so the output gets a wide
-    // vectorization while the reduce forces a narrower write width.
-    check_softmax(64, 16);
-}
-
-#[test]
-fn test_reduce_broadcast_softmax_vectorized_output_4d() {
-    // Attention-scores shape `[batch, heads, seq, seq]`, matching the original failing test.
-    check_softmax(2 * 2 * 16, 16);
 }

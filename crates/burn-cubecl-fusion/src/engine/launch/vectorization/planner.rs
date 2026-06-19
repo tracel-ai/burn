@@ -333,8 +333,14 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         //
         // When the registered `vector_size` does not match the width of every writing block, fall
         // back to a `vector_size` of 1 so the output is written element-by-element, which is always
-        // valid and never races regardless of the block width. (`write_output_aligned` also tolerates
-        // the mismatch defensively, but de-vectorizing here keeps the fast, race-free write path.)
+        // valid regardless of the block width. This clamp is the *sole* fix for #5060: the codegen
+        // write path (`write_output_aligned`) does not handle a `vector_size` wider than the write
+        // width and would emit the invalid store, so the reconciliation must guarantee every owned
+        // output is written either at its full width (`vector_size == width`) or de-vectorized here.
+        //
+        // This pass runs after the block loop so every `block_plan.width` is final — including the
+        // widths forced *after* `apply_vectorization_block` inside the width-forcing arms and the
+        // width-0 fallback above.
         //
         // Outputs that serve as a block's layout reference are skipped: their `vector_size` defines
         // that block's `width` (so they are compatible by construction), and de-vectorizing them
