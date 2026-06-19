@@ -22,7 +22,7 @@ jobs:
       ]
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Mesa
         uses: tracel-ai/github-actions/install-mesa@v9
