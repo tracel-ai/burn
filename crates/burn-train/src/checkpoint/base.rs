@@ -1,6 +1,7 @@
 use burn_core::store::{ModuleRecord, RecordError};
 use burn_optim::OptimizerRecord;
 use burn_optim::lr_scheduler::LrSchedulerRecord;
+use burn_std::Bytes;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -34,6 +35,10 @@ pub trait Checkpoint: Sized + Send + 'static {
     fn save(self, path: PathBuf) -> Result<(), CheckpointerError>;
     /// Load the record from `path`.
     fn load(path: PathBuf) -> Result<Self, CheckpointerError>;
+    /// Creates a checkpoint fom bytes
+    fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError>;
+    /// Transforms a checkpoint into bytes
+    fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError>;
 }
 
 /// A stateless record: nothing to save or load.
@@ -44,6 +49,12 @@ impl Checkpoint for () {
     fn load(_path: PathBuf) -> Result<Self, CheckpointerError> {
         Ok(())
     }
+    fn checkpoint_from_bytes(_bytes: Bytes) -> Result<Self, RecordError> {
+        Ok(())
+    }
+    fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError> {
+        Ok(Bytes::from_bytes_vec(vec![0]))
+    }
 }
 
 impl Checkpoint for ModuleRecord {
@@ -52,6 +63,12 @@ impl Checkpoint for ModuleRecord {
     }
     fn load(path: PathBuf) -> Result<Self, CheckpointerError> {
         ModuleRecord::load(path).map_err(CheckpointerError::Record)
+    }
+    fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError> {
+        self.into_bytes()
+    }
+    fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
+        ModuleRecord::from_bytes(bytes)
     }
 }
 
@@ -62,6 +79,12 @@ impl Checkpoint for OptimizerRecord {
     fn load(path: PathBuf) -> Result<Self, CheckpointerError> {
         OptimizerRecord::load(path).map_err(CheckpointerError::Record)
     }
+    fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
+        OptimizerRecord::from_bytes(bytes)
+    }
+    fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError> {
+        self.into_bytes()
+    }
 }
 
 impl Checkpoint for LrSchedulerRecord {
@@ -70,6 +93,12 @@ impl Checkpoint for LrSchedulerRecord {
     }
     fn load(path: PathBuf) -> Result<Self, CheckpointerError> {
         LrSchedulerRecord::load(path).map_err(CheckpointerError::Record)
+    }
+    fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
+        LrSchedulerRecord::from_bytes(bytes)
+    }
+    fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError> {
+        self.into_bytes()
     }
 }
 
