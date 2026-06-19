@@ -101,6 +101,11 @@ mod keyremapper;
 #[cfg(feature = "std")]
 pub use keyremapper::{KeyRemapper, map_indices_contiguous};
 
+/// Serde-based deserialization of nested values, used for importing model weights from external
+/// formats (e.g. PyTorch's pickle `.pt` files).
+#[cfg(feature = "pytorch")]
+pub mod nested;
+
 #[cfg(feature = "pytorch")]
 pub mod pytorch;
 #[cfg(feature = "pytorch")]

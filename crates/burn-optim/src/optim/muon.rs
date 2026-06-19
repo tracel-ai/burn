@@ -1,6 +1,6 @@
 use burn_core as burn;
 
-use burn::{module::AutodiffModule, record::Record};
+use crate::RecordState;
 
 use burn::config::Config;
 use burn::tensor::Device;
@@ -8,9 +8,9 @@ use burn::tensor::Tensor;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    SimpleOptimizer,
-    adaptor::OptimizerAdaptor,
+    Optimizer,
     decay::WeightDecayConfig,
+    module_optimizer::ModuleOptimizer,
     momentum::{Momentum, MomentumConfig, MomentumState},
 };
 use crate::LearningRate;
@@ -206,8 +206,8 @@ impl MuonConfig {
     ///     .with_ns_steps(7)
     ///     .init();
     /// ```
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Muon, M> {
-        OptimizerAdaptor::from(self.build())
+    pub fn init(&self) -> ModuleOptimizer {
+        ModuleOptimizer::from(self.build())
     }
 }
 
@@ -348,13 +348,13 @@ impl Muon {
 }
 
 /// Muon state.
-#[derive(Record, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct MuonState<const D: usize> {
     /// Current momentum state
     pub momentum: MomentumState<D>,
 }
 
-impl SimpleOptimizer for Muon {
+impl Optimizer for Muon {
     type State<const D: usize> = MuonState<D>;
 
     /// Perform a single Muon optimization step.
@@ -425,23 +425,18 @@ impl SimpleOptimizer for Muon {
 mod tests {
     use super::*;
     use crate::{GradientsParams, Optimizer};
-    use burn::module::{Module, Param};
+    use burn::module::Param;
     use burn::tensor::{Distribution, Tensor, TensorData};
-    use burn_nn::{Linear, LinearConfig, LinearRecord};
+    use burn_nn::{Linear, LinearConfig};
 
     const TOLERANCE: f64 = 1e-8;
 
     fn given_linear_layer_no_bias(weight: TensorData) -> Linear {
         let device = Device::default().autodiff();
-        let record = LinearRecord {
+        Linear {
             weight: Param::from_data(weight, &device),
-            bias: None, //No bias for Muon optimizer
-        };
-
-        LinearConfig::new(4, 4)
-            .with_bias(false)
-            .init(&device)
-            .load_record(record)
+            bias: None, // No bias for Muon optimizer
+        }
     }
 
     #[test]
@@ -506,16 +501,15 @@ mod tests {
 
         let x = Tensor::<2>::random([2, 6], Distribution::Default, &device);
 
-        let mut optimizer = MuonConfig::new().init::<Linear>();
+        let mut optimizer = MuonConfig::new().init();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let _linear = optimizer.step(0.01, linear, grads);
 
         let state_before = optimizer.to_record();
-        let state_before_copy = optimizer.to_record();
+        let bytes = optimizer.into_bytes().unwrap();
 
-        let optimizer_new = MuonConfig::new().init::<Linear>();
-        let optimizer_loaded = optimizer_new.load_record(state_before_copy);
+        let optimizer_loaded = MuonConfig::new().init().from_bytes(bytes).unwrap();
         let state_after = optimizer_loaded.to_record();
 
         assert_eq!(state_before.len(), state_after.len());
@@ -537,13 +531,13 @@ mod tests {
 
         let mut optimizer = MuonConfig::new()
             .with_weight_decay(Some(WeightDecayConfig::new(0.01)))
-            .init::<Linear>();
+            .init();
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
         let linear = optimizer.step(0.01, linear, grads);
 
-        let state = linear.into_record();
+        let state = linear;
         let weight = state.weight.to_data();
 
         for val in weight.as_slice::<f32>().unwrap() {

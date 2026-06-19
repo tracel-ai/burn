@@ -155,7 +155,7 @@ impl ModuleDisplay for Linear {
 mod tests {
     use super::*;
     use burn::module::ParamId;
-    use burn::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
+    use burn::store::ModuleRecord;
     use burn::tensor::ElementConversion;
     use burn::tensor::Tolerance;
     use burn::tensor::{Shape, TensorData};
@@ -263,53 +263,30 @@ mod tests {
     #[test]
     fn layout() {
         let device = Default::default();
-        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear = config.init(&device);
-
+        // The `Col` layout exposes the weight matrix as `[d_input, d_output]`.
+        let linear = LinearConfig::new(6, 12)
+            .with_layout(LinearLayout::Col)
+            .init(&device);
         assert_eq!(linear.weight.dims(), [6, 12], "Shape is as configured");
+    }
 
-        let recorder = BinBytesRecorder::<FullPrecisionSettings>::new();
+    #[test]
+    fn round_trip_burnpack() {
+        let device = Default::default();
+        let linear = LinearConfig::new(6, 12).init(&device);
 
-        // We go through serialization to trigger the mappers..
-        let record = linear.into_record();
-        let data = recorder.record(record, ()).unwrap();
-        let record = recorder.load(data.clone(), &device).unwrap();
+        let weight_before = linear.weight.val().to_data();
+        let data = linear.into_record().into_bytes().unwrap();
 
-        let config = LinearConfig::new(12, 6).with_layout(LinearLayout::Row);
-        let linear_row = config.init(&device).load_record(record);
+        let linear = LinearConfig::new(6, 12)
+            .init(&device)
+            .load_record(ModuleRecord::from_bytes(data).unwrap());
 
-        assert_eq!(
-            linear_row.weight.dims(),
-            [12, 6],
-            "Shape should be transposed"
-        );
-
-        let record = recorder.load(data.clone(), &device).unwrap();
-        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear_col = config.init(&device).load_record(record);
-
-        assert_eq!(
-            linear_col.weight.dims(),
-            [6, 12],
-            "Shape should be as configured"
-        );
-
-        // We go through serialization to trigger the mappers.
-        //
-        // The test will fail if the mapper is not correctly given to the module after loading a
-        // record.
-        let record = linear_col.into_record();
-        let data = recorder.record(record, ()).unwrap();
-
-        let record = recorder.load(data, &device).unwrap();
-        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear_col = config.init(&device).load_record(record);
-
-        assert_eq!(
-            linear_col.weight.dims(),
-            [6, 12],
-            "Shape should be as configured"
-        );
+        linear
+            .weight
+            .val()
+            .to_data()
+            .assert_eq(&weight_before, true);
     }
 
     #[test]

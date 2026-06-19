@@ -74,7 +74,7 @@ jobs:
             toolchain: stable
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Rust
         uses: tracel-ai/github-actions/install-rust@v9
@@ -112,7 +112,7 @@ jobs:
             toolchain: stable
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9
@@ -150,7 +150,7 @@ jobs:
             toolchain: stable
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Setup Rust
         uses: tracel-ai/github-actions/install-rust@v9

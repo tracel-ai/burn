@@ -9,7 +9,7 @@ use crate::{
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::Dataset},
     prelude::*,
-    record::{CompactRecorder, Recorder},
+    store::ModuleRecord,
 };
 use polars::prelude::*;
 
@@ -17,8 +17,7 @@ pub fn infer(artifact_dir: &str, device: Device) {
     // Loading model
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
-    let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+    let record = ModuleRecord::load(format!("{artifact_dir}/model"))
         .expect("Trained model should exist; run train first");
 
     let model: LstmNetwork = config.model.init(&device).load_record(record);
