@@ -166,14 +166,17 @@ fn should_quantize_dequantize_symmetric_per_block_q2s_packed() {
 }
 
 #[test]
-// #[might] TODO
 fn should_quantize_dequantize_symmetric_arange_q8s_native() {
-    should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::Native, [32, 32])
+    if supports_native() {
+        should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::Native, [32, 32])
+    }
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_q8s_native() {
-    should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::Native)
+    if supports_native() {
+        should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::Native)
+    }
 }
 
 #[test]
@@ -188,22 +191,26 @@ fn should_quantize_dequantize_symmetric_per_block_arange_q8s_packed() {
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_arange_q8s_native() {
-    should_quantize_dequantize_symmetric_per_block_arange(
-        QuantValue::Q8S,
-        32,
-        QuantStore::Native,
-        [32, 32],
-    )
+    if supports_native() {
+        should_quantize_dequantize_symmetric_per_block_arange(
+            QuantValue::Q8S,
+            32,
+            QuantStore::Native,
+            [32, 32],
+        )
+    }
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_128x256_q8s_native() {
-    should_quantize_dequantize_symmetric_per_block_arange(
-        QuantValue::Q8S,
-        32,
-        QuantStore::Native,
-        [128, 256],
-    )
+    if supports_native() {
+        should_quantize_dequantize_symmetric_per_block_arange(
+            QuantValue::Q8S,
+            32,
+            QuantStore::Native,
+            [128, 256],
+        )
+    }
 }
 
 #[test]
