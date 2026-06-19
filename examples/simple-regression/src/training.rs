@@ -70,7 +70,7 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_checkpointer()
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
         .summary();
 

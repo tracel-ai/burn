@@ -97,7 +97,7 @@ pub fn train<D: TextClassificationDataset + 'static>(
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
-        .with_checkpointer()
+        .with_default_checkpointers()
         .with_training_strategy(strategy.into())
         .num_epochs(config.num_epochs)
         .summary();

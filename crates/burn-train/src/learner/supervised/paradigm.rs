@@ -1,6 +1,7 @@
 use crate::checkpoint::{
-    AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
-    KeepLastNCheckpoints, MetricCheckpointingStrategy,
+    AsyncCheckpointer, Checkpoint, Checkpointer, CheckpointingStrategy,
+    ComposedCheckpointingStrategy, FileCheckpointer, KeepLastNCheckpoints,
+    MetricCheckpointingStrategy,
 };
 use crate::components::{InferenceModelOutput, TrainingModelOutput};
 use crate::learner::EarlyStoppingStrategy;
@@ -24,8 +25,10 @@ use crate::{
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
+use burn_core::store::ModuleRecord;
 use burn_core::tensor::Device;
-use burn_optim::lr_scheduler::LrScheduler;
+use burn_optim::OptimizerRecord;
+use burn_optim::lr_scheduler::{LrScheduler, LrSchedulerRecord};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -314,7 +317,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
 
     /// Register a checkpointer that will save the [optimizer](burn_optim::ModuleOptimizer), the
     /// [model](AutodiffModule) and the [scheduler](LrScheduler) to separate burnpack files.
-    pub fn with_checkpointer(mut self) -> Self {
+    pub fn with_default_checkpointers(mut self) -> Self {
         let checkpoint_dir = self.directory.join("checkpoint");
         let checkpointer_model = FileCheckpointer::new(&checkpoint_dir, "model");
         let checkpointer_optimizer = FileCheckpointer::new(&checkpoint_dir, "optim");
@@ -324,6 +327,28 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
             AsyncCheckpointer::new(checkpointer_model),
             AsyncCheckpointer::new(checkpointer_optimizer),
             AsyncCheckpointer::new(checkpointer_scheduler),
+        ));
+
+        self
+    }
+
+    /// Register your own checkpointers that will save the [optimizer](burn_optim::ModuleOptimizer), the
+    /// [model](AutodiffModule) and the [scheduler](LrScheduler) to separate burnpack files.
+    pub fn with_custom_checkpointers<CM, CO, CL>(
+        mut self,
+        module_checkpointer: CM,
+        optimizer_checkpointer: CO,
+        lr_checkpointer: CL,
+    ) -> Self
+    where
+        CM: Checkpointer<ModuleRecord> + 'static,
+        CO: Checkpointer<OptimizerRecord> + 'static,
+        CL: Checkpointer<LrSchedulerRecord> + 'static,
+    {
+        self.checkpointers = Some((
+            AsyncCheckpointer::new(module_checkpointer),
+            AsyncCheckpointer::new(optimizer_checkpointer),
+            AsyncCheckpointer::new(lr_checkpointer),
         ));
 
         self
