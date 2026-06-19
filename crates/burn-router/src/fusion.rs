@@ -176,7 +176,11 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     }
 
     fn status(&self) -> FuserStatus {
-        FuserStatus::Open
+        if self.len() > 128 {
+            FuserStatus::Closed
+        } else {
+            FuserStatus::Open
+        }
     }
 
     fn properties(&self) -> FuserProperties {

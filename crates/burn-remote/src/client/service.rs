@@ -30,21 +30,6 @@ use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
 pub use registry::{endpoint_to_id, id_to_endpoint};
 
-/// Flush the outgoing task buffer when this many tasks have accumulated.
-///
-/// This is wire-level batching only — every task in the batch still carries its own
-/// [`StreamId`] and any [`RequestId`] it needs, so the server sees the exact same
-/// per-task semantics it would if each task arrived in its own frame. The threshold
-/// caps memory and latency for chains of fire-and-forget submits that never hit a
-/// [`submit_blocking`](RemoteService::submit_blocking) barrier.
-const FLUSH_THRESHOLD: usize = 32;
-
-/// Flush once this many bytes of buffered tensor data accumulate, independent of the task-count
-/// [`FLUSH_THRESHOLD`]. Bounds how much tensor data sits unsent so large uploads go out promptly
-/// while small ops keep batching. Tuning knob — larger batches fewer/bigger frames, smaller cuts
-/// latency for data-heavy streams.
-const FLUSH_BYTES_THRESHOLD: usize = 1024 * 1024;
-
 /// All the state owned by the device-runner thread for a single remote device.
 ///
 /// `RemoteService` lives behind a [`DeviceHandle`](burn_backend::DeviceHandle); every call
@@ -54,7 +39,7 @@ const FLUSH_BYTES_THRESHOLD: usize = 1024 * 1024;
 ///
 /// The service mirrors that submit-style API internally: fire-and-forget calls go
 /// through [`submit`](Self::submit) (push onto the [`batch`](Self::batch), flush once it
-/// reaches [`FLUSH_THRESHOLD`]), and response-producing calls go through
+/// reaches the configured flush threshold), and response-producing calls go through
 /// [`submit_blocking`](Self::submit_blocking) (push, then flush right away so the request
 /// is enqueued before we await the oneshot).
 ///
@@ -109,7 +94,11 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
             address,
             device_index,
             writer: None,
-            batch: OutgoingBatch::new(FLUSH_THRESHOLD, FLUSH_BYTES_THRESHOLD),
+            batch: {
+                let cfg = burn_std::config::config();
+                let remote = cfg.remote();
+                OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
+            },
             pending: PendingResponses::new(),
             settings: settings_cell(id),
             device_count: device_count_cell(id),
@@ -261,8 +250,8 @@ fn connect_error<E: std::fmt::Debug>(route: &str, address: &Address, err: &E) ->
 }
 
 impl<C: ProtocolClient> RemoteService<C> {
-    /// Buffer a fire-and-forget op. The buffer is flushed automatically once it reaches
-    /// [`FLUSH_THRESHOLD`] entries.
+    /// Buffer a fire-and-forget op. The buffer is flushed automatically once it reaches the
+    /// configured flush threshold.
     pub fn register_op(&mut self, stream_id: StreamId, op: OperationIr) {
         self.submit_task(Task::RegisterOperation(stream_id, op));
     }
@@ -299,6 +288,7 @@ impl<C: ProtocolClient> RemoteService<C> {
 
     pub fn register_tensor(&mut self, stream_id: StreamId, id: TensorId, data: TensorData) {
         self.submit_task(Task::RegisterTensor(stream_id, id, data));
+        self.flush();
     }
 
     /// Buffer a fire-and-forget "alias `src_id` under `new_id`" task. FIFO submission keeps it
@@ -316,7 +306,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// This is a coordination point with no following barrier on this client — the caller
     /// (`change_backend`) switches to the target client right after submitting it — so we
     /// flush right away instead of relying on a later op to piggy-back the flush. Otherwise
-    /// the task would sit buffered below [`FLUSH_THRESHOLD`] and the target server would
+    /// the task would sit buffered below the flush threshold and the target server would
     /// never start the download.
     pub fn register_tensor_remote(
         &mut self,

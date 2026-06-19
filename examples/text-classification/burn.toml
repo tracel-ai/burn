@@ -1,6 +1,6 @@
 [fusion]
 logger = { file = "/tmp/fusion.log", level = "disabled" }
-beam_search = { max_blocks = 1, max_explorations = 10 }
+beam_search = { max_blocks = 1, max_explorations = 10000 }
 
 [remote]
 logger = { file = "/tmp/remote.log", level = "full" }
@@ -23,4 +23,4 @@ logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
 
 [cubecl.streaming]
-max_streams = 1
+max_streams = 8

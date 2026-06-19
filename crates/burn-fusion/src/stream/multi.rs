@@ -285,7 +285,8 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
     }
 
     fn execute_unfused(&mut self, optimization: BlockOptimization<R::Optimization>) {
-        self.queue.execute_unfused(optimization, self.handles, self.id)
+        self.queue
+            .execute_unfused(optimization, self.handles, self.id)
     }
 }
 
