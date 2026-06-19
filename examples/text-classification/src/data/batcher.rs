@@ -65,7 +65,7 @@ impl Batcher<TextClassificationItem, TextClassificationTrainingBatch>
             self.tokenizer.pad_token(),
             tokens_list,
             self.seq_length,
-            device,
+            &Device::flex(),
         );
 
         // Create and return training batch. Build the labels with a single fixed-shape `from_data`
@@ -73,7 +73,7 @@ impl Batcher<TextClassificationItem, TextClassificationTrainingBatch>
         // batch (see `generate_padding_mask` for the same rationale on the tokens).
         TextClassificationTrainingBatch {
             tokens: mask.tensor,
-            labels: Tensor::from_data(TensorData::new(labels, [batch_size]), device),
+            labels: Tensor::from_data(TensorData::new(labels, [batch_size]), &Device::flex()),
             mask_pad: mask.mask,
         }
     }
