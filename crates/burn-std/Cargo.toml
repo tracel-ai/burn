@@ -28,6 +28,7 @@ hashbrown = { workspace = true }
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 derive-new = { workspace = true }
 enumset = { workspace = true }
+float8 = {workspace = true, features = ["bytemuck"]}
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 rand = { workspace = true, default-features = false }
@@ -44,6 +45,7 @@ uuid = { workspace = true }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",
+    "fp8",
 ] }
 cubecl-zspace = { workspace = true, default-features = false }
 # Enable extra-platforms for portable-atomic support on targets without native atomics (e.g., thumbv6m)

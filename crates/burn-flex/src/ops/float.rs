@@ -7,7 +7,7 @@ use burn_backend::{
     ops::{FloatTensorOps, GridSampleOptions, IntTensorOps},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-use burn_std::{Bytes, IntDType, Shape, Slice, bf16, f16};
+use burn_std::{Bytes, IntDType, Shape, Slice, bf16, e4m3, e5m2, f16};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
@@ -40,6 +40,8 @@ impl FloatTensorOps<Flex> for Flex {
             }
             FloatDType::F16 => TensorData::random::<f16, _, _>(shape, distribution, &mut rng),
             FloatDType::BF16 => TensorData::random::<bf16, _, _>(shape, distribution, &mut rng),
+            FloatDType::E4M3 => TensorData::random::<e4m3, _, _>(shape, distribution, &mut rng),
+            FloatDType::E5M2 => TensorData::random::<e5m2, _, _>(shape, distribution, &mut rng),
         };
         *seed = Some(rng);
         FlexTensor::from_data(data)

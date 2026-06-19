@@ -1,5 +1,7 @@
 use core::cmp::Ordering;
+use cubecl_common::{e4m3, e5m2};
 use rand::Rng;
+use rand_distr::uniform::UniformSampler;
 
 use crate::distribution::Distribution;
 use crate::{BoolStore, DType, bf16, f16, flex32};
@@ -274,6 +276,32 @@ make_element!(
     dtype DType::Flex32,
     min flex32::from_f32(f16::MIN.to_f32_const()),
     max flex32::from_f32(f16::MAX.to_f32_const())
+);
+
+make_element!(
+    ty e4m3,
+    convert ToElement::to_e4m3,
+    random |distribution: Distribution, rng: &mut R| {
+        let sample: f32 = distribution.sampler(rng).sample();
+        e4m3::from_elem(sample)
+    },
+    //https://github.com/EricLBuehler/float8/blob/99dfe6ca943d97f8df6bb4e98cef4b763111c2d9/src/lib.rs#L398
+    cmp |_a: &e4m3, _b: &e4m3| todo!("implement Ord on e4m3 in CubeCL"),
+    dtype DType::E4M3
+);
+
+make_element!(
+    ty e5m2,
+    convert ToElement::to_e5m2,
+    random |distribution: Distribution, rng: &mut R| {
+        // let sample: e4m3 = distribution.sampler(rng).sample();
+        // e4m3::from_elem(sample)
+        let sample: f32 = distribution.sampler(rng).sample();
+        e5m2::from_elem(sample)
+    },
+    //https://github.com/EricLBuehler/float8/blob/99dfe6ca943d97f8df6bb4e98cef4b763111c2d9/src/lib.rs#L398
+    cmp |a: &e5m2, b: &e5m2| a.total_cmp(*b),
+    dtype DType::E5M2
 );
 
 make_element!(

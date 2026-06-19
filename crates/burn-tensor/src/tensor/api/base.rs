@@ -2812,6 +2812,8 @@ impl DataIterFmt {
             DType::F32 | DType::Flex32 => fmt_float(self.next_elem::<f32>(), self.precision),
             DType::F16 => fmt_float(self.next_elem::<burn_std::f16>(), self.precision),
             DType::BF16 => fmt_float(self.next_elem::<burn_std::bf16>(), self.precision),
+            DType::E4M3 => fmt_float(self.next_elem::<burn_std::e4m3>(), self.precision),
+            DType::E5M2 => fmt_float(self.next_elem::<burn_std::e5m2>(), self.precision),
             DType::I64 => fmt_elem(self.next_elem::<i64>()),
             DType::I32 => fmt_elem(self.next_elem::<i32>()),
             DType::I16 => fmt_elem(self.next_elem::<i16>()),
