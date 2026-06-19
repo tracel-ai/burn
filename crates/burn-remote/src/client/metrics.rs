@@ -40,6 +40,17 @@ fn serialized_len<T: serde::Serialize>(value: &T) -> usize {
         .unwrap_or(0)
 }
 
+/// Savings as a percentage of the baseline — the fraction of would-be traffic that caching
+/// avoided. Zero while the baseline is still zero (nothing has been replayed yet), so the first
+/// log line can't divide by zero.
+fn percent_saved(saved: u64, baseline: u64) -> f64 {
+    if baseline == 0 {
+        0.0
+    } else {
+        saved as f64 / baseline as f64 * 100.0
+    }
+}
+
 /// Record that `graph` was registered once under `id` (the one-time cost of caching it).
 pub(crate) fn record_registration(id: GraphId, graph: &[OperationIr]) {
     if level() == RemoteLogLevel::Disabled {
@@ -76,15 +87,15 @@ pub(crate) fn record_execution(id: GraphId, bindings: &GraphBindings) {
     ACTUAL.fetch_add(bindings_size as u64, Ordering::Relaxed);
     BASELINE.fetch_add(graph_size as u64, Ordering::Relaxed);
 
-    let saved = BASELINE
-        .load(Ordering::Relaxed)
-        .saturating_sub(ACTUAL.load(Ordering::Relaxed));
+    let baseline = BASELINE.load(Ordering::Relaxed);
+    let saved = baseline.saturating_sub(ACTUAL.load(Ordering::Relaxed));
+    let pct = percent_saved(saved, baseline);
 
     if level() >= RemoteLogLevel::Full {
         log_remote(RemoteLogLevel::Full, || {
             format!(
                 "[remote] replayed graph {id:?}: sent {bindings_size} bytes instead of \
-                 ~{graph_size}; cumulative saved {saved} bytes"
+                 ~{graph_size}; cumulative saved {saved} bytes ({pct:.1}% of baseline)"
             )
         });
     } else {
@@ -94,8 +105,8 @@ pub(crate) fn record_execution(id: GraphId, bindings: &GraphBindings) {
         if mib > previous {
             log_remote(RemoteLogLevel::Basic, || {
                 format!(
-                    "[remote] op-graph caching has saved ~{mib} MiB ({saved} bytes) of network \
-                     traffic"
+                    "[remote] op-graph caching has saved ~{mib} MiB ({saved} bytes, \
+                     {pct:.1}% of baseline) of network traffic"
                 )
             });
         }

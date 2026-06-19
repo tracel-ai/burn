@@ -2,7 +2,7 @@
 logger = { file = "/tmp/fusion.log", level = "disabled" }
 
 [remote]
-logger = { file = "/tmp/remote.log", level = "full" }
+logger = { file = "/tmp/remote.log", level = "disabled" }
 
 [cubecl.profiling]
 logger = { log = "info", level = "disabled" }

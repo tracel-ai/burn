@@ -65,10 +65,12 @@ where
     local_comm: Arc<LocalCommService<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see [`Task::RegisterGraph`]).
     ///
-    /// `Mutex` only for interior mutability under `process_task(&self)`; the worker thread is the
-    /// sole accessor, the lock is never held across an `await`, and the map is dropped with the
-    /// session.
-    graphs: Mutex<HashMap<GraphId, Vec<OperationIr>>>,
+    /// `Mutex` only for interior mutability under `process_task(&self)`. Each graph is held behind
+    /// an [`Arc`] so a replay clones the handle out under a short lock and runs `replay_graph`
+    /// *after* releasing it — the lock guards only the map, never the backend dispatch. That keeps
+    /// the cache from becoming a serialization point if graph execution is ever driven from more
+    /// than the current single-FIFO worker.
+    graphs: Mutex<HashMap<GraphId, Arc<Vec<OperationIr>>>>,
 }
 
 impl<B, P> SessionHandler<B, P>
@@ -195,7 +197,10 @@ where
                 // Pure bookkeeping: cache the reusable graph for later replay. Kept under the
                 // stream context for consistency even though it touches no backend state.
                 stream_id.executes(|| {
-                    self.graphs.lock().unwrap().insert(graph_id, relative_graph);
+                    self.graphs
+                        .lock()
+                        .unwrap()
+                        .insert(graph_id, Arc::new(relative_graph));
                 });
                 Ok(())
             }
@@ -204,11 +209,16 @@ where
                 graph_id,
                 bindings,
             } => {
-                let cache = self.graphs.lock().unwrap();
-                let graph = cache
-                    .get(&graph_id)
-                    .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?;
-                stream_id.executes(|| replay_graph(runner, graph, bindings));
+                // Clone the Arc out under a short lock, then replay after releasing it: the lock
+                // guards only the cache lookup, never the backend dispatch in `replay_graph`.
+                let graph = {
+                    let cache = self.graphs.lock().unwrap();
+                    cache
+                        .get(&graph_id)
+                        .cloned()
+                        .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?
+                };
+                stream_id.executes(|| replay_graph(runner, &graph, bindings));
                 Ok(())
             }
             Task::RegisterTensor(stream_id, id, data) => {
