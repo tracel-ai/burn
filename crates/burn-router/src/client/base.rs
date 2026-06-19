@@ -59,17 +59,26 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
 
-    /// Register a reusable group of operations (in relative form) under `graph_id`, so it can later
-    /// be replayed by id with [`execute_graph`](Self::execute_graph).
+    /// Register a reusable group of operations (in relative form) under `graph_id` *and* run its
+    /// first invocation with `bindings`, so it can later be replayed by id with
+    /// [`execute_graph`](Self::execute_graph).
     ///
-    /// Used by the fusion layer to avoid re-sending a recurring op-graph. The default panics —
-    /// only clients that genuinely cache op-graphs remotely (the remote backend) override it.
-    fn register_graph(&self, _graph_id: GraphId, _relative_graph: Vec<OperationIr>) {
+    /// Registration always coincides with the first execution, so they're combined to save a
+    /// round-trip on a cache miss. Used by the fusion layer to avoid re-sending a recurring
+    /// op-graph. The default panics — only clients that genuinely cache op-graphs remotely (the
+    /// remote backend) override it.
+    fn register_and_execute_graph(
+        &self,
+        _graph_id: GraphId,
+        _relative_graph: Vec<OperationIr>,
+        _bindings: GraphBindings,
+    ) {
         panic!("This router client does not support graph caching");
     }
 
-    /// Replay a previously [registered](Self::register_graph) graph with the given concrete
-    /// bindings. The default panics (see [`register_graph`](Self::register_graph)).
+    /// Replay a previously [registered](Self::register_and_execute_graph) graph with the given
+    /// concrete bindings. The default panics (see
+    /// [`register_and_execute_graph`](Self::register_and_execute_graph)).
     fn execute_graph(&self, _graph_id: GraphId, _bindings: GraphBindings) {
         panic!("This router client does not support graph caching");
     }

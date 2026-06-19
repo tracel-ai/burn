@@ -364,23 +364,22 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
         // change between invocations of the same cached graph, so they travel every time.
         let ranges = context.ranges.clone();
 
-        // Register the relative graph once (first invocation only), then invoke it by id.
         let bindings = GraphBindings {
             tensors,
             shapes,
             scalars,
             ranges,
         };
-        let id = match self.graph_id {
-            Some(id) => id,
+        match self.graph_id {
+            // Already registered: replay by id, sending only the bindings.
+            Some(id) => client.execute_graph(id, bindings),
+            // First invocation: register the relative graph and execute it in a single round-trip.
             None => {
                 let id = next_graph_id();
                 self.graph_id = Some(id);
-                client.register_graph(id, self.graph.clone());
-                id
+                client.register_and_execute_graph(id, self.graph.clone(), bindings);
             }
         };
-        client.execute_graph(id, bindings);
     }
 
     fn to_state(&self) -> RouterGraphExecutionState {

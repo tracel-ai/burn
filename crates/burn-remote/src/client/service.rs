@@ -39,6 +39,12 @@ pub use registry::{endpoint_to_id, id_to_endpoint};
 /// [`submit_blocking`](RemoteService::submit_blocking) barrier.
 const FLUSH_THRESHOLD: usize = 32;
 
+/// Flush once this many bytes of buffered tensor data accumulate, independent of the task-count
+/// [`FLUSH_THRESHOLD`]. Bounds how much tensor data sits unsent so large uploads go out promptly
+/// while small ops keep batching. Tuning knob — larger batches fewer/bigger frames, smaller cuts
+/// latency for data-heavy streams.
+const FLUSH_BYTES_THRESHOLD: usize = 1024 * 1024;
+
 /// All the state owned by the device-runner thread for a single remote device.
 ///
 /// `RemoteService` lives behind a [`DeviceHandle`](burn_backend::DeviceHandle); every call
@@ -103,7 +109,7 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
             address,
             device_index,
             writer: None,
-            batch: OutgoingBatch::new(FLUSH_THRESHOLD),
+            batch: OutgoingBatch::new(FLUSH_THRESHOLD, FLUSH_BYTES_THRESHOLD),
             pending: PendingResponses::new(),
             settings: settings_cell(id),
             device_count: device_count_cell(id),
@@ -261,17 +267,19 @@ impl<C: ProtocolClient> RemoteService<C> {
         self.submit_task(Task::RegisterOperation(stream_id, op));
     }
 
-    /// Buffer a fire-and-forget "register a reusable op-graph" task.
-    pub fn register_graph(
+    /// Buffer a fire-and-forget "register a reusable op-graph and run its first invocation" task.
+    pub fn register_and_execute_graph(
         &mut self,
         stream_id: StreamId,
         graph_id: burn_ir::GraphId,
         relative_graph: Vec<OperationIr>,
+        bindings: burn_ir::GraphBindings,
     ) {
-        self.submit_task(Task::RegisterGraph {
+        self.submit_task(Task::RegisterAndExecuteGraph {
             stream_id,
             graph_id,
             relative_graph,
+            bindings,
         });
     }
 

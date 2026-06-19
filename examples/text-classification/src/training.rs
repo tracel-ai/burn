@@ -71,12 +71,12 @@ pub fn train<D: TextClassificationDataset + 'static>(
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .set_device(Device::flex())
         .batch_size(config.batch_size)
-        .num_workers(1)
+        // .num_workers(1)
         .build(SamplerDataset::new(dataset_train, 25_000));
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .set_device(Device::flex())
         .batch_size(config.batch_size)
-        .num_workers(1)
+        // .num_workers(1)
         .build(SamplerDataset::new(dataset_test, 2500));
 
     // Initialize optimizer

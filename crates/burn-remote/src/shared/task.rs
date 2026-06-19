@@ -68,17 +68,21 @@ pub enum Task {
     /// identity, and the server-side backend (fusion, etc.) handles any batching of
     /// its own.
     RegisterOperation(StreamId, OperationIr),
-    /// Register a reusable group of operations under `graph_id`, in relative form.
+    /// Register a reusable group of operations under `graph_id` (relative form) *and* immediately
+    /// execute it with `bindings`.
     ///
-    /// Sent once per distinct graph; the server caches it (per session) and replays it on every
-    /// [`ExecuteGraph`](Task::ExecuteGraph). This is how the fusion-enabled client avoids
-    /// re-sending a recurring op sequence (e.g. a model block) on every step.
-    RegisterGraph {
+    /// Registering a new graph always coincides with its first execution, so the two are combined
+    /// into a single task to avoid a redundant round-trip on a cache miss. The server caches the
+    /// graph (per session) and replays it on every subsequent [`ExecuteGraph`](Task::ExecuteGraph).
+    /// This is how the fusion-enabled client avoids re-sending a recurring op sequence (e.g. a
+    /// model block) on every step.
+    RegisterAndExecuteGraph {
         stream_id: StreamId,
         graph_id: GraphId,
         relative_graph: Vec<OperationIr>,
+        bindings: GraphBindings,
     },
-    /// Replay a registered graph with the given concrete bindings.
+    /// Replay an already-registered graph with the given concrete bindings.
     ExecuteGraph {
         stream_id: StreamId,
         graph_id: GraphId,

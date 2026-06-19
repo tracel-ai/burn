@@ -62,7 +62,8 @@ where
     response_sender: mpsc::Sender<TaskResponse>,
     external_comm: Arc<ExternalCommService<B, P>>,
     local_comm: Arc<LocalCommService<B>>,
-    /// Cache of client-registered reusable op-graphs, keyed by id (see [`Task::RegisterGraph`]).
+    /// Cache of client-registered reusable op-graphs, keyed by id (see
+    /// [`Task::RegisterAndExecuteGraph`]).
     ///
     /// `Mutex` only for interior mutability under `process_task(&self)`. Each graph is held behind
     /// an [`Arc`] so a replay clones the handle out under a short lock and runs `replay_graph`
@@ -187,18 +188,19 @@ where
                 stream_id.executes(|| self.runner.register_op(op));
                 Ok(())
             }
-            Task::RegisterGraph {
+            Task::RegisterAndExecuteGraph {
                 stream_id,
                 graph_id,
                 relative_graph,
+                bindings,
             } => {
-                // Pure bookkeeping: cache the reusable graph for later replay. Kept under the
-                // stream context for consistency even though it touches no backend state.
+                // Cache the reusable graph for later replay, then immediately execute this first
+                // invocation. The lock guards only the cache insert (cheap `Arc` clone); it is
+                // released before the backend dispatch, like `ExecuteGraph` below.
                 stream_id.executes(|| {
-                    self.graphs
-                        .lock()
-                        .unwrap()
-                        .insert(graph_id, Graph::new(relative_graph));
+                    let graph = Graph::new(relative_graph);
+                    self.graphs.lock().unwrap().insert(graph_id, graph.clone());
+                    graph.replay(&mut self.runner, bindings);
                 });
                 Ok(())
             }
