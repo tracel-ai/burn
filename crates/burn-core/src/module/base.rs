@@ -1,4 +1,4 @@
-use super::{Param, ParamId, Quantizer};
+use super::{LoraMapper, Param, ParamId, QLoraMapper, Quantizer};
 use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Device, Int, Tensor};
@@ -142,6 +142,26 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Quantize the weights of the module.
     fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
         self.map(quantizer)
+    }
+
+    /// Attach LoRA adapters to the module's 2-D weights, freezing the base weights.
+    ///
+    /// The same module keeps working without any code changes; adapted weights now produce
+    /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
+    fn apply_lora(self, mapper: &mut LoraMapper) -> Self
+    where
+        Self: Sized,
+    {
+        self.map(mapper)
+    }
+
+    /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
+    /// adapters to 2-D weights.
+    fn apply_qlora(self, mapper: &mut QLoraMapper) -> Self
+    where
+        Self: Sized,
+    {
+        self.map(mapper)
     }
 
     /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
