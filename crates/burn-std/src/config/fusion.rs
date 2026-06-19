@@ -22,12 +22,23 @@ pub struct BeamSearchConfig {
     /// in the fusion cache.
     #[serde(default = "default_max_blocks")]
     pub max_blocks: usize,
+
+    /// Stop exploring new optimizations after this many explorations (per stream).
+    ///
+    /// Each cache miss runs the (relatively expensive) optimizer to build a new optimization. A
+    /// graph whose relative form changes every step never caches, so it re-explores forever. Once
+    /// this cap is reached, cache-missing segments execute *unfused* (no optimizer work, nothing
+    /// added to the cache) instead. Cache *hits* are unaffected, so already-cached stable graphs
+    /// keep replaying. `None` (the default) never disables exploration.
+    #[serde(default)]
+    pub max_explorations: Option<usize>,
 }
 
 impl Default for BeamSearchConfig {
     fn default() -> Self {
         Self {
             max_blocks: default_max_blocks(),
+            max_explorations: None,
         }
     }
 }

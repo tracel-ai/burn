@@ -4,7 +4,7 @@ use super::{
     queue::OperationQueue,
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
-use crate::{FusionRuntime, UnfusedOp};
+use crate::{FusionRuntime, UnfusedOp, search::BlockOptimization};
 use burn_ir::{HandleContainer, OperationIr, TensorId};
 use hashbrown::{HashMap, HashSet};
 
@@ -282,6 +282,10 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
 
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<R::Optimization>) {
         self.queue.execute(id, self.handles, store, self.id)
+    }
+
+    fn execute_unfused(&mut self, optimization: BlockOptimization<R::Optimization>) {
+        self.queue.execute_unfused(optimization, self.handles, self.id)
     }
 }
 
