@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    AutodiffBackend, Scalar, TensorData,
+    AutodiffBackend, Scalar, TensorData, TensorMetadata,
     ops::{BoolTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
@@ -164,7 +164,7 @@ impl BasicOps for Bool {
     }
 
     fn device(tensor: &BridgeTensor) -> Device {
-        Device::new(Dispatch::bool_device(tensor.as_dispatch()))
+        Device::new(tensor.as_dispatch().device())
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {

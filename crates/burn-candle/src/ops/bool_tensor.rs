@@ -59,10 +59,6 @@ impl BoolTensorOps<Self> for Candle {
         CandleTensor::new(tensor.tensor.to_dtype(out_dtype.into_dtype()).unwrap())
     }
 
-    fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
-        super::base::device(tensor)
-    }
-
     fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
         super::base::to_device(tensor, device)
     }

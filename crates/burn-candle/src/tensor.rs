@@ -11,6 +11,7 @@ pub struct CandleTensor {
 }
 
 impl TensorMetadata for CandleTensor {
+    type Device = CandleDevice;
     fn dtype(&self) -> DType {
         match self.tensor.dtype() {
             candle_core::DType::U8 => DType::U8,
@@ -32,6 +33,10 @@ impl TensorMetadata for CandleTensor {
 
     fn rank(&self) -> usize {
         self.tensor.dims().len()
+    }
+
+    fn device(&self) -> CandleDevice {
+        self.tensor.device().clone().into()
     }
 }
 

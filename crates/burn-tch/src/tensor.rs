@@ -65,6 +65,7 @@ pub struct TchTensor {
 }
 
 impl TensorMetadata for TchTensor {
+    type Device = LibTorchDevice;
     fn dtype(&self) -> DType {
         match self.tensor.kind() {
             tch::Kind::Uint8 => DType::U8,
@@ -88,6 +89,9 @@ impl TensorMetadata for TchTensor {
 
     fn rank(&self) -> usize {
         self.tensor.dim()
+    }
+    fn device(&self) -> Self::Device {
+        self.tensor.device().into()
     }
 }
 

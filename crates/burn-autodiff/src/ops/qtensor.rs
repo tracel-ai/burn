@@ -32,10 +32,6 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         todo!()
     }
 
-    fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        B::q_device(tensor)
-    }
-
     fn q_to_device(
         _tensor: QuantizedTensor<Self>,
         _device: &Device<Self>,

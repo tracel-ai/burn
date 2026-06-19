@@ -55,10 +55,6 @@ impl BoolTensorOps<Self> for NdArray {
         )
     }
 
-    fn bool_device(_tensor: &NdArrayTensor) -> NdArrayDevice {
-        NdArrayDevice::Cpu
-    }
-
     fn bool_empty(shape: Shape, _device: &NdArrayDevice, dtype: BoolDType) -> NdArrayTensor {
         Self::bool_zeros(shape, _device, dtype)
     }

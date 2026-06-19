@@ -5,8 +5,7 @@ use crate::{
 use bon::Builder;
 
 use burn_core::backend::{
-    Backend, ExtensionType, backend_extension,
-    tensor::{BoolTensor, IntTensor},
+    Backend, ExtensionType, TensorMetadata, backend_extension, tensor::{BoolTensor, IntTensor}
 };
 use burn_core::tensor::{Int, IntDType, Scalar, Tensor, read_sync};
 use burn_core::{self as burn, backend::tensor::FloatTensor}; // for backend_extension
@@ -225,10 +224,10 @@ pub trait BoolVisionOps: Backend {
         connectivity: Connectivity,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        let device = Self::bool_device(&img);
+        let device = &img.device();
         Self::int_from_data(
             cpu::connected_components::<Self>(img, connectivity, out_dtype),
-            &device,
+            device,
         )
     }
 
@@ -243,10 +242,10 @@ pub trait BoolVisionOps: Backend {
         opts: ConnectedStatsOptions,
         out_dtype: IntDType,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
-        let device = Self::bool_device(&img);
+        let device = &img.device();
         let (labels, stats) =
             cpu::connected_components_with_stats::<Self>(img, connectivity, opts, out_dtype);
-        (Self::int_from_data(labels, &device), stats)
+        (Self::int_from_data(labels, device), stats)
     }
 
     /// Erodes an input tensor with the specified kernel.
@@ -255,11 +254,11 @@ pub trait BoolVisionOps: Backend {
         kernel: BoolTensor<Self>,
         opts: MorphOptions,
     ) -> BoolTensor<Self> {
-        let device = Self::bool_device(&input);
+        let device = &input.device();
         let input = read_sync(Self::bool_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::bool_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
+        Self::bool_from_data(morph(input, kernel, MorphOp::Erode, opts), device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -268,11 +267,11 @@ pub trait BoolVisionOps: Backend {
         kernel: BoolTensor<Self>,
         opts: MorphOptions,
     ) -> BoolTensor<Self> {
-        let device = Self::bool_device(&input);
+        let device = &input.device();
         let input = read_sync(Self::bool_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::bool_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::bool_from_data(morph(input, kernel, MorphOp::Dilate, opts), device)
     }
 }
 
@@ -295,11 +294,11 @@ pub trait IntVisionOps: Backend {
         kernel: BoolTensor<Self>,
         opts: MorphOptions,
     ) -> IntTensor<Self> {
-        let device = Self::int_device(&input);
+        let device = &input.device();
         let input = read_sync(Self::int_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::int_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
+        Self::int_from_data(morph(input, kernel, MorphOp::Erode, opts), device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -308,11 +307,11 @@ pub trait IntVisionOps: Backend {
         kernel: BoolTensor<Self>,
         opts: MorphOptions,
     ) -> IntTensor<Self> {
-        let device = Self::int_device(&input);
+        let device = &input.device();
         let input = read_sync(Self::int_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::int_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::int_from_data(morph(input, kernel, MorphOp::Dilate, opts), device)
     }
 }
 
@@ -335,11 +334,11 @@ pub trait FloatVisionOps: Backend {
         kernel: BoolTensor<Self>,
         opts: MorphOptions,
     ) -> FloatTensor<Self> {
-        let device = Self::float_device(&input);
+        let device = &input.device();
         let input = read_sync(Self::float_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::float_from_data(morph(input, kernel, MorphOp::Erode, opts), &device)
+        Self::float_from_data(morph(input, kernel, MorphOp::Erode, opts), device)
     }
 
     /// Dilates an input tensor with the specified kernel.
@@ -348,11 +347,11 @@ pub trait FloatVisionOps: Backend {
         kernel: BoolTensor<Self>,
         opts: MorphOptions,
     ) -> FloatTensor<Self> {
-        let device = Self::float_device(&input);
+        let device = &input.device();
         let input = read_sync(Self::float_into_data(input)).expect("Should read data");
         let kernel = read_sync(Self::bool_into_data(kernel)).expect("Should read data");
 
-        Self::float_from_data(morph(input, kernel, MorphOp::Dilate, opts), &device)
+        Self::float_from_data(morph(input, kernel, MorphOp::Dilate, opts), device)
     }
 
     /// Perform Non-Maximum Suppression on bounding boxes.
@@ -374,13 +373,13 @@ pub trait FloatVisionOps: Backend {
         options: NmsOptions,
         out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        let device = Self::float_device(&boxes);
+        let device = &boxes.device();
         let boxes = read_sync(Self::float_into_data(boxes)).expect("Should read data");
         let scores = read_sync(Self::float_into_data(scores)).expect("Should read data");
 
         match cpu::nms(boxes, scores, options, out_dtype) {
-            Some(data) => Self::int_from_data(data, &device),
-            None => Self::int_zeros([0].into(), &device, out_dtype),
+            Some(data) => Self::int_from_data(data, device),
+            None => Self::int_zeros([0].into(), device, out_dtype),
         }
     }
 }

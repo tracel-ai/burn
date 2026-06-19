@@ -2,8 +2,7 @@ use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
 use burn_core::backend::{
-    Backend,
-    tensor::{BoolTensor, Device},
+    Backend, TensorMetadata, tensor::{BoolTensor, Device}
 };
 use burn_core::tensor::{
     Element, ElementConversion, ElementLimits, ElementOrdered, IntDType, Shape, TensorData,
@@ -41,13 +40,13 @@ pub fn connected_components_with_stats<B: Backend>(
     _options: ConnectedStatsOptions,
     out_dtype: IntDType,
 ) -> (TensorData, ConnectedStatsPrimitive<B>) {
-    let device = B::bool_device(&img);
+    let device = &img.device();
     let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
     dispatch_bool_dtype!(img.dtype.into(), |BT| {
         dispatch_int_dtype!(out_dtype, |I| {
             let (labels, stats) =
                 run::<BT, I, ConnectedStatsOp<I>>(img, connectivity, ConnectedStatsOp::default);
-            let stats = finalize_stats::<B, I>(&device, stats);
+            let stats = finalize_stats::<B, I>(device, stats);
             (labels, stats)
         })
     })

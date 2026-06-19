@@ -30,10 +30,6 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_into_data(tensor).await)
     }
 
-    fn float_device(tensor: &FloatTensor<Self>) -> DispatchDevice {
-        tensor.device()
-    }
-
     fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
         // Relocating a non-tracked float tensor onto an autodiff device is a plain data move:
         // place it on the underlying hardware device and leave the tensor non-tracked. The

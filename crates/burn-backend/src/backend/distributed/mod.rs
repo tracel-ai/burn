@@ -16,7 +16,7 @@ pub use burn_std::distributed::*;
 /// A unique identifier for a parameter distributed across multiple devices.
 pub type DistributedParamId = burn_std::id::ParamId;
 
-use crate::{Backend, tensor::FloatTensor};
+use crate::{Backend, TensorMetadata, tensor::FloatTensor};
 
 /// Parameters for a tensor that is sharded across multiple devices.
 #[derive(Debug, Clone)]
@@ -35,7 +35,7 @@ pub struct CollectiveTensor<B: Backend> {
 impl<B: Backend> CollectiveTensor<B> {
     /// Synchronizes the collective operation and returns a valid tensor handle.
     pub fn resolve(self) -> FloatTensor<B> {
-        B::sync_collective(&B::float_device(&self.handle));
+        B::sync_collective(&self.handle.device());
         self.handle
     }
 
