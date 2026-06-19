@@ -1151,7 +1151,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         (
                             indices.clone(),
                             values.primitive.shape(),
-                            data.primitive.device().clone(),
+                            data.primitive.device(),
                         ),
                         B::float_scatter_nd(
                             data.primitive,
@@ -1268,7 +1268,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         _checkpointer: &mut Checkpointer,
                     ) {
                         let (data, values, indices, is_max) = ops.state;
-                        let device = data.device().clone();
+                        let device = data.device();
                         let data_dtype = data.dtype();
                         let data_shape = data.shape();
                         let settings = get_device_settings::<B>(&device);
@@ -1387,7 +1387,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 (
                     indices.clone(),
                     data.primitive.shape(),
-                    data.primitive.device().clone(),
+                    data.primitive.device(),
                 ),
                 B::float_gather_nd(data.primitive, indices),
             ),
@@ -1651,7 +1651,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 (
                     slices.to_vec(),
                     value.primitive.shape(),
-                    value.primitive.device().clone(),
+                    value.primitive.device(),
                 ),
                 B::float_slice_assign(tensor.primitive, slices, value.primitive),
             ),
@@ -1713,7 +1713,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     mask.clone(),
                     tensor.primitive.shape(),
                     source.primitive.shape(),
-                    source.primitive.device().clone(),
+                    source.primitive.device(),
                 ),
                 B::float_mask_where(tensor.primitive, mask, source.primitive),
             ),

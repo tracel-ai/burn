@@ -159,7 +159,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given dimension repeated.
     fn float_repeat_dim(tensor: FloatTensor<B>, dim: usize, times: usize) -> FloatTensor<B> {
-        let device = tensor.device().clone();
+        let device = tensor.device();
         repeat_with_slice_assign::<B, _, _, _>(
             tensor,
             dim,
@@ -1393,7 +1393,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// not need to handle empty tensors.
     fn float_cat(tensors: Vec<FloatTensor<B>>, dim: usize) -> FloatTensor<B> {
         let first_tensor = tensors.first().expect("Tensors should not be empty");
-        let device = first_tensor.device().clone();
+        let device = first_tensor.device();
 
         cat_with_slice_assign::<B, _, _, _>(
             tensors,
@@ -1728,7 +1728,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
     fn float_sort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> FloatTensor<B> {
-        let device = tensor.device().clone();
+        let device = tensor.device();
         sort::<B, _, _, _>(
             tensor,
             dim,
@@ -1765,7 +1765,7 @@ pub trait FloatTensorOps<B: Backend> {
         descending: bool,
         indices_dtype: IntDType,
     ) -> (FloatTensor<B>, IntTensor<B>) {
-        let device = tensor.device().clone();
+        let device = tensor.device();
         sort_with_indices::<B, _, _, _>(
             tensor,
             dim,
@@ -1802,7 +1802,7 @@ pub trait FloatTensorOps<B: Backend> {
         descending: bool,
         out_dtype: IntDType,
     ) -> IntTensor<B> {
-        let device = tensor.device().clone();
+        let device = tensor.device();
         argsort::<B, _, _>(tensor, dim, descending, out_dtype, device, |tensor| {
             let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
             try_read_sync(B::float_into_data(tensor))

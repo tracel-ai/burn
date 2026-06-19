@@ -144,7 +144,7 @@ pub trait DistributedOps<B: Backend> {
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
     unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
-        unsafe { &(*tensor.0) }.device().clone()
+        unsafe { &(*tensor.0) }.device()
     }
 
     /// Returns a clone of the float tensor from the tensor reference.

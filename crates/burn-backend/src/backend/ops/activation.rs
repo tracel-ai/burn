@@ -312,7 +312,7 @@ pub trait ActivationOps<B: Backend> {
 
         let shape = x.shape();
         let dtype = x.dtype();
-        let device = x.device().clone();
+        let device = x.device();
         let bool_dtype = get_device_settings::<B>(&device).bool_dtype;
 
         // max(-x, 0)

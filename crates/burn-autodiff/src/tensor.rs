@@ -235,7 +235,7 @@ impl<B: Backend> AutodiffTensor<B> {
 #[cfg(feature = "std")]
 impl<B: Backend> AutodiffTensor<B> {
     pub fn backward(self) -> Gradients {
-        let device = self.primitive.device().clone();
+        let device = self.primitive.device();
         let device_cloned = device.clone();
         let client = self.node.client.clone();
 
