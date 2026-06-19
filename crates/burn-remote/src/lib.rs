@@ -428,7 +428,10 @@ mod fusion_tests {
     /// The graph deliberately includes a reshape, so one of the intermediate tensors (`c`) has a
     /// *different* shape than the inputs/outputs — exercising the server's reconstruction of
     /// intermediate shapes from the shape-dim map (rather than them being sent per replay).
-    fn run<B: Backend<Device = RemoteDevice>>(device: &RemoteDevice, iters: usize) -> Vec<Vec<f32>> {
+    fn run<B: Backend<Device = RemoteDevice>>(
+        device: &RemoteDevice,
+        iters: usize,
+    ) -> Vec<Vec<f32>> {
         let mut out = Vec::new();
         for _ in 0..iters {
             let a = B::float_from_data(input(), device); // [2, 3]

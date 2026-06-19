@@ -207,6 +207,7 @@ where
                 let graph = cache
                     .get(&graph_id)
                     .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?;
+                println!("Replay graph {graph_id:?}");
                 stream_id.executes(|| replay_graph(runner, graph, bindings));
                 Ok(())
             }
@@ -395,8 +396,8 @@ fn replay_graph<B: BackendIr>(
     } = bindings;
     // The boundary map *is* the working id table — seeded here, intermediates added on demand.
     let mut ids: HashMap<TensorId, TensorId> = tensors.into_iter().collect();
-
     for op in graph {
+        println!("* {op:?} Before");
         let mut op = op.clone();
         op.for_each_tensor_mut(&mut |tensor: &mut TensorIr| {
             tensor.id = *ids.entry(tensor.id).or_insert_with(alloc_intermediate_id);
@@ -411,6 +412,7 @@ fn replay_graph<B: BackendIr>(
                 *scalar = scalars[placeholder as usize];
             }
         });
+        println!("* {op:?} After");
         runner.register_op(op);
     }
 }

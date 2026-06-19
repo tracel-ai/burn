@@ -83,10 +83,7 @@ impl<R: RouterChannel> FusionBackend for BackendRouter<R> {
     type FusionRuntime = RouterFusionRuntime<R>;
     type FullPrecisionBackend = Self;
 
-    fn cast_float(
-        tensor: burn_backend::tensor::FloatTensor<Self>,
-        dtype: DType,
-    ) -> Self::Handle {
+    fn cast_float(tensor: burn_backend::tensor::FloatTensor<Self>, dtype: DType) -> Self::Handle {
         Self::float_cast(tensor, dtype.into())
     }
 }
@@ -152,7 +149,8 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     }
 
     fn finish(&mut self) -> RouterGraphExecution<R> {
-        RouterGraphExecution::new(self.ops.clone(), self.device.clone())
+        let ops = core::mem::take(&mut self.ops);
+        RouterGraphExecution::new(ops, self.device.clone())
     }
 
     fn reset(&mut self) {

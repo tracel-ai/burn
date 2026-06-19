@@ -35,7 +35,9 @@ fn level() -> RemoteLogLevel {
 }
 
 fn serialized_len<T: serde::Serialize>(value: &T) -> usize {
-    rmp_serde::to_vec(value).map(|bytes| bytes.len()).unwrap_or(0)
+    rmp_serde::to_vec(value)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
 }
 
 /// Record that `graph` was registered once under `id` (the one-time cost of caching it).
