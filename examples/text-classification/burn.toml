@@ -2,7 +2,7 @@
 logger = { file = "/tmp/fusion.log", level = "disabled" }
 
 [remote]
-logger = { file = "/tmp/remote.log", level = "disabled" }
+logger = { file = "/tmp/remote.log", level = "full" }
 
 [cubecl.profiling]
 logger = { log = "info", level = "disabled" }
@@ -22,4 +22,4 @@ logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
 
 [cubecl.streaming]
-max_streams = 8
+max_streams = 1
