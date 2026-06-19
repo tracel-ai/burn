@@ -341,11 +341,17 @@ impl<R: RouterChannel> Optimization<RouterFusionRuntime<R>> for RouterGraphExecu
             }
         }
 
+        // Concrete slice ranges, indexed by their placeholder id (carried in a relative range's
+        // `start`). Cheap to clone — a few `Slice`s per slice op — and, like scalars, they can
+        // change between invocations of the same cached graph, so they travel every time.
+        let ranges = context.ranges.clone();
+
         // Register the relative graph once (first invocation only), then invoke it by id.
         let bindings = GraphBindings {
             tensors,
             shapes,
             scalars,
+            ranges,
         };
         let id = match self.graph_id {
             Some(id) => id,

@@ -2194,6 +2194,18 @@ impl OperationIr {
             OperationIr::Activation(repr) => repr.for_each_scalar_mut(f),
         }
     }
+
+    /// Visit every slice range in the operation. Only `Slice`/`SliceAssign` (under the `Base*`
+    /// variants) carry ranges; everything else is a no-op. Used by graph replay to restore the
+    /// concrete bounds that relativization replaced with placeholders.
+    pub fn for_each_range_mut(&mut self, f: &mut dyn FnMut(&mut Slice)) {
+        match self {
+            OperationIr::BaseFloat(repr) => repr.for_each_range_mut(f),
+            OperationIr::BaseInt(repr) => repr.for_each_range_mut(f),
+            OperationIr::BaseBool(repr) => repr.for_each_range_mut(f),
+            _ => {}
+        }
+    }
 }
 
 impl BaseOperationIr {
@@ -2385,6 +2397,14 @@ impl BaseOperationIr {
         };
 
         output
+    }
+
+    fn for_each_range_mut(&mut self, f: &mut dyn FnMut(&mut Slice)) {
+        match self {
+            BaseOperationIr::Slice(repr) => repr.ranges.iter_mut().for_each(|r| f(r)),
+            BaseOperationIr::SliceAssign(repr) => repr.ranges.iter_mut().for_each(|r| f(r)),
+            _ => {}
+        }
     }
 
     fn for_each_tensor_mut(&mut self, f: &mut dyn FnMut(&mut TensorIr)) {

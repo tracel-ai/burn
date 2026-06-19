@@ -1,5 +1,6 @@
 use crate::{ScalarIr, TensorId};
 use alloc::vec::Vec;
+use burn_backend::Slice;
 use serde::{Deserialize, Serialize};
 
 /// Identifier for a cached, reusable group of operations (a graph).
@@ -30,4 +31,9 @@ pub struct GraphBindings {
     /// Concrete scalar values indexed by their placeholder id (the value carried in a relativized
     /// `ScalarIr::UInt(placeholder)`).
     pub scalars: Vec<ScalarIr>,
+    /// Concrete slice ranges indexed by their placeholder id (the value carried in a relativized
+    /// range's `start` field). The relative graph keeps every `Slice` range as a positional
+    /// placeholder — its actual bounds are discarded by relativization (they vary per invocation,
+    /// like scalars) — so the replay restores each from here.
+    pub ranges: Vec<Slice>,
 }
