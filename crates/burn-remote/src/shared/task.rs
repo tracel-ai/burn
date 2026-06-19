@@ -85,6 +85,16 @@ pub enum Task {
         bindings: GraphBindings,
     },
     RegisterTensor(StreamId, TensorId, TensorData),
+    /// Register `new_id` as an alias of `src_id` — a second server handle over the same buffer.
+    ///
+    /// Emitted by the fusion layer's cross-stream sharing so a tensor used on multiple streams
+    /// gets one server id per stream view, each freeable independently. Ordered after the task
+    /// that materializes `src_id`, like every other op on the session's FIFO worker.
+    RegisterAlias {
+        stream_id: StreamId,
+        new_id: TensorId,
+        src_id: TensorId,
+    },
     RegisterTensorRemote(StreamId, TensorRemote, TensorId),
     ExposeTensorRemote {
         stream_id: StreamId,

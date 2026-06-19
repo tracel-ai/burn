@@ -133,6 +133,22 @@ impl<B: BackendIr> TensorInterpreter<B> {
         RouterTensor::new(id, shape, dtype, client)
     }
 
+    /// Register `new_id` as an alias of `src_id`: a second handle over the same backing buffer.
+    ///
+    /// Used for the fusion layer's cross-stream sharing (see
+    /// [`RouterClient::register_alias`](crate::RouterClient::register_alias)). Cloning the backend
+    /// handle is a cheap `Arc`-style refcount bump, so the buffer survives until *both* ids are
+    /// freed — consuming the alias on one stream can't pull it out from under the other.
+    pub fn register_alias(&self, new_id: TensorId, src_id: TensorId) {
+        let mut ctx = self.context.lock().unwrap();
+        let handle = ctx
+            .handles
+            .get_handle_ref(&src_id)
+            .expect("alias source tensor must be materialized before it is aliased")
+            .clone();
+        ctx.handles.register_handle(new_id, handle);
+    }
+
     /// Register a tensor from its data and id.
     pub fn register_tensor_data_id(&self, id: TensorId, data: TensorData) {
         let mut ctx = self.context.lock().unwrap();

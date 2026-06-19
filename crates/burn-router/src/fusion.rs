@@ -112,6 +112,19 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
     fn fusers(device: R::Device) -> Vec<Box<dyn OperationFuser<Self::Optimization>>> {
         vec![Box::new(RouterFuser::<R>::new(device))]
     }
+
+    fn alias_handle(handle: &RouterTensor<R::Client>) -> RouterTensor<R::Client> {
+        // The router handle is a thin id into a server-side tensor, so a bare `clone()` would keep
+        // the same server id — every cross-stream alias would collapse onto one server handle, and
+        // the first stream to consume it (`ReadWrite`) would free it for the others. Instead mint a
+        // fresh id and have the server register it as an alias of the same buffer (a refcounted
+        // clone), so each stream's view frees independently. Mirrors local backends, where the
+        // default `clone()` already yields an independent `HandleContainer` entry over a shared
+        // `Arc` buffer.
+        let id = handle.client.create_empty_handle();
+        handle.client.register_alias(id, handle.id);
+        RouterTensor::new(id, handle.shape.clone(), handle.dtype, handle.client.clone())
+    }
 }
 
 /// A greedy operation fuser that records every operation and never closes itself.

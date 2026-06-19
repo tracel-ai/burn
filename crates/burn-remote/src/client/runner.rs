@@ -82,6 +82,12 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         service::new_tensor_id()
     }
 
+    fn register_alias(&self, new_id: burn_ir::TensorId, src_id: burn_ir::TensorId) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.register_alias(stream_id, new_id, src_id));
+    }
+
     fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
         self.handle
             .submit_blocking(move |s| s.dtype_usage(dtype))

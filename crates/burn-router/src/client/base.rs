@@ -73,6 +73,18 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn execute_graph(&self, _graph_id: GraphId, _bindings: GraphBindings) {
         panic!("This router client does not support graph caching");
     }
+
+    /// Register `new_id` as an alias of `src_id` — a second handle over the same backing buffer.
+    ///
+    /// Used by the fusion layer's cross-stream sharing (see
+    /// [`FusionRuntime::alias_handle`](burn_fusion::FusionRuntime::alias_handle)): when a tensor is
+    /// shared to another stream, that stream's view needs its own id so that consuming it (a
+    /// `ReadWrite` last-use) frees only this alias, leaving the original handle valid. The server
+    /// clones the source handle (an `Arc`-style refcount on the device buffer) under `new_id`. The
+    /// default panics — only clients with server-resident handles (the remote backend) override it.
+    fn register_alias(&self, _new_id: TensorId, _src_id: TensorId) {
+        panic!("This router client does not support cross-stream handle aliasing");
+    }
 }
 
 pub(crate) struct RouterClientLocator {

@@ -215,6 +215,14 @@ where
                 stream_id.executes(|| runner.register_tensor_data_id(id, data));
                 Ok(())
             }
+            Task::RegisterAlias {
+                stream_id,
+                new_id,
+                src_id,
+            } => {
+                stream_id.executes(|| runner.register_alias(new_id, src_id));
+                Ok(())
+            }
             Task::RegisterTensorRemote(stream_id, remote, new_id) => {
                 log::trace!(
                     "Registering remote tensor (transfer {:?} from {:?})",

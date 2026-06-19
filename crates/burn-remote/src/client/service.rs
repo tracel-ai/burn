@@ -293,6 +293,16 @@ impl<C: ProtocolClient> RemoteService<C> {
         self.submit_task(Task::RegisterTensor(stream_id, id, data));
     }
 
+    /// Buffer a fire-and-forget "alias `src_id` under `new_id`" task. FIFO submission keeps it
+    /// after whatever materialized `src_id`, so the server has the source handle when it runs.
+    pub fn register_alias(&mut self, stream_id: StreamId, new_id: TensorId, src_id: TensorId) {
+        self.submit_task(Task::RegisterAlias {
+            stream_id,
+            new_id,
+            src_id,
+        });
+    }
+
     /// Register a tensor produced by a cross-server transfer, flushing immediately.
     ///
     /// This is a coordination point with no following barrier on this client — the caller
