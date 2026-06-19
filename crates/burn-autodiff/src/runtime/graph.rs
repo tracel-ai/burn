@@ -17,7 +17,8 @@ use portable_atomic_util::Arc;
 
 use burn_backend::Backend;
 
-use hashbrown::{HashMap, HashSet};
+use alloc::collections::BTreeMap;
+use hashbrown::HashSet;
 
 #[cfg(feature = "std")]
 use parking_lot::{Mutex, MutexGuard};
@@ -48,11 +49,11 @@ pub struct GraphMutexClient;
 /// Multiple node ids can point to the same graph, where the autodiff graph is stored.
 #[derive(Default)]
 pub struct GraphLocator {
-    graphs: HashMap<NodeId, Arc<Graph>>,
+    graphs: BTreeMap<NodeId, Arc<Graph>>,
     /// We keep a mapping of each original node id (graph id) => all nodes that point to that graph.
     /// This is to ensure that when merging graphs, we correctly move all previous graphs to
     /// the new merged one.
-    keys: HashMap<NodeId, HashSet<NodeId>>,
+    keys: BTreeMap<NodeId, HashSet<NodeId>>,
 }
 
 /// Represents a single computation graph with a mutex-protected server.
@@ -219,7 +220,7 @@ impl GraphLocator {
         };
 
         // We collect all graphs of parents and of the current node based on their origin node id.
-        let mut graphs = HashMap::<NodeId, Arc<Graph>>::new();
+        let mut graphs = BTreeMap::<NodeId, Arc<Graph>>::new();
 
         if let Some(val) = self.graphs.get(&node) {
             graphs.insert(val.origin, val.clone());
@@ -240,15 +241,18 @@ impl GraphLocator {
         }
 
         if graphs.len() == 1 {
-            return GraphAnalysis::NoCollision(graphs.drain().next().unwrap().1);
+            return GraphAnalysis::NoCollision(graphs.into_values().next().unwrap());
         }
 
         GraphAnalysis::Collisions(graphs)
     }
 
     /// Merges multiple graphs associated with a node into a single graph.
-    fn merge(&mut self, node: NodeId, mut graphs: HashMap<NodeId, Arc<Graph>>) -> Arc<Graph> {
-        let mut graphs = graphs.drain().map(|g| g.1);
+    fn merge(&mut self, node: NodeId, graphs: BTreeMap<NodeId, Arc<Graph>>) -> Arc<Graph> {
+        // `into_values()` on the `BTreeMap` yields graphs in ascending `NodeId` order, so the "main"
+        // graph and the merge order are deterministic (a `HashMap` here picked an arbitrary,
+        // run-to-run-varying main, which permuted the merged steps and the backward op stream).
+        let mut graphs = graphs.into_values();
 
         let main = graphs.next().expect("At least one graph");
         self.register_key(main.origin, node);
@@ -339,5 +343,5 @@ enum GraphAnalysis {
     /// No collision detected, contains the graph associated with the node.
     NoCollision(Arc<Graph>),
     /// Collision detected, contains a map of node IDs to their associated graphs.
-    Collisions(HashMap<NodeId, Arc<Graph>>),
+    Collisions(BTreeMap<NodeId, Arc<Graph>>),
 }

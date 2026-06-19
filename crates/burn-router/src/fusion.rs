@@ -123,7 +123,12 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
         // `Arc` buffer.
         let id = handle.client.create_empty_handle();
         handle.client.register_alias(id, handle.id);
-        RouterTensor::new(id, handle.shape.clone(), handle.dtype, handle.client.clone())
+        RouterTensor::new(
+            id,
+            handle.shape.clone(),
+            handle.dtype,
+            handle.client.clone(),
+        )
     }
 }
 

@@ -166,7 +166,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
         } else if let DType::QFloat(_) = dtype {
             todo!();
         }
-
     }
 
     /// Register a tensor and returns its intermediate representation.
@@ -188,7 +187,6 @@ impl<B: BackendIr> TensorInterpreter<B> {
         } else if let DType::QFloat(_) = dtype {
             todo!();
         }
-
 
         TensorIr {
             id,

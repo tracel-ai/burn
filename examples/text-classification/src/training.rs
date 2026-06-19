@@ -69,12 +69,14 @@ pub fn train<D: TextClassificationDataset + 'static>(
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
+        .set_device(Device::flex())
         .batch_size(config.batch_size)
-        // .num_workers(1)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_train, 25_000));
     let dataloader_test = DataLoaderBuilder::new(batcher)
+        .set_device(Device::flex())
         .batch_size(config.batch_size)
-        // .num_workers(1)
+        .num_workers(1)
         .build(SamplerDataset::new(dataset_test, 2500));
 
     // Initialize optimizer
@@ -92,12 +94,12 @@ pub fn train<D: TextClassificationDataset + 'static>(
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train(IterationSpeedMetric::new())
-        // .metric_train_numeric(LossMetric::new())
-        // .metric_valid_numeric(LossMetric::new())
-        // .metric_train_numeric(AccuracyMetric::new())
-        // .metric_valid_numeric(AccuracyMetric::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        .metric_train_numeric(AccuracyMetric::new())
+        .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
-        // .with_checkpointer()
+        .with_checkpointer()
         .with_training_strategy(strategy.into())
         .num_epochs(config.num_epochs)
         .summary();

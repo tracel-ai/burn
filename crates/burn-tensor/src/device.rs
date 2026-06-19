@@ -489,6 +489,11 @@ impl Device {
         Dispatch::sync(self.as_dispatch())
     }
 
+    /// TODO: docs
+    pub fn flush(&self) {
+        Dispatch::flush(self.as_dispatch())
+    }
+
     /// Seeds the random number generator for this device.
     ///
     /// Seeding before tensor operations that involve randomness (e.g. [`Tensor::random`](crate::Tensor::random))
