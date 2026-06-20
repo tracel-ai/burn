@@ -34,7 +34,7 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CubeTensor<R>>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CubeTensor<R>, R::Device>;
 }
 
 impl<R> Backend for CubeBackend<R>

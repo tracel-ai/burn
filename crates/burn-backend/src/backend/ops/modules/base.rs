@@ -135,7 +135,7 @@ pub trait ModuleOps<B: Backend> {
     ) -> FloatTensor<B> {
         let [batch_size, seq_length] = indices.shape().dims();
         let [n_embeddings, d_model] = weights.shape().dims();
-        let device = B::float_device(&weights);
+        let device = weights.device();
         let dtype = output_grad.dtype();
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));

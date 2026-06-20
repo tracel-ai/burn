@@ -205,7 +205,7 @@ impl BackendTypes for Candle {
 
     type QuantizedTensorPrimitive = CandleTensor;
 
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CandleTensor>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CandleTensor, CandleDevice>;
 }
 
 impl Backend for Candle {

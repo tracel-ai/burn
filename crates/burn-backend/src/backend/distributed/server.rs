@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::Backend;
+use crate::{Backend, TensorMetadata};
 use crate::{DeviceId, DeviceOps, tensor::Device};
 
 use crate::distributed::{
@@ -105,7 +105,7 @@ impl<B: Backend> DistributedSyncServer<B> {
                     // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified until the end of the backward pass.
                     let device_ids = queued_tensors
                         .iter()
-                        .map(|t| B::float_device(unsafe { &*t.0 }).id())
+                        .map(|t| unsafe { &*t.0 }.device().id())
                         .collect::<Vec<_>>();
                     let reduced_tensors: Vec<B::FloatTensorPrimitive> = queued_tensors
                         .iter()

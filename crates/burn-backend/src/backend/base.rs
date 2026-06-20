@@ -14,24 +14,24 @@ use crate::distributed::{DistributedParamId, DistributedParams};
 use super::DeviceOps;
 
 /// The mapping of types used by Backend and traits.
-pub trait BackendTypes: Clone + core::fmt::Debug + Send + Sync + 'static {
+pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
     /// Device type.
     type Device: DeviceOps;
 
     /// Tensor primitive to be used for all float operations.
-    type FloatTensorPrimitive: TensorMetadata + 'static;
+    type FloatTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
 
     /// Tensor primitive to be used for all int operations.
-    type IntTensorPrimitive: TensorMetadata + 'static;
+    type IntTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
 
     /// Tensor primitive to be used for all bool operations.
-    type BoolTensorPrimitive: TensorMetadata + 'static;
+    type BoolTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
 
     /// Tensor primitive to be used for all quantized operations.
-    type QuantizedTensorPrimitive: TensorMetadata + 'static;
+    type QuantizedTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
 
     /// a complex primitive used for interleaved operations (if the backend supports it)
-    type ComplexTensorPrimitive: TensorMetadata + 'static;
+    type ComplexTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
 }
 
 /// This trait defines all types and functions needed for a backend to be used with burn.

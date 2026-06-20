@@ -5,6 +5,7 @@ use burn_rl::{
     ToObservation,
 };
 
+use crate::checkpoint::Checkpoint;
 use crate::{AgentEvaluationEvent, AsyncProcessorTraining, ItemLazy, RLEvent};
 
 /// All components used by the reinforcement learning paradigm, grouped in one trait.
@@ -40,11 +41,14 @@ pub trait RLComponentsTypes {
     /// Additional data as context for an agent's action.
     type ActionContext: ItemLazy + Clone + Send + 'static;
     /// The state of the parameterized policy.
-    type PolicyState: Clone + Send + PolicyState + 'static;
+    type PolicyState: Clone + Send + PolicyState<Record: Checkpoint> + 'static;
 
     /// The learning agent.
-    type LearningAgent: PolicyLearner<TrainContext = Self::TrainingOutput, InnerPolicy = Self::Policy>
-        + Send
+    type LearningAgent: PolicyLearner<
+            TrainContext = Self::TrainingOutput,
+            InnerPolicy = Self::Policy,
+            Record: Checkpoint,
+        > + Send
         + 'static;
     /// The output data of a training step.
     type TrainingOutput: ItemLazy + Clone + Send;
@@ -62,6 +66,7 @@ where
     E: Environment + 'static,
     EI: EnvironmentInit<E> + Send + 'static,
     A: PolicyLearner + Send + 'static,
+    <A as PolicyLearner>::Record: Checkpoint,
     A::TrainContext: ItemLazy + Clone + Send,
     A::InnerPolicy: Policy + Send,
     <A::InnerPolicy as Policy>::Observation: Batchable + Clone + Send,
@@ -69,6 +74,7 @@ where
     <A::InnerPolicy as Policy>::Action: Batchable + Clone + Send,
     <A::InnerPolicy as Policy>::ActionContext: ItemLazy + Clone + Send + 'static,
     <A::InnerPolicy as Policy>::PolicyState: Clone + Send,
+    <<A::InnerPolicy as Policy>::PolicyState as PolicyState>::Record: Checkpoint,
     E::State: ToObservation<<A::InnerPolicy as Policy>::Observation> + Clone + Send + 'static,
     E::Action: From<<A::InnerPolicy as Policy>::Action>
         + ToAction<<A::InnerPolicy as Policy>::Action>

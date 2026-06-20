@@ -119,7 +119,7 @@ impl BackendTypes for LibTorch {
     type IntTensorPrimitive = TchTensor;
     type BoolTensorPrimitive = TchTensor;
     type QuantizedTensorPrimitive = TchTensor;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<TchTensor>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<TchTensor, LibTorchDevice>;
 }
 
 impl Backend for LibTorch {

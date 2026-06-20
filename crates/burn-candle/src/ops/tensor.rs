@@ -81,10 +81,6 @@ impl FloatTensorOps<Self> for Candle {
         super::base::into_data(tensor)
     }
 
-    fn float_device(tensor: &CandleTensor) -> Device<Self> {
-        super::base::device(tensor)
-    }
-
     fn float_to_device(tensor: CandleTensor, device: &Device<Self>) -> CandleTensor {
         super::base::to_device(tensor, device)
     }

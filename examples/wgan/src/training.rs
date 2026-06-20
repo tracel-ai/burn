@@ -1,10 +1,9 @@
 use crate::dataset::MnistBatcher;
 use crate::model::{Clip, ModelConfig};
-use burn::optim::{GradientsParams, Optimizer, RmsPropConfig};
+use burn::optim::{GradientsParams, RmsPropConfig};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     prelude::*,
-    record::CompactRecorder,
     tensor::Distribution,
 };
 use image::{Rgb32FImage, RgbImage, buffer::ConvertBuffer, error::ImageResult};
@@ -198,12 +197,11 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
 
     // Save the trained models
     generator
-        .save_file(format!("{artifact_dir}/generator"), &CompactRecorder::new())
+        .into_record()
+        .save(format!("{artifact_dir}/generator"))
         .expect("Generator should be saved successfully");
     discriminator
-        .save_file(
-            format!("{artifact_dir}/discriminator"),
-            &CompactRecorder::new(),
-        )
+        .into_record()
+        .save(format!("{artifact_dir}/discriminator"))
         .expect("Discriminator should be saved successfully");
 }

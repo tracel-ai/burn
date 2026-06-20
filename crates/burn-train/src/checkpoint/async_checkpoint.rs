@@ -1,12 +1,10 @@
-use super::{Checkpointer, CheckpointerError};
+use super::{Checkpoint, Checkpointer, CheckpointerError};
 use crate::Interrupter;
-use burn_core::{record::Record, tensor::Device};
 use std::sync::mpsc;
 
 enum Message<R> {
     Restore(
         usize,
-        Device,
         mpsc::SyncSender<Result<R, CheckpointerError>>,
         Option<Interrupter>,
     ),
@@ -24,13 +22,13 @@ struct CheckpointerThread<C, R> {
 impl<C, R> CheckpointerThread<C, R>
 where
     C: Checkpointer<R>,
-    R: Record,
+    R: Checkpoint,
 {
     fn run(self) {
         for item in self.receiver.iter() {
             match item {
-                Message::Restore(epoch, device, callback, interrupter) => {
-                    let record = self.checkpointer.restore(epoch, &device);
+                Message::Restore(epoch, callback, interrupter) => {
+                    let record = self.checkpointer.restore(epoch);
                     callback.send(record).unwrap_or_else(|err| {
                         interrupter.map_or_else(
                             || {
@@ -68,15 +66,15 @@ where
 }
 
 /// Async checkpointer.
-pub struct AsyncCheckpointer<Record> {
-    sender: mpsc::SyncSender<Message<Record>>,
+pub struct AsyncCheckpointer<R> {
+    sender: mpsc::SyncSender<Message<R>>,
     handler: Option<std::thread::JoinHandle<()>>,
     interrupter: Option<Interrupter>,
 }
 
 impl<R> AsyncCheckpointer<R>
 where
-    R: Record + 'static,
+    R: Checkpoint,
 {
     /// Create a new async checkpointer.
     ///
@@ -112,7 +110,7 @@ where
 
 impl<R> Checkpointer<R> for AsyncCheckpointer<R>
 where
-    R: Record + 'static,
+    R: Checkpoint,
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         self.sender
@@ -122,15 +120,10 @@ where
         Ok(())
     }
 
-    fn restore(&self, epoch: usize, device: &Device) -> Result<R, CheckpointerError> {
+    fn restore(&self, epoch: usize) -> Result<R, CheckpointerError> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.sender
-            .send(Message::Restore(
-                epoch,
-                device.clone(),
-                sender,
-                self.interrupter.clone(),
-            ))
+            .send(Message::Restore(epoch, sender, self.interrupter.clone()))
             .map_err(|e| CheckpointerError::Unknown(e.to_string()))?;
 
         if let Ok(record) = receiver.recv() {

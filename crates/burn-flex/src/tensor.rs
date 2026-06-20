@@ -8,7 +8,7 @@ use portable_atomic_util::Arc;
 use burn_backend::{DType, Element, TensorData, TensorMetadata};
 use burn_std::{Bytes, Shape, bf16, f16};
 
-use crate::layout::Layout;
+use crate::{FlexDevice, layout::Layout};
 
 /// CPU tensor primitive for the Flex backend.
 ///
@@ -463,6 +463,8 @@ impl FlexTensor {
 }
 
 impl TensorMetadata for FlexTensor {
+    type Device = FlexDevice;
+
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -473,6 +475,10 @@ impl TensorMetadata for FlexTensor {
 
     fn rank(&self) -> usize {
         self.layout.num_dims()
+    }
+
+    fn device(&self) -> Self::Device {
+        FlexDevice
     }
 }
 

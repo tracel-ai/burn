@@ -87,8 +87,6 @@ where
     ///
     /// Returns a [`PrimitiveConversionError`] if the tensor does not currently live on the requested
     /// backend `B` (including `Autodiff<B>` mismatch).
-    ///
-    /// ```
     pub fn try_into_primitive<B: Backend>(
         self,
     ) -> Result<<K as BackendPrimitive<B>>::Primitive, PrimitiveConversionError>

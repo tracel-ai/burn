@@ -64,7 +64,7 @@ impl BackendTypes for NdArray {
     type IntTensorPrimitive = NdArrayTensor;
     type BoolTensorPrimitive = NdArrayTensor;
     type QuantizedTensorPrimitive = NdArrayQTensor;
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<NdArrayTensor>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<NdArrayTensor, NdArrayDevice>;
 }
 
 impl Backend for NdArray {

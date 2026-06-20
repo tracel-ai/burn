@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       # --------------------------------------------------------------------------------
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly

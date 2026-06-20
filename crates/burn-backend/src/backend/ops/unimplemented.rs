@@ -9,10 +9,11 @@ const fn complex_panic_message() -> &'static str {
     "Interleaved complex tensors are not implemented for this backend. Use split complex tensors instead"
 }
 
-impl<B, C> ComplexTensorBackend for B
+impl<B, C, D> ComplexTensorBackend for B
 where
-    B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
+    B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C, D>>,
     C: Clone + Send + Sync + 'static,
+    D: Clone + Send + Sync + 'static,
 {
     type InnerBackend = Self;
 
@@ -46,10 +47,11 @@ where
     }
 }
 
-impl<B, C> ComplexTensorOps<B> for B
+impl<B, C, D> ComplexTensorOps<B> for B
 where
-    B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C>>,
+    B: Backend + BackendTypes<ComplexTensorPrimitive = UnimplementedTensorPrimitive<C, D>>,
     C: Clone + Send + Sync + 'static,
+    D: Clone + Send + Sync + 'static,
 {
     fn complex_device(_tensor: &crate::ComplexTensor<B>) -> <B as BackendTypes>::Device {
         panic!("{}", complex_panic_message())

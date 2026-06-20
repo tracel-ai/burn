@@ -1,13 +1,10 @@
-use burn_core::{self as burn, Tensor};
+use burn_core::Tensor;
 
 use burn_core::module::ParamId;
 use burn_core::tensor::Device;
 
 use super::GradientsParams;
-use crate::LearningRate;
 use alloc::vec::Vec;
-use burn::module::AutodiffModule;
-use burn::record::Record;
 
 #[derive(Default)]
 /// Exposes multiple gradients for each parameter.
@@ -51,27 +48,4 @@ impl MultiGradientsParams {
 
         None
     }
-}
-
-/// General trait to optimize [module](AutodiffModule).
-pub trait Optimizer<M>: Send + Clone
-where
-    M: AutodiffModule,
-{
-    /// Optimizer associative type to be used when saving and loading the state.
-    type Record: Record;
-
-    /// Perform the optimizer step using the given learning rate and gradients.
-    /// The updated module is returned.
-    fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M;
-
-    /// Perform the optimizer step using the given learning rate and gradients.
-    /// The updated module is returned.
-    fn step_multi(&mut self, lr: LearningRate, module: M, grads: MultiGradientsParams) -> M;
-
-    /// Get the current state of the optimizer as a [record](Record).
-    fn to_record(&self) -> Self::Record;
-
-    /// Load the state of the optimizer as a [record](Record).
-    fn load_record(self, record: Self::Record) -> Self;
 }

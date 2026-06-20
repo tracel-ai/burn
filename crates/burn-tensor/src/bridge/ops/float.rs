@@ -225,8 +225,8 @@ impl BasicOps for Float {
     fn device(tensor: &BridgeTensor) -> Device {
         let (kind, tensor) = tensor.as_parts();
         match kind {
-            BridgeKind::Float => Device::new(Dispatch::float_device(tensor)),
-            BridgeKind::QFloat => Device::new(Dispatch::q_device(tensor)),
+            BridgeKind::Float => Device::new(tensor.device()),
+            BridgeKind::QFloat => Device::new(tensor.device()),
             _ => panic!("Should be Float primitive kind"),
         }
     }

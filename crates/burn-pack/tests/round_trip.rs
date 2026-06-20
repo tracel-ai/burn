@@ -2,7 +2,7 @@
 
 mod common;
 
-use burn_pack::{Bytes, DType, Reader, Tensor, Writer};
+use burn_pack::{Bytes, DType, Reader, Scalar, Tensor, Writer};
 use common::{f32_tensor, raw_tensor, read_f32};
 
 #[test]
@@ -250,4 +250,59 @@ fn file_round_trip() {
     assert_eq!(tensors.len(), 1);
     assert_eq!(read_f32(&tensors[0]), vec![1.0, 2.0, 3.0, 4.0]);
     assert_eq!(tensors[0].param_id, Some(1));
+}
+
+#[test]
+fn extensionless_path_appends_bpk() {
+    let dir = tempfile::tempdir().unwrap();
+    // No extension on the path: the writer should append `.bpk`, and the reader should find it
+    // when given the same extension-less path.
+    let path = dir.path().join("model");
+
+    Writer::new(vec![f32_tensor("weight", &[1.0, 2.0], &[2], Some(7))])
+        .write_to_file(&path)
+        .unwrap();
+
+    assert!(
+        path.with_extension("bpk").exists(),
+        "writer should have created `model.bpk`"
+    );
+    assert!(
+        !path.exists(),
+        "no extension-less `model` file should exist"
+    );
+
+    let reader = Reader::from_file(&path).unwrap();
+    let tensors = reader.into_tensors().unwrap();
+    assert_eq!(read_f32(&tensors[0]), vec![1.0, 2.0]);
+    assert_eq!(tensors[0].param_id, Some(7));
+}
+
+#[test]
+fn typed_scalars_round_trip() {
+    let packed = Writer::new(vec![f32_tensor("w", &[1.0], &[1], None)])
+        .with_scalar("step", Scalar::UInt(42))
+        .with_scalar("lr", Scalar::Float(0.001))
+        .with_scalar("flag", Scalar::Bool(true))
+        .with_scalar("offset", Scalar::Int(-3))
+        .into_bytes()
+        .unwrap();
+
+    let reader = Reader::from_bytes(packed).unwrap();
+    let scalars = reader.scalars();
+    assert_eq!(scalars.get("step"), Some(&Scalar::UInt(42)));
+    assert_eq!(scalars.get("lr"), Some(&Scalar::Float(0.001)));
+    assert_eq!(scalars.get("flag"), Some(&Scalar::Bool(true)));
+    assert_eq!(scalars.get("offset"), Some(&Scalar::Int(-3)));
+}
+
+#[test]
+fn scalars_absent_by_default() {
+    // A pack written without scalars exposes an empty scalar map (backward compatible: files
+    // predating scalar support simply omit the field and default to empty on read).
+    let packed = Writer::new(vec![f32_tensor("w", &[1.0], &[1], None)])
+        .into_bytes()
+        .unwrap();
+    let reader = Reader::from_bytes(packed).unwrap();
+    assert!(reader.scalars().is_empty());
 }

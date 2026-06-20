@@ -70,7 +70,7 @@ pub fn ctc_grad_from_alpha_beta_default<B: Backend>(
     let target_shape = targets.shape();
     let max_target_len = target_shape.dims::<2>()[1];
     let max_l_prime_len = 2 * max_target_len + 1;
-    let device = B::float_device(&log_probs);
+    let device = log_probs.device();
     let int_dtype: burn_std::IntDType = targets.dtype().into();
     let settings = get_device_settings::<B>(&device);
 
@@ -193,7 +193,7 @@ impl<B: Backend> AlphaCtx<B> {
         let [max_input_length, batch_size, num_classes] = log_probs_shape.dims::<3>();
         let target_shape = targets.shape();
         let max_target_len = target_shape.dims::<2>()[1];
-        let device = B::float_device(&log_probs);
+        let device = log_probs.device();
         let float_dtype: burn_std::FloatDType = log_probs.dtype().into();
         let int_dtype: burn_std::IntDType = targets.dtype().into();
         let settings = get_device_settings::<B>(&device);
@@ -405,8 +405,7 @@ impl<B: Backend> AlphaCtx<B> {
 fn extract_loss<B: Backend>(alpha: &AlphaCtx<B>, target_lengths: IntTensor<B>) -> FloatTensor<B> {
     let log_alpha_shape = alpha.last.shape();
     let [batch_size, _] = log_alpha_shape.dims::<2>();
-    let device = B::float_device(&alpha.last);
-    let settings = get_device_settings::<B>(&device);
+    let settings = get_device_settings::<B>(&alpha.last.device());
 
     let last_blank_idx = B::int_mul_scalar(target_lengths.clone(), 2.into());
     let last_blank_idx = B::int_reshape(last_blank_idx, Shape::new([batch_size, 1]));

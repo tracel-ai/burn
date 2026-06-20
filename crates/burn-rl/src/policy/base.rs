@@ -1,6 +1,6 @@
 use derive_new::new;
 
-use burn_core::{record::Record, tensor::Device};
+use burn_core::tensor::Device;
 
 use crate::TransitionBatch;
 
@@ -16,7 +16,7 @@ pub struct ActionContext<A, C> {
 /// The state of a policy.
 pub trait PolicyState {
     /// The type of the record.
-    type Record: Record;
+    type Record;
 
     /// Convert the state to a record.
     fn into_record(self) -> Self::Record;
@@ -102,7 +102,7 @@ where
     /// The policy to train.
     type InnerPolicy: Policy;
     /// The record of the learner.
-    type Record: Record;
+    type Record;
 
     /// Execute a training step on the policy.
     fn train(

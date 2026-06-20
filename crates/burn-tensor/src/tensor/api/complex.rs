@@ -21,11 +21,11 @@ impl<const D: usize> Tensor<D, Complex> {
     /// # Example
     ///
     /// ```rust
-    /// use burn_tensor::{Tensor, FloatDType, IntDType};
+    /// use burn_tensor::{Tensor, FloatDType, IntDType, ComplexScalar, ComplexDType, Complex};
     ///
     /// fn example() {
     ///     let device = Default::default();
-    ///     let complex_tensor = Tensor::<1>::from_floats(ComplexScalar::new(1.0, 2.5), &device);
+    ///     let complex_tensor = Tensor::<1, Complex>::from_complex([ComplexScalar::new(1.0, -2.0), ComplexScalar::new(3.0, 4.0)], &device);
     ///
     ///     // Within-kind cast (complex to complex)
     ///     let complex64_tensor = complex_tensor.clone().cast(ComplexDType::Complex64);

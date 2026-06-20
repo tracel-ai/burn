@@ -48,10 +48,6 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         }
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
-        tensor.device.clone()
-    }
-
     fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
         super::to_device(tensor, device)
     }

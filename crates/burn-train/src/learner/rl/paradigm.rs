@@ -1,6 +1,6 @@
 use crate::checkpoint::{
-    AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
-    KeepLastNCheckpoints, MetricCheckpointingStrategy,
+    AsyncCheckpointer, Checkpoint, CheckpointingStrategy, ComposedCheckpointingStrategy,
+    FileCheckpointer, KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
@@ -14,11 +14,10 @@ use crate::{
     RLPolicyRecord, RLStrategy,
 };
 use crate::{EpisodeSummary, RLStrategies};
-use burn_core::record::FileRecorder;
 use burn_core::tensor::Device;
 use burn_rl::{
-    Batchable, Environment, EnvironmentInit, Policy, PolicyLearner, SliceAccess, ToAction,
-    ToObservation,
+    Batchable, Environment, EnvironmentInit, Policy, PolicyLearner, PolicyState, SliceAccess,
+    ToAction, ToObservation,
 };
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -55,6 +54,7 @@ where
     E: Environment + 'static,
     EI: EnvironmentInit<E> + Send + 'static,
     A: PolicyLearner + Send + 'static,
+    <A as PolicyLearner>::Record: Checkpoint,
     A::TrainContext: ItemLazy + Clone + Send,
     A::InnerPolicy: Policy + Send,
     <A::InnerPolicy as Policy>::Observation: Batchable + Clone + Send,
@@ -62,6 +62,7 @@ where
     <A::InnerPolicy as Policy>::Action: Batchable + Clone + Send,
     <A::InnerPolicy as Policy>::ActionContext: ItemLazy + Clone + Send + 'static,
     <A::InnerPolicy as Policy>::PolicyState: Clone + Send,
+    <<A::InnerPolicy as Policy>::PolicyState as PolicyState>::Record: Checkpoint,
     E::State: ToObservation<<A::InnerPolicy as Policy>::Observation> + Clone + Send + 'static,
     E::Action: From<<A::InnerPolicy as Policy>::Action>
         + ToAction<<A::InnerPolicy as Policy>::Action>
@@ -287,16 +288,14 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
 
     /// Register a checkpointer that will save the environment runner's [policy](Policy)
     /// and the [PolicyLearner](PolicyLearner) state to different files.
-    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
+    pub fn with_checkpointer(mut self) -> Self
     where
-        FR: FileRecorder + 'static,
-        FR: FileRecorder + 'static,
+        RLPolicyRecord<RLC>: Checkpoint,
+        RLAgentRecord<RLC>: Checkpoint,
     {
         let checkpoint_dir = self.directory.join("checkpoint");
-        let checkpointer_policy =
-            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "policy");
-        let checkpointer_learning =
-            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "learning-agent");
+        let checkpointer_policy = FileCheckpointer::new(&checkpoint_dir, "policy");
+        let checkpointer_learning = FileCheckpointer::new(&checkpoint_dir, "learning-agent");
 
         self.checkpointers = Some((
             AsyncCheckpointer::new(checkpointer_policy),
@@ -371,6 +370,13 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
             summary,
             inference_device: self.inference_device,
         };
+
+        let mut learner_agent = learner_agent;
+        if let Some(checkpoint) = components.checkpoint
+            && let Some(checkpointer) = &components.checkpointer
+        {
+            learner_agent = checkpointer.load_checkpoint(learner_agent, checkpoint);
+        }
 
         match self.learning_strategy {
             RLStrategies::OffPolicyStrategy(config) => {

@@ -4,8 +4,8 @@ use burn_backend::{
 };
 use burn_std::BoolStore;
 
-use crate::NdArrayStorage;
 use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
+use crate::{NdArrayDevice, NdArrayStorage};
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
 
@@ -377,6 +377,7 @@ macro_rules! execute_with_int_out_dtype {
 }
 
 impl TensorMetadata for NdArrayTensor {
+    type Device = NdArrayDevice;
     fn dtype(&self) -> DType {
         match self {
             NdArrayTensor::F64(_) => DType::F64,
@@ -407,6 +408,10 @@ impl TensorMetadata for NdArrayTensor {
 
     fn rank(&self) -> usize {
         self.shape().num_dims()
+    }
+
+    fn device(&self) -> NdArrayDevice {
+        NdArrayDevice::Cpu
     }
 }
 
@@ -744,6 +749,7 @@ impl NdArrayQTensor {
 }
 
 impl TensorMetadata for NdArrayQTensor {
+    type Device = NdArrayDevice;
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
     }
@@ -754,6 +760,10 @@ impl TensorMetadata for NdArrayQTensor {
 
     fn rank(&self) -> usize {
         self.shape().num_dims()
+    }
+
+    fn device(&self) -> Self::Device {
+        NdArrayDevice::Cpu
     }
 }
 

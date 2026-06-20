@@ -24,7 +24,7 @@ pub struct Autodiff<B, C = NoCheckpointing> {
     _checkpoint_strategy: PhantomData<C>,
 }
 
-impl<B: Backend, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
+impl<B: BackendTypes, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
     type Device = B::Device;
 
     type FloatTensorPrimitive = AutodiffTensor<B>;
@@ -35,7 +35,8 @@ impl<B: Backend, C: CheckpointStrategy> BackendTypes for Autodiff<B, C> {
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
-    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<B::ComplexTensorPrimitive>;
+    type ComplexTensorPrimitive =
+        UnimplementedTensorPrimitive<B::ComplexTensorPrimitive, B::Device>;
 }
 
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {

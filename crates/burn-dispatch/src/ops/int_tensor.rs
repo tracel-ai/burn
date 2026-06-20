@@ -20,10 +20,6 @@ impl IntTensorOps<Self> for Dispatch {
         creation_op!(Int, device, |device| B::int_from_data(data, device))
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> DispatchDevice {
-        tensor.device()
-    }
-
     fn int_to_device(tensor: IntTensor<Self>, device: &DispatchDevice) -> IntTensor<Self> {
         to_device!(Int, int, tensor, device, int_to_device, |inner, device| {
             let data = burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");

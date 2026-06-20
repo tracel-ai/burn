@@ -750,57 +750,6 @@ impl AutodiffBackend for Dispatch {
     }
 }
 
-impl DispatchTensorKind {
-    pub(crate) fn device(&self) -> DispatchDevice {
-        match self {
-            #[cfg(feature = "cpu")]
-            DispatchTensorKind::Cpu(tensor) => DispatchDevice::Cpu(tensor.device()),
-            #[cfg(feature = "cuda")]
-            DispatchTensorKind::Cuda(tensor) => DispatchDevice::Cuda(tensor.device()),
-            #[cfg(feature = "metal")]
-            DispatchTensorKind::Metal(tensor) => DispatchDevice::Metal(tensor.device()),
-            #[cfg(feature = "rocm")]
-            DispatchTensorKind::Rocm(tensor) => DispatchDevice::Rocm(tensor.device()),
-            #[cfg(feature = "vulkan")]
-            DispatchTensorKind::Vulkan(tensor) => DispatchDevice::Vulkan(tensor.device()),
-            #[cfg(feature = "wgpu")]
-            DispatchTensorKind::Wgpu(tensor) => DispatchDevice::Wgpu(tensor.device()),
-            #[cfg(feature = "webgpu")]
-            DispatchTensorKind::WebGpu(tensor) => DispatchDevice::WebGpu(tensor.device()),
-            #[cfg(any(feature = "flex", default_backend))]
-            DispatchTensorKind::Flex(tensor) => DispatchDevice::Flex(tensor.device()),
-            #[cfg(feature = "ndarray")]
-            DispatchTensorKind::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
-            #[cfg(feature = "tch")]
-            DispatchTensorKind::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
-            #[cfg(feature = "remote")]
-            DispatchTensorKind::Remote(tensor) => DispatchDevice::Remote(tensor.device()),
-            #[cfg(feature = "autodiff")]
-            DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
-        }
-    }
-}
-
-impl DispatchTensor {
-    pub(crate) fn device(&self) -> DispatchDevice {
-        #[allow(unused_mut)]
-        let mut device = self.kind.device();
-
-        // TODO: should int and bool kinds return an autodiff device?
-        // It would be much easier once there is a single underlying primitive type, which
-        // we can wrap with Autodiff in all cases.
-
-        #[cfg(feature = "autodiff")]
-        if let DispatchDevice::Autodiff(device) = &mut device
-            && let Some(checkpointing) = &self.checkpointing
-        {
-            device.checkpointing = *checkpointing;
-        }
-
-        device
-    }
-}
-
 impl Dispatch {
     /// List all available devices of the specified [type id](DispatchDeviceId).
     pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {

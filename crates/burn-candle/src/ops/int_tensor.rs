@@ -31,10 +31,6 @@ impl IntTensorOps<Self> for Candle {
         }
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
-        super::base::device(tensor)
-    }
-
     fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
         super::base::to_device(tensor, device)
     }

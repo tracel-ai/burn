@@ -36,10 +36,6 @@ impl BoolTensorOps<Self> for Dispatch {
         unary_op!(tensor, bool, |tensor| B::bool_into_float(tensor, out_dtype) => Float)
     }
 
-    fn bool_device(tensor: &BoolTensor<Self>) -> DispatchDevice {
-        tensor.device()
-    }
-
     fn bool_to_device(tensor: BoolTensor<Self>, device: &DispatchDevice) -> BoolTensor<Self> {
         to_device!(
             Bool,

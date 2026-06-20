@@ -1,8 +1,5 @@
 use alloc::vec::Vec;
-use burn_backend::{
-    TensorMetadata, TensorPrimitive, get_device_settings,
-    ops::{BoolTensorOps, ComplexTensorOps, FloatTensorOps, IntTensorOps, QTensorOps},
-};
+use burn_backend::{TensorMetadata, TensorPrimitive, get_device_settings};
 use burn_dispatch::{Dispatch, DispatchTensor};
 use burn_std::DeviceSettings;
 
@@ -371,13 +368,11 @@ impl BridgeTensor {
 
     pub(crate) fn device_settings(&self) -> DeviceSettings {
         let device = match self.as_variant() {
-            BridgeTensorVariant::Bool(tensor) => Dispatch::bool_device(tensor),
-            BridgeTensorVariant::Int(tensor) => Dispatch::int_device(tensor),
-            BridgeTensorVariant::Float(tensor) => Dispatch::float_device(tensor),
-            BridgeTensorVariant::QFloat(tensor) => Dispatch::q_device(tensor),
-            BridgeTensorVariant::Complex(dispatch_tensor) => {
-                Dispatch::complex_device(dispatch_tensor)
-            }
+            BridgeTensorVariant::Bool(tensor) => tensor.device(),
+            BridgeTensorVariant::Int(tensor) => tensor.device(),
+            BridgeTensorVariant::Float(tensor) => tensor.device(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.device(),
+            BridgeTensorVariant::Complex(tensor) => tensor.device(),
         };
 
         get_device_settings::<Dispatch>(&device)
