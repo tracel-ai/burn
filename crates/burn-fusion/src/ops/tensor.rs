@@ -180,10 +180,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         tensor.into_data::<B>().await
     }
 
-    fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
-        tensor.client.device().clone()
-    }
-
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(tensor),

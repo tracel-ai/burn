@@ -199,10 +199,6 @@ impl<R: CubeRuntime> QTensorOps<Self> for CubeBackend<R> {
         kernel::quantization::dequantize(tensor, dtype.into())
     }
 
-    fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        tensor.device.clone()
-    }
-
     fn q_to_device(tensor: QuantizedTensor<Self>, device: &Device<Self>) -> QuantizedTensor<Self> {
         super::to_device(tensor, device)
     }

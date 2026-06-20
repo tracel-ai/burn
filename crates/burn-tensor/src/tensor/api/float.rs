@@ -1129,7 +1129,7 @@ fn random_like_impl(p: &BridgeTensor, distribution: Distribution) -> BridgeTenso
     BridgeTensor::float(Dispatch::float_random(
         p.shape(),
         distribution,
-        &Dispatch::float_device(p.as_dispatch()),
+        &p.as_dispatch().device(),
         p.dtype().into(),
     ))
 }

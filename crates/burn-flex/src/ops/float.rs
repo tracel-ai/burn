@@ -51,11 +51,6 @@ impl FloatTensorOps<Flex> for Flex {
         Ok(tensor.into_data())
     }
 
-    fn float_device(_tensor: &FloatTensor<Flex>) -> Device<Flex> {
-        // CPU backend: all tensors are on the default device
-        Default::default()
-    }
-
     fn float_to_device(tensor: FloatTensor<Flex>, _device: &Device<Flex>) -> FloatTensor<Flex> {
         // CPU backend: no-op, tensors are always on CPU
         tensor

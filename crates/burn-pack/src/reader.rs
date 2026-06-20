@@ -54,8 +54,18 @@ impl Reader {
     /// lazy [`Bytes::from_file`] source, and each tensor's data is a [`Bytes::view`] window into
     /// it, read from disk only when accessed. This integrates with the Burn ecosystem's file
     /// allocation (pinned-memory staging) for fast file-to-GPU transfers.
+    ///
+    /// If `path` has no extension and does not exist as given, the canonical
+    /// [`crate::EXTENSION`] (`.bpk`) is appended.
     #[cfg(feature = "std")]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let path = path.as_ref();
+        let path = if path.extension().is_none() && !path.exists() {
+            path.with_extension(crate::EXTENSION)
+        } else {
+            path.to_path_buf()
+        };
+
         let mut file = File::open(&path).map_err(io_err)?;
 
         let file_size = file.metadata().map_err(io_err)?.len();
@@ -73,7 +83,7 @@ impl Reader {
         file.read_exact(&mut metadata_bytes).map_err(io_err)?;
         let metadata = parse_metadata(&metadata_bytes)?;
 
-        let source = Source::File(Bytes::from_file(path.as_ref(), file_size, 0));
+        let source = Source::File(Bytes::from_file(path.as_path(), file_size, 0));
         Self::assemble(&header, metadata, source, file_size as usize)
     }
 
@@ -141,6 +151,13 @@ impl Reader {
     /// file-backed reader that does not read any tensor data until a tensor's bytes are accessed.
     pub fn metadata(&self) -> &alloc::collections::BTreeMap<String, String> {
         &self.metadata.metadata
+    }
+
+    /// The typed scalars stored alongside the tensors.
+    ///
+    /// Empty for files written before scalar support.
+    pub fn scalars(&self) -> &alloc::collections::BTreeMap<String, crate::Scalar> {
+        &self.metadata.scalars
     }
 
     /// The names of all tensors in the pack, in sorted (alphabetical) order.

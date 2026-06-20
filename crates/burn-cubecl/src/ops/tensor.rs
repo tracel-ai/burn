@@ -62,10 +62,6 @@ where
         super::into_data(tensor).await
     }
 
-    fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
-        tensor.device.clone()
-    }
-
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(tensor),

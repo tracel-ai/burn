@@ -88,7 +88,7 @@ pub fn attention_fallback<B: Backend>(
 /// Builds a causal (upper-triangular) bool mask where `true` means "mask this position".
 /// Shape: [batch_size, num_heads, seq_q, seq_k], masking positions where col > row.
 fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>) -> BoolTensor<B> {
-    let device = B::float_device(attention_scores);
+    let device = attention_scores.device();
     let scores_shape = attention_scores.shape().dims::<4>();
     let [batch_size, num_heads, seq_q, seq_k] = scores_shape;
     let settings = get_device_settings::<B>(&device);

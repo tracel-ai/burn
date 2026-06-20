@@ -1,7 +1,8 @@
 use burn_core as burn;
 
-use super::{LrScheduler, String};
+use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
+use crate::RecordState;
 use burn::config::Config;
 
 /// The configuration for creating a [Cosine Annealing learning rate scheduler with warm
@@ -70,8 +71,6 @@ pub struct CosineAnnealingLrScheduler {
 }
 
 impl LrScheduler for CosineAnnealingLrScheduler {
-    type Record = usize;
-
     fn step(&mut self) -> LearningRate {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
         // first call. We could've used i64 with an initial value -1, but keeping it in usize saves
@@ -85,14 +84,24 @@ impl LrScheduler for CosineAnnealingLrScheduler {
                         .cos())
     }
 
-    fn to_record(&self) -> Self::Record {
-        self.current_iter
+    fn to_record(&self) -> LrSchedulerRecord {
+        LrSchedulerRecord::from_state(&CosineAnnealingLrSchedulerState {
+            current_iter: self.current_iter,
+        })
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        self.current_iter = record;
+    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+        if let Some(state) = record.into_state::<CosineAnnealingLrSchedulerState>() {
+            self.current_iter = state.current_iter;
+        }
         self
     }
+}
+
+/// The serializable state of a [cosine annealing scheduler](CosineAnnealingLrScheduler).
+#[derive(RecordState, Clone, Debug)]
+pub struct CosineAnnealingLrSchedulerState {
+    current_iter: usize,
 }
 
 #[cfg(test)]

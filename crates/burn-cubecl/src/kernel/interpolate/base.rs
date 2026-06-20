@@ -75,6 +75,7 @@ pub fn interpolate<R: CubeRuntime>(
                 BlueprintStrategy::<SharedMemoryRoutine>::Inferred(strategy),
             ),
         ),
+        #[cfg(feature = "autotune")]
         InterpolateStrategy::Autotune => Ok(interpolate_autotune(input, output_size, options)),
     }
 }

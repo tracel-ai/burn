@@ -1,20 +1,22 @@
 use burn::module::Module;
-use burn::record::Record;
+use burn::store::{ModuleRecord, RecordError};
 use burn::rl::{
     Batchable, LearnerTransitionBatch, Policy, PolicyLearner, PolicyState, RLTrainOutput,
     SliceAccess,
 };
 use burn::tensor::activation::softmax;
-use burn::tensor::{Device, Int, Transaction};
+use burn::tensor::{Bytes, Device, Int, Transaction};
 use burn::train::ItemLazy;
+use burn::train::checkpoint::{Checkpoint, CheckpointerError};
 use burn::train::metric::{Adaptor, LossInput};
 use burn::{
     Tensor,
     config::Config,
     module::AutodiffModule,
     nn::{self, loss::MseLoss},
-    optim::{GradientsParams, Optimizer},
+    optim::{GradientsParams, ModuleOptimizer, OptimizerRecord},
 };
+use std::path::PathBuf;
 use rand::distr::Distribution;
 use rand::distr::weighted::WeightedIndex;
 use rand::rng;
@@ -198,7 +200,7 @@ pub struct DqnState<M: DiscreteActionModel> {
 }
 
 impl<M: DiscreteActionModel> PolicyState for DqnState<M> {
-    type Record = M::Record;
+    type Record = ModuleRecord;
 
     fn into_record(self) -> Self::Record {
         self.model.clone().into_record()
@@ -369,32 +371,101 @@ impl<M: DiscreteActionModel> Policy for DQN<M> {
     }
 }
 
-#[derive(Record)]
-pub struct DqnLearningRecord<M: AutodiffModule, O: Optimizer<M>> {
-    policy_model: M::Record,
-    target_model: M::Record,
-    optimizer: O::Record,
+/// The learner state, persisted as a single burnpack checkpoint file.
+///
+/// It bundles the policy and target [`ModuleRecord`]s together with the optimizer
+/// [`OptimizerRecord`]. All three are device-free; the optimizer tensors are re-materialized on a
+/// device when the agent loads the record (see [`DqnLearningAgent::load_record`]).
+pub struct DqnLearningRecord {
+    policy_model: ModuleRecord,
+    target_model: ModuleRecord,
+    optimizer: OptimizerRecord,
+}
+
+/// Encode a little-endian `u64` length prefix followed by the bytes themselves.
+fn frame(out: &mut Vec<u8>, bytes: &[u8]) {
+    out.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+    out.extend_from_slice(bytes);
+}
+
+/// Read a length-prefixed frame, returning the slice and advancing `offset`.
+fn unframe<'a>(data: &'a [u8], offset: &mut usize) -> Result<&'a [u8], CheckpointerError> {
+    let header_end = *offset + 8;
+    if data.len() < header_end {
+        return Err(CheckpointerError::Unknown(
+            "Corrupted checkpoint: missing length prefix.".to_string(),
+        ));
+    }
+    let len = u64::from_le_bytes(data[*offset..header_end].try_into().unwrap()) as usize;
+    let body_end = header_end + len;
+    if data.len() < body_end {
+        return Err(CheckpointerError::Unknown(
+            "Corrupted checkpoint: truncated frame.".to_string(),
+        ));
+    }
+    *offset = body_end;
+    Ok(&data[header_end..body_end])
+}
+
+fn record_err(err: RecordError) -> CheckpointerError {
+    CheckpointerError::Record(err)
+}
+
+impl Checkpoint for DqnLearningRecord {
+    fn save(self, path: PathBuf) -> Result<(), CheckpointerError> {
+        let policy = self.policy_model.into_bytes().map_err(record_err)?;
+        let target = self.target_model.into_bytes().map_err(record_err)?;
+        let optimizer = self.optimizer.into_bytes().map_err(record_err)?;
+
+        let mut out = Vec::new();
+        frame(&mut out, &policy);
+        frame(&mut out, &target);
+        frame(&mut out, &optimizer);
+
+        std::fs::write(path, out).map_err(CheckpointerError::IOError)
+    }
+
+    fn load(path: PathBuf) -> Result<Self, CheckpointerError> {
+        let data = std::fs::read(path).map_err(CheckpointerError::IOError)?;
+        let mut offset = 0;
+
+        let policy = unframe(&data, &mut offset)?;
+        let policy_model =
+            ModuleRecord::from_bytes(Bytes::from_bytes_vec(policy.to_vec())).map_err(record_err)?;
+
+        let target = unframe(&data, &mut offset)?;
+        let target_model =
+            ModuleRecord::from_bytes(Bytes::from_bytes_vec(target.to_vec())).map_err(record_err)?;
+
+        let optimizer = unframe(&data, &mut offset)?;
+        let optimizer =
+            OptimizerRecord::from_bytes(Bytes::from_bytes_vec(optimizer.to_vec())).map_err(record_err)?;
+
+        Ok(Self {
+            policy_model,
+            target_model,
+            optimizer,
+        })
+    }
 }
 
 #[derive(Clone)]
-pub struct DqnLearningAgent<M, O>
+pub struct DqnLearningAgent<M>
 where
     M: DiscreteActionModel + AutodiffModule + TargetModel + 'static,
-    O: Optimizer<M> + 'static,
 {
     policy_model: M,
     target_model: M,
     agent: EpsilonGreedyPolicy<DQN<M>>,
-    optimizer: O,
+    optimizer: ModuleOptimizer,
     config: DqnAgentConfig,
 }
 
-impl<M, O> DqnLearningAgent<M, O>
+impl<M> DqnLearningAgent<M>
 where
     M: DiscreteActionModel + AutodiffModule + TargetModel + 'static,
-    O: Optimizer<M> + 'static,
 {
-    pub fn new(model: M, optimizer: O, config: DqnAgentConfig) -> Self {
+    pub fn new(model: M, optimizer: ModuleOptimizer, config: DqnAgentConfig) -> Self {
         let agent = EpsilonGreedyPolicy::new(
             DQN::new(model.clone()),
             config.epsilon_start,
@@ -438,15 +509,14 @@ impl Adaptor<LossInput> for SimpleTrainOutput {
     }
 }
 
-impl<M, O> PolicyLearner for DqnLearningAgent<M, O>
+impl<M> PolicyLearner for DqnLearningAgent<M>
 where
     M: DiscreteActionModel + AutodiffModule + TargetModel + 'static,
     M::Input: Clone,
-    O: Optimizer<M> + 'static,
 {
     type TrainContext = SimpleTrainOutput;
     type InnerPolicy = EpsilonGreedyPolicy<DQN<M>>;
-    type Record = DqnLearningRecord<M, O>;
+    type Record = DqnLearningRecord;
 
     fn train(
         &mut self,

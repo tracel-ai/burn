@@ -75,10 +75,6 @@ impl FloatTensorOps<Self> for NdArray {
         Ok(tensor.into_data())
     }
 
-    fn float_device(_tensor: &FloatTensor<Self>) -> NdArrayDevice {
-        NdArrayDevice::Cpu
-    }
-
     fn float_to_device(tensor: FloatTensor<Self>, _device: &NdArrayDevice) -> FloatTensor<Self> {
         tensor
     }

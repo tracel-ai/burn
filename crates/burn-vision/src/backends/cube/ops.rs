@@ -5,8 +5,7 @@ use crate::{
 use burn_cubecl::{CubeBackend, CubeRuntime};
 
 use burn_core::backend::{
-    ops::{BoolTensorOps, IntTensorOps},
-    tensor::{BoolTensor, IntTensor},
+    TensorMetadata, ops::IntTensorOps, tensor::{BoolTensor, IntTensor}
 };
 use burn_core::tensor::IntDType;
 
@@ -26,10 +25,10 @@ impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
         )
         .map(|it| it.0)
         .unwrap_or_else(|_| {
-            let device = Self::bool_device(&img);
+            let device = &img.device();
             Self::int_from_data(
                 cpu::connected_components::<Self>(img, connectivity, out_dtype),
-                &device,
+                device,
             )
         })
     }
@@ -40,7 +39,7 @@ impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
         opts: ConnectedStatsOptions,
         out_dtype: IntDType,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
-        let device = Self::bool_device(&img);
+        let device = &img.device();
         hardware_accelerated::<R>(img.clone(), opts, connectivity, out_dtype.into()).unwrap_or_else(
             |_| {
                 let (labels, stats) = cpu::connected_components_with_stats::<Self>(
@@ -49,7 +48,7 @@ impl<R: CubeRuntime> BoolVisionOps for CubeBackend<R> {
                     opts,
                     out_dtype,
                 );
-                (Self::int_from_data(labels, &device), stats)
+                (Self::int_from_data(labels, device), stats)
             },
         )
     }

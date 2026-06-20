@@ -85,10 +85,6 @@ impl<R: RouterChannel> FloatTensorOps<Self> for BackendRouter<R> {
         tensor.into_data().await
     }
 
-    fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
-        tensor.client.device()
-    }
-
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         if &tensor.client.device() == device {
             return tensor;

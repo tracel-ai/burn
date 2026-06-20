@@ -20,10 +20,6 @@ impl BoolTensorOps<Flex> for Flex {
         Ok(tensor.into_data())
     }
 
-    fn bool_device(_tensor: &BoolTensor<Flex>) -> Device<Flex> {
-        Default::default()
-    }
-
     fn bool_to_device(tensor: BoolTensor<Flex>, _device: &Device<Flex>) -> BoolTensor<Flex> {
         tensor
     }

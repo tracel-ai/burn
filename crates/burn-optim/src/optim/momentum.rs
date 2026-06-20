@@ -1,7 +1,7 @@
 use burn_core as burn;
 
+use crate::RecordState;
 use burn::config::Config;
-use burn::record::Record;
 use burn::tensor::Device;
 use burn::tensor::{ElementConversion, Tensor};
 
@@ -21,7 +21,7 @@ pub struct MomentumConfig {
 }
 
 /// State of [momentum](Momentum).
-#[derive(Record, Clone, new)]
+#[derive(RecordState, Clone, new)]
 pub struct MomentumState<const D: usize> {
     velocity: Tensor<D>,
 }

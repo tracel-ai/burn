@@ -2,7 +2,6 @@ use burn::{
     Tensor,
     module::{Param, ParamId},
     nn::{self, Linear},
-    record::Record,
     rl::{Policy, PolicyState},
     tensor::Device,
     train::{
@@ -79,12 +78,6 @@ impl Adaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
     }
 }
 
-#[derive(Record)]
-pub struct EpsilonGreedyPolicyRecord<P: Policy> {
-    pub inner_state: <P::PolicyState as PolicyState>::Record,
-    pub step: usize,
-}
-
 #[derive(Clone, new)]
 pub struct EpsilonGreedyPolicyState<P: Policy> {
     pub inner_state: P::PolicyState,
@@ -92,20 +85,18 @@ pub struct EpsilonGreedyPolicyState<P: Policy> {
 }
 
 impl<P: Policy> PolicyState for EpsilonGreedyPolicyState<P> {
-    type Record = EpsilonGreedyPolicyRecord<P>;
+    // Only the inner policy's parameters are persisted; the exploration `step` counter resets on
+    // load (it is part of the exploration schedule, not the learned parameters).
+    type Record = <P::PolicyState as PolicyState>::Record;
 
     fn into_record(self) -> Self::Record {
-        EpsilonGreedyPolicyRecord {
-            inner_state: self.inner_state.into_record(),
-            step: self.step,
-        }
+        self.inner_state.into_record()
     }
 
     fn load_record(&self, record: Self::Record) -> Self {
-        let inner_state = self.inner_state.load_record(record.inner_state);
         Self {
-            inner_state,
-            step: record.step,
+            inner_state: self.inner_state.load_record(record),
+            step: self.step,
         }
     }
 }

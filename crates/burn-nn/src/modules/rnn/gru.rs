@@ -450,7 +450,7 @@ impl BiGru {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LinearRecord;
+    use crate::Linear;
     use burn::module::Param;
     use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, TensorData};
@@ -458,63 +458,24 @@ mod tests {
     type FT = f32;
 
     fn init_gru(reset_after: bool, device: &Device) -> Gru {
-        fn create_gate_controller(
-            weights: f32,
-            biases: f32,
-            d_input: usize,
-            d_output: usize,
-            bias: bool,
-            initializer: Initializer,
-            device: &Device,
-        ) -> GateController {
-            let record_1 = LinearRecord {
+        fn create_gate_controller(weights: f32, biases: f32, device: &Device) -> GateController {
+            let record_1 = Linear {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
-            let record_2 = LinearRecord {
+            let record_2 = Linear {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
             };
-            GateController::create_with_weights(
-                d_input,
-                d_output,
-                bias,
-                initializer,
-                record_1,
-                record_2,
-            )
+            GateController::create_with_weights(record_1, record_2)
         }
 
         let config = GruConfig::new(1, 1, false).with_reset_after(reset_after);
         let mut gru = config.init(device);
 
-        gru.update_gate = create_gate_controller(
-            0.5,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierNormal { gain: 1.0 },
-            device,
-        );
-        gru.reset_gate = create_gate_controller(
-            0.6,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierNormal { gain: 1.0 },
-            device,
-        );
-        gru.new_gate = create_gate_controller(
-            0.7,
-            0.0,
-            1,
-            1,
-            false,
-            Initializer::XavierNormal { gain: 1.0 },
-            device,
-        );
+        gru.update_gate = create_gate_controller(0.5, 0.0, device);
+        gru.reset_gate = create_gate_controller(0.6, 0.0, device);
+        gru.new_gate = create_gate_controller(0.7, 0.0, device);
         gru
     }
 
@@ -675,25 +636,15 @@ mod tests {
             hidden_biases: [f32; D1],
             device: &Device,
         ) -> GateController {
-            let d_input = input_weights[0].len();
-            let d_output = input_weights.len();
-
-            let input_record = LinearRecord {
+            let input_record = Linear {
                 weight: Param::from_data(TensorData::from(input_weights), device),
                 bias: Some(Param::from_data(TensorData::from(input_biases), device)),
             };
-            let hidden_record = LinearRecord {
+            let hidden_record = Linear {
                 weight: Param::from_data(TensorData::from(hidden_weights), device),
                 bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
             };
-            GateController::create_with_weights(
-                d_input,
-                d_output,
-                true,
-                Initializer::XavierUniform { gain: 1.0 },
-                input_record,
-                hidden_record,
-            )
+            GateController::create_with_weights(input_record, hidden_record)
         }
 
         let input = Tensor::<3>::from_data(
@@ -954,25 +905,15 @@ mod tests {
             hidden_biases: [f32; D1],
             device: &Device,
         ) -> GateController {
-            let d_input = input_weights[0].len();
-            let d_output = input_weights.len();
-
-            let input_record = LinearRecord {
+            let input_record = Linear {
                 weight: Param::from_data(TensorData::from(input_weights), device),
                 bias: Some(Param::from_data(TensorData::from(input_biases), device)),
             };
-            let hidden_record = LinearRecord {
+            let hidden_record = Linear {
                 weight: Param::from_data(TensorData::from(hidden_weights), device),
                 bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
             };
-            GateController::create_with_weights(
-                d_input,
-                d_output,
-                true,
-                Initializer::XavierUniform { gain: 1.0 },
-                input_record,
-                hidden_record,
-            )
+            GateController::create_with_weights(input_record, hidden_record)
         }
 
         // Input: [batch=1, seq=4, input=2]

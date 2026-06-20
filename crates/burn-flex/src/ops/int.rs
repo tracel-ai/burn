@@ -32,10 +32,6 @@ impl IntTensorOps<Flex> for Flex {
         Ok(tensor.into_data())
     }
 
-    fn int_device(_tensor: &IntTensor<Flex>) -> Device<Flex> {
-        Default::default()
-    }
-
     fn int_to_device(tensor: IntTensor<Flex>, _device: &Device<Flex>) -> IntTensor<Flex> {
         tensor
     }

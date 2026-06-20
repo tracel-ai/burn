@@ -72,8 +72,6 @@ impl<V> ModuleDisplayDefault for RunningState<V> {
 impl<V> ModuleDisplay for RunningState<V> {}
 
 impl<const D: usize> Module for RunningState<Tensor<D>> {
-    type Record = Param<Tensor<D>>;
-
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         let tensor = self.value.lock().unwrap();
         let param = Param::initialized(self.id, tensor.clone());
@@ -87,23 +85,6 @@ impl<const D: usize> Module for RunningState<Tensor<D>> {
         let (_, tensor_out, _) = param_out.consume();
 
         *tensor = tensor_out;
-        core::mem::drop(tensor);
-
-        self
-    }
-
-    fn into_record(self) -> Self::Record {
-        self.sync();
-        let tensor = self.value.lock().unwrap();
-
-        Param::initialized(self.id, tensor.clone())
-    }
-
-    fn load_record(mut self, record: Self::Record) -> Self {
-        let mut tensor = self.value.lock().unwrap();
-        *tensor = record.val().to_device(&tensor.device());
-        self.id = record.id;
-
         core::mem::drop(tensor);
 
         self
