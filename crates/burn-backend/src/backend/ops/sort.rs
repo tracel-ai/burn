@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::{vec, vec::Vec};
 use burn_std::{Element, IntDType};
-use burn_std::{bf16, f16, e4m3, e5m2};
+use burn_std::{bf16, e4m3, e5m2, f16};
 
 /// Macro used to dispatch sort operations based on dtype.
 macro_rules! sort_dispatch_dtype {
@@ -21,7 +21,6 @@ macro_rules! sort_dispatch_dtype {
                         $fn::<f32, $index_ty>($data, $($args),*)
                     }
                     DType::F16 => $fn::<f16, $index_ty>($data, $($args),*),
-                    DType::BF16 => $fn::<bf16, $index_ty>($data, $($args),*),
                     DType::BF16 => $fn::<bf16, $index_ty>($data, $($args),*),
                     DType::E4M3 => $fn::<e4m3, $index_ty>($data, $($args),*),
                     DType::E5M2 => $fn::<e5m2, $index_ty>($data, $($args),*),

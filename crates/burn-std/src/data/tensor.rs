@@ -336,16 +336,17 @@ impl TensorData {
                         unimplemented!("Not yet implemented for iteration");
                     }
                 },
-                
+
                 DType::E4M3 => Box::new(
                     bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
-                        .map(|e: &e4m3| e.elem::<E>())
+                        .map(|e: &e4m3| e.elem::<E>()),
                 ),
-                DType::E5M2 => Box::new(bytemuck::checked::cast_slice(&self.bytes)
+                DType::E5M2 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
-                        .map(|e: &e5m2| e.elem::<E>())),
-                
+                        .map(|e: &e5m2| e.elem::<E>()),
+                ),
             }
         }
     }
@@ -485,7 +486,7 @@ impl TensorData {
                 DType::F32 | DType::Flex32 => self.convert_inplace_dtype::<f32>(dtype),
                 DType::F16 => self.convert_inplace_dtype::<f16>(dtype),
                 DType::BF16 => self.convert_inplace_dtype::<bf16>(dtype),
-                DType::E4M3 =>  self.convert_inplace_dtype::<e4m3>(dtype),
+                DType::E4M3 => self.convert_inplace_dtype::<e4m3>(dtype),
                 DType::E5M2 => self.convert_inplace_dtype::<e5m2>(dtype),
                 DType::I64 => self.convert_inplace_dtype::<i64>(dtype),
                 DType::I32 => self.convert_inplace_dtype::<i32>(dtype),
@@ -498,7 +499,6 @@ impl TensorData {
                 DType::Bool(BoolStore::U8) => self.convert_inplace_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U32) => self.convert_inplace_dtype::<u32>(dtype),
                 DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),
-                
             }
         } else {
             match self.dtype {
@@ -506,7 +506,7 @@ impl TensorData {
                 DType::F32 | DType::Flex32 => self.convert_clone_dtype::<f32>(dtype),
                 DType::F16 => self.convert_clone_dtype::<f16>(dtype),
                 DType::BF16 => self.convert_clone_dtype::<bf16>(dtype),
-                DType::E4M3 =>  self.convert_clone_dtype::<e4m3>(dtype),
+                DType::E4M3 => self.convert_clone_dtype::<e4m3>(dtype),
                 DType::E5M2 => self.convert_clone_dtype::<e5m2>(dtype),
                 DType::I64 => self.convert_clone_dtype::<i64>(dtype),
                 DType::I32 => self.convert_clone_dtype::<i32>(dtype),
@@ -519,7 +519,7 @@ impl TensorData {
                 DType::Bool(BoolStore::Native) => self.convert_clone_dtype::<bool>(dtype),
                 DType::Bool(BoolStore::U8) => self.convert_clone_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U32) => self.convert_clone_dtype::<u32>(dtype),
-                
+
                 DType::QFloat(_) => unreachable!(),
             }
         }
@@ -541,7 +541,7 @@ impl TensorData {
             DType::U32 => self.convert_inplace::<Current, u32>(),
             DType::U16 => self.convert_inplace::<Current, u16>(),
             DType::U8 => self.convert_inplace::<Current, u8>(),
-            
+
             DType::Bool(BoolStore::U8) => self.convert_inplace::<Current, u8>().into_bool_u8(),
             DType::Bool(BoolStore::U32) => self.convert_inplace::<Current, u32>().into_bool_u32(),
             DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),

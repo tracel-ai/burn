@@ -85,7 +85,13 @@ impl DType {
     pub fn is_float(&self) -> bool {
         matches!(
             self,
-            DType::F64 | DType::F32 | DType::Flex32 | DType::F16 | DType::BF16 | DType::E5M2 | DType::E4M3 
+            DType::F64
+                | DType::F32
+                | DType::Flex32
+                | DType::F16
+                | DType::BF16
+                | DType::E5M2
+                | DType::E4M3
         )
     }
     /// Returns true if the data type is a signed integer type.
@@ -153,7 +159,7 @@ pub enum FloatDType {
     F16,
     BF16,
     E4M3,
-    E5M2
+    E5M2,
 }
 
 /// Numerical precision properties for a floating-point dtype.

@@ -94,7 +94,6 @@ pub fn dtype_to_elem_type(dtype: DType) -> ElemType {
                 other => panic!("{other:?} doesn't support native packing"),
             },
         },
-        
     }
 }
 

@@ -1067,6 +1067,8 @@ fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsS
         DType::F32 | DType::Flex32 => Ok(Dtype::F32), // Flex32 is stored as F32
         DType::F16 => Ok(Dtype::F16),
         DType::BF16 => Ok(Dtype::BF16),
+        DType::E4M3 => Ok(Dtype::F8_E4M3),
+        DType::E5M2 => Ok(Dtype::F8_E5M2),
         DType::I64 => Ok(Dtype::I64),
         DType::I32 => Ok(Dtype::I32),
         DType::I16 => Ok(Dtype::I16),

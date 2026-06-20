@@ -627,12 +627,12 @@ impl ToElement for e5m2 {
     fn to_f16(&self) -> f16 {
         Self::to_f32(*self).to_f16()
     }
-    
+
     #[inline]
     fn to_e5m2(&self) -> e5m2 {
         *self
     }
-    
+
     #[inline]
     fn to_f32(&self) -> f32 {
         Self::to_f32(*self)

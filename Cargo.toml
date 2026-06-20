@@ -221,10 +221,10 @@ burn-vision = { path = "crates/burn-vision", version = "0.22.0-pre.1", default-f
 burn-wgpu = { path = "crates/burn-wgpu", version = "0.22.0-pre.1", default-features = false }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/skewballfox/cubecl", default-features = false, rev ="9ac9980a2a4e348cf2b4d0f74244ed0d0e2b57d2" }
-cubecl-common = { git = "https://github.com/skewballfox/cubecl", default-features = false, rev ="9ac9980a2a4e348cf2b4d0f74244ed0d0e2b57d2" }
-cubecl-zspace = { git = "https://github.com/skewballfox/cubecl", default-features = false, rev ="9ac9980a2a4e348cf2b4d0f74244ed0d0e2b57d2" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "9cc59e47142699ed9f6e608fc74399a4029b7570" }
+cubecl = { git = "https://github.com/skewballfox/cubecl", default-features = false, branch = "f8_impl" }
+cubecl-common = { git = "https://github.com/skewballfox/cubecl", default-features = false, branch = "f8_impl" }
+cubecl-zspace = { git = "https://github.com/skewballfox/cubecl", default-features = false, branch = "f8_impl" }
+cubek = { git = "https://github.com/skewballfox/cubek", default-features = false, branch = "f8_impl" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

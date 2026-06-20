@@ -489,11 +489,11 @@ impl IntTensorOps<Flex> for Flex {
             FloatDType::E4M3 => {
                 let data: Vec<e4m3> = read_ints!(|x| e4m3::from_f32(x as f32));
                 FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
-            },
+            }
             FloatDType::E5M2 => {
                 let data: Vec<e5m2> = read_ints!(|x| e5m2::from_f32(x as f32));
                 FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
-            },
+            }
         }
     }
 

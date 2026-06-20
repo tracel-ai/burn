@@ -1,7 +1,6 @@
 use core::cmp::Ordering;
 use cubecl_common::{e4m3, e5m2};
 use rand::Rng;
-use rand_distr::uniform::UniformSampler;
 
 use crate::distribution::Distribution;
 use crate::{BoolStore, DType, bf16, f16, flex32};

@@ -132,7 +132,7 @@ impl BoolTensorOps<Flex> for Flex {
                     .map(|&x| if x != 0 { one } else { zero })
                     .collect();
                 FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
-            },
+            }
             FloatDType::E5M2 => {
                 let one = e5m2::from_f32(1.0);
                 let zero = e5m2::from_f32(0.0);
@@ -141,7 +141,7 @@ impl BoolTensorOps<Flex> for Flex {
                     .map(|&x| if x != 0 { one } else { zero })
                     .collect();
                 FlexTensor::new(Bytes::from_elems(data), Layout::contiguous(shape), out_dt)
-            },
+            }
         }
     }
 

@@ -210,11 +210,11 @@ impl QTensorOps<Flex> for Flex {
             FloatDType::E4M3 => {
                 let data: Vec<e4m3> = dequantized.iter().map(|&v| e4m3::from_f32(v)).collect();
                 FlexTensor::new(Bytes::from_elems(data), layout, DType::E4M3)
-            },
+            }
             FloatDType::E5M2 => {
                 let data: Vec<e5m2> = dequantized.iter().map(|&v| e5m2::from_f32(v)).collect();
                 FlexTensor::new(Bytes::from_elems(data), layout, DType::E5M2)
-            },
+            }
         }
     }
 

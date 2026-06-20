@@ -7,6 +7,7 @@ use burn_std::{
 };
 use core::fmt::Display;
 use cubecl::{
+    e4m3, e5m2,
     ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind},
     prelude::*,
 };
@@ -562,6 +563,8 @@ pub struct LocalArgs {
     pub l_f64: Registry<usize, Vector<f64, DynSize>>,
     pub l_f32: Registry<usize, Vector<f32, DynSize>>,
     pub l_f16: Registry<usize, Vector<f16, DynSize>>,
+    pub l_e4m3: Registry<usize, Vector<e4m3, DynSize>>,
+    pub l_e5m2: Registry<usize, Vector<e5m2, DynSize>>,
     pub l_bf16: Registry<usize, Vector<bf16, DynSize>>,
     pub l_i64: Registry<usize, Vector<i64, DynSize>>,
     pub l_i32: Registry<usize, Vector<i32, DynSize>>,
@@ -590,6 +593,8 @@ impl LocalArgs {
             l_f32: Registry::<usize, Vector<f32, DynSize>>::new(),
             l_f16: Registry::<usize, Vector<f16, DynSize>>::new(),
             l_bf16: Registry::<usize, Vector<bf16, DynSize>>::new(),
+            l_e4m3: Registry::<usize, Vector<e4m3, DynSize>>::new(),
+            l_e5m2: Registry::<usize, Vector<e5m2, DynSize>>::new(),
             l_i64: Registry::<usize, Vector<i64, DynSize>>::new(),
             l_i32: Registry::<usize, Vector<i32, DynSize>>::new(),
             l_i16: Registry::<usize, Vector<i16, DynSize>>::new(),
@@ -633,6 +638,8 @@ pub enum FuseType {
     Flex32,
     F16,
     BF16,
+    E4M3,
+    E5M2,
     I64,
     I32,
     I16,
@@ -891,6 +898,8 @@ impl FuseType {
             FuseType::U16 => ElemType::UInt(UIntKind::U16),
             FuseType::U8 => ElemType::UInt(UIntKind::U8),
             FuseType::F64 => ElemType::Float(FloatKind::F64),
+            FuseType::E4M3 => ElemType::Float(FloatKind::E4M3),
+            FuseType::E5M2 => ElemType::Float(FloatKind::E5M2),
         }
     }
 
@@ -912,6 +921,8 @@ impl From<DType> for FuseType {
             DType::Flex32 => Self::Flex32,
             DType::F16 => Self::F16,
             DType::BF16 => Self::BF16,
+            DType::E4M3 => Self::E4M3,
+            DType::E5M2 => Self::E5M2,
             DType::I64 => Self::I64,
             DType::I32 => Self::I32,
             DType::I16 => Self::I16,
