@@ -2,11 +2,11 @@ use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{Backend, Distribution, TensorData, TensorMetadata};
+use crate::{Backend, BackendTypes, Distribution, TensorData, TensorMetadata};
 use crate::{ExecutionError, Scalar, get_device_settings};
 use alloc::vec::Vec;
 use burn_std::reader::try_read_sync;
-use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+use burn_std::{BoolDType, DType, FloatDType, IntDType, Shape, Slice};
 use core::ops::Range;
 
 /// Int Tensor API for basic and numeric operations, see
@@ -1394,6 +1394,64 @@ pub trait IntTensorOps<B: Backend> {
         })
     }
 
+    /// Converts a tensor to another integer data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target integer data type.
+    fn int_cast(tensor: IntTensor<B>, dtype: IntDType) -> IntTensor<B>;
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn int_unfold(tensor: IntTensor<B>, dim: usize, size: usize, step: usize) -> IntTensor<B>;
+}
+
+pub trait BitCastHelper {
+    fn bitcast<T1: TensorMetadata + 'static, T2: TensorMetadata + 'static>(
+        src: T1,
+        target: DType,
+    ) -> T2;
+}
+pub trait BitcastOps<B: BackendTypes + BitwiseIntTensorOps<B>> {
+    type BitCaster: BitCastHelper;
+    fn bitwise_op<
+        T: TensorMetadata + 'static,
+        F: Fn(IntTensor<B>, IntTensor<B>) -> IntTensor<B>,
+    >(
+        lhs: T,
+        rhs: IntTensor<B>,
+        f: F,
+    ) -> T {
+        let src = lhs.dtype();
+        let dest = dtype_int(src);
+        Self::BitCaster::bitcast::<IntTensor<B>, T>(
+            f(Self::BitCaster::bitcast::<T, IntTensor<B>>(lhs, dest), rhs),
+            src,
+        )
+    }
+}
+
+pub trait BitwiseIntTensorOps<B: BackendTypes> {
     /// Bitwise AND operation for Int Tensors
     fn bitwise_and(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
@@ -1426,35 +1484,30 @@ pub trait IntTensorOps<B: Backend> {
 
     /// Bitwise right shift operation for Int Tensors with a scalar
     fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
+}
 
-    /// Converts a tensor to another integer data type.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to convert.
-    /// * `dtype` - The target data type.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same values as `tensor` but in the target integer data type.
-    fn int_cast(tensor: IntTensor<B>, dtype: IntDType) -> IntTensor<B>;
+pub const fn dtype_int(dtype: DType) -> DType {
+    match dtype {
+        DType::F64 => DType::U64,
+        DType::F32 | DType::Flex32 => DType::U32,
+        DType::QFloat(_quant_scheme) => todo!(),
+        DType::F16 | DType::BF16 => DType::U16,
 
-    /// Unfold windows along a dimension.
-    ///
-    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
-    /// where windows are advanced by `step` at each index.
-    ///
-    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
-    /// * `dim` - the selected dim.
-    /// * `size` - the size of each unfolded window.
-    /// * `step` - the step between each window.
-    ///
-    /// # Returns
-    ///
-    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
-    fn int_unfold(tensor: IntTensor<B>, dim: usize, size: usize, step: usize) -> IntTensor<B>;
+        DType::Bool(bool_store) => match bool_store {
+            burn_std::BoolStore::Native => todo!(),
+            burn_std::BoolStore::U8 => DType::U8,
+            burn_std::BoolStore::U32 => DType::U32,
+        },
+        _ => dtype,
+    }
+}
+#[inline]
+pub fn transmute_same_type<A, B>(value: A) -> B {
+    // Assert sizes match at compile time to catch mistakes early
+    debug_assert_eq!(core::mem::size_of::<A>(), core::mem::size_of::<B>());
+
+    let ptr = &value as *const A as *const B;
+    let result = unsafe { ptr.read() };
+    core::mem::forget(value);
+    result
 }

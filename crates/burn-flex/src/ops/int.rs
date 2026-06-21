@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 use burn_backend::{
     DType, Distribution, ExecutionError, FloatDType, Scalar, TensorData, TensorMetadata,
-    ops::IntTensorOps,
+    ops::{BitCastHelper, BitcastOps, BitwiseIntTensorOps, IntTensorOps, transmute_same_type},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{Bytes, IntDType, Shape, Slice, bf16, f16};
@@ -619,61 +619,6 @@ impl IntTensorOps<Flex> for Flex {
         crate::ops::unary::int_abs(tensor)
     }
 
-    fn bitwise_and(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a & b)
-    }
-
-    fn bitwise_and_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        if lhs.dtype() == DType::U64 {
-            return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a & b);
-        }
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a & b)
-    }
-
-    fn bitwise_or(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a | b)
-    }
-
-    fn bitwise_or_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        if lhs.dtype() == DType::U64 {
-            return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a | b);
-        }
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a | b)
-    }
-
-    fn bitwise_xor(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a ^ b)
-    }
-
-    fn bitwise_xor_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        if lhs.dtype() == DType::U64 {
-            return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a ^ b);
-        }
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a ^ b)
-    }
-
-    fn bitwise_not(tensor: IntTensor<Flex>) -> IntTensor<Flex> {
-        // Use scalar op with dummy value, only applying NOT to lhs
-        int_scalar_op(tensor, 0, |a, _| !a)
-    }
-
-    // Shift amounts masked to type width via wrapping_shl/wrapping_shr.
-    fn bitwise_left_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_shl(b as u32))
-    }
-
-    fn bitwise_left_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shl(b as u32))
-    }
-
-    fn bitwise_right_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
-        int_binary_op(lhs, rhs, |a, b| a.wrapping_shr(b as u32))
-    }
-
-    fn bitwise_right_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
-        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shr(b as u32))
-    }
-
     fn int_cast(tensor: IntTensor<Flex>, dtype: IntDType) -> IntTensor<Flex> {
         let target_dtype: DType = dtype.into();
 
@@ -1073,6 +1018,81 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 }
+pub struct FlexCaster;
+
+impl BitCastHelper for FlexCaster {
+    fn bitcast<T1: TensorMetadata + 'static, T2: TensorMetadata + 'static>(
+        src: T1,
+        target: DType,
+    ) -> T2 {
+        let mut src = transmute_same_type::<T1, FlexTensor>(src);
+        if src.dtype.size() != target.size() {
+            panic!("can't cast dtype")
+        }
+        src.dtype = target;
+        transmute_same_type::<FlexTensor, T2>(src)
+    }
+}
+
+impl BitcastOps<Flex> for Flex {
+    type BitCaster = FlexCaster;
+}
+impl BitwiseIntTensorOps<Flex> for Flex {
+    fn bitwise_and(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        int_binary_op(lhs, rhs, |a, b| a & b)
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
+        if lhs.dtype() == DType::U64 {
+            return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a & b);
+        }
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a & b)
+    }
+
+    fn bitwise_or(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        int_binary_op(lhs, rhs, |a, b| a | b)
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
+        if lhs.dtype() == DType::U64 {
+            return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a | b);
+        }
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a | b)
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        int_binary_op(lhs, rhs, |a, b| a ^ b)
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
+        if lhs.dtype() == DType::U64 {
+            return scalar_op_typed(lhs, rhs.to_u64().unwrap(), |a: u64, b: u64| a ^ b);
+        }
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a ^ b)
+    }
+
+    fn bitwise_not(tensor: IntTensor<Flex>) -> IntTensor<Flex> {
+        // Use scalar op with dummy value, only applying NOT to lhs
+        int_scalar_op(tensor, 0, |a, _| !a)
+    }
+
+    // Shift amounts masked to type width via wrapping_shl/wrapping_shr.
+    fn bitwise_left_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        int_binary_op(lhs, rhs, |a, b| a.wrapping_shl(b as u32))
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shl(b as u32))
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
+        int_binary_op(lhs, rhs, |a, b| a.wrapping_shr(b as u32))
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Flex>, rhs: Scalar) -> IntTensor<Flex> {
+        int_scalar_op(lhs, rhs.to_i64().unwrap(), |a, b| a.wrapping_shr(b as u32))
+    }
+}
 
 // Tests kept here exercise flex-specific behavior: dtype storage
 // selection for every int width (I16/I32/U8/U16/U32/I64/U64), and edge
@@ -1087,6 +1107,7 @@ impl IntTensorOps<Flex> for Flex {
 mod tests {
     use alloc::vec;
     use burn_backend::TensorData;
+    use burn_backend::ops::BitwiseIntTensorOps as _;
     use burn_backend::ops::IntTensorOps;
 
     use crate::Flex;

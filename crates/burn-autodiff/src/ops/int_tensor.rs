@@ -1,9 +1,11 @@
+use std::{any::TypeId, marker::PhantomData};
+
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 use alloc::vec::Vec;
 
 use burn_backend::{
-    Backend, Distribution, ExecutionError, Scalar, TensorData,
-    ops::IntTensorOps,
+    Backend, BackendTypes, Distribution, ExecutionError, Scalar, TensorData,
+    ops::{BitCastHelper, BitcastOps, BitwiseIntTensorOps, IntTensorOps},
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{BoolDType, FloatDType, IntDType, Shape};
@@ -287,10 +289,6 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         AutodiffTensor::new(B::int_into_float(tensor, out_dtype))
     }
 
-    fn int_swap_dims(tensor: IntTensor<B>, dim1: usize, dim2: usize) -> IntTensor<B> {
-        B::int_swap_dims(tensor, dim1, dim2)
-    }
-
     fn int_random(
         shape: Shape,
         distribution: Distribution,
@@ -348,6 +346,76 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_argsort(tensor, dim, descending)
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        B::int_cast(tensor, dtype)
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        B::int_unfold(tensor, dim, size, step)
+    }
+}
+
+struct BitcastStub;
+impl BitCastHelper for BitcastStub {
+    fn bitcast<
+        T1: burn_backend::TensorMetadata + 'static,
+        T2: burn_backend::TensorMetadata + 'static,
+    >(
+        src: T1,
+        target: burn_std::DType,
+    ) -> T2 {
+        //we can't use the default method because AutodiffTensor wraps another tensor primitive
+        unimplemented!("")
+    }
+}
+impl<B: Backend + BitcastOps<B> + BitwiseIntTensorOps<B>, C: CheckpointStrategy> BitcastOps<Self>
+    for Autodiff<B, C>
+{
+    type BitCaster = BitcastStub;
+
+    fn bitwise_op<
+        T: burn_backend::TensorMetadata + 'static,
+        F: Fn(IntTensor<Self>, IntTensor<Self>) -> IntTensor<Self>,
+    >(
+        mut lhs: T,
+        rhs: IntTensor<Self>,
+        f: F,
+    ) -> T {
+        if should_track::<Self, T>() {
+            as_autodiff::<B, C, _, _>(lhs, |mut tensor: AutodiffTensor<B>| {
+                let src = lhs.dtype();
+                let dest = burn_backend::ops::dtype_int(src);
+                tensor.primitive = B::BitCaster::bitcast::<IntTensor<Self>, FloatTensor<B>>(
+                    f(
+                        B::BitCaster::bitcast::<FloatTensor<B>, IntTensor<Self>>(
+                            tensor.primitive,
+                            dest,
+                        ),
+                        rhs,
+                    ),
+                    src,
+                );
+                tensor
+            })
+        } else {
+            let src = lhs.dtype();
+            let dest = burn_backend::ops::dtype_int(src);
+            B::BitCaster::bitcast::<IntTensor<Self>, T>(
+                f(B::BitCaster::bitcast::<T, IntTensor<Self>>(lhs, dest), rhs),
+                src,
+            )
+        }
+    }
+}
+
+impl<B: Backend + BitcastOps<B> + BitwiseIntTensorOps<B>, C: CheckpointStrategy>
+    BitwiseIntTensorOps<Self> for Autodiff<B, C>
+{
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         B::bitwise_and(lhs, rhs)
     }
@@ -391,17 +459,19 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         B::bitwise_right_shift_scalar(lhs, rhs)
     }
+}
 
-    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
-        B::int_cast(tensor, dtype)
-    }
+fn should_track<B: BackendTypes, T: burn_backend::TensorMetadata + 'static>() -> bool {
+    TypeId::of::<T>() == TypeId::of::<B::FloatTensorPrimitive>()
+}
 
-    fn int_unfold(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        size: usize,
-        step: usize,
-    ) -> IntTensor<Self> {
-        B::int_unfold(tensor, dim, size, step)
-    }
+fn as_autodiff<B, C, T, F>(value: T, f: F) -> T
+where
+    B: Backend,
+    C: CheckpointStrategy,
+    F: FnOnce(AutodiffTensor<B>) -> AutodiffTensor<B>,
+{
+    let autodiff: AutodiffTensor<B> = transmute_same_type(value);
+    let result = f(autodiff);
+    transmute_same_type(result)
 }
