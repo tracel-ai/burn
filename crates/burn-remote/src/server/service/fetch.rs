@@ -70,16 +70,7 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
         // Drain the per-session result queue. The queue closes when every sender is dropped: the
         // session's worker (on close/disconnect) and any in-flight readback tasks.
         while let Some(response) = receiver.recv().await {
-            let bytes = match rmp_serde::to_vec(&response) {
-                Ok(b) => b,
-                Err(err) => {
-                    log::error!(
-                        "Failed to encode result for request {:?}: {err:?}",
-                        response.id
-                    );
-                    continue;
-                }
-            };
+            let bytes = burn_communication::codec::serialize(&response);
             if let Err(err) = self.socket.send(Message::new(bytes.into())).await {
                 log::warn!("Result send failed for session {session_id}: {err:?}; closing writer");
                 return;
@@ -126,13 +117,7 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
             // fetch-demux task starts, so it never goes through the pending-callback map.
             id: 0,
         };
-        let bytes = match rmp_serde::to_vec(&init_response) {
-            Ok(b) => b,
-            Err(err) => {
-                log::error!("Failed to encode Init reply: {err:?}");
-                return None;
-            }
-        };
+        let bytes = burn_communication::codec::serialize(&init_response);
         if let Err(err) = self.socket.send(Message::new(bytes.into())).await {
             log::error!("Failed to send Init reply for session {session_id}: {err:?}");
             return None;

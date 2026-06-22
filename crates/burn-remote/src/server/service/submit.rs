@@ -62,13 +62,14 @@ impl<S: SubmitService, C: CommunicationChannel> SubmitHandler<S, C> {
                 }
             };
 
-            let messages: Vec<RemoteMessage> = match rmp_serde::from_slice(&msg.data) {
-                Ok(m) => m,
-                Err(err) => {
-                    log::error!("Failed to decode submitted batch: {err:?}; closing stream");
-                    break;
-                }
-            };
+            let messages: Vec<RemoteMessage> =
+                match burn_communication::codec::deserialize(&msg.data) {
+                    Ok(m) => m,
+                    Err(err) => {
+                        log::error!("Failed to decode submitted batch: {err}; closing stream");
+                        break;
+                    }
+                };
 
             if self.policy.process_batch(messages).await {
                 break;

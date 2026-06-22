@@ -37,7 +37,7 @@ pub enum SqliteDatasetError {
 
     /// Serde related error.
     #[error("Serde error: {0}")]
-    Serde(#[from] rmp_serde::encode::Error),
+    Serde(String),
 
     /// The database file already exists error.
     #[error("Overwrite flag is set to false and the database file already exists: {0}")]
@@ -209,9 +209,9 @@ where
             // Fetch with a single column `item` and deserialize it with MessagePack
             statement
                 .query_row([row_id], |row| {
-                    // Deserialize item (blob) with MessagePack (rmp-serde)
+                    // Deserialize item (blob) with CBOR (ciborium)
                     Ok(
-                        rmp_serde::from_slice::<I>(row.get_ref(0).unwrap().as_blob().unwrap())
+                        ciborium::de::from_reader::<I, _>(row.get_ref(0).unwrap().as_blob().unwrap())
                             .unwrap(),
                     )
                 })
@@ -532,8 +532,10 @@ where
         let conn_pool = self.conn_pool.as_ref().unwrap();
         let conn = conn_pool.get()?;
 
-        // Serialize the item using MessagePack
-        let serialized_item = rmp_serde::to_vec(item)?;
+        // Serialize the item using CBOR
+        let mut serialized_item = Vec::new();
+        ciborium::ser::into_writer(item, &mut serialized_item)
+            .map_err(|err| SqliteDatasetError::Serde(err.to_string()))?;
 
         // Turn off the synchronous and journal mode for speed up
         // We are sacrificing durability for speed but it's okay because

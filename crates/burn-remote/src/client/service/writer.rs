@@ -38,13 +38,7 @@ impl SubmitWriter {
         let (tx, mut rx) = mpsc::channel::<Vec<RemoteMessage>>(WRITE_QUEUE_CAP);
         let handle = runtime.spawn(async move {
             while let Some(batch) = rx.recv().await {
-                let bytes: bytes::Bytes = match rmp_serde::to_vec(&batch) {
-                    Ok(b) => b.into(),
-                    Err(err) => {
-                        log::error!("Failed to serialize outgoing task batch: {err:?}; dropping");
-                        continue;
-                    }
-                };
+                let bytes: bytes::Bytes = burn_communication::codec::serialize(&batch).into();
                 if let Err(err) = channel.send(Message::new(bytes)).await {
                     log::warn!("Remote submit writer send failed: {err:?}; closing writer");
                     return;

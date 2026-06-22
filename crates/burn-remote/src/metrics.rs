@@ -177,9 +177,7 @@ fn level() -> RemoteLogLevel {
 }
 
 fn serialized_len<T: serde::Serialize>(value: &T) -> usize {
-    rmp_serde::to_vec(value)
-        .map(|bytes| bytes.len())
-        .unwrap_or(0)
+    burn_communication::codec::serialize(value).len()
 }
 
 /// `part` as a percentage of `whole`. Zero when `whole` is 0 (nothing measured yet), so the first

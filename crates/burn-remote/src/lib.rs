@@ -344,7 +344,7 @@ mod tests {
                     .expect("raw submit connect");
 
                 let frame = |msgs: Vec<RemoteMessage>| -> Message {
-                    Message::new(rmp_serde::to_vec(&msgs).unwrap().into())
+                    Message::new(burn_communication::codec::serialize(&msgs).into())
                 };
 
                 submit

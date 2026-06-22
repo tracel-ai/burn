@@ -51,7 +51,7 @@ pub struct ExternalCommService<B: Backend, P: Protocol<Client: ProtocolClient>> 
 }
 
 pub struct TensorExposeState {
-    /// The bytes of the tensor data message. Message::Data(...) serialized with rmp_serde
+    /// The bytes of the tensor data message. Message::Data(...) serialized with CBOR (ciborium)
     pub bytes: bytes::Bytes,
     /// How many times the tensor will be downloaded
     pub max_downloads: u32,
@@ -104,9 +104,8 @@ impl<B: Backend, P: Protocol> ExternalCommService<B, P> {
         max_downloads: u32,
         transfer_id: TensorTransferId,
     ) {
-        let bytes: bytes::Bytes = rmp_serde::to_vec(&ExternalCommMessage::Tensor(tensor_data))
-            .unwrap()
-            .into();
+        let bytes: bytes::Bytes =
+            crate::codec::serialize(&ExternalCommMessage::Tensor(tensor_data)).into();
         let mut exposed_tensors = self.exposed_tensors.lock().await;
         exposed_tensors.insert(
             transfer_id,
@@ -149,9 +148,7 @@ impl<B: Backend, P: Protocol> ExternalCommService<B, P> {
 
         // Send the download request with the download id
         let bytes: bytes::Bytes =
-            rmp_serde::to_vec(&ExternalCommMessage::TensorRequest(transfer_id))
-                .unwrap()
-                .into();
+            crate::codec::serialize(&ExternalCommMessage::TensorRequest(transfer_id)).into();
         stream
             .send(Message::new(bytes))
             .await
@@ -163,7 +160,7 @@ impl<B: Backend, P: Protocol> ExternalCommService<B, P> {
                 return None;
             };
 
-            let ExternalCommMessage::Tensor(data) = rmp_serde::from_slice(&msg.data)
+            let ExternalCommMessage::Tensor(data) = crate::codec::deserialize(&msg.data)
                 .expect("Can deserialize messages from the websocket.")
             else {
                 panic!("Message should have been TensorData")
@@ -238,7 +235,7 @@ impl<B: Backend, P: Protocol> ExternalCommService<B, P> {
                 Ok(message) => {
                     if let Some(msg) = message {
                         let bytes = msg.data;
-                        let msg: ExternalCommMessage = rmp_serde::from_slice(&bytes)
+                        let msg: ExternalCommMessage = crate::codec::deserialize(&bytes)
                             .expect("Can deserialize messages from the websocket.");
                         let ExternalCommMessage::TensorRequest(transfer_id) = msg else {
                             panic!("Received a message that wasn't a tensor request! {msg:?}");

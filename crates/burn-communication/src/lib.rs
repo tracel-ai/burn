@@ -4,6 +4,7 @@ extern crate derive_new;
 mod base;
 pub use base::*;
 
+pub mod codec;
 pub mod util;
 
 #[cfg(feature = "websocket")]

@@ -62,7 +62,6 @@ log = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
-rmp-serde = { workspace = true }
 futures-util = { workspace = true }
 
 # Client dependencies
