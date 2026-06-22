@@ -798,12 +798,14 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rand 0.10.1",
+ "regex",
  "rstest",
  "serde",
  "serde_json",
  "serial_test",
  "spin",
  "tempfile",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
