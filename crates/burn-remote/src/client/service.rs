@@ -1,3 +1,4 @@
+use crate::metrics::{MetricSide, TrafficMetrics};
 use crate::shared::{
     RemoteMessage, RequestId, SessionId, Task, TaskResponse, TaskResponseContent, TensorRemote,
 };
@@ -66,6 +67,10 @@ pub struct RemoteService<C: ProtocolClient> {
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
     pending: PendingResponses,
+    /// Accumulates this device's op-graph caching traffic savings (logged when remote logging is
+    /// enabled). Lives here rather than in a global so each device measures its own traffic, with no
+    /// locking — the service has exclusive access on the runner thread.
+    metrics: TrafficMetrics,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::defaults`).
     settings: Arc<OnceLock<DeviceSettings>>,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::enumerate`).
@@ -100,6 +105,7 @@ impl<C: ProtocolClient> DeviceService for RemoteService<C> {
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
             pending: PendingResponses::new(),
+            metrics: TrafficMetrics::new(MetricSide::Client),
             settings: settings_cell(id),
             device_count: device_count_cell(id),
             session_id,
@@ -264,6 +270,9 @@ impl<C: ProtocolClient> RemoteService<C> {
         relative_graph: Vec<OperationIr>,
         bindings: burn_ir::GraphBindings,
     ) {
+        // The first invocation both registers (one-time graph cost) and executes (a replay).
+        self.metrics.record_registration(graph_id, &relative_graph);
+        self.metrics.record_execution(graph_id, &bindings);
         self.submit_task(Task::RegisterAndExecuteGraph {
             stream_id,
             graph_id,
@@ -279,6 +288,7 @@ impl<C: ProtocolClient> RemoteService<C> {
         graph_id: burn_ir::GraphId,
         bindings: burn_ir::GraphBindings,
     ) {
+        self.metrics.record_execution(graph_id, &bindings);
         self.submit_task(Task::ExecuteGraph {
             stream_id,
             graph_id,

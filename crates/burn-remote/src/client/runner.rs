@@ -106,9 +106,6 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         relative_graph: Vec<burn_ir::OperationIr>,
         bindings: burn_ir::GraphBindings,
     ) {
-        // The first invocation both registers (one-time graph cost) and executes (a replay).
-        super::metrics::record_registration(graph_id, &relative_graph);
-        super::metrics::record_execution(graph_id, &bindings);
         let stream_id = StreamId::current();
         self.handle.submit(move |s| {
             s.register_and_execute_graph(stream_id, graph_id, relative_graph, bindings)
@@ -116,7 +113,6 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
     }
 
     fn execute_graph(&self, graph_id: burn_ir::GraphId, bindings: burn_ir::GraphBindings) {
-        super::metrics::record_execution(graph_id, &bindings);
         let stream_id = StreamId::current();
         self.handle
             .submit(move |s| s.execute_graph(stream_id, graph_id, bindings));

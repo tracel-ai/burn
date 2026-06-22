@@ -6,6 +6,11 @@ pub mod server;
 
 pub(crate) mod shared;
 
+/// Network-traffic savings metric for op-graph caching, shared by the client device service and the
+/// server session worker.
+#[cfg(any(feature = "client", feature = "server"))]
+pub(crate) mod metrics;
+
 #[cfg(feature = "client")]
 mod __client {
     use super::*;

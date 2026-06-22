@@ -1,6 +1,5 @@
 mod base;
 mod channel;
-mod metrics;
 mod runner;
 mod service;
 

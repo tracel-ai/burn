@@ -36,6 +36,7 @@ use burn_ir::{BackendIr, GraphId};
 use burn_router::{Graph, TensorInterpreter};
 use tokio::{runtime::Handle, sync::mpsc};
 
+use crate::metrics::{MetricSide, TrafficMetrics};
 use crate::server::local_comm::LocalCommService;
 use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
 
@@ -71,6 +72,9 @@ where
     /// the cache from becoming a serialization point if graph execution is ever driven from more
     /// than the current single-FIFO worker.
     graphs: Mutex<HashMap<GraphId, Graph>>,
+    /// Accumulates this session's op-graph caching traffic savings, measured from the receiving end
+    /// (logged when remote logging is enabled). Owned by the worker thread, so no locking is needed.
+    metrics: TrafficMetrics,
 }
 
 impl<B, P> SessionHandler<B, P>
@@ -103,6 +107,7 @@ where
             external_comm,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
+            metrics: TrafficMetrics::new(MetricSide::Server),
         };
 
         let (sender, receiver) = mpsc::channel(TASK_CHANNEL_CAPACITY);
@@ -197,6 +202,8 @@ where
                 // Cache the reusable graph for later replay, then immediately execute this first
                 // invocation. The lock guards only the cache insert (cheap `Arc` clone); it is
                 // released before the backend dispatch, like `ExecuteGraph` below.
+                self.metrics.record_registration(graph_id, &relative_graph);
+                self.metrics.record_execution(graph_id, &bindings);
                 stream_id.executes(|| {
                     let graph = Graph::new(relative_graph);
                     self.graphs.lock().unwrap().insert(graph_id, graph.clone());
@@ -218,6 +225,7 @@ where
                         .cloned()
                         .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?
                 };
+                self.metrics.record_execution(graph_id, &bindings);
                 stream_id.executes(|| graph.replay(&mut self.runner, bindings));
                 Ok(())
             }
