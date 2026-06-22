@@ -27,10 +27,6 @@ impl QTensorOps<Self> for Candle {
         unimplemented!()
     }
 
-    fn q_device(_tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        unimplemented!()
-    }
-
     fn q_to_device(
         _tensor: QuantizedTensor<Self>,
         _device: &Device<Self>,

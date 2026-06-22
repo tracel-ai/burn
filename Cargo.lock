@@ -798,12 +798,14 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rand 0.10.1",
+ "regex",
  "rstest",
  "serde",
  "serde_json",
  "serial_test",
  "spin",
  "tempfile",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1054,6 +1056,7 @@ dependencies = [
  "burn-backend",
  "burn-communication",
  "burn-flex",
+ "burn-fusion",
  "burn-ir",
  "burn-router",
  "burn-std",
@@ -1097,12 +1100,14 @@ version = "0.22.0-pre.1"
 dependencies = [
  "burn-backend",
  "burn-flex",
+ "burn-fusion",
  "burn-ir",
  "burn-std",
  "burn-tensor",
  "burn-wgpu",
  "hashbrown 0.16.1",
  "log",
+ "serde",
  "spin",
 ]
 

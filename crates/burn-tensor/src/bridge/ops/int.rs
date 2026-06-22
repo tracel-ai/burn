@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    AutodiffBackend, Distribution, Scalar, TensorData,
+    AutodiffBackend, Distribution, Scalar, TensorData, TensorMetadata,
     ops::{IntTensorOps, TransactionPrimitive},
 };
 use burn_dispatch::Dispatch;
@@ -149,7 +149,7 @@ impl BasicOps for Int {
     }
 
     fn device(tensor: &BridgeTensor) -> Device {
-        Device::new(Dispatch::int_device(tensor.as_dispatch()))
+        Device::new(tensor.as_dispatch().device())
     }
 
     fn to_device(tensor: BridgeTensor, device: &Device) -> BridgeTensor {

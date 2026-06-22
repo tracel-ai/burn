@@ -210,10 +210,6 @@ impl QTensorOps<Flex> for Flex {
         }
     }
 
-    fn q_device(_tensor: &QuantizedTensor<Flex>) -> Device<Flex> {
-        Default::default()
-    }
-
     fn q_to_device(tensor: QuantizedTensor<Flex>, _device: &Device<Flex>) -> QuantizedTensor<Flex> {
         tensor
     }

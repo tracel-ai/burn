@@ -587,6 +587,10 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
 
         self.executed.push(id);
     }
+
+    fn execute_unfused(&mut self, optimization: BlockOptimization<TestOptimization>) {
+        self.execute_strategy(&optimization.strategy);
+    }
 }
 
 impl TestSegment<'_> {

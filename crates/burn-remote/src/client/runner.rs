@@ -56,6 +56,8 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         let dtype = data.dtype;
         let id = service::new_tensor_id();
 
+        // Fire-and-forget: the outgoing batch flushes itself once buffered data bytes (or the task
+        // count) cross their threshold — see `OutgoingBatch` — so no explicit flush is needed here.
         let stream_id = StreamId::current();
         self.handle
             .submit(move |s| s.register_tensor(stream_id, id, data));
@@ -82,6 +84,12 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
         service::new_tensor_id()
     }
 
+    fn register_alias(&self, new_id: burn_ir::TensorId, src_id: burn_ir::TensorId) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.register_alias(stream_id, new_id, src_id));
+    }
+
     fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
         self.handle
             .submit_blocking(move |s| s.dtype_usage(dtype))
@@ -90,6 +98,24 @@ impl<C: ProtocolClient> RouterClient for RemoteClient<C> {
 
     fn flush(&self) {
         self.handle.submit_blocking(|s| s.flush()).unwrap();
+    }
+
+    fn register_and_execute_graph(
+        &self,
+        graph_id: burn_ir::GraphId,
+        relative_graph: Vec<burn_ir::OperationIr>,
+        bindings: burn_ir::GraphBindings,
+    ) {
+        let stream_id = StreamId::current();
+        self.handle.submit(move |s| {
+            s.register_and_execute_graph(stream_id, graph_id, relative_graph, bindings)
+        });
+    }
+
+    fn execute_graph(&self, graph_id: burn_ir::GraphId, bindings: burn_ir::GraphBindings) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.execute_graph(stream_id, graph_id, bindings));
     }
 }
 

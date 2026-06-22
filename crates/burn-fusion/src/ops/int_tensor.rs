@@ -68,10 +68,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
-        tensor.client.device().clone()
-    }
-
     fn int_to_device(tensor: IntTensor<Self>, device_dst: &Device<Self>) -> IntTensor<Self> {
         let device_src: &B::Device = tensor.client.device();
 

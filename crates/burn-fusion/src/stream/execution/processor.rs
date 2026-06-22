@@ -19,6 +19,8 @@ pub(crate) trait StreamSegment<O> {
     fn operations(&self) -> &[OperationIr];
     /// Execute part of the segment using the given plan id.
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<O>);
+    /// Execute the segment with a one-off optimization, without caching it in the store.
+    fn execute_unfused(&mut self, optimization: BlockOptimization<O>);
 }
 
 impl<O: NumOperations> Processor<O> {
@@ -124,6 +126,12 @@ impl<O: NumOperations> Processor<O> {
                 if let ExecutionMode::Sync = mode {
                     panic!("Can't continue exploring when sync.")
                 }
+            }
+            ExplorationAction::Unfused(optim) => {
+                // Exploration is capped: run the ops unfused and don't touch the store, so a
+                // never-cacheable dynamic graph stops both re-exploring and growing the cache.
+                item.execute_unfused(optim);
+                self.reset(store, item.operations());
             }
         }
     }

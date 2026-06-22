@@ -21,10 +21,6 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_to_device(tensor, device)
     }
 
-    fn int_device(tensor: &IntTensor<B>) -> Device<Self> {
-        B::int_device(tensor)
-    }
-
     fn int_reshape(tensor: IntTensor<B>, shape: Shape) -> IntTensor<B> {
         B::int_reshape(tensor, shape)
     }

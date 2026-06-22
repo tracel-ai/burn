@@ -18,6 +18,7 @@ pub struct RouterTensor<C: RouterClient> {
 }
 
 impl<C: RouterClient> TensorMetadata for RouterTensor<C> {
+    type Device = C::Device;
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -29,9 +30,18 @@ impl<C: RouterClient> TensorMetadata for RouterTensor<C> {
     fn rank(&self) -> usize {
         self.shape.num_dims()
     }
+
+    fn device(&self) -> Self::Device {
+        self.client.device()
+    }
 }
 
 impl<C: RouterClient> RouterTensor<C> {
+    /// The id identifying this tensor on its [client](RouterClient).
+    pub fn id(&self) -> TensorId {
+        self.id
+    }
+
     /// Create a new router tensor.
     pub fn new(id: TensorId, shape: Shape, dtype: DType, client: C) -> Self {
         Self {
@@ -96,7 +106,7 @@ impl<C: RouterClient> core::fmt::Debug for RouterTensor<C> {
                 self.id,
                 self.shape,
                 self.dtype,
-                self.client.device().clone(),
+                self.client.device(),
             )
             .as_str(),
         )

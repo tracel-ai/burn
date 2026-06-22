@@ -97,7 +97,7 @@ pub fn run(device: Device) {
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
-        .with_checkpointer()
+        .with_default_checkpointers()
         .early_stopping(MetricEarlyStoppingStrategy::new(
             &LossMetric::new(),
             Aggregate::Mean,
