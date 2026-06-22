@@ -1,11 +1,17 @@
-use std::sync::Arc;
+use crate::module::{Module, ModuleVisitor, Param};
 
-use burn_std::id::ParamId;
-use burn_tensor::{Bool, Int, Tensor};
+use alloc::string::String;
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+use alloc::vec;
+use alloc::vec::Vec;
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
 #[cfg(feature = "std")]
 use regex::Regex;
 
-use crate::module::{Module, ModuleVisitor, Param};
+use burn_std::id::ParamId;
+use burn_tensor::{Bool, Int, Tensor};
 
 /// Errors tied to [ParamGroup]'s.
 #[derive(Debug)]
@@ -133,8 +139,8 @@ impl ParamGroup {
     /// Matches parameters by regex pattern (e.g., "^model\.layer\.\d+$")
     ///
     /// # Errors
-    /// Returns a [regex::Error] if the string cannot be compiled into a valid regex.
-    pub fn from_regex<S: AsRef<str>>(pattern: S) -> Result<Self, regex::Error> {
+    /// Returns a [ParamGroupError::GroupInitError] if the string cannot be compiled into a valid regex.
+    pub fn from_regex<S: AsRef<str>>(pattern: S) -> Result<Self, ParamGroupError> {
         ParamGroup::from_regexes(vec![pattern])
     }
 
@@ -143,15 +149,18 @@ impl ParamGroup {
     /// (e.g., "^encoder\.layer\.\d+", and "bias$" )
     ///
     /// # Errors
-    /// Returns a [regex::Error] if the strings cannot be compiled into a valid regex.
-    pub fn from_regexes<I, S>(patterns: I) -> Result<Self, regex::Error>
+    /// Returns a [ParamGroupError::GroupInitError] if the strings cannot be compiled into a valid regex.
+    pub fn from_regexes<I, S>(patterns: I) -> Result<Self, ParamGroupError>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
         let mut new_patterns = vec![];
         for pattern in patterns {
-            new_patterns.push(Regex::new(pattern.as_ref())?);
+            new_patterns.push(
+                Regex::new(pattern.as_ref())
+                    .map_err(|e| ParamGroupError::GroupInitError(e.to_string()))?,
+            );
         }
         Ok(Self {
             matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(new_patterns))),
@@ -164,8 +173,8 @@ impl ParamGroup {
     /// (e.g., "^encoder\.layer\.\d+$", or "^decoder\.layer\.\d+$" )
     ///
     /// # Errors
-    /// Returns a [regex::Error] if the strings cannot be compiled into a valid regex.
-    pub fn from_any_regexes<I, S>(patterns: I) -> Result<Self, regex::Error>
+    /// Returns a [ParamGroupError::GroupInitError] if the strings cannot be compiled into a valid regex.
+    pub fn from_any_regexes<I, S>(patterns: I) -> Result<Self, ParamGroupError>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -173,7 +182,8 @@ impl ParamGroup {
         let mut matchers = vec![];
         for pattern in patterns {
             matchers.push(ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(vec![
-                Regex::new(pattern.as_ref())?,
+                Regex::new(pattern.as_ref())
+                    .map_err(|e| ParamGroupError::GroupInitError(e.to_string()))?,
             ]))));
         }
 
