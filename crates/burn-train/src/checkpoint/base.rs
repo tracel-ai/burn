@@ -35,7 +35,7 @@ pub trait Checkpoint: Sized + Send + 'static {
     fn save(self, path: PathBuf) -> Result<(), CheckpointerError>;
     /// Load the record from `path`.
     fn load(path: PathBuf) -> Result<Self, CheckpointerError>;
-    /// Creates a checkpoint fom bytes
+    /// Creates a checkpoint from bytes
     fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError>;
     /// Transforms a checkpoint into bytes
     fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError>;
