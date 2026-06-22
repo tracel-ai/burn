@@ -584,4 +584,153 @@ mod fusion_tests {
 
         rt.shutdown_background();
     }
+
+    /// A *source* custom op (no tensor inputs — it builds a tensor from scalars on the server) whose
+    /// output is then consumed by a follow-up op, read back, repeated to exercise register-once +
+    /// replay. This mirrors the server-side data-loader extension pattern and isolates it from the
+    /// training stack — if the fusion graph mishandles a source custom op's outputs, it surfaces here
+    /// as a "Should have handle for tensor ..." panic on the server.
+    #[test]
+    fn fusion_custom_source_op_then_followup() {
+        use crate::client::CustomOpClient;
+        use burn_backend::DType;
+        use burn_backend::ops::FloatTensorOps;
+        use burn_flex::Flex;
+        use burn_ir::{CustomOpIr, OperationOutput, ScalarIr, TensorIr};
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3120)
+                .custom_op("make_floats", |handles, ir, device| {
+                    // Build a 1-D float tensor from the op's scalars — a pure source (no inputs).
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    let n = values.len();
+                    let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
+                })
+                .start_async(),
+        );
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = RemoteDevice::new("ws://localhost:3120", 0);
+
+        for i in 0..5 {
+            let client = CustomOpClient::new(&device);
+            let out_ir =
+                TensorIr::uninit(client.create_empty_handle(), Shape::from([3]), DType::F32);
+            let made = client
+                .register(CustomOpIr::with_scalars(
+                    "make_floats",
+                    &[],
+                    &[out_ir],
+                    vec![
+                        ScalarIr::Float(1.0),
+                        ScalarIr::Float(2.0),
+                        ScalarIr::Float(3.0),
+                    ],
+                ))
+                .output();
+
+            // Follow-up op consuming the source output — forces a graph that references the custom
+            // op's output as an input, the scenario that breaks during training.
+            let doubled = <RemoteBackend as FloatTensorOps<RemoteBackend>>::float_exp(made);
+            let data = burn_std::reader::try_read_sync(<RemoteBackend as FloatTensorOps<
+                RemoteBackend,
+            >>::float_into_data(doubled))
+            .expect("remote read should resolve synchronously")
+            .expect("read should succeed");
+
+            let values = data.to_vec::<f32>().unwrap();
+            let expected = [1.0f32.exp(), 2.0f32.exp(), 3.0f32.exp()];
+            for (a, e) in values.iter().zip(expected.iter()) {
+                assert!((a - e).abs() < 1e-4, "iter {i}: {a} vs {e}");
+            }
+        }
+
+        rt.shutdown_background();
+    }
+
+    /// Closer to the data-loader: a source custom op with *three* outputs that are consumed at
+    /// *different depths* of the following graph (one immediately, one mid-graph, one only at the
+    /// end — like `tokens`/`mask`/`labels`). Exercises a source op's outputs surviving across many
+    /// ops before being bound as inputs, under register-once + replay.
+    #[test]
+    fn fusion_custom_source_multi_output_long_lived() {
+        use crate::client::CustomOpClient;
+        use burn_backend::DType;
+        use burn_backend::ops::FloatTensorOps;
+        use burn_flex::Flex;
+        use burn_ir::{CustomOpIr, OperationOutput, ScalarIr, TensorIr};
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3130)
+                .custom_op("make3", |handles, ir, device| {
+                    // 9 scalars → three [3] outputs (chunks of 3).
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    for (i, out) in ir.outputs.iter().enumerate() {
+                        let chunk = values[i * 3..(i + 1) * 3].to_vec();
+                        let tensor = Flex::float_from_data(TensorData::new(chunk, [3]), device);
+                        handles.register_float_tensor::<Flex>(&out.id, tensor);
+                    }
+                })
+                .start_async(),
+        );
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = RemoteDevice::new("ws://localhost:3130", 0);
+
+        for i in 0..5 {
+            let client = CustomOpClient::new(&device);
+            let mk = |client: &CustomOpClient| {
+                TensorIr::uninit(client.create_empty_handle(), Shape::from([3]), DType::F32)
+            };
+            let [a, b, c] = client
+                .register(CustomOpIr::with_scalars(
+                    "make3",
+                    &[],
+                    &[mk(&client), mk(&client), mk(&client)],
+                    (1..=9).map(|v| ScalarIr::Float(v as f64)).collect(),
+                ))
+                .outputs::<3>();
+
+            // a consumed immediately, b mid-graph, c only at the end — so b and c are source-op
+            // outputs that survive across several ops before being bound as inputs.
+            type B = RemoteBackend;
+            let t = <B as FloatTensorOps<B>>::float_exp(a);
+            let t = <B as FloatTensorOps<B>>::float_add(t, b);
+            let t = <B as FloatTensorOps<B>>::float_log(t);
+            let t = <B as FloatTensorOps<B>>::float_add(t, c);
+            let data =
+                burn_std::reader::try_read_sync(<B as FloatTensorOps<B>>::float_into_data(t))
+                    .expect("remote read should resolve synchronously")
+                    .expect("read should succeed");
+
+            let values = data.to_vec::<f32>().unwrap();
+            // a=[1,2,3], b=[4,5,6], c=[7,8,9]; t = log(exp(a)+b) + c
+            let expected: Vec<f32> = (0..3)
+                .map(|k| {
+                    let a = (k + 1) as f32;
+                    let b = (k + 4) as f32;
+                    let c = (k + 7) as f32;
+                    (a.exp() + b).ln() + c
+                })
+                .collect();
+            for (g, e) in values.iter().zip(expected.iter()) {
+                assert!((g - e).abs() < 1e-3, "iter {i}: {g} vs {e}");
+            }
+        }
+
+        rt.shutdown_background();
+    }
 }
