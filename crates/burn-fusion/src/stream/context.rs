@@ -1053,6 +1053,11 @@ impl RelativeOps for CustomOpIr {
                 .iter()
                 .map(|x| x.to_relative(converter))
                 .collect(),
+            scalars: self
+                .scalars
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
         }
     }
 }

@@ -32,8 +32,10 @@ mod __client {
     /// ```
     ///
     /// For backends that aren't part of `DispatchDevice` but implement
-    /// `BackendIr`, call [`server::start_websocket`] directly with the
-    /// concrete backend type parameter.
+    /// `BackendIr`, build a [`server::RemoteServerBuilder`] directly with the
+    /// concrete backend type parameter — that is also how custom operations
+    /// (backend extensions) are hosted, via
+    /// [`custom_op`](server::RemoteServerBuilder::custom_op).
     #[cfg(not(feature = "fusion"))]
     pub type RemoteBackend = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
 
@@ -84,14 +86,16 @@ mod tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default()],
-            3000,
-        ));
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default()],
-            3010,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3000)
+                .start_async(),
+        );
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3010)
+                .start_async(),
+        );
 
         // Give the servers a moment to bind before clients try to connect.
         std::thread::sleep(std::time::Duration::from_millis(500));
@@ -117,6 +121,72 @@ mod tests {
         rt.shutdown_background();
     }
 
+    /// End-to-end backend extension over the wire: the client ships a custom op as
+    /// `OperationIr::Custom`, and the server executes it through a handler registered on the
+    /// builder. Mirrors how a backend extension hosts its ops — the user hand-writes the client
+    /// side (here, building the `CustomOpIr`) and registers the server handler.
+    ///
+    /// Only runs without `fusion`, since it drives the router client (`RemoteBackend`) directly.
+    #[test]
+    #[cfg(not(feature = "fusion"))]
+    pub fn test_custom_op_over_websocket() {
+        use crate::{RemoteBackend, RemoteDevice};
+        use burn_backend::{Scalar, TensorData, TensorMetadata, ops::FloatTensorOps};
+        use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
+        use burn_router::RouterClient;
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        // Host a "scale" custom op: multiply the input float tensor by a scalar argument.
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3200)
+                .custom_op("scale", |handles, ir| {
+                    let input = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
+                    let factor: Scalar = ir.scalars[0].into();
+                    let output = Flex::float_mul_scalar(input, factor);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
+                })
+                .start_async(),
+        );
+
+        // Give the server a moment to bind before the client connects.
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        // Drive the remote backend directly (no autodiff/dispatch glue). A real backend extension
+        // would wrap this in a hand-written `impl MyExt for RemoteBackend`.
+        let device = RemoteDevice::new("ws://localhost:3200", 0);
+        let input = <RemoteBackend as FloatTensorOps<RemoteBackend>>::float_from_data(
+            TensorData::from([2.0f32, 4.0, 6.0]),
+            &device,
+        );
+
+        // Client side: build the custom op (input tensor + the scale factor as a scalar) and ship
+        // it through the remote client as `OperationIr::Custom`.
+        let client = input.client.clone();
+        let shape = input.shape();
+        let dtype = input.dtype();
+        let out_ir = TensorIr::uninit(client.create_empty_handle(), shape, dtype);
+        let desc = CustomOpIr::with_scalars(
+            "scale",
+            &[input.into_ir()],
+            &[out_ir],
+            vec![ScalarIr::Float(3.0)],
+        );
+        let out = client.register(OperationIr::Custom(desc)).remove(0);
+
+        let data = rt
+            .block_on(<RemoteBackend as FloatTensorOps<RemoteBackend>>::float_into_data(out))
+            .unwrap();
+        let values: Vec<f32> = data.to_vec().unwrap();
+        assert_eq!(values, vec![6.0, 12.0, 18.0]);
+
+        rt.shutdown_background();
+    }
+
     /// A single server hosting multiple devices: two indices on the same address resolve to
     /// two distinct sessions (distinct interpreters/runner threads). Moving a tensor between
     /// them exercises the multi-device path within one host.
@@ -128,10 +198,14 @@ mod tests {
             .unwrap();
 
         // One server, two devices.
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default(), Default::default()],
-            3030,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![
+                Default::default(),
+                Default::default(),
+            ])
+            .port(3030)
+            .start_async(),
+        );
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -174,10 +248,14 @@ mod tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default(), Default::default()],
-            3060,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![
+                Default::default(),
+                Default::default(),
+            ])
+            .port(3060)
+            .start_async(),
+        );
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -217,10 +295,15 @@ mod tests {
             .unwrap();
 
         // One server hosting three devices.
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default(), Default::default(), Default::default()],
-            3040,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ])
+            .port(3040)
+            .start_async(),
+        );
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -274,10 +357,11 @@ mod tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default()],
-            3070,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3070)
+                .start_async(),
+        );
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -321,10 +405,11 @@ mod tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default()],
-            3090,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3090)
+                .start_async(),
+        );
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -385,10 +470,11 @@ mod tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_websocket_async::<Flex>(
-            vec![Default::default()],
-            3020,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3020)
+                .start_async(),
+        );
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
@@ -460,14 +546,16 @@ mod fusion_tests {
             .build()
             .unwrap();
 
-        rt.spawn(crate::server::start_websocket_async::<burn_flex::Flex>(
-            vec![Default::default()],
-            3100,
-        ));
-        rt.spawn(crate::server::start_websocket_async::<burn_flex::Flex>(
-            vec![Default::default()],
-            3110,
-        ));
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<burn_flex::Flex>::new(vec![Default::default()])
+                .port(3100)
+                .start_async(),
+        );
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<burn_flex::Flex>::new(vec![Default::default()])
+                .port(3110)
+                .start_async(),
+        );
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         let plain_device = RemoteDevice::new("ws://localhost:3100", 0);
