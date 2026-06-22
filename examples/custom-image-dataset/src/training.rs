@@ -107,7 +107,7 @@ pub fn train(config: TrainingConfig, device: Device) {
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_checkpointer()
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
         .summary();
 

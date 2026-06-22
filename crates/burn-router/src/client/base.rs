@@ -5,7 +5,7 @@ use burn_backend::{
     DType, TensorData,
     backend::{DeviceId, DeviceOps, ExecutionError},
 };
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use core::ops::DerefMut;
 use hashbrown::HashMap;
@@ -58,6 +58,33 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     fn seed(&self, seed: u64);
     /// Returns the supported data type usage set
     fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
+
+    /// Register a reusable group of operations (in relative form) under `graph_id` *and* run its
+    /// first invocation with `bindings`, so it can later be replayed by id with
+    /// [`execute_graph`](Self::execute_graph).
+    ///
+    /// Registration always coincides with the first execution, so they're combined to save a
+    /// round-trip on a cache miss. Used by the fusion layer to avoid re-sending a recurring
+    /// op-graph.
+    fn register_and_execute_graph(
+        &self,
+        graph_id: GraphId,
+        relative_graph: Vec<OperationIr>,
+        bindings: GraphBindings,
+    );
+
+    /// Replay a previously [registered](Self::register_and_execute_graph) graph with the given
+    /// concrete bindings.
+    fn execute_graph(&self, graph_id: GraphId, bindings: GraphBindings);
+
+    /// Register `new_id` as an alias of `src_id` — a second handle over the same backing buffer.
+    ///
+    /// Used by the fusion layer's cross-stream sharing (see
+    /// [`FusionRuntime::alias_handle`](burn_fusion::FusionRuntime::alias_handle)): when a tensor is
+    /// shared to another stream, that stream's view needs its own id so that consuming it (a
+    /// `ReadWrite` last-use) frees only this alias, leaving the original handle valid. The server
+    /// clones the source handle (an `Arc`-style refcount on the device buffer) under `new_id`.
+    fn register_alias(&self, new_id: TensorId, src_id: TensorId);
 }
 
 pub(crate) struct RouterClientLocator {

@@ -85,6 +85,7 @@ fusion = [
     "burn-cuda?/fusion",
     "burn-rocm?/fusion",
     "burn-cpu?/fusion",
+    "burn-remote?/fusion",
 ]
 
 [dependencies]

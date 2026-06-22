@@ -56,15 +56,21 @@ impl TensorCreationOptions {
 
     /// Returns the tensor data type, or the default from the [device settings](crate::DeviceSettings).
     pub(crate) fn resolve_dtype<K: BasicOps>(&self) -> DType {
-        self.dtype.unwrap_or_else(|| {
-            let settings = self.device.settings();
-            match K::KIND {
-                Kind::Float => settings.float_dtype.into(),
-                Kind::Int => settings.int_dtype.into(),
-                Kind::Bool => settings.bool_dtype.into(),
-                Kind::Complex => settings.complex_dtype().into(),
-            }
-        })
+        let settings = self.device.settings();
+        let default = match K::KIND {
+            Kind::Float => settings.float_dtype.into(),
+            Kind::Int => settings.int_dtype.into(),
+            Kind::Bool => settings.bool_dtype.into(),
+            Kind::Complex => settings.complex_dtype().into(),
+        };
+        match K::KIND {
+            // `BoolStore` variants are backend-specific storage layouts rather than
+            // semantic types, and a requested variant (e.g. forced from a serialized
+            // snapshot by `burn-store`) may be unsupported on the target device, so
+            // always resolve bool tensors to the device's default bool storage.
+            Kind::Bool => default,
+            _ => self.dtype.unwrap_or(default),
+        }
     }
 }
 

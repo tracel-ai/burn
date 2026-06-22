@@ -1906,6 +1906,7 @@ where
         // Use the given dtype when provided, otherwise default device dtype
         let opt = options.into();
         let dtype = opt.resolve_dtype::<K>();
+
         Self::new(K::from_data(data, &opt.device, dtype))
     }
 

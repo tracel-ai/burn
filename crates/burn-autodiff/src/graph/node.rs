@@ -65,7 +65,7 @@ impl Node {
 }
 
 /// Unique identifier generated for each node.
-#[derive(Clone, Hash, PartialEq, Eq, Debug, Copy)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug, Copy, Ord, PartialOrd)]
 pub struct NodeId {
     /// The integer representation of the id
     pub value: u64,

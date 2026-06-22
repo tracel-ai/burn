@@ -120,8 +120,8 @@ macro_rules! with_backend {
 ///
 /// The dispatch device selects which backend executes operations server-side; the server
 /// then hosts that backend's devices (single host, multi-device), indexed by hardware device
-/// index. See [`with_backend`] for how the backend is resolved and [`host_devices`] for how its
-/// device list is chosen.
+/// index. The backend is resolved from the dispatch device variant, and the device list is
+/// chosen via the `host_devices` helper.
 pub fn start_websocket(device: DispatchDevice, port: u16) {
     with_backend!(device, |B, devices| {
         burn_remote::server::start_websocket::<B>(devices, port)
@@ -131,7 +131,7 @@ pub fn start_websocket(device: DispatchDevice, port: u16) {
 /// Start a websocket remote server on the caller's tokio runtime.
 ///
 /// The async counterpart of [`start_websocket`]; the two share the same backend-resolution match
-/// (see [`with_backend`]) and differ only in awaiting the server future.
+/// and differ only in awaiting the server future.
 pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
     with_backend!(device, |B, devices| {
         burn_remote::server::start_websocket_async::<B>(devices, port).await
