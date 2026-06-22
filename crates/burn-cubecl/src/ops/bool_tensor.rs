@@ -49,10 +49,9 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
             data.dtype,
             DType::Bool(BoolStore::U8) | DType::Bool(BoolStore::U32)
         ) {
-            super::from_data(data.convert_dtype(DType::U32), device)
-        } else {
-            super::from_data(data, device)
+            unimplemented!("Unsupported dtype for `bool_from_data` {:?}", data.dtype);
         }
+        super::from_data(data, device)
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {

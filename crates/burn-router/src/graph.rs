@@ -12,7 +12,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 use burn_backend::Slice;
-use burn_ir::{BackendIr, GraphBindings, OperationIr, ScalarIr, TensorId, TensorIr};
+use burn_ir::{BackendIr, GraphBindings, IrVisitorMut, OperationIr, ScalarIr, TensorId, TensorIr};
 use hashbrown::HashMap;
 
 use crate::TensorInterpreter;
@@ -86,27 +86,49 @@ impl Graph {
         let mut ids: HashMap<TensorId, TensorId> = tensors.into_iter().collect();
         for op in self.ops.iter() {
             let mut op = op.clone();
-            op.for_each_tensor_mut(&mut |tensor: &mut TensorIr| {
-                tensor.id = *ids.entry(tensor.id).or_insert_with(alloc_intermediate_id);
-                for dim in tensor.shape.iter_mut() {
-                    *dim = shapes.get(*dim).copied().unwrap_or(*dim);
-                }
-            });
-            op.for_each_scalar_mut(&mut |scalar: &mut ScalarIr| {
-                if let ScalarIr::UInt(placeholder) = *scalar
-                    && (placeholder as usize) < scalars.len()
-                {
-                    *scalar = scalars[placeholder as usize];
-                }
-            });
-            // Restore concrete slice bounds: relativization replaced each range with a placeholder
-            // whose `start` is the binding id (see `OperationConverter::relative_range`).
-            op.for_each_range_mut(&mut |range: &mut Slice| {
-                if let Some(concrete) = ranges.get(range.start as usize) {
-                    *range = *concrete;
-                }
-            });
+            let mut visitor = ReplayVisitor {
+                ids: &mut ids,
+                shapes: &shapes,
+                scalars: &scalars,
+                ranges: &ranges,
+            };
+            op.visit_mut(&mut visitor);
             interpreter.register_op(op);
+        }
+    }
+}
+
+/// Rebinds a relative op's tensors, scalars, and ranges to their concrete values during replay.
+struct ReplayVisitor<'a> {
+    /// The working id table; intermediates are allocated on demand and memoized here so all
+    /// references to one intermediate agree. Persists across ops within a replay.
+    ids: &'a mut HashMap<TensorId, TensorId>,
+    shapes: &'a [usize],
+    scalars: &'a [ScalarIr],
+    ranges: &'a [Slice],
+}
+
+impl IrVisitorMut for ReplayVisitor<'_> {
+    fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
+        tensor.id = *self.ids.entry(tensor.id).or_insert_with(alloc_intermediate_id);
+        for dim in tensor.shape.iter_mut() {
+            *dim = self.shapes.get(*dim).copied().unwrap_or(*dim);
+        }
+    }
+
+    fn visit_scalar_mut(&mut self, scalar: &mut ScalarIr) {
+        if let ScalarIr::UInt(placeholder) = *scalar
+            && (placeholder as usize) < self.scalars.len()
+        {
+            *scalar = self.scalars[placeholder as usize];
+        }
+    }
+
+    fn visit_range_mut(&mut self, range: &mut Slice) {
+        // Restore concrete slice bounds: relativization replaced each range with a placeholder
+        // whose `start` is the binding id (see `OperationConverter::relative_range`).
+        if let Some(concrete) = self.ranges.get(range.start as usize) {
+            *range = *concrete;
         }
     }
 }
