@@ -65,23 +65,17 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     ///
     /// Registration always coincides with the first execution, so they're combined to save a
     /// round-trip on a cache miss. Used by the fusion layer to avoid re-sending a recurring
-    /// op-graph. The default panics — only clients that genuinely cache op-graphs remotely (the
-    /// remote backend) override it.
+    /// op-graph.
     fn register_and_execute_graph(
         &self,
-        _graph_id: GraphId,
-        _relative_graph: Vec<OperationIr>,
-        _bindings: GraphBindings,
-    ) {
-        panic!("This router client does not support graph caching");
-    }
+        graph_id: GraphId,
+        relative_graph: Vec<OperationIr>,
+        bindings: GraphBindings,
+    );
 
     /// Replay a previously [registered](Self::register_and_execute_graph) graph with the given
-    /// concrete bindings. The default panics (see
-    /// [`register_and_execute_graph`](Self::register_and_execute_graph)).
-    fn execute_graph(&self, _graph_id: GraphId, _bindings: GraphBindings) {
-        panic!("This router client does not support graph caching");
-    }
+    /// concrete bindings.
+    fn execute_graph(&self, graph_id: GraphId, bindings: GraphBindings);
 
     /// Register `new_id` as an alias of `src_id` — a second handle over the same backing buffer.
     ///
@@ -89,11 +83,8 @@ pub trait RouterClient: Clone + Send + Sync + Sized {
     /// [`FusionRuntime::alias_handle`](burn_fusion::FusionRuntime::alias_handle)): when a tensor is
     /// shared to another stream, that stream's view needs its own id so that consuming it (a
     /// `ReadWrite` last-use) frees only this alias, leaving the original handle valid. The server
-    /// clones the source handle (an `Arc`-style refcount on the device buffer) under `new_id`. The
-    /// default panics — only clients with server-resident handles (the remote backend) override it.
-    fn register_alias(&self, _new_id: TensorId, _src_id: TensorId) {
-        panic!("This router client does not support cross-stream handle aliasing");
-    }
+    /// clones the source handle (an `Arc`-style refcount on the device buffer) under `new_id`.
+    fn register_alias(&self, new_id: TensorId, src_id: TensorId);
 }
 
 pub(crate) struct RouterClientLocator {
