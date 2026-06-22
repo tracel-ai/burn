@@ -237,7 +237,7 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     fn properties(&self) -> FuserProperties {
         FuserProperties {
             score: self.score,
-            ready: !self.ops.is_empty(),
+            ready: self.ops.len() > 1,
         }
     }
 
