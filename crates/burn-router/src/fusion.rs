@@ -27,6 +27,8 @@ use burn_ir::{
 };
 use serde::{Deserialize, Serialize};
 
+use burn_std::config::config;
+
 use crate::{BackendRouter, RouterChannel, RouterClient, RouterTensor, get_client};
 
 static GRAPH_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -143,17 +145,26 @@ pub struct RouterFuser<R: RouterChannel> {
     ops: Vec<OperationIr>,
     score: u64,
     score_max: u64,
-    num_since_max_unchanged: u8,
+    num_since_max_unchanged: usize,
+    /// Close the graph once it reaches this many ops (`FusionConfig::max_graph_size`).
+    max_graph_size: usize,
+    /// Close the graph once the score hasn't reached a new max for this many consecutive ops
+    /// (`FusionConfig::growth_patience`).
+    growth_patience: usize,
 }
 
 impl<R: RouterChannel> RouterFuser<R> {
     fn new(device: R::Device) -> Self {
+        let cfg = config();
+        let fusion = cfg.fusion();
         Self {
             device,
             ops: Vec::new(),
             score: 0,
             score_max: 0,
             num_since_max_unchanged: 0,
+            max_graph_size: fusion.max_graph_size,
+            growth_patience: fusion.growth_patience,
         }
     }
 
@@ -183,9 +194,11 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
         Self {
             device: self.device.clone(),
             ops: self.ops.clone(),
-            score: self.score.clone(),
-            score_max: self.score_max.clone(),
-            num_since_max_unchanged: self.num_since_max_unchanged.clone(),
+            score: self.score,
+            score_max: self.score_max,
+            num_since_max_unchanged: self.num_since_max_unchanged,
+            max_graph_size: self.max_graph_size,
+            growth_patience: self.growth_patience,
         }
     }
 }
@@ -213,7 +226,7 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     }
 
     fn status(&self) -> FuserStatus {
-        if self.num_since_max_unchanged >= 32 || self.len() > 32 {
+        if self.num_since_max_unchanged >= self.growth_patience || self.len() > self.max_graph_size {
             FuserStatus::Closed
         } else {
             FuserStatus::Open
