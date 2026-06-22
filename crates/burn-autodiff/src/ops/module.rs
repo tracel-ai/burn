@@ -1513,7 +1513,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
-                let settings = get_device_settings::<B>(&B::float_device(&x.primitive));
+                let settings = get_device_settings::<B>(&x.primitive.device());
                 let output = B::max_pool1d_with_indices(
                     x.primitive,
                     kernel_size,
@@ -1643,7 +1643,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         {
             OpsKind::Tracked(mut prep) => {
                 let x_state = prep.checkpoint(&x);
-                let settings = get_device_settings::<B>(&B::float_device(&x.primitive));
+                let settings = get_device_settings::<B>(&x.primitive.device());
                 let output = B::max_pool2d_with_indices(
                     x.primitive,
                     kernel_size,
@@ -2138,11 +2138,7 @@ fn pad_to_length<B: Backend>(tensor: FloatTensor<B>, dim: usize, target: usize) 
     }
     let mut padded_shape = shape.clone();
     padded_shape[dim] = target;
-    let padded = B::float_zeros(
-        padded_shape,
-        &B::float_device(&tensor),
-        tensor.dtype().into(),
-    );
+    let padded = B::float_zeros(padded_shape, &tensor.device(), tensor.dtype().into());
     let slices: Vec<Slice> = shape.iter().map(|&s| Slice::from(0..s)).collect();
     B::float_slice_assign(padded, &slices, tensor)
 }

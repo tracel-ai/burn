@@ -58,10 +58,6 @@ impl<R: CubeRuntime> BoolTensorOps<Self> for CubeBackend<R> {
         kernel::bool_cast(tensor, out_dtype.into())
     }
 
-    fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
-        tensor.device.clone()
-    }
-
     fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
         super::to_device(tensor, device)
     }

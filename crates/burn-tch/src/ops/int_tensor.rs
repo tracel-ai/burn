@@ -42,10 +42,6 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::reshape(tensor, shape)
     }
 
-    fn int_device(tensor: &TchTensor) -> LibTorchDevice {
-        tensor.tensor.device().into()
-    }
-
     fn int_empty(shape: Shape, device: &LibTorchDevice, dtype: IntDType) -> TchTensor {
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,

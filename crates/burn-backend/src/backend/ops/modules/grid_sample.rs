@@ -52,7 +52,7 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     let w_out = grid.shape()[2];
     let spatial_in = h_in * w_in;
     let spatial_out = h_out * w_out;
-    let device = B::float_device(&tensor);
+    let device = tensor.device();
 
     // Separate x and y coordinates from grid
     // shape: (N, H_out, W_out, 1)

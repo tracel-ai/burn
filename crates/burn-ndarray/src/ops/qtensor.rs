@@ -182,10 +182,6 @@ impl QTensorOps<Self> for NdArray {
         NdArrayTensor::from_data(data)
     }
 
-    fn q_device(_tensor: &QuantizedTensor<Self>) -> NdArrayDevice {
-        NdArrayDevice::Cpu
-    }
-
     fn q_to_device(
         tensor: QuantizedTensor<Self>,
         _device: &NdArrayDevice,

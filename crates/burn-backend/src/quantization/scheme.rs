@@ -77,7 +77,7 @@ pub fn compute_q_params<B: Backend>(
             mode: QuantMode::Symmetric,
             ..
         } => {
-            let bool_dtype = get_device_settings::<B>(&B::float_device(&min)).bool_dtype;
+            let bool_dtype = get_device_settings::<B>(&min.device()).bool_dtype;
             // Quantized range `[a, b]`
             let (a, b) = scheme.value.range();
 

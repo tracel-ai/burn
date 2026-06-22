@@ -290,7 +290,7 @@ pub(crate) fn conv1d_weight_backward<B: Backend>(
 ) -> FloatTensor<B> {
     let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
-    let weight_device = B::float_device(&weight);
+    let weight_device = weight.device();
 
     match options.groups == 1 {
         true => conv1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
@@ -372,7 +372,7 @@ pub(crate) fn conv2d_weight_backward<B: Backend>(
 ) -> FloatTensor<B> {
     let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
-    let weight_device = B::float_device(&weight);
+    let weight_device = weight.device();
 
     match options.groups == 1 {
         true => conv2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
@@ -471,7 +471,7 @@ pub(crate) fn conv3d_weight_backward<B: Backend>(
 ) -> FloatTensor<B> {
     let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
-    let weight_device = B::float_device(&weight);
+    let weight_device = weight.device();
 
     match options.groups == 1 {
         true => conv3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
@@ -559,7 +559,7 @@ pub(crate) fn conv_transpose1d_weight_backward<B: Backend>(
 ) -> FloatTensor<B> {
     let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
-    let weight_device = B::float_device(&weight);
+    let weight_device = weight.device();
 
     match options.groups == 1 {
         true => conv_transpose1d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
@@ -642,7 +642,7 @@ pub(crate) fn conv_transpose2d_weight_backward<B: Backend>(
 ) -> FloatTensor<B> {
     let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
-    let weight_device = B::float_device(&weight);
+    let weight_device = weight.device();
 
     match options.groups == 1 {
         true => conv_transpose2d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),
@@ -729,7 +729,7 @@ pub(crate) fn conv_transpose3d_weight_backward<B: Backend>(
 ) -> FloatTensor<B> {
     let weight_dtype = weight.dtype();
     let weight_shape = weight.shape();
-    let weight_device = B::float_device(&weight);
+    let weight_device = weight.device();
 
     match options.groups == 1 {
         true => conv_transpose3d_weight_grad_no_groups::<B>(x, output_grad, weight_shape, options),

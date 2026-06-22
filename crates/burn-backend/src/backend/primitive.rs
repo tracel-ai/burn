@@ -1,9 +1,9 @@
-use crate::{Backend, get_device_settings};
+use crate::{Backend, BackendTypes, DeviceOps, get_device_settings};
 use burn_std::{DType, QuantScheme, Shape};
 
 #[derive(Debug, Clone)]
 /// A primitive tensor representation.
-pub enum TensorPrimitive<B: Backend> {
+pub enum TensorPrimitive<B: BackendTypes> {
     /// Float tensor primitive.
     Float(B::FloatTensorPrimitive),
     /// Quantized float tensor primitive.
@@ -15,7 +15,7 @@ impl<B: Backend> TensorPrimitive<B> {
     pub fn tensor(self) -> B::FloatTensorPrimitive {
         match self {
             Self::QFloat(tensor) => {
-                let dtype = get_device_settings::<B>(&B::q_device(&tensor)).float_dtype;
+                let dtype = get_device_settings::<B>(&tensor.device()).float_dtype;
                 B::dequantize(tensor, dtype)
             }
             Self::Float(tensor) => tensor,
@@ -31,7 +31,9 @@ impl<B: Backend> TensorPrimitive<B> {
     }
 }
 
-impl<B: Backend> TensorMetadata for TensorPrimitive<B> {
+impl<B: BackendTypes> TensorMetadata for TensorPrimitive<B> {
+    type Device = B::Device;
+
     fn dtype(&self) -> DType {
         match self {
             TensorPrimitive::Float(tensor) => tensor.dtype(),
@@ -52,10 +54,18 @@ impl<B: Backend> TensorMetadata for TensorPrimitive<B> {
             TensorPrimitive::QFloat(tensor) => tensor.rank(),
         }
     }
+    fn device(&self) -> Self::Device {
+        match self {
+            TensorPrimitive::Float(tensor) => tensor.device(),
+            TensorPrimitive::QFloat(tensor) => tensor.device(),
+        }
+    }
 }
 
 /// Tensor metadata trait for tensor primitive.
 pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
+    /// The device type associated with the tensor.
+    type Device: DeviceOps;
     /// Get the dtype of the tensor.
     fn dtype(&self) -> DType;
     /// Get the shape of the tensor.
@@ -65,6 +75,8 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
     fn rank(&self) -> usize {
         self.shape().num_dims()
     }
+    /// Get the device associated with the tensor.
+    fn device(&self) -> Self::Device;
 
     /// Get the [quantization scheme](QuantScheme) for a quantized float tensor.
     ///

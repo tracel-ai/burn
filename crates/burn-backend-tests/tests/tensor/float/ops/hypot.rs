@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{DType, TensorData, Tolerance};
+use burn_tensor::{TensorData, Tolerance};
 
 #[test]
 fn should_support_hypot_basic() {

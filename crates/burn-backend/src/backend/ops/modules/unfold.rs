@@ -58,8 +58,7 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
     options: UnfoldOptions,
 ) -> FloatTensor<B> {
     let [_batch_size, in_channels, _in_height, _in_width] = x.shape().dims();
-    let weight =
-        create_unfolding_weight::<B>(in_channels, kernel_size, &B::float_device(&x), x.dtype());
+    let weight = create_unfolding_weight::<B>(in_channels, kernel_size, &x.device(), x.dtype());
     let unfolded = B::conv2d(
         x,
         weight,

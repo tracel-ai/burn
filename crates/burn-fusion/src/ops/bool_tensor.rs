@@ -195,10 +195,6 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
-        tensor.client.device().clone()
-    }
-
     fn bool_to_device(tensor: BoolTensor<Self>, device_dst: &Device<Self>) -> BoolTensor<Self> {
         let device_src: &B::Device = tensor.client.device();
 
