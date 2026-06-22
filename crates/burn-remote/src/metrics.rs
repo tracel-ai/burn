@@ -2,8 +2,9 @@
 //!
 //! Each replay of a cached graph carries only its per-invocation bindings instead of the full op
 //! stream a non-fusion peer would re-send every time. A [`TrafficMetrics`] accumulator tracks how
-//! many bytes that saves and logs it via [`log_remote`], when remote logging is enabled (`[remote]`
-//! section in `burn.toml`, or `BURN_REMOTE_LOG`).
+//! many bytes that saves — and, at `full` log level, how many ops run fused (via cached graphs) vs
+//! unfused (streamed one-by-one) — and logs it via [`log_remote`], when remote logging is enabled
+//! (`[remote]` section in `burn.toml`, or `BURN_REMOTE_LOG`).
 //!
 //! The accumulator is held per endpoint rather than in process globals: the client keeps one in its
 //! per-device service (`RemoteService`) and the server keeps one per session (`SessionHandler`), so
@@ -42,6 +43,14 @@ impl fmt::Display for MetricSide {
     }
 }
 
+/// What a registered graph is worth, to value its replays.
+struct GraphInfo {
+    /// Serialized size (bytes), re-sent on every replay by a non-fusion peer.
+    bytes: usize,
+    /// Number of operations the graph fuses into a single cached unit.
+    ops: usize,
+}
+
 /// Accumulates the network-traffic savings of op-graph caching for one endpoint.
 ///
 /// Not shared and not global: each instance is owned by the single thread that records into it (the
@@ -50,8 +59,8 @@ impl fmt::Display for MetricSide {
 pub(crate) struct TrafficMetrics {
     /// Whether this accumulator measures the client or the server end, for log labelling.
     side: MetricSide,
-    /// Serialized size (bytes) of each registered graph, to value its replays.
-    graph_sizes: HashMap<GraphId, usize>,
+    /// Per-registered-graph size and op count, to value each replay.
+    graphs: HashMap<GraphId, GraphInfo>,
     /// Bytes a non-fusion peer would have streamed for the covered work (the serialized graph,
     /// counted once per replay).
     baseline: u64,
@@ -60,6 +69,13 @@ pub(crate) struct TrafficMetrics {
     /// Highest whole-MiB savings already reported, so `Basic` logging emits at most one line per
     /// additional mebibyte saved instead of one per replay.
     logged_mib: u64,
+    /// Ops executed via cached graphs, counted on every graph execution (including replays).
+    fused_ops: u64,
+    /// Ops executed one-by-one, outside any cached graph.
+    unfused_ops: u64,
+    /// Unfused ops seen since the last graph execution — the run of unfused ops immediately
+    /// preceding the next graph. Reset each time a graph executes.
+    unfused_before_graph: u64,
 }
 
 impl TrafficMetrics {
@@ -67,11 +83,23 @@ impl TrafficMetrics {
     pub(crate) fn new(side: MetricSide) -> Self {
         Self {
             side,
-            graph_sizes: HashMap::new(),
+            graphs: HashMap::new(),
             baseline: 0,
             actual: 0,
             logged_mib: 0,
+            fused_ops: 0,
+            unfused_ops: 0,
+            unfused_before_graph: 0,
         }
+    }
+
+    /// Record one operation executed outside any cached graph (an unfused op).
+    pub(crate) fn record_unfused_op(&mut self) {
+        if level() == RemoteLogLevel::Disabled {
+            return;
+        }
+        self.unfused_ops += 1;
+        self.unfused_before_graph += 1;
     }
 
     /// Record that `graph` was registered once under `id` (the one-time cost of caching it).
@@ -80,13 +108,14 @@ impl TrafficMetrics {
             return;
         }
 
-        let size = serialized_len(&graph);
-        self.graph_sizes.insert(id, size);
-        self.actual += size as u64;
+        let bytes = serialized_len(&graph);
+        let ops = graph.len();
+        self.graphs.insert(id, GraphInfo { bytes, ops });
+        self.actual += bytes as u64;
 
         let side = self.side;
         log_remote(RemoteLogLevel::Full, || {
-            format!("[remote {side}] registered graph {id:?}: {size} bytes (sent once)")
+            format!("[remote {side}] registered graph {id:?}: {ops} ops, {bytes} bytes (sent once)")
         });
     }
 
@@ -97,20 +126,34 @@ impl TrafficMetrics {
         }
 
         let bindings_size = serialized_len(bindings);
-        let graph_size = self.graph_sizes.get(&id).copied().unwrap_or(0);
+        let (graph_bytes, graph_ops) = self
+            .graphs
+            .get(&id)
+            .map(|g| (g.bytes, g.ops))
+            .unwrap_or((0, 0));
 
         self.actual += bindings_size as u64;
-        self.baseline += graph_size as u64;
+        self.baseline += graph_bytes as u64;
+        self.fused_ops += graph_ops as u64;
 
         let saved = self.baseline.saturating_sub(self.actual);
-        let pct = percent_saved(saved, self.baseline);
+        let saved_pct = percentage(saved, self.baseline);
+
+        // The run of unfused ops leading up to this graph; reset for the next run.
+        let unfused_before = self.unfused_before_graph;
+        self.unfused_before_graph = 0;
+
         let side = self.side;
 
         if level() >= RemoteLogLevel::Full {
+            let total_ops = self.fused_ops + self.unfused_ops;
+            let fused_pct = percentage(self.fused_ops, total_ops);
             log_remote(RemoteLogLevel::Full, || {
                 format!(
                     "[remote {side}] replayed graph {id:?}: {bindings_size} bytes instead of \
-                     ~{graph_size}; cumulative saved {saved} bytes ({pct:.1}% of baseline)"
+                     ~{graph_bytes}; cumulative saved {saved} bytes ({saved_pct:.1}% of baseline); \
+                     graph {graph_ops} ops, {unfused_before} unfused before it; \
+                     fused {fused_pct:.1}% of {total_ops} ops total"
                 )
             });
         } else {
@@ -121,7 +164,7 @@ impl TrafficMetrics {
                 log_remote(RemoteLogLevel::Basic, || {
                     format!(
                         "[remote {side}] op-graph caching has saved ~{mib} MiB ({saved} bytes, \
-                         {pct:.1}% of baseline) of network traffic"
+                         {saved_pct:.1}% of baseline) of network traffic"
                     )
                 });
             }
@@ -139,13 +182,12 @@ fn serialized_len<T: serde::Serialize>(value: &T) -> usize {
         .unwrap_or(0)
 }
 
-/// Savings as a percentage of the baseline — the fraction of would-be traffic that caching avoided.
-/// Zero while the baseline is still zero (nothing has been replayed yet), so the first log line
-/// can't divide by zero.
-fn percent_saved(saved: u64, baseline: u64) -> f64 {
-    if baseline == 0 {
+/// `part` as a percentage of `whole`. Zero when `whole` is 0 (nothing measured yet), so the first
+/// log line can't divide by zero.
+fn percentage(part: u64, whole: u64) -> f64 {
+    if whole == 0 {
         0.0
     } else {
-        saved as f64 / baseline as f64 * 100.0
+        part as f64 / whole as f64 * 100.0
     }
 }
