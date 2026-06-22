@@ -110,7 +110,10 @@ struct ReplayVisitor<'a> {
 
 impl IrVisitorMut for ReplayVisitor<'_> {
     fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
-        tensor.id = *self.ids.entry(tensor.id).or_insert_with(alloc_intermediate_id);
+        tensor.id = *self
+            .ids
+            .entry(tensor.id)
+            .or_insert_with(alloc_intermediate_id);
         for dim in tensor.shape.iter_mut() {
             *dim = self.shapes.get(*dim).copied().unwrap_or(*dim);
         }
