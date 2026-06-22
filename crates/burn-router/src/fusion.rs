@@ -141,6 +141,9 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
 pub struct RouterFuser<R: RouterChannel> {
     device: R::Device,
     ops: Vec<OperationIr>,
+    score: u64,
+    score_max: u64,
+    num_since_max_unchanged: u8,
 }
 
 impl<R: RouterChannel> RouterFuser<R> {
@@ -148,7 +151,30 @@ impl<R: RouterChannel> RouterFuser<R> {
         Self {
             device,
             ops: Vec::new(),
+            score: 0,
+            score_max: 0,
+            num_since_max_unchanged: 0,
         }
+    }
+
+    /// Value-based fusion score for the currently accumulated ops.
+    ///
+    /// Benefit: estimated % of serialized bytes caching saves per replay (the relative graph vs the
+    /// per-replay bindings — see [`estimate_saved_pct`]), weighted by `FACTOR_SAVED`. Cost: a
+    /// penalty that grows with op count past `FREE_OPS`, so the score *peaks* at a "right-sized"
+    /// graph and then decays once the per-op overhead outweighs the savings.
+    ///
+    /// Floored at 1 for any non-empty graph: a score of 0 makes `find_best_optimization_index`
+    /// treat the graph as "don't fuse" (streaming every op unfused → the cache never replays). The
+    /// `+1` doesn't move the argmax, so it doesn't change which size wins.
+    fn score(&self) -> u64 {
+        const FACTOR_SAVED: u64 = 100; // weight per % point saved → benefit in 0..=10_000
+        const FREE_OPS: usize = 64; // ops below this are not penalized
+        const PENALTY_PER_OP: u64 = 0; // penalty per op beyond FREE_OPS
+
+        let benefit = estimate_saved_pct(&self.ops) * FACTOR_SAVED;
+        let penalty = (self.ops.len().saturating_sub(FREE_OPS) as u64) * PENALTY_PER_OP;
+        benefit.saturating_sub(penalty) + 1
     }
 }
 
@@ -157,6 +183,9 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
         Self {
             device: self.device.clone(),
             ops: self.ops.clone(),
+            score: self.score.clone(),
+            score_max: self.score_max.clone(),
+            num_since_max_unchanged: self.num_since_max_unchanged.clone(),
         }
     }
 }
@@ -164,6 +193,14 @@ impl<R: RouterChannel> Clone for RouterFuser<R> {
 impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         self.ops.push(operation.clone());
+
+        self.score = self.ops.len() as u64;
+        if self.score > self.score_max {
+            self.score_max = self.score;
+            self.num_since_max_unchanged = 0;
+        } else {
+            self.num_since_max_unchanged += 1;
+        }
     }
 
     fn finish(&mut self) -> RouterGraphExecution<R> {
@@ -176,7 +213,7 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     }
 
     fn status(&self) -> FuserStatus {
-        if self.len() > 128 {
+        if self.num_since_max_unchanged >= 32 || self.len() > 32 {
             FuserStatus::Closed
         } else {
             FuserStatus::Open
@@ -185,7 +222,7 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
 
     fn properties(&self) -> FuserProperties {
         FuserProperties {
-            score: self.ops.len() as u64,
+            score: self.score,
             ready: !self.ops.is_empty(),
         }
     }
@@ -286,6 +323,41 @@ fn classify_boundary(graph: &[OperationIr]) -> (Vec<TensorId>, Vec<TensorId>) {
         .copied()
         .collect();
     (inputs, outputs)
+}
+
+/// Estimate the % of serialized bytes that caching this op-graph saves per replay.
+///
+/// Dependency-free structural estimate (reuses [`classify_boundary`]): the baseline is the whole
+/// relative graph's bytes (op overhead + each tensor's id/dtype/status + its dims); the per-replay
+/// bindings are just the boundary `(relative id, concrete id)` pairs plus the distinct dim table.
+/// Scalars/ranges travel in both and cancel in the ratio. Returns 0..=100.
+fn estimate_saved_pct(ops: &[OperationIr]) -> u64 {
+    if ops.is_empty() {
+        return 0;
+    }
+    const TENSOR: u64 = 10; // id (≈8) + dtype + status
+    const PER_DIM: u64 = 8;
+    const OP_OVERHEAD: u64 = 8; // variant tag + small bookkeeping
+    const PAIR: u64 = 16; // a (relative id, concrete id) binding entry
+
+    let mut baseline = 0u64;
+    let mut dims: HashSet<usize> = HashSet::new();
+    for op in ops {
+        baseline += OP_OVERHEAD;
+        for tensor in op.nodes().into_iter().chain(op.outputs()) {
+            baseline += TENSOR;
+            for dim in tensor.shape.iter() {
+                baseline += PER_DIM;
+                dims.insert(*dim);
+            }
+        }
+    }
+
+    let (inputs, outputs) = classify_boundary(ops);
+    let bindings = (inputs.len() + outputs.len()) as u64 * PAIR + dims.len() as u64 * PER_DIM;
+
+    let saved = baseline.saturating_sub(bindings);
+    (saved * 100 / baseline).min(100)
 }
 
 impl<R: RouterChannel> core::fmt::Debug for RouterGraphExecution<R> {

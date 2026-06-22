@@ -1,6 +1,6 @@
 [fusion]
 logger = { file = "/tmp/fusion.log", level = "disabled" }
-beam_search = { max_blocks = 1, max_explorations = 10000 }
+beam_search = { max_blocks = 1, max_explorations = 100 }
 
 [remote]
 logger = { file = "/tmp/remote.log", level = "full" }
