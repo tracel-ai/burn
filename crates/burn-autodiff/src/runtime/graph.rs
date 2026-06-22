@@ -273,10 +273,7 @@ impl GraphLocator {
 
     /// Registers a key for a given origin node.
     fn register_key(&mut self, origin: NodeId, key: NodeId) {
-        if !self.keys.contains_key(&origin) {
-            // Ensure an entry exists for this origin
-            self.keys.insert(origin, HashSet::new());
-        }
+        self.keys.entry(origin).or_insert_with(HashSet::new);
 
         if origin != key {
             // Register this node to point to the origin graph

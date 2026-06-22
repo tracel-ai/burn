@@ -67,6 +67,7 @@ impl<O: NumOperations> Explorer<O> {
             ExecutionMode::Lazy => "lazy",
             ExecutionMode::Sync => "sync",
         };
+
         log_fusion(FusionLogLevel::Full, move || {
             format!("[explorer] explore ({mode_dbg}): {deferred} deferred of {total_ops} queued")
         });

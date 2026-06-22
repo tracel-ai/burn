@@ -80,10 +80,10 @@ impl RuntimeConfig for BurnConfig {
             }
         }
 
-        if let Ok(val) = std::env::var("BURN_FUSION_MAX_EXPLORATIONS") {
-            if let Ok(n) = val.parse::<usize>() {
-                self.fusion.beam_search.max_explorations = Some(n);
-            }
+        if let Ok(val) = std::env::var("BURN_FUSION_MAX_EXPLORATIONS")
+            && let Ok(n) = val.parse::<usize>()
+        {
+            self.fusion.beam_search.max_explorations = Some(n);
         }
 
         if let Ok(val) = std::env::var("BURN_REMOTE_LOG") {
