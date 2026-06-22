@@ -1,10 +1,15 @@
 #[cfg(feature = "client")]
-pub(crate) mod client;
+pub mod client;
 
 #[cfg(feature = "server")]
 pub mod server;
 
 pub(crate) mod shared;
+
+pub use burn_communication::Protocol;
+pub use burn_ir as ir;
+pub use burn_router::RouterClient;
+pub use shared::RemoteProtocol;
 
 /// Network-traffic savings metric for op-graph caching, shared by the client device service and the
 /// server session worker.
@@ -47,7 +52,7 @@ mod __client {
     pub type RemoteBackend =
         burn_fusion::Fusion<BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>>;
 
-    pub use client::RemoteDevice;
+    pub use client::{CustomOpClient, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;
@@ -144,7 +149,7 @@ mod tests {
         rt.spawn(
             crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
                 .port(3200)
-                .custom_op("scale", |handles, ir| {
+                .custom_op("scale", |handles, ir, _device| {
                     let input = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
                     let factor: Scalar = ir.scalars[0].into();
                     let output = Flex::float_mul_scalar(input, factor);

@@ -2083,7 +2083,7 @@ impl<B: BackendIr> TensorInterpreter<B> {
                 }
             },
             OperationIr::Custom(desc) => match self.custom_ops.get(&desc.id) {
-                Some(handler) => handler(handles, desc),
+                Some(handler) => handler(handles, desc, &self.device),
                 None => panic!(
                     "No custom-op handler registered for `{}`. Register one on the server via \
                      `CustomOpRegistry`/the server builder before starting it.",

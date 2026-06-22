@@ -34,7 +34,7 @@ const DEFAULT_PORT: u16 = 3000;
 /// ```rust,ignore
 /// RemoteServerBuilder::new(devices)
 ///     .port(3000)
-///     .custom_op("fused_matmul_add_relu", |handles, ir| {
+///     .custom_op("fused_matmul_add_relu", |handles, ir, _device| {
 ///         let ([lhs, rhs, bias], [out]) = ir.as_fixed::<3, 1>();
 ///         let lhs = handles.get_float_tensor::<MyBackend>(lhs);
 ///         let rhs = handles.get_float_tensor::<MyBackend>(rhs);
@@ -82,7 +82,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     /// the same id twice keeps the last handler.
     pub fn custom_op<F>(mut self, id: &str, handler: F) -> Self
     where
-        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr) + Send + Sync + 'static,
+        F: Fn(&mut HandleContainer<B::Handle>, &CustomOpIr, &B::Device) + Send + Sync + 'static,
     {
         self.custom_ops.register(id, handler);
         self
