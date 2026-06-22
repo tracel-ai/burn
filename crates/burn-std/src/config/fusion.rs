@@ -14,10 +14,12 @@ pub struct FusionConfig {
     /// Maximum number of operations in a single client-cached graph (router graph caching).
     ///
     /// The greedy graph fuser keeps accumulating ops into one cached graph; once it reaches this
-    /// many ops the graph is closed and dispatched. Bounds the per-graph memory and the cost of
-    /// building and replaying any single graph.
-    #[serde(default = "default_max_graph_size")]
-    pub max_graph_size: usize,
+    /// many ops the graph is closed and dispatched. `None` (the default) sets no size cap, leaving
+    /// [`growth_patience`](Self::growth_patience) to decide when a graph stops being worth growing;
+    /// set a value to also bound the per-graph memory and the cost of building and replaying any
+    /// single graph.
+    #[serde(default)]
+    pub max_graph_size: Option<usize>,
 
     /// Close the current graph once its fusion score hasn't reached a new maximum for this many
     /// consecutive ops (router graph caching).
@@ -35,14 +37,10 @@ impl Default for FusionConfig {
         Self {
             logger: LoggerConfig::default(),
             beam_search: BeamSearchConfig::default(),
-            max_graph_size: default_max_graph_size(),
+            max_graph_size: None,
             growth_patience: default_growth_patience(),
         }
     }
-}
-
-fn default_max_graph_size() -> usize {
-    256
 }
 
 fn default_growth_patience() -> usize {

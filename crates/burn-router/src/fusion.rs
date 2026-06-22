@@ -146,8 +146,8 @@ pub struct RouterFuser<R: RouterChannel> {
     score: u64,
     score_max: u64,
     num_since_max_unchanged: usize,
-    /// Close the graph once it reaches this many ops (`FusionConfig::max_graph_size`).
-    max_graph_size: usize,
+    /// Close the graph once it reaches this many ops, if set (`FusionConfig::max_graph_size`).
+    max_graph_size: Option<usize>,
     /// Close the graph once the score hasn't reached a new max for this many consecutive ops
     /// (`FusionConfig::growth_patience`).
     growth_patience: usize,
@@ -226,7 +226,8 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     }
 
     fn status(&self) -> FuserStatus {
-        if self.num_since_max_unchanged >= self.growth_patience || self.len() > self.max_graph_size {
+        let over_max = self.max_graph_size.is_some_and(|max| self.len() > max);
+        if self.num_since_max_unchanged >= self.growth_patience || over_max {
             FuserStatus::Closed
         } else {
             FuserStatus::Open

@@ -1,9 +1,9 @@
-[profiling]
+[cubecl.profiling]
 logger = { log = "info", level = "disabled" }
 
-[autotune]
-logger = { log = "info", level = "disabled" }
+[cubecl.autotune]
+logger = { log = "info", level = "basic" }
 
-[compilation]
+[cubecl.compilation]
 logger = { log = "info", level = "disabled" }
 cache = "target"
