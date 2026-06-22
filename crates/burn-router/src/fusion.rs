@@ -194,7 +194,7 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
     fn fuse(&mut self, operation: &OperationIr) {
         self.ops.push(operation.clone());
 
-        self.score = self.ops.len() as u64;
+        self.score = self.score();
         if self.score > self.score_max {
             self.score_max = self.score;
             self.num_since_max_unchanged = 0;
