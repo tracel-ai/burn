@@ -1,6 +1,7 @@
 use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
+use burn_cubecl_fusion::optim::pooling::PoolingFuser;
 use burn_cubecl_fusion::optim::reduce::ReduceSettings;
 use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
 use burn_cubecl_fusion::{
@@ -147,6 +148,7 @@ impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
             Box::new(MatmulFuser::new(device.clone())),
             Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
             Box::new(ReduceBroadcastedFuser::new(device.clone())),
+            Box::new(PoolingFuser::new(device.clone())),
         ]
     }
 }

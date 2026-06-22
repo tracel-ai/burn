@@ -1,6 +1,7 @@
 use crate::optim::{
     elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
     matmul::{MatmulOptimization, MatmulOptimizationState},
+    pooling::{PoolingOptimization, PoolingOptimizationState},
     reduce::{ReduceOptimization, ReduceOptimizationState},
     reduce_broadcasted::{ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationState},
 };
@@ -13,6 +14,7 @@ use serde::{Deserialize, Serialize};
 #[allow(clippy::large_enum_variant)]
 pub enum CubeOptimization<R: Runtime> {
     ElementWise(ElemwiseOptimization<R>),
+    Pooling(PoolingOptimization<R>),
     Matmul(MatmulOptimization<R>),
     Reduce(ReduceOptimization<R>),
     ReduceBroadcasted(ReduceBroadcastedOptimization<R>),
@@ -30,6 +32,7 @@ impl<R: Runtime> CubeOptimization<R> {
     pub fn to_opt_state(&self) -> CubeOptimizationState {
         match self {
             Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
+            Self::Pooling(value) => CubeOptimizationState::Pooling(value.to_state()),
             Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
             Self::Reduce(value) => CubeOptimizationState::Reduce(value.to_state()),
             Self::ReduceBroadcasted(value) => {
@@ -43,6 +46,7 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
     fn len(&self) -> usize {
         match self {
             Self::ElementWise(op) => op.num_ops_fused(),
+            Self::Pooling(op) => op.num_ops_fused(),
             Self::Matmul(op) => op.num_ops_fused(),
             Self::Reduce(op) => op.num_ops_fused(),
             Self::ReduceBroadcasted(op) => op.num_ops_fused(),
@@ -52,6 +56,7 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
     fn name(&self) -> &'static str {
         match self {
             CubeOptimization::ElementWise(..) => "ElementWise",
+            CubeOptimization::Pooling(..) => "Pooling",
             CubeOptimization::Matmul(..) => "Matmul",
             CubeOptimization::Reduce(..) => "Reduce",
             CubeOptimization::ReduceBroadcasted(..) => "ReduceBroadcasted",
@@ -66,6 +71,7 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CubeOptimizationState {
     ElementWise(ElemwiseOptimizationState),
+    Pooling(PoolingOptimizationState),
     Matmul(MatmulOptimizationState),
     Reduce(ReduceOptimizationState),
     ReduceBroadcasted(ReduceBroadcastedOptimizationState),
