@@ -2203,7 +2203,18 @@ impl OperationIr {
             OperationIr::BaseFloat(repr) => repr.for_each_range_mut(f),
             OperationIr::BaseInt(repr) => repr.for_each_range_mut(f),
             OperationIr::BaseBool(repr) => repr.for_each_range_mut(f),
-            _ => {}
+            // Only base ops carry slice ranges; every other category is a no-op.
+            OperationIr::NumericFloat(..)
+            | OperationIr::NumericInt(..)
+            | OperationIr::Bool(..)
+            | OperationIr::Int(..)
+            | OperationIr::Float(..)
+            | OperationIr::Module(..)
+            | OperationIr::Init(..)
+            | OperationIr::Custom(..)
+            | OperationIr::Drop(..)
+            | OperationIr::Distributed(..)
+            | OperationIr::Activation(..) => {}
         }
     }
 }
@@ -2403,7 +2414,35 @@ impl BaseOperationIr {
         match self {
             BaseOperationIr::Slice(repr) => repr.ranges.iter_mut().for_each(|r| f(r)),
             BaseOperationIr::SliceAssign(repr) => repr.ranges.iter_mut().for_each(|r| f(r)),
-            _ => {}
+            // Remaining variants carry no slice ranges.
+            BaseOperationIr::Reshape(..)
+            | BaseOperationIr::SwapDims(..)
+            | BaseOperationIr::Permute(..)
+            | BaseOperationIr::Expand(..)
+            | BaseOperationIr::Flip(..)
+            | BaseOperationIr::Gather(..)
+            | BaseOperationIr::Scatter(..)
+            | BaseOperationIr::ScatterNd(..)
+            | BaseOperationIr::GatherNd(..)
+            | BaseOperationIr::Select(..)
+            | BaseOperationIr::SelectAssign(..)
+            | BaseOperationIr::MaskWhere(..)
+            | BaseOperationIr::MaskFill(..)
+            | BaseOperationIr::Equal(..)
+            | BaseOperationIr::EqualElem(..)
+            | BaseOperationIr::RepeatDim(..)
+            | BaseOperationIr::Cat(..)
+            | BaseOperationIr::Cast(..)
+            | BaseOperationIr::Unfold(..)
+            | BaseOperationIr::Empty(..)
+            | BaseOperationIr::Ones(..)
+            | BaseOperationIr::Zeros(..)
+            | BaseOperationIr::NotEqual(..)
+            | BaseOperationIr::NotEqualElem(..)
+            | BaseOperationIr::All(..)
+            | BaseOperationIr::Any(..)
+            | BaseOperationIr::AllDim(..)
+            | BaseOperationIr::AnyDim(..) => {}
         }
     }
 
@@ -2551,7 +2590,34 @@ impl BaseOperationIr {
             BaseOperationIr::MaskFill(repr) => f(&mut repr.value),
             BaseOperationIr::EqualElem(repr) => f(&mut repr.rhs),
             BaseOperationIr::NotEqualElem(repr) => f(&mut repr.rhs),
-            _ => {}
+            // Remaining variants carry no scalars.
+            BaseOperationIr::Reshape(..)
+            | BaseOperationIr::SwapDims(..)
+            | BaseOperationIr::Permute(..)
+            | BaseOperationIr::Expand(..)
+            | BaseOperationIr::Flip(..)
+            | BaseOperationIr::Slice(..)
+            | BaseOperationIr::SliceAssign(..)
+            | BaseOperationIr::Gather(..)
+            | BaseOperationIr::Scatter(..)
+            | BaseOperationIr::ScatterNd(..)
+            | BaseOperationIr::GatherNd(..)
+            | BaseOperationIr::Select(..)
+            | BaseOperationIr::SelectAssign(..)
+            | BaseOperationIr::MaskWhere(..)
+            | BaseOperationIr::Equal(..)
+            | BaseOperationIr::RepeatDim(..)
+            | BaseOperationIr::Cat(..)
+            | BaseOperationIr::Cast(..)
+            | BaseOperationIr::Unfold(..)
+            | BaseOperationIr::Empty(..)
+            | BaseOperationIr::Ones(..)
+            | BaseOperationIr::Zeros(..)
+            | BaseOperationIr::NotEqual(..)
+            | BaseOperationIr::All(..)
+            | BaseOperationIr::Any(..)
+            | BaseOperationIr::AllDim(..)
+            | BaseOperationIr::AnyDim(..) => {}
         }
     }
 }
@@ -3099,7 +3165,46 @@ impl NumericOperationIr {
                 f(&mut repr.min);
                 f(&mut repr.max);
             }
-            _ => {}
+            // Remaining variants carry no scalars.
+            NumericOperationIr::Add(..)
+            | NumericOperationIr::Sub(..)
+            | NumericOperationIr::Div(..)
+            | NumericOperationIr::Rem(..)
+            | NumericOperationIr::Mul(..)
+            | NumericOperationIr::Abs(..)
+            | NumericOperationIr::MeanDim(..)
+            | NumericOperationIr::Mean(..)
+            | NumericOperationIr::Sum(..)
+            | NumericOperationIr::SumDim(..)
+            | NumericOperationIr::Prod(..)
+            | NumericOperationIr::ProdDim(..)
+            | NumericOperationIr::Greater(..)
+            | NumericOperationIr::GreaterEqual(..)
+            | NumericOperationIr::Lower(..)
+            | NumericOperationIr::LowerEqual(..)
+            | NumericOperationIr::ArgMax(..)
+            | NumericOperationIr::ArgTopK(..)
+            | NumericOperationIr::TopK(..)
+            | NumericOperationIr::ArgMin(..)
+            | NumericOperationIr::Max(..)
+            | NumericOperationIr::MaxDimWithIndices(..)
+            | NumericOperationIr::MinDimWithIndices(..)
+            | NumericOperationIr::Min(..)
+            | NumericOperationIr::MaxDim(..)
+            | NumericOperationIr::MinDim(..)
+            | NumericOperationIr::MaxAbs(..)
+            | NumericOperationIr::MaxAbsDim(..)
+            | NumericOperationIr::IntRandom(..)
+            | NumericOperationIr::Powi(..)
+            | NumericOperationIr::CumSum(..)
+            | NumericOperationIr::CumProd(..)
+            | NumericOperationIr::CumMin(..)
+            | NumericOperationIr::CumMax(..)
+            | NumericOperationIr::Neg(..)
+            | NumericOperationIr::Sign(..)
+            | NumericOperationIr::Sort(..)
+            | NumericOperationIr::SortWithIndices(..)
+            | NumericOperationIr::ArgSort(..) => {}
         }
     }
 }
@@ -3608,7 +3713,15 @@ impl IntOperationIr {
             IntOperationIr::BitwiseXorScalar(repr) => f(&mut repr.rhs),
             IntOperationIr::BitwiseLeftShiftScalar(repr) => f(&mut repr.rhs),
             IntOperationIr::BitwiseRightShiftScalar(repr) => f(&mut repr.rhs),
-            _ => {}
+            // Remaining variants carry no scalars.
+            IntOperationIr::IntoFloat(..)
+            | IntOperationIr::BitwiseAnd(..)
+            | IntOperationIr::BitwiseOr(..)
+            | IntOperationIr::BitwiseXor(..)
+            | IntOperationIr::BitwiseNot(..)
+            | IntOperationIr::BitwiseLeftShift(..)
+            | IntOperationIr::BitwiseRightShift(..)
+            | IntOperationIr::Matmul(..) => {}
         }
     }
 }
@@ -3696,7 +3809,17 @@ impl BoolOperationIr {
         }
     }
 
-    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {}
+    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {
+        // No bool op carries a scalar; listed exhaustively so a new variant must opt in.
+        match self {
+            BoolOperationIr::IntoFloat(..)
+            | BoolOperationIr::IntoInt(..)
+            | BoolOperationIr::Not(..)
+            | BoolOperationIr::And(..)
+            | BoolOperationIr::Or(..)
+            | BoolOperationIr::Xor(..) => {}
+        }
+    }
 }
 
 impl ModuleOperationIr {
@@ -4661,7 +4784,57 @@ impl ModuleOperationIr {
                     f(softcap);
                 }
             }
-            _ => {}
+            // Remaining variants carry no scalars.
+            ModuleOperationIr::Embedding(..)
+            | ModuleOperationIr::EmbeddingBackward(..)
+            | ModuleOperationIr::Linear(..)
+            | ModuleOperationIr::LinearXBackward(..)
+            | ModuleOperationIr::LinearWeightBackward(..)
+            | ModuleOperationIr::LinearBiasBackward(..)
+            | ModuleOperationIr::Conv1d(..)
+            | ModuleOperationIr::Conv1dXBackward(..)
+            | ModuleOperationIr::Conv1dWeightBackward(..)
+            | ModuleOperationIr::Conv1dBiasBackward(..)
+            | ModuleOperationIr::Conv2d(..)
+            | ModuleOperationIr::Conv2dXBackward(..)
+            | ModuleOperationIr::Conv2dWeightBackward(..)
+            | ModuleOperationIr::Conv2dBiasBackward(..)
+            | ModuleOperationIr::Conv3d(..)
+            | ModuleOperationIr::Conv3dXBackward(..)
+            | ModuleOperationIr::Conv3dWeightBackward(..)
+            | ModuleOperationIr::Conv3dBiasBackward(..)
+            | ModuleOperationIr::DeformableConv2d(..)
+            | ModuleOperationIr::DeformableConv2dBackward(..)
+            | ModuleOperationIr::ConvTranspose1d(..)
+            | ModuleOperationIr::ConvTranspose2d(..)
+            | ModuleOperationIr::ConvTranspose3d(..)
+            | ModuleOperationIr::AvgPool1d(..)
+            | ModuleOperationIr::AvgPool2d(..)
+            | ModuleOperationIr::AvgPool1dBackward(..)
+            | ModuleOperationIr::AvgPool2dBackward(..)
+            | ModuleOperationIr::AdaptiveAvgPool1d(..)
+            | ModuleOperationIr::AdaptiveAvgPool2d(..)
+            | ModuleOperationIr::AdaptiveAvgPool1dBackward(..)
+            | ModuleOperationIr::AdaptiveAvgPool2dBackward(..)
+            | ModuleOperationIr::MaxPool1d(..)
+            | ModuleOperationIr::MaxPool1dWithIndices(..)
+            | ModuleOperationIr::MaxPool1dWithIndicesBackward(..)
+            | ModuleOperationIr::MaxPool2d(..)
+            | ModuleOperationIr::MaxPool2dWithIndices(..)
+            | ModuleOperationIr::MaxPool2dWithIndicesBackward(..)
+            | ModuleOperationIr::Interpolate(..)
+            | ModuleOperationIr::InterpolateBackward(..)
+            | ModuleOperationIr::Rfft(..)
+            | ModuleOperationIr::IRfft(..)
+            | ModuleOperationIr::CtcLoss(..)
+            | ModuleOperationIr::CtcLossBackward(..)
+            | ModuleOperationIr::Unfold4d(..)
+            | ModuleOperationIr::ConvTranspose1dWeightBackward(..)
+            | ModuleOperationIr::ConvTranspose1dBiasBackward(..)
+            | ModuleOperationIr::ConvTranspose2dWeightBackward(..)
+            | ModuleOperationIr::ConvTranspose2dBiasBackward(..)
+            | ModuleOperationIr::ConvTranspose3dWeightBackward(..)
+            | ModuleOperationIr::ConvTranspose3dBiasBackward(..) => {}
         }
     }
 }
@@ -4704,7 +4877,12 @@ impl DistributedOperationIr {
         }
     }
 
-    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {}
+    fn for_each_scalar_mut(&mut self, _f: &mut dyn FnMut(&mut ScalarIr)) {
+        // No distributed op carries a scalar; listed exhaustively so a new variant must opt in.
+        match self {
+            DistributedOperationIr::AllReduce(..) | DistributedOperationIr::SyncCollective => {}
+        }
+    }
 }
 
 impl InitOperationIr {
@@ -5021,7 +5199,19 @@ impl ActivationOperationIr {
                 f(&mut repr.alpha);
                 f(&mut repr.beta);
             }
-            _ => {}
+            // Remaining variants carry no scalars.
+            ActivationOperationIr::Relu(..)
+            | ActivationOperationIr::ReluBackward(..)
+            | ActivationOperationIr::PRelu(..)
+            | ActivationOperationIr::Gelu(..)
+            | ActivationOperationIr::GeluBackward(..)
+            | ActivationOperationIr::Sigmoid(..)
+            | ActivationOperationIr::SigmoidBackward(..)
+            | ActivationOperationIr::LogSigmoid(..)
+            | ActivationOperationIr::LogSigmoidBackward(..)
+            | ActivationOperationIr::Softmax(..)
+            | ActivationOperationIr::LogSoftmax(..)
+            | ActivationOperationIr::Softmin(..) => {}
         }
     }
 }
