@@ -1,6 +1,6 @@
 use burn_backend::{DTypeUsageSet, ExecutionError, TensorData};
 use burn_communication::{Address, external_comm::TensorTransferId};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
     id::{IdGenerator, StreamId},
@@ -68,7 +68,37 @@ pub enum Task {
     /// identity, and the server-side backend (fusion, etc.) handles any batching of
     /// its own.
     RegisterOperation(StreamId, OperationIr),
+    /// Register a reusable group of operations under `graph_id` (relative form) *and* immediately
+    /// execute it with `bindings`.
+    ///
+    /// Registering a new graph always coincides with its first execution, so the two are combined
+    /// into a single task to avoid a redundant round-trip on a cache miss. The server caches the
+    /// graph (per session) and replays it on every subsequent [`ExecuteGraph`](Task::ExecuteGraph).
+    /// This is how the fusion-enabled client avoids re-sending a recurring op sequence (e.g. a
+    /// model block) on every step.
+    RegisterAndExecuteGraph {
+        stream_id: StreamId,
+        graph_id: GraphId,
+        relative_graph: Vec<OperationIr>,
+        bindings: GraphBindings,
+    },
+    /// Replay an already-registered graph with the given concrete bindings.
+    ExecuteGraph {
+        stream_id: StreamId,
+        graph_id: GraphId,
+        bindings: GraphBindings,
+    },
     RegisterTensor(StreamId, TensorId, TensorData),
+    /// Register `new_id` as an alias of `src_id` — a second server handle over the same buffer.
+    ///
+    /// Emitted by the fusion layer's cross-stream sharing so a tensor used on multiple streams
+    /// gets one server id per stream view, each freeable independently. Ordered after the task
+    /// that materializes `src_id`, like every other op on the session's FIFO worker.
+    RegisterAlias {
+        stream_id: StreamId,
+        new_id: TensorId,
+        src_id: TensorId,
+    },
     RegisterTensorRemote(StreamId, TensorRemote, TensorId),
     ExposeTensorRemote {
         stream_id: StreamId,

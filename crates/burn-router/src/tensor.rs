@@ -37,6 +37,11 @@ impl<C: RouterClient> TensorMetadata for RouterTensor<C> {
 }
 
 impl<C: RouterClient> RouterTensor<C> {
+    /// The id identifying this tensor on its [client](RouterClient).
+    pub fn id(&self) -> TensorId {
+        self.id
+    }
+
     /// Create a new router tensor.
     pub fn new(id: TensorId, shape: Shape, dtype: DType, client: C) -> Self {
         Self {

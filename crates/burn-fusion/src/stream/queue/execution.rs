@@ -25,6 +25,19 @@ impl<R: FusionRuntime> OperationQueue<R> {
         self.execute_block_optimization(&mut plan.optimization, handles, stream_id);
     }
 
+    /// Execute the queue with a one-off [`BlockOptimization`] that isn't stored in the cache.
+    ///
+    /// Used when fusion exploration is capped (see [`Explorer`](crate::stream::execution)): a
+    /// cache-missing segment runs unfused without paying the optimizer cost or growing the store.
+    pub(crate) fn execute_unfused(
+        &mut self,
+        mut optimization: BlockOptimization<R::Optimization>,
+        handles: &mut HandleContainer<R::FusionHandle>,
+        stream_id: StreamId,
+    ) {
+        self.execute_block_optimization(&mut optimization, handles, stream_id);
+    }
+
     fn execute_block_optimization(
         &mut self,
         step: &mut BlockOptimization<R::Optimization>,
