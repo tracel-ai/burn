@@ -13,6 +13,13 @@ use cubecl::{ir::VectorSize, server::CopyDescriptor};
 use cubecl::{quant::scheme::BlockSize, tensor_vector_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
+    // `TensorData` may contain lazily materialized device-backed bytes produced
+    // by `into_data()`. These unnecessary round-trips should be avoided, but
+    // materializing before re-uploading avoids recursive runtime submission.
+    if data.bytes.property() == burn_std::AllocationProperty::Device {
+        let _ = data.bytes.read(burn_std::Reader::new());
+    }
+
     let client = R::client(device);
     let alloc = client.create_tensor(data.bytes, data.shape.clone(), data.dtype.size());
     let shape: Shape = (&data.shape).into();
