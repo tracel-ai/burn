@@ -1,9 +1,5 @@
 [fusion]
-logger = { file = "/tmp/fusion.log", level = "disabled" }
-beam_search = { max_blocks = 1, max_explorations = 100 }
-
-[remote]
-logger = { file = "/tmp/remote.log", level = "full" }
+logger = { file = "/tmp/fusion.log", level = "full" }
 
 [cubecl.profiling]
 logger = { log = "info", level = "disabled" }
@@ -11,7 +7,7 @@ logger = { log = "info", level = "disabled" }
 [cubecl.autotune]
 level = "balanced"
 cache = "target"
-logger = { info = true, level = "disabled" }
+logger = { info = true, level = "full" }
 
 [cubecl.compilation]
 logger = { level = "disabled" }

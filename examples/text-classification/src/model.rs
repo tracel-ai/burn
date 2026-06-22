@@ -69,7 +69,6 @@ impl TextClassificationModel {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
-        device.flush();
 
         // Move tensors to the correct device
         let tokens = item.tokens.to_device(device);
@@ -146,7 +145,6 @@ impl TrainStep for TextClassificationModel {
         // Run forward pass, calculate gradients and return them along with the output
         let item = self.forward(item);
         let grads = item.loss.backward();
-        item.loss.device().flush();
 
         TrainOutput::new(self, grads, item)
     }

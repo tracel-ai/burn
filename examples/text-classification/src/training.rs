@@ -17,7 +17,9 @@ use burn::{
     nn::{attention::SeqLengthOption, transformer::TransformerEncoderConfig},
     optim::AdamConfig,
     prelude::*,
-    train::metric::{AccuracyMetric, IterationSpeedMetric, LearningRateMetric, LossMetric},
+    train::metric::{
+        AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
+    },
 };
 use std::sync::Arc;
 
@@ -67,12 +69,10 @@ pub fn train<D: TextClassificationDataset + 'static>(
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
-        .set_device(Device::flex())
         .batch_size(config.batch_size)
         .num_workers(1)
         .build(SamplerDataset::new(dataset_train, 25_000));
     let dataloader_test = DataLoaderBuilder::new(batcher)
-        .set_device(Device::flex())
         .batch_size(config.batch_size)
         .num_workers(1)
         .build(SamplerDataset::new(dataset_test, 2500));
@@ -89,11 +89,13 @@ pub fn train<D: TextClassificationDataset + 'static>(
 
     // Initialize learner
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
-        .metrics((
-            LossMetric::new(),
-            AccuracyMetric::new(),
-            IterationSpeedMetric::new(),
-        ))
+        .metric_train(CudaMetric::new())
+        .metric_valid(CudaMetric::new())
+        .metric_train(IterationSpeedMetric::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        .metric_train_numeric(AccuracyMetric::new())
+        .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_checkpointer()
         .with_training_strategy(strategy.into())

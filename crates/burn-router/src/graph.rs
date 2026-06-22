@@ -76,7 +76,6 @@ impl Graph {
         interpreter: &mut TensorInterpreter<B>,
         bindings: GraphBindings,
     ) {
-        log::info!("Replay graph: {}", self.ops.len());
         let GraphBindings {
             tensors,
             shapes,

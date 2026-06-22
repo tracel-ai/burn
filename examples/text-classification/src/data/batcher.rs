@@ -51,29 +51,29 @@ impl Batcher<TextClassificationItem, TextClassificationTrainingBatch>
         device: &Device,
     ) -> TextClassificationTrainingBatch {
         let mut tokens_list = Vec::with_capacity(items.len());
-        let mut labels = Vec::with_capacity(items.len());
+        let mut labels_list = Vec::with_capacity(items.len());
 
-        // Tokenize text and collect labels as plain CPU data.
+        // Tokenize text and create label tensor for each item
         for item in items {
             tokens_list.push(self.tokenizer.encode(&item.text));
-            labels.push(item.label as i64);
+            labels_list.push(Tensor::from_data(
+                TensorData::from([item.label as i64]),
+                device,
+            ));
         }
-        let batch_size = labels.len();
 
         // Generate padding mask for tokenized text
         let mask = generate_padding_mask(
             self.tokenizer.pad_token(),
             tokens_list,
             self.seq_length,
-            &Device::flex(),
+            device,
         );
 
-        // Create and return training batch. Build the labels with a single fixed-shape `from_data`
-        // instead of one per item + `cat`, so the batch-construction op stream is identical every
-        // batch (see `generate_padding_mask` for the same rationale on the tokens).
+        // Create and return training batch
         TextClassificationTrainingBatch {
             tokens: mask.tensor,
-            labels: Tensor::from_data(TensorData::new(labels, [batch_size]), &Device::flex()),
+            labels: Tensor::cat(labels_list, 0),
             mask_pad: mask.mask,
         }
     }

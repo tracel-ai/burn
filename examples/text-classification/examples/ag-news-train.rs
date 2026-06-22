@@ -108,25 +108,24 @@ mod wgpu {
 
 #[cfg(feature = "remote")]
 mod remote {
-    #[cfg(feature = "ddp")]
     use crate::ElemType;
     #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
-    use burn::tensor::{Device, DeviceType};
-    #[cfg(feature = "ddp")]
-    use burn::tensor::{DeviceConfig, Element};
+    use burn::tensor::{Device, DeviceConfig, DeviceType, Element};
     #[cfg(feature = "ddp")]
     use burn::train::ExecutionStrategy;
 
     /// Address of the `burn-remote` server to train against.
     const ADDRESS: &str = "ws://localhost:3000";
 
-    /// List every device the remote server hosts and train on one of them.
+    /// List every device the remote server hosts and train across all of them.
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote(ADDRESS));
-        // `launch_single` configures the device; configuring it here too would initialize its
-        // settings twice and fail with `AlreadyInitialized`.
+        let mut devices = Device::enumerate(DeviceType::remote(ADDRESS));
+        devices
+            .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+            .unwrap();
+
         crate::launch_single(devices.into_vec().pop().unwrap());
     }
 

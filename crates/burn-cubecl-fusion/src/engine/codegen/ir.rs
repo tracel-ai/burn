@@ -863,7 +863,6 @@ impl From<ElemType> for FuseType {
                 UIntKind::U16 => Self::U16,
                 UIntKind::U8 => Self::U8,
             },
-            // ElemType::Bool => panic!("Bool should be encoded as u8 or u32"),
             ElemType::Bool => Self::U32,
         }
     }
@@ -921,7 +920,6 @@ impl From<DType> for FuseType {
             DType::U32 => Self::U32,
             DType::U16 => Self::U16,
             DType::U8 => Self::U8,
-            // DType::Bool(BoolStore::Native) => unimplemented!("Bool should be U8 or U32"),
             DType::Bool(BoolStore::Native) => Self::U32,
             DType::Bool(BoolStore::U8) => Self::U8,
             DType::Bool(BoolStore::U32) => Self::U32,
