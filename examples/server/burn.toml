@@ -2,7 +2,7 @@
 logger = { log = "info", level = "disabled" }
 
 [cubecl.autotune]
-logger = { log = "info", level = "basic" }
+logger = { log = "info", level = "minimal" }
 
 [cubecl.compilation]
 logger = { log = "info", level = "disabled" }
