@@ -386,6 +386,7 @@ mod tests {
         assert!(!group.matches(&id, Some("model.other.weight")).unwrap());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn regex_matcher_matches_pattern() {
         let group = ParamGroup::from_regex(r"^model\.layer\.[0-9]+\.weight$").unwrap();
@@ -473,6 +474,7 @@ mod tests {
         assert!(!group.matches(&id, Some("model.decoder.weight")).unwrap());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn from_any_regexes_matches_any_pattern() {
         let group =
@@ -486,6 +488,7 @@ mod tests {
         assert!(!group.matches(&id, Some("model.other.weight")).unwrap());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn from_regexes_with_invalid_pattern() {
         let result = ParamGroup::from_regex(r"[invalid(");
