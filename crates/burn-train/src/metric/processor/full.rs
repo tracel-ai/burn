@@ -168,7 +168,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 {
     fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
-            LearnerEvent::Start { total_epochs } => {
+            LearnerEvent::Start {
+                total_epochs,
+                starting_epoch,
+            } => {
                 self.total_epochs = total_epochs;
                 self.current_epoch = 1;
                 let definitions = self.metrics.metric_definitions();
@@ -180,9 +183,9 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start(total_epochs, None);
+                    logger.start(total_epochs, starting_epoch, None);
                 }
-                self.renderer.start(total_epochs, None);
+                self.renderer.start(total_epochs, starting_epoch, None);
             }
             LearnerEvent::StartSplit(total_items) => {
                 self.renderer.start_split("train", total_items);

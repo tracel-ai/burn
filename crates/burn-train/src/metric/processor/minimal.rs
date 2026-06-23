@@ -37,12 +37,15 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 {
     fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
-            LearnerEvent::Start { total_epochs } => {
+            LearnerEvent::Start {
+                total_epochs,
+                starting_epoch,
+            } => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(crate::metric::store::Event::MetricsInit(definitions));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start(total_epochs, None);
+                    logger.start(total_epochs, starting_epoch, None);
                 }
             }
             LearnerEvent::StartSplit(total_items) => {

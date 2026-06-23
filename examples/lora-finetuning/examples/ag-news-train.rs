@@ -1,3 +1,9 @@
+#![recursion_limit = "256"]
+
+// Only the CUDA `launch_multi` path uses these at the top level; the remote module imports
+// them locally. Gating on both features avoids an unused-import warning for `remote,ddp`.
+#[cfg(all(feature = "ddp", feature = "cuda"))]
+use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -5,36 +11,15 @@ use burn::{
     train::ExecutionStrategy,
 };
 
-use text_classification::{DbPediaDataset, training::ExperimentConfig};
+use lora_finetuning::{AgNewsDataset, training::ExperimentConfig};
 
-#[cfg(not(feature = "f16"))]
-#[allow(dead_code)]
+#[cfg(not(any(feature = "f16", feature = "flex32")))]
+#[allow(unused)]
 type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
-
-pub fn launch(strategy: ExecutionStrategy) {
-    let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
-        AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
-    );
-
-    text_classification::training::train::<DbPediaDataset>(
-        strategy,
-        DbPediaDataset::train(),
-        DbPediaDataset::test(),
-        config,
-        "/tmp/text-classification-db-pedia-2",
-    );
-}
-
-pub fn launch_single(mut device: Device) {
-    device
-        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
-        .unwrap();
-
-    launch(ExecutionStrategy::SingleDevice(device))
-}
+#[cfg(feature = "flex32")]
+type ElemType = burn::tensor::flex32;
 
 #[cfg(all(feature = "cuda", not(feature = "ddp")))]
 pub fn launch_multi() {
@@ -64,13 +49,27 @@ pub fn launch_multi() {
     ))
 }
 
-#[cfg(feature = "flex")]
-mod flex {
-    use burn::tensor::Device;
+pub fn launch_single(mut device: Device) {
+    device
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+        .unwrap();
 
-    pub fn run() {
-        crate::launch_single(Device::flex());
-    }
+    launch(ExecutionStrategy::SingleDevice(device))
+}
+
+pub fn launch(strategy: ExecutionStrategy) {
+    let config = ExperimentConfig::new(
+        TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
+        AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
+    );
+
+    lora_finetuning::training::train::<AgNewsDataset>(
+        strategy,
+        AgNewsDataset::train(),
+        AgNewsDataset::test(),
+        config,
+        "/tmp/lora-finetuning-ag-news",
+    );
 }
 
 #[cfg(feature = "tch-gpu")]
@@ -136,7 +135,7 @@ mod remote {
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();
 
-        crate::launch_single(ExecutionStrategy::ddp(
+        crate::launch(ExecutionStrategy::ddp(
             devices.into_vec(),
             DistributedConfig {
                 all_reduce_op: ReduceOperation::Mean,
@@ -161,9 +160,16 @@ mod rocm {
     }
 }
 
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::tensor::Device;
+
+    pub fn run() {
+        crate::launch_single(Device::flex());
+    }
+}
+
 fn main() {
-    #[cfg(feature = "flex")]
-    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
@@ -176,4 +182,6 @@ fn main() {
     rocm::run();
     #[cfg(feature = "remote")]
     remote::run();
+    #[cfg(feature = "flex")]
+    flex::run();
 }
