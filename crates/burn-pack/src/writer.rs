@@ -121,6 +121,19 @@ impl Writer {
         Ok(Bytes::from_bytes_vec(buffer))
     }
 
+    /// Stream the container to any [`std::io::Write`] without materializing the whole image
+    /// first. Streaming counterpart to [`into_bytes`](Self::into_bytes); pairs with
+    /// [`Reader::from_reader`](crate::Reader::from_reader). The writer is flushed before returning.
+    #[cfg(feature = "std")]
+    pub fn write_to<W: Write>(self, writer: W) -> Result<(), Error> {
+        let layout = self.plan()?;
+        let mut sink = WriterSink { writer };
+        self.write_container(&layout, &mut sink)?;
+        sink.writer
+            .flush()
+            .map_err(|e| Error::IoError(e.to_string()))
+    }
+
     /// Write directly to a file (more memory efficient for large models).
     ///
     /// If `path` has no extension, the canonical [`crate::EXTENSION`] (`.bpk`) is appended.
@@ -133,13 +146,8 @@ impl Writer {
             path.to_path_buf()
         };
 
-        let layout = self.plan()?;
         let file = File::create(path).map_err(|e| Error::IoError(e.to_string()))?;
-
-        let mut sink = FileSink { file };
-        self.write_container(&layout, &mut sink)?;
-
-        sink.file.flush().map_err(|e| Error::IoError(e.to_string()))
+        self.write_to(file)
     }
 
     /// Build the complete on-disk layout: header, serialized metadata, and the
@@ -388,23 +396,23 @@ impl Sink for BufferSink<'_> {
     }
 }
 
-/// Sink that streams directly to a file.
+/// Sink that streams to any [`std::io::Write`].
 #[cfg(feature = "std")]
-struct FileSink {
-    file: File,
+struct WriterSink<W: Write> {
+    writer: W,
 }
 
 #[cfg(feature = "std")]
-impl Sink for FileSink {
+impl<W: Write> Sink for WriterSink<W> {
     fn pad(&mut self, count: usize) -> Result<(), Error> {
         // Stream zeros without allocating a `count`-sized buffer per call.
-        std::io::copy(&mut std::io::repeat(0).take(count as u64), &mut self.file)
+        std::io::copy(&mut std::io::repeat(0).take(count as u64), &mut self.writer)
             .map(|_| ())
             .map_err(|e| Error::IoError(e.to_string()))
     }
 
     fn write(&mut self, data: &[u8]) -> Result<(), Error> {
-        self.file
+        self.writer
             .write_all(data)
             .map_err(|e| Error::IoError(e.to_string()))
     }

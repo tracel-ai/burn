@@ -151,7 +151,26 @@ impl ModuleRecord {
 
     /// Reconstruct a record from an in-memory burnpack byte buffer.
     pub fn from_bytes(bytes: crate::tensor::Bytes) -> Result<Self, RecordError> {
-        Self::from_reader(Reader::from_bytes(bytes)?)
+        Self::from_pack_reader(Reader::from_bytes(bytes)?)
+    }
+
+    /// Stream the record to any [`std::io::Write`] without materializing the whole buffer first.
+    ///
+    /// Streaming counterpart to [`into_bytes`](Self::into_bytes); pairs with
+    /// [`from_reader`](Self::from_reader).
+    #[cfg(feature = "std")]
+    pub fn into_writer<W: std::io::Write>(self, writer: W) -> Result<(), RecordError> {
+        Writer::new(self.pack_tensors()).write_to(writer)?;
+        Ok(())
+    }
+
+    /// Reconstruct a record by streaming from any [`std::io::Read`].
+    ///
+    /// Streaming counterpart to [`from_bytes`](Self::from_bytes). For local files
+    /// [`load`](Self::load) is more efficient (lazy, zero-copy).
+    #[cfg(feature = "std")]
+    pub fn from_reader<R: std::io::Read>(reader: R) -> Result<Self, RecordError> {
+        Self::from_pack_reader(Reader::from_reader(reader)?)
     }
 
     /// Save the record to a burnpack file on disk.
@@ -164,7 +183,7 @@ impl ModuleRecord {
     /// Load a record from a burnpack file on disk.
     #[cfg(feature = "std")]
     pub fn load<P: AsRef<std::path::Path>>(path: P) -> Result<Self, RecordError> {
-        Self::from_reader(Reader::from_file(path)?)
+        Self::from_pack_reader(Reader::from_file(path)?)
     }
 
     fn pack_tensors(self) -> Vec<burn_pack::Tensor> {
@@ -182,7 +201,7 @@ impl ModuleRecord {
             .collect()
     }
 
-    fn from_reader(reader: Reader) -> Result<Self, RecordError> {
+    fn from_pack_reader(reader: Reader) -> Result<Self, RecordError> {
         let tensors = reader
             .into_tensors()?
             .into_iter()
@@ -426,6 +445,22 @@ mod tests {
 
         let bytes = model.into_record().into_bytes().unwrap();
         let record = ModuleRecord::from_bytes(bytes).unwrap();
+        assert_eq!(record.len(), 2);
+
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);
+        let (w, b) = weights(&loaded);
+        assert_eq!(w, vec![1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(b, vec![5.0, 6.0]);
+    }
+
+    #[test]
+    fn round_trip_stream() {
+        let device = Default::default();
+        let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
+
+        let mut buf = Vec::new();
+        model.into_record().into_writer(&mut buf).unwrap();
+        let record = ModuleRecord::from_reader(buf.as_slice()).unwrap();
         assert_eq!(record.len(), 2);
 
         let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);

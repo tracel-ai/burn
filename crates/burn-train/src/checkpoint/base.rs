@@ -39,6 +39,26 @@ pub trait Checkpoint: Sized + Send + 'static {
     fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError>;
     /// Transforms a checkpoint into bytes
     fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError>;
+
+    /// Stream the checkpoint to any [`std::io::Write`] without materializing the whole buffer.
+    ///
+    /// The default materializes via [`checkpoint_into_bytes`](Self::checkpoint_into_bytes); the
+    /// burnpack record types override it to stream tensor-by-tensor.
+    fn checkpoint_into_writer<W: std::io::Write>(self, mut writer: W) -> Result<(), RecordError> {
+        let bytes = self.checkpoint_into_bytes()?;
+        std::io::Write::write_all(&mut writer, &bytes).map_err(|e| RecordError::Io(e.to_string()))
+    }
+
+    /// Reconstruct the checkpoint by streaming from any [`std::io::Read`].
+    ///
+    /// The default materializes via [`checkpoint_from_bytes`](Self::checkpoint_from_bytes); the
+    /// burnpack record types override it to stream.
+    fn checkpoint_from_reader<R: std::io::Read>(mut reader: R) -> Result<Self, RecordError> {
+        let mut buf = Vec::new();
+        std::io::Read::read_to_end(&mut reader, &mut buf)
+            .map_err(|e| RecordError::Io(e.to_string()))?;
+        Self::checkpoint_from_bytes(Bytes::from_bytes_vec(buf))
+    }
 }
 
 /// A stateless record: nothing to save or load.
@@ -70,6 +90,12 @@ impl Checkpoint for ModuleRecord {
     fn checkpoint_from_bytes(bytes: Bytes) -> Result<Self, RecordError> {
         ModuleRecord::from_bytes(bytes)
     }
+    fn checkpoint_into_writer<W: std::io::Write>(self, writer: W) -> Result<(), RecordError> {
+        self.into_writer(writer)
+    }
+    fn checkpoint_from_reader<R: std::io::Read>(reader: R) -> Result<Self, RecordError> {
+        ModuleRecord::from_reader(reader)
+    }
 }
 
 impl Checkpoint for OptimizerRecord {
@@ -85,6 +111,12 @@ impl Checkpoint for OptimizerRecord {
     fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError> {
         self.into_bytes()
     }
+    fn checkpoint_into_writer<W: std::io::Write>(self, writer: W) -> Result<(), RecordError> {
+        self.into_writer(writer)
+    }
+    fn checkpoint_from_reader<R: std::io::Read>(reader: R) -> Result<Self, RecordError> {
+        OptimizerRecord::from_reader(reader)
+    }
 }
 
 impl Checkpoint for LrSchedulerRecord {
@@ -99,6 +131,12 @@ impl Checkpoint for LrSchedulerRecord {
     }
     fn checkpoint_into_bytes(self) -> Result<Bytes, RecordError> {
         self.into_bytes()
+    }
+    fn checkpoint_into_writer<W: std::io::Write>(self, writer: W) -> Result<(), RecordError> {
+        self.into_writer(writer)
+    }
+    fn checkpoint_from_reader<R: std::io::Read>(reader: R) -> Result<Self, RecordError> {
+        LrSchedulerRecord::from_reader(reader)
     }
 }
 

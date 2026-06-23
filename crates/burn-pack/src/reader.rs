@@ -11,6 +11,8 @@ use burn_std::{Bytes, Shape};
 #[cfg(feature = "std")]
 use super::base::MAX_FILE_SIZE;
 #[cfg(feature = "std")]
+use alloc::collections::BTreeMap;
+#[cfg(feature = "std")]
 use alloc::vec;
 #[cfg(feature = "std")]
 use std::fs::File;
@@ -87,6 +89,76 @@ impl Reader {
         Self::assemble(&header, metadata, source, file_size as usize)
     }
 
+    /// Load a pack by reading sequentially from any [`std::io::Read`] source.
+    ///
+    /// For storage-agnostic loading (downloads, archive entries, sink abstractions exposing only a
+    /// reader) where no path or in-memory image is available. The stream is not seekable, so each
+    /// tensor is read into its own buffer in on-disk order rather than carved as a zero-copy
+    /// [`Bytes::view`] window; the whole container is never resident at once. For local files,
+    /// prefer [`from_file`](Self::from_file) (lazy, zero-copy, mmap-friendly).
+    #[cfg(feature = "std")]
+    pub fn from_reader<R: Read>(mut reader: R) -> Result<Self, Error> {
+        let mut header_bytes = [0u8; HEADER_SIZE];
+        reader.read_exact(&mut header_bytes).map_err(io_err)?;
+        let header = read_header(&header_bytes)?;
+
+        let mut metadata_bytes = vec![0u8; header.metadata_size as usize];
+        reader.read_exact(&mut metadata_bytes).map_err(io_err)?;
+        let metadata = parse_metadata(&metadata_bytes)?;
+
+        let data_section_start = aligned_data_section_start(header.metadata_size as usize);
+        skip_exact(
+            &mut reader,
+            data_section_start - (HEADER_SIZE + header.metadata_size as usize),
+        )?;
+
+        // Descriptors are keyed by name; read the data section in ascending (on-disk) offset order.
+        let mut descriptors: Vec<(&String, &TensorDescriptor)> = metadata.tensors.iter().collect();
+        descriptors.sort_by_key(|(_, d)| d.data_offsets.0);
+
+        let mut tensors = BTreeMap::new();
+        let mut data_pos: u64 = 0;
+        for (name, descriptor) in descriptors {
+            let (start, end) = descriptor.data_offsets;
+            if start < data_pos || end < start {
+                return Err(Error::ValidationError(format!(
+                    "Tensor '{name}' has corrupted offset data: range {start}..{end}, expected start >= {data_pos}"
+                )));
+            }
+            if (data_section_start as u64)
+                .checked_add(end)
+                .is_none_or(|e| e > MAX_FILE_SIZE)
+            {
+                return Err(Error::ValidationError(format!(
+                    "Stream exceeds maximum allowed size of {MAX_FILE_SIZE} bytes"
+                )));
+            }
+            let len = usize::try_from(end - start).map_err(|_| {
+                Error::ValidationError(format!("Tensor '{name}' size exceeds platform maximum"))
+            })?;
+            if len > MAX_TENSOR_SIZE {
+                return Err(Error::ValidationError(format!(
+                    "Tensor '{name}' size {len} exceeds maximum allowed size of {MAX_TENSOR_SIZE} bytes (potential DoS attack)"
+                )));
+            }
+            let pad = usize::try_from(start - data_pos).map_err(|_| {
+                Error::ValidationError(format!("Tensor '{name}' offset exceeds platform maximum"))
+            })?;
+            skip_exact(&mut reader, pad)?;
+
+            let mut buf = vec![0u8; len];
+            reader.read_exact(&mut buf).map_err(io_err)?;
+            tensors.insert(name.clone(), Bytes::from_bytes_vec(buf));
+            data_pos = end;
+        }
+
+        Ok(Self {
+            metadata,
+            source: Source::Owned(tensors),
+            data_offset: data_section_start,
+        })
+    }
+
     /// Finish construction once the header, metadata, and data source are known.
     ///
     /// Centralizes the truncation check and the aligned data-section offset so both
@@ -122,6 +194,20 @@ impl Reader {
             data_offset,
         } = self;
 
+        let mut tensors = Vec::with_capacity(metadata.tensors.len());
+
+        // Stream-loaded tensors are already materialized in their own buffers.
+        #[cfg(feature = "std")]
+        if let Source::Owned(mut owned) = source {
+            for (name, descriptor) in &metadata.tensors {
+                let bytes = owned.remove(name).ok_or_else(|| {
+                    Error::ValidationError(format!("Tensor '{name}' missing from streamed data"))
+                })?;
+                tensors.push(make_tensor(name, descriptor, bytes)?);
+            }
+            return Ok(tensors);
+        }
+
         // Make the source view-capable: a plain in-memory buffer has no zero-copy window until
         // it's shared behind an `Arc`, whereas a file-backed source already windows lazily (and
         // must NOT be shared, or every view would materialize the whole file).
@@ -129,9 +215,10 @@ impl Reader {
             Source::Memory(bytes) => bytes.shared(),
             #[cfg(feature = "std")]
             Source::File(bytes) => bytes,
+            #[cfg(feature = "std")]
+            Source::Owned(_) => unreachable!(),
         };
 
-        let mut tensors = Vec::with_capacity(metadata.tensors.len());
         for (name, descriptor) in &metadata.tensors {
             let (start, end) = tensor_range(data_offset, name, descriptor)?;
             let bytes = source.view(start, end).map_err(|_| {
@@ -189,6 +276,14 @@ impl Reader {
                 Ok(slice.to_vec())
             }
             Source::Memory(bytes) => Ok(memory_chunk(bytes, start, end)?.to_vec()),
+            #[cfg(feature = "std")]
+            Source::Owned(owned) => {
+                let bytes = owned
+                    .get(name)
+                    .ok_or_else(|| Error::TensorNotFound(name.to_string()))?;
+                let slice: &[u8] = bytes;
+                Ok(slice.to_vec())
+            }
         }
     }
 }
@@ -329,20 +424,32 @@ fn make_tensor(name: &str, descriptor: &TensorDescriptor, bytes: Bytes) -> Resul
 }
 
 /// Where a [`Reader`] gets its tensor data from.
-///
-/// Both variants hold a single [`Bytes`] spanning the whole container, and tensors are carved
-/// out of it with zero-copy [`Bytes::view`] windows.
 enum Source {
-    /// The whole pack lives in memory.
+    /// The whole pack lives in memory; tensors are carved with zero-copy [`Bytes::view`] windows.
     Memory(Bytes),
     /// The pack lives in a file; tensor data is read lazily via file-backed [`Bytes::view`].
     #[cfg(feature = "std")]
     File(Bytes),
+    /// The pack was streamed from a non-seekable reader; each tensor is materialized up front.
+    #[cfg(feature = "std")]
+    Owned(BTreeMap<String, Bytes>),
 }
 
 #[cfg(feature = "std")]
 fn io_err(e: std::io::Error) -> Error {
     Error::IoError(e.to_string())
+}
+
+/// Read and discard exactly `n` bytes (inter-section / inter-tensor padding).
+#[cfg(feature = "std")]
+fn skip_exact<R: Read>(reader: &mut R, mut n: usize) -> Result<(), Error> {
+    let mut scratch = [0u8; 8192];
+    while n > 0 {
+        let chunk = n.min(scratch.len());
+        reader.read_exact(&mut scratch[..chunk]).map_err(io_err)?;
+        n -= chunk;
+    }
+    Ok(())
 }
 
 // Verifies the on-disk layout invariant (256-byte tensor alignment), which needs access to the
