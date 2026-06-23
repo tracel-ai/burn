@@ -19,7 +19,7 @@ use super::session::SessionManager;
 /// handshake and drains the session's result queue, while [`SubmitHandler`] decodes the
 /// `/submit` stream's message batches and forwards each task to the session's worker. The
 /// tasks actually run on that per-session worker thread (see
-/// [`SessionWorker`](super::worker::SessionWorker)), which holds the session's runner and
+/// [`SessionHandler`](super::worker::SessionHandler)), which holds the session's runner and
 /// processes its tasks in FIFO order — so a blocking op (e.g. an all-reduce barrier) parks
 /// only that session's worker rather than a shared runtime thread. The [`SessionManager`] owns
 /// the per-session state behind the [`SubmitService`](super::service::SubmitService) /
