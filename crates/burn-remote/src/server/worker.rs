@@ -31,9 +31,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use burn_backend::ExecutionError;
 use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::{BackendIr, GraphId};
 use burn_router::{Graph, TensorInterpreter};
+use burn_std::{AllocationProperty, Reader};
 use tokio::{runtime::Handle, sync::mpsc};
 
 use crate::metrics::{MetricSide, TrafficMetrics};
@@ -337,7 +339,27 @@ where
                 let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
                 let sender = self.response_sender.clone();
                 tokio::spawn(async move {
-                    let data = fut.await;
+                    // `read_tensor_async` may hand back *lazy* device-backed bytes whose GPU→host
+                    // copy is deferred to first access. Left lazy, that copy runs inside
+                    // `rmp_serde::to_vec` on the fetch handler — an async task on the shared
+                    // runtime — where a synchronous read pins a runtime worker for the whole copy
+                    // and starves op delivery under concurrent reads. Force the copy here on the
+                    // blocking pool instead, so the fetch handler only serializes resident host
+                    // bytes and the shared runtime's workers stay free. A no-op for backends whose
+                    // read is already host-resident (the property check skips the copy).
+                    let data = match fut.await {
+                        Ok(data) => tokio::task::spawn_blocking(move || {
+                            if data.bytes.property() == AllocationProperty::Device {
+                                let _ = data.bytes.read(Reader::new());
+                            }
+                            data
+                        })
+                        .await
+                        .map_err(|err| ExecutionError::WithContext {
+                            reason: format!("readback materialization task failed: {err}"),
+                        }),
+                        Err(err) => Err(err),
+                    };
                     if sender
                         .send(TaskResponse {
                             content: TaskResponseContent::ReadTensor(data),
