@@ -6,8 +6,7 @@ use burn_pack::{Reader, Scalar, Tensor, Writer};
 use common::{f32_tensor, read_f32};
 use std::io::Read;
 
-/// Reader that yields at most `max` bytes per `read` call, to stress the `read_exact` /
-/// padding-skip loops against short reads (as a socket or pipe would produce).
+/// Yields at most `max` bytes per `read` call.
 struct ChunkedReader<'a> {
     data: &'a [u8],
     max: usize,

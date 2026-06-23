@@ -154,20 +154,14 @@ impl ModuleRecord {
         Self::from_pack_reader(Reader::from_bytes(bytes)?)
     }
 
-    /// Stream the record to any [`std::io::Write`] without materializing the whole buffer first.
-    ///
-    /// Streaming counterpart to [`into_bytes`](Self::into_bytes); pairs with
-    /// [`from_reader`](Self::from_reader).
+    /// Stream the record to any [`std::io::Write`].
     #[cfg(feature = "std")]
     pub fn into_writer<W: std::io::Write>(self, writer: W) -> Result<(), RecordError> {
         Writer::new(self.pack_tensors()).write_to(writer)?;
         Ok(())
     }
 
-    /// Reconstruct a record by streaming from any [`std::io::Read`].
-    ///
-    /// Streaming counterpart to [`from_bytes`](Self::from_bytes). For local files
-    /// [`load`](Self::load) is more efficient (lazy, zero-copy).
+    /// Reconstruct a record by streaming from any [`std::io::Read`]. Prefer [`load`](Self::load) for local files.
     #[cfg(feature = "std")]
     pub fn from_reader<R: std::io::Read>(reader: R) -> Result<Self, RecordError> {
         Self::from_pack_reader(Reader::from_reader(reader)?)

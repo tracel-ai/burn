@@ -89,13 +89,7 @@ impl Reader {
         Self::assemble(&header, metadata, source, file_size as usize)
     }
 
-    /// Load a pack by reading sequentially from any [`std::io::Read`] source.
-    ///
-    /// For storage-agnostic loading (downloads, archive entries, sink abstractions exposing only a
-    /// reader) where no path or in-memory image is available. The stream is not seekable, so each
-    /// tensor is read into its own buffer in on-disk order rather than carved as a zero-copy
-    /// [`Bytes::view`] window; the whole container is never resident at once. For local files,
-    /// prefer [`from_file`](Self::from_file) (lazy, zero-copy, mmap-friendly).
+    /// Load a pack from any [`std::io::Read`] source. Prefer [`from_file`](Self::from_file) for local files.
     #[cfg(feature = "std")]
     pub fn from_reader<R: Read>(mut reader: R) -> Result<Self, Error> {
         let mut header_bytes = [0u8; HEADER_SIZE];
@@ -440,7 +434,6 @@ fn io_err(e: std::io::Error) -> Error {
     Error::IoError(e.to_string())
 }
 
-/// Read and discard exactly `n` bytes (inter-section / inter-tensor padding).
 #[cfg(feature = "std")]
 fn skip_exact<R: Read>(reader: &mut R, mut n: usize) -> Result<(), Error> {
     let mut scratch = [0u8; 8192];

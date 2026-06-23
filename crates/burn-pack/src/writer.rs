@@ -121,9 +121,7 @@ impl Writer {
         Ok(Bytes::from_bytes_vec(buffer))
     }
 
-    /// Stream the container to any [`std::io::Write`] without materializing the whole image
-    /// first. Streaming counterpart to [`into_bytes`](Self::into_bytes); pairs with
-    /// [`Reader::from_reader`](crate::Reader::from_reader). The writer is flushed before returning.
+    /// Stream the container to any [`std::io::Write`]. The writer is flushed before returning.
     #[cfg(feature = "std")]
     pub fn write_to<W: Write>(self, writer: W) -> Result<(), Error> {
         let layout = self.plan()?;
