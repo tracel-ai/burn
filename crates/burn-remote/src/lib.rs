@@ -852,7 +852,7 @@ mod fusion_tests {
 
             // A second live reference to the same source output. Kept alive across the drain that
             // consumes `made` below — this is the scenario the override's refcount bump must not
-            // mis-free.
+            // free.
             let kept = made.clone();
 
             // Consume `made` in a graph and read it back, forcing a drain that frees the block's
