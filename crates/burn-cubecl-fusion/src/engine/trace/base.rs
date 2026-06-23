@@ -178,6 +178,8 @@ pub struct FuseResources {
     // TODO: Making put a map of global registers.
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, FuseArg>,
+    /// Instructions for custom output strides
+    pub output_layouts: BTreeMap<TensorId, OutputLayout>,
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
@@ -374,4 +376,10 @@ impl RegisteredTensors {
             tensor_ir.status = tensor.status
         }
     }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum OutputLayout {
+    /// Swaps the strides of two dimensions: (dim1, dim2)
+    SwapDims(usize, usize),
 }

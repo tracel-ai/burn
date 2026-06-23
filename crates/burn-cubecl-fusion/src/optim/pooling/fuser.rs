@@ -2,6 +2,7 @@ use crate::{
     engine::{
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
+        trace::OutputLayout,
     },
     optim::{CubeOptimization, pooling::optimization::PoolingOptimization},
 };
@@ -40,10 +41,10 @@ impl<R: Runtime> PoolingFuser<R> {
         let fuser = TraceOperationFuser::new(
             max_bindings,
             FuseSettings {
-                broadcast: true,
-                output_shape_updates: true,
-                inplace: true,
-                vectorization: VectorizationSetting::Activated,
+                broadcast: false,
+                output_shape_updates: false,
+                inplace: false,
+                vectorization: VectorizationSetting::Deactivated,
                 ref_layout: RefLayoutSetting::Any,
             },
         );
@@ -65,28 +66,33 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
 
         match operation {
             OperationIr::Module(ir) => {
-                let is_pool = match ir {
-                    ModuleOperationIr::AvgPool1d(_) => true,
-                    ModuleOperationIr::AvgPool2d(_) => true,
-                    ModuleOperationIr::AvgPool1dBackward(_) => true,
-                    ModuleOperationIr::AvgPool2dBackward(_) => true,
-                    ModuleOperationIr::AdaptiveAvgPool1d(_) => true,
-                    ModuleOperationIr::AdaptiveAvgPool2d(_) => true,
-                    ModuleOperationIr::AdaptiveAvgPool1dBackward(_) => true,
-                    ModuleOperationIr::AdaptiveAvgPool2dBackward(_) => true,
-                    ModuleOperationIr::MaxPool1d(_) => true,
-                    ModuleOperationIr::MaxPool1dWithIndices(_) => true,
-                    ModuleOperationIr::MaxPool1dWithIndicesBackward(_) => true,
-                    ModuleOperationIr::MaxPool2d(_) => true,
-                    ModuleOperationIr::MaxPool2dWithIndices(_) => true,
-                    ModuleOperationIr::MaxPool2dWithIndicesBackward(_) => true,
-                    _ => false,
+                let layout_info = match ir {
+                    ModuleOperationIr::AvgPool1d(op) => Some((&op.x, 2)),
+                    ModuleOperationIr::AvgPool2d(op) => Some((&op.x, 3)),
+                    ModuleOperationIr::AvgPool1dBackward(op) => Some((&op.x, 2)),
+                    ModuleOperationIr::AvgPool2dBackward(op) => Some((&op.x, 3)),
+                    ModuleOperationIr::AdaptiveAvgPool1d(op) => Some((&op.x, 2)),
+                    ModuleOperationIr::AdaptiveAvgPool2d(op) => Some((&op.x, 3)),
+                    ModuleOperationIr::AdaptiveAvgPool1dBackward(op) => Some((&op.x, 2)),
+                    ModuleOperationIr::AdaptiveAvgPool2dBackward(op) => Some((&op.x, 3)),
+                    ModuleOperationIr::MaxPool1d(op) => Some((&op.x, 2)),
+                    ModuleOperationIr::MaxPool1dWithIndices(op) => Some((&op.x, 2)),
+                    ModuleOperationIr::MaxPool1dWithIndicesBackward(op) => Some((&op.x, 2)),
+                    ModuleOperationIr::MaxPool2d(op) => Some((&op.x, 3)),
+                    ModuleOperationIr::MaxPool2dWithIndices(op) => Some((&op.x, 3)),
+                    ModuleOperationIr::MaxPool2dWithIndicesBackward(op) => Some((&op.x, 3)),
+                    _ => None,
                 };
 
-                if is_pool {
+                if let Some((x, swap_dim)) = layout_info {
                     self.pooling_op = Some(operation.clone());
+                    self.fuser
+                        .output_layout(x, OutputLayout::SwapDims(1, swap_dim));
+                    self.status = FuserStatus::Closed;
+                } else {
+                    self.fuser.fuse(operation);
+                    self.status = self.fuser.status();
                 }
-                self.status = FuserStatus::Closed;
             }
             _ => {
                 self.fuser.fuse(operation);
@@ -115,7 +121,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
     fn properties(&self) -> FuserProperties {
         let mut properties = self.fuser.properties();
         properties.score += match &self.pooling_op {
-            Some(_) => 100, // Let'sssssssss goooooooooooooooooooooooooooooooo
+            Some(_) => 100, // TODO : proper score calculation
             None => 0,
         };
         properties.ready = properties.ready && self.pooling_op.is_some();

@@ -8,7 +8,10 @@ use crate::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
         launch::HandleInput,
         settings::RefLayoutSetting,
-        trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
+        trace::{
+            FuseResources, OutputLayout, RegisterTensor, RuntimeLayout, TensorView,
+            block::FuseBlock,
+        },
     },
     strides_dyn_rank,
 };
@@ -461,6 +464,22 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) {
         let block = &mut plan.blocks[block_idx];
 
+        let mut strides = strides;
+        let mut is_relayout = false;
+
+        if let Some(layout) = self
+            .resources
+            .output_layouts
+            .get(&output.tensor_relative.id)
+        {
+            match layout {
+                OutputLayout::SwapDims(dim1, dim2) => {
+                    strides.swap(*dim1, *dim2);
+                    is_relayout = true;
+                }
+            }
+        }
+
         if !block.reference.is_found()
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
             && !matches!(
@@ -468,8 +487,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 RefLayoutSetting::SameAsBlock { .. }
             )
         {
+            let layout_info = if is_relayout {
+                LayoutInfo::Unknown
+            } else {
+                LayoutInfo::IsRef
+            };
+
             block.reference = ReferenceSelection::Concrete {
-                layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
+                layout: FuseArg::Output(output.pos_original, output.precision, layout_info),
                 shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
             };
@@ -478,7 +503,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
                 for op in ops {
                     if let FuseOp::Assign(op) = op {
-                        op.out.add_layout_info(LayoutInfo::IsRef);
+                        op.out.add_layout_info(layout_info);
                         break;
                     }
                 }
@@ -678,6 +703,20 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             })
             .unwrap()
     }
+}
+
+fn nhwc_strides(strides: &Strides, shape: &Shape) -> Strides {
+    let mut strides = strides.clone();
+    let c = shape[1];
+    let h = shape[2];
+    let w = shape[3];
+
+    strides[0] = c * w * h;
+    strides[1] = 1;
+    strides[2] = c * w;
+    strides[3] = c;
+
+    strides
 }
 
 fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize) {

@@ -1,7 +1,6 @@
 use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
-use burn_cubecl_fusion::optim::pooling::PoolingFuser;
 use burn_cubecl_fusion::optim::reduce::ReduceSettings;
 use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
 use burn_cubecl_fusion::{
@@ -10,6 +9,7 @@ use burn_cubecl_fusion::{
         CubeOptimization, CubeOptimizationState,
         elemwise::{ElementWiseFuser, ElemwiseOptimization},
         matmul::{MatmulFuser, MatmulOptimization},
+        pooling::{PoolingFuser, PoolingOptimization},
         reduce::{ReduceFuser, ReduceOptimization},
         reduce_broadcasted::ReduceBroadcastedOptimization,
     },
@@ -37,6 +37,10 @@ where
     ) {
         match self {
             Self::ElementWise(op) => op.execute(context),
+            Self::Pooling(op) => op.execute(context, |index| {
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationWrapper::new(operation))
+            }),
             Self::Matmul(op) => op.execute(context, |index| {
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
@@ -60,6 +64,9 @@ where
         match state {
             CubeOptimizationState::ElementWise(state) => {
                 Self::ElementWise(ElemwiseOptimization::from_state(device, state))
+            }
+            CubeOptimizationState::Pooling(state) => {
+                Self::Pooling(PoolingOptimization::from_state(device, state))
             }
             CubeOptimizationState::Matmul(state) => {
                 Self::Matmul(MatmulOptimization::from_state(device, state))

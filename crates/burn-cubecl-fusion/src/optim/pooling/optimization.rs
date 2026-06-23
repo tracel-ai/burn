@@ -37,7 +37,7 @@ impl<R: Runtime> PoolingOptimization<R> {
                 panic!("{err:?} - {:?}", self.trace);
             }
         };
-        fallback(self.len - 1);
+        fallback(self.len - 1).run(context);
     }
 
     /// Number of element wise operations fused.
