@@ -8,10 +8,7 @@ use crate::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
         launch::HandleInput,
         settings::RefLayoutSetting,
-        trace::{
-            FuseResources, OutputLayout, RegisterTensor, RuntimeLayout, TensorView,
-            block::FuseBlock,
-        },
+        trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
     },
     strides_dyn_rank,
 };
@@ -465,22 +462,20 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         let block = &mut plan.blocks[block_idx];
 
         let mut strides = strides;
-        let mut is_relayout = false;
 
-        if let Some(layout) = self
-            .resources
-            .output_layouts
-            .get(&output.tensor_relative.id)
-        {
-            match layout {
-                OutputLayout::SwapDims(dim1, dim2) => {
-                    if strides[*dim1] != strides[*dim2] {
-                        strides.swap(*dim1, *dim2);
-                        is_relayout = true;
-                    }
-                }
+        let tensor_view = self.resources.views.iter().find_map(|v| match v {
+            TensorView::SwapDims { swapped, dims, .. } if swapped == &output.tensor_relative.id => {
+                Some(dims)
             }
-        }
+            _ => None,
+        });
+        let layout_info = match tensor_view {
+            Some((dim1, dim2)) if strides[*dim1] != strides[*dim2] => {
+                strides.swap(*dim1, *dim2);
+                LayoutInfo::Unknown
+            }
+            _ => LayoutInfo::IsRef,
+        };
 
         if !block.reference.is_found()
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
@@ -489,12 +484,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 RefLayoutSetting::SameAsBlock { .. }
             )
         {
-            let layout_info = if is_relayout {
-                LayoutInfo::Unknown
-            } else {
-                LayoutInfo::IsRef
-            };
-
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Output(output.pos_original, output.precision, layout_info),
                 shape: tensor_global.shape.clone(),

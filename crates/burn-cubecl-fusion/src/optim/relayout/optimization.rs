@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
-pub struct RelayoutOptimization<R: Runtime> {
+pub struct NHWCRelayoutOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
     client: ComputeClient<R>,
     device: R::Device,
@@ -23,7 +23,7 @@ pub struct RelayoutOptimizationState {
     len: usize,
 }
 
-impl<R: Runtime> RelayoutOptimization<R> {
+impl<R: Runtime> NHWCRelayoutOptimization<R> {
     pub fn execute(
         &self,
         context: &mut Context<CubeFusionHandle<R>>,

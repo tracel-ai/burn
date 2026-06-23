@@ -2,9 +2,8 @@ use crate::{
     engine::{
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
-        trace::OutputLayout,
     },
-    optim::{CubeOptimization, relayout::optimization::RelayoutOptimization},
+    optim::{CubeOptimization, relayout::optimization::NHWCRelayoutOptimization},
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{ModuleOperationIr, OperationIr, TensorIr};
@@ -13,17 +12,18 @@ use cubecl::Runtime;
 
 /// Fuses element wise operations.
 #[derive(Clone)]
-pub struct RelayoutFuser<R: Runtime> {
+pub struct NHWCRelayoutFuser<R: Runtime> {
     fuser: TraceOperationFuser,
     op: Option<OperationIr>,
     status: FuserStatus,
     device: R::Device,
 }
 
-impl<R: Runtime> RelayoutFuser<R> {
+impl<R: Runtime> NHWCRelayoutFuser<R> {
     pub fn shape_id(&self) -> Shape {
         self.fuser.current_output_shape.clone()
     }
+
     pub fn new(device: R::Device) -> Self {
         let client = R::client(&device);
         let props = client.properties();
@@ -50,18 +50,15 @@ impl<R: Runtime> RelayoutFuser<R> {
     fn nchw_to_nhwc(&mut self, tensor_ir: &TensorIr) {
         // NCHW strides to NHWC strides
         // Swap channels (1) and width (3)
-        self.fuser
-            .output_layout(tensor_ir, OutputLayout::SwapDims(1, 3));
+        self.fuser.output_layout(tensor_ir, (1, 3));
         // Swap height (2) and width (3)
-        self.fuser
-            .output_layout(tensor_ir, OutputLayout::SwapDims(2, 3));
+        self.fuser.output_layout(tensor_ir, (2, 3));
         // Swap batch (0) and height (2)
-        self.fuser
-            .output_layout(tensor_ir, OutputLayout::SwapDims(0, 2));
+        self.fuser.output_layout(tensor_ir, (0, 2));
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for RelayoutFuser<R> {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = &self.status {
             return;
@@ -108,8 +105,9 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for RelayoutFuser<R> {
     fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
-        let relayout = RelayoutOptimization::new(trace, client, self.device.clone(), self.len());
-        CubeOptimization::Relayout(relayout)
+        let relayout =
+            NHWCRelayoutOptimization::new(trace, client, self.device.clone(), self.len());
+        CubeOptimization::NHWCRelayout(relayout)
     }
 
     fn reset(&mut self) {
@@ -119,7 +117,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for RelayoutFuser<R> {
     }
 
     fn status(&self) -> FuserStatus {
-        self.status.clone()
+        self.status
     }
 
     fn properties(&self) -> FuserProperties {

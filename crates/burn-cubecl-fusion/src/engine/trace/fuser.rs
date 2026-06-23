@@ -7,7 +7,7 @@ use super::{
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
-use crate::engine::trace::{OutputLayout, block::QuantInput};
+use crate::engine::trace::{TensorView, block::QuantInput};
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorIr};
 use burn_std::{DType, Shape};
@@ -139,13 +139,19 @@ impl TraceFuser {
 
     /// Register an output relayout.
     ///
-    /// This will apply the given [output layout](OutputLayout) to the given [tensor](TensorIr).
+    /// This will apply the given relayout to the given [tensor](TensorIr).
     ///
     /// The relayout will be applied when the tensor is written to global memory.
-    pub fn output_layout(&mut self, tensor: &TensorIr, output_layout: OutputLayout) {
-        self.resources
-            .output_layouts
-            .insert(tensor.id, output_layout);
+    pub fn output_layout(&mut self, tensor: &TensorIr, swap_dims: (usize, usize)) {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return;
+        }
+
+        self.resources.views.push(TensorView::SwapDims {
+            swapped: tensor.id,
+            original: tensor.id,
+            dims: swap_dims,
+        });
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.

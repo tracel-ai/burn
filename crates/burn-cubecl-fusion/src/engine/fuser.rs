@@ -3,7 +3,7 @@ use super::{
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
-use crate::engine::{codegen::ir::QuantSchemeFuse, scoring::Scoring, trace::OutputLayout};
+use crate::engine::{codegen::ir::QuantSchemeFuse, scoring::Scoring};
 use burn_backend::cubecl::dtype_to_elem_type;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
@@ -807,11 +807,11 @@ impl TraceOperationFuser {
 
     /// Register an output relayout.
     ///
-    /// This will apply the given [output layout](OutputLayout) to the given [tensor](TensorIr).
+    /// This will apply the given relayout to the given [tensor](TensorIr).
     ///
     /// The relayout will be applied when the tensor is written to global memory.
-    pub fn output_layout(&mut self, tensor: &TensorIr, output_layout: OutputLayout) {
-        self.fuser.fuser.output_layout(tensor, output_layout);
+    pub fn output_layout(&mut self, tensor: &TensorIr, swap_dims: (usize, usize)) {
+        self.fuser.fuser.output_layout(tensor, swap_dims);
     }
 }
 
