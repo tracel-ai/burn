@@ -474,8 +474,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         {
             match layout {
                 OutputLayout::SwapDims(dim1, dim2) => {
-                    strides.swap(*dim1, *dim2);
-                    is_relayout = true;
+                    if strides[*dim1] != strides[*dim2] {
+                        strides.swap(*dim1, *dim2);
+                        is_relayout = true;
+                    }
                 }
             }
         }
@@ -703,20 +705,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             })
             .unwrap()
     }
-}
-
-fn nhwc_strides(strides: &Strides, shape: &Shape) -> Strides {
-    let mut strides = strides.clone();
-    let c = shape[1];
-    let h = shape[2];
-    let w = shape[3];
-
-    strides[0] = c * w * h;
-    strides[1] = 1;
-    strides[2] = c * w;
-    strides[3] = c;
-
-    strides
 }
 
 fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize) {

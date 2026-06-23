@@ -7,7 +7,7 @@ use crate::{
     optim::{CubeOptimization, pooling::optimization::PoolingOptimization},
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
-use burn_ir::{ModuleOperationIr, OperationIr};
+use burn_ir::{ModuleOperationIr, OperationIr, TensorIr};
 use burn_std::Shape;
 use cubecl::Runtime;
 
@@ -44,7 +44,7 @@ impl<R: Runtime> PoolingFuser<R> {
                 broadcast: false,
                 output_shape_updates: false,
                 inplace: false,
-                vectorization: VectorizationSetting::Deactivated,
+                vectorization: VectorizationSetting::Activated,
                 ref_layout: RefLayoutSetting::Any,
             },
         );
@@ -56,6 +56,19 @@ impl<R: Runtime> PoolingFuser<R> {
             device,
         }
     }
+
+    fn nchw_to_nhwc(&mut self, tensor_ir: &TensorIr) {
+        // NCHW strides to NHWC strides
+        // Swap channels (1) and width (3)
+        self.fuser
+            .output_layout(tensor_ir, OutputLayout::SwapDims(1, 3));
+        // Swap height (2) and width (3)
+        self.fuser
+            .output_layout(tensor_ir, OutputLayout::SwapDims(2, 3));
+        // Swap batch (0) and height (2)
+        self.fuser
+            .output_layout(tensor_ir, OutputLayout::SwapDims(0, 2));
+    }
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
@@ -66,28 +79,20 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
 
         match operation {
             OperationIr::Module(ir) => {
-                let layout_info = match ir {
-                    ModuleOperationIr::AvgPool1d(op) => Some((&op.x, 2)),
-                    ModuleOperationIr::AvgPool2d(op) => Some((&op.x, 3)),
-                    ModuleOperationIr::AvgPool1dBackward(op) => Some((&op.x, 2)),
-                    ModuleOperationIr::AvgPool2dBackward(op) => Some((&op.x, 3)),
-                    ModuleOperationIr::AdaptiveAvgPool1d(op) => Some((&op.x, 2)),
-                    ModuleOperationIr::AdaptiveAvgPool2d(op) => Some((&op.x, 3)),
-                    ModuleOperationIr::AdaptiveAvgPool1dBackward(op) => Some((&op.x, 2)),
-                    ModuleOperationIr::AdaptiveAvgPool2dBackward(op) => Some((&op.x, 3)),
-                    ModuleOperationIr::MaxPool1d(op) => Some((&op.x, 2)),
-                    ModuleOperationIr::MaxPool1dWithIndices(op) => Some((&op.x, 2)),
-                    ModuleOperationIr::MaxPool1dWithIndicesBackward(op) => Some((&op.x, 2)),
-                    ModuleOperationIr::MaxPool2d(op) => Some((&op.x, 3)),
-                    ModuleOperationIr::MaxPool2dWithIndices(op) => Some((&op.x, 3)),
-                    ModuleOperationIr::MaxPool2dWithIndicesBackward(op) => Some((&op.x, 3)),
+                let pooling_op = match ir {
+                    ModuleOperationIr::AvgPool2d(op) => Some(&op.x),
+                    ModuleOperationIr::AvgPool2dBackward(op) => Some(&op.x),
+                    ModuleOperationIr::AdaptiveAvgPool2d(op) => Some(&op.x),
+                    ModuleOperationIr::AdaptiveAvgPool2dBackward(op) => Some(&op.x),
+                    ModuleOperationIr::MaxPool2d(op) => Some(&op.x),
+                    ModuleOperationIr::MaxPool2dWithIndices(op) => Some(&op.x),
+                    ModuleOperationIr::MaxPool2dWithIndicesBackward(op) => Some(&op.x),
                     _ => None,
                 };
 
-                if let Some((x, swap_dim)) = layout_info {
+                if let Some(tensor_ir) = pooling_op {
                     self.pooling_op = Some(operation.clone());
-                    self.fuser
-                        .output_layout(x, OutputLayout::SwapDims(1, swap_dim));
+                    self.nchw_to_nhwc(tensor_ir);
                     self.status = FuserStatus::Closed;
                 } else {
                     self.fuser.fuse(operation);
