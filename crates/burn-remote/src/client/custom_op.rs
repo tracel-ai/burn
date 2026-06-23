@@ -32,6 +32,10 @@ pub struct CustomOpClient {
     inner: <Channel as burn_router::RouterChannel>::Client,
     #[cfg(feature = "fusion")]
     inner: burn_fusion::client::GlobalFusionClient<burn_router::RouterFusionRuntime<Channel>>,
+    /// Kept so the fusion path can build the op's unfused handler, which needs the device to reach
+    /// the router client when the op isn't fused into a graph.
+    #[cfg(feature = "fusion")]
+    device: RemoteDevice,
 }
 
 impl CustomOpClient {
@@ -42,7 +46,11 @@ impl CustomOpClient {
         #[cfg(feature = "fusion")]
         let inner = burn_fusion::get_client::<burn_router::BackendRouter<Channel>>(device);
 
-        Self { inner }
+        Self {
+            inner,
+            #[cfg(feature = "fusion")]
+            device: device.clone(),
+        }
     }
 
     /// Allocate a fresh, uninitialized tensor id for a custom op output.
@@ -72,14 +80,15 @@ impl CustomOpClient {
         }
         #[cfg(feature = "fusion")]
         {
-            use burn_fusion::{NoOp, stream::StreamId};
-            // The op executes on the server through the `CustomOpRegistry`; the fusion layer only
-            // ships the op-graph (the relativized `OperationIr`, scalars included), so the local
-            // fusion operation is a genuine no-op.
+            use burn_fusion::stream::StreamId;
+            use burn_router::CustomOperation;
+            // The op runs on the server through the `CustomOpRegistry`. When it's fused into a
+            // cached op-graph it travels as part of the graph; when it isn't (a one-op segment),
+            // `CustomOperation` is the unfused fallback that ships it through the router client.
             self.inner.register(
                 StreamId::current(),
-                OperationIr::Custom(op),
-                NoOp::<burn_router::BackendRouter<Channel>>::new(),
+                OperationIr::Custom(op.clone()),
+                CustomOperation::<Channel>::new(op, self.device.clone()),
             )
         }
     }

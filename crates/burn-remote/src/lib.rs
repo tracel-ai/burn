@@ -655,6 +655,67 @@ mod fusion_tests {
         rt.shutdown_background();
     }
 
+    /// Read a source custom op's output *directly* (it is the boundary output, with no follow-up op
+    /// consuming it). This is what the data loader does — `batch.tokens.to_data()` — and the case the
+    /// other two tests don't cover (they always feed the output into another op first).
+    #[test]
+    fn fusion_read_source_output_directly() {
+        use crate::client::CustomOpClient;
+        use burn_backend::DType;
+        use burn_backend::ops::FloatTensorOps;
+        use burn_flex::Flex;
+        use burn_ir::{CustomOpIr, OperationOutput, ScalarIr, TensorIr};
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3140)
+                .custom_op("make_floats", |handles, ir, device| {
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    let n = values.len();
+                    let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
+                })
+                .start_async(),
+        );
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = RemoteDevice::new("ws://localhost:3140", 0);
+
+        for i in 0..5 {
+            let client = CustomOpClient::new(&device);
+            let out_ir =
+                TensorIr::uninit(client.create_empty_handle(), Shape::from([3]), DType::F32);
+            let made = client
+                .register(CustomOpIr::with_scalars(
+                    "make_floats",
+                    &[],
+                    &[out_ir],
+                    vec![
+                        ScalarIr::Float(1.0),
+                        ScalarIr::Float(2.0),
+                        ScalarIr::Float(3.0),
+                    ],
+                ))
+                .output();
+
+            // Read the source output directly — no follow-up op.
+            let data = burn_std::reader::try_read_sync(<RemoteBackend as FloatTensorOps<
+                RemoteBackend,
+            >>::float_into_data(made))
+            .expect("remote read should resolve synchronously")
+            .expect("read should succeed");
+            let values = data.to_vec::<f32>().unwrap();
+            assert_eq!(values, vec![1.0, 2.0, 3.0], "iter {i}");
+        }
+
+        rt.shutdown_background();
+    }
+
     /// Closer to the data-loader: a source custom op with *three* outputs that are consumed at
     /// *different depths* of the following graph (one immediately, one mid-graph, one only at the
     /// end — like `tokens`/`mask`/`labels`). Exercises a source op's outputs surviving across many

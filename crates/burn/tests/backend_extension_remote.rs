@@ -7,9 +7,8 @@
 #![cfg(feature = "remote")]
 
 use burn::backend::{
-    backend_extension,
+    Dispatch, ExtensionType, Remote, backend_extension,
     tensor::{FloatTensor, IntTensor},
-    Dispatch, ExtensionType, Remote,
 };
 
 #[derive(ExtensionType)]
