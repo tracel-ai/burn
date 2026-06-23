@@ -76,6 +76,9 @@ pub(crate) struct TrafficMetrics {
     /// Unfused ops seen since the last graph execution — the run of unfused ops immediately
     /// preceding the next graph. Reset each time a graph executes.
     unfused_before_graph: u64,
+    /// Cumulative count of unfused ops broken down by top-level operation kind, to reveal what is
+    /// actually streaming unfused (e.g. mostly `Drop` frees vs. real compute ops).
+    unfused_by_kind: HashMap<&'static str, u64>,
 }
 
 impl TrafficMetrics {
@@ -90,16 +93,19 @@ impl TrafficMetrics {
             fused_ops: 0,
             unfused_ops: 0,
             unfused_before_graph: 0,
+            unfused_by_kind: HashMap::new(),
         }
     }
 
-    /// Record one operation executed outside any cached graph (an unfused op).
-    pub(crate) fn record_unfused_op(&mut self) {
+    /// Record one operation executed outside any cached graph (an unfused op), tallying it by
+    /// top-level kind so the breakdown reveals what is actually streaming unfused.
+    pub(crate) fn record_unfused_op(&mut self, op: &OperationIr) {
         if level() == RemoteLogLevel::Disabled {
             return;
         }
         self.unfused_ops += 1;
         self.unfused_before_graph += 1;
+        *self.unfused_by_kind.entry(op_kind(op)).or_insert(0) += 1;
     }
 
     /// Record that `graph` was registered once under `id` (the one-time cost of caching it).
@@ -148,12 +154,14 @@ impl TrafficMetrics {
         if level() >= RemoteLogLevel::Full {
             let total_ops = self.fused_ops + self.unfused_ops;
             let fused_pct = percentage(self.fused_ops, total_ops);
+            let unfused_breakdown = format_unfused_by_kind(&self.unfused_by_kind);
             log_remote(RemoteLogLevel::Full, || {
                 format!(
                     "[remote {side}] replayed graph {id:?}: {bindings_size} bytes instead of \
                      ~{graph_bytes}; cumulative saved {saved} bytes ({saved_pct:.1}% of baseline); \
                      graph {graph_ops} ops, {unfused_before} unfused before it; \
-                     fused {fused_pct:.1}% of {total_ops} ops total"
+                     fused {fused_pct:.1}% of {total_ops} ops total; \
+                     unfused by kind: [{unfused_breakdown}]"
                 )
             });
         } else {
@@ -174,6 +182,39 @@ impl TrafficMetrics {
 
 fn level() -> RemoteLogLevel {
     config().remote().logger.level
+}
+
+/// Coarse top-level kind of an operation, for the unfused-op breakdown (e.g. `Drop`, `Init`,
+/// `Custom`, `NumericFloat`). Intentionally ignores the inner variant — the goal is to see which
+/// *category* of op streams unfused, not every distinct op.
+fn op_kind(op: &OperationIr) -> &'static str {
+    match op {
+        OperationIr::BaseFloat(_) => "BaseFloat",
+        OperationIr::BaseInt(_) => "BaseInt",
+        OperationIr::BaseBool(_) => "BaseBool",
+        OperationIr::NumericFloat(_, _) => "NumericFloat",
+        OperationIr::NumericInt(_, _) => "NumericInt",
+        OperationIr::Bool(_) => "Bool",
+        OperationIr::Int(_) => "Int",
+        OperationIr::Float(_, _) => "Float",
+        OperationIr::Module(_) => "Module",
+        OperationIr::Init(_) => "Init",
+        OperationIr::Custom(_) => "Custom",
+        OperationIr::Drop(_) => "Drop",
+        OperationIr::Distributed(_) => "Distributed",
+        OperationIr::Activation(_) => "Activation",
+    }
+}
+
+/// Render the cumulative unfused-by-kind tally as `Kind=count, ...`, highest count first.
+fn format_unfused_by_kind(map: &HashMap<&'static str, u64>) -> String {
+    let mut entries: Vec<_> = map.iter().collect();
+    entries.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
+    entries
+        .iter()
+        .map(|(kind, count)| format!("{kind}={count}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn serialized_len<T: serde::Serialize>(value: &T) -> usize {

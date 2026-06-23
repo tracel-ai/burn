@@ -260,7 +260,7 @@ impl<C: ProtocolClient> RemoteService<C> {
     /// configured flush threshold.
     pub fn register_op(&mut self, stream_id: StreamId, op: OperationIr) {
         // An op streamed individually (not part of a cached graph) is an unfused op.
-        self.metrics.record_unfused_op();
+        self.metrics.record_unfused_op(&op);
         self.submit_task(Task::RegisterOperation(stream_id, op));
     }
 
