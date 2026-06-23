@@ -1,6 +1,7 @@
 use core::sync::atomic::{AtomicU64, Ordering};
 
 use super::{RouterClient, RouterTensor};
+use crate::CustomOpRegistry;
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
@@ -43,6 +44,9 @@ impl<B: BackendIr> InterpreterContext<B> {
 pub struct TensorInterpreter<B: BackendIr> {
     context: InterpreterContext<B>,
     device: B::Device,
+    /// Handlers for [custom operations](OperationIr::Custom), keyed by id. Shared read-only across
+    /// every session, so executing a custom op is a map lookup plus a call.
+    custom_ops: CustomOpRegistry<B>,
 }
 
 impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
@@ -54,13 +58,19 @@ impl<B: BackendIr> core::fmt::Debug for TensorInterpreter<B> {
 }
 
 impl<B: BackendIr> TensorInterpreter<B> {
-    /// Create a new interpreter.
+    /// Create a new interpreter without any custom operation handlers.
     pub fn new(device: B::Device) -> Self {
+        Self::with_custom_ops(device, CustomOpRegistry::default())
+    }
+
+    /// Create a new interpreter with the given [custom operation handlers](CustomOpRegistry).
+    pub fn with_custom_ops(device: B::Device, custom_ops: CustomOpRegistry<B>) -> Self {
         Self {
             context: InterpreterContext {
                 handles: HandleContainer::new(),
             },
             device,
+            custom_ops,
         }
     }
 
@@ -2072,9 +2082,14 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, result);
                 }
             },
-            OperationIr::Custom(_) => {
-                panic!("Can't execute custom operation here")
-            }
+            OperationIr::Custom(desc) => match self.custom_ops.get(&desc.id) {
+                Some(handler) => handler(handles, desc, &self.device),
+                None => panic!(
+                    "No custom-op handler registered for `{}`. Register one on the server via \
+                     `CustomOpRegistry`/the server builder before starting it.",
+                    desc.id
+                ),
+            },
             OperationIr::Init(_) => {
                 // Nothing to do.
             }

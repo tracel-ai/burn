@@ -1234,6 +1234,33 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn int_arange_step(
+        range: std::ops::Range<i64>,
+        step: usize,
+        device: &Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        // Build `arange` from fusable ops (`int_full` of ones → `cumsum` → affine) instead of the
+        // host-materialized `from_data` default. This keeps it *inside* the fusion graph: for the
+        // remote backend it means no per-call `Init` op shipping the index data over the network —
+        // the indices are computed on the device and ride the cached graph like any other op.
+        // (`int_arange` delegates here, so this covers both.)
+        //
+        // Match the default impl's contract: `range.step_by(0)` panics, so a zero step is a misuse
+        // we surface loudly rather than silently returning an empty tensor.
+        assert!(step != 0, "arange step must be non-zero");
+        if range.end <= range.start {
+            return Self::int_full(Shape::new([0]), 0i64.into(), device, dtype);
+        }
+
+        let count = ((range.end - range.start) as usize).div_ceil(step);
+        // `ones.cumsum` is `[1, 2, ..., count]`; map the 1-based index `k` to `start + (k - 1) * step`.
+        let ones = Self::int_full(Shape::new([count]), 1i64.into(), device, dtype);
+        let counting = Self::int_cumsum(ones, 0);
+        let scaled = Self::int_mul_scalar(counting, (step as i64).into());
+        Self::int_add_scalar(scaled, (range.start - step as i64).into())
+    }
+
     fn int_cumprod(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct CumprodOps<B: FusionBackend> {

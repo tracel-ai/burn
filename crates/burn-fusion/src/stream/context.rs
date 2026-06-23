@@ -1053,6 +1053,11 @@ impl RelativeOps for CustomOpIr {
                 .iter()
                 .map(|x| x.to_relative(converter))
                 .collect(),
+            scalars: self
+                .scalars
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
         }
     }
 }
@@ -1609,10 +1614,9 @@ impl RelativeOps for TensorId {
 
 impl RelativeOps for ScalarIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        if matches!(self, ScalarIr::Bool(_)) {
-            todo!("Unsupported dtype ({self:?}) for scalar")
-        }
-
+        // Every scalar variant (including `Bool`) is stashed verbatim and replaced by a positional
+        // `UInt` placeholder; replay rebinds it by index from `GraphBindings::scalars`, so the
+        // concrete type is irrelevant to relativization.
         let id = ScalarId {
             value: converter.scalars.len() as u64,
         };
@@ -1768,5 +1772,21 @@ mod tests_ir {
 
         assert_eq!(scalar1_local, ScalarIr::UInt(0));
         assert_eq!(scalar2_local, ScalarIr::UInt(1));
+    }
+
+    #[test]
+    fn scalar_ir_bool_to_relative() {
+        // A `Bool` scalar used to `todo!()`-panic here, which crashed any custom op carrying a bool
+        // argument the moment it was fused into a cached graph. It must relativize like every other
+        // scalar: replaced by a positional `UInt` placeholder, with the concrete value stashed so
+        // replay can rebind it from `GraphBindings::scalars`.
+        let mut converter = OperationConverter::default();
+        let relative = ScalarIr::Bool(true).to_relative(&mut converter);
+
+        assert_eq!(relative, ScalarIr::UInt(0));
+        assert_eq!(
+            converter.scalars.get(&ScalarId { value: 0 }),
+            Some(&ScalarIr::Bool(true))
+        );
     }
 }

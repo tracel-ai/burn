@@ -8,6 +8,10 @@
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice, DispatchDeviceId};
 
+/// Transport used to serve remote clients. Re-exported from `burn-remote` so the whole stack
+/// shares one definition.
+pub use burn_remote::server::Channel;
+
 /// Collect every [`Device<B>`] the host exposes for the backend that owns `$variant`, by
 /// enumerating the backend (see [`Dispatch::enumerate`]) and unwrapping the matching variant.
 /// `$id` is the [`DispatchDeviceId`] to enumerate; the result is `Vec<Device<B>>`, indexed by
@@ -124,7 +128,9 @@ macro_rules! with_backend {
 /// chosen via the `host_devices` helper.
 pub fn start_websocket(device: DispatchDevice, port: u16) {
     with_backend!(device, |B, devices| {
-        burn_remote::server::start_websocket::<B>(devices, port)
+        burn_remote::server::RemoteServerBuilder::<B>::new(devices)
+            .port(port)
+            .start()
     })
 }
 
@@ -134,6 +140,9 @@ pub fn start_websocket(device: DispatchDevice, port: u16) {
 /// and differ only in awaiting the server future.
 pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
     with_backend!(device, |B, devices| {
-        burn_remote::server::start_websocket_async::<B>(devices, port).await
+        burn_remote::server::RemoteServerBuilder::<B>::new(devices)
+            .port(port)
+            .start_async()
+            .await
     })
 }

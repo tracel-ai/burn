@@ -17,13 +17,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use burn_backend::DType;
 use burn_backend::ops::FloatTensorOps;
-use burn_fusion::stream::{Context, OrderedExecution};
+use burn_fusion::stream::{Context, Operation, OrderedExecution};
 use burn_fusion::{
     FuserProperties, FuserStatus, FusionBackend, FusionRuntime, NumOperations, OperationFuser,
     Optimization,
 };
 use burn_ir::{
-    BackendIr, GraphBindings, GraphId, OperationIr, ScalarIr, TensorHandle, TensorId, TensorStatus,
+    BackendIr, CustomOpIr, GraphBindings, GraphId, Handle, HandleContainer, OperationIr, ScalarIr,
+    TensorHandle, TensorId, TensorIr, TensorStatus,
 };
 use serde::{Deserialize, Serialize};
 
@@ -131,6 +132,22 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
             handle.dtype,
             handle.client.clone(),
         )
+    }
+
+    fn free_handle(handles: &mut HandleContainer<RouterTensor<R::Client>>, tensor: &TensorIr) {
+        // Only `ReadWrite` (last-use) nodes are freed here, matching `HandleContainer::free`.
+        if tensor.status != TensorStatus::ReadWrite {
+            return;
+        }
+        // The drained block already freed this tensor server-side: every consumed op (a `Drop`, or
+        // a `ReadWrite` input of a compute op) is replayed on the server and pops its handle. So
+        // remove the client entry WITHOUT letting `RouterTensor::drop` register a *second*,
+        // redundant `Drop` for the same id. Bumping the refcount makes that drop a no-op.
+        if let Some(Handle::Existing(handle)) = handles.remove_handle(tensor.id) {
+            handle
+                .count
+                .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        }
     }
 }
 
@@ -247,6 +264,81 @@ impl<R: RouterChannel> OperationFuser<RouterGraphExecution<R>> for RouterFuser<R
 
     fn clone_dyn(&self) -> Box<dyn OperationFuser<RouterGraphExecution<R>>> {
         Box::new(self.clone())
+    }
+}
+
+/// Unfused execution of a single [custom op](OperationIr::Custom) on a router backend.
+///
+/// Every built-in op reaches the backend through a `BackendRouter` method, so when the fuser leaves
+/// it unfused (a one-op segment — e.g. a source op whose output is read right away) `burn-fusion`
+/// runs that method op by op. A custom op has no such method, so it needs this handler: it is the
+/// [`Operation`] registered alongside the op's IR, and runs only on the unfused path. When the op is
+/// instead fused into a [`RouterGraphExecution`] it ships as part of the graph and this never runs.
+///
+/// It mirrors what a built-in op does on that path: resolve the fused input handles to their
+/// backend tensor ids, ship the op through the [`RouterClient`], and bind the outputs so downstream
+/// ops find them. (Without it the op would silently do nothing and the backend would never create
+/// the output handle — "Should have handle for tensor ..." on the next access.)
+pub struct CustomOperation<R: RouterChannel> {
+    ir: CustomOpIr,
+    device: R::Device,
+}
+
+impl<R: RouterChannel> core::fmt::Debug for CustomOperation<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("CustomOperation")
+            .field("id", &self.ir.id)
+            .finish()
+    }
+}
+
+impl<R: RouterChannel> CustomOperation<R> {
+    /// Create the unfused handler for `ir`, executed on `device`.
+    pub fn new(ir: CustomOpIr, device: R::Device) -> Self {
+        Self { ir, device }
+    }
+}
+
+impl<R: RouterChannel> Operation<RouterFusionRuntime<R>> for CustomOperation<R> {
+    fn execute(&self, handles: &mut HandleContainer<RouterTensor<R::Client>>) {
+        let client = get_client::<R>(&self.device);
+
+        // Map each fused input handle to its backend tensor id. `into_ir` carries the
+        // refcount/free semantics, so a last-use (`ReadWrite`) input still frees correctly.
+        let inputs: Vec<TensorIr> = self
+            .ir
+            .inputs
+            .iter()
+            .map(|input| handles.get_handle(&input.id, &input.status).into_ir())
+            .collect();
+
+        // Mint fresh backend ids for the outputs.
+        let outputs: Vec<RouterTensor<R::Client>> = self
+            .ir
+            .outputs
+            .iter()
+            .map(|out| {
+                RouterTensor::new(
+                    client.create_empty_handle(),
+                    out.shape.clone(),
+                    out.dtype,
+                    client.clone(),
+                )
+            })
+            .collect();
+
+        // Ship the op to the backend with the translated ids; scalars travel unchanged.
+        client.register_op(OperationIr::Custom(CustomOpIr {
+            id: self.ir.id.clone(),
+            inputs,
+            outputs: outputs.iter().map(|out| out.to_ir_out()).collect(),
+            scalars: self.ir.scalars.clone(),
+        }));
+
+        // Bind the outputs under their fused ids so any downstream op resolves them.
+        for (out, tensor) in self.ir.outputs.iter().zip(outputs) {
+            handles.register_handle(out.id, tensor);
+        }
     }
 }
 

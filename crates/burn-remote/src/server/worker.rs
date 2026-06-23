@@ -193,7 +193,7 @@ where
         match task {
             Task::RegisterOperation(stream_id, op) => {
                 // An op received individually (not as part of a cached graph) is an unfused op.
-                self.metrics.record_unfused_op();
+                self.metrics.record_unfused_op(&op);
                 stream_id.executes(|| self.runner.register_op(op));
                 Ok(())
             }
