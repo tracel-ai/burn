@@ -4,7 +4,7 @@ use crate::{
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
         trace::OutputLayout,
     },
-    optim::{CubeOptimization, pooling::optimization::PoolingOptimization},
+    optim::{CubeOptimization, relayout::optimization::RelayoutOptimization},
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{ModuleOperationIr, OperationIr, TensorIr};
@@ -12,25 +12,15 @@ use burn_std::Shape;
 use cubecl::Runtime;
 
 /// Fuses element wise operations.
-pub struct PoolingFuser<R: Runtime> {
+#[derive(Clone)]
+pub struct RelayoutFuser<R: Runtime> {
     fuser: TraceOperationFuser,
-    pooling_op: Option<OperationIr>,
+    op: Option<OperationIr>,
     status: FuserStatus,
     device: R::Device,
 }
 
-impl<R: Runtime> Clone for PoolingFuser<R> {
-    fn clone(&self) -> Self {
-        Self {
-            fuser: self.fuser.clone(),
-            status: self.status.clone(),
-            pooling_op: self.pooling_op.clone(),
-            device: self.device.clone(),
-        }
-    }
-}
-
-impl<R: Runtime> PoolingFuser<R> {
+impl<R: Runtime> RelayoutFuser<R> {
     pub fn shape_id(&self) -> Shape {
         self.fuser.current_output_shape.clone()
     }
@@ -51,7 +41,7 @@ impl<R: Runtime> PoolingFuser<R> {
 
         Self {
             status: fuser.status(),
-            pooling_op: None,
+            op: None,
             fuser,
             device,
         }
@@ -71,7 +61,7 @@ impl<R: Runtime> PoolingFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for RelayoutFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = &self.status {
             return;
@@ -79,7 +69,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
 
         match operation {
             OperationIr::Module(ir) => {
-                let pooling_op = match ir {
+                let op = match ir {
                     ModuleOperationIr::AvgPool1d(op) => Some(&op.x),
                     ModuleOperationIr::AvgPool2d(op) => Some(&op.x),
                     ModuleOperationIr::AvgPool1dBackward(op) => Some(&op.x),
@@ -94,11 +84,13 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
                     ModuleOperationIr::MaxPool2d(op) => Some(&op.x),
                     ModuleOperationIr::MaxPool2dWithIndices(op) => Some(&op.x),
                     ModuleOperationIr::MaxPool2dWithIndicesBackward(op) => Some(&op.x),
+                    ModuleOperationIr::Interpolate(op) => Some(&op.x),
+                    ModuleOperationIr::InterpolateBackward(op) => Some(&op.x),
                     _ => None,
                 };
 
-                if let Some(tensor_ir) = pooling_op {
-                    self.pooling_op = Some(operation.clone());
+                if let Some(tensor_ir) = op {
+                    self.op = Some(operation.clone());
                     self.nchw_to_nhwc(tensor_ir);
                     self.status = FuserStatus::Closed;
                 } else {
@@ -116,13 +108,13 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
     fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
-        let pooling = PoolingOptimization::new(trace, client, self.device.clone(), self.len());
-        CubeOptimization::Pooling(pooling)
+        let relayout = RelayoutOptimization::new(trace, client, self.device.clone(), self.len());
+        CubeOptimization::Relayout(relayout)
     }
 
     fn reset(&mut self) {
         self.fuser.reset();
-        self.pooling_op = None;
+        self.op = None;
         self.status = self.fuser.status();
     }
 
@@ -132,17 +124,17 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
 
     fn properties(&self) -> FuserProperties {
         let mut properties = self.fuser.properties();
-        properties.score += match &self.pooling_op {
+        properties.score += match &self.op {
             Some(_) => 100, // TODO : proper score calculation
             None => 0,
         };
-        properties.ready = properties.ready && self.pooling_op.is_some();
+        properties.ready = properties.ready && self.op.is_some();
         properties
     }
 
     fn len(&self) -> usize {
         self.fuser.len()
-            + match &self.pooling_op {
+            + match &self.op {
                 Some(_) => 1,
                 None => 0,
             }

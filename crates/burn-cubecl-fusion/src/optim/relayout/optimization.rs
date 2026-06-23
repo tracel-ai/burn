@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
-pub struct PoolingOptimization<R: Runtime> {
+pub struct RelayoutOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
     client: ComputeClient<R>,
     device: R::Device,
@@ -17,13 +17,13 @@ pub struct PoolingOptimization<R: Runtime> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-/// State for the [elemwise optimization](PoolingOptimization).
-pub struct PoolingOptimizationState {
+/// State for the [elemwise optimization](RelayoutOptimization).
+pub struct RelayoutOptimizationState {
     trace: FuseTrace,
     len: usize,
 }
 
-impl<R: Runtime> PoolingOptimization<R> {
+impl<R: Runtime> RelayoutOptimization<R> {
     pub fn execute(
         &self,
         context: &mut Context<CubeFusionHandle<R>>,
@@ -45,8 +45,8 @@ impl<R: Runtime> PoolingOptimization<R> {
         self.len
     }
 
-    /// Create an optimization from its [state](PoolingOptimizationState).
-    pub fn from_state(device: &R::Device, state: PoolingOptimizationState) -> Self {
+    /// Create an optimization from its [state](RelayoutOptimizationState).
+    pub fn from_state(device: &R::Device, state: RelayoutOptimizationState) -> Self {
         Self {
             trace: state.trace,
             len: state.len,
@@ -55,9 +55,9 @@ impl<R: Runtime> PoolingOptimization<R> {
         }
     }
 
-    /// Convert the optimization to its [state](PoolingOptimizationState).
-    pub fn to_state(&self) -> PoolingOptimizationState {
-        PoolingOptimizationState {
+    /// Convert the optimization to its [state](RelayoutOptimizationState).
+    pub fn to_state(&self) -> RelayoutOptimizationState {
+        RelayoutOptimizationState {
             trace: self.trace.clone(),
             len: self.len,
         }
