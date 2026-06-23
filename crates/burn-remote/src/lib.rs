@@ -794,4 +794,94 @@ mod fusion_tests {
 
         rt.shutdown_background();
     }
+
+    /// Regression guard for the `free_handle` drop-suppression override
+    /// (`RouterFusionRuntime::free_handle`): a *second live reference* to a source op's output is
+    /// held across the graph drain that consumes the first one. The override removes the drained
+    /// block's container entry and bumps the handle refcount so `RouterTensor::drop` doesn't
+    /// re-register a redundant server `Drop`; if that bookkeeping mishandles a surviving clone, the
+    /// retained tensor's id is freed too early and the *next* graph that uses it panics on the
+    /// server with "Should have handle for tensor ..." (or reads back garbage). Looping exercises
+    /// register-once + replay so the bug would surface on a later iteration even if the first slips
+    /// through.
+    #[test]
+    fn fusion_custom_source_output_clone_survives_drain() {
+        use crate::client::CustomOpClient;
+        use burn_backend::DType;
+        use burn_backend::ops::FloatTensorOps;
+        use burn_flex::Flex;
+        use burn_ir::{CustomOpIr, OperationOutput, ScalarIr, TensorIr};
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_io()
+            .build()
+            .unwrap();
+
+        rt.spawn(
+            crate::server::RemoteServerBuilder::<Flex>::new(vec![Default::default()])
+                .port(3150)
+                .custom_op("make_floats", |handles, ir, device| {
+                    let values: Vec<f32> = ir.scalars.iter().map(|s| s.elem::<f32>()).collect();
+                    let n = values.len();
+                    let tensor = Flex::float_from_data(TensorData::new(values, [n]), device);
+                    handles.register_float_tensor::<Flex>(&ir.outputs[0].id, tensor);
+                })
+                .start_async(),
+        );
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let device = RemoteDevice::new("ws://localhost:3150", 0);
+
+        type B = RemoteBackend;
+        for i in 0..5 {
+            let client = CustomOpClient::new(&device);
+            let out_ir =
+                TensorIr::uninit(client.create_empty_handle(), Shape::from([3]), DType::F32);
+            let made = client
+                .register(CustomOpIr::with_scalars(
+                    "make_floats",
+                    &[],
+                    &[out_ir],
+                    vec![
+                        ScalarIr::Float(1.0),
+                        ScalarIr::Float(2.0),
+                        ScalarIr::Float(3.0),
+                    ],
+                ))
+                .output();
+
+            // A second live reference to the same source output. Kept alive across the drain that
+            // consumes `made` below — this is the scenario the override's refcount bump must not
+            // mis-free.
+            let kept = made.clone();
+
+            // Consume `made` in a graph and read it back, forcing a drain that frees the block's
+            // handles while `kept` still references the source output's id.
+            let exp = <B as FloatTensorOps<B>>::float_exp(made);
+            let exp_data =
+                burn_std::reader::try_read_sync(<B as FloatTensorOps<B>>::float_into_data(exp))
+                    .expect("remote read should resolve synchronously")
+                    .expect("read should succeed");
+            let exp_values = exp_data.to_vec::<f32>().unwrap();
+            let exp_expected = [1.0f32.exp(), 2.0f32.exp(), 3.0f32.exp()];
+            for (g, e) in exp_values.iter().zip(exp_expected.iter()) {
+                assert!((g - e).abs() < 1e-3, "iter {i} (exp): {g} vs {e}");
+            }
+
+            // Now use the retained clone in a *new* graph. If the drain above freed the id out from
+            // under it, this read fails server-side or returns garbage.
+            let log = <B as FloatTensorOps<B>>::float_log(kept);
+            let log_data =
+                burn_std::reader::try_read_sync(<B as FloatTensorOps<B>>::float_into_data(log))
+                    .expect("remote read should resolve synchronously")
+                    .expect("read should succeed");
+            let log_values = log_data.to_vec::<f32>().unwrap();
+            let log_expected = [1.0f32.ln(), 2.0f32.ln(), 3.0f32.ln()];
+            for (g, e) in log_values.iter().zip(log_expected.iter()) {
+                assert!((g - e).abs() < 1e-3, "iter {i} (log): {g} vs {e}");
+            }
+        }
+
+        rt.shutdown_background();
+    }
 }

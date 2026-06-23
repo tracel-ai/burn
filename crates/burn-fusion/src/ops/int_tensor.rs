@@ -1245,7 +1245,11 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         // remote backend it means no per-call `Init` op shipping the index data over the network —
         // the indices are computed on the device and ride the cached graph like any other op.
         // (`int_arange` delegates here, so this covers both.)
-        if step == 0 || range.end <= range.start {
+        //
+        // Match the default impl's contract: `range.step_by(0)` panics, so a zero step is a misuse
+        // we surface loudly rather than silently returning an empty tensor.
+        assert!(step != 0, "arange step must be non-zero");
+        if range.end <= range.start {
             return Self::int_full(Shape::new([0]), 0i64.into(), device, dtype);
         }
 

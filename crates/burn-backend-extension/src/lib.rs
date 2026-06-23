@@ -462,7 +462,25 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         if has_ad {
             quote! { compile_error!("A backend extension operation with no tensor inputs can't be combined with `Autodiff` — there is no input tensor to carry the autodiff graph.") }
         } else if ir.backends.concrete.len() == 1 {
-            gen_backend_call(ir, op, &ir.backends.concrete[0])
+            let backend = &ir.backends.concrete[0];
+            let call = gen_backend_call(ir, op, backend);
+            match &backend.cfg {
+                // Ungated backend: dispatch straight to it.
+                None => quote! { #ckp_logic #call },
+                // The single backend is `cfg`-gated. Mirror the match path: gate the call on the
+                // backend's cfg and fall back to `unimplemented!` when it's compiled out, so the
+                // method still has a valid body (instead of referencing a backend that doesn't
+                // exist). `ckp_logic` lives inside the gated arm so its `checkpointing` binding
+                // isn't left dangling (and untypeable) when the backend is compiled out.
+                Some(meta) => quote! {
+                    match () {
+                        #[#meta]
+                        () => { #ckp_logic #call }
+                        #[allow(unreachable_patterns)]
+                        _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
+                    }
+                },
+            }
         } else {
             quote! { compile_error!("A backend extension operation with no tensor inputs must list exactly one backend (e.g. `#[backend_extension(Remote)]`), since there is no input tensor to select the backend from.") }
         }
@@ -479,6 +497,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         };
 
         quote! {
+            #ckp_logic
             match #match_inputs {
                 #( #concrete_arms )*
                 #ad_cfg_attr
@@ -490,7 +509,6 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
 
     quote! {
         #maybe_async fn #name(#(#sig_args),*) -> #ret_ty {
-            #ckp_logic
             #body
         }
     }

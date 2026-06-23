@@ -49,3 +49,30 @@ fn remote_backend_extension_dispatch_compiles() {
     let _f: fn(usize) -> FloatTensor<Dispatch> = <Dispatch as Backend>::load_data;
     let _g: fn(FloatTensor<Dispatch>, f32) -> FloatTensor<Dispatch> = <Dispatch as Backend>::scale;
 }
+
+// A no-tensor-input op on a `cfg`-gated single backend. The backend is gated on
+// `cfg(not(feature = "remote"))`, which is always false in this `#![cfg(feature = "remote")]` test
+// build, so the backend is compiled out — exercising the macro's no-input + gated codegen path,
+// where the call must be gated on the backend's cfg with an `unimplemented!` fallback (rather than
+// referencing a backend that doesn't exist).
+#[backend_extension(Remote: cfg(not(feature = "remote")))]
+pub trait GatedBackend: burn::backend::Backend {
+    // Underscore-prefixed because, in this test, the backend is always compiled out, so the
+    // generated dispatch body never uses the argument.
+    fn gated_load(_data_index: usize) -> FloatTensor<Self>;
+}
+
+impl GatedBackend for Remote {
+    fn gated_load(_data_index: usize) -> FloatTensor<Self> {
+        unimplemented!("the client builds a CustomOpIr and ships it to the server")
+    }
+}
+
+#[test]
+#[should_panic(expected = "Backend not supported for custom op `gated_load`")]
+fn remote_backend_extension_gated_no_input_falls_back() {
+    // With the only backend compiled out, the generated dispatch body takes the `unimplemented!`
+    // fallback arm. Reaching it (rather than a compile error) proves the gated no-input path
+    // expanded into valid code.
+    let _ = <Dispatch as GatedBackend>::gated_load(0);
+}
