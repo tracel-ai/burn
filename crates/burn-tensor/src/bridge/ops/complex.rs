@@ -399,12 +399,25 @@ pub(crate) trait ComplexOps: FloatMathOps {
     where
         T: Into<TensorData>;
 
-    /// Creates a complex tensor by combining separate real and imaginary part tensors.
+    /// Converts the data of the current tensor into separate real and imaginary tensor data
+    ///
+    /// Note:
+    /// Ideally you only want to use this if the underlying backend is natively in split layout
+    async fn into_parts_async(tensor: BridgeTensor) -> (TensorData, TensorData);
+
+    /// Converts the data of the current tensor into separate real and imaginary tensor data
+    ///
+    /// Note:
+    /// Ideally you only want to use this if the underlying backend is natively in split layout
+    async fn try_into_parts_async(
+        tensor: BridgeTensor,
+    ) -> Result<(TensorData, TensorData), ExecutionError>;
+
+    /// Creates a complex tensor from real tensor data, zeroing the imaginary part.
     ///
     /// # Arguments
     ///
     /// * `real` - The real parts, as anything that can be converted into `TensorData`.
-    /// * `imag` - The imaginary parts, as anything that can be converted into `TensorData`.
     ///
     /// # Returns
     ///
@@ -455,6 +468,18 @@ impl ComplexOps for Complex {
             imag.into(),
             device.as_dispatch(),
         ))
+    }
+
+    async fn try_into_parts_async(
+        tensor: BridgeTensor,
+    ) -> Result<(TensorData, TensorData), ExecutionError> {
+        Dispatch::complex_into_split_data(tensor.into()).await
+    }
+
+    async fn into_parts_async(tensor: BridgeTensor) -> (TensorData, TensorData) {
+        Dispatch::complex_into_split_data(tensor.into())
+            .await
+            .unwrap()
     }
     fn from_polar(magnitude: BridgeTensor, phase: BridgeTensor) -> BridgeTensor {
         BridgeTensor::complex(Dispatch::complex_from_polar(

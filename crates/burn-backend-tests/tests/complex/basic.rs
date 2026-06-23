@@ -90,6 +90,28 @@ fn test_complex_from_data() {
 }
 
 #[test]
+fn test_complex_into_parts() {
+    let tensor = TestTensor::<2>::from([[
+        ComplexScalar::<f32> {
+            real: 1.0,
+            imag: 2.0,
+        },
+        ComplexScalar::<f32> {
+            real: 3.0,
+            imag: 4.0,
+        },
+    ]]);
+
+    let real = TestTensor::<2>::from_data([[1.0,3.0]], &Default::default()).into_data();
+    let imag = TestTensor::<2>::from_data([[2.0,4.0]], &Default::default()).into_data();
+
+    let result = tensor.into_parts();
+
+    result.0.assert_eq(&real, false);
+    result.1.assert_eq(&imag, false);
+}
+
+#[test]
 fn test_complex_reshape() {
     let tensor = TestTensor::<2>::from_data(
         TensorData::from([[

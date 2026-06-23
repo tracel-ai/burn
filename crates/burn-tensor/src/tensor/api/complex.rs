@@ -1,4 +1,4 @@
-use burn_std::{Scalar, TensorData};
+use burn_std::{ExecutionError, Scalar, TensorData};
 
 use crate::{Cast, Complex, Device, Float, Tensor, TensorCreationOptions, kind::ComplexMath};
 
@@ -256,6 +256,22 @@ where
     {
         Self::new(K::from_parts(real.into(), imag.into(), device))
     }
+    /// Converts a complex tensor into separate real and imaginary host data.
+    pub fn into_parts(self) -> (TensorData, TensorData) {
+        crate::read_sync(Self::into_parts_async(self))
+    }
+    /// Converts a complex tensor into separate real and imaginary host data.
+    pub fn try_into_parts(self) -> Result<(TensorData, TensorData), ExecutionError> {
+        crate::read_sync(Self::try_into_parts_async(self))
+    }
+    /// Converts a complex tensor into separate real and imaginary host data.
+    pub async fn try_into_parts_async(self) -> Result<(TensorData, TensorData), ExecutionError> {
+        K::try_into_parts_async(self.primitive).await
+    }
+    /// Converts a complex tensor into separate real and imaginary host data.
+    pub async fn into_parts_async(self) -> (TensorData, TensorData) {
+        K::into_parts_async(self.primitive).await
+    }
 
     /// Create a Complex Tensor from a float tensor representing the real part, filling the imaginary part with zeros.
     pub fn from_real<T>(real: T, device: &Device) -> Self
@@ -296,23 +312,9 @@ where
 }
 
 //TODO: for some reason, implementing sub causes a compilation error originating from order
-// saying there are multiple implementations satisfying the constraints.
+// saying there are multiple implementations satisfying the constraints. Ideally we want to
+// support direct ops between real and complex tensors
 // Complex Tensor + Float Tensor
-// impl<const D: usize> core::ops::Add<Tensor<D, Float>> for Tensor<D, Complex> {
-//     type Output = Self;
-
-//     fn add(self, rhs: Tensor<D, Float>) -> Self::Output {
-//         let device = self.device();
-//         self + Tensor::<D, Complex>::from_real(rhs.into_data(), &device)
-//     }
-// }
-
-// // Complex Tensor + Float Tensor
-// impl<const D: usize> core::ops::Sub<Tensor<D, Float>> for Tensor<D, Complex> {
-//     type Output = Self;
-
-//     fn sub(self, rhs: Tensor<D, Float>) -> Self::Output {
-//         let device = self.device();
-//         self - Tensor::<D, Complex>::from_real(rhs.into_data(), &device)
-//     }
-// }
+// impl<const D: usize> core::ops::Add<Tensor<D, Float>> for Tensor<D, Complex>;
+// Complex Tensor - Float Tensor
+// impl<const D: usize> core::ops::Sub<Tensor<D, Float>> for Tensor<D, Complex>;
