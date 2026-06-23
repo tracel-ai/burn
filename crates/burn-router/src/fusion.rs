@@ -144,7 +144,9 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
         // remove the client entry WITHOUT letting `RouterTensor::drop` register a *second*,
         // redundant `Drop` for the same id. Bumping the refcount makes that drop a no-op.
         if let Some(Handle::Existing(handle)) = handles.remove_handle(tensor.id) {
-            handle.count.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+            handle
+                .count
+                .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
         }
     }
 }
