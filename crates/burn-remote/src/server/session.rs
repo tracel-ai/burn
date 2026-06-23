@@ -1,7 +1,7 @@
 use burn_backend::tensor::Device;
 use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::BackendIr;
-use burn_router::TensorInterpreter;
+use burn_router::{CustomOpRegistry, TensorInterpreter};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, mpsc};
 
@@ -41,6 +41,8 @@ where
     pub(crate) external_comm: Arc<ExternalCommService<B, P>>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
+    /// Custom-op handlers shared (read-only) with every session's interpreter.
+    custom_ops: CustomOpRegistry<B>,
     sessions: Mutex<HashMap<SessionId, Session>>,
 }
 
@@ -55,7 +57,11 @@ where
     B: BackendIr,
     P: Protocol,
 {
-    pub fn new(devices: Vec<Device<B>>, external_comm: Arc<ExternalCommService<B, P>>) -> Self {
+    pub fn new(
+        devices: Vec<Device<B>>,
+        external_comm: Arc<ExternalCommService<B, P>>,
+        custom_ops: CustomOpRegistry<B>,
+    ) -> Self {
         assert!(
             !devices.is_empty(),
             "A remote server must host at least one device"
@@ -64,6 +70,7 @@ where
             devices,
             external_comm,
             local_comm: Arc::new(LocalCommService::new()),
+            custom_ops,
             sessions: Mutex::new(HashMap::new()),
         }
     }
@@ -100,7 +107,10 @@ where
             // (request or response) to touch it fixes the device index. Spawn the handler that
             // owns the runner — this runs inside the tokio runtime, so the handler can capture
             // the runtime handle its worker threads need for the async parts of a task.
-            let runner = TensorInterpreter::new(self.device(device_index));
+            let runner = TensorInterpreter::with_custom_ops(
+                self.device(device_index),
+                self.custom_ops.clone(),
+            );
             let task_sender = SessionHandler::spawn(
                 session_id,
                 runner,

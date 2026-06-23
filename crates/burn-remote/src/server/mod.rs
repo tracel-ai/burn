@@ -4,5 +4,8 @@ pub(crate) mod session;
 pub(crate) mod worker;
 
 mod base;
+mod builder;
 
-pub use base::{start_websocket, start_websocket_async};
+pub use base::RemoteServer;
+pub use builder::{Channel, RemoteServerBuilder};
+pub use burn_router::{CustomOpHandler, CustomOpRegistry};

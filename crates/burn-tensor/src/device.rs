@@ -138,8 +138,11 @@ impl Device {
         }
     }
 
-    /// Crate-internal borrow of the underlying dispatch device.
-    pub(crate) fn as_dispatch(&self) -> &DispatchDevice {
+    /// Borrow the underlying [`DispatchDevice`].
+    ///
+    /// The inverse of [`Device::new`]. Useful to backend-extension authors who need to dispatch on
+    /// the concrete backend variant (e.g. matching `DispatchDevice::Remote(_)`).
+    pub fn as_dispatch(&self) -> &DispatchDevice {
         self.blob.as_ref()
     }
 

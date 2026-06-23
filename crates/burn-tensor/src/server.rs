@@ -13,20 +13,15 @@
 //! ```
 //!
 //! User-defined backends that implement `BackendIr` but aren't part of
-//! `DispatchDevice` should call burn_remote::server::start_websocket.
-//! directly with the concrete backend type parameter.
+//! `DispatchDevice` should build a `burn_remote::server::RemoteServerBuilder`
+//! directly with the concrete backend type parameter — that is also how custom
+//! operations (backend extensions) are hosted.
 
 use crate::Device;
 
-/// Transport used to serve remote clients.
-#[derive(Debug, Clone, Copy)]
-pub enum Channel {
-    /// WebSocket server bound to `0.0.0.0:port`.
-    WebSocket {
-        /// Port to bind on.
-        port: u16,
-    },
-}
+/// Transport used to serve remote clients. Re-exported from `burn-remote` (via `burn-dispatch`) so
+/// the whole stack shares one definition.
+pub use burn_dispatch::remote_server::Channel;
 
 /// Start a remote-execution server, blocking the current thread.
 ///
