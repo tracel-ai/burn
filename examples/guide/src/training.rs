@@ -96,7 +96,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: impl Into<Devic
 
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_checkpointer()
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
         .summary();
 

@@ -4,7 +4,7 @@ use super::{
     queue::OperationQueue,
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
-use crate::{FusionRuntime, UnfusedOp};
+use crate::{FusionRuntime, UnfusedOp, search::BlockOptimization};
 use burn_ir::{HandleContainer, OperationIr, TensorId};
 use hashbrown::{HashMap, HashSet};
 
@@ -183,7 +183,11 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
 
         if let Some(handle) = handles.get_handle_ref(&src) {
-            handles.register_handle(dst, handle.clone());
+            // Not a bare `clone()`: remote backends need a fresh server-side handle over the same
+            // buffer so consuming one alias doesn't free it for the other stream. Local backends'
+            // `alias_handle` default *is* `clone()`. See `FusionRuntime::alias_handle`.
+            let alias = R::alias_handle(handle);
+            handles.register_handle(dst, alias);
         }
     }
 
@@ -278,6 +282,11 @@ impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
 
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<R::Optimization>) {
         self.queue.execute(id, self.handles, store, self.id)
+    }
+
+    fn execute_unfused(&mut self, optimization: BlockOptimization<R::Optimization>) {
+        self.queue
+            .execute_unfused(optimization, self.handles, self.id)
     }
 }
 

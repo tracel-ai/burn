@@ -798,12 +798,14 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rand 0.10.1",
+ "regex",
  "rstest",
  "serde",
  "serde_json",
  "serial_test",
  "spin",
  "tempfile",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1054,6 +1056,7 @@ dependencies = [
  "burn-backend",
  "burn-communication",
  "burn-flex",
+ "burn-fusion",
  "burn-ir",
  "burn-router",
  "burn-std",
@@ -1097,12 +1100,14 @@ version = "0.22.0-pre.1"
 dependencies = [
  "burn-backend",
  "burn-flex",
+ "burn-fusion",
  "burn-ir",
  "burn-std",
  "burn-tensor",
  "burn-wgpu",
  "hashbrown 0.16.1",
  "log",
+ "serde",
  "spin",
 ]
 
@@ -7172,9 +7177,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.14"
+version = "0.11.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "434b42fec591c96ef50e21e886936e66d3cc3f737104fdb9b737c40ffb94c098"
+checksum = "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
 dependencies = [
  "bytes",
  "getrandom 0.3.4",

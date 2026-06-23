@@ -17,6 +17,11 @@ pub struct Context<H> {
     pub scalars: HashMap<ScalarId, ScalarIr>,
     /// Shape mapping from relative shape ids to global (real) shape ids.
     pub shapes_relative2global: HashMap<usize, usize>,
+    /// Concrete slice ranges found in the graph, indexed by the placeholder id assigned during
+    /// relativization (the value carried in a relativized range's `start` field). Ranges can change
+    /// for the same relative graph — like scalars — so they are kept out of the relative form and
+    /// rebound per invocation.
+    pub ranges: Vec<Slice>,
 }
 
 impl<H: Clone> Context<H> {
@@ -30,6 +35,7 @@ impl<H: Clone> Context<H> {
             handles: self.handles.fork(),
             scalars: self.scalars.clone(),
             shapes_relative2global: self.shapes_relative2global.clone(),
+            ranges: self.ranges.clone(),
         }
     }
 }
@@ -47,6 +53,7 @@ pub(crate) struct OperationConverter {
     shapes_global2relative: HashMap<usize, usize>,
     shapes_relative2global: HashMap<usize, usize>,
     scalars: HashMap<ScalarId, ScalarIr>,
+    ranges: Vec<Slice>,
 }
 
 impl Default for OperationConverter {
@@ -57,6 +64,7 @@ impl Default for OperationConverter {
             shapes_global2relative: Default::default(),
             shapes_relative2global: Default::default(),
             scalars: Default::default(),
+            ranges: Default::default(),
         };
 
         // global 1 is always shape id 0.
@@ -88,6 +96,7 @@ impl<'a, H> ContextGuard<'a, H> {
             tensors: core::mem::take(&mut converter.tensors_relative2global),
             scalars: core::mem::take(&mut converter.scalars),
             shapes_relative2global: core::mem::take(&mut converter.shapes_relative2global),
+            ranges: core::mem::take(&mut converter.ranges),
             handles: core::mem::take(handles),
         };
 
@@ -119,6 +128,7 @@ impl<H> Drop for ContextGuard<'_, H> {
             self.converter.tensors_relative2global = ctx.tensors;
             self.converter.scalars = ctx.scalars;
             self.converter.shapes_relative2global = ctx.shapes_relative2global;
+            self.converter.ranges = ctx.ranges;
             *self.handles = ctx.handles;
         }
     }
@@ -149,6 +159,22 @@ impl OperationConverter {
         self.shapes_relative2global.insert(0, 1);
 
         self.scalars.clear();
+        self.ranges.clear();
+    }
+
+    /// Relativize a slice range: stash the concrete bounds (they vary per invocation) and return a
+    /// placeholder whose `start` carries the binding id, mirroring how scalars become
+    /// `ScalarIr::UInt(placeholder)`. The relative form is thus invariant to the actual bounds, so
+    /// graphs that differ only in slice ranges still match — and graph replay restores the concrete
+    /// range from [`Context::ranges`] / `GraphBindings::ranges`.
+    fn relative_range(&mut self, range: &Slice) -> Slice {
+        let id = self.ranges.len();
+        self.ranges.push(*range);
+        Slice {
+            start: id as isize,
+            end: None,
+            step: 1,
+        }
     }
 }
 
@@ -783,7 +809,7 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            FloatOperationIr::Trunc(desc) => FloatOperationIr::Ceil(UnaryOpIr {
+            FloatOperationIr::Trunc(desc) => FloatOperationIr::Trunc(UnaryOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -1359,12 +1385,20 @@ impl RelativeOps for BaseOperationIr {
             }),
             BaseOperationIr::Slice(desc) => BaseOperationIr::Slice(SliceOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_info| Slice::from(0..1)).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|r| converter.relative_range(r))
+                    .collect(),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::SliceAssign(desc) => BaseOperationIr::SliceAssign(SliceAssignOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc.ranges.iter().map(|_range| Slice::from(0..1)).collect(),
+                ranges: desc
+                    .ranges
+                    .iter()
+                    .map(|r| converter.relative_range(r))
+                    .collect(),
                 value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
@@ -1601,6 +1635,7 @@ mod tests {
             handles: HandleContainer::new(),
             scalars: HashMap::new(),
             shapes_relative2global: HashMap::new(),
+            ranges: Vec::new(),
         };
 
         let id_input = TensorId::new(1);

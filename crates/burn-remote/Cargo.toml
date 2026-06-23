@@ -26,6 +26,9 @@ tracing = [
 ]
 
 client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
+# Client-side fusion: cache recurring op-groups on the server and invoke them by id, reducing
+# network traffic. When enabled, `RemoteBackend` is wrapped in `Fusion` (like the CubeCL backends).
+fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
 server = [
     "tokio-tungstenite",
     "async-channel",
@@ -44,6 +47,7 @@ burn-backend = { workspace = true, features = [
 ] }
 burn-std = { workspace = true, features = ["default"] }
 burn-router = { workspace = true, features = ["default"] }
+burn-fusion = { workspace = true, optional = true }
 burn-communication = { workspace = true, features = [
     "data-service",
     "websocket",

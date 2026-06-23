@@ -20,6 +20,9 @@ workspace = true
 [features]
 default = ["std"]
 std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
+# Client-side operation fusion / caching for router backends (e.g. the remote backend). Requires
+# std (the fusion engine uses threads).
+fusion = ["std", "dep:burn-fusion", "dep:serde"]
 doc = ["default"]
 tracing = [
     "burn-backend/tracing",
@@ -30,10 +33,12 @@ tracing = [
 [dependencies]
 burn-ir = { workspace = true }
 burn-backend = { workspace = true }
+burn-fusion = { workspace = true, optional = true }
 burn-std = { workspace = true }
 hashbrown = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 burn-tensor = { workspace = true }

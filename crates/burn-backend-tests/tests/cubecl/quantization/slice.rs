@@ -15,13 +15,11 @@ where
     // Always use the default scheme when testing `q_slice`.
     let scheme = QuantScheme::default();
 
-    let data = TestTensorInt::arange(0..numel, &device)
+    let quantized = TestTensorInt::arange(0..numel, &device)
         .float()
         .div_scalar(numel)
         .reshape::<D, _>(shape)
-        .into_data();
-
-    let quantized = TestTensor::<D>::from_data(data, &device).quantize_dynamic(&scheme);
+        .quantize_dynamic(&scheme);
 
     // Reference: dequantize, then slice in full precision.
     let output_ref = quantized

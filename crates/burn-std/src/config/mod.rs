@@ -2,6 +2,8 @@
 pub mod autodiff;
 /// Fusion config module.
 pub mod fusion;
+/// Remote backend config module.
+pub mod remote;
 
 mod base;
 mod logger;

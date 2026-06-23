@@ -77,7 +77,7 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
-        .with_checkpointer()
+        .with_default_checkpointers()
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
         .summary();

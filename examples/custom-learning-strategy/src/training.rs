@@ -95,7 +95,7 @@ pub fn run(device: Device) {
 
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .with_checkpointer()
+        .with_default_checkpointers()
         .early_stopping(early_stopping)
         .num_epochs(config.num_epochs)
         .summary()
