@@ -4,6 +4,7 @@ mod diag;
 mod lu;
 mod matvec;
 mod outer;
+mod qr;
 mod trace;
 mod vector_norm;
 
@@ -13,5 +14,6 @@ pub use diag::*;
 pub use lu::*;
 pub use matvec::*;
 pub use outer::*;
+pub use qr::*;
 pub use trace::*;
 pub use vector_norm::*;

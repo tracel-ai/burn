@@ -6,5 +6,6 @@ pub(crate) mod diag;
 pub(crate) mod lu;
 pub(crate) mod matvec;
 pub(crate) mod outer;
+pub(crate) mod qr;
 pub(crate) mod trace;
 pub(crate) mod vector_norm;
