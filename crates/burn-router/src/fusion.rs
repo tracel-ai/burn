@@ -23,7 +23,7 @@ use burn_fusion::{
     Optimization,
 };
 use burn_ir::{
-    BackendIr, CustomOpIr, GraphBindings, GraphId, HandleContainer, OperationIr, ScalarIr,
+    BackendIr, CustomOpIr, GraphBindings, GraphId, Handle, HandleContainer, OperationIr, ScalarIr,
     TensorHandle, TensorId, TensorIr, TensorStatus,
 };
 use serde::{Deserialize, Serialize};
@@ -132,6 +132,20 @@ impl<R: RouterChannel> FusionRuntime for RouterFusionRuntime<R> {
             handle.dtype,
             handle.client.clone(),
         )
+    }
+
+    fn free_handle(handles: &mut HandleContainer<RouterTensor<R::Client>>, tensor: &TensorIr) {
+        // Only `ReadWrite` (last-use) nodes are freed here, matching `HandleContainer::free`.
+        if tensor.status != TensorStatus::ReadWrite {
+            return;
+        }
+        // The drained block already freed this tensor server-side: every consumed op (a `Drop`, or
+        // a `ReadWrite` input of a compute op) is replayed on the server and pops its handle. So
+        // remove the client entry WITHOUT letting `RouterTensor::drop` register a *second*,
+        // redundant `Drop` for the same id. Bumping the refcount makes that drop a no-op.
+        if let Some(Handle::Existing(handle)) = handles.remove_handle(tensor.id) {
+            handle.count.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        }
     }
 }
 
