@@ -80,10 +80,17 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for PoolingFuser<R> {
         match operation {
             OperationIr::Module(ir) => {
                 let pooling_op = match ir {
+                    ModuleOperationIr::AvgPool1d(op) => Some(&op.x),
                     ModuleOperationIr::AvgPool2d(op) => Some(&op.x),
+                    ModuleOperationIr::AvgPool1dBackward(op) => Some(&op.x),
                     ModuleOperationIr::AvgPool2dBackward(op) => Some(&op.x),
+                    ModuleOperationIr::AdaptiveAvgPool1d(op) => Some(&op.x),
                     ModuleOperationIr::AdaptiveAvgPool2d(op) => Some(&op.x),
+                    ModuleOperationIr::AdaptiveAvgPool1dBackward(op) => Some(&op.x),
                     ModuleOperationIr::AdaptiveAvgPool2dBackward(op) => Some(&op.x),
+                    ModuleOperationIr::MaxPool1d(op) => Some(&op.x),
+                    ModuleOperationIr::MaxPool1dWithIndices(op) => Some(&op.x),
+                    ModuleOperationIr::MaxPool1dWithIndicesBackward(op) => Some(&op.x),
                     ModuleOperationIr::MaxPool2d(op) => Some(&op.x),
                     ModuleOperationIr::MaxPool2dWithIndices(op) => Some(&op.x),
                     ModuleOperationIr::MaxPool2dWithIndicesBackward(op) => Some(&op.x),
