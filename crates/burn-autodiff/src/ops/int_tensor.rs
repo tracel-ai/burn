@@ -4,9 +4,7 @@ use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::Autodiff
 use alloc::vec::Vec;
 
 use burn_backend::{
-    Backend, BackendTypes, Distribution, ExecutionError, Scalar, TensorData,
-    ops::{BitCastHelper, BitcastOps, BitwiseIntTensorOps, IntTensorOps},
-    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
+    Backend, BackendTypes, Distribution, ExecutionError, Scalar, TensorData, TensorMetadata, ops::{BitCastHelper, BitcastOps, BitwiseIntTensorOps, IntTensorOps, transmute_same_type}, tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{BoolDType, FloatDType, IntDType, Shape};
 
@@ -358,9 +356,13 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     ) -> IntTensor<Self> {
         B::int_unfold(tensor, dim, size, step)
     }
+    
+    fn int_swap_dims(tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
+        B::int_swap_dims(tensor, dim1, dim2)
+    }
 }
 
-struct BitcastStub;
+pub struct BitcastStub;
 impl BitCastHelper for BitcastStub {
     fn bitcast<
         T1: burn_backend::TensorMetadata + 'static,
@@ -382,13 +384,13 @@ impl<B: Backend + BitcastOps<B> + BitwiseIntTensorOps<B>, C: CheckpointStrategy>
         T: burn_backend::TensorMetadata + 'static,
         F: Fn(IntTensor<Self>, IntTensor<Self>) -> IntTensor<Self>,
     >(
-        mut lhs: T,
+        lhs: T,
         rhs: IntTensor<Self>,
         f: F,
     ) -> T {
         if should_track::<Self, T>() {
-            as_autodiff::<B, C, _, _>(lhs, |mut tensor: AutodiffTensor<B>| {
-                let src = lhs.dtype();
+            as_autodiff::<B, C, _, _>(lhs, |mut  tensor: AutodiffTensor<B>| {
+                let src = tensor.dtype();
                 let dest = burn_backend::ops::dtype_int(src);
                 tensor.primitive = B::BitCaster::bitcast::<IntTensor<Self>, FloatTensor<B>>(
                     f(
