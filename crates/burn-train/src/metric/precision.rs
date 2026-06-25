@@ -1,10 +1,10 @@
-use crate::metric::{MetricName, Numeric};
+use crate::metric::{MetricName, Numeric, state::ConfusionStatsState};
 
 use super::{
     Metric, MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry, SerializedEntry,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
-    state::{FormatOptions, NumericMetricState},
+    state::FormatOptions,
 };
 use burn_core::prelude::Tensor;
 use std::{num::NonZeroUsize, sync::Arc};
@@ -13,7 +13,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 #[derive(Clone)]
 pub struct PrecisionMetric {
     name: MetricName,
-    state: NumericMetricState,
+    state: ConfusionStatsState,
     config: ClassificationMetricConfig,
 }
 
@@ -108,15 +108,34 @@ impl Metric for PrecisionMetric {
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [sample_size, _] = input.predictions.dims();
 
-        let cf_stats = ConfusionStats::new(input, &self.config);
-        let metric =
-            self.class_average(cf_stats.clone().true_positive() / cf_stats.predicted_positive());
+        let stats = ConfusionStats::new(input, &self.config);
+        let tp = Some(stats.clone().true_positive());
+        let fp = Some(stats.clone().false_positive());
 
-        self.state.update(
-            100.0 * metric,
-            sample_size,
+        self.state.update(tp, fp, None, sample_size);
+        self.state.compute_update(
+            self.config.class_reduction,
             FormatOptions::new(self.name()).unit("%").precision(2),
+            |tp, fp, _| {
+                log::info!(
+                    "[PrecisionMetric] compute fn ({}; {})",
+                    tp.is_some(),
+                    fp.is_some()
+                );
+                let (tp, fp) = (tp.unwrap(), fp.unwrap());
+                let denominator = tp.clone() + fp;
+                // Avoid division by zero on empty classes
+                let mask = denominator.clone().equal_elem(0.0);
+                let predicted_positive = denominator.mask_fill(mask, 1.0);
+
+                (tp / predicted_positive) * 100.0
+            },
         )
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -138,12 +157,16 @@ impl Metric for PrecisionMetric {
 }
 
 impl Numeric for PrecisionMetric {
-    fn value(&self) -> NumericEntry {
+    fn value(&self) -> Option<NumericEntry> {
         self.state.current_value()
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
         self.state.running_value()
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -165,7 +188,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = PrecisionMetric::binary(threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
@@ -182,7 +205,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = PrecisionMetric::multiclass(top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
@@ -197,7 +220,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = PrecisionMetric::multilabel(threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 

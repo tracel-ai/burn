@@ -135,11 +135,14 @@ impl Metric for RougeLScore {
 
         let value = total_f1 / batch_size as f64;
 
-        self.state.update(
-            value,
-            batch_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(value, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -160,13 +163,18 @@ impl Metric for RougeLScore {
     }
 }
 
+// TODO: can be computed per batch, but epoch-level value should be aggregated properly (not just mean of each batch)
 impl Numeric for RougeLScore {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        todo!()
     }
 }
 
@@ -184,7 +192,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!((metric.value().current() - 100.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
     #[test]
@@ -196,7 +204,7 @@ mod tests {
         let tgts = Tensor::from_data([[6, 7, 8, 9, 10]], &device);
 
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
-        assert_eq!(0.0, metric.value().current());
+        assert_eq!(0.0, metric.value().unwrap().current());
     }
 
     #[test]
@@ -210,7 +218,7 @@ mod tests {
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
 
         let expected = 60.0;
-        assert!((metric.value().current() - expected).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - expected).abs() < 1e-6);
     }
 
     #[test]
@@ -225,7 +233,7 @@ mod tests {
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
 
         let expected = 75.0;
-        assert!((metric.value().current() - expected).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - expected).abs() < 1e-6);
     }
 
     #[test]
@@ -238,7 +246,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5, pad, pad]], &device);
 
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!((metric.value().current() - 100.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
     #[test]
@@ -250,7 +258,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5], [11, 12, 13, 14, 15]], &device);
 
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!((metric.value().current() - 50.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 50.0).abs() < 1e-6);
     }
 
     #[test]
@@ -262,7 +270,7 @@ mod tests {
         let tgts = Tensor::<2, Int>::from_data(TensorData::from([[0i32; 0]; 1]), &device);
 
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!((metric.value().current() - 100.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
     #[test]
@@ -274,9 +282,9 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
         metric.update(&RougeLInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!(metric.value().current() > 0.0);
+        assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();
-        assert!(metric.value().current().is_nan());
+        assert!(metric.value().unwrap().current().is_nan());
     }
 }

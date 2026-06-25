@@ -70,7 +70,10 @@ impl Metric for CpuUse {
             self.current = Self::refresh(&mut self.sys);
             self.last_refresh = Instant::now();
         }
+        self.compute()
+    }
 
+    fn compute(&mut self) -> SerializedEntry {
         let formatted = format!("{}: {:.2} %", self.name(), self.current);
         let raw = format!("{:.2}", self.current);
 
@@ -94,11 +97,15 @@ impl Metric for CpuUse {
 }
 
 impl Numeric for CpuUse {
-    fn value(&self) -> NumericEntry {
-        NumericEntry::Value(self.current)
+    fn value(&self) -> Option<NumericEntry> {
+        Some(NumericEntry::Value(self.current))
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(NumericEntry::Value(self.current))
+    }
+
+    fn final_value(&self) -> NumericEntry {
         NumericEntry::Value(self.current)
     }
 }

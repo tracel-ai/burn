@@ -2,7 +2,7 @@ use super::MetricMetadata;
 use super::state::{FormatOptions, PredictionAccumulatorState};
 use crate::metric::{
     ClassReduction, ConfusionStatsInput, Metric, MetricAttributes, MetricName, Numeric,
-    NumericAggregation, NumericAttributes, SerializedEntry,
+    NumericAttributes, SerializedEntry,
 };
 use burn_core::tensor::{Int, Tensor};
 use std::sync::Arc;
@@ -105,10 +105,23 @@ impl Metric for AucPrMetric {
         input: &ConfusionStatsInput,
         _metadata: &MetricMetadata,
     ) -> SerializedEntry {
+        // Update the state
         self.state
             .accumulate(input.predictions.clone(), input.targets.clone());
 
-        // Recompute over the whole epoch: AP is rank-based, not a per-batch mean.
+        // Serialize placeholder to indicate no valid scalar exists yet mid-epoch
+        self.state
+            .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+    fn compute(&mut self) -> SerializedEntry {
+        // Guard against an empty epoch calculation
+        if self.state.is_empty() {
+            return self
+                .state
+                .serialize_placeholder(FormatOptions::new(self.name()).unit("%").precision(2));
+        }
+
+        // Recompute over the whole epoch: AP is rank-based.
         let (predictions, targets) = self.state.tensors();
         let [n, c] = predictions.dims();
 
@@ -139,7 +152,8 @@ impl Metric for AucPrMetric {
             ap.select(0, keep).mean().into_scalar()
         };
 
-        self.state.update(
+        // Complete the state with the calculated scalar
+        self.state.compute(
             100.0 * metric,
             FormatOptions::new(self.name()).unit("%").precision(2),
         )
@@ -157,19 +171,23 @@ impl Metric for AucPrMetric {
         NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: true,
-            aggregation: NumericAggregation::Last,
         }
         .into()
     }
 }
 
 impl Numeric for AucPrMetric {
-    fn value(&self) -> super::NumericEntry {
-        self.state.value()
+    fn value(&self) -> Option<super::NumericEntry> {
+        None // current value is invalid; requires epoch-level aggregation
     }
 
-    fn running_value(&self) -> super::NumericEntry {
-        self.state.value()
+    fn running_value(&self) -> Option<super::NumericEntry> {
+        None
+    }
+
+    fn final_value(&self) -> super::NumericEntry {
+        self.value()
+            .expect("Compute must be called to get final value")
     }
 }
 
@@ -265,8 +283,9 @@ mod tests {
         let mut metric = AucPrMetric::new(class_reduction);
 
         let _entry = metric.update(&input(data), &MetricMetadata::fake());
+        let _entry = metric.compute();
 
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.running_value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
@@ -283,6 +302,7 @@ mod tests {
             ),
             &MetricMetadata::fake(),
         );
+        single.compute();
 
         // Same dataset split across two batches.
         let mut split = AucPrMetric::binary();
@@ -300,10 +320,11 @@ mod tests {
             ),
             &MetricMetadata::fake(),
         );
+        split.compute();
 
         // Epoch value is independent of batching.
-        TensorData::from([split.value().current()]).assert_approx_eq::<f64>(
-            &TensorData::from([single.value().current()]),
+        TensorData::from([split.running_value().unwrap().current()]).assert_approx_eq::<f64>(
+            &TensorData::from([single.running_value().unwrap().current()]),
             Tolerance::default(),
         );
     }

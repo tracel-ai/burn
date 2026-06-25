@@ -65,11 +65,14 @@ impl Metric for AccuracyMetric {
             None => outputs.equal(targets).int().sum().into_scalar::<f64>() / batch_size as f64,
         };
 
-        self.state.update(
-            100.0 * accuracy,
-            batch_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(100.0 * accuracy, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -91,12 +94,16 @@ impl Metric for AccuracyMetric {
 }
 
 impl Numeric for AccuracyMetric {
-    fn value(&self) -> super::NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<super::NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> super::NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<super::NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> super::NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -122,7 +129,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 
     #[test]
@@ -146,6 +153,6 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 }

@@ -168,6 +168,14 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
 
+        // `*_train` used as reference, but could be valid or test
+        // FullEventProcessorTraining::process_train -> MetricsTraining::update_train -> NumericMetricUpdater::update -> Metric::update
+        // in parallel:
+        // EventStoreClient::add_event_train(Event::MetricsUpdate(update)) -> LogEventStore::add_event -> MetricLogger::log_item
+        // where MetricLogger is FileLogger
+
+        // Also in parrallel for the full event processor implementation (which includes TUI):
+        // FullEventProcessorTraining::process_train -> MetricsRendererTraining::update_train (TUI renderer updates)
         for metric in self.train.iter_mut() {
             let state = metric.update(&item.item, metadata);
             entries.push(state);
@@ -204,23 +212,40 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     }
 
     /// Signal the end of a training epoch.
-    pub(crate) fn end_epoch_train(&mut self) {
+    /// Returns the final metric entries for the epoch.
+    pub(crate) fn end_epoch_train(&mut self) -> MetricsUpdate {
+        let mut entries = Vec::with_capacity(self.train.len());
+        let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
+
+        log::info!("[MetricsTraining] end_epoch_train");
         for metric in self.train.iter_mut() {
+            entries.push(metric.compute());
             metric.clear();
         }
         for metric in self.train_numeric.iter_mut() {
+            entries_numeric.push(metric.compute());
             metric.clear();
         }
+
+        MetricsUpdate::new(entries, entries_numeric)
     }
 
     /// Signal the end of a validation epoch.
-    pub(crate) fn end_epoch_valid(&mut self) {
+    /// Returns the final metric entries for the epoch.
+    pub(crate) fn end_epoch_valid(&mut self) -> MetricsUpdate {
+        let mut entries = Vec::with_capacity(self.valid.len());
+        let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
+
         for metric in self.valid.iter_mut() {
+            entries.push(metric.compute());
             metric.clear();
         }
         for metric in self.valid_numeric.iter_mut() {
+            entries_numeric.push(metric.compute());
             metric.clear();
         }
+
+        MetricsUpdate::new(entries, entries_numeric)
     }
 }
 
@@ -246,11 +271,13 @@ impl<T> From<&EvaluationItem<T>> for MetricMetadata {
 
 pub(crate) trait NumericMetricUpdater<T>: Send + Sync {
     fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate;
+    fn compute(&mut self) -> NumericMetricUpdate;
     fn clear(&mut self);
 }
 
 pub(crate) trait MetricUpdater<T>: Send + Sync {
     fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry;
+    fn compute(&mut self) -> MetricEntry;
     fn clear(&mut self);
 }
 
@@ -287,6 +314,24 @@ where
         }
     }
 
+    fn compute(&mut self) -> NumericMetricUpdate {
+        let serialized_entry = self.metric.compute();
+
+        log::info!(
+            "[NumericMetricUpdater] compute final value for {:?}",
+            self.id
+        );
+        let update = MetricEntry::new(self.id.clone(), serialized_entry);
+        let final_entry = self.metric.final_value();
+
+        NumericMetricUpdate {
+            entry: update,
+            // Current value is not applicable. This is the final epoch-level value computed.
+            numeric_entry: None,
+            running_entry: Some(final_entry),
+        }
+    }
+
     fn clear(&mut self) {
         self.metric.clear()
     }
@@ -300,6 +345,11 @@ where
 {
     fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry {
         let serialized_entry = self.metric.update(&item.adapt(), metadata);
+        MetricEntry::new(self.id.clone(), serialized_entry)
+    }
+
+    fn compute(&mut self) -> MetricEntry {
+        let serialized_entry = self.metric.compute();
         MetricEntry::new(self.id.clone(), serialized_entry)
     }
 

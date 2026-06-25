@@ -5,7 +5,7 @@ use crate::metric::{
 };
 use burn_core::{
     prelude::{Device, Tensor},
-    tensor::{ElementConversion, module::conv2d, ops::ConvOptions},
+    tensor::{module::conv2d, ops::ConvOptions},
 };
 
 /// Input type for the [SsimMetric].
@@ -350,11 +350,13 @@ impl Metric for SsimMetric {
         let ssim_per_image = ssim_tensor.mean_dims(&[1, 2, 3]);
         let avg_ssim = ssim_per_image.mean().into_scalar::<f64>();
 
-        self.state.update(
-            avg_ssim,
-            batch_size,
-            FormatOptions::new(self.name()).precision(4),
-        )
+        self.state.update(avg_ssim, batch_size);
+        self.compute()
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute(FormatOptions::new(self.name()).precision(4))
     }
 
     /// Clears the metric state.
@@ -373,12 +375,12 @@ impl Metric for SsimMetric {
 }
 
 impl Numeric for SsimMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
     }
 }
 
@@ -414,7 +416,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             (ssim - 1.0).abs() < 0.001,
             "SSIM for identical images should be 1.0, got {}",
@@ -435,7 +437,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             ssim < 0.0001,
             "SSIM for black vs white images should be very low, got {}",
@@ -454,7 +456,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             ssim > 0.99,
             "SSIM for very similar images should be close to 1.0, got {}",
@@ -507,7 +509,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         // Average of ~1.0 and ~0.0 should be around 0.5
         assert!(
             ssim > 0.49 && ssim < 0.51,
@@ -549,7 +551,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             (ssim - 1.0).abs() < 0.001,
             "SSIM for identical RGB images should be 1.0, got {}",
@@ -586,12 +588,12 @@ mod tests {
         let mut metric1 = SsimMetric::new(config);
         let input1 = SsimInput::new(img1.clone(), img2.clone());
         let _entry = metric1.update(&input1, &MetricMetadata::fake());
-        let ssim1 = metric1.value().current();
+        let ssim1 = metric1.value().unwrap().current();
 
         let mut metric2 = SsimMetric::new(config);
         let input2 = SsimInput::new(img2, img1);
         let _entry = metric2.update(&input2, &MetricMetadata::fake());
-        let ssim2 = metric2.value().current();
+        let ssim2 = metric2.value().unwrap().current();
 
         assert!(
             (ssim1 - ssim2).abs() < 0.001,
@@ -614,7 +616,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             ssim >= -1.0 && ssim <= 1.0,
             "SSIM should be in range [-1, 1], got {}",
@@ -641,7 +643,7 @@ mod tests {
         let input1 = SsimInput::new(outputs1, targets1);
         let _entry = metric.update(&input1, &MetricMetadata::fake());
 
-        let ssim1 = metric.value().current();
+        let ssim1 = metric.value().unwrap().current();
         assert!(
             (ssim1 - 1.0).abs() < 0.001,
             "First update SSIM should be ~1.0, got {}",
@@ -655,7 +657,7 @@ mod tests {
         let _entry = metric.update(&input2, &MetricMetadata::fake());
 
         // Running average should be around 0.5
-        let running_avg = metric.running_value().current();
+        let running_avg = metric.running_value().unwrap().current();
         assert!(
             running_avg > 0.49 && running_avg < 0.51,
             "Running average should be around 0.5, got {}",
@@ -681,7 +683,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             (ssim - 1.0).abs() < 0.001,
             "Expected SSIM ~1.0, got {}",
@@ -690,7 +692,7 @@ mod tests {
 
         // Clear and verify reset
         metric.clear();
-        let ssim = metric.running_value().current();
+        let ssim = metric.running_value().unwrap().current();
         assert!(ssim.is_nan(), "Expected NaN after clear, got {}", ssim);
     }
 
@@ -722,7 +724,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             (ssim - 1.0).abs() < 0.001,
             "SSIM for identical 8-bit images should be 1.0, got {}",
@@ -742,7 +744,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             (ssim - 1.0).abs() < 0.001,
             "SSIM for identical batch should be 1.0, got {}",
@@ -764,7 +766,7 @@ mod tests {
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
 
-        let ssim = metric.value().current();
+        let ssim = metric.value().unwrap().current();
         assert!(
             (ssim - 1.0).abs() < 0.001,
             "SSIM with default window size should work and SSIM should be ~0.0, got {}",

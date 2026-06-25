@@ -54,7 +54,7 @@ pub struct MetricDefinition {
     /// The metric's id.
     pub metric_id: MetricId,
     /// The name of the metric.
-    pub name: String,
+    pub name: MetricName,
     /// The description of the metric.
     pub description: Option<String>,
     /// The attributes of the metric.
@@ -66,7 +66,7 @@ impl MetricDefinition {
     pub fn new<Me: Metric>(metric_id: MetricId, metric: &Me) -> Self {
         Self {
             metric_id,
-            name: metric.name().to_string(),
+            name: metric.name(),
             description: metric.description(),
             attributes: metric.attributes(),
         }
@@ -107,6 +107,9 @@ pub trait Metric: Send + Sync + Clone {
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry;
 
+    /// Compute the final metric value.
+    fn compute(&mut self) -> SerializedEntry;
+
     /// Clear the metric state.
     fn clear(&mut self);
 }
@@ -127,16 +130,6 @@ impl<T> Adaptor<()> for T {
     fn adapt(&self) {}
 }
 
-/// How a numeric metric's per-batch values are reduced into an epoch value.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum NumericAggregation {
-    /// Sample-weighted mean of the per-batch values.
-    #[default]
-    Mean,
-    /// Last logged value, already computed over the whole epoch.
-    Last,
-}
-
 /// Attributes that describe intrinsic properties of a numeric metric.
 #[derive(Clone, Debug)]
 pub struct NumericAttributes {
@@ -144,8 +137,6 @@ pub struct NumericAttributes {
     pub unit: Option<String>,
     /// Whether larger values are better (true) or smaller are better (false).
     pub higher_is_better: bool,
-    /// How per-batch values are reduced into the epoch value.
-    pub aggregation: NumericAggregation,
 }
 
 impl From<NumericAttributes> for MetricAttributes {
@@ -159,7 +150,6 @@ impl Default for NumericAttributes {
         Self {
             unit: None,
             higher_is_better: true,
-            aggregation: NumericAggregation::default(),
         }
     }
 }
@@ -167,11 +157,25 @@ impl Default for NumericAttributes {
 /// Declare a metric to be numeric.
 ///
 /// This is useful to plot the values of a metric during training.
+///
+/// Some metrics (e.g. accuracy) produce a meaningful value on every batch,
+/// while others (e.g. AUC-PR) only accumulate state per batch and are
+/// computed once all state has been accumulated.. For the latter, [`value`](Self::value)
+/// and [`running_value`](Self::running_value) return `None` until that
+/// epoch-level computation has happened, signaling that no value has been
+/// computed for the current step.
 pub trait Numeric {
-    /// Returns the numeric value of the metric.
-    fn value(&self) -> NumericEntry;
-    /// Returns the current aggregated value of the metric over the global step (epoch).
-    fn running_value(&self) -> NumericEntry;
+    /// Returns the numeric value of the metric, or `None` if this metric has
+    /// no meaningful value yet (e.g. it only accumulates state per batch and
+    /// computes its value once all state has been accumulated).
+    fn value(&self) -> Option<NumericEntry>;
+    /// Returns the current aggregated value of the metric over the global step,
+    /// or `None` if this metric has no meaningful value yet (e.g. it only accumulates state
+    /// per batch and computes its value once all state has been accumulated).
+    fn running_value(&self) -> Option<NumericEntry>;
+    /// Returns the final, authoritative value of the metric for the epoch.
+    /// Only meaningful after [`Metric::compute`] has been called.
+    fn final_value(&self) -> NumericEntry;
 }
 
 /// Serialized form of a metric entry.
@@ -214,6 +218,9 @@ pub enum NumericEntry {
         /// The number of entries present in the aggregated value.
         count: usize,
     },
+    /// The final, authoritative value for the epoch; computed once at epoch end
+    /// and logged in addition to the regular per-batch entries.
+    Final(f64),
 }
 
 impl NumericEntry {
@@ -221,6 +228,7 @@ impl NumericEntry {
     pub fn current(&self) -> f64 {
         match self {
             NumericEntry::Value(val) => *val,
+            NumericEntry::Final(val) => *val,
             NumericEntry::Aggregated {
                 aggregated_value, ..
             } => *aggregated_value,
@@ -231,6 +239,7 @@ impl NumericEntry {
     pub fn serialize(&self) -> String {
         match self {
             Self::Value(v) => v.to_string(),
+            Self::Final(v) => format!("{v},final"),
             Self::Aggregated {
                 aggregated_value,
                 count,
@@ -251,17 +260,25 @@ impl NumericEntry {
                 Err(err) => Err(err.to_string()),
             }
         } else if num_values == 2 {
-            // Aggregated numeric (value, number of elements)
-            let (value, numel) = (values[0], values[1]);
-            match value.parse::<f64>() {
-                Ok(value) => match numel.parse::<usize>() {
-                    Ok(numel) => Ok(NumericEntry::Aggregated {
-                        aggregated_value: value,
-                        count: numel,
-                    }),
+            let (v0, v1) = (values[0], values[1]);
+            // Check if it's tagged as an explicit epoch-level final calculation
+            if v1 == "final" {
+                match v0.parse::<f64>() {
+                    Ok(value) => Ok(NumericEntry::Final(value)),
                     Err(err) => Err(err.to_string()),
-                },
-                Err(err) => Err(err.to_string()),
+                }
+            } else {
+                // Aggregated numeric (value, number of elements)
+                match v0.parse::<f64>() {
+                    Ok(value) => match v1.parse::<usize>() {
+                        Ok(numel) => Ok(NumericEntry::Aggregated {
+                            aggregated_value: value,
+                            count: numel,
+                        }),
+                        Err(err) => Err(err.to_string()),
+                    },
+                    Err(err) => Err(err.to_string()),
+                }
             }
         } else {
             Err("Invalid number of values for numeric entry".to_string())

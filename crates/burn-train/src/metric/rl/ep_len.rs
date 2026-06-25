@@ -39,8 +39,14 @@ impl Metric for EpisodeLengthMetric {
     type Input = EpisodeLengthInput;
 
     fn update(&mut self, item: &EpisodeLengthInput, _metadata: &MetricMetadata) -> SerializedEntry {
+        self.state.update(item.ep_len, 1);
         self.state
-            .update(item.ep_len, 1, FormatOptions::new(self.name()).precision(0))
+            .compute_update(FormatOptions::new(self.name()).precision(0))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).precision(0))
     }
 
     fn clear(&mut self) {
@@ -62,11 +68,15 @@ impl Metric for EpisodeLengthMetric {
 }
 
 impl Numeric for EpisodeLengthMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }

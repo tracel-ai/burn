@@ -80,13 +80,15 @@ impl Metric for TopKAccuracyMetric {
             .into_scalar::<f64>()
             / (batch_size as f64 - num_pad);
 
-        self.state.update(
-            100.0 * accuracy,
-            batch_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(100.0 * accuracy, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
     fn clear(&mut self) {
         self.state.reset()
     }
@@ -106,12 +108,16 @@ impl Metric for TopKAccuracyMetric {
 }
 
 impl Numeric for TopKAccuracyMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -137,7 +143,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 
     #[test]
@@ -161,7 +167,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 
     #[test]

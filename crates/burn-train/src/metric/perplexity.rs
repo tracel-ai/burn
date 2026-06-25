@@ -90,20 +90,20 @@ impl PerplexityState {
         SerializedEntry::new(formatted, serialized)
     }
 
-    fn value(&self) -> NumericEntry {
+    fn value(&self) -> Option<NumericEntry> {
         let perplexity = if self.total_tokens > 0 {
             (self.sum_nll / self.total_tokens as f64).exp()
         } else {
             f64::INFINITY
         };
 
-        NumericEntry::Aggregated {
+        Some(NumericEntry::Aggregated {
             aggregated_value: perplexity,
             count: self.total_tokens,
-        }
+        })
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
         self.value()
     }
 }
@@ -216,6 +216,10 @@ impl Metric for PerplexityMetric {
         )
     }
 
+    fn compute(&mut self) -> SerializedEntry {
+        todo!()
+    }
+
     fn clear(&mut self) {
         self.state.reset()
     }
@@ -235,12 +239,16 @@ impl Metric for PerplexityMetric {
 }
 
 impl Numeric for PerplexityMetric {
-    fn value(&self) -> NumericEntry {
+    fn value(&self) -> Option<NumericEntry> {
         self.state.value()
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
         self.state.running_value()
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        todo!()
     }
 }
 
@@ -267,7 +275,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        let perplexity = metric.value().current();
+        let perplexity = metric.value().unwrap().current();
 
         // Perfect predictions should result in very low perplexity (close to 1.0)
         assert!(
@@ -296,7 +304,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        let perplexity = metric.value().current();
+        let perplexity = metric.value().unwrap().current();
 
         // Uniform distribution over 3 classes should have perplexity ≈ 3.0
         assert!(
@@ -325,7 +333,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        let perplexity = metric.value().current();
+        let perplexity = metric.value().unwrap().current();
 
         // Should only consider the first two predictions, both of which are confident
         assert!(
@@ -354,7 +362,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        let perplexity = metric.value().current();
+        let perplexity = metric.value().unwrap().current();
 
         // Wrong predictions should result in high perplexity
         assert!(
@@ -396,7 +404,7 @@ mod tests {
         let _entry1 = metric.update(&input1, &MetricMetadata::fake());
         let _entry2 = metric.update(&input2, &MetricMetadata::fake());
 
-        let aggregated_perplexity = metric.value().current();
+        let aggregated_perplexity = metric.value().unwrap().current();
 
         // For uniform distribution over 3 classes: log_prob ≈ -log(3) ≈ -1.0986
         // Total negative log-likelihood: 3 * 1.0986 ≈ 3.2958
@@ -416,7 +424,7 @@ mod tests {
         );
 
         let _single_entry = single_batch_metric.update(&single_input, &MetricMetadata::fake());
-        let single_batch_perplexity = single_batch_metric.value().current();
+        let single_batch_perplexity = single_batch_metric.value().unwrap().current();
 
         // Multi-batch and single-batch should give the same result
         assert!(

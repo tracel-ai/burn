@@ -84,11 +84,14 @@ impl Metric for HammingScore {
             .mean()
             .into_scalar::<f64>();
 
-        self.state.update(
-            100.0 * score,
-            batch_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(100.0 * score, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -110,12 +113,16 @@ impl Metric for HammingScore {
 }
 
 impl Numeric for HammingScore {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -151,7 +158,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y.clone()),
             &MetricMetadata::fake(),
         );
-        assert_eq!(100.0, metric.value().current());
+        assert_eq!(100.0, metric.value().unwrap().current());
 
         // Invert all targets: y = (1 - y)
         let y = y.neg().add_scalar(1);
@@ -159,7 +166,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(0.0, metric.value().current());
+        assert_eq!(0.0, metric.value().unwrap().current());
 
         // Invert 5 target values -> 1 - (5/20) = 0.75
         let y = Tensor::from_data(
@@ -175,7 +182,7 @@ mod tests {
             &HammingScoreInput::new(x, y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(75.0, metric.value().current());
+        assert_eq!(75.0, metric.value().unwrap().current());
     }
 
     #[test]

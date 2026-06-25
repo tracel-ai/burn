@@ -288,11 +288,14 @@ impl Metric for BleuScore {
         // slightly inaccurate compared to true corpus BLEU. Correct
         // accumulation would require a custom metric state that tracks raw
         // n-gram counts across batches.
-        self.state.update(
-            value,
-            batch_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(value, batch_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -314,12 +317,16 @@ impl Metric for BleuScore {
 }
 
 impl Numeric for BleuScore {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -338,7 +345,7 @@ mod tests {
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert!((metric.value().current() - 100.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
     /// Completely different sequences => BLEU = 0 %.
@@ -352,7 +359,7 @@ mod tests {
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert_eq!(0.0, metric.value().current());
+        assert_eq!(0.0, metric.value().unwrap().current());
     }
 
     /// Partial overlap with BLEU-1 (unigram precision only).
@@ -368,7 +375,7 @@ mod tests {
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
 
         // BLEU-1 = 3/5 * 100 = 60.0
-        assert!((metric.value().current() - 60.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 60.0).abs() < 1e-6);
     }
 
     /// Brevity penalty applied when candidate is shorter than reference.
@@ -386,7 +393,7 @@ mod tests {
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
 
         let expected = 100.0 * (1.0 - 5.0 / 3.0_f64).exp();
-        assert!((metric.value().current() - expected).abs() < 0.1);
+        assert!((metric.value().unwrap().current() - expected).abs() < 0.1);
     }
 
     /// With padding, padding tokens should be stripped.
@@ -402,7 +409,7 @@ mod tests {
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert!((metric.value().current() - 100.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 100.0).abs() < 1e-6);
     }
 
     /// Batch of two sequences: corpus-style accumulation.
@@ -421,7 +428,7 @@ mod tests {
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert!((metric.value().current() - 50.0).abs() < 1e-6);
+        assert!((metric.value().unwrap().current() - 50.0).abs() < 1e-6);
     }
 
     /// `clear()` must reset the running statistics.
@@ -434,10 +441,10 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
-        assert!(metric.value().current() > 0.0);
+        assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();
-        assert!(metric.value().current().is_nan());
+        assert!(metric.value().unwrap().current().is_nan());
     }
 
     /// BLEU-2 on a partial match verifies bigram counting.
@@ -459,7 +466,7 @@ mod tests {
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
 
         let expected = 100.0 * ((0.5_f64.ln() + (1.0 / 3.0_f64).ln()) / 2.0).exp();
-        assert!((metric.value().current() - expected).abs() < 0.1);
+        assert!((metric.value().unwrap().current() - expected).abs() < 0.1);
     }
 
     /// BLEU with custom name reflects max_n.
@@ -489,7 +496,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 2, 3, 4, 5]], &device);
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
-        assert_eq!(0.0, metric.value().current());
+        assert_eq!(0.0, metric.value().unwrap().current());
     }
 
     /// Exponential smoothing produces a non-zero score for short candidates.
@@ -509,11 +516,11 @@ mod tests {
             &BleuInput::new(preds.clone(), tgts.clone()),
             &MetricMetadata::fake(),
         );
-        assert_eq!(0.0, metric_no_smooth.value().current());
+        assert_eq!(0.0, metric_no_smooth.value().unwrap().current());
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
         assert!(
-            metric.value().current() > 0.0,
+            metric.value().unwrap().current() > 0.0,
             "smoothing should produce non-zero score"
         );
     }
@@ -531,7 +538,7 @@ mod tests {
 
         metric.update(&BleuInput::new(preds, tgts), &MetricMetadata::fake());
         assert!(
-            metric.value().current() > 0.0,
+            metric.value().unwrap().current() > 0.0,
             "epsilon smoothing should produce non-zero score"
         );
     }

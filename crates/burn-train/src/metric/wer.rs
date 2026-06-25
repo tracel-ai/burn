@@ -72,7 +72,7 @@ impl Metric for WordErrorRate {
         let pad_token = self.pad_token.map(|p| p as i32);
 
         let mut total_edit_distance = 0.0;
-        let mut total_target_length = 0.0;
+        let mut total_target_length = 0usize;
 
         // Process each sequence in the batch
         for i in 0..batch_size {
@@ -106,21 +106,24 @@ impl Metric for WordErrorRate {
             };
 
             total_edit_distance += ed as f64;
-            total_target_length += target_len as f64;
+            total_target_length += target_len;
         }
 
         // Compute current WER value as a percentage
-        let value = if total_target_length > 0.0 {
-            100.0 * total_edit_distance / total_target_length
+        let value = if total_target_length > 0 {
+            100.0 * total_edit_distance / total_target_length as f64
         } else {
             0.0
         };
 
-        self.state.update(
-            value,
-            batch_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(value, total_target_length);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn name(&self) -> MetricName {
@@ -142,12 +145,16 @@ impl Metric for WordErrorRate {
 }
 
 impl Numeric for WordErrorRate {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -167,7 +174,7 @@ mod tests {
 
         metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
 
-        assert_eq!(0.0, metric.value().current());
+        assert_eq!(0.0, metric.value().unwrap().current());
     }
 
     /// Two word edits in four target words => 50 %.
@@ -185,7 +192,7 @@ mod tests {
         metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
 
         // Total errors = 2, Total target words = 4. WER = (2/4) * 100 = 50 %
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 
     /// Same scenario as above, but with right-padding (token 9) ignored.
@@ -202,7 +209,7 @@ mod tests {
         let tgts = Tensor::from_data([[1, 3, pad], [3, 4, pad]], &device);
 
         metric.update(&WerInput::new(preds, tgts), &MetricMetadata::fake());
-        assert_eq!(50.0, metric.value().current());
+        assert_eq!(50.0, metric.value().unwrap().current());
     }
 
     /// `clear()` must reset the running statistics to NaN.
@@ -218,9 +225,9 @@ mod tests {
             &WerInput::new(preds.clone(), tgts.clone()),
             &MetricMetadata::fake(),
         );
-        assert!(metric.value().current() > 0.0);
+        assert!(metric.value().unwrap().current() > 0.0);
 
         metric.clear();
-        assert!(metric.value().current().is_nan());
+        assert!(metric.value().unwrap().current().is_nan());
     }
 }

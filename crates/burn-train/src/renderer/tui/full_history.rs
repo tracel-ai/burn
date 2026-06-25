@@ -60,7 +60,6 @@ impl FullHistoryPlot {
 
     /// Register a training data point.
     pub(crate) fn push(&mut self, tag: TuiTag, data: NumericEntry) {
-        let x_current = self.next_x();
         let points = match self.points.get_mut(&tag) {
             Some(val) => val,
             None => {
@@ -74,6 +73,23 @@ impl FullHistoryPlot {
                 self.points.get_mut(&tag).unwrap()
             }
         };
+
+        // TODO: hmmm I think the next_x_state might be incorrect if we only ever increment it when an entry
+        // is logged (at least, compared to other numeric entries). TBD.
+
+        // If we already have batch points registered, ignore this for the line graph
+        // to prevent an N+1 visual step artifact.
+        if let NumericEntry::Final(val) = data
+            && !points.points.is_empty()
+        {
+            log::info!("[FullHistoryPlot] set_final {val}");
+            points.set_final(val);
+            return;
+        }
+
+        // let x_current = self.next_x();
+        let x_current = self.next_x_state as f64;
+        self.next_x_state += 1;
 
         points.push((x_current, data));
 
@@ -103,12 +119,6 @@ impl FullHistoryPlot {
         bars
     }
 
-    fn next_x(&mut self) -> f64 {
-        let value = self.next_x_state;
-        self.next_x_state += 1;
-        value as f64
-    }
-
     fn update_bounds(&mut self) {
         let (mut x_min, mut x_max) = (f64::MAX, f64::MIN);
         let (mut y_min, mut y_max) = (f64::MAX, f64::MIN);
@@ -119,6 +129,11 @@ impl FullHistoryPlot {
             y_min = f64::min(y_min, points.min_y);
             y_max = f64::max(y_max, points.max_y);
         }
+
+        log::info!(
+            "[FullHistoryPlot] update_bounds ({x_min}, {x_max}) | x_current={}",
+            self.next_x_state - 1
+        );
 
         self.axes.update_bounds((x_min, x_max), (y_min, y_max));
     }
@@ -158,6 +173,11 @@ impl FullHistoryPoints {
                 self.avg_counter += count as f64;
                 aggregated_value
             }
+            NumericEntry::Final(val) => {
+                // For global-only metrics (e.g., AUC-PR), this is our single valid line anchor
+                self.set_final(val);
+                val
+            }
         };
 
         if x > self.max_x {
@@ -178,6 +198,11 @@ impl FullHistoryPoints {
         if self.points.len() > self.max_samples {
             self.resize();
         }
+    }
+
+    fn set_final(&mut self, val: f64) {
+        self.avg_sum = val;
+        self.avg_counter = 1.0;
     }
 
     /// We keep only half the points and we double the step size.

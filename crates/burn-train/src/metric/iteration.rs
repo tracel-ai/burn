@@ -52,9 +52,16 @@ impl Metric for IterationSpeedMetric {
             }
         };
 
-        self.state.update(
-            raw,
-            1,
+        self.state.update(raw, 1);
+        self.state.compute_update(
+            FormatOptions::new(self.name())
+                .unit("iter/sec")
+                .precision(2),
+        )
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state.compute_final(
             FormatOptions::new(self.name())
                 .unit("iter/sec")
                 .precision(2),
@@ -80,11 +87,15 @@ impl Metric for IterationSpeedMetric {
 }
 
 impl Numeric for IterationSpeedMetric {
-    fn value(&self) -> NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }

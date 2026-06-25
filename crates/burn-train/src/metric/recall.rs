@@ -1,19 +1,18 @@
-use crate::metric::{MetricName, Numeric};
+use crate::metric::{MetricName, Numeric, state::ConfusionStatsState};
 
 use super::{
     Metric, MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry, SerializedEntry,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
-    state::{FormatOptions, NumericMetricState},
+    state::FormatOptions,
 };
-use burn_core::prelude::Tensor;
 use std::{num::NonZeroUsize, sync::Arc};
 
 ///The Recall Metric
 #[derive(Clone)]
 pub struct RecallMetric {
     name: MetricName,
-    state: NumericMetricState,
+    state: ConfusionStatsState,
     config: ClassificationMetricConfig,
 }
 
@@ -80,23 +79,6 @@ impl RecallMetric {
             class_reduction,
         })
     }
-
-    fn class_average(&self, mut aggregated_metric: Tensor<1>) -> f64 {
-        use ClassReduction::{Macro, Micro};
-        let avg_tensor = match self.config.class_reduction {
-            Micro => aggregated_metric,
-            Macro => {
-                if aggregated_metric.clone().contains_nan().any().into_scalar() {
-                    let nan_mask = aggregated_metric.clone().is_nan();
-                    aggregated_metric = aggregated_metric
-                        .clone()
-                        .select(0, nan_mask.bool_not().argwhere().squeeze_dim(1))
-                }
-                aggregated_metric.mean()
-            }
-        };
-        avg_tensor.into_scalar()
-    }
 }
 
 impl Metric for RecallMetric {
@@ -105,14 +87,29 @@ impl Metric for RecallMetric {
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [sample_size, _] = input.predictions.dims();
 
-        let cf_stats = ConfusionStats::new(input, &self.config);
-        let metric = self.class_average(cf_stats.clone().true_positive() / cf_stats.positive());
+        let stats = ConfusionStats::new(input, &self.config);
+        let tp = Some(stats.clone().true_positive());
+        let fn_ = Some(stats.false_negative());
 
-        self.state.update(
-            100.0 * metric,
-            sample_size,
+        self.state.update(tp, None, fn_, sample_size);
+        self.state.compute_update(
+            self.config.class_reduction,
             FormatOptions::new(self.name()).unit("%").precision(2),
+            |tp, _, fn_| {
+                let (tp, fn_) = (tp.unwrap(), fn_.unwrap());
+                let denominator = tp.clone() + fn_;
+                // Avoid division by zero on empty classes
+                let mask = denominator.clone().equal_elem(0.0);
+                let actual_positive = denominator.mask_fill(mask, 1.0);
+
+                (tp / actual_positive) * 100.0
+            },
         )
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -134,12 +131,16 @@ impl Metric for RecallMetric {
 }
 
 impl Numeric for RecallMetric {
-    fn value(&self) -> NumericEntry {
+    fn value(&self) -> Option<NumericEntry> {
         self.state.current_value()
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
         self.state.running_value()
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -160,7 +161,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = RecallMetric::binary(threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
@@ -177,7 +178,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = RecallMetric::multiclass(top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
@@ -192,7 +193,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = RecallMetric::multilabel(threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 

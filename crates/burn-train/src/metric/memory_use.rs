@@ -71,6 +71,10 @@ impl Metric for CpuMemory {
             self.refresh();
         }
 
+        self.compute()
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
         let raw = bytes2gb(self.ram_bytes_used);
         let formatted = format!(
             "RAM Used: {:.2} / {:.2} Gb",
@@ -98,11 +102,15 @@ impl Metric for CpuMemory {
 }
 
 impl Numeric for CpuMemory {
-    fn value(&self) -> NumericEntry {
-        NumericEntry::Value(bytes2gb(self.ram_bytes_used))
+    fn value(&self) -> Option<NumericEntry> {
+        Some(NumericEntry::Value(bytes2gb(self.ram_bytes_used)))
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
+        Some(NumericEntry::Value(bytes2gb(self.ram_bytes_used)))
+    }
+
+    fn final_value(&self) -> NumericEntry {
         NumericEntry::Value(bytes2gb(self.ram_bytes_used))
     }
 }

@@ -1,12 +1,11 @@
-use crate::metric::{MetricName, Numeric};
+use crate::metric::{MetricName, Numeric, state::ConfusionStatsState};
 
 use super::{
     Metric, MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry, SerializedEntry,
     classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
-    state::{FormatOptions, NumericMetricState},
+    state::FormatOptions,
 };
-use burn_core::prelude::Tensor;
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
@@ -16,7 +15,7 @@ use std::{num::NonZeroUsize, sync::Arc};
 #[derive(Clone)]
 pub struct FBetaScoreMetric {
     name: MetricName,
-    state: NumericMetricState,
+    state: ConfusionStatsState,
     config: ClassificationMetricConfig,
     beta: f64,
 }
@@ -97,23 +96,6 @@ impl FBetaScoreMetric {
             beta,
         )
     }
-
-    fn class_average(&self, mut aggregated_metric: Tensor<1>) -> f64 {
-        use ClassReduction::{Macro, Micro};
-        let avg_tensor = match self.config.class_reduction {
-            Micro => aggregated_metric,
-            Macro => {
-                if aggregated_metric.clone().contains_nan().any().into_scalar() {
-                    let nan_mask = aggregated_metric.clone().is_nan();
-                    aggregated_metric = aggregated_metric
-                        .clone()
-                        .select(0, nan_mask.bool_not().argwhere().squeeze_dim(1))
-                }
-                aggregated_metric.mean()
-            }
-        };
-        avg_tensor.into_scalar()
-    }
 }
 
 impl Metric for FBetaScoreMetric {
@@ -122,20 +104,29 @@ impl Metric for FBetaScoreMetric {
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [sample_size, _] = input.predictions.dims();
 
-        let cf_stats = ConfusionStats::new(input, &self.config);
-        let scaled_true_positive = cf_stats.clone().true_positive() * (1.0 + self.beta.powi(2));
-        let metric = self.class_average(
-            scaled_true_positive.clone()
-                / (scaled_true_positive
-                    + cf_stats.clone().false_negative() * self.beta.powi(2)
-                    + cf_stats.false_positive()),
-        );
+        let stats = ConfusionStats::new(input, &self.config);
+        let tp = Some(stats.clone().true_positive());
+        let fp = Some(stats.clone().false_positive());
+        let fn_ = Some(stats.false_negative());
 
-        self.state.update(
-            100.0 * metric,
-            sample_size,
+        self.state.update(tp, fp, fn_, sample_size);
+        self.state.compute_update(
+            self.config.class_reduction,
             FormatOptions::new(self.name()).unit("%").precision(2),
+            |tp, fp, fn_| {
+                let (tp, fp, fn_) = (tp.unwrap(), fp.unwrap(), fn_.unwrap());
+                let beta_sq = self.beta.powi(2);
+                let scaled_tp = tp.clone() * (1.0 + beta_sq);
+                let denom = scaled_tp.clone() + (fn_ * beta_sq) + fp;
+
+                (scaled_tp / denom) * 100.0
+            },
         )
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -157,12 +148,16 @@ impl Metric for FBetaScoreMetric {
 }
 
 impl Numeric for FBetaScoreMetric {
-    fn value(&self) -> NumericEntry {
+    fn value(&self) -> Option<NumericEntry> {
         self.state.current_value()
     }
 
-    fn running_value(&self) -> NumericEntry {
+    fn running_value(&self) -> Option<NumericEntry> {
         self.state.running_value()
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -185,7 +180,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = FBetaScoreMetric::binary(beta, threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
@@ -207,7 +202,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
         let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 
@@ -225,7 +220,7 @@ mod tests {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
         let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f32>(&TensorData::from([expected * 100.0]), Tolerance::default())
     }
 

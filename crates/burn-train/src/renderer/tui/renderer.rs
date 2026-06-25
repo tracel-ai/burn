@@ -1,5 +1,5 @@
 use crate::logger::{EvaluationProgressLogger, ProgressSnapshot, TrainingProgressLogger};
-use crate::metric::{MetricDefinition, MetricId};
+use crate::metric::{MetricAttributes, MetricDefinition, MetricId};
 use crate::renderer::tui::TuiSplit;
 use crate::renderer::{EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation};
 use crate::renderer::{MetricsRendererTraining, tui::NumericMetricsState};
@@ -378,6 +378,12 @@ impl TuiMetricsRenderer {
     fn handle_event(&mut self, event: TuiRendererEvent) {
         match event {
             TuiRendererEvent::MetricRegistration(definition) => {
+                if let MetricAttributes::Numeric(_) = &definition.attributes {
+                    // Register numeric metrics so even epoch-level metrics already appear
+                    // in the registry (i.e., TUI tabs) before a value is actually pushed.
+                    // This also preserves order
+                    self.metrics_numeric.register(definition.name.clone());
+                }
                 self.metric_definitions
                     .insert(definition.metric_id.clone(), definition);
             }

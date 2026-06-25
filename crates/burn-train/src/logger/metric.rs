@@ -220,12 +220,12 @@ impl MetricLogger for FileMetricLogger {
         let entries: Vec<_> = update
             .entries
             .iter()
-            .chain(
-                update
-                    .entries_numeric
-                    .iter()
-                    .map(|numeric_update| &numeric_update.entry),
-            )
+            .chain(update.entries_numeric.iter().map(|numeric_update| {
+                if let Some(NumericEntry::Final(_)) = numeric_update.running_entry {
+                    log::info!("[FileMetricLogger] final entry {:?}", numeric_update.entry);
+                }
+                &numeric_update.entry
+            }))
             .cloned()
             .collect();
 

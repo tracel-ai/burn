@@ -129,11 +129,14 @@ impl Metric for AurocMetric {
 
         let metric = self.compute_auc(&input.predictions, &input.targets);
 
-        self.state.update(
-            100.0 * metric,
-            sample_size,
-            FormatOptions::new(self.name()).unit("%").precision(2),
-        )
+        self.state.update(100.0 * metric, sample_size);
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("%").precision(2))
+    }
+
+    fn compute(&mut self) -> SerializedEntry {
+        self.state
+            .compute_final(FormatOptions::new(self.name()).unit("%").precision(2))
     }
 
     fn clear(&mut self) {
@@ -145,13 +148,18 @@ impl Metric for AurocMetric {
     }
 }
 
+// TODO: should only be epoch-level like AUC-PR
 impl Numeric for AurocMetric {
-    fn value(&self) -> super::NumericEntry {
-        self.state.current_value()
+    fn value(&self) -> Option<super::NumericEntry> {
+        Some(self.state.current_value())
     }
 
-    fn running_value(&self) -> super::NumericEntry {
-        self.state.running_value()
+    fn running_value(&self) -> Option<super::NumericEntry> {
+        Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> super::NumericEntry {
+        self.state.final_value()
     }
 }
 
@@ -248,7 +256,7 @@ mod tests {
 
         let _entry = metric.update(&input(data), &MetricMetadata::fake());
 
-        TensorData::from([metric.value().current()])
+        TensorData::from([metric.value().unwrap().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
@@ -265,7 +273,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 100.0);
+        assert_eq!(metric.value().unwrap().current(), 100.0);
     }
 
     #[rstest]
@@ -282,7 +290,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 50.0);
+        assert_eq!(metric.value().unwrap().current(), 50.0);
     }
 
     #[test]
@@ -306,7 +314,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 100.0);
+        assert_eq!(metric.value().unwrap().current(), 100.0);
     }
 
     #[test]
@@ -322,7 +330,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value().current(), 50.0);
+        assert_eq!(metric.value().unwrap().current(), 50.0);
     }
 
     #[test]
