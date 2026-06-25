@@ -7067,6 +7067,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
+name = "p2p-remote-training"
+version = "0.22.0-pre.1"
+dependencies = [
+ "blake3",
+ "burn",
+ "iroh",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "palette"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8802,6 +8814,19 @@ name = "relative-path"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
+
+[[package]]
+name = "remote-inference-web"
+version = "0.22.0-pre.1"
+dependencies = [
+ "blake3",
+ "burn",
+ "console_error_panic_hook",
+ "iroh",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
 
 [[package]]
 name = "renderdoc-sys"

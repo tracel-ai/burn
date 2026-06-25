@@ -1,0 +1,32 @@
+[package]
+authors = ["Jonathan Richard"]
+edition.workspace = true
+license = "MIT OR Apache-2.0"
+name = "remote-inference-web"
+publish = false
+version.workspace = true
+description = "Run a Burn model in the browser with computation executed on a remote Iroh GPU peer"
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["flex"]
+
+# Local fallback backend. The remote device handles the actual computation; flex only provides a
+# sensible `Device::default()` for the wasm build.
+flex = ["burn/flex"]
+
+[dependencies]
+burn = { workspace = true, features = ["extension", "remote"] }
+blake3 = { version = "1", default-features = false }
+console_error_panic_hook = { workspace = true }
+iroh = { workspace = true }
+
+# Wasm dependencies
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+js-sys = { workspace = true }
