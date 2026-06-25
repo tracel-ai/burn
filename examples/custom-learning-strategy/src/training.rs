@@ -26,6 +26,7 @@ use burn::{
     },
 };
 use guide::data::MnistBatcher;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-custom-train-strategy";
@@ -47,8 +48,7 @@ pub struct MnistTrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 

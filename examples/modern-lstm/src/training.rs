@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::dataset::{
     NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
 };
@@ -27,8 +29,7 @@ pub struct TrainingConfig {
 
 // Create the directory to save the model and model config
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
