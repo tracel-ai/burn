@@ -1,14 +1,21 @@
 //! The `/fetch` connection handler.
 
 use std::future::Future;
+#[cfg(feature = "websocket")]
 use std::sync::Arc;
 
+#[cfg(feature = "websocket")]
 use burn_communication::{CommunicationChannel, Message};
 use burn_std::DeviceSettings;
 use tokio::sync::mpsc;
 
+#[cfg(feature = "websocket")]
 use super::base::parse_init_handshake;
-use crate::shared::{SessionId, TaskResponse, TaskResponseContent};
+#[cfg(feature = "websocket")]
+use crate::PeerId;
+#[cfg(feature = "websocket")]
+use crate::shared::{PROTOCOL_VERSION, SessionInfo, TaskResponseContent};
+use crate::shared::{SessionId, TaskResponse};
 
 /// What a `/fetch` connection needs from the session layer: the device metadata returned on the
 /// init handshake, and the session's result receiver to drain.
@@ -31,11 +38,13 @@ pub(crate) trait FetchService: Send + Sync + 'static {
 
 /// The `/fetch` connection: answer the init handshake, then drain the session's result queue
 /// onto the socket until it closes.
+#[cfg(feature = "websocket")]
 pub(crate) struct FetchHandler<S, C> {
     service: Arc<S>,
     socket: C,
 }
 
+#[cfg(feature = "websocket")]
 impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
     pub(crate) fn new(service: Arc<S>, socket: C) -> Self {
         Self { service, socket }
@@ -105,13 +114,15 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
             }
         };
 
-        let (session_id, device_index) = match parse_init_handshake(&msg.data) {
-            Ok(pair) => pair,
+        let init = match parse_init_handshake(&msg.data) {
+            Ok(init) => init,
             Err(err) => {
                 log::error!("{err}; closing stream");
                 return None;
             }
         };
+        let session_id = init.session_id;
+        let device_index = init.device_index;
 
         log::trace!("Init fetcher for session {session_id} (device {device_index})");
 
@@ -121,7 +132,12 @@ impl<S: FetchService, C: CommunicationChannel> FetchHandler<S, C> {
         let settings = self.service.device_settings(device_index);
         let device_count = self.service.device_count();
         let init_response = TaskResponse {
-            content: TaskResponseContent::Init(settings, device_count),
+            content: TaskResponseContent::Init(SessionInfo {
+                version: PROTOCOL_VERSION,
+                settings,
+                device_count,
+                peer_id: None::<PeerId>,
+            }),
             // Placeholder id for the handshake; the client reads this reply inline before the
             // fetch-demux task starts, so it never goes through the pending-callback map.
             id: 0,

@@ -27,20 +27,34 @@
 //! barrier and it deadlocks. Giving each session its own OS thread keeps that blocking off the
 //! shared runtime, so a barrier (or rendezvous) on one session can't stall another session's
 //! worker or a runtime thread.
+//!
+//! In the browser the worker instead runs on the JS event loop via `spawn_local`, so a browser peer
+//! cannot host co-located collective / same-host-transfer participants (the single thread would
+//! stall on the blocking tasks above). Ordinary compute is unaffected.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+#[cfg(not(target_family = "wasm"))]
 use burn_backend::ExecutionError;
-use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::{BackendIr, GraphId};
 use burn_router::{Graph, TensorInterpreter};
+use burn_std::id::StreamId;
+#[cfg(not(target_family = "wasm"))]
 use burn_std::{AllocationProperty, Reader};
-use tokio::{runtime::Handle, sync::mpsc};
+#[cfg(not(target_family = "wasm"))]
+use tokio::runtime::Handle;
+use tokio::sync::mpsc;
 
 use crate::metrics::{MetricSide, TrafficMetrics};
 use crate::server::local_comm::LocalCommService;
+use crate::server::spawn::spawn_detached;
+use crate::server::transfer::TensorTransfer;
 use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
+use crate::telemetry::{
+    TelemetryEvent, TelemetryProbe, TensorRef, TransferPhase, TransferScope, classify,
+};
+use burn_ir::OperationIr;
 
 /// Capacity of the per-session task channel feeding the worker thread.
 ///
@@ -55,15 +69,15 @@ const TASK_CHANNEL_CAPACITY: usize = 64;
 /// Owned by the session's worker thread, which runs every task against this one interpreter and
 /// these comm services. Held behind an [`Arc`] only so detached readback tasks can be spawned with
 /// a clone of the result sender; the interpreter itself is single-owner here.
-pub(crate) struct SessionHandler<B, P>
+pub(crate) struct SessionHandler<B, T>
 where
     B: BackendIr,
-    P: Protocol,
+    T: TensorTransfer<B>,
 {
     session_id: SessionId,
     runner: TensorInterpreter<B>,
     response_sender: mpsc::Sender<TaskResponse>,
-    external_comm: Arc<ExternalCommService<B, P>>,
+    transfer: Arc<T>,
     local_comm: Arc<LocalCommService<B>>,
     /// Cache of client-registered reusable op-graphs, keyed by id (see
     /// [`Task::RegisterAndExecuteGraph`]).
@@ -77,81 +91,76 @@ where
     /// Accumulates this session's op-graph caching traffic savings, measured from the receiving end
     /// (logged when remote logging is enabled). Owned by the worker thread, so no locking is needed.
     metrics: TrafficMetrics,
+    probe: TelemetryProbe,
 }
 
-impl<B, P> SessionHandler<B, P>
+impl<B, T> SessionHandler<B, T>
 where
     B: BackendIr,
-    P: Protocol,
+    T: TensorTransfer<B>,
 {
-    /// Create a session's handler and spawn its worker thread, returning the inbound task sender
-    /// the submit handler forwards to.
-    ///
-    /// Must be called from within the tokio runtime: it captures [`Handle::current`] so the worker
-    /// can drive the async parts of a task (cross-server / same-host transfers, tensor readbacks,
-    /// response sends) and detach readbacks with `tokio::spawn`.
-    ///
-    /// The returned [`mpsc::Sender`] is cloned once per submit connection. The worker runs until
-    /// every clone is dropped — clean session close or submit-stream disconnect — at which point it
-    /// flushes the runner and exits, so the handle is detached and there is nothing to join.
+    /// Start the session worker; the worker runs until every clone of the returned sender is
+    /// dropped, then flushes and exits.
     pub(crate) fn spawn(
         session_id: SessionId,
         runner: TensorInterpreter<B>,
         response_sender: mpsc::Sender<TaskResponse>,
-        external_comm: Arc<ExternalCommService<B, P>>,
+        transfer: Arc<T>,
         local_comm: Arc<LocalCommService<B>>,
+        probe: TelemetryProbe,
     ) -> mpsc::Sender<Task> {
-        let handle = Handle::current();
         let handler = SessionHandler {
             session_id,
             runner,
             response_sender,
-            external_comm,
+            transfer,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
             metrics: TrafficMetrics::new(MetricSide::Server),
+            probe,
         };
-
         let (sender, receiver) = mpsc::channel(TASK_CHANNEL_CAPACITY);
-
-        // A plain detached OS thread: it owns the runner and ends itself when the task channel
-        // closes, so there is nothing to join.
-        std::thread::Builder::new()
-            .name(format!("burn-remote-session-{session_id}"))
-            .spawn(move || handler.worker_loop(handle, receiver))
-            .expect("Failed to spawn session worker thread");
-
+        handler.drive(receiver);
         sender
     }
 
-    /// Drain the task channel, running each task to completion in arrival order.
-    fn worker_loop(mut self, handle: Handle, mut receiver: mpsc::Receiver<Task>) {
+    // Must be called from within the runtime that owns the endpoint: it captures `Handle::current`.
+    #[cfg(not(target_family = "wasm"))]
+    fn drive(self, receiver: mpsc::Receiver<Task>) {
+        let handle = Handle::current();
+        let session_id = self.session_id;
+        std::thread::Builder::new()
+            .name(format!("burn-remote-session-{session_id}"))
+            .spawn(move || handle.block_on(self.run(receiver)))
+            .expect("Failed to spawn session worker thread");
+    }
+
+    #[cfg(target_family = "wasm")]
+    fn drive(self, receiver: mpsc::Receiver<Task>) {
+        spawn_detached(self.run(receiver));
+    }
+
+    /// Drain the task channel, running each task to completion in arrival order, then tear the
+    /// session down in an order that releases its memory.
+    async fn run(mut self, mut receiver: mpsc::Receiver<Task>) {
         let session_id = self.session_id;
 
-        // Drive every task to completion on this thread. The synchronous parts (collective
-        // barriers, op registration, the `local_comm.take` wait, `runner.sync()`) block only this
-        // thread; the async parts are driven by `block_on`, and detached readbacks spawned inside
-        // run on the shared runtime's worker threads, so they make progress while this thread is
-        // parked on a barrier or rendezvous.
-        handle.block_on(async {
-            log::debug!("Session {session_id} worker started");
-            while let Some(task) = receiver.recv().await {
-                if let Err(err) = self.process_task(task).await {
-                    // One task failing doesn't tear down the session: read/sync/dtype failures
-                    // surface to the client through their response, fire-and-forget failures are
-                    // logged here, and the worker keeps processing subsequent tasks.
-                    log::error!("Task on session {session_id} failed: {err}");
-                }
+        log::debug!("Session {session_id} worker started");
+        while let Some(task) = receiver.recv().await {
+            if let Err(err) = self.process_task(task).await {
+                // One task failing doesn't tear down the session: read/sync/dtype failures surface
+                // to the client through their response, fire-and-forget failures are logged here,
+                // and the worker keeps processing subsequent tasks.
+                log::error!("Task on session {session_id} failed: {err}");
             }
+        }
 
-            // Reclaim any same-host transfers this session exposed that no target ever took, so a
-            // half-finished transfer doesn't strand device memory in the shared registry.
-            self.local_comm.purge_session(session_id).await;
-        });
+        // Reclaim any same-host transfers this session exposed that no target ever took, so a
+        // half-finished transfer doesn't strand device memory in the shared registry.
+        self.local_comm.purge_session(session_id).await;
 
         // The task channel closed: every submit connection bound to this session has gone away
-        // (clean `Close` or disconnect). Tear the session down in an order that actually releases
-        // its memory.
+        // (clean `Close` or disconnect).
         log::debug!("Session {session_id} worker draining and exiting");
 
         // Destructure so we control drop order explicitly. The `..` fields (response sender, comm
@@ -194,6 +203,7 @@ where
             Task::RegisterOperation(stream_id, op) => {
                 // An op received individually (not as part of a cached graph) is an unfused op.
                 self.metrics.record_unfused_op(&op);
+                self.emit_op(stream_id, &op);
                 stream_id.executes(|| self.runner.register_op(op));
                 Ok(())
             }
@@ -203,9 +213,6 @@ where
                 relative_graph,
                 bindings,
             } => {
-                // Cache the reusable graph for later replay, then immediately execute this first
-                // invocation. The lock guards only the cache insert (cheap `Arc` clone); it is
-                // released before the backend dispatch, like `ExecuteGraph` below.
                 self.metrics.record_registration(graph_id, &relative_graph);
                 self.metrics.record_execution(graph_id, &bindings);
                 stream_id.executes(|| {
@@ -220,8 +227,6 @@ where
                 graph_id,
                 bindings,
             } => {
-                // Clone the graph handle out under a short lock, then replay after releasing it:
-                // the lock guards only the cache lookup, never the backend dispatch.
                 let graph = {
                     let cache = self.graphs.lock().unwrap();
                     cache
@@ -248,19 +253,28 @@ where
             Task::RegisterTensorRemote(stream_id, remote, new_id) => {
                 log::trace!(
                     "Registering remote tensor (transfer {:?} from {:?})",
-                    remote.transfer_id,
-                    remote.address,
+                    remote.capability,
+                    remote.peer,
                 );
-                let data = self
-                    .external_comm
-                    .download_tensor(remote.address.clone(), remote.transfer_id)
+                let peer = Some(format!("{:?}", remote.peer));
+                self.emit_transfer(peer.clone(), TransferScope::Remote, TransferPhase::Started);
+                let data = match self
+                    .transfer
+                    .download_tensor(remote.peer.clone(), remote.capability)
                     .await
-                    .ok_or_else(|| {
-                        format!(
+                {
+                    Some(data) => {
+                        self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Completed);
+                        data
+                    }
+                    None => {
+                        self.emit_transfer(peer, TransferScope::Remote, TransferPhase::Failed);
+                        return Err(format!(
                             "Failed to download tensor for transfer {:?} from {:?}",
-                            remote.transfer_id, remote.address,
-                        )
-                    })?;
+                            remote.capability, remote.peer,
+                        ));
+                    }
+                };
                 // Register on the client stream that will consume `new_id`, carried over the
                 // wire — not the arbitrary tokio worker running this task.
                 stream_id.executes(|| self.runner.register_tensor_data_id(new_id, data));
@@ -294,31 +308,58 @@ where
                 // blocks only this session's worker, not the source session's.
                 let kind = self.local_comm.take(transfer_id).await;
                 stream_id.executes(|| self.runner.register_tensor_to_device(new_id, kind));
+                self.emit_transfer(None, TransferScope::Local, TransferPhase::Completed);
                 Ok(())
             }
             Task::ExposeTensorRemote {
                 stream_id,
                 tensor,
                 count,
-                transfer_id,
+                capability,
+                target,
             } => {
-                log::trace!("Exposing tensor (transfer {transfer_id:?})");
+                log::trace!("Exposing tensor (transfer {capability:?})");
                 // Same shape as `ReadTensor`: the sync part of `read_tensor_async` runs in order
                 // to preserve stream ordering, but the readback + expose are detached so a
                 // cross-server hand-off doesn't stall this session's op registration on a
                 // GPU→host copy. A target that downloads before the expose lands simply blocks on
                 // the data service's `new_tensor_notify`, so there is no race.
                 let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
-                let external_comm = self.external_comm.clone();
-                tokio::spawn(async move {
+                let transfer = self.transfer.clone();
+                let probe = self.probe.clone();
+                let session_id = self.session_id;
+                let peer = Some(format!("{target:?}"));
+                probe.emit(|| TelemetryEvent::Transfer {
+                    session: session_id,
+                    peer: peer.clone(),
+                    scope: TransferScope::Remote,
+                    phase: TransferPhase::Started,
+                });
+                spawn_detached(async move {
                     match fut.await {
                         Ok(data) => {
-                            external_comm.expose_data(data, count, transfer_id).await;
+                            transfer.expose_data(data, count, capability, target).await;
+                            probe.emit(|| TelemetryEvent::Transfer {
+                                session: session_id,
+                                peer,
+                                scope: TransferScope::Remote,
+                                phase: TransferPhase::Completed,
+                            });
                         }
                         Err(e) => {
-                            log::error!(
-                                "read_tensor_async for transfer {transfer_id:?} failed: {e:?}"
+                            let reason = format!(
+                                "read_tensor_async for transfer {capability:?} failed: {e:?}"
                             );
+                            log::error!(
+                                "read_tensor_async for transfer {capability:?} failed: {e:?}"
+                            );
+                            transfer.fail(capability, target, reason).await;
+                            probe.emit(|| TelemetryEvent::Transfer {
+                                session: session_id,
+                                peer,
+                                scope: TransferScope::Remote,
+                                phase: TransferPhase::Failed,
+                            });
                         }
                     }
                 });
@@ -336,9 +377,14 @@ where
                 // here would stall the worker on the GPU→host copy and stop us registering
                 // subsequent ops, draining the device queue into a bubble. The client demuxes
                 // responses by request id, so out-of-order completion is fine.
+                self.probe.emit(|| TelemetryEvent::Read {
+                    session: self.session_id,
+                    request: request_id,
+                });
                 let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
                 let sender = self.response_sender.clone();
-                tokio::spawn(async move {
+                spawn_detached(async move {
+                    let data = fut.await;
                     // `read_tensor_async` may hand back *lazy* device-backed bytes whose GPU→host
                     // copy is deferred to first access. Left lazy, that copy runs inside
                     // `rmp_serde::to_vec` on the fetch handler — an async task on the shared
@@ -346,8 +392,11 @@ where
                     // and starves op delivery under concurrent reads. Force the copy here on the
                     // blocking pool instead, so the fetch handler only serializes resident host
                     // bytes and the shared runtime's workers stay free. A no-op for backends whose
-                    // read is already host-resident (the property check skips the copy).
-                    let data = match fut.await {
+                    // read is already host-resident (the property check skips the copy). Native
+                    // only: the wasm server is single-threaded, with no runtime worker to starve
+                    // and no blocking pool to offload onto, so the readback stays lazy there.
+                    #[cfg(not(target_family = "wasm"))]
+                    let data = match data {
                         Ok(data) => tokio::task::spawn_blocking(move || {
                             if data.bytes.property() == AllocationProperty::Device {
                                 let _ = data.bytes.read(Reader::new());
@@ -376,6 +425,10 @@ where
                 Ok(())
             }
             Task::SyncBackend(request_id, stream_id) => {
+                self.probe.emit(|| TelemetryEvent::Sync {
+                    session: self.session_id,
+                    request: request_id,
+                });
                 let res = stream_id.executes(|| self.runner.sync());
                 self.send_response(request_id, TaskResponseContent::SyncBackend(res))
                     .await
@@ -404,5 +457,37 @@ where
                     "Response receiver dropped before result for request {request_id} could be sent"
                 )
             })
+    }
+
+    fn emit_op(&self, stream: StreamId, op: &OperationIr) {
+        self.probe.emit(|| match op {
+            OperationIr::Drop(tensor) => TelemetryEvent::TensorDropped {
+                session: self.session_id,
+                tensor: tensor.id,
+            },
+            _ => TelemetryEvent::Op {
+                session: self.session_id,
+                stream,
+                kind: classify(op),
+                inputs: op.inputs().map(|tensor| tensor.id).collect(),
+                outputs: op
+                    .outputs()
+                    .map(|tensor| TensorRef {
+                        id: tensor.id,
+                        shape: tensor.shape.clone(),
+                        dtype: tensor.dtype,
+                    })
+                    .collect(),
+            },
+        });
+    }
+
+    fn emit_transfer(&self, peer: Option<String>, scope: TransferScope, phase: TransferPhase) {
+        self.probe.emit(|| TelemetryEvent::Transfer {
+            session: self.session_id,
+            peer,
+            scope,
+            phase,
+        });
     }
 }

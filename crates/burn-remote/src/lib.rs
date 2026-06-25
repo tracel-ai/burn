@@ -1,39 +1,58 @@
+//! Peer-to-peer remote tensor execution for Burn.
+//!
+//! Iroh is the primary transport. Applications own an Iroh [`Endpoint`] and build remote devices
+//! from it; a server hosts compute on its own endpoint. Compute sessions use bidirectional QUIC
+//! streams, while cross-peer tensor movement uses independent authenticated streams without
+//! routing payloads through the controlling client.
+//!
+//! The optional `websocket` feature retains the legacy address-and-port transport.
+
 #[cfg(feature = "client")]
 pub mod client;
 
 #[cfg(feature = "server")]
 pub mod server;
 
+#[cfg(feature = "iroh")]
+mod node;
+mod peer;
 pub(crate) mod shared;
+pub mod telemetry;
 
+#[cfg(feature = "websocket")]
 pub use burn_communication::Protocol;
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
-pub use shared::RemoteProtocol;
 
 /// Network-traffic savings metric for op-graph caching, shared by the client device service and the
 /// server session worker.
 #[cfg(any(feature = "client", feature = "server"))]
 pub(crate) mod metrics;
 
+#[cfg(feature = "iroh")]
+pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
+#[cfg(feature = "iroh")]
+pub use node::{BURN_REMOTE_ALPN, RemoteNode};
+#[cfg(feature = "iroh")]
+pub use peer::RemoteSecret;
+pub use peer::{PeerAddr, PeerId};
+
 #[cfg(feature = "client")]
 mod __client {
     use super::*;
 
-    use crate::{client::RemoteChannel, shared::RemoteProtocol};
-    use burn_communication::Protocol;
+    use crate::client::RemoteChannel;
     use burn_router::BackendRouter;
 
     /// The remote backend allows you to run computation on a remote device.
     ///
-    /// Make sure there is a running server before trying to connect to it.
-    /// The recommended way to start one is via `burn::server::start` (requires
-    /// the `server` feature on `burn`):
+    /// Iroh is the primary transport. Applications own an Iroh [`Endpoint`], resolve a compute peer
+    /// through their own discovery/control plane, and construct devices from the endpoint and the
+    /// peer's address with [`RemoteDevice::remote_iroh`] (or the `Device::remote_iroh` facade).
     ///
     /// ```rust, ignore
-    /// use burn::{Device, server::{start, Channel}};
-    ///
-    /// start(Device::default(), Channel::WebSocket { port: 3000 });
+    /// let endpoint = Endpoint::builder(presets::N0).bind().await?;
+    /// let remote = RemoteDevice::remote_iroh(&endpoint, compute_peer, 0);
     /// ```
     ///
     /// For backends that aren't part of `DispatchDevice` but implement
@@ -42,15 +61,14 @@ mod __client {
     /// (backend extensions) are hosted, via
     /// [`custom_op`](server::RemoteServerBuilder::custom_op).
     #[cfg(not(feature = "fusion"))]
-    pub type RemoteBackend = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
+    pub type RemoteBackend = BackendRouter<RemoteChannel>;
 
     /// With the `fusion` feature enabled, the remote backend is wrapped in
     /// [`Fusion`](burn_fusion::Fusion) — exactly like the CubeCL backends — so recurring groups of
     /// operations are cached on the server and invoked by id, sending a repeated computation
     /// (e.g. a model block per step) over the network once instead of every step.
     #[cfg(feature = "fusion")]
-    pub type RemoteBackend =
-        burn_fusion::Fusion<BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>>;
+    pub type RemoteBackend = burn_fusion::Fusion<BackendRouter<RemoteChannel>>;
 
     pub use client::{CustomOpClient, RemoteDevice};
 }
@@ -105,8 +123,8 @@ mod tests {
         // Give the servers a moment to bind before clients try to connect.
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device_1 = Device::remote("ws://localhost:3000", 0);
-        let device_2 = Device::remote("ws://localhost:3010", 0);
+        let device_1 = Device::remote_websocket("ws://localhost:3000", 0);
+        let device_2 = Device::remote_websocket("ws://localhost:3010", 0);
 
         // Some random input on device 1.
         let input_shape = [1, 28, 28];
@@ -163,7 +181,7 @@ mod tests {
 
         // Drive the remote backend directly (no autodiff/dispatch glue). A real backend extension
         // would wrap this in a hand-written `impl MyExt for RemoteBackend`.
-        let device = RemoteDevice::new("ws://localhost:3200", 0);
+        let device = RemoteDevice::websocket("ws://localhost:3200", 0);
         let input = <RemoteBackend as FloatTensorOps<RemoteBackend>>::float_from_data(
             TensorData::from([2.0f32, 4.0, 6.0]),
             &device,
@@ -192,6 +210,92 @@ mod tests {
         rt.shutdown_background();
     }
 
+    /// The Iroh counterpart of [`test_custom_op_over_websocket`]: the server hosts a "scale" handler
+    /// through the composable protocol's [`with_custom_ops`], and the client ships the op as
+    /// `OperationIr::Custom`. Confirms custom ops travel the merged session path over Iroh just as
+    /// they do over WebSocket.
+    ///
+    /// Only runs without `fusion`, since it drives the router client (`RemoteBackend`) directly.
+    ///
+    /// [`with_custom_ops`]: crate::server::IrohRemoteProtocol::with_custom_ops
+    #[test]
+    #[cfg(all(feature = "iroh", not(feature = "fusion")))]
+    pub fn test_custom_op_over_iroh() {
+        use crate::{RemoteBackend, RemoteNode};
+        use burn_backend::{Scalar, TensorData, TensorMetadata, ops::FloatTensorOps};
+        use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
+        use burn_router::{CustomOpRegistry, RouterClient};
+        use iroh::{Endpoint, RelayMode, endpoint::presets};
+
+        async fn local_endpoint() -> Endpoint {
+            Endpoint::builder(presets::Minimal)
+                .relay_mode(RelayMode::Disabled)
+                .clear_ip_transports()
+                .bind_addr("127.0.0.1:0")
+                .unwrap()
+                .bind()
+                .await
+                .unwrap()
+        }
+
+        // Server on its own runtime, hosting a "scale" custom op (multiply the input by a scalar).
+        let server_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let server_guard = server_runtime.enter();
+        let server = RemoteNode::from_endpoint(server_runtime.block_on(local_endpoint()));
+        let mut custom_ops = CustomOpRegistry::<Flex>::default();
+        custom_ops.register("scale", |handles, ir, _device| {
+            let input = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
+            let factor: Scalar = ir.scalars[0].into();
+            let output = Flex::float_mul_scalar(input, factor);
+            handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
+        });
+        let router = server
+            .protocol::<Flex>(vec![Default::default()])
+            .with_custom_ops(custom_ops)
+            .serve();
+        let server_addr = server.endpoint().addr();
+        drop(server_guard);
+
+        // Client on a node that owns its runtime, driven synchronously (no ambient runtime).
+        let client_runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client_endpoint = client_runtime.block_on(local_endpoint());
+        let client = RemoteNode::from_endpoint_on(client_endpoint, client_runtime.handle().clone());
+        let device = client.device(server_addr, 0);
+        device.connect();
+
+        // Client side: build the custom op and ship it as `OperationIr::Custom`, exactly as the
+        // WebSocket test does -- only the transport differs.
+        let input = <RemoteBackend as FloatTensorOps<RemoteBackend>>::float_from_data(
+            TensorData::from([2.0f32, 4.0, 6.0]),
+            &device,
+        );
+        let remote_client = input.client.clone();
+        let shape = input.shape();
+        let dtype = input.dtype();
+        let out_ir = TensorIr::uninit(remote_client.create_empty_handle(), shape, dtype);
+        let desc = CustomOpIr::with_scalars(
+            "scale",
+            &[input.into_ir()],
+            &[out_ir],
+            vec![ScalarIr::Float(3.0)],
+        );
+        let out = remote_client.register(OperationIr::Custom(desc)).remove(0);
+
+        let data = client_runtime
+            .block_on(<RemoteBackend as FloatTensorOps<RemoteBackend>>::float_into_data(out))
+            .unwrap();
+        let values: Vec<f32> = data.to_vec().unwrap();
+        assert_eq!(values, vec![6.0, 12.0, 18.0]);
+
+        server_runtime.block_on(router.shutdown()).unwrap();
+    }
+
     /// A single server hosting multiple devices: two indices on the same address resolve to
     /// two distinct sessions (distinct interpreters/runner threads). Moving a tensor between
     /// them exercises the multi-device path within one host.
@@ -214,8 +318,8 @@ mod tests {
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device_0 = Device::remote("ws://localhost:3030", 0);
-        let device_1 = Device::remote("ws://localhost:3030", 1);
+        let device_0 = Device::remote_websocket("ws://localhost:3030", 0);
+        let device_1 = Device::remote_websocket("ws://localhost:3030", 1);
 
         // Distinct indices on the same address must be distinct devices.
         assert_ne!(device_0, device_1);
@@ -240,7 +344,7 @@ mod tests {
     /// running simultaneously and each iteration moving a tensor to the *other* device and back.
     ///
     /// This used to deadlock because the client's transfer-id counter never persisted its
-    /// increment (`TensorTransferId` is `Copy`, so the increment landed on a throwaway local).
+    /// increment (`LocalTransferId` is `Copy`, so the increment landed on a throwaway local).
     /// Every same-host transfer after the first reused the same id; sequentially that's harmless
     /// (each expose is taken before the next), but two transfers in flight at once then collided
     /// in the server's `local_comm` rendezvous and one `take` hung forever. Single-threaded
@@ -265,8 +369,8 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         with_deadlock_watchdog(std::time::Duration::from_secs(30), || {
-            let device0 = Device::remote("ws://localhost:3060", 0);
-            let device1 = Device::remote("ws://localhost:3060", 1);
+            let device0 = Device::remote_websocket("ws://localhost:3060", 0);
+            let device1 = Device::remote_websocket("ws://localhost:3060", 1);
 
             let run = |home: Device, away: Device| {
                 move || {
@@ -290,7 +394,7 @@ mod tests {
         rt.shutdown_background();
     }
 
-    /// `Device::enumerate(DeviceType::remote(addr))` lists every device the server hosts, by
+    /// `Device::enumerate(DeviceType::remote_websocket(addr))` lists every device the server hosts, by
     /// connecting once and reading the device count off the init handshake.
     #[test]
     pub fn test_enumerate_remote_devices() {
@@ -312,13 +416,23 @@ mod tests {
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let devices = Device::enumerate(DeviceType::remote("ws://localhost:3040")).into_vec();
+        let devices =
+            Device::enumerate(DeviceType::remote_websocket("ws://localhost:3040")).into_vec();
 
         // The server reports its three devices, in index order.
         assert_eq!(devices.len(), 3);
-        assert_eq!(devices[0], Device::remote("ws://localhost:3040", 0));
-        assert_eq!(devices[1], Device::remote("ws://localhost:3040", 1));
-        assert_eq!(devices[2], Device::remote("ws://localhost:3040", 2));
+        assert_eq!(
+            devices[0],
+            Device::remote_websocket("ws://localhost:3040", 0)
+        );
+        assert_eq!(
+            devices[1],
+            Device::remote_websocket("ws://localhost:3040", 1)
+        );
+        assert_eq!(
+            devices[2],
+            Device::remote_websocket("ws://localhost:3040", 2)
+        );
 
         // Distinct indices are distinct devices.
         assert_ne!(devices[0], devices[1]);
@@ -370,7 +484,7 @@ mod tests {
 
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = Device::remote("ws://localhost:3070", 0);
+        let device = Device::remote_websocket("ws://localhost:3070", 0);
 
         // One successful round-trip so the sockets are actually up and the demux task is running.
         let input = Tensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
@@ -400,10 +514,10 @@ mod tests {
     #[test]
     fn test_client_disconnect_handled_cleanly_by_server() {
         use crate::shared::{RemoteMessage, SessionId, Task};
-        use burn_communication::{CommunicationChannel, Message, Protocol, ProtocolClient};
+        use burn_communication::{CommunicationChannel, Message, ProtocolClient};
         use std::str::FromStr;
 
-        type Client = <crate::shared::RemoteProtocol as Protocol>::Client;
+        type Client = burn_communication::websocket::WsClient;
 
         let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_io()
@@ -438,7 +552,9 @@ mod tests {
                 };
 
                 submit
-                    .send(frame(vec![RemoteMessage::Init(session_id, 0)]))
+                    .send(frame(vec![RemoteMessage::Init(
+                        crate::shared::SessionInit::new(session_id, 0, vec![]),
+                    )]))
                     .await
                     .expect("send init");
                 submit
@@ -455,7 +571,7 @@ mod tests {
 
         // The server must have survived: a fresh, normal client on the same server still works.
         let finished = finishes_within(std::time::Duration::from_secs(10), || {
-            let device = Device::remote("ws://localhost:3090", 0);
+            let device = Device::remote_websocket("ws://localhost:3090", 0);
             let input = Tensor::<2>::from_floats([[10.0, 20.0]], &device);
             let numbers: Vec<f32> = (input * 3.0).to_data().to_vec().unwrap();
             assert_eq!(numbers, vec![30.0, 60.0]);
@@ -484,7 +600,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         let local = Device::default();
-        let remote = Device::remote("ws://localhost:3020", 0);
+        let remote = Device::remote_websocket("ws://localhost:3020", 0);
 
         // Create on local, move to remote.
         let input = Tensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &local);
@@ -504,14 +620,13 @@ mod tests {
 
 #[cfg(all(test, feature = "fusion", feature = "server"))]
 mod fusion_tests {
-    use crate::{RemoteBackend, RemoteDevice, client::RemoteChannel, shared::RemoteProtocol};
+    use crate::{RemoteBackend, RemoteDevice, client::RemoteChannel};
     use burn_backend::{Backend, Shape, TensorData};
-    use burn_communication::Protocol;
     use burn_router::BackendRouter;
 
     // `RemoteBackend` is `Fusion<PlainRemote>` under the `fusion` feature; `PlainRemote` is the
     // unwrapped router backend, used as the reference to compare against.
-    type PlainRemote = BackendRouter<RemoteChannel<<RemoteProtocol as Protocol>::Client>>;
+    type PlainRemote = BackendRouter<RemoteChannel>;
 
     fn input() -> TensorData {
         TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]])
@@ -563,8 +678,8 @@ mod fusion_tests {
         );
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let plain_device = RemoteDevice::new("ws://localhost:3100", 0);
-        let fused_device = RemoteDevice::new("ws://localhost:3110", 0);
+        let plain_device = RemoteDevice::websocket("ws://localhost:3100", 0);
+        let fused_device = RemoteDevice::websocket("ws://localhost:3110", 0);
 
         let iters = 5;
         let expected = run::<PlainRemote>(&plain_device, iters);
@@ -617,7 +732,7 @@ mod fusion_tests {
         );
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::new("ws://localhost:3120", 0);
+        let device = RemoteDevice::websocket("ws://localhost:3120", 0);
 
         for i in 0..5 {
             let client = CustomOpClient::new(&device);
@@ -684,7 +799,7 @@ mod fusion_tests {
         );
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::new("ws://localhost:3140", 0);
+        let device = RemoteDevice::websocket("ws://localhost:3140", 0);
 
         for i in 0..5 {
             let client = CustomOpClient::new(&device);
@@ -749,7 +864,7 @@ mod fusion_tests {
         );
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::new("ws://localhost:3130", 0);
+        let device = RemoteDevice::websocket("ws://localhost:3130", 0);
 
         for i in 0..5 {
             let client = CustomOpClient::new(&device);
@@ -830,7 +945,7 @@ mod fusion_tests {
         );
         std::thread::sleep(std::time::Duration::from_millis(500));
 
-        let device = RemoteDevice::new("ws://localhost:3150", 0);
+        let device = RemoteDevice::websocket("ws://localhost:3150", 0);
 
         type B = RemoteBackend;
         for i in 0..5 {

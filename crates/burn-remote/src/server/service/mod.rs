@@ -17,8 +17,15 @@
 
 mod base;
 mod fetch;
+#[cfg(feature = "websocket")]
 mod policy;
 mod submit;
 
-pub(crate) use fetch::{FetchHandler, FetchService};
-pub(crate) use submit::{SubmitHandler, SubmitService};
+#[cfg(feature = "iroh")]
+pub(crate) use base::parse_init_handshake;
+#[cfg(feature = "websocket")]
+pub(crate) use fetch::FetchHandler;
+pub(crate) use fetch::FetchService;
+#[cfg(feature = "websocket")]
+pub(crate) use submit::SubmitHandler;
+pub(crate) use submit::SubmitService;

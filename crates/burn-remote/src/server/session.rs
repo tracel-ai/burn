@@ -1,5 +1,4 @@
 use burn_backend::tensor::Device;
-use burn_communication::{Protocol, external_comm::ExternalCommService};
 use burn_ir::BackendIr;
 use burn_router::{CustomOpRegistry, TensorInterpreter};
 use std::{collections::HashMap, sync::Arc};
@@ -7,8 +6,10 @@ use tokio::sync::{Mutex, mpsc};
 
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{FetchService, SubmitService};
+use crate::server::transfer::TensorTransfer;
 use crate::server::worker::SessionHandler;
 use crate::shared::{SessionId, Task, TaskResponse};
+use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 
 /// Capacity for the per-session response queue.
 ///
@@ -30,20 +31,21 @@ const RESPONSE_CHANNEL_CAPACITY: usize = 64;
 /// session a dispatcher routes each task to a per-stream worker thread, so per-stream ordering is
 /// preserved while independent streams — and other sessions — keep making progress even when one
 /// stream is parked on a blocking op (a same-host transfer rendezvous or an all-reduce barrier).
-pub struct SessionManager<B, P>
+pub struct SessionManager<B, T>
 where
     B: BackendIr,
-    P: Protocol,
+    T: TensorTransfer<B>,
 {
     /// All devices this server hosts, indexed by the device index the client selects at
     /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
     devices: Vec<Device<B>>,
-    pub(crate) external_comm: Arc<ExternalCommService<B, P>>,
+    pub(crate) transfer: Arc<T>,
     /// Rendezvous registry for same-host tensor transfers between this server's sessions.
     pub(crate) local_comm: Arc<LocalCommService<B>>,
     /// Custom-op handlers shared (read-only) with every session's interpreter.
     custom_ops: CustomOpRegistry<B>,
     sessions: Mutex<HashMap<SessionId, Session>>,
+    probe: TelemetryProbe,
 }
 
 struct Session {
@@ -52,27 +54,38 @@ struct Session {
     receiver: Option<mpsc::Receiver<TaskResponse>>,
 }
 
-impl<B, P> SessionManager<B, P>
+impl<B, T> SessionManager<B, T>
 where
     B: BackendIr,
-    P: Protocol,
+    T: TensorTransfer<B>,
 {
-    pub fn new(
-        devices: Vec<Device<B>>,
-        external_comm: Arc<ExternalCommService<B, P>>,
-        custom_ops: CustomOpRegistry<B>,
-    ) -> Self {
+    pub fn new(devices: Vec<Device<B>>, transfer: Arc<T>) -> Self {
         assert!(
             !devices.is_empty(),
             "A remote server must host at least one device"
         );
         Self {
             devices,
-            external_comm,
+            transfer,
             local_comm: Arc::new(LocalCommService::new()),
-            custom_ops,
+            custom_ops: CustomOpRegistry::default(),
             sessions: Mutex::new(HashMap::new()),
+            probe: TelemetryProbe::disabled(),
         }
+    }
+
+    /// Register custom-op handlers, shared read-only with every session's interpreter.
+    pub fn with_custom_ops(mut self, custom_ops: CustomOpRegistry<B>) -> Self {
+        self.custom_ops = custom_ops;
+        self
+    }
+
+    /// Emit per-session telemetry into `probe`. Configured only through the Iroh composition path;
+    /// the WebSocket server does not expose a telemetry hook.
+    #[cfg(feature = "iroh")]
+    pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
+        self.probe = probe;
+        self
     }
 
     /// Resolve the device at `device_index`.
@@ -115,9 +128,14 @@ where
                 session_id,
                 runner,
                 sender,
-                self.external_comm.clone(),
+                self.transfer.clone(),
                 self.local_comm.clone(),
+                self.probe.clone(),
             );
+            self.probe.emit(|| TelemetryEvent::SessionOpened {
+                session: session_id,
+                device: device_index,
+            });
             Session {
                 task_sender,
                 receiver: Some(receiver),
@@ -127,10 +145,10 @@ where
     }
 }
 
-impl<B, P> SubmitService for SessionManager<B, P>
+impl<B, T> SubmitService for SessionManager<B, T>
 where
     B: BackendIr,
-    P: Protocol,
+    T: TensorTransfer<B>,
 {
     /// Resolve the channel used to forward [`Task`]s to `session_id`'s dispatcher thread,
     /// creating the session (and spawning its handler) on demand. The request loop resolves
@@ -151,14 +169,18 @@ where
     /// flushes its runner, releasing any backend state held only by this session's tensors.
     async fn close(&self, session_id: SessionId) {
         let mut sessions = self.sessions.lock().await;
-        sessions.remove(&session_id);
+        if sessions.remove(&session_id).is_some() {
+            self.probe.emit(|| TelemetryEvent::SessionClosed {
+                session: session_id,
+            });
+        }
     }
 }
 
-impl<B, P> FetchService for SessionManager<B, P>
+impl<B, T> FetchService for SessionManager<B, T>
 where
     B: BackendIr,
-    P: Protocol,
+    T: TensorTransfer<B>,
 {
     /// The device settings for `device_index`, used by the response-init handshake before any
     /// session-specific runner is needed.

@@ -1,13 +1,18 @@
 //! The `/submit` connection handler.
 
 use std::future::Future;
+#[cfg(feature = "websocket")]
 use std::sync::Arc;
 
+#[cfg(feature = "websocket")]
 use burn_communication::CommunicationChannel;
 use tokio::sync::mpsc;
 
+#[cfg(feature = "websocket")]
 use super::policy::SubmitPolicy;
-use crate::shared::{RemoteMessage, SessionId, Task};
+#[cfg(feature = "websocket")]
+use crate::shared::RemoteMessage;
+use crate::shared::{SessionId, Task};
 
 /// What a `/submit` connection needs from the session layer: the worker channel for a session,
 /// and a way to tear a session down. Async methods return `impl Future + Send` (as the
@@ -30,11 +35,13 @@ pub(crate) trait SubmitService: Send + Sync + 'static {
 /// The `/submit` connection: decode each incoming batch of [`RemoteMessage`]s and forward the
 /// tasks to the bound session's worker (via [`SubmitPolicy`]), tearing the session down when the
 /// stream ends.
+#[cfg(feature = "websocket")]
 pub(crate) struct SubmitHandler<S, C> {
     socket: C,
     policy: SubmitPolicy<S>,
 }
 
+#[cfg(feature = "websocket")]
 impl<S: SubmitService, C: CommunicationChannel> SubmitHandler<S, C> {
     pub(crate) fn new(service: Arc<S>, socket: C) -> Self {
         Self {

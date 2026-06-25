@@ -132,9 +132,9 @@ impl SubmitState {
     /// exercised in isolation.
     fn decide(&mut self, message: RemoteMessage) -> Action {
         match message {
-            RemoteMessage::Init(id, index) => {
-                self.session_id = Some(id);
-                self.device_index = index;
+            RemoteMessage::Init(init) => {
+                self.session_id = Some(init.session_id);
+                self.device_index = init.device_index;
                 // Re-resolve the worker channel for the (re)bound session on the next task.
                 self.task_sender = None;
                 Action::Continue
@@ -154,6 +154,7 @@ impl SubmitState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::shared::SessionInit;
     use std::future::Future;
     use std::sync::Mutex;
 
@@ -212,12 +213,14 @@ mod tests {
 
     #[test]
     fn decide_init_binds_session_and_resets_worker_channel() {
-        let mut state = SubmitState::default();
         // A worker channel left over from a previous binding must be dropped on rebind.
-        state.task_sender = Some(mpsc::channel(1).0);
+        let mut state = SubmitState {
+            task_sender: Some(mpsc::channel(1).0),
+            ..SubmitState::default()
+        };
 
         let id = SessionId::new();
-        let action = state.decide(RemoteMessage::Init(id, 5));
+        let action = state.decide(RemoteMessage::Init(SessionInit::new(id, 5, vec![])));
 
         assert!(matches!(action, Action::Continue));
         assert_eq!(state.session_id, Some(id));
@@ -237,7 +240,7 @@ mod tests {
     fn decide_task_after_init_forwards_to_bound_session() {
         let mut state = SubmitState::default();
         let id = SessionId::new();
-        state.decide(RemoteMessage::Init(id, 0));
+        state.decide(RemoteMessage::Init(SessionInit::new(id, 0, vec![])));
 
         match state.decide(RemoteMessage::Task(Task::Seed(7))) {
             Action::Forward { session_id, task } => {
@@ -252,7 +255,7 @@ mod tests {
     fn decide_close_marks_the_session_closed() {
         let mut state = SubmitState::default();
         let id = SessionId::new();
-        state.decide(RemoteMessage::Init(id, 0));
+        state.decide(RemoteMessage::Init(SessionInit::new(id, 0, vec![])));
 
         let action = state.decide(RemoteMessage::Close(id));
 
@@ -271,7 +274,7 @@ mod tests {
 
             let stop = policy
                 .process_batch(vec![
-                    RemoteMessage::Init(id, 0),
+                    RemoteMessage::Init(SessionInit::new(id, 0, vec![])),
                     RemoteMessage::Task(Task::Seed(1)),
                     RemoteMessage::Task(Task::Seed(2)),
                     RemoteMessage::Close(id),
@@ -315,7 +318,7 @@ mod tests {
             // The batch never sends `Close` — simulate an abrupt disconnect afterwards.
             policy
                 .process_batch(vec![
-                    RemoteMessage::Init(id, 0),
+                    RemoteMessage::Init(SessionInit::new(id, 0, vec![])),
                     RemoteMessage::Task(Task::Seed(1)),
                 ])
                 .await;
@@ -333,7 +336,10 @@ mod tests {
             let id = SessionId::new();
 
             policy
-                .process_batch(vec![RemoteMessage::Init(id, 0), RemoteMessage::Close(id)])
+                .process_batch(vec![
+                    RemoteMessage::Init(SessionInit::new(id, 0, vec![])),
+                    RemoteMessage::Close(id),
+                ])
                 .await;
             policy.cleanup().await;
 

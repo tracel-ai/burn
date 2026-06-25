@@ -18,4 +18,4 @@ rocm = ["burn/rocm"]
 flex = ["burn/flex"]
 
 [dependencies]
-burn = { workspace = true, features = ["default", "server"] }
+burn = { workspace = true, features = ["default", "remote-server", "remote-websocket"] }
