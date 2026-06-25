@@ -9,9 +9,9 @@ use burn_cubecl_fusion::{
         CubeOptimization, CubeOptimizationState,
         elemwise::{ElementWiseFuser, ElemwiseOptimization},
         matmul::{MatmulFuser, MatmulOptimization},
+        nhwc_relayout::{NHWCRelayoutFuser, NHWCRelayoutOptimization},
         reduce::{ReduceFuser, ReduceOptimization},
         reduce_broadcasted::ReduceBroadcastedOptimization,
-        nhwc_relayout::{NHWCRelayoutFuser, NHWCRelayoutOptimization},
     },
 };
 use burn_fusion::UnfusedOp;
