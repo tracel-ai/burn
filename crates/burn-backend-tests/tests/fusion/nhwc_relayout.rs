@@ -97,7 +97,7 @@ fn fusion_test_elementwise_operation_followed_by_interpolate_nearest() {
 fn add_zero_and_conv_transpose1d(dev: Device, dtype: DType) -> TensorData {
     let input =
         TestTensor::<3>::from_data(TensorData::from([[[0.0, 1.0, 2.0, 3.0]]]), &dev).cast(dtype);
-    let weight = TestTensor::<3>::from_data(TensorData::from([[[2.0, 3.0]]]), &dev).cast(dtype);
+    let weight = TestTensor::<3>::from_data(TensorData::from([[[2.0]]]), &dev).cast(dtype);
 
     let input_zeros = TestTensor::<3>::zeros(input.shape(), &dev).cast(dtype);
     let weight_zeros = TestTensor::<3>::zeros(weight.shape(), &dev).cast(dtype);

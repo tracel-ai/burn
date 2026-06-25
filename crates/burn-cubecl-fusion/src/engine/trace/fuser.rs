@@ -153,6 +153,11 @@ impl TraceFuser {
         });
     }
 
+    /// Whether the given tensor is registered as an output produced by this trace.
+    pub fn produces_output(&self, id: burn_ir::TensorId) -> bool {
+        self.resources.outputs.get_index(id).is_some()
+    }
+
     /// Register an output tensor that won't be automatically synced into global memory.
     ///
     /// It is therefore the responsibility of the operation to write the result to given tensor.

@@ -13,10 +13,11 @@ use cubecl::Runtime;
 /// Fuses element wise operations.
 #[derive(Clone)]
 pub struct NHWCRelayoutFuser<R: Runtime> {
-    fuser: TraceOperationFuser,
+    fusers: Vec<TraceOperationFuser>,
     op: Option<OperationIr>,
     status: FuserStatus,
     device: R::Device,
+    max_bindings: u32,
 }
 
 #[derive(Debug)]
@@ -49,25 +50,25 @@ fn nhwc_relayout_tensors(ir: &ModuleOperationIr) -> Vec<(&TensorIr, RelayoutKind
     use RelayoutKind::{NCHW, NHWC};
 
     match ir {
-        // Pooling ops – only `x` is permuted to NHWC.
+        // Pooling ops – `x`, `grad`, and `indices` are permuted to NHWC.
         AvgPool1d(op) => with_layout!(NHWC, [&op.x]),
         AvgPool2d(op) => with_layout!(NHWC, [&op.x]),
-        AvgPool1dBackward(op) => with_layout!(NHWC, [&op.x]),
-        AvgPool2dBackward(op) => with_layout!(NHWC, [&op.x]),
+        AvgPool1dBackward(op) => with_layout!(NHWC, [&op.x, &op.grad]),
+        AvgPool2dBackward(op) => with_layout!(NHWC, [&op.x, &op.grad]),
         AdaptiveAvgPool1d(op) => with_layout!(NHWC, [&op.x]),
         AdaptiveAvgPool2d(op) => with_layout!(NHWC, [&op.x]),
-        AdaptiveAvgPool1dBackward(op) => with_layout!(NHWC, [&op.x]),
-        AdaptiveAvgPool2dBackward(op) => with_layout!(NHWC, [&op.x]),
+        AdaptiveAvgPool1dBackward(op) => with_layout!(NHWC, [&op.x, &op.grad]),
+        AdaptiveAvgPool2dBackward(op) => with_layout!(NHWC, [&op.x, &op.grad]),
         MaxPool1d(op) => with_layout!(NHWC, [&op.x]),
         MaxPool1dWithIndices(op) => with_layout!(NHWC, [&op.x]),
-        MaxPool1dWithIndicesBackward(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool1dWithIndicesBackward(op) => with_layout!(NHWC, [&op.x, &op.grad, &op.indices]),
         MaxPool2d(op) => with_layout!(NHWC, [&op.x]),
         MaxPool2dWithIndices(op) => with_layout!(NHWC, [&op.x]),
-        MaxPool2dWithIndicesBackward(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool2dWithIndicesBackward(op) => with_layout!(NHWC, [&op.x, &op.grad, &op.indices]),
 
-        // Interpolation – only `x` is permuted.
+        // Interpolation – `x` and `grad` are permuted.
         Interpolate(op) => with_layout!(NHWC, [&op.x]),
-        InterpolateBackward(op) => with_layout!(NHWC, [&op.x]),
+        InterpolateBackward(op) => with_layout!(NHWC, [&op.x, &op.grad]),
 
         // Conv forward – both input and weight are permuted to NHWC.
         Conv1d(op) => with_layout!(NHWC, [&op.x, &op.weight]),
@@ -112,29 +113,54 @@ fn nhwc_relayout_tensors(ir: &ModuleOperationIr) -> Vec<(&TensorIr, RelayoutKind
 
 impl<R: Runtime> NHWCRelayoutFuser<R> {
     pub fn shape_id(&self) -> Shape {
-        self.fuser.current_output_shape.clone()
+        self.fusers
+            .last()
+            .map(|f| f.current_output_shape.clone())
+            .unwrap_or_else(|| Shape::new([]))
+    }
+
+    fn settings() -> FuseSettings {
+        FuseSettings {
+            broadcast: false,
+            output_shape_updates: false,
+            inplace: false,
+            vectorization: VectorizationSetting::Deactivated,
+            ref_layout: RefLayoutSetting::Any,
+        }
     }
 
     pub fn new(device: R::Device) -> Self {
         let client = R::client(&device);
-        let props = client.properties();
-        let max_bindings = props.hardware.max_bindings;
-        let fuser = TraceOperationFuser::new(
-            max_bindings,
-            FuseSettings {
-                broadcast: false,
-                output_shape_updates: false,
-                inplace: false,
-                vectorization: VectorizationSetting::Deactivated,
-                ref_layout: RefLayoutSetting::Any,
-            },
-        );
+        let max_bindings = client.properties().hardware.max_bindings;
+        let fuser = TraceOperationFuser::new(max_bindings, Self::settings());
 
         Self {
             status: fuser.status(),
             op: None,
-            fuser,
+            fusers: vec![fuser],
             device,
+            max_bindings,
+        }
+    }
+
+    /// Tries to fuse the given operation into an existing trace, or starts a new one if none fits.
+    fn try_fuse(&mut self, operation: &OperationIr) {
+        for trace in self.fusers.iter_mut() {
+            if trace.can_fuse(operation) {
+                trace.fuse(operation);
+                self.status = trace.status();
+                return;
+            }
+        }
+
+        let mut new_trace = TraceOperationFuser::new(self.max_bindings, Self::settings());
+        new_trace.fuse(operation);
+
+        if let FuserStatus::Closed = new_trace.status() {
+            self.status = FuserStatus::Closed;
+        } else {
+            self.status = new_trace.status();
+            self.fusers.push(new_trace);
         }
     }
 }
@@ -152,34 +178,39 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
                 if !tensors.is_empty() {
                     self.op = Some(operation.clone());
                     for (tensor_ir, shape) in tensors {
-                        self.fuser
-                            .output_nhwc_layout(tensor_ir, shape.permutation());
+                        // Apply the relayout only to the trace that actually produces the tensor.
+                        if let Some(trace) = self
+                            .fusers
+                            .iter_mut()
+                            .find(|trace| trace.produces_output(tensor_ir.id))
+                        {
+                            trace.output_nhwc_layout(tensor_ir, shape.permutation());
+                        }
                     }
                     self.status = FuserStatus::Closed;
                 } else {
-                    self.fuser.fuse(operation);
-                    self.status = self.fuser.status();
+                    self.try_fuse(operation);
                 }
             }
             _ => {
-                self.fuser.fuse(operation);
-                self.status = self.fuser.status();
+                self.try_fuse(operation);
             }
         };
     }
 
     fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
-        let trace = self.fuser.finish();
+        let traces = self.fusers.iter_mut().map(|f| f.finish()).collect();
         let relayout =
-            NHWCRelayoutOptimization::new(trace, client, self.device.clone(), self.len());
+            NHWCRelayoutOptimization::new(traces, client, self.device.clone(), self.len());
         CubeOptimization::NHWCRelayout(relayout)
     }
 
     fn reset(&mut self) {
-        self.fuser.reset();
+        self.fusers.truncate(1);
+        self.fusers[0].reset();
         self.op = None;
-        self.status = self.fuser.status();
+        self.status = self.fusers[0].status();
     }
 
     fn status(&self) -> FuserStatus {
@@ -187,7 +218,13 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
     }
 
     fn properties(&self) -> FuserProperties {
-        let mut properties = self.fuser.properties();
+        let mut properties = FuserProperties::default();
+        properties.ready = true;
+        for trace in &self.fusers {
+            let p = trace.properties();
+            properties.score += p.score;
+            properties.ready &= p.ready;
+        }
         properties.score += match &self.op {
             Some(_) => 100, // TODO : proper score calculation
             None => 0,
@@ -197,7 +234,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
     }
 
     fn len(&self) -> usize {
-        self.fuser.len()
+        self.fusers.iter().map(|f| f.len()).sum::<usize>()
             + match &self.op {
                 Some(_) => 1,
                 None => 0,
