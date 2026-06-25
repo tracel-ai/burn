@@ -6,7 +6,7 @@ use crate::{
     optim::{CubeOptimization, nhwc_relayout::optimization::NHWCRelayoutOptimization},
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
-use burn_ir::{ModuleOperationIr, OperationIr};
+use burn_ir::{ModuleOperationIr, OperationIr, TensorIr};
 use burn_std::Shape;
 use cubecl::Runtime;
 
@@ -17,6 +17,97 @@ pub struct NHWCRelayoutFuser<R: Runtime> {
     op: Option<OperationIr>,
     status: FuserStatus,
     device: R::Device,
+}
+
+#[derive(Debug)]
+pub enum RelayoutKind {
+    NHWC,
+    NCHW,
+}
+
+impl RelayoutKind {
+    fn permutation(&self) -> Shape {
+        match self {
+            RelayoutKind::NHWC => Shape::new([0, 3, 1, 2]),
+            RelayoutKind::NCHW => Shape::new([0, 1, 2, 3]),
+        }
+    }
+}
+
+macro_rules! with_layout {
+    ($layout:expr, [$($tensor:expr),* $(,)?]) => {
+        vec![$( ($tensor, $layout) ),*]
+    };
+}
+
+/// Collect tensors that should be relayed out to NHWC for a given module operation.
+///
+/// Returns a non-empty vec if the operation internally permutes its inputs from NCHW to NHWC,
+/// meaning the relayout can be fused into the preceding element-wise operations.
+fn nhwc_relayout_tensors(ir: &ModuleOperationIr) -> Vec<(&TensorIr, RelayoutKind)> {
+    use ModuleOperationIr::*;
+    use RelayoutKind::{NCHW, NHWC};
+
+    match ir {
+        // Pooling ops – only `x` is permuted to NHWC.
+        AvgPool1d(op) => with_layout!(NHWC, [&op.x]),
+        AvgPool2d(op) => with_layout!(NHWC, [&op.x]),
+        AvgPool1dBackward(op) => with_layout!(NHWC, [&op.x]),
+        AvgPool2dBackward(op) => with_layout!(NHWC, [&op.x]),
+        AdaptiveAvgPool1d(op) => with_layout!(NHWC, [&op.x]),
+        AdaptiveAvgPool2d(op) => with_layout!(NHWC, [&op.x]),
+        AdaptiveAvgPool1dBackward(op) => with_layout!(NHWC, [&op.x]),
+        AdaptiveAvgPool2dBackward(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool1d(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool1dWithIndices(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool1dWithIndicesBackward(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool2d(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool2dWithIndices(op) => with_layout!(NHWC, [&op.x]),
+        MaxPool2dWithIndicesBackward(op) => with_layout!(NHWC, [&op.x]),
+
+        // Interpolation – only `x` is permuted.
+        Interpolate(op) => with_layout!(NHWC, [&op.x]),
+        InterpolateBackward(op) => with_layout!(NHWC, [&op.x]),
+
+        // Conv forward – both input and weight are permuted to NHWC.
+        Conv1d(op) => with_layout!(NHWC, [&op.x, &op.weight]),
+        Conv2d(op) => with_layout!(NHWC, [&op.x, &op.weight]),
+        Conv3d(op) => with_layout!(NHWC, [&op.x, &op.weight]),
+
+        // Conv X backward – output_grad and weight are permuted.
+        Conv1dXBackward(op) => with_layout!(NHWC, [&op.output_grad, &op.weight]),
+        Conv2dXBackward(op) => with_layout!(NHWC, [&op.output_grad, &op.weight]),
+        Conv3dXBackward(op) => with_layout!(NHWC, [&op.output_grad, &op.weight]),
+
+        // Conv weight backward – input and output_grad are permuted.
+        Conv1dWeightBackward(op) => with_layout!(NHWC, [&op.x, &op.output_grad]),
+        Conv2dWeightBackward(op) => with_layout!(NHWC, [&op.x, &op.output_grad]),
+        Conv3dWeightBackward(op) => with_layout!(NHWC, [&op.x, &op.output_grad]),
+
+        Conv1dBiasBackward(op) => with_layout!(NCHW, [&op.output_grad]),
+        Conv2dBiasBackward(op) => with_layout!(NCHW, [&op.output_grad]),
+        Conv3dBiasBackward(op) => with_layout!(NCHW, [&op.output_grad]),
+        ConvTranspose1d(op) => with_layout!(NCHW, [&op.x, &op.weight]),
+        ConvTranspose2d(op) => with_layout!(NCHW, [&op.x, &op.weight]),
+        ConvTranspose3d(op) => with_layout!(NCHW, [&op.x, &op.weight]),
+
+        // Deformable conv2d – input, offset, and weight are all made contiguous.
+        DeformableConv2d(op) => {
+            let mut tensors = with_layout!(NCHW, [&op.x, &op.offset, &op.weight]);
+            if let Some(mask) = &op.mask {
+                tensors.push((mask, NCHW));
+            }
+            tensors
+        }
+        DeformableConv2dBackward(op) => {
+            let mut tensors = with_layout!(NCHW, [&op.x, &op.offset, &op.weight, &op.out_grad]);
+            if let Some(mask) = &op.mask {
+                tensors.push((mask, NCHW));
+            }
+            tensors
+        }
+        _ => vec![],
+    }
 }
 
 impl<R: Runtime> NHWCRelayoutFuser<R> {
@@ -56,29 +147,14 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
 
         match operation {
             OperationIr::Module(ir) => {
-                let op = match ir {
-                    ModuleOperationIr::AvgPool1d(op) => Some(&op.x),
-                    ModuleOperationIr::AvgPool2d(op) => Some(&op.x),
-                    ModuleOperationIr::AvgPool1dBackward(op) => Some(&op.x),
-                    ModuleOperationIr::AvgPool2dBackward(op) => Some(&op.x),
-                    ModuleOperationIr::AdaptiveAvgPool1d(op) => Some(&op.x),
-                    ModuleOperationIr::AdaptiveAvgPool2d(op) => Some(&op.x),
-                    ModuleOperationIr::AdaptiveAvgPool1dBackward(op) => Some(&op.x),
-                    ModuleOperationIr::AdaptiveAvgPool2dBackward(op) => Some(&op.x),
-                    ModuleOperationIr::MaxPool1d(op) => Some(&op.x),
-                    ModuleOperationIr::MaxPool1dWithIndices(op) => Some(&op.x),
-                    ModuleOperationIr::MaxPool1dWithIndicesBackward(op) => Some(&op.x),
-                    ModuleOperationIr::MaxPool2d(op) => Some(&op.x),
-                    ModuleOperationIr::MaxPool2dWithIndices(op) => Some(&op.x),
-                    ModuleOperationIr::MaxPool2dWithIndicesBackward(op) => Some(&op.x),
-                    ModuleOperationIr::Interpolate(op) => Some(&op.x),
-                    ModuleOperationIr::InterpolateBackward(op) => Some(&op.x),
-                    _ => None,
-                };
+                let tensors = nhwc_relayout_tensors(ir);
 
-                if let Some(tensor_ir) = op {
+                if !tensors.is_empty() {
                     self.op = Some(operation.clone());
-                    self.fuser.output_nhwc_layout(tensor_ir);
+                    for (tensor_ir, shape) in tensors {
+                        self.fuser
+                            .output_nhwc_layout(tensor_ir, shape.permutation());
+                    }
                     self.status = FuserStatus::Closed;
                 } else {
                     self.fuser.fuse(operation);

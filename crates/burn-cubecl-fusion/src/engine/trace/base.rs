@@ -228,6 +228,7 @@ pub enum TensorView {
     },
     NhwcStrides {
         id: TensorId,
+        permutation: Shape,
     },
 }
 

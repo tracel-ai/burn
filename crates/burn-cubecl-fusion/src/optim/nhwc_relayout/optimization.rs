@@ -31,12 +31,10 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
     ) {
         let launcher_elemwise = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
 
-        match launcher_elemwise.launch(&self.client, &self.device, context) {
-            Ok(_) => (),
-            Err(err) => {
-                panic!("{err:?} - {:?}", self.trace);
-            }
-        };
+        launcher_elemwise
+            .launch(&self.client, &self.device, context)
+            .expect("elemwise launch should succeed");
+
         fallback(self.len - 1).run(context);
     }
 

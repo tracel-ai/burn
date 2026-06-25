@@ -163,8 +163,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         block_idx,
                     );
                 }
-                OutputKind::Transform(TensorView::NhwcStrides { .. }) => {
-                    nhwc_strides(&mut strides, &tensor_global.shape);
+                OutputKind::Transform(TensorView::NhwcStrides { permutation, .. }) => {
+                    relayout_strides(&mut strides, &tensor_global.shape, &permutation);
 
                     self.normal_output(
                         client,
@@ -356,7 +356,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         if let Some(transform) = self.resources.views.iter().find(|v| match v {
             TensorView::Reshape { reshaped, .. } => reshaped == &output.tensor_relative.id,
             TensorView::SwapDims { swapped, .. } => swapped == &output.tensor_relative.id,
-            TensorView::NhwcStrides { id } => id == &output.tensor_relative.id,
+            TensorView::NhwcStrides { id, .. } => id == &output.tensor_relative.id,
         }) {
             return (OutputKind::Transform(transform.clone()), block_idx);
         }
@@ -720,23 +720,29 @@ fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize)
     }
 }
 
-fn nhwc_strides(strides: &mut Strides, shape: &Shape) {
+fn relayout_strides(strides: &mut Strides, shape: &Shape, stride_relayout: &Shape) {
     let rank = shape.num_dims();
 
-    if rank < 2 {
-        return; // Cannot apply NHWC to rank < 2
+    if rank < 2 || stride_relayout.num_dims() != rank {
+        return;
+    }
+
+    let mut dims_by_target_pos = vec![None; rank];
+
+    for original_dim in 0..rank {
+        let target_pos = stride_relayout[original_dim];
+
+        if target_pos >= rank || dims_by_target_pos[target_pos].is_some() {
+            return;
+        }
+
+        dims_by_target_pos[target_pos] = Some(original_dim);
     }
 
     let mut current_stride = 1;
-    strides[1] = current_stride;
-    current_stride *= shape[1]; // Multiply by C
 
-    // Dims from rank-1 down to 2 (e.g. W, H, D)
-    for i in (2..rank).rev() {
-        strides[i] = current_stride;
-        current_stride *= shape[i];
+    for original_dim in dims_by_target_pos.into_iter().rev().flatten() {
+        strides[original_dim] = current_stride;
+        current_stride *= shape[original_dim];
     }
-
-    // For N (dim 0)
-    strides[0] = current_stride;
 }

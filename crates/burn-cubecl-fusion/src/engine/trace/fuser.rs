@@ -142,14 +142,15 @@ impl TraceFuser {
     /// This will apply the NHWC relayout to the given [tensor](TensorIr).
     ///
     /// The relayout will be applied when the tensor is written to global memory.
-    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr) {
+    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr, permutation: Shape) {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return;
         }
 
-        self.resources
-            .views
-            .push(TensorView::NhwcStrides { id: tensor.id });
+        self.resources.views.push(TensorView::NhwcStrides {
+            id: tensor.id,
+            permutation,
+        });
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.

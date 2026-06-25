@@ -810,8 +810,8 @@ impl TraceOperationFuser {
     /// This will apply the NHWC relayout to the given [tensor](TensorIr).
     ///
     /// The relayout will be applied when the tensor is written to global memory.
-    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr) {
-        self.fuser.fuser.output_nhwc_layout(tensor);
+    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr, stride_relayout: Shape) {
+        self.fuser.fuser.output_nhwc_layout(tensor, stride_relayout);
     }
 }
 

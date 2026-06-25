@@ -56,7 +56,7 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
     fn name(&self) -> &'static str {
         match self {
             CubeOptimization::ElementWise(..) => "ElementWise",
-            CubeOptimization::NHWCRelayout(..) => "Pooling",
+            CubeOptimization::NHWCRelayout(..) => "NHWCRelayout",
             CubeOptimization::Matmul(..) => "Matmul",
             CubeOptimization::Reduce(..) => "Reduce",
             CubeOptimization::ReduceBroadcasted(..) => "ReduceBroadcasted",
