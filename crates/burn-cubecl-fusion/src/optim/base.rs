@@ -1,9 +1,9 @@
 use crate::optim::{
     elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
     matmul::{MatmulOptimization, MatmulOptimizationState},
+    nhwc_relayout::{NHWCRelayoutOptimization, RelayoutOptimizationState},
     reduce::{ReduceOptimization, ReduceOptimizationState},
     reduce_broadcasted::{ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationState},
-    relayout::{NHWCRelayoutOptimization, RelayoutOptimizationState},
 };
 use cubecl::Runtime;
 use serde::{Deserialize, Serialize};

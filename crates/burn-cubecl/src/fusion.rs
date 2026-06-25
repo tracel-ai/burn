@@ -11,7 +11,7 @@ use burn_cubecl_fusion::{
         matmul::{MatmulFuser, MatmulOptimization},
         reduce::{ReduceFuser, ReduceOptimization},
         reduce_broadcasted::ReduceBroadcastedOptimization,
-        relayout::{NHWCRelayoutFuser, NHWCRelayoutOptimization},
+        nhwc_relayout::{NHWCRelayoutFuser, NHWCRelayoutOptimization},
     },
 };
 use burn_fusion::UnfusedOp;

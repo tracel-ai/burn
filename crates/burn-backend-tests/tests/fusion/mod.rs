@@ -4,8 +4,8 @@ mod fusion_f16_broadcast;
 mod fusion_f16_write_vectorization;
 mod fusion_shape;
 mod int_bitwise;
+mod nhwc_relayout;
 mod reduce_broadcasted;
-mod relayout;
 
 use burn_tensor::StreamId;
 use std::sync::atomic::{AtomicU64, Ordering};

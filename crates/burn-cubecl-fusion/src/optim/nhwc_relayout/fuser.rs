@@ -3,10 +3,10 @@ use crate::{
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
-    optim::{CubeOptimization, relayout::optimization::NHWCRelayoutOptimization},
+    optim::{CubeOptimization, nhwc_relayout::optimization::NHWCRelayoutOptimization},
 };
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
-use burn_ir::{ModuleOperationIr, OperationIr, TensorIr};
+use burn_ir::{ModuleOperationIr, OperationIr};
 use burn_std::Shape;
 use cubecl::Runtime;
 
@@ -34,7 +34,7 @@ impl<R: Runtime> NHWCRelayoutFuser<R> {
                 broadcast: false,
                 output_shape_updates: false,
                 inplace: false,
-                vectorization: VectorizationSetting::Activated,
+                vectorization: VectorizationSetting::Deactivated,
                 ref_layout: RefLayoutSetting::Any,
             },
         );
@@ -45,16 +45,6 @@ impl<R: Runtime> NHWCRelayoutFuser<R> {
             fuser,
             device,
         }
-    }
-
-    fn nchw_to_nhwc(&mut self, tensor_ir: &TensorIr) {
-        // NCHW strides to NHWC strides
-        // Swap channels (1) and width (3)
-        self.fuser.output_layout(tensor_ir, (1, 3));
-        // Swap height (2) and width (3)
-        self.fuser.output_layout(tensor_ir, (2, 3));
-        // Swap batch (0) and height (2)
-        self.fuser.output_layout(tensor_ir, (0, 2));
     }
 }
 
@@ -88,7 +78,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
 
                 if let Some(tensor_ir) = op {
                     self.op = Some(operation.clone());
-                    self.nchw_to_nhwc(tensor_ir);
+                    self.fuser.output_nhwc_layout(tensor_ir);
                     self.status = FuserStatus::Closed;
                 } else {
                     self.fuser.fuse(operation);

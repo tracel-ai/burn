@@ -137,21 +137,19 @@ impl TraceFuser {
         src_arg
     }
 
-    /// Register an output relayout.
+    /// Register an output relayout to NHWC.
     ///
-    /// This will apply the given relayout to the given [tensor](TensorIr).
+    /// This will apply the NHWC relayout to the given [tensor](TensorIr).
     ///
     /// The relayout will be applied when the tensor is written to global memory.
-    pub fn output_layout(&mut self, tensor: &TensorIr, swap_dims: (usize, usize)) {
+    pub fn output_nhwc_layout(&mut self, tensor: &TensorIr) {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return;
         }
 
-        self.resources.views.push(TensorView::SwapDims {
-            swapped: tensor.id,
-            original: tensor.id,
-            dims: swap_dims,
-        });
+        self.resources
+            .views
+            .push(TensorView::NhwcStrides { id: tensor.id });
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.

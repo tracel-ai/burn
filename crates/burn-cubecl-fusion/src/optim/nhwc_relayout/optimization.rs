@@ -8,7 +8,7 @@ use cubecl::{client::ComputeClient, prelude::*};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-/// Fuse element wise operations into a single kernel.
+/// Fuse layout conversions into a single kernel for NHWC/NLC layout.
 pub struct NHWCRelayoutOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
     client: ComputeClient<R>,
@@ -17,7 +17,7 @@ pub struct NHWCRelayoutOptimization<R: Runtime> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-/// State for the [elemwise optimization](RelayoutOptimization).
+/// State for the [NHWC relayout optimization](NHWCRelayoutOptimization).
 pub struct RelayoutOptimizationState {
     trace: FuseTrace,
     len: usize,

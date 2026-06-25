@@ -226,6 +226,9 @@ pub enum TensorView {
         original: TensorId,
         dims: (usize, usize),
     },
+    NhwcStrides {
+        id: TensorId,
+    },
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]

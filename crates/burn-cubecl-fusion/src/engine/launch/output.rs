@@ -109,7 +109,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .get(&output.tensor_relative.id)
                 .unwrap()
                 .clone();
-            let strides = strides_dyn_rank(&tensor_global.shape);
+            let mut strides = strides_dyn_rank(&tensor_global.shape);
             let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
 
             match kind {
@@ -133,6 +133,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         output,
                         tensor_global,
                         strides,
+                        LayoutInfo::IsRef,
                         block_idx,
                     );
                 }
@@ -159,6 +160,21 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         tensor_global,
                         original,
                         dims,
+                        block_idx,
+                    );
+                }
+                OutputKind::Transform(TensorView::NhwcStrides { .. }) => {
+                    nhwc_strides(&mut strides, &tensor_global.shape);
+
+                    self.normal_output(
+                        client,
+                        device,
+                        context,
+                        plan,
+                        output,
+                        tensor_global,
+                        strides,
+                        LayoutInfo::Unknown,
                         block_idx,
                     );
                 }
@@ -340,6 +356,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         if let Some(transform) = self.resources.views.iter().find(|v| match v {
             TensorView::Reshape { reshaped, .. } => reshaped == &output.tensor_relative.id,
             TensorView::SwapDims { swapped, .. } => swapped == &output.tensor_relative.id,
+            TensorView::NhwcStrides { id } => id == &output.tensor_relative.id,
         }) {
             return (OutputKind::Transform(transform.clone()), block_idx);
         }
@@ -457,25 +474,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
+        base_layout_info: LayoutInfo,
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
-
-        let mut strides = strides;
-
-        let tensor_view = self.resources.views.iter().find_map(|v| match v {
-            TensorView::SwapDims { swapped, dims, .. } if swapped == &output.tensor_relative.id => {
-                Some(dims)
-            }
-            _ => None,
-        });
-        let layout_info = match tensor_view {
-            Some((dim1, dim2)) if strides[*dim1] != strides[*dim2] => {
-                strides.swap(*dim1, *dim2);
-                LayoutInfo::Unknown
-            }
-            _ => LayoutInfo::IsRef,
-        };
 
         if !block.reference.is_found()
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
@@ -485,7 +487,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             )
         {
             block.reference = ReferenceSelection::Concrete {
-                layout: FuseArg::Output(output.pos_original, output.precision, layout_info),
+                layout: FuseArg::Output(output.pos_original, output.precision, base_layout_info),
                 shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
             };
@@ -494,7 +496,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
                 for op in ops {
                     if let FuseOp::Assign(op) = op {
-                        op.out.add_layout_info(layout_info);
+                        op.out.add_layout_info(base_layout_info);
                         break;
                     }
                 }
@@ -617,6 +619,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     output,
                     tensor_global,
                     strides,
+                    LayoutInfo::IsRef,
                     block_idx,
                 );
             }
@@ -715,4 +718,25 @@ fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize)
         }
         block.writes.insert(id, keep);
     }
+}
+
+fn nhwc_strides(strides: &mut Strides, shape: &Shape) {
+    let rank = shape.num_dims();
+
+    if rank < 2 {
+        return; // Cannot apply NHWC to rank < 2
+    }
+
+    let mut current_stride = 1;
+    strides[1] = current_stride;
+    current_stride *= shape[1]; // Multiply by C
+
+    // Dims from rank-1 down to 2 (e.g. W, H, D)
+    for i in (2..rank).rev() {
+        strides[i] = current_stride;
+        current_stride *= shape[i];
+    }
+
+    // For N (dim 0)
+    strides[0] = current_stride;
 }
