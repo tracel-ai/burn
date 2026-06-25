@@ -177,9 +177,11 @@ impl<C: ProtocolClient> RemoteService<C> {
         device_index: u32,
     ) -> (DeviceSettings, u32) {
         let init_bytes: bytes::Bytes =
-            rmp_serde::to_vec(&vec![RemoteMessage::Init(session_id, device_index)])
-                .expect("Can serialize RemoteMessage::Init")
-                .into();
+            burn_communication::codec::serialize(&vec![RemoteMessage::Init(
+                session_id,
+                device_index,
+            )])
+            .into();
 
         runtime
             .block_on(async {
@@ -190,7 +192,7 @@ impl<C: ProtocolClient> RemoteService<C> {
                     .recv()
                     .await?
                     .expect("Server disconnected during initialization");
-                let reply: TaskResponse = rmp_serde::from_slice(&msg.data)
+                let reply: TaskResponse = burn_communication::codec::deserialize(&msg.data)
                     .expect("Can deserialize init handshake payload");
 
                 match reply.content {
@@ -217,13 +219,14 @@ impl<C: ProtocolClient> RemoteService<C> {
             loop {
                 match response.recv().await {
                     Ok(Some(msg)) => {
-                        let reply: TaskResponse = match rmp_serde::from_slice(&msg.data) {
-                            Ok(r) => r,
-                            Err(err) => {
-                                log::error!("Failed to deserialize remote response: {err:?}");
-                                continue;
-                            }
-                        };
+                        let reply: TaskResponse =
+                            match burn_communication::codec::deserialize(&msg.data) {
+                                Ok(r) => r,
+                                Err(err) => {
+                                    log::error!("Failed to deserialize remote response: {err}");
+                                    continue;
+                                }
+                            };
                         if !responder.complete(reply.id, reply.content) {
                             log::warn!("No pending callback for response id {:?}", reply.id);
                         }

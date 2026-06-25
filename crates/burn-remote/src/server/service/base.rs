@@ -7,8 +7,8 @@ use crate::shared::{RemoteMessage, SessionId};
 /// The handshake frame must hold exactly one message and it must be an `Init`; anything else is
 /// a protocol error.
 pub(super) fn parse_init_handshake(bytes: &[u8]) -> Result<(SessionId, u32), String> {
-    let mut messages = rmp_serde::from_slice::<Vec<RemoteMessage>>(bytes)
-        .map_err(|err| format!("Failed to decode init handshake: {err:?}"))?;
+    let mut messages = burn_communication::codec::deserialize::<Vec<RemoteMessage>>(bytes)
+        .map_err(|err| format!("Failed to decode init handshake: {err}"))?;
 
     match messages.pop() {
         Some(RemoteMessage::Init(id, device_index)) if messages.is_empty() => {
@@ -25,7 +25,7 @@ mod tests {
     use super::*;
 
     fn encode(messages: &[RemoteMessage]) -> Vec<u8> {
-        rmp_serde::to_vec(messages).unwrap()
+        burn_communication::codec::serialize(messages)
     }
 
     #[test]
