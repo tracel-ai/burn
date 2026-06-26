@@ -813,11 +813,6 @@ impl TraceOperationFuser {
     pub fn output_nhwc_layout(&mut self, tensor: &TensorIr, stride_relayout: Shape) {
         self.fuser.fuser.output_nhwc_layout(tensor, stride_relayout);
     }
-
-    /// Whether the given tensor is registered as an output produced by this trace.
-    pub(crate) fn produces_output(&self, id: burn_ir::TensorId) -> bool {
-        self.fuser.fuser.produces_output(id)
-    }
 }
 
 #[derive(Debug, Clone)]

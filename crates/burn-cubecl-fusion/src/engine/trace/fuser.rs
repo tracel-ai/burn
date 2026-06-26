@@ -149,13 +149,8 @@ impl TraceFuser {
 
         self.resources.views.push(TensorView::NhwcStrides {
             id: tensor.id,
-            permutation,
+            stride_relayout: permutation,
         });
-    }
-
-    /// Whether the given tensor is registered as an output produced by this trace.
-    pub fn produces_output(&self, id: burn_ir::TensorId) -> bool {
-        self.resources.outputs.get_index(id).is_some()
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.

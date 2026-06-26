@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(new)]
 /// Fuse layout conversions into a single kernel for NHWC/NLC layout.
 pub struct NHWCRelayoutOptimization<R: Runtime> {
-    pub(crate) traces: Vec<FuseTrace>,
+    pub(crate) trace: FuseTrace,
     client: ComputeClient<R>,
     device: R::Device,
     len: usize,
@@ -19,7 +19,7 @@ pub struct NHWCRelayoutOptimization<R: Runtime> {
 #[derive(Serialize, Deserialize, Debug)]
 /// State for the [NHWC relayout optimization](NHWCRelayoutOptimization).
 pub struct RelayoutOptimizationState {
-    traces: Vec<FuseTrace>,
+    trace: FuseTrace,
     len: usize,
 }
 
@@ -29,13 +29,11 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
         context: &mut Context<CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        for trace in &self.traces {
-            let launcher_elemwise = FuseTraceLauncher::new(trace, &ElemwiseRunner);
+        let launcher_elemwise = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
 
-            launcher_elemwise
-                .launch(&self.client, &self.device, context)
-                .expect("elemwise launch should succeed");
-        }
+        launcher_elemwise
+            .launch(&self.client, &self.device, context)
+            .expect("elemwise launch should succeed");
 
         fallback(self.len - 1).run(context);
     }
@@ -48,7 +46,7 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
     /// Create an optimization from its [state](RelayoutOptimizationState).
     pub fn from_state(device: &R::Device, state: RelayoutOptimizationState) -> Self {
         Self {
-            traces: state.traces,
+            trace: state.trace,
             len: state.len,
             client: R::client(device),
             device: device.clone(),
@@ -58,7 +56,7 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
     /// Convert the optimization to its [state](RelayoutOptimizationState).
     pub fn to_state(&self) -> RelayoutOptimizationState {
         RelayoutOptimizationState {
-            traces: self.traces.clone(),
+            trace: self.trace.clone(),
             len: self.len,
         }
     }

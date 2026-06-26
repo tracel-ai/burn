@@ -109,7 +109,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .get(&output.tensor_relative.id)
                 .unwrap()
                 .clone();
-            let mut strides = strides_dyn_rank(&tensor_global.shape);
+            let strides = strides_dyn_rank(&tensor_global.shape);
             let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
 
             match kind {
@@ -163,17 +163,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         block_idx,
                     );
                 }
-                OutputKind::Transform(TensorView::NhwcStrides { permutation, .. }) => {
-                    let strides_changed =
-                        relayout_strides(&mut strides, &tensor_global.shape, &permutation);
-
-                    let base_layout_info = if strides_changed {
-                        LayoutInfo::Unknown
-                    } else {
-                        LayoutInfo::IsRef
-                    };
-
-                    self.normal_output(
+                OutputKind::Transform(TensorView::NhwcStrides {
+                    stride_relayout, ..
+                }) => {
+                    self.nhwc_strides_output(
                         client,
                         device,
                         context,
@@ -181,8 +174,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         output,
                         tensor_global,
                         strides,
-                        base_layout_info,
                         block_idx,
+                        stride_relayout,
                     );
                 }
             }
@@ -686,6 +679,40 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);
+    }
+
+    fn nhwc_strides_output(
+        &mut self,
+        client: &ComputeClient<R>,
+        device: &R::Device,
+        context: &mut Context<CubeFusionHandle<R>>,
+        plan: &mut LaunchPlan<'a, R>,
+        output: OutputSorted,
+        tensor_global: TensorIr,
+        mut strides: Strides,
+        block_idx: usize,
+        stride_relayout: Shape,
+    ) {
+        let strides_changed =
+            relayout_strides(&mut strides, &tensor_global.shape, &stride_relayout);
+
+        let base_layout_info = if strides_changed {
+            LayoutInfo::Unknown
+        } else {
+            LayoutInfo::IsRef
+        };
+
+        self.normal_output(
+            client,
+            device,
+            context,
+            plan,
+            output,
+            tensor_global,
+            strides,
+            base_layout_info,
+            block_idx,
+        );
     }
 
     fn find_child_input(
