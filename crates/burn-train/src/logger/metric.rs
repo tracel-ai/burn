@@ -229,8 +229,9 @@ impl MetricLogger for FileMetricLogger {
             .cloned()
             .collect();
 
+        let epoch = if !self.is_eval { Some(epoch) } else { None };
         for item in entries.iter() {
-            self.log_item(item, Some(epoch), split);
+            self.log_item(item, epoch, split);
         }
     }
 
@@ -287,7 +288,16 @@ impl MetricLogger for FileMetricLogger {
 }
 
 fn logger_key(name: &str, split: &Split) -> String {
-    format!("{name}_{split}")
+    match split {
+        Split::Train | Split::Valid => format!("{name}_{split}"),
+        Split::Test(tag) => {
+            if let Some(t) = tag {
+                format!("{name}_{split}_{}", *t)
+            } else {
+                format!("{name}_{split}")
+            }
+        }
+    }
 }
 
 /// In memory metric logger, useful when testing and debugging.

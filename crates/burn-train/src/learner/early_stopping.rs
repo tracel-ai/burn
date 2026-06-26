@@ -279,7 +279,10 @@ mod tests {
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 
-        processor.process_train(crate::LearnerEvent::Start { total_epochs: 0 });
+        processor.process_train(crate::LearnerEvent::Start {
+            total_epochs: 0,
+            starting_epoch: 0,
+        });
         for (epoch, (points, should_start, comment)) in (1..).zip(data.iter()) {
             for point in points.iter() {
                 process_train(&mut processor, *point, epoch);

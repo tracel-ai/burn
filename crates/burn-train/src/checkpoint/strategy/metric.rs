@@ -97,7 +97,10 @@ mod tests {
         metrics.register_train_metric_numeric(loss);
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
-        processor.process_train(crate::LearnerEvent::Start { total_epochs: 0 });
+        processor.process_train(crate::LearnerEvent::Start {
+            total_epochs: 0,
+            starting_epoch: 0,
+        });
 
         // Two points for the first epoch. Mean 0.75
         let mut epoch = 1;
