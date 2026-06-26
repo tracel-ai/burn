@@ -37,7 +37,7 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(not(target_family = "wasm"))]
 use burn_backend::ExecutionError;
-use burn_ir::{BackendIr, GraphId};
+use burn_ir::{BackendIr, GraphBindings, GraphId};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::id::StreamId;
 #[cfg(not(target_family = "wasm"))]
@@ -46,13 +46,12 @@ use burn_std::{AllocationProperty, Reader};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
 
-use crate::metrics::{MetricSide, TrafficMetrics};
 use crate::server::local_comm::LocalCommService;
 use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
 use crate::shared::{RequestId, SessionId, Task, TaskResponse, TaskResponseContent};
 use crate::telemetry::{
-    TelemetryEvent, TelemetryProbe, TensorRef, TransferPhase, TransferScope, classify,
+    TelemetryEvent, TelemetryProbe, TransferPhase, TransferScope, serialized_len,
 };
 use burn_ir::OperationIr;
 
@@ -88,9 +87,6 @@ where
     /// the cache from becoming a serialization point if graph execution is ever driven from more
     /// than the current single-FIFO worker.
     graphs: Mutex<HashMap<GraphId, Graph>>,
-    /// Accumulates this session's op-graph caching traffic savings, measured from the receiving end
-    /// (logged when remote logging is enabled). Owned by the worker thread, so no locking is needed.
-    metrics: TrafficMetrics,
     probe: TelemetryProbe,
 }
 
@@ -116,7 +112,6 @@ where
             transfer,
             local_comm,
             graphs: Mutex::new(HashMap::new()),
-            metrics: TrafficMetrics::new(MetricSide::Server),
             probe,
         };
         let (sender, receiver) = mpsc::channel(TASK_CHANNEL_CAPACITY);
@@ -202,7 +197,6 @@ where
         match task {
             Task::RegisterOperation(stream_id, op) => {
                 // An op received individually (not as part of a cached graph) is an unfused op.
-                self.metrics.record_unfused_op(&op);
                 self.emit_op(stream_id, &op);
                 stream_id.executes(|| self.runner.register_op(op));
                 Ok(())
@@ -213,8 +207,15 @@ where
                 relative_graph,
                 bindings,
             } => {
-                self.metrics.record_registration(graph_id, &relative_graph);
-                self.metrics.record_execution(graph_id, &bindings);
+                self.probe.emit(|| {
+                    TelemetryEvent::graph_registered(
+                        self.session_id,
+                        graph_id,
+                        &relative_graph,
+                        serialized_len(&relative_graph),
+                    )
+                });
+                self.emit_graph_executed(graph_id, stream_id, &bindings);
                 stream_id.executes(|| {
                     let graph = Graph::new(relative_graph);
                     self.graphs.lock().unwrap().insert(graph_id, graph.clone());
@@ -234,7 +235,7 @@ where
                         .cloned()
                         .ok_or_else(|| format!("Execute of unknown graph {graph_id:?}"))?
                 };
-                self.metrics.record_execution(graph_id, &bindings);
+                self.emit_graph_executed(graph_id, stream_id, &bindings);
                 stream_id.executes(|| graph.replay(&mut self.runner, bindings));
                 Ok(())
             }
@@ -393,8 +394,7 @@ where
                     // blocking pool instead, so the fetch handler only serializes resident host
                     // bytes and the shared runtime's workers stay free. A no-op for backends whose
                     // read is already host-resident (the property check skips the copy). Native
-                    // only: the wasm server is single-threaded, with no runtime worker to starve
-                    // and no blocking pool to offload onto, so the readback stays lazy there.
+                    // only: the wasm server is single-threaded, so there is no worker to starve.
                     #[cfg(not(target_family = "wasm"))]
                     let data = match data {
                         Ok(data) => tokio::task::spawn_blocking(move || {
@@ -460,26 +460,8 @@ where
     }
 
     fn emit_op(&self, stream: StreamId, op: &OperationIr) {
-        self.probe.emit(|| match op {
-            OperationIr::Drop(tensor) => TelemetryEvent::TensorDropped {
-                session: self.session_id,
-                tensor: tensor.id,
-            },
-            _ => TelemetryEvent::Op {
-                session: self.session_id,
-                stream,
-                kind: classify(op),
-                inputs: op.inputs().map(|tensor| tensor.id).collect(),
-                outputs: op
-                    .outputs()
-                    .map(|tensor| TensorRef {
-                        id: tensor.id,
-                        shape: tensor.shape.clone(),
-                        dtype: tensor.dtype,
-                    })
-                    .collect(),
-            },
-        });
+        self.probe
+            .emit(|| TelemetryEvent::unfused_op(self.session_id, stream, op));
     }
 
     fn emit_transfer(&self, peer: Option<String>, scope: TransferScope, phase: TransferPhase) {
@@ -488,6 +470,12 @@ where
             peer,
             scope,
             phase,
+        });
+    }
+
+    fn emit_graph_executed(&self, graph: GraphId, stream: StreamId, bindings: &GraphBindings) {
+        self.probe.emit(|| {
+            TelemetryEvent::graph_executed(self.session_id, graph, stream, serialized_len(bindings))
         });
     }
 }

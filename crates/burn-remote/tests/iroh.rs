@@ -138,3 +138,65 @@ async fn passes_application_credentials_to_the_peer_authorizer() {
 
     router.shutdown().await.unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg(feature = "fusion")]
+async fn fused_compute_surfaces_as_graph_telemetry() {
+    use burn_remote::telemetry::{TelemetryEvent, TelemetryProbe, TrafficAggregator};
+    use std::time::Duration;
+
+    let server = local_node().await;
+    let client = local_node().await;
+
+    let (probe, mut events) = TelemetryProbe::channel(4096);
+    let router = server
+        .protocol::<Flex>(vec![Default::default()])
+        .with_telemetry(probe)
+        .serve();
+
+    let remote = client.device(server.endpoint().addr(), 0);
+    remote.connect();
+    let device = Device::new(remote);
+
+    // A multi-op float expression fuses into a cached graph; running it twice forces a replay, and
+    // each read flushes the fusion stream so the server actually executes the graph.
+    for _ in 0..2 {
+        let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
+        let y = ((x * 2.0) + 1.0).exp().log();
+        let _ = y.to_data();
+    }
+
+    // Fold the stream the same way a logger or dashboard would, and check the derived economics.
+    let mut aggregator = TrafficAggregator::default();
+    let (mut saw_registered, mut saw_executed) = (false, false);
+    let collect = async {
+        while !(saw_registered && saw_executed && aggregator.snapshot().fused_ops > 0) {
+            let Some(event) = events.recv().await else {
+                break;
+            };
+            aggregator.apply(&event);
+            match event.as_ref() {
+                TelemetryEvent::GraphRegistered { ops, bytes, .. } => {
+                    saw_registered = !ops.is_empty() && *bytes > 0
+                }
+                TelemetryEvent::GraphExecuted { .. } => saw_executed = true,
+                _ => {}
+            }
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), collect)
+        .await
+        .expect("fused-path telemetry did not arrive in time");
+
+    assert!(
+        saw_registered,
+        "expected a GraphRegistered event carrying the graph's ops and size"
+    );
+    assert!(saw_executed, "expected a GraphExecuted replay heartbeat");
+    assert!(
+        aggregator.snapshot().fused_ops > 0,
+        "the aggregator should price the replayed graph's ops as fused"
+    );
+
+    router.shutdown().await.unwrap();
+}

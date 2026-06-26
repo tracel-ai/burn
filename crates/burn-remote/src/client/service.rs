@@ -1,9 +1,10 @@
 use crate::PeerAddr;
-use crate::metrics::{MetricSide, TrafficMetrics};
+use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
 use crate::shared::{
     LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
     SessionInit, Task, TaskResponse, TaskResponseContent, TensorRemote, TransferCapability,
 };
+use crate::telemetry::{CHANNEL_CAPACITY, TelemetryEvent, TelemetryProbe, serialized_len};
 use burn_backend::{
     DTypeUsageSet, ExecutionError, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
@@ -145,10 +146,8 @@ pub struct RemoteService {
     batch: OutgoingBatch,
     /// Request-id allocation + the callbacks awaiting response-producing tasks.
     pending: PendingResponses,
-    /// Accumulates this device's op-graph caching traffic savings (logged when remote logging is
-    /// enabled). Lives here rather than in a global so each device measures its own traffic, with no
-    /// locking — the service has exclusive access on the runner thread.
-    metrics: TrafficMetrics,
+    /// Emits this device's telemetry (the ops and graphs it sends).
+    probe: TelemetryProbe,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::defaults`).
     settings: Arc<OnceLock<DeviceSettings>>,
     /// Shared cell populated from the init handshake (read by `RemoteDevice::enumerate`).
@@ -162,6 +161,15 @@ impl DeviceService for RemoteService {
         let (id, endpoint, device_index) = Self::resolve_endpoint(device_id);
         let runtime = ServiceRuntime::for_endpoint(&endpoint);
         let session_id = SessionId::new();
+
+        let probe = if TelemetryLogger::enabled() {
+            TelemetryProbe::new(CHANNEL_CAPACITY)
+        } else {
+            TelemetryProbe::disabled()
+        };
+        if let Some(task) = logger_task(&probe, MetricSide::Client) {
+            runtime.spawn(task);
+        }
 
         // Lazy connect: `init` must return promptly. cubecl holds a process-global
         // device-registry lock across this call (to make device-handle creation atomic), so
@@ -180,7 +188,7 @@ impl DeviceService for RemoteService {
                 OutgoingBatch::new(remote.flush_threshold, remote.flush_bytes_threshold)
             },
             pending: PendingResponses::new(),
-            metrics: TrafficMetrics::new(MetricSide::Client),
+            probe,
             settings: settings_cell(id),
             device_count: device_count_cell(id),
             session_id,
@@ -533,7 +541,8 @@ impl RemoteService {
     /// configured flush threshold.
     pub fn register_op(&mut self, stream_id: StreamId, op: OperationIr) {
         // An op streamed individually (not part of a cached graph) is an unfused op.
-        self.metrics.record_unfused_op(&op);
+        self.probe
+            .emit(|| TelemetryEvent::unfused_op(self.session_id, stream_id, &op));
         self.submit_task(Task::RegisterOperation(stream_id, op));
     }
 
@@ -546,8 +555,22 @@ impl RemoteService {
         bindings: burn_ir::GraphBindings,
     ) {
         // The first invocation both registers (one-time graph cost) and executes (a replay).
-        self.metrics.record_registration(graph_id, &relative_graph);
-        self.metrics.record_execution(graph_id, &bindings);
+        self.probe.emit(|| {
+            TelemetryEvent::graph_registered(
+                self.session_id,
+                graph_id,
+                &relative_graph,
+                serialized_len(&relative_graph),
+            )
+        });
+        self.probe.emit(|| {
+            TelemetryEvent::graph_executed(
+                self.session_id,
+                graph_id,
+                stream_id,
+                serialized_len(&bindings),
+            )
+        });
         self.submit_task(Task::RegisterAndExecuteGraph {
             stream_id,
             graph_id,
@@ -563,7 +586,14 @@ impl RemoteService {
         graph_id: burn_ir::GraphId,
         bindings: burn_ir::GraphBindings,
     ) {
-        self.metrics.record_execution(graph_id, &bindings);
+        self.probe.emit(|| {
+            TelemetryEvent::graph_executed(
+                self.session_id,
+                graph_id,
+                stream_id,
+                serialized_len(&bindings),
+            )
+        });
         self.submit_task(Task::ExecuteGraph {
             stream_id,
             graph_id,

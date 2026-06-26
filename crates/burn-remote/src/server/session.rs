@@ -1,11 +1,16 @@
 use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
 use burn_router::{CustomOpRegistry, TensorInterpreter};
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Once},
+};
 use tokio::sync::{Mutex, mpsc};
 
+use crate::metrics::{MetricSide, logger_task};
 use crate::server::local_comm::LocalCommService;
 use crate::server::service::{FetchService, SubmitService};
+use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
 use crate::server::worker::SessionHandler;
 use crate::shared::{SessionId, Task, TaskResponse};
@@ -46,6 +51,8 @@ where
     custom_ops: CustomOpRegistry<B>,
     sessions: Mutex<HashMap<SessionId, Session>>,
     probe: TelemetryProbe,
+    /// Spawns the telemetry logger once, on the first session.
+    logger: Once,
 }
 
 struct Session {
@@ -71,6 +78,7 @@ where
             custom_ops: CustomOpRegistry::default(),
             sessions: Mutex::new(HashMap::new()),
             probe: TelemetryProbe::disabled(),
+            logger: Once::new(),
         }
     }
 
@@ -80,12 +88,18 @@ where
         self
     }
 
-    /// Emit per-session telemetry into `probe`. Configured only through the Iroh composition path;
-    /// the WebSocket server does not expose a telemetry hook.
-    #[cfg(feature = "iroh")]
+    /// Emit telemetry into `probe`.
     pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
         self.probe = probe;
         self
+    }
+
+    fn ensure_logger(&self) {
+        self.logger.call_once(|| {
+            if let Some(task) = logger_task(&self.probe, MetricSide::Server) {
+                spawn_detached(task);
+            }
+        });
     }
 
     /// Resolve the device at `device_index`.
@@ -113,6 +127,7 @@ where
         device_index: u32,
         f: impl FnOnce(&mut Session) -> R,
     ) -> R {
+        self.ensure_logger();
         let mut sessions = self.sessions.lock().await;
         let entry = sessions.entry(session_id).or_insert_with(|| {
             let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);

@@ -36,7 +36,16 @@ pub(crate) async fn start_websocket_async<B: BackendIr>(
     let transfer = Arc::new(WebSocketTransfer {
         inner: external.clone(),
     });
-    let sessions = Arc::new(SessionManager::new(devices, transfer).with_custom_ops(custom_ops));
+    let probe = if crate::metrics::TelemetryLogger::enabled() {
+        crate::telemetry::TelemetryProbe::new(crate::telemetry::CHANNEL_CAPACITY)
+    } else {
+        crate::telemetry::TelemetryProbe::disabled()
+    };
+    let sessions = Arc::new(
+        SessionManager::new(devices, transfer)
+            .with_custom_ops(custom_ops)
+            .with_telemetry(probe),
+    );
 
     let server = WsServer::new(port)
         .route("/fetch", {

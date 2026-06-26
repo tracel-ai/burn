@@ -5,10 +5,11 @@
 //! only while a subscriber is attached and are dropped on lag, so a slow or idle viewer cannot
 //! apply backpressure to a worker.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use burn_backend::{DType, Shape};
-use burn_ir::{NumericOperationIr, OperationIr, TensorId};
+use burn_ir::{GraphId, NumericOperationIr, OperationIr, TensorId};
 use burn_std::id::StreamId;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -22,6 +23,31 @@ pub struct TensorRef {
     pub id: TensorId,
     pub shape: Shape,
     pub dtype: DType,
+}
+
+/// One operation inside a cached graph, in relative form (positional tensor ids).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphOp {
+    pub kind: OpClass,
+    pub inputs: Vec<TensorId>,
+    pub outputs: Vec<TensorRef>,
+}
+
+impl GraphOp {
+    pub(crate) fn summarize(op: &OperationIr) -> Self {
+        Self {
+            kind: classify(op),
+            inputs: op.inputs().map(|tensor| tensor.id).collect(),
+            outputs: op
+                .outputs()
+                .map(|tensor| TensorRef {
+                    id: tensor.id,
+                    shape: tensor.shape.clone(),
+                    dtype: tensor.dtype,
+                })
+                .collect(),
+        }
+    }
 }
 
 /// Coarse operation category, used to colour and aggregate the op stream.
@@ -243,7 +269,74 @@ pub enum TelemetryEvent {
         session: SessionId,
         request: RequestId,
     },
+    GraphRegistered {
+        session: SessionId,
+        graph: GraphId,
+        ops: Vec<GraphOp>,
+        bytes: usize,
+    },
+    GraphExecuted {
+        session: SessionId,
+        graph: GraphId,
+        stream: StreamId,
+        bindings_bytes: usize,
+    },
 }
+
+impl TelemetryEvent {
+    pub(crate) fn unfused_op(session: SessionId, stream: StreamId, op: &OperationIr) -> Self {
+        match op {
+            OperationIr::Drop(tensor) => TelemetryEvent::TensorDropped {
+                session,
+                tensor: tensor.id,
+            },
+            _ => {
+                let GraphOp {
+                    kind,
+                    inputs,
+                    outputs,
+                } = GraphOp::summarize(op);
+                TelemetryEvent::Op {
+                    session,
+                    stream,
+                    kind,
+                    inputs,
+                    outputs,
+                }
+            }
+        }
+    }
+
+    pub(crate) fn graph_registered(
+        session: SessionId,
+        graph: GraphId,
+        ops: &[OperationIr],
+        bytes: usize,
+    ) -> Self {
+        TelemetryEvent::GraphRegistered {
+            session,
+            graph,
+            ops: ops.iter().map(GraphOp::summarize).collect(),
+            bytes,
+        }
+    }
+
+    pub(crate) fn graph_executed(
+        session: SessionId,
+        graph: GraphId,
+        stream: StreamId,
+        bindings_bytes: usize,
+    ) -> Self {
+        TelemetryEvent::GraphExecuted {
+            session,
+            graph,
+            stream,
+            bindings_bytes,
+        }
+    }
+}
+
+pub(crate) const CHANNEL_CAPACITY: usize = 4096;
 
 /// Cloneable handle a worker emits into. Inert until a [`TelemetrySubscription`] is attached.
 #[derive(Clone)]
@@ -336,4 +429,103 @@ impl TelemetrySubscription {
             }
         }
     }
+}
+
+struct GraphCost {
+    bytes: u64,
+    ops: u64,
+}
+
+/// A running fold of the op-graph caching economics over a telemetry stream.
+#[derive(Default)]
+pub struct TrafficAggregator {
+    graphs: HashMap<GraphId, GraphCost>,
+    baseline: u64,
+    actual: u64,
+    fused_ops: u64,
+    unfused_ops: u64,
+    unfused_by_kind: HashMap<OpClass, u64>,
+}
+
+impl TrafficAggregator {
+    pub fn apply(&mut self, event: &TelemetryEvent) {
+        match event {
+            TelemetryEvent::GraphRegistered {
+                graph, ops, bytes, ..
+            } => {
+                self.actual += *bytes as u64;
+                self.graphs.insert(
+                    *graph,
+                    GraphCost {
+                        bytes: *bytes as u64,
+                        ops: ops.len() as u64,
+                    },
+                );
+            }
+            TelemetryEvent::GraphExecuted {
+                graph,
+                bindings_bytes,
+                ..
+            } => {
+                if let Some(cost) = self.graphs.get(graph) {
+                    self.baseline += cost.bytes;
+                    self.fused_ops += cost.ops;
+                }
+                self.actual += *bindings_bytes as u64;
+            }
+            TelemetryEvent::Op { kind, .. } => {
+                self.unfused_ops += 1;
+                *self.unfused_by_kind.entry(*kind).or_default() += 1;
+            }
+            TelemetryEvent::TensorDropped { .. } => {
+                self.unfused_ops += 1;
+                *self.unfused_by_kind.entry(OpClass::Drop).or_default() += 1;
+            }
+            _ => {}
+        }
+    }
+
+    pub fn snapshot(&self) -> FusionSnapshot {
+        FusionSnapshot {
+            fused_ops: self.fused_ops,
+            unfused_ops: self.unfused_ops,
+            baseline: self.baseline,
+            actual: self.actual,
+        }
+    }
+
+    /// Unfused-op tally by class, highest first.
+    pub fn unfused_by_kind(&self) -> Vec<(OpClass, u64)> {
+        let mut entries: Vec<_> = self
+            .unfused_by_kind
+            .iter()
+            .map(|(kind, count)| (*kind, *count))
+            .collect();
+        entries.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.label().cmp(b.0.label())));
+        entries
+    }
+}
+
+pub struct FusionSnapshot {
+    pub fused_ops: u64,
+    pub unfused_ops: u64,
+    pub baseline: u64,
+    pub actual: u64,
+}
+
+impl FusionSnapshot {
+    /// Baseline a non-fusion peer would have moved, minus what fusion actually moved.
+    pub fn saved(&self) -> u64 {
+        self.baseline.saturating_sub(self.actual)
+    }
+
+    pub fn total_ops(&self) -> u64 {
+        self.fused_ops + self.unfused_ops
+    }
+}
+
+pub(crate) fn serialized_len<T: Serialize>(value: &T) -> usize {
+    rmp_serde::to_vec(value)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
 }

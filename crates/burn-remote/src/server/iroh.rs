@@ -81,7 +81,11 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
     /// Create a handler hosting `devices` on `node`.
     pub fn new(node: RemoteNode, devices: Vec<Device<B>>) -> Self {
         let transfer = Arc::new(IrohTransfer::new(node.clone()));
-        let probe = TelemetryProbe::disabled();
+        let probe = if crate::metrics::TelemetryLogger::enabled() {
+            TelemetryProbe::new(crate::telemetry::CHANNEL_CAPACITY)
+        } else {
+            TelemetryProbe::disabled()
+        };
         let custom_ops = CustomOpRegistry::default();
         let sessions = Arc::new(Self::build_sessions(
             &devices,
