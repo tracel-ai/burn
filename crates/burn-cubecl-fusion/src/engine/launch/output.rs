@@ -164,7 +164,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     );
                 }
                 OutputKind::Transform(TensorView::NhwcStrides { permutation, .. }) => {
-                    relayout_strides(&mut strides, &tensor_global.shape, &permutation);
+                    let strides_changed =
+                        relayout_strides(&mut strides, &tensor_global.shape, &permutation);
+
+                    let base_layout_info = if strides_changed {
+                        LayoutInfo::Unknown
+                    } else {
+                        LayoutInfo::IsRef
+                    };
 
                     self.normal_output(
                         client,
@@ -174,7 +181,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         output,
                         tensor_global,
                         strides,
-                        LayoutInfo::Unknown,
+                        base_layout_info,
                         block_idx,
                     );
                 }
@@ -720,11 +727,11 @@ fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize)
     }
 }
 
-fn relayout_strides(strides: &mut Strides, shape: &Shape, stride_relayout: &Shape) {
+fn relayout_strides(strides: &mut Strides, shape: &Shape, stride_relayout: &Shape) -> bool {
     let rank = shape.num_dims();
 
     if rank < 2 || stride_relayout.num_dims() != rank {
-        return;
+        return false;
     }
 
     let mut dims_by_target_pos = vec![None; rank];
@@ -733,16 +740,22 @@ fn relayout_strides(strides: &mut Strides, shape: &Shape, stride_relayout: &Shap
         let target_pos = stride_relayout[original_dim];
 
         if target_pos >= rank || dims_by_target_pos[target_pos].is_some() {
-            return;
+            return false;
         }
 
         dims_by_target_pos[target_pos] = Some(original_dim);
     }
 
     let mut current_stride = 1;
+    let mut strides_changed = false;
 
     for original_dim in dims_by_target_pos.into_iter().rev().flatten() {
-        strides[original_dim] = current_stride;
+        if strides[original_dim] != current_stride {
+            strides[original_dim] = current_stride;
+            strides_changed = true;
+        }
         current_stride *= shape[original_dim];
     }
+
+    strides_changed
 }

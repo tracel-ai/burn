@@ -27,11 +27,36 @@ pub enum RelayoutKind {
 }
 
 impl RelayoutKind {
-    fn permutation(&self) -> Shape {
+    /// Build the stride relayout permutation for a tensor of the given `rank`.
+    ///
+    /// `permutation[original_dim]` is the physical position the dimension should occupy in the
+    /// resulting memory layout (`0` = outermost, `rank - 1` = innermost / contiguous).
+    ///
+    /// This works for any rank, e.g. 3D (`N, C, L`), 4D (`N, C, H, W`) and 5D (`N, C, D, H, W`)
+    /// tensors produced by 1D/2D/3D pooling and convolution operations.
+    fn permutation(&self, rank: usize) -> Shape {
+        let mut permutation = vec![0usize; rank];
+
         match self {
-            RelayoutKind::NHWC => Shape::new([0, 3, 1, 2]),
-            RelayoutKind::NCHW => Shape::new([0, 1, 2, 3]),
+            // Channels-last: batch stays outermost, channels move to the innermost position and
+            // the spatial dimensions shift one position towards the front.
+            RelayoutKind::NHWC => {
+                if rank >= 2 {
+                    permutation[1] = rank - 1;
+                    for dim in 2..rank {
+                        permutation[dim] = dim - 1;
+                    }
+                }
+            }
+            // Channels-first / contiguous: identity permutation.
+            RelayoutKind::NCHW => {
+                for (dim, slot) in permutation.iter_mut().enumerate() {
+                    *slot = dim;
+                }
+            }
         }
+
+        Shape::from(permutation)
     }
 }
 
@@ -184,7 +209,10 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for NHWCRelayoutFuser<R> {
                             .iter_mut()
                             .find(|trace| trace.produces_output(tensor_ir.id))
                         {
-                            trace.output_nhwc_layout(tensor_ir, shape.permutation());
+                            trace.output_nhwc_layout(
+                                tensor_ir,
+                                shape.permutation(tensor_ir.shape.num_dims()),
+                            );
                         }
                     }
                     self.status = FuserStatus::Closed;
