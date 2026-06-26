@@ -681,6 +681,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.globals[output.pos_original] = Some(tensor_global);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn nhwc_strides_output(
         &mut self,
         client: &ComputeClient<R>,

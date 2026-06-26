@@ -25,8 +25,8 @@ fn permutation(rank: usize) -> Shape {
 
     if rank >= 2 {
         permutation[1] = rank - 1;
-        for dim in 2..rank {
-            permutation[dim] = dim - 1;
+        for (dim, stride) in permutation.iter_mut().enumerate().take(rank).skip(2) {
+            *stride = dim - 1;
         }
     }
 
