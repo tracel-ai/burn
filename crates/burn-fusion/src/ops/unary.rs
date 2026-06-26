@@ -121,6 +121,150 @@ macro_rules! reduce_int_ops {
 
 #[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
+macro_rules! reduce_bool_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceDimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.axis);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! reduce_float2bool_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceDimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.axis, self.desc.out.dtype.into());
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! reduce_int2bool_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceDimOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.axis, self.desc.out.dtype.into());
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! reduce_bool_whole_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B>(&self.desc.input);
+                let output = $ops(input);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! reduce_float2bool_whole_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.out.dtype.into());
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! reduce_int2bool_whole_ops {
+    (
+        $name:ident,
+        $ops:expr
+    ) => {
+        #[derive(new, Debug)]
+        struct $name<B: FusionBackend> {
+            desc: ReduceOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = $ops(input, self.desc.out.dtype.into());
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
 macro_rules! scalar_float2int_ops {
     (
         $name:ident,

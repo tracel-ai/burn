@@ -2,7 +2,8 @@ use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
     client::GlobalFusionClient,
-    get_client, reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    get_client, reduce_float_ops, reduce_float2bool_ops, reduce_float2bool_whole_ops,
+    reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{StreamId, execution::Operation},
     unary_float_ops,
 };
@@ -1303,6 +1304,96 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::SumDim(desc.clone())),
                 SumDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_any(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_float2bool_whole_ops!(FloatAnyOps, |tensor, dtype| B::float_any(tensor, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        // Whole-tensor `Any`: not fused (the reduce fuser only fuses `*Dim`), so it
+        // runs the bare backend's dedicated cubek Any instruction via the fallback.
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::Any(desc.clone())),
+                FloatAnyOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_any_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        reduce_float2bool_ops!(FloatAnyDimOps, |tensor, axis, dtype| B::float_any_dim(
+            tensor, axis, dtype
+        ));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::AnyDim(desc.clone())),
+                FloatAnyDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_all(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        reduce_float2bool_whole_ops!(FloatAllOps, |tensor, dtype| B::float_all(tensor, dtype));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceOpIr::create_bool(tensor.into_ir(), out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::All(desc.clone())),
+                FloatAllOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_all_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        reduce_float2bool_ops!(FloatAllDimOps, |tensor, axis, dtype| B::float_all_dim(
+            tensor, axis, dtype
+        ));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, out_dtype.into(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::AllDim(desc.clone())),
+                FloatAllDimOps::<B>::new(desc),
             )
             .output()
     }
