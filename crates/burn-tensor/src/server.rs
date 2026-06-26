@@ -17,7 +17,7 @@
 //!
 //! let secret = RemoteSecret::random();
 //! println!("clients dial: {}", secret.id());
-//! start(Device::default(), Channel::Iroh { secret });
+//! start(Device::default(), Channel::Iroh { secret: Box::new(secret) });
 //! ```
 //!
 //! User-defined backends that implement `BackendIr` but aren't part of `DispatchDevice` build a
@@ -118,7 +118,7 @@ impl<'a> From<RemoteProtocolBuilder<'a>> for RemoteProtocol {
 pub fn start(device: Device, channel: Channel) {
     match channel {
         Channel::Iroh { secret } => {
-            burn_dispatch::remote_server::start_iroh(device.into_dispatch(), secret)
+            burn_dispatch::remote_server::start_iroh(device.into_dispatch(), *secret)
         }
         #[cfg(feature = "remote-websocket")]
         Channel::WebSocket { port } => {
@@ -134,7 +134,7 @@ pub fn start(device: Device, channel: Channel) {
 pub async fn start_async(device: Device, channel: Channel) {
     match channel {
         Channel::Iroh { secret } => {
-            burn_dispatch::remote_server::start_iroh_async(device.into_dispatch(), secret).await
+            burn_dispatch::remote_server::start_iroh_async(device.into_dispatch(), *secret).await
         }
         #[cfg(feature = "remote-websocket")]
         Channel::WebSocket { port } => {

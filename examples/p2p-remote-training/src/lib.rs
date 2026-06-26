@@ -23,7 +23,13 @@ pub async fn run_server(topic: &str) {
     let secret = topic_secret(topic);
     tracing::info!(topic, server_id = %secret.id(), "server ready");
     tracing::info!("waiting for clients (press Ctrl-C to stop)");
-    burn::server::start_async(Device::flex(), Channel::Iroh { secret }).await;
+    burn::server::start_async(
+        Device::flex(),
+        Channel::Iroh {
+            secret: Box::new(secret),
+        },
+    )
+    .await;
     tracing::info!("server stopped");
 }
 

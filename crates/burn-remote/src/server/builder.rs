@@ -17,7 +17,7 @@ pub enum Channel {
     #[cfg(feature = "iroh")]
     Iroh {
         /// The server's stable identity, its address knob (like a port for WebSocket).
-        secret: crate::RemoteSecret,
+        secret: Box<crate::RemoteSecret>,
     },
 }
 
@@ -45,7 +45,7 @@ impl Default for Channel {
         // dialable address sets its own secret with [`Channel::Iroh`].
         #[cfg(all(feature = "iroh", not(feature = "websocket")))]
         return Channel::Iroh {
-            secret: crate::RemoteSecret::random(),
+            secret: Box::new(crate::RemoteSecret::random()),
         };
     }
 }
@@ -135,7 +135,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
             }
             #[cfg(feature = "iroh")]
             Channel::Iroh { secret } => {
-                super::iroh::start_iroh_async::<B>(secret, self.devices, self.custom_ops).await;
+                super::iroh::start_iroh_async::<B>(*secret, self.devices, self.custom_ops).await;
             }
         }
     }
