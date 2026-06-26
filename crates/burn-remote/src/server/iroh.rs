@@ -125,8 +125,8 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
         self
     }
 
-    /// Rebuild the session manager from the current telemetry and custom-op configuration. No
-    /// session has been accepted yet, so this just swaps in a freshly configured manager.
+    /// Swap in a session manager with the current telemetry and custom-op config (no session is
+    /// open yet when the `with_*` setters run).
     fn rebuild_sessions(&mut self) {
         self.sessions = Arc::new(Self::build_sessions(
             &self.devices,
@@ -347,13 +347,9 @@ fn user_error(reason: String) -> AcceptError {
 impl RemoteNode {
     /// Build a composable Iroh protocol handler hosting `devices`.
     ///
-    /// This is the low-level, backend-generic primitive. Most callers go through the dispatch
-    /// surface in `burn::server`, which selects the backend from a `Device` and erases it behind
-    /// [`RemoteProtocol`]; reach for this directly only when hosting a custom `BackendIr` that
-    /// isn't part of the dispatch backend. The returned handler is a builder: chain
-    /// [`with_authorizer`](IrohRemoteProtocol::with_authorizer) /
-    /// [`with_telemetry`](IrohRemoteProtocol::with_telemetry), then register it on your own
-    /// [`Router`] or call [`serve`](IrohRemoteProtocol::serve) to host it alone.
+    /// For hosting a custom `BackendIr` outside the dispatch backend; most callers go through
+    /// `burn::server` instead. Configure the returned builder, then register it on a [`Router`] or
+    /// [`serve`](IrohRemoteProtocol::serve) it alone.
     pub fn protocol<B: BackendIr>(&self, devices: Vec<Device<B>>) -> IrohRemoteProtocol<B> {
         IrohRemoteProtocol::new(self.clone(), devices)
     }

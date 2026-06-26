@@ -140,7 +140,7 @@
         $("connect").disabled = true;
         try {
           mnist = await RemoteMnist.connect(topic);
-          $("status").textContent = "connected — draw a digit";
+          $("status").textContent = "connected, draw a digit";
         } catch (err) {
           $("status").textContent = "failed: " + err;
           $("connect").disabled = false;

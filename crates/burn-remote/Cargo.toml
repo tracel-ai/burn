@@ -26,12 +26,8 @@ tracing = [
 ]
 
 client = ["tokio/sync"]
-# Client-side fusion: cache recurring op-groups on the server and invoke them by id, reducing
-# network traffic. When enabled, `RemoteBackend` is wrapped in `Fusion` (like the CubeCL backends).
+# Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
 fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
-# The server core is portable. Native targets get the multi-threaded runtime, timers and signal
-# handling from the `cfg(not(wasm))` dependency table below; the browser server runs its worker on
-# the JS event loop and uses JS timers, so it needs none of those.
 server = ["tokio/sync"]
 iroh = ["dep:iroh", "tokio/io-util"]
 websocket = [
@@ -52,19 +48,13 @@ burn-backend = { workspace = true, features = [
 burn-std = { workspace = true, features = ["default"] }
 burn-router = { workspace = true, features = ["default"] }
 burn-fusion = { workspace = true, optional = true }
-# Native transport layer (websocket client/server, tensor data service). The Iroh client does
-# not use it, so it stays optional and out of the wasm build.
+# Native WebSocket transport; optional so the Iroh client stays wasm-compatible.
 burn-communication = { workspace = true, optional = true }
 
 bytes = { workspace = true }
-
-# Basic dependencies
 log = { workspace = true }
 rand = { workspace = true }
 
-# Shared dependencies. `rt`/`macros` come from the workspace default; the heavier
-# `rt-multi-thread`/`time` features are pulled in only by the native transports so the Iroh
-# client stays wasm-compatible (the browser drives Iroh through its own event loop).
 tokio = { workspace = true, features = ["sync", "io-util"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }

@@ -25,7 +25,7 @@ pub fn start() {
 }
 
 /// Derive the server's identity from the shared topic; both ends compute the same id from the same
-/// string (a demo convenience — see the native example for the security note).
+/// string (a demo convenience; see the native example for the security note).
 fn server_id(topic: &str) -> EndpointId {
     let hash = blake3::hash(format!("burn-p2p:{topic}").as_bytes());
     RemoteSecret::from_bytes(*hash.as_bytes()).id()

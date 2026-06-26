@@ -22,7 +22,7 @@ The browser and the compute peer find each other through a shared **topic** stri
 the topic to derive the peer's Iroh identity, so no node id has to be copied around:
 
 ```
-topic ──blake3──▶ secret key ──▶ peer endpoint identity
+topic --blake3--> secret key --> peer endpoint identity
    (peer binds the secret key; the browser derives its public half)
 ```
 
@@ -65,7 +65,7 @@ probabilities are computed on the peer and streamed back.
 
 ## Notes
 
-- The compute peer is model-agnostic — it just executes operations. Swapping the model on the
+- The compute peer is model-agnostic; it just executes operations. Swapping the model on the
   client side requires no change to the peer.
 - `model.bpk` is the trained MNIST model from the [`mnist`](../mnist) example, identical to the one
   used by `mnist-inference-web`.

@@ -34,8 +34,6 @@ impl fmt::Display for PeerId {
 impl PeerId {
     /// The Iroh endpoint id, or `None` for a non-Iroh peer.
     pub(crate) fn into_iroh_id(self) -> Option<iroh::EndpointId> {
-        // Without the WebSocket variant this is a single-variant enum, so each configuration uses
-        // the form that reads cleanly for it.
         #[cfg(feature = "websocket")]
         return match self {
             Self::Iroh(id) => Some(id),
@@ -61,13 +59,10 @@ pub enum PeerAddr {
     WebSocket(Address),
 }
 
-/// A compute server's stable identity.
-///
-/// This is the address knob for an Iroh compute server, the counterpart to choosing a port for a
-/// WebSocket one: the secret stays on the server, and the public [`id`](Self::id) it yields is the
-/// address clients dial. Generate a fresh one with [`random`](Self::random) and persist its
-/// [`bytes`](Self::to_bytes) to keep a stable address across restarts, or derive one deterministically
-/// from a seed with [`from_bytes`](Self::from_bytes).
+/// A compute server's stable identity: the secret stays on the server, and the public
+/// [`id`](Self::id) it yields is the address clients dial. Generate one with [`random`](Self::random)
+/// and persist [`to_bytes`](Self::to_bytes) for a stable address across restarts, or derive it from a
+/// seed with [`from_bytes`](Self::from_bytes).
 #[cfg(feature = "iroh")]
 #[derive(Clone)]
 pub struct RemoteSecret(iroh::SecretKey);

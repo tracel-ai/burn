@@ -16,8 +16,7 @@ crate-type = ["cdylib"]
 [features]
 default = ["flex"]
 
-# Local fallback backend. The remote device handles the actual computation; flex only provides a
-# sensible `Device::default()` for the wasm build.
+# Local fallback backend, only for a sensible `Device::default()`; compute runs on the remote.
 flex = ["burn/flex"]
 
 [dependencies]

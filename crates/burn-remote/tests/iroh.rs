@@ -87,7 +87,7 @@ fn synchronous_client_round_trip() {
     drop(server_guard);
 
     // Client on a node that owns its runtime, used entirely synchronously from this (non-runtime)
-    // thread — exactly what a notebook cell does.
+    // thread, exactly what a notebook cell does.
     let client_runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

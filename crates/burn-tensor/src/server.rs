@@ -6,10 +6,10 @@
 //!
 //! Two ways to serve, for the two kinds of user:
 //!
-//! - **Turnkey** ([`start`] / [`start_async`]) — no exposure to Iroh at all. Pick an identity with
+//! - **Turnkey** ([`start`] / [`start_async`]): no exposure to Iroh at all. Pick an identity with
 //!   [`RemoteSecret`] (the counterpart to choosing a port for WebSocket); clients dial its
 //!   [`id`](RemoteSecret::id).
-//! - **Composed** ([`protocol`]) — for an application that owns its own Iroh [`Router`]. Burn hands
+//! - **Composed** ([`protocol`]): for an application that owns its own Iroh [`Router`]. Burn hands
 //!   back only its protocol handler, to register alongside the application's own protocols.
 //!
 //! ```rust,ignore
@@ -21,7 +21,7 @@
 //! ```
 //!
 //! User-defined backends that implement `BackendIr` but aren't part of `DispatchDevice` build a
-//! `burn_remote::server::RemoteServerBuilder` directly with the concrete backend type — that is
+//! `burn_remote::server::RemoteServerBuilder` directly with the concrete backend type; that is
 //! also how custom operations (backend extensions) are hosted, over either transport.
 
 use std::sync::Arc;
