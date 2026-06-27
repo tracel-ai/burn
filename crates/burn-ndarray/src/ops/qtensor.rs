@@ -194,10 +194,10 @@ impl QTensorOps<Self> for NdArray {
     /// Every other case (Q8, per-block, non-f32 activation, batched weights, ...) falls through to
     /// the regular `dequantize -> float_matmul` path — byte-for-byte the default behaviour.
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
-        if let (TensorPrimitive::Float(l), TensorPrimitive::QFloat(r)) = (&lhs, &rhs) {
-            if let Some(out) = ternary_matmul(l, r) {
-                return TensorPrimitive::Float(out);
-            }
+        if let (TensorPrimitive::Float(l), TensorPrimitive::QFloat(r)) = (&lhs, &rhs)
+            && let Some(out) = ternary_matmul(l, r)
+        {
+            return TensorPrimitive::Float(out);
         }
 
         // Fallback: identical to the default `QTensorOps::q_matmul` — dequantize any quantized
