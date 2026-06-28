@@ -420,6 +420,32 @@ impl ModuleOps<Flex> for Flex {
         }
     }
 
+    fn adaptive_avg_pool3d(x: FloatTensor<Flex>, output_size: [usize; 3]) -> FloatTensor<Flex> {
+        match x.dtype() {
+            DType::F32 => pool::adaptive_avg_pool3d_f32(x, output_size),
+            DType::F64 => pool::adaptive_avg_pool3d_f64(x, output_size),
+            DType::F16 => pool::adaptive_avg_pool3d_f16(x, output_size),
+            DType::BF16 => pool::adaptive_avg_pool3d_bf16(x, output_size),
+            dtype => panic!("adaptive_avg_pool3d: unsupported dtype {:?}", dtype),
+        }
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Flex>,
+        grad: FloatTensor<Flex>,
+    ) -> FloatTensor<Flex> {
+        match x.dtype() {
+            DType::F32 => pool::adaptive_avg_pool3d_backward_f32(x, grad),
+            DType::F64 => pool::adaptive_avg_pool3d_backward_f64(x, grad),
+            DType::F16 => pool::adaptive_avg_pool3d_backward_f16(x, grad),
+            DType::BF16 => pool::adaptive_avg_pool3d_backward_bf16(x, grad),
+            dtype => panic!(
+                "adaptive_avg_pool3d_backward: unsupported dtype {:?}",
+                dtype
+            ),
+        }
+    }
+
     fn max_pool2d(
         x: FloatTensor<Flex>,
         kernel_size: [usize; 2],

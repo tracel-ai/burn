@@ -1833,6 +1833,52 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         panic!("Can't differentiate adaptive avg pool2d backward.");
     }
 
+    fn adaptive_avg_pool3d(x: AutodiffTensor<B>, output_size: [usize; 3]) -> AutodiffTensor<B> {
+        #[derive(Debug)]
+        struct AdaptiveAvgPool3D;
+
+        impl<B: Backend> Backward<B, 1> for AdaptiveAvgPool3D {
+            type State = NodeId;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_parent] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+                let state = checkpointer.retrieve_node_output(ops.state);
+
+                if let Some(node) = node_parent {
+                    let grad = B::adaptive_avg_pool3d_backward(state, grad);
+                    grads.register::<B>(node.id, grad);
+                }
+            }
+        }
+
+        match AdaptiveAvgPool3D
+            .prepare::<C>([x.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let x_state = prep.checkpoint(&x);
+                prep.finish(x_state, B::adaptive_avg_pool3d(x.primitive, output_size))
+            }
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::adaptive_avg_pool3d(x.primitive, output_size))
+            }
+        }
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        _x: AutodiffTensor<B>,
+        _grad: AutodiffTensor<B>,
+    ) -> AutodiffTensor<B> {
+        panic!("Can't differentiate adaptive avg pool3d backward.");
+    }
+
     fn interpolate(
         x: AutodiffTensor<B>,
         output_size: [usize; 2],

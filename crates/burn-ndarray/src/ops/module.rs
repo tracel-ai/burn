@@ -1,5 +1,8 @@
 use super::{
-    adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
+    adaptive_avgpool::{
+        adaptive_avg_pool2d, adaptive_avg_pool2d_backward, adaptive_avg_pool3d,
+        adaptive_avg_pool3d_backward,
+    },
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv_transpose2d, conv_transpose3d, conv2d, conv3d},
     deform_conv::{backward::deform_conv2d_backward, deform_conv2d},
@@ -269,6 +272,23 @@ impl ModuleOps<Self> for NdArray {
     ) -> FloatTensor<Self> {
         module_op!(inp(x, grad), opt(), E, |x, grad| {
             adaptive_avg_pool2d_backward::<E>(x, grad).into()
+        })
+    }
+
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        module_op!(inp(x), opt(), E, |x| adaptive_avg_pool3d::<E>(
+            x,
+            output_size
+        )
+        .into())
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, grad), opt(), E, |x, grad| {
+            adaptive_avg_pool3d_backward::<E>(x, grad).into()
         })
     }
 
