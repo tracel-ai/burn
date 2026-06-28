@@ -547,6 +547,14 @@ pub trait ModuleOps<B: Backend> {
     fn adaptive_avg_pool2d(x: FloatTensor<B>, output_size: [usize; 2]) -> FloatTensor<B>;
     /// Backward pass for the [adaptive avg pooling 2d](ModuleOps::adaptive_avg_pool2d) operation.
     fn adaptive_avg_pool2d_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B>;
+    /// Three dimensional adaptive avg pooling.
+    ///
+    /// # Shapes
+    ///
+    /// x: [batch_size, channels, depth, height, width],
+    fn adaptive_avg_pool3d(x: FloatTensor<B>, output_size: [usize; 3]) -> FloatTensor<B>;
+    /// Backward pass for the [adaptive avg pooling 3d](ModuleOps::adaptive_avg_pool3d) operation.
+    fn adaptive_avg_pool3d_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B>;
     /// One dimensional adaptive avg pooling.
     ///
     /// # Shapes

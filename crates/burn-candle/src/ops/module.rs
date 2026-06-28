@@ -286,6 +286,17 @@ impl ModuleOps<Self> for Candle {
         panic!("adaptive_avg_pool2d_backward is not supported by Candle")
     }
 
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        panic!("adaptive_avg_pool3d is not supported by Candle")
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        panic!("adaptive_avg_pool3d_backward is not supported by Candle")
+    }
+
     fn interpolate(
         x: FloatTensor<Self>,
         output_size: [usize; 2],
