@@ -18,8 +18,8 @@ use burn_tensor::{Bool, Int, Tensor};
 pub enum ParamGroupError {
     /// Parameter used to match are invalid.
     InvalidParameter(String),
-    /// Failed to create the group.
-    GroupInitError(String),
+    /// Use of an invalid Regex pattern.
+    InvalidPatternError(String),
 }
 
 #[derive(Default)]
@@ -48,7 +48,7 @@ impl ModuleVisitor for ParamIdCollector {
 }
 
 /// A way to represent a group of parameter for a Burn module.
-#[derive(Clone)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ParamGroup {
     matcher: ParamGroupMatcher,
     excludes: Option<ParamGroupMatcher>,
@@ -140,7 +140,7 @@ impl ParamGroup {
     ///
     /// # Errors
     /// Returns a [ParamGroupError::GroupInitError] if the string cannot be compiled into a valid regex.
-    pub fn from_regex<S: AsRef<str>>(pattern: S) -> Result<Self, ParamGroupError> {
+    pub fn from_regex(pattern: impl Into<String>) -> Result<Self, ParamGroupError> {
         ParamGroup::from_regexes(vec![pattern])
     }
 
@@ -150,17 +150,18 @@ impl ParamGroup {
     ///
     /// # Errors
     /// Returns a [ParamGroupError::GroupInitError] if the strings cannot be compiled into a valid regex.
-    pub fn from_regexes<I, S>(patterns: I) -> Result<Self, ParamGroupError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
+    pub fn from_regexes(patterns: Vec<impl Into<String>>) -> Result<Self, ParamGroupError> {
         let mut new_patterns = vec![];
         for pattern in patterns {
-            new_patterns.push(
-                Regex::new(pattern.as_ref())
-                    .map_err(|e| ParamGroupError::GroupInitError(e.to_string()))?,
-            );
+            let s = pattern.into();
+            match Regex::new(s.clone().as_str()) {
+                Ok(_) => new_patterns.push(s),
+                Err(e) => {
+                    return Err(ParamGroupError::InvalidPatternError(format!(
+                        "Invalid regex pattern: {e}"
+                    )));
+                }
+            }
         }
         Ok(Self {
             matcher: ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(new_patterns))),
@@ -174,17 +175,22 @@ impl ParamGroup {
     ///
     /// # Errors
     /// Returns a [ParamGroupError::GroupInitError] if the strings cannot be compiled into a valid regex.
-    pub fn from_any_regexes<I, S>(patterns: I) -> Result<Self, ParamGroupError>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
+    pub fn from_any_regexes(patterns: Vec<impl Into<String>>) -> Result<Self, ParamGroupError> {
         let mut matchers = vec![];
         for pattern in patterns {
-            matchers.push(ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(vec![
-                Regex::new(pattern.as_ref())
-                    .map_err(|e| ParamGroupError::GroupInitError(e.to_string()))?,
-            ]))));
+            let s = pattern.into();
+            match Regex::new(s.clone().as_str()) {
+                Ok(_) => {
+                    matchers.push(ParamGroupMatcher::Path(Arc::new(PathMatcher::Regex(vec![
+                        s,
+                    ]))))
+                }
+                Err(e) => {
+                    return Err(ParamGroupError::InvalidPatternError(format!(
+                        "Invalid regex pattern: {e}"
+                    )));
+                }
+            }
         }
 
         let mut main_matcher = if let Some(value) = matchers.pop() {
@@ -239,7 +245,7 @@ impl ParamGroup {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 enum ParamGroupMatcher {
     All,
     Explicit(Arc<Vec<ParamId>>),
@@ -266,7 +272,7 @@ impl ParamGroupMatcher {
                         "Matching on a path requires giving `matches` a path.".into(),
                     )
                 })
-                .map(|p| matcher.matches(p)),
+                .map(|p| matcher.matches(p))?,
             Self::Combined(matchers) => Ok(matchers.iter().try_fold(false, |acc, m| {
                 m.matches(id, path).map(|matched| acc || matched)
             })?),
@@ -327,17 +333,31 @@ impl ParamGroupMatcher {
 enum PathMatcher {
     Exact(Vec<String>),
     #[cfg(feature = "std")]
-    Regex(Vec<Regex>),
+    Regex(Vec<String>),
     Include(Vec<String>),
 }
 
 impl PathMatcher {
-    pub(crate) fn matches(&self, path: &str) -> bool {
+    pub(crate) fn matches(&self, path: &str) -> Result<bool, ParamGroupError> {
         match self {
-            PathMatcher::Exact(paths) => paths.iter().any(|p| p == path),
+            PathMatcher::Exact(paths) => Ok(paths.iter().any(|p| p == path)),
             #[cfg(feature = "std")]
-            PathMatcher::Regex(regexs) => regexs.iter().all(|r| r.is_match(path)),
-            PathMatcher::Include(includes) => includes.iter().all(|inc| path.contains(inc)),
+            PathMatcher::Regex(patterns) => patterns.iter().try_fold(true, |_, pattern| {
+                Regex::new(pattern.as_ref())
+                    .map_err(|e| ParamGroupError::InvalidPatternError(e.to_string()))
+                    .map(|re| re.is_match(path))
+            }),
+            PathMatcher::Include(includes) => Ok(includes.iter().all(|inc| path.contains(inc))),
+        }
+    }
+}
+
+impl std::fmt::Debug for PathMatcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Exact(arg0) => f.debug_tuple("Exact").field(arg0).finish(),
+            Self::Regex(arg0) => f.debug_tuple("Regex").field(arg0).finish(),
+            Self::Include(arg0) => f.debug_tuple("Include").field(arg0).finish(),
         }
     }
 }
