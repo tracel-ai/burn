@@ -97,9 +97,9 @@ impl std::fmt::Display for Split {
     }
 }
 
-impl Into<&'static str> for Split {
-    fn into(self) -> &'static str {
-        match self {
+impl From<Split> for &'static str {
+    fn from(value: Split) -> Self {
+        match value {
             Split::Train => "train",
             Split::Valid => "valid",
             Split::Test(_) => "test",
