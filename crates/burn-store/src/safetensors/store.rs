@@ -1051,6 +1051,7 @@ fn safetensor_dtype_to_burn(dtype: safetensors::Dtype) -> Result<DType, Safetens
         Dtype::U32 => Ok(DType::U32),
         Dtype::U8 => Ok(DType::U8),
         Dtype::BOOL => Ok(DType::Bool(BoolStore::Native)),
+        Dtype::C64 => Ok(DType::Complex32),
         _ => Err(SafetensorsStoreError::Other(format!(
             "Unsupported dtype: {:?}",
             dtype
@@ -1064,7 +1065,7 @@ fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsS
 
     match dtype {
         DType::F64 => Ok(Dtype::F64),
-        DType::F32 | DType::Flex32 => Ok(Dtype::F32), // Flex32 is stored as F32
+        DType::F32 | DType::Flex32 => Ok(Dtype::F32),
         DType::F16 => Ok(Dtype::F16),
         DType::BF16 => Ok(Dtype::BF16),
         DType::I64 => Ok(Dtype::I64),
@@ -1082,6 +1083,10 @@ fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsS
         DType::Bool(BoolStore::U8) => Ok(Dtype::U8),
         DType::QFloat(_) => Err(SafetensorsStoreError::Other(
             "Quantized tensors not yet supported in safetensors".to_string(),
+        )),
+        DType::Complex32 => Ok(Dtype::C64),
+        DType::Complex64 => Err(SafetensorsStoreError::Other(
+            "Safetensors does not support Complex64 dtype".to_string(),
         )),
     }
 }

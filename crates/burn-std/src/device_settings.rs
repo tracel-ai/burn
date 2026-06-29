@@ -6,7 +6,7 @@ use cubecl_common::backtrace::BackTrace;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{BoolDType, DType, FloatDType, IntDType, QuantConfig};
+use crate::{BoolDType, ComplexDType, DType, FloatDType, IntDType, QuantConfig};
 
 /// Settings controlling the default data types for a specific device.
 ///
@@ -25,6 +25,8 @@ pub struct DeviceSettings {
     pub int_dtype: IntDType,
     /// Default bool data type.
     pub bool_dtype: BoolDType,
+    /// Default complex data type.
+    complex_dtype: Option<ComplexDType>,
     /// Quantization configuration.
     pub quantization: QuantConfig,
 }
@@ -35,12 +37,14 @@ impl DeviceSettings {
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
         bool_dtype: impl Into<BoolDType>,
+        complex_dtype: impl TryInto<ComplexDType>,
         quantization: QuantConfig,
     ) -> Self {
         Self {
             float_dtype: float_dtype.into(),
             int_dtype: int_dtype.into(),
             bool_dtype: bool_dtype.into(),
+            complex_dtype: complex_dtype.try_into().ok(),
             quantization,
         }
     }
@@ -50,8 +54,30 @@ impl DeviceSettings {
         float_dtype: impl Into<FloatDType>,
         int_dtype: impl Into<IntDType>,
         bool_dtype: impl Into<BoolDType>,
+        complex_dtype: impl TryInto<ComplexDType>,
     ) -> Self {
-        Self::new(float_dtype, int_dtype, bool_dtype, Default::default())
+        Self::new(
+            float_dtype,
+            int_dtype,
+            bool_dtype,
+            complex_dtype,
+            Default::default(),
+        )
+    }
+
+    /// Returns the complex data type of the device.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the device does not support complex data types.
+    pub fn complex_dtype(&self) -> ComplexDType {
+        self.complex_dtype
+            .expect("This device does not support complex data types")
+    }
+
+    /// Returns the complex data type of the device, if supported.
+    pub fn get_complex_dtype(&self) -> Option<ComplexDType> {
+        self.complex_dtype
     }
 }
 

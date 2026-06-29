@@ -206,7 +206,7 @@ where
 /// The L1 norm of the input tensor.
 pub fn l1_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
-    K: Numeric,
+    K: Numeric + Ordered,
 {
     x.abs().sum_dim(dim)
 }

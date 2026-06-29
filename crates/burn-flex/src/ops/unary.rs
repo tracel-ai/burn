@@ -70,7 +70,7 @@ where
 }
 
 /// Generic unary operation for any element type.
-fn unary_op_typed<E, Op>(mut tensor: FlexTensor, op: Op) -> FlexTensor
+pub fn unary_op_typed<E, Op>(mut tensor: FlexTensor, op: Op) -> FlexTensor
 where
     E: burn_backend::Element + bytemuck::Pod,
     Op: Fn(E) -> E,
@@ -87,9 +87,19 @@ where
         return tensor;
     }
 
+    unary_op_typed_convert(tensor, op)
+}
+
+pub fn unary_op_typed_convert<E, O, Op>(tensor: FlexTensor, op: Op) -> FlexTensor
+where
+    E: burn_backend::Element + bytemuck::Pod,
+    O: burn_backend::Element + bytemuck::Pod,
+    Op: Fn(E) -> O,
+{
     // Allocating path for non-contiguous or offset tensors
     let layout = tensor.layout().clone();
     let src: &[E] = tensor.storage();
+    let n = layout.num_elements();
 
     // Check for negative strides (from flip operations)
     let has_negative_strides = layout.strides().iter().any(|&s| s < 0);
@@ -98,21 +108,21 @@ where
     // Iterate in storage order (contiguous) and preserve original layout.
     // Only valid when all strides are positive.
     if !has_negative_strides && layout.start_offset() == 0 && src.len() == n {
-        let result: Vec<E> = src.iter().map(|&x| op(x)).collect();
+        let result: Vec<O> = src.iter().map(|&x| op(x)).collect();
         let bytes = Bytes::from_elems(result);
-        return FlexTensor::new(bytes, layout, E::dtype());
+        return FlexTensor::new(bytes, layout, O::dtype());
     }
 
     // Fallback for negative strides: use StridedIter for correct element order
     if has_negative_strides {
-        let result: Vec<E> = crate::strided_index::StridedIter::new(&layout)
+        let result: Vec<O> = crate::strided_index::StridedIter::new(&layout)
             .map(|idx| op(src[idx]))
             .collect();
         let bytes = Bytes::from_elems(result);
         return FlexTensor::new(
             bytes,
             Layout::contiguous(layout.shape().clone()),
-            E::dtype(),
+            O::dtype(),
         );
     }
 
@@ -153,7 +163,7 @@ where
     FlexTensor::new(
         bytes,
         Layout::contiguous(layout.shape().clone()),
-        E::dtype(),
+        O::dtype(),
     )
 }
 

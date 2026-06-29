@@ -2,7 +2,7 @@ use burn_std::DType;
 pub use burn_std::{ExecutionError, backtrace::BackTrace};
 
 use crate::distributed::DistributedOps;
-pub use crate::element::Element;
+pub use crate::element::{ComplexElement, Element};
 use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{TensorData, TensorMetadata};
@@ -29,6 +29,9 @@ pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
+
+    /// a complex primitive used for interleaved operations (if the backend supports it)
+    type ComplexTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
 }
 
 /// This trait defines all types and functions needed for a backend to be used with burn.

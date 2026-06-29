@@ -16,10 +16,11 @@ pub use backend::*;
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
 pub use burn_std::{
-    AllocationProperty, BoolDType, BoolStore, Bytes, DType, DataError, DeviceHandle, Distribution,
-    DistributionSampler, DistributionSamplerKind, Element, ElementConversion, ElementEq,
-    ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar, SplitPolicy, TensorData,
-    Tolerance, bf16, distribution, element, f16, stream_id::StreamId,
+    AllocationProperty, BoolDType, BoolStore, Bytes, ComplexDType, ComplexScalar, DType, DataError,
+    DeviceHandle, Distribution, DistributionSampler, DistributionSamplerKind, Element,
+    ElementConversion, ElementEq, ElementOrdered, ElementRandom, FloatDType, IntDType, Scalar,
+    SplitPolicy, TensorData, Tolerance, bf16, complex_utils, distribution, element, f16,
+    stream_id::StreamId,
 };
 
 /// Shape definition.
@@ -73,6 +74,7 @@ mod cube_wgpu {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U32),
+                None,
                 Default::default(),
             )
         }
@@ -83,6 +85,7 @@ mod cube_wgpu {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
+                None,
                 Default::default(),
             )
         }
@@ -101,6 +104,7 @@ mod cube_cuda {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
+                None,
                 Default::default(),
             )
         }
@@ -119,6 +123,7 @@ mod cube_cpu {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
+                None,
                 Default::default(),
             )
         }
@@ -137,6 +142,7 @@ mod cube_hip {
                 DType::F32,
                 DType::I32,
                 DType::Bool(BoolStore::U8),
+                None,
                 Default::default(),
             )
         }

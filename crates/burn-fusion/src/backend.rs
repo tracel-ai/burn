@@ -4,7 +4,7 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendTypes, DType, DeviceOps, ExecutionError,
+    Backend, BackendTypes, DType, DeviceOps, ExecutionError, UnimplementedTensorPrimitive,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -29,6 +29,8 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
+    type ComplexTensorPrimitive =
+        UnimplementedTensorPrimitive<FusionTensor<B::FusionRuntime>, B::Device>;
 }
 
 impl<B: FusionBackend> Backend for Fusion<B> {

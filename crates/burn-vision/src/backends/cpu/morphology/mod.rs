@@ -98,6 +98,9 @@ fn morph_impl<B: Element>(
             morph_bool::<B>(data, shape, kernel, op, iter, btype, bvalue)
         }
         DType::QFloat(_) => unimplemented!(),
+        DType::Complex32 | DType::Complex64 => {
+            panic!("Morphological operations are not supported for complex tensors")
+        }
     }
 }
 

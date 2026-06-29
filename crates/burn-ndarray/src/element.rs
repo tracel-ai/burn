@@ -1,4 +1,5 @@
 use burn_backend::Element;
+use burn_std::ElementComparison;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -10,7 +11,8 @@ use num_traits::Pow;
 use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
-pub trait FloatNdArrayElement: NdArrayElement + Signed + core::cmp::PartialOrd<Self>
+pub trait FloatNdArrayElement:
+    NdArrayElement + Signed + core::cmp::PartialOrd<Self> + bytemuck::Pod + ElementComparison
 where
     Self: Sized,
 {

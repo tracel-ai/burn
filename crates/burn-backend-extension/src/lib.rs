@@ -664,7 +664,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
             if **kind == TensorKind::Float {
                 quote! {
                     let #name = match *#name {
-                        burn::backend::DispatchTensorKind::#b_ident(t) => t.autodiff(),
+                        burn::backend::DispatchTensorKind::#b_ident(t) => t.autodiff_float(),
                         _ => unreachable!("Autodiff backend mismatch"),
                     };
                 }

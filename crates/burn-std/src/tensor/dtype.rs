@@ -22,6 +22,8 @@ pub enum DType {
     U16,
     U8,
     Bool(BoolStore),
+    Complex64,
+    Complex32,
     QFloat(QuantScheme),
 }
 
@@ -53,6 +55,8 @@ impl DType {
                 BoolStore::U8 => core::mem::size_of::<u8>(),
                 BoolStore::U32 => core::mem::size_of::<u32>(),
             },
+            DType::Complex64 => core::mem::size_of::<f64>() * 2,
+            DType::Complex32 => core::mem::size_of::<f32>() * 2,
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),
@@ -95,6 +99,11 @@ impl DType {
         matches!(self, DType::Bool(_))
     }
 
+    /// Returns true if the data type is a complex type
+    pub fn is_complex(&self) -> bool {
+        matches!(self, DType::Complex64 | DType::Complex32)
+    }
+
     /// Returns float precision info if this is a float dtype, `None` otherwise.
     ///
     /// Analogous to `torch.finfo(dtype)` or `numpy.finfo(dtype)`.
@@ -105,6 +114,9 @@ impl DType {
             DType::Flex32 => Some(FloatDType::Flex32.finfo()),
             DType::F16 => Some(FloatDType::F16.finfo()),
             DType::BF16 => Some(FloatDType::BF16.finfo()),
+            // mirroring NumPy/PyTorch behavior of returning finfo for the underlying real type of complex dtypes
+            DType::Complex32 => Some(FloatDType::F32.finfo()),
+            DType::Complex64 => Some(FloatDType::F64.finfo()),
             _ => None,
         }
     }
@@ -130,6 +142,8 @@ impl DType {
                 BoolStore::U8 => "bool(u8)",
                 BoolStore::U32 => "bool(u32)",
             },
+            DType::Complex64 => "complex64",
+            DType::Complex32 => "complex32",
             DType::QFloat(_) => "qfloat",
         }
     }
@@ -312,6 +326,47 @@ impl From<BoolDType> for DType {
             BoolDType::Native => DType::Bool(BoolStore::Native),
             BoolDType::U8 => DType::Bool(BoolStore::U8),
             BoolDType::U32 => DType::Bool(BoolStore::U32),
+        }
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum ComplexDType {
+    Complex64,
+    Complex32,
+}
+
+impl From<DType> for ComplexDType {
+    fn from(value: DType) -> Self {
+        match value {
+            DType::Complex64 => ComplexDType::Complex64,
+            DType::Complex32 => ComplexDType::Complex32,
+            _ => panic!("Expected complex data type, got {value:?}"),
+        }
+    }
+}
+
+// A lot of this is a workaround for DeviceSettings needing to be constructed before we can check if the device supports complex dtypes,
+// which is a chicken-and-egg problem. By making ComplexDType separate from DType and fallible to convert from DType,
+//  we can represent unsupported complex dtypes as `None` and avoid the need for a sentinel `Unsupported` variant in DType.
+impl TryFrom<Option<DType>> for ComplexDType {
+    fn try_from(value: Option<DType>) -> Result<Self, Self::Error> {
+        match value {
+            Some(DType::Complex64) => Ok(ComplexDType::Complex64),
+            Some(DType::Complex32) => Ok(ComplexDType::Complex32),
+            _ => Err(()),
+        }
+    }
+
+    type Error = ();
+}
+
+impl From<ComplexDType> for DType {
+    fn from(value: ComplexDType) -> Self {
+        match value {
+            ComplexDType::Complex64 => DType::Complex64,
+            ComplexDType::Complex32 => DType::Complex32,
         }
     }
 }

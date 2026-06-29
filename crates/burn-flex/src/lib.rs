@@ -32,7 +32,7 @@ compile_error!(
 mod backend;
 mod layout;
 mod qtensor;
-mod strided_index;
+pub mod strided_index;
 mod tensor;
 
 #[doc(hidden)]
