@@ -10,6 +10,10 @@ mod link;
 pub mod node;
 
 #[cfg(feature = "server")]
+pub mod server;
+#[cfg(feature = "server")]
+mod time;
+#[cfg(feature = "server")]
 mod transfer;
 #[cfg(feature = "server")]
 pub(crate) use transfer::IrohTransfer;

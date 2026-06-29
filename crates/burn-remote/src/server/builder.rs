@@ -140,7 +140,12 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
             }
             #[cfg(feature = "iroh")]
             Channel::Iroh { secret } => {
-                super::iroh::start_iroh_async::<B>(*secret, self.devices, self.custom_ops).await;
+                crate::transport::iroh::server::start_iroh_async::<B>(
+                    *secret,
+                    self.devices,
+                    self.custom_ops,
+                )
+                .await;
             }
         }
     }

@@ -17,10 +17,11 @@ use crate::{
         spawn::{os_shutdown_signal, spawn_detached},
     },
     telemetry::TelemetryProbe,
-    transport::iroh::{
-        IrohTransfer,
-        node::{RemoteNode, StreamKind},
-    },
+};
+
+use super::{
+    IrohTransfer,
+    node::{RemoteNode, StreamKind},
 };
 
 /// Information presented to a compute node before a remote session is accepted.

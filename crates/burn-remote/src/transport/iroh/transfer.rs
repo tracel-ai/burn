@@ -80,7 +80,7 @@ impl<B: BackendIr> IrohTransfer<B> {
         capability: TransferCapability,
         remote: iroh::EndpointId,
     ) -> Result<bytes::Bytes, String> {
-        crate::server::time::timeout(TRANSFER_WAIT_TIMEOUT, async {
+        super::time::timeout(TRANSFER_WAIT_TIMEOUT, async {
             loop {
                 let notified = self.exposed_notify.notified();
                 tokio::pin!(notified);
@@ -129,7 +129,7 @@ impl<B: BackendIr> IrohTransfer<B> {
 
         let exposed = self.exposed.clone();
         crate::server::spawn::spawn_detached(async move {
-            crate::server::time::sleep(TRANSFER_CAPABILITY_TTL).await;
+            super::time::sleep(TRANSFER_CAPABILITY_TTL).await;
             exposed.lock().await.remove(&capability);
         });
     }
