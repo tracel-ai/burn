@@ -15,10 +15,7 @@ use crate::transport::iroh::node::RemoteNode;
 #[cfg(feature = "websocket")]
 use burn_communication::{Address, ProtocolClient};
 
-/// How to reach a remote compute peer — the transport-specific dial config.
-///
-/// Pure, comparable config with no runtime state: the executor captured at device construction is
-/// carried separately by the device registry, not embedded here.
+/// Everything needed to establish a session with a remote compute peer.
 #[derive(Clone, Debug)]
 pub(crate) enum RemoteEndpoint {
     #[cfg(feature = "iroh")]

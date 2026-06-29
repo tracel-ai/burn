@@ -1,9 +1,4 @@
 //! The client session runtime.
-//!
-//! A remote device captures a runtime handle ([`Executor`]) at construction — in whatever runtime
-//! owns the transport — and the device registry carries it per device. The session's writer and
-//! response-demux tasks are then spawned later (on the device-runner thread, off cubecl's global
-//! device-registry lock) without depending on an ambient runtime being present at that point.
 
 /// Process-global Tokio runtime for sessions opened outside an ambient runtime.
 ///
