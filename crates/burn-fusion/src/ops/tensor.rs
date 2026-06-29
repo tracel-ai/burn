@@ -390,6 +390,8 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             client.create_empty_handle()
         });
 
+        println!("In fusion!!");
+
         client
             .register(
                 streams,

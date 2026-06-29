@@ -323,7 +323,7 @@ impl ParamGroupMatcher {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 enum PathMatcher {
     Exact(Vec<String>),
     #[cfg(feature = "std")]

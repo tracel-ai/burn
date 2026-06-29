@@ -83,20 +83,23 @@ impl ComposedLrSchedulerConfig {
     }
 }
 
+// TODO: Change file
 #[derive(Config, Debug)]
-enum LrSchedulerConfig {
+pub(crate) enum LrSchedulerConfig {
     Linear(LinearLrSchedulerConfig),
     Cosine(CosineAnnealingLrSchedulerConfig),
     Exponential(ExponentialLrSchedulerConfig),
     Noam(NoamLrSchedulerConfig),
 }
 
+// TODO: Change file
 #[derive(Clone)]
-enum LrSchedulerItem {
+pub(crate) enum LrSchedulerItem {
     Linear(LinearLrScheduler),
     Cosine(CosineAnnealingLrScheduler),
     Exponential(ExponentialLrScheduler),
     Noam(NoamLrScheduler),
+    Composed(ComposedLrScheduler),
 }
 
 impl LrScheduler for ComposedLrScheduler {
@@ -113,6 +116,7 @@ impl LrScheduler for ComposedLrScheduler {
             LrSchedulerItem::Cosine(item) => item.step(),
             LrSchedulerItem::Exponential(item) => item.step(),
             LrSchedulerItem::Noam(item) => item.step(),
+            LrSchedulerItem::Composed(composed_lr_scheduler) => todo!(),
         }) {
             step = match self.reduction {
                 SchedulerReduction::Avg => step + (lr / num_scheduler),
@@ -132,6 +136,7 @@ impl LrScheduler for ComposedLrScheduler {
                 LrSchedulerItem::Cosine(item) => item.to_record(),
                 LrSchedulerItem::Exponential(item) => item.to_record(),
                 LrSchedulerItem::Noam(item) => item.to_record(),
+                LrSchedulerItem::Composed(composed_lr_scheduler) => todo!(),
             };
             record = record.with_record(&index.to_string(), sub);
         }
@@ -152,6 +157,7 @@ impl LrScheduler for ComposedLrScheduler {
                         LrSchedulerItem::Exponential(item.load_record(sub))
                     }
                     LrSchedulerItem::Noam(item) => LrSchedulerItem::Noam(item.load_record(sub)),
+                    LrSchedulerItem::Composed(composed_lr_scheduler) => todo!(),
                 }
             })
             .collect();

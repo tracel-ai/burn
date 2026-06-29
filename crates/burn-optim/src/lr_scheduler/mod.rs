@@ -7,6 +7,9 @@ pub mod composed;
 /// Linear learning rate scheduler
 pub mod linear;
 
+/// Multi learning rate scheduler
+pub mod multi;
+
 /// Noam learning rate scheduler
 pub mod noam;
 

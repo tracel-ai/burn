@@ -22,12 +22,14 @@ rocm = ["burn/rocm"]
 remote = ["burn/remote"]
 
 [dependencies]
-burn = { workspace = true, features = [
+burn = { workspace = true, default-features = false, features = [
     "train",
     "vision",
     "metrics",
-    "fusion",
+    # "fusion",
     "flex",
+    "std",
+    "tui"
 ] }
 
 log = { workspace = true }
