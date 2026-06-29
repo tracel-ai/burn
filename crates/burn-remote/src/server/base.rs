@@ -10,13 +10,13 @@ use tokio_util::sync::CancellationToken;
 use burn_communication::{
     ProtocolServer,
     external_comm::{ExternalCommServer, ExternalCommService},
-    util::os_shutdown_signal,
     websocket::{WebSocket, WsServer},
 };
 
 use super::{
     service::{FetchHandler, SubmitHandler},
     session::SessionManager,
+    spawn::os_shutdown_signal,
     transfer::WebSocketTransfer,
 };
 

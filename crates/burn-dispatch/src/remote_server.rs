@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
-use burn_remote::server::{CustomOpRegistry, PeerAuthorizer, RemoteProtocol};
+use burn_remote::server::{PeerAuthorizer, RemoteProtocol};
 use burn_remote::telemetry::TelemetryProbe;
-use burn_remote::{Endpoint, RemoteNode, RemoteSecret};
+use burn_remote::{Endpoint, RemoteNode};
 
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice, DispatchDeviceId};
@@ -126,30 +126,33 @@ macro_rules! with_backend {
     };
 }
 
-/// Start a websocket remote server, blocking the current thread.
+/// Start a remote-execution server for `device`'s backend, blocking the current thread.
 ///
-/// The dispatch device selects which backend executes operations server-side; the server
-/// then hosts that backend's devices (single host, multi-device), indexed by hardware device
-/// index. See [`with_backend`] for how the backend is resolved and [`host_devices`] for how its
-/// device list is chosen.
-#[cfg(all(feature = "remote-websocket", not(target_family = "wasm")))]
-pub fn start_websocket(device: DispatchDevice, port: u16) {
+/// The dispatch device selects which backend executes operations server-side; `channel` selects the
+/// transport. The server hosts that backend's devices (single host, multi-device), indexed by
+/// hardware device index. See [`with_backend`] for how the backend is resolved, [`host_devices`]
+/// for how its device list is chosen, and [`start_async`] for the async counterpart.
+///
+/// Both transports run through the one [`RemoteServerBuilder`](burn_remote::server::RemoteServerBuilder)
+/// entry point; the builder picks the protocol from `channel`.
+#[cfg(not(target_family = "wasm"))]
+pub fn start(device: DispatchDevice, channel: Channel) {
     with_backend!(device, |B, devices| {
         burn_remote::server::RemoteServerBuilder::<B>::new(devices)
-            .port(port)
+            .channel(channel)
             .start()
     })
 }
 
-/// Start a websocket remote server on the caller's tokio runtime.
+/// Start a remote-execution server for `device`'s backend on the caller's tokio runtime.
 ///
-/// The async counterpart of [`start_websocket`]; the two share the same backend-resolution match
-/// (see [`with_backend`]) and differ only in awaiting the server future.
-#[cfg(all(feature = "remote-websocket", not(target_family = "wasm")))]
-pub async fn start_websocket_async(device: DispatchDevice, port: u16) {
+/// The async counterpart of [`start`]; the two share the same backend-resolution match (see
+/// [`with_backend`]) and differ only in awaiting the server future.
+#[cfg(not(target_family = "wasm"))]
+pub async fn start_async(device: DispatchDevice, channel: Channel) {
     with_backend!(device, |B, devices| {
         burn_remote::server::RemoteServerBuilder::<B>::new(devices)
-            .port(port)
+            .channel(channel)
             .start_async()
             .await
     })
@@ -177,22 +180,5 @@ pub fn remote_protocol(
             protocol = protocol.with_authorizer_arc(authorizer);
         }
         RemoteProtocol::new(protocol)
-    })
-}
-
-/// Start an Iroh remote compute server with the identity carried by `secret`, blocking the thread.
-#[cfg(not(target_family = "wasm"))]
-pub fn start_iroh(device: DispatchDevice, secret: RemoteSecret) {
-    with_backend!(device, |B, devices| {
-        burn_remote::server::start_iroh::<B>(secret, devices, CustomOpRegistry::default())
-    })
-}
-
-/// Start an Iroh remote compute server on the caller's async runtime.
-#[cfg(not(target_family = "wasm"))]
-pub async fn start_iroh_async(device: DispatchDevice, secret: RemoteSecret) {
-    with_backend!(device, |B, devices| {
-        burn_remote::server::start_iroh_async::<B>(secret, devices, CustomOpRegistry::default())
-            .await
     })
 }

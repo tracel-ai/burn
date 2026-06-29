@@ -14,7 +14,7 @@ use crate::{
     server::{
         service::{FetchService, SubmitService, parse_init_handshake},
         session::SessionManager,
-        spawn::spawn_detached,
+        spawn::{os_shutdown_signal, spawn_detached},
         transfer::IrohTransfer,
     },
     shared::{PROTOCOL_VERSION, RemoteMessage, SessionInfo, TaskResponse, TaskResponseContent},
@@ -358,9 +358,10 @@ impl RemoteNode {
 /// Serve Burn Remote over Iroh until the process receives its shutdown signal.
 ///
 /// Binds a server endpoint with the stable identity carried by `secret` and hosts `devices` as the
-/// sole protocol on it.
+/// sole protocol on it. Reached through [`RemoteServerBuilder`](super::RemoteServerBuilder) (the
+/// single turnkey entry point); use [`RemoteNode::protocol`] for composition with other protocols.
 #[cfg(not(target_family = "wasm"))]
-pub async fn start_iroh_async<B: BackendIr>(
+pub(crate) async fn start_iroh_async<B: BackendIr>(
     secret: crate::RemoteSecret,
     devices: Vec<Device<B>>,
     custom_ops: CustomOpRegistry<B>,
@@ -375,41 +376,5 @@ pub async fn start_iroh_async<B: BackendIr>(
     os_shutdown_signal().await;
     if let Err(err) = router.shutdown().await {
         log::warn!("Burn Remote Iroh router shutdown failed: {err}");
-    }
-}
-
-/// Serve Burn Remote over Iroh, blocking the current thread.
-#[cfg(not(target_family = "wasm"))]
-#[tokio::main]
-pub async fn start_iroh<B: BackendIr>(
-    secret: crate::RemoteSecret,
-    devices: Vec<Device<B>>,
-    custom_ops: CustomOpRegistry<B>,
-) {
-    start_iroh_async::<B>(secret, devices, custom_ops).await;
-}
-
-/// Resolve when the process is asked to stop (Ctrl+C, or `SIGTERM` on Unix).
-#[cfg(not(target_family = "wasm"))]
-async fn os_shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-    };
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
     }
 }

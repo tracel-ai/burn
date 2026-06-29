@@ -19,7 +19,3 @@ pub use burn_router::{CustomOpHandler, CustomOpRegistry};
 pub use ::iroh::protocol::{Router, RouterBuilder};
 #[cfg(feature = "iroh")]
 pub use iroh::{AuthorizationRequest, IrohRemoteProtocol, PeerAuthorizer, RemoteProtocol};
-// The blocking process entry points exist only on native targets; the browser server is driven by
-// the JS event loop and composed through `RemoteNode::protocol(...).serve()` directly.
-#[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-pub use iroh::{start_iroh, start_iroh_async};

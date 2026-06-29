@@ -116,15 +116,7 @@ impl<'a> From<RemoteProtocolBuilder<'a>> for RemoteProtocol {
 /// makes no sense).
 #[cfg(not(target_family = "wasm"))]
 pub fn start(device: Device, channel: Channel) {
-    match channel {
-        Channel::Iroh { secret } => {
-            burn_dispatch::remote_server::start_iroh(device.into_dispatch(), *secret)
-        }
-        #[cfg(feature = "remote-websocket")]
-        Channel::WebSocket { port } => {
-            burn_dispatch::remote_server::start_websocket(device.into_dispatch(), port)
-        }
-    }
+    burn_dispatch::remote_server::start(device.into_dispatch(), channel)
 }
 
 /// Start a remote-execution server on the caller's async runtime.
@@ -132,13 +124,5 @@ pub fn start(device: Device, channel: Channel) {
 /// See [`start`] for backend-selection rules.
 #[cfg(not(target_family = "wasm"))]
 pub async fn start_async(device: Device, channel: Channel) {
-    match channel {
-        Channel::Iroh { secret } => {
-            burn_dispatch::remote_server::start_iroh_async(device.into_dispatch(), *secret).await
-        }
-        #[cfg(feature = "remote-websocket")]
-        Channel::WebSocket { port } => {
-            burn_dispatch::remote_server::start_websocket_async(device.into_dispatch(), port).await
-        }
-    }
+    burn_dispatch::remote_server::start_async(device.into_dispatch(), channel).await
 }
