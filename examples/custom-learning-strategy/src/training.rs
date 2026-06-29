@@ -150,7 +150,10 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
             log::info!("Executing training step for epoch {}", epoch,);
 
             // Single device / dataloader
-            event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
+            event_processor.process_train(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: train_total_items,
+            });
             let mut iterator = dataloader_train.iter();
             let mut iteration = 0;
 
@@ -184,7 +187,10 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
 
             let model_valid = learner.model().valid();
 
-            event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
+            event_processor.process_valid(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: valid_total_items,
+            });
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
 
