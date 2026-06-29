@@ -1,28 +1,19 @@
 //! Remote-execution server entry points.
 //!
 //! Hosts a Burn server that executes tensor operations on behalf of remote clients. The backend is
-//! selected by the [`Device`] passed in (the same handle tensor ops use); the transport is selected
-//! by [`Channel`]. Iroh is the primary transport; WebSocket is retained for compatibility.
+//! selected by the Device passed in; the transport is selected by Channel. Iroh is the primary
+//! transport; WebSocket is retained for compatibility.
 //!
-//! Two ways to serve, for the two kinds of user:
+//! Two serving modes:
 //!
-//! - **Turnkey** ([`start`] / [`start_async`]): no exposure to Iroh at all. Pick an identity with
-//!   [`RemoteSecret`] (the counterpart to choosing a port for WebSocket); clients dial its
-//!   [`id`](RemoteSecret::id).
-//! - **Composed** ([`protocol`]): for an application that owns its own Iroh [`Router`]. Burn hands
-//!   back only its protocol handler, to register alongside the application's own protocols.
+//! - Turnkey (start / start_async): no Iroh exposure. Pick an identity with RemoteSecret and pass
+//!   it in a Channel::Iroh; clients dial its public id.
+//! - Composed (protocol): for applications that own their own Iroh router. Burn hands back only
+//!   its protocol handler to register alongside the application's own protocols.
 //!
-//! ```rust,ignore
-//! use burn::{Device, server::{start, Channel, RemoteSecret}};
-//!
-//! let secret = RemoteSecret::random();
-//! println!("clients dial: {}", secret.id());
-//! start(Device::default(), Channel::Iroh { secret: Box::new(secret) });
-//! ```
-//!
-//! User-defined backends that implement `BackendIr` but aren't part of `DispatchDevice` build a
-//! `burn_remote::server::RemoteServerBuilder` directly with the concrete backend type; that is
-//! also how custom operations (backend extensions) are hosted, over either transport.
+//! User-defined backends that implement BackendIr but are not part of DispatchDevice use
+//! burn_remote::server::RemoteServerBuilder directly; that is also how custom operations
+//! (backend extensions) are hosted, over either transport.
 
 use std::sync::Arc;
 
@@ -40,25 +31,15 @@ use telemetry::TelemetryProbe;
 /// the whole stack shares one definition.
 pub use burn_dispatch::remote_server::Channel;
 
-/// Burn's protocol handler for `device`'s backend, to register on an application-owned Iroh router.
+/// Build Burn's protocol handler for `device`'s backend.
 ///
-/// This is the composition entry: Burn exposes only its protocol, and the application builds and
-/// owns the [`Router`], registering Burn under [`BURN_REMOTE_ALPN`] alongside its own protocols.
-/// Optionally attach telemetry or an authorization policy before building the handler.
-///
-/// ```rust,ignore
-/// let handler = burn::server::protocol(device, &endpoint).with_telemetry(probe).build();
-/// let router = Router::builder(endpoint)
-///     .accept(BURN_REMOTE_ALPN, handler)
-///     .accept(MY_ALPN, my_protocol)
-///     .spawn();
-/// ```
+/// Returns a builder to optionally attach telemetry and an authorizer before calling `build`.
+/// Register the result on an application-owned Iroh router under BURN_REMOTE_ALPN.
 pub fn protocol(device: Device, endpoint: &Endpoint) -> RemoteProtocolBuilder<'_> {
     RemoteProtocolBuilder::new(device, endpoint)
 }
 
-/// Configures the optional telemetry and authorization policy for [`protocol`], then builds the
-/// backend-erased [`RemoteProtocol`] handler.
+/// Configures optional telemetry and authorization for a RemoteProtocol handler.
 pub struct RemoteProtocolBuilder<'a> {
     device: Device,
     endpoint: &'a Endpoint,
@@ -77,7 +58,7 @@ impl<'a> RemoteProtocolBuilder<'a> {
         }
     }
 
-    /// Emit per-session telemetry into `probe` for live monitoring. Pair with
+    /// Attach a telemetry probe for per-session monitoring. Pair with
     /// [`telemetry::TelemetryProbe::channel`] to obtain a subscription a dashboard can drain.
     pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
         self.probe = Some(probe);
@@ -112,12 +93,12 @@ impl<'a> From<RemoteProtocolBuilder<'a>> for RemoteProtocol {
 ///
 /// The backend is determined by `device`: e.g. `Device::cuda(0)` runs ops on
 /// CUDA, `Device::flex()` on the Flex CPU backend. Autodiff devices are
-/// transparently stripped — the autodiff graph is a client-side concern.
+/// transparently stripped; the autodiff graph is a client-side concern.
 ///
 /// # Panics
 ///
 /// Panics if `device` selects a backend that doesn't support remote execution
-/// (currently `LibTorch`, or a `Remote` device — hosting on a remote device
+/// (currently `LibTorch`, or a `Remote` device; hosting on a remote device
 /// makes no sense).
 #[cfg(not(target_family = "wasm"))]
 pub fn start(device: Device, channel: Channel) {

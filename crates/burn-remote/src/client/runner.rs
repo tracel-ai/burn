@@ -161,17 +161,16 @@ impl RemoteClient {
 }
 
 #[derive(Clone, Debug)]
-/// The device contains the connection information of the server plus the index of the device
-/// to select on it.
+/// A remote compute device identified by its endpoint and device index.
 ///
-/// Two `RemoteDevice`s that share an `address` but differ in `device_index` point at distinct
-/// devices on the same server; they get distinct registry ids (and thus distinct service
-/// threads/connections), and a transfer between them is detected as same-host.
+/// Two RemoteDevices with the same endpoint but different indices point at distinct devices on
+/// the same peer; each gets its own registry id and service connection, and transfers between
+/// them take the same-peer fast path.
 pub struct RemoteDevice {
     pub(crate) endpoint: RemoteEndpoint,
-    /// The index of the device to select on the server (see [`endpoint_to_id`]).
+    /// Device index on the remote peer.
     pub(crate) device_index: u32,
-    /// The id of the device in the local registry, see [`endpoint_to_id`].
+    /// Local registry id for this device.
     pub(crate) id: u32,
 }
 
@@ -195,14 +194,13 @@ impl RemoteDevice {
 
     /// Create an Iroh remote device dialing `peer` from `endpoint`.
     ///
-    /// This is the entry behind `Device::remote_iroh`: the application owns the
-    /// [`Endpoint`](iroh::Endpoint) and Burn dials the compute peer from it.
+    /// The application owns the Iroh endpoint; Burn dials the compute peer from it.
     #[cfg(feature = "iroh")]
     pub fn iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr, device_index: usize) -> Self {
         Self::iroh_authorized(endpoint, peer, device_index, Vec::new())
     }
 
-    /// Like [`iroh`](Self::iroh), carrying an authorization credential.
+    /// Like [`iroh`](Self::iroh), but carries an authorization credential the server's PeerAuthorizer will check.
     #[cfg(feature = "iroh")]
     pub fn iroh_authorized(
         endpoint: &iroh::Endpoint,
@@ -235,21 +233,17 @@ impl RemoteDevice {
         get_client::<RemoteChannel>(self).ensure_connected();
     }
 
-    /// Establish the session for this device asynchronously, populating its settings and
-    /// device-count cells. This is the browser entry point: a wasm target cannot block to connect
-    /// on first use, so call this (and `.await` it) once before running any operation on the
-    /// device. Idempotent — a no-op once the session is up.
+    /// Establish the session asynchronously. Browser entry point: wasm cannot block to connect,
+    /// so call and await this once before using the device. No-op if already connected.
     #[cfg(target_family = "wasm")]
     pub async fn connect_async(&self) {
         get_client::<RemoteChannel>(self).connect_async().await;
     }
 
-    /// Initializes the client for this device using the specified protocol channel.
-    /// This is a no-op if the client already exists for this address.
+    /// Initialize the client for this device using a custom protocol channel.
     ///
-    /// Note this only creates the (lazy) service — the actual socket connection and handshake
-    /// open on first use. Use [`connect`](Self::connect) when you need the connection (and the
-    /// device's settings) established right away.
+    /// Only creates the lazy service; the socket and handshake open on first use. Call
+    /// [`connect`](Self::connect) when the connection and device settings are needed immediately.
     pub fn connect_with_channel<R: burn_router::RouterChannel<Device = Self>>(&self) {
         // `get_client` forces service initialization if the client doesn't exist yet;
         // `RemoteService::init` records the endpoint but defers the connect to first use.
@@ -266,7 +260,7 @@ impl RemoteDevice {
         self.endpoint.peer_addr()
     }
 
-    /// Compatibility string for the remote peer.
+    /// The peer address as a string. Prefer `peer_addr` for typed access.
     pub fn address(&self) -> String {
         self.peer_addr().to_string()
     }
@@ -276,14 +270,11 @@ impl RemoteDevice {
         self.device_index as usize
     }
 
-    /// List every device hosted by the server at `address`, one [`RemoteDevice`] per device
-    /// index the server exposes.
+    /// List every device hosted by the WebSocket server at `address`.
     ///
-    /// Connecting is required to learn how many devices the server hosts (the count rides on
-    /// the init handshake), so this establishes the connection to the server's default device
-    /// (index 0). The returned devices for the remaining indices connect lazily on first use,
-    /// matching [`Device::enumerate`](burn_backend::tensor::Device)'s behavior for local
-    /// backends.
+    /// Connects to index 0 to read the device count from the init handshake, then returns one
+    /// RemoteDevice per index. Remaining indices connect lazily on first use, matching the
+    /// behavior of [`Device::enumerate`](burn_backend::tensor::Device) for local backends.
     #[cfg(feature = "websocket")]
     pub fn enumerate_websocket(address: &str) -> Vec<Self> {
         // Device 0 always exists (a server must host at least one device); connecting to it
@@ -385,12 +376,12 @@ static TRANSFER_COUNTER: Mutex<Option<LocalTransferId>> = Mutex::new(None);
 /// Allocate the next process-unique [`LocalTransferId`] for a same-peer transfer.
 ///
 /// The id keys the server's transfer rendezvous (`local_comm` / `external_comm`), so two
-/// transfers that are ever in flight at the same time MUST get distinct ids — otherwise a `take`
+/// transfers that are ever in flight at the same time MUST get distinct ids; otherwise a `take`
 /// can pick up the wrong (or an overwritten) exposed primitive and its peer hangs forever. The
 /// counter is incremented **in place** in the static; `LocalTransferId` is `Copy`, so the
 /// earlier `transfer_counter.unwrap()` copied the value out and incremented a throwaway local,
-/// leaving every transfer after the first sharing id 1 — harmless sequentially, a deadlock under
-/// concurrency.
+/// leaving every transfer after the first sharing id 1 (harmless sequentially, a deadlock under
+/// concurrency).
 fn get_next_transfer_id() -> LocalTransferId {
     let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
     match transfer_counter.as_mut() {

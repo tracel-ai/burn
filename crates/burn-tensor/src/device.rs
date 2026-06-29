@@ -334,21 +334,11 @@ impl Device {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }
 
-    /// Legacy WebSocket remote device identified by a network address and device index.
+    /// Legacy WebSocket remote device. New integrations should prefer [`Device::remote_iroh`].
     ///
-    /// New integrations should prefer [`Device::remote_iroh`]. This compatibility API requires
-    /// a running [`burn-remote`](burn_dispatch::backends::remote) WebSocket server at the given
-    /// address. Operations on tensors created with this device are shipped to the server and
-    /// executed there. The `index` selects which of the server's devices to use (the server
-    /// hosts all of its backend's devices); use [`DeviceIndex::Default`] for the server's
-    /// default device. Two remote devices with the same address but different indices target
+    /// Connects to a burn-remote WebSocket server at the given address. `index` selects which of
+    /// the server's devices to use; two devices with the same address but different indices target
     /// distinct devices on the same host.
-    ///
-    /// ```rust,ignore
-    /// Device::remote_websocket("ws://host:3000", 0);                    // first device
-    /// Device::remote_websocket("ws://host:3000", 1);                    // second device on same host
-    /// Device::remote_websocket("ws://host:3000", DeviceIndex::Default); // server-chosen default
-    /// ```
     #[cfg(feature = "remote-websocket")]
     pub fn remote_websocket(address: &str, index: impl Into<DeviceIndex>) -> Self {
         let index = index.into().resolve();
@@ -360,11 +350,10 @@ impl Device {
     /// Iroh peer-to-peer remote device.
     ///
     /// `endpoint` is the application-owned Iroh endpoint to dial from; `peer` is the compute
-    /// server's identity (its [`RemoteSecret::id`](burn_dispatch::backends::remote::RemoteSecret::id)),
+    /// server's identity (from [`RemoteSecret::id`](burn_dispatch::backends::remote::RemoteSecret::id)),
     /// optionally carrying direct/relay dialing hints.
-    ///
-    /// In the browser the session cannot be opened synchronously; use the async
-    /// `remote_iroh_async` (the wasm-only counterpart) instead.
+    /// On wasm, use [`remote_iroh_async`](Self::remote_iroh_async) instead since sessions cannot
+    /// be opened synchronously.
     #[cfg(all(feature = "remote", not(target_family = "wasm")))]
     pub fn remote_iroh(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
@@ -378,11 +367,8 @@ impl Device {
         Self::new(device)
     }
 
-    /// Iroh peer-to-peer remote device, opened asynchronously.
-    ///
-    /// This is the browser entry point: a wasm target cannot block to connect, so the session is
-    /// established with `.await` before the device is used. Native callers can use the synchronous
-    /// `remote_iroh` (the native-only counterpart).
+    /// Browser counterpart of [`remote_iroh`](Self::remote_iroh). Wasm cannot block to connect,
+    /// so the session is established asynchronously before the device is returned.
     #[cfg(all(feature = "remote", target_family = "wasm"))]
     pub async fn remote_iroh_async(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
@@ -390,20 +376,14 @@ impl Device {
         index: impl Into<DeviceIndex>,
     ) -> Self {
         let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::remote_iroh(
-            endpoint,
-            peer.into(),
-            index,
-        );
+        let device =
+            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
         device.connect_async().await;
         Self::new(device)
     }
 
-    /// Iroh remote device presenting an authorization `credential`.
-    ///
-    /// Use this against a server that gates sessions with a
-    /// [`PeerAuthorizer`](burn_dispatch::backends::remote::server::PeerAuthorizer); the opaque
-    /// `credential` is what the authorizer checks. Open servers take [`remote_iroh`](Self::remote_iroh).
+    /// Like `remote_iroh`, but carries an authorization credential the server's PeerAuthorizer
+    /// will check. Use against servers that require a credential; open servers take `remote_iroh`.
     #[cfg(all(feature = "remote", not(target_family = "wasm")))]
     pub fn remote_iroh_authorized(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
@@ -422,7 +402,7 @@ impl Device {
         Self::new(device)
     }
 
-    /// Browser counterpart of the native-only `remote_iroh_authorized`.
+    /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
     #[cfg(all(feature = "remote", target_family = "wasm"))]
     pub async fn remote_iroh_authorized_async(
         endpoint: &burn_dispatch::backends::remote::Endpoint,

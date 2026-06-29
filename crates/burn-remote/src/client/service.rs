@@ -128,8 +128,8 @@ impl ResponseChannel {
 /// runner thread, and [`PendingResponses`] correlates response-producing requests with the
 /// caller awaiting each reply.
 ///
-/// All tokio work — connecting, the writer task, awaiting responses, the response-demux
-/// task — happens on the [`Executor`] captured from the device's endpoint. The caller never
+/// All tokio work (connecting, the writer task, awaiting responses, the response-demux
+/// task) happens on the [`Executor`] captured from the device's endpoint. The caller never
 /// sees a runtime handle.
 pub struct RemoteService {
     executor: Executor,
@@ -207,14 +207,12 @@ impl DeviceService for RemoteService {
     }
 }
 
-/// Shared, lazily-built process-global Tokio runtime that backs every remote session opened
-/// without an ambient runtime.
+/// Process-global Tokio runtime for sessions opened outside an ambient runtime.
 ///
-/// This is the fallback for synchronous callers (scripts, REPLs, notebooks), the legacy websocket
-/// path, and [`RemoteNode::bind_blocking`](crate::RemoteNode::bind_blocking) — which binds its Iroh
-/// endpoint on this same runtime so the endpoint and the session tasks driving it agree on one
-/// executor. When a device *is* built inside a Tokio runtime (e.g. the one owning an Iroh
-/// endpoint), that ambient runtime is used instead and this one is never created.
+/// Fallback for synchronous callers (scripts, REPLs, notebooks) and the legacy WebSocket path.
+/// [`RemoteNode::bind_blocking`](crate::node::RemoteNode::bind_blocking) also binds on this
+/// runtime so its endpoint and session tasks share one executor. When a device is built inside
+/// an existing runtime, that one is used instead and this fallback is never created.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn blocking_runtime() -> &'static tokio::runtime::Runtime {
     use std::sync::OnceLock;
@@ -227,16 +225,12 @@ pub(crate) fn blocking_runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
-/// Executor that runs a remote session's writer and response-demux tasks.
+/// Executor for a remote session's writer and response-demux tasks.
 ///
-/// Captured once per device at device construction (see [`Executor::capture`]) and stored on the
-/// device's [`RemoteEndpoint`], so a session reuses whatever runtime owns its transport — there is
-/// no per-transport runtime on the node any more. On native this is a Tokio runtime handle: the
-/// ambient runtime when the device is built inside one (the Iroh endpoint's own runtime), otherwise
-/// the shared [`blocking_runtime`]. In the browser there is no Tokio runtime: Iroh runs on the JS
-/// event loop, so tasks are spawned with [`wasm_bindgen_futures::spawn_local`] and blocking calls
-/// are unavailable (the synchronous connect path is replaced by
-/// [`RemoteClient::connect_async`](super::RemoteClient)).
+/// Captured once at device construction and stored on the device endpoint, so the session reuses
+/// whatever runtime owns its transport. On native this wraps a Tokio runtime handle: the ambient
+/// runtime if one is active, otherwise the shared [`blocking_runtime`]. In the browser Iroh runs
+/// on the JS event loop; tasks are spawned with `spawn_local` and blocking calls are unavailable.
 #[derive(Clone, Debug)]
 pub(crate) enum Executor {
     #[cfg(not(target_family = "wasm"))]
@@ -245,19 +239,18 @@ pub(crate) enum Executor {
     WasmLocal,
 }
 
-/// Handle to a spawned session task. Joinable on native; a no-op placeholder in the browser,
-/// where detached `spawn_local` tasks simply run to completion on the event loop.
+/// Handle to a spawned session task. Joinable on native; a no-op in the browser where tasks
+/// run on the event loop and cannot be awaited.
 pub(crate) struct SpawnHandle {
     #[cfg(not(target_family = "wasm"))]
     inner: tokio::task::JoinHandle<()>,
 }
 
 impl Executor {
-    /// Capture the executor that will drive a remote session, at device-construction time.
+    /// Capture the executor for a new session at device-construction time.
     ///
-    /// Native: the ambient Tokio runtime if the device is built inside one (e.g. the runtime that
-    /// owns the Iroh endpoint), otherwise the shared [`blocking_runtime`]. Browser: the JS event
-    /// loop. The result is cheap to clone and is stored on the [`RemoteEndpoint`].
+    /// Native: the ambient Tokio runtime if one is active, otherwise the shared [`blocking_runtime`].
+    /// Browser: the JS event loop. The result is stored on the device endpoint.
     #[cfg(not(target_family = "wasm"))]
     pub(crate) fn capture() -> Self {
         match tokio::runtime::Handle::try_current() {

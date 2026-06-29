@@ -128,13 +128,8 @@ macro_rules! with_backend {
 
 /// Start a remote-execution server for `device`'s backend, blocking the current thread.
 ///
-/// The dispatch device selects which backend executes operations server-side; `channel` selects the
-/// transport. The server hosts that backend's devices (single host, multi-device), indexed by
-/// hardware device index. See [`with_backend`] for how the backend is resolved, [`host_devices`]
-/// for how its device list is chosen, and [`start_async`] for the async counterpart.
-///
-/// Both transports run through the one [`RemoteServerBuilder`](burn_remote::server::RemoteServerBuilder)
-/// entry point; the builder picks the protocol from `channel`.
+/// `device` selects the backend; `channel` selects the transport. The server hosts that backend's
+/// devices, indexed by hardware device index. Use [`start_async`] for the async counterpart.
 #[cfg(not(target_family = "wasm"))]
 pub fn start(device: DispatchDevice, channel: Channel) {
     with_backend!(device, |B, devices| {
@@ -144,10 +139,7 @@ pub fn start(device: DispatchDevice, channel: Channel) {
     })
 }
 
-/// Start a remote-execution server for `device`'s backend on the caller's tokio runtime.
-///
-/// The async counterpart of [`start`]; the two share the same backend-resolution match (see
-/// [`with_backend`]) and differ only in awaiting the server future.
+/// Async counterpart of [`start`]; runs on the caller's tokio runtime instead of blocking.
 #[cfg(not(target_family = "wasm"))]
 pub async fn start_async(device: DispatchDevice, channel: Channel) {
     with_backend!(device, |B, devices| {
@@ -158,12 +150,10 @@ pub async fn start_async(device: DispatchDevice, channel: Channel) {
     })
 }
 
-/// Build a backend-erased Burn Remote protocol handler for `device`'s backend.
+/// Build a backend-erased protocol handler for `device`'s backend.
 ///
-/// Resolves the dispatch device to its concrete `BackendIr` (see [`with_backend`]) and erases it
-/// behind [`RemoteProtocol`], so the `burn-tensor` user surface never names a backend. `probe` and
-/// `authorizer` are applied when present. The caller registers the result on an Iroh router (alone,
-/// or alongside other protocols) under [`BURN_REMOTE_ALPN`](burn_remote::BURN_REMOTE_ALPN).
+/// Resolves the dispatch device to its concrete backend type and returns a [`RemoteProtocol`]
+/// the caller registers on its own Iroh router under [`BURN_REMOTE_ALPN`](burn_remote::BURN_REMOTE_ALPN).
 pub fn remote_protocol(
     device: DispatchDevice,
     endpoint: &Endpoint,
