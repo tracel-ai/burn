@@ -32,7 +32,7 @@ pub(crate) mod metrics;
 #[cfg(feature = "iroh")]
 pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
 #[cfg(feature = "iroh")]
-pub use node::{BURN_REMOTE_ALPN, RemoteNode};
+pub use node::BURN_REMOTE_ALPN;
 #[cfg(feature = "iroh")]
 pub use peer::RemoteSecret;
 pub use peer::{PeerAddr, PeerId};
@@ -211,21 +211,23 @@ mod tests {
     }
 
     /// The Iroh counterpart of [`test_custom_op_over_websocket`]: the server hosts a "scale" handler
-    /// through the composable protocol's [`with_custom_ops`], and the client ships the op as
+    /// registered on the protocol's custom-op registry, and the client ships the op as
     /// `OperationIr::Custom`. Confirms custom ops travel the merged session path over Iroh just as
     /// they do over WebSocket.
     ///
     /// Only runs without `fusion`, since it drives the router client (`RemoteBackend`) directly.
-    ///
-    /// [`with_custom_ops`]: crate::server::IrohRemoteProtocol::with_custom_ops
     #[test]
-    #[cfg(all(feature = "iroh", not(feature = "fusion")))]
+    #[cfg(not(feature = "fusion"))]
     pub fn test_custom_op_over_iroh() {
-        use crate::{RemoteBackend, RemoteNode};
+        use crate::{
+            BURN_REMOTE_ALPN, RemoteBackend, RemoteDevice,
+            server::{AllowAll, CustomOpRegistry, IrohRemoteProtocol},
+            telemetry::TelemetryProbe,
+        };
         use burn_backend::{Scalar, TensorData, TensorMetadata, ops::FloatTensorOps};
         use burn_ir::{CustomOpIr, OperationIr, ScalarIr, TensorIr};
-        use burn_router::{CustomOpRegistry, RouterClient};
-        use iroh::{Endpoint, RelayMode, endpoint::presets};
+        use burn_router::RouterClient;
+        use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
 
         async fn local_endpoint() -> Endpoint {
             Endpoint::builder(presets::Minimal)
@@ -239,12 +241,14 @@ mod tests {
         }
 
         // Server on its own runtime, hosting a "scale" custom op (multiply the input by a scalar).
-        let server_runtime = tokio::runtime::Builder::new_multi_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap();
-        let server_guard = server_runtime.enter();
-        let server = RemoteNode::from_endpoint(server_runtime.block_on(local_endpoint()));
+
+        let server = rt.block_on(local_endpoint());
+        let server_addr = server.addr();
+
         let mut custom_ops = CustomOpRegistry::<Flex>::default();
         custom_ops.register("scale", |handles, ir, _device| {
             let input = handles.get_float_tensor::<Flex>(&ir.inputs[0]);
@@ -252,28 +256,25 @@ mod tests {
             let output = Flex::float_mul_scalar(input, factor);
             handles.register_float_tensor::<Flex>(&ir.outputs[0].id, output);
         });
-        let router = server
-            .protocol::<Flex>(vec![Default::default()])
-            .with_custom_ops(custom_ops)
-            .serve();
-        let server_addr = server.endpoint().addr();
-        drop(server_guard);
 
-        // Client driven synchronously (no ambient runtime); the device is created on the client's
-        // runtime so the session reuses it.
-        let client_runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let client_endpoint = client_runtime.block_on(local_endpoint());
-        let client = RemoteNode::from_endpoint(client_endpoint);
-        // Create the device on the client's runtime so the session reuses it; ops below then run
-        // synchronously off this non-runtime thread.
-        let device = {
-            let _guard = client_runtime.enter();
-            client.device(server_addr, 0)
+        let protocol = IrohRemoteProtocol::<Flex>::new(
+            server.clone(),
+            vec![Default::default()],
+            std::sync::Arc::new(AllowAll),
+            TelemetryProbe::disabled(),
+            custom_ops,
+        );
+
+        // spawn() must run in a runtime context so iroh can schedule its tasks.
+        let router = {
+            let _guard = rt.enter();
+            Router::builder(server)
+                .accept(BURN_REMOTE_ALPN, protocol)
+                .spawn()
         };
-        device.connect();
+
+        let client = rt.block_on(local_endpoint());
+        let device = RemoteDevice::iroh(&client, server_addr, 0);
 
         // Client side: build the custom op and ship it as `OperationIr::Custom`, exactly as the
         // WebSocket test does -- only the transport differs.
@@ -293,13 +294,13 @@ mod tests {
         );
         let out = remote_client.register(OperationIr::Custom(desc)).remove(0);
 
-        let data = client_runtime
+        let data = rt
             .block_on(<RemoteBackend as FloatTensorOps<RemoteBackend>>::float_into_data(out))
             .unwrap();
         let values: Vec<f32> = data.to_vec().unwrap();
         assert_eq!(values, vec![6.0, 12.0, 18.0]);
 
-        server_runtime.block_on(router.shutdown()).unwrap();
+        rt.block_on(router.shutdown()).unwrap();
     }
 
     /// A single server hosting multiple devices: two indices on the same address resolve to

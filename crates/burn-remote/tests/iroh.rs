@@ -1,7 +1,12 @@
 #![cfg(all(feature = "client", feature = "server", feature = "iroh"))]
 
 use burn_flex::Flex;
-use burn_remote::{BURN_REMOTE_ALPN, RemoteNode};
+use burn_ir::BackendIr;
+use burn_remote::{
+    BURN_REMOTE_ALPN, RemoteDevice,
+    server::{AllowAll, IrohRemoteProtocol},
+    telemetry::TelemetryProbe,
+};
 use burn_tensor::{Device, Tensor};
 use iroh::{Endpoint, RelayMode, endpoint::presets, protocol::Router};
 
@@ -16,17 +21,30 @@ async fn local_endpoint() -> Endpoint {
         .unwrap()
 }
 
-async fn local_node() -> RemoteNode {
-    RemoteNode::from_endpoint(local_endpoint().await)
+fn spawn_router<B: BackendIr>(
+    endpoint: Endpoint,
+    authorizer: impl burn_remote::server::PeerAuthorizer,
+    probe: TelemetryProbe,
+) -> Router {
+    let protocol = IrohRemoteProtocol::<B>::new(
+        endpoint.clone(),
+        vec![Default::default()],
+        std::sync::Arc::new(authorizer),
+        probe,
+        burn_remote::server::CustomOpRegistry::default(),
+    );
+    Router::builder(endpoint)
+        .accept(BURN_REMOTE_ALPN, protocol)
+        .spawn()
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn executes_over_iroh_session_stream() {
-    let server = local_node().await;
-    let client = local_node().await;
-    let router = server.protocol::<Flex>(vec![Default::default()]).serve();
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
 
-    let remote = client.device(server.endpoint().addr(), 0);
+    let remote = RemoteDevice::iroh(&client, server.addr(), 0);
     remote.connect();
     let device = Device::new(remote);
 
@@ -41,19 +59,17 @@ async fn executes_over_iroh_session_stream() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn transfers_tensor_directly_between_iroh_compute_peers() {
-    let source_server = local_node().await;
-    let target_server = local_node().await;
-    let client = local_node().await;
+    let source_server = local_endpoint().await;
+    let target_server = local_endpoint().await;
+    let client = local_endpoint().await;
 
-    let source_router = source_server
-        .protocol::<Flex>(vec![Default::default()])
-        .serve();
-    let target_router = target_server
-        .protocol::<Flex>(vec![Default::default()])
-        .serve();
+    let source_router =
+        spawn_router::<Flex>(source_server.clone(), AllowAll, TelemetryProbe::disabled());
+    let target_router =
+        spawn_router::<Flex>(target_server.clone(), AllowAll, TelemetryProbe::disabled());
 
-    let source_remote = client.device(source_server.endpoint().addr(), 0);
-    let target_remote = client.device(target_server.endpoint().addr(), 0);
+    let source_remote = RemoteDevice::iroh(&client, source_server.addr(), 0);
+    let target_remote = RemoteDevice::iroh(&client, target_server.addr(), 0);
     source_remote.connect();
     target_remote.connect();
     let source = Device::new(source_remote);
@@ -82,9 +98,9 @@ fn synchronous_client_round_trip() {
         .build()
         .unwrap();
     let server_guard = server_runtime.enter();
-    let server = server_runtime.block_on(local_node());
-    let router = server.protocol::<Flex>(vec![Default::default()]).serve();
-    let server_addr = server.endpoint().addr();
+    let server = server_runtime.block_on(local_endpoint());
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, TelemetryProbe::disabled());
+    let server_addr = server.addr();
     drop(server_guard);
 
     // Client on a node that owns its runtime, used entirely synchronously from this (non-runtime)
@@ -94,13 +110,12 @@ fn synchronous_client_round_trip() {
         .build()
         .unwrap();
     let client_endpoint = client_runtime.block_on(local_endpoint());
-    let client = RemoteNode::from_endpoint(client_endpoint);
 
     // Create the device on the client's runtime so the session captures it; the round-trip below
     // then runs from this non-runtime thread, exactly what a notebook cell does.
     let remote = {
         let _guard = client_runtime.enter();
-        client.device(server_addr, 0)
+        RemoteDevice::iroh(&client_endpoint, server_addr, 0)
     };
     remote.connect();
     let device = Device::new(remote);
@@ -114,29 +129,20 @@ fn synchronous_client_round_trip() {
     server_runtime.block_on(router.shutdown()).unwrap();
 }
 
-// /// `bind_blocking` builds its own runtime and binds without an ambient one.
-// #[test]
-// fn bind_blocking_needs_no_ambient_runtime() {
-//     let node = RemoteNode::bind_blocking().expect("bind_blocking should bind an endpoint");
-//     let _ = node.id();
-// }
-
 #[tokio::test(flavor = "multi_thread")]
 async fn passes_application_credentials_to_the_peer_authorizer() {
-    let server = local_node().await;
-    let client = local_node().await;
-    let protocol = server
-        .protocol::<Flex>(vec![Default::default()])
-        .with_authorizer(|request: burn_remote::server::AuthorizationRequest<'_>| {
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
+    let router = spawn_router::<Flex>(
+        server.clone(),
+        |request: burn_remote::server::AuthorizationRequest<'_>| {
             (request.credential == b"fleet-ticket")
                 .then_some(())
                 .ok_or_else(|| "invalid fleet ticket".to_string())
-        });
-    let router = Router::builder(server.endpoint().clone())
-        .accept(BURN_REMOTE_ALPN, protocol)
-        .spawn();
-
-    let remote = client.device_authorized(server.endpoint().addr(), 0, b"fleet-ticket".to_vec());
+        },
+        TelemetryProbe::disabled(),
+    );
+    let remote = RemoteDevice::iroh_authorized(&client, server.addr(), 0, b"fleet-ticket".to_vec());
     remote.connect();
     let device = Device::new(remote);
     let data = Tensor::<1>::from_floats([4.0], &device).to_data();
@@ -151,16 +157,12 @@ async fn fused_compute_surfaces_as_graph_telemetry() {
     use burn_remote::telemetry::{TelemetryEvent, TelemetryProbe, TrafficAggregator};
     use std::time::Duration;
 
-    let server = local_node().await;
-    let client = local_node().await;
+    let server = local_endpoint().await;
+    let client = local_endpoint().await;
 
     let (probe, mut events) = TelemetryProbe::channel(4096);
-    let router = server
-        .protocol::<Flex>(vec![Default::default()])
-        .with_telemetry(probe)
-        .serve();
-
-    let remote = client.device(server.endpoint().addr(), 0);
+    let router = spawn_router::<Flex>(server.clone(), AllowAll, probe);
+    let remote = RemoteDevice::iroh(&client, server.addr(), 0);
     remote.connect();
     let device = Device::new(remote);
 

@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use crate::Device;
 pub use burn_dispatch::backends::remote::server::{
-    AuthorizationRequest, PeerAuthorizer, RemoteProtocol, Router, RouterBuilder,
+    AllowAll, AuthorizationRequest, PeerAuthorizer, RemoteProtocol,
 };
 pub use burn_dispatch::backends::remote::telemetry;
 pub use burn_dispatch::backends::remote::{Endpoint, RemoteSecret};
@@ -47,19 +47,14 @@ pub use burn_dispatch::remote_server::Channel;
 /// Optionally attach telemetry or an authorization policy before building the handler.
 ///
 /// ```rust,ignore
-/// let handler = burn::server::protocol(device, &endpoint).with_telemetry(probe).handler();
+/// let handler = burn::server::protocol(device, &endpoint).with_telemetry(probe).build();
 /// let router = Router::builder(endpoint)
 ///     .accept(BURN_REMOTE_ALPN, handler)
 ///     .accept(MY_ALPN, my_protocol)
 ///     .spawn();
 /// ```
 pub fn protocol(device: Device, endpoint: &Endpoint) -> RemoteProtocolBuilder<'_> {
-    RemoteProtocolBuilder {
-        device,
-        endpoint,
-        probe: None,
-        authorizer: None,
-    }
+    RemoteProtocolBuilder::new(device, endpoint)
 }
 
 /// Configures the optional telemetry and authorization policy for [`protocol`], then builds the
@@ -72,6 +67,16 @@ pub struct RemoteProtocolBuilder<'a> {
 }
 
 impl<'a> RemoteProtocolBuilder<'a> {
+    /// Create a new builder for `device`'s backend, to register on `endpoint`.
+    pub fn new(device: Device, endpoint: &'a Endpoint) -> Self {
+        Self {
+            device,
+            endpoint,
+            probe: None,
+            authorizer: None,
+        }
+    }
+
     /// Emit per-session telemetry into `probe` for live monitoring. Pair with
     /// [`telemetry::TelemetryProbe::channel`] to obtain a subscription a dashboard can drain.
     pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
@@ -87,19 +92,19 @@ impl<'a> RemoteProtocolBuilder<'a> {
     }
 
     /// Build the backend-erased protocol handler.
-    pub fn handler(self) -> RemoteProtocol {
+    pub fn build(self) -> RemoteProtocol {
         burn_dispatch::remote_server::remote_protocol(
             self.device.into_dispatch(),
             self.endpoint,
-            self.probe,
-            self.authorizer,
+            self.probe.unwrap_or_else(TelemetryProbe::disabled),
+            self.authorizer.unwrap_or_else(|| Arc::new(AllowAll)),
         )
     }
 }
 
 impl<'a> From<RemoteProtocolBuilder<'a>> for RemoteProtocol {
     fn from(builder: RemoteProtocolBuilder<'a>) -> Self {
-        builder.handler()
+        builder.build()
     }
 }
 

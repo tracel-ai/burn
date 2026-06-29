@@ -5,6 +5,8 @@ use std::sync::Arc;
 use burn_backend::TensorData;
 use burn_ir::BackendIr;
 
+#[cfg(feature = "iroh")]
+use crate::node::RemoteNode;
 use crate::{PeerAddr, PeerId, shared::TransferCapability};
 
 #[cfg(feature = "iroh")]
@@ -121,7 +123,7 @@ struct ExposedTensor {
 /// Authenticated tensor transfer service carried on independent Iroh streams.
 #[cfg(feature = "iroh")]
 pub(crate) struct IrohTransfer<B: BackendIr> {
-    node: crate::RemoteNode,
+    node: RemoteNode,
     exposed: Arc<Mutex<HashMap<TransferCapability, ExposedTensor>>>,
     exposed_notify: Notify,
     _backend: core::marker::PhantomData<B>,
@@ -129,7 +131,7 @@ pub(crate) struct IrohTransfer<B: BackendIr> {
 
 #[cfg(feature = "iroh")]
 impl<B: BackendIr> IrohTransfer<B> {
-    pub(crate) fn new(node: crate::RemoteNode) -> Self {
+    pub(crate) fn new(node: RemoteNode) -> Self {
         Self {
             node,
             exposed: Arc::new(Mutex::new(HashMap::new())),

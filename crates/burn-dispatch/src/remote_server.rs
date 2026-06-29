@@ -7,9 +7,9 @@
 
 use std::sync::Arc;
 
-use burn_remote::server::{PeerAuthorizer, RemoteProtocol};
+use burn_remote::Endpoint;
+use burn_remote::server::{CustomOpRegistry, IrohRemoteProtocol, PeerAuthorizer, RemoteProtocol};
 use burn_remote::telemetry::TelemetryProbe;
-use burn_remote::{Endpoint, RemoteNode};
 
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice, DispatchDeviceId};
@@ -167,18 +167,16 @@ pub async fn start_async(device: DispatchDevice, channel: Channel) {
 pub fn remote_protocol(
     device: DispatchDevice,
     endpoint: &Endpoint,
-    probe: Option<TelemetryProbe>,
-    authorizer: Option<Arc<dyn PeerAuthorizer>>,
+    probe: TelemetryProbe,
+    authorizer: Arc<dyn PeerAuthorizer>,
 ) -> RemoteProtocol {
-    let node = RemoteNode::from_endpoint(endpoint.clone());
     with_backend!(device, |B, devices| {
-        let mut protocol = node.protocol::<B>(devices);
-        if let Some(probe) = probe {
-            protocol = protocol.with_telemetry(probe);
-        }
-        if let Some(authorizer) = authorizer {
-            protocol = protocol.with_authorizer_arc(authorizer);
-        }
-        RemoteProtocol::new(protocol)
+        RemoteProtocol::new(IrohRemoteProtocol::<B>::new(
+            endpoint.clone(),
+            devices,
+            authorizer,
+            probe,
+            CustomOpRegistry::default(),
+        ))
     })
 }

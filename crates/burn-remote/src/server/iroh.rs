@@ -4,13 +4,14 @@ use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
 use burn_router::CustomOpRegistry;
 use iroh::{
-    EndpointId,
+    Endpoint, EndpointId,
     endpoint::{Connection, RecvStream, SendStream},
-    protocol::{AcceptError, DynProtocolHandler, ProtocolHandler, Router, RouterBuilder},
+    protocol::{AcceptError, DynProtocolHandler, ProtocolHandler, Router},
 };
 
 use crate::{
-    BURN_REMOTE_ALPN, PeerId, RemoteNode,
+    BURN_REMOTE_ALPN, PeerId,
+    node::RemoteNode,
     server::{
         service::{FetchService, SubmitService, parse_init_handshake},
         session::SessionManager,
@@ -47,7 +48,7 @@ where
 }
 
 #[derive(Debug, Default)]
-struct AllowAll;
+pub struct AllowAll;
 
 impl PeerAuthorizer for AllowAll {
     fn authorize(&self, _request: AuthorizationRequest<'_>) -> Result<(), String> {
@@ -61,12 +62,9 @@ impl PeerAuthorizer for AllowAll {
 /// protocols on the same endpoint.
 pub struct IrohRemoteProtocol<B: BackendIr> {
     node: RemoteNode,
-    devices: Vec<Device<B>>,
     sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
     transfer: Arc<IrohTransfer<B>>,
     authorizer: Arc<dyn PeerAuthorizer>,
-    probe: TelemetryProbe,
-    custom_ops: CustomOpRegistry<B>,
 }
 
 impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
@@ -79,91 +77,27 @@ impl<B: BackendIr> fmt::Debug for IrohRemoteProtocol<B> {
 
 impl<B: BackendIr> IrohRemoteProtocol<B> {
     /// Create a handler hosting `devices` on `node`.
-    pub fn new(node: RemoteNode, devices: Vec<Device<B>>) -> Self {
+    pub fn new(
+        endpoint: Endpoint,
+        devices: Vec<Device<B>>,
+        authorizer: Arc<dyn PeerAuthorizer>,
+        probe: TelemetryProbe,
+        custom_ops: CustomOpRegistry<B>,
+    ) -> Self {
+        let node = RemoteNode::from_endpoint(endpoint);
         let transfer = Arc::new(IrohTransfer::new(node.clone()));
-        let probe = if crate::metrics::TelemetryLogger::enabled() {
-            TelemetryProbe::new(crate::telemetry::CHANNEL_CAPACITY)
-        } else {
-            TelemetryProbe::disabled()
-        };
-        let custom_ops = CustomOpRegistry::default();
-        let sessions = Arc::new(Self::build_sessions(
-            &devices,
-            &transfer,
-            &probe,
-            &custom_ops,
-        ));
+
+        let sessions = Arc::new(
+            SessionManager::new(devices.to_vec(), transfer.clone())
+                .with_telemetry(probe.clone())
+                .with_custom_ops(custom_ops.clone()),
+        );
         Self {
             node,
-            devices,
             sessions,
             transfer,
-            authorizer: Arc::new(AllowAll),
-            probe,
-            custom_ops,
+            authorizer,
         }
-    }
-
-    /// Emit per-session telemetry into `probe` for live monitoring.
-    pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
-        self.probe = probe;
-        self.rebuild_sessions();
-        self
-    }
-
-    /// Register custom-op handlers, so a backend extension can host its
-    /// [`OperationIr::Custom`](burn_ir::OperationIr::Custom) ops over Iroh.
-    pub fn with_custom_ops(mut self, custom_ops: CustomOpRegistry<B>) -> Self {
-        self.custom_ops = custom_ops;
-        self.rebuild_sessions();
-        self
-    }
-
-    /// Install an application authorization policy.
-    pub fn with_authorizer(mut self, authorizer: impl PeerAuthorizer) -> Self {
-        self.authorizer = Arc::new(authorizer);
-        self
-    }
-
-    /// Swap in a session manager with the current telemetry and custom-op config (no session is
-    /// open yet when the `with_*` setters run).
-    fn rebuild_sessions(&mut self) {
-        self.sessions = Arc::new(Self::build_sessions(
-            &self.devices,
-            &self.transfer,
-            &self.probe,
-            &self.custom_ops,
-        ));
-    }
-
-    fn build_sessions(
-        devices: &[Device<B>],
-        transfer: &Arc<IrohTransfer<B>>,
-        probe: &TelemetryProbe,
-        custom_ops: &CustomOpRegistry<B>,
-    ) -> SessionManager<B, IrohTransfer<B>> {
-        SessionManager::new(devices.to_vec(), transfer.clone())
-            .with_telemetry(probe.clone())
-            .with_custom_ops(custom_ops.clone())
-    }
-
-    /// Install a shared authorization policy. Used by the dispatch layer, which carries the policy
-    /// as a trait object across the backend-erasure boundary.
-    pub fn with_authorizer_arc(mut self, authorizer: Arc<dyn PeerAuthorizer>) -> Self {
-        self.authorizer = authorizer;
-        self
-    }
-
-    /// Pre-load this protocol onto a [`RouterBuilder`] for the node's endpoint, left unspawned so
-    /// the caller can register other Iroh protocols before calling `.spawn()`.
-    pub fn into_builder(self) -> RouterBuilder {
-        let endpoint = self.node.endpoint().clone();
-        Router::builder(endpoint).accept(BURN_REMOTE_ALPN, self)
-    }
-
-    /// Serve this protocol as the sole protocol on the node's endpoint.
-    pub fn serve(self) -> Router {
-        self.into_builder().spawn()
     }
 
     async fn handle_session(
@@ -344,17 +278,6 @@ fn user_error(reason: String) -> AcceptError {
     AcceptError::from_err(std::io::Error::other(reason))
 }
 
-impl RemoteNode {
-    /// Build a composable Iroh protocol handler hosting `devices`.
-    ///
-    /// For hosting a custom `BackendIr` outside the dispatch backend; most callers go through
-    /// `burn::server` instead. Configure the returned builder, then register it on a [`Router`] or
-    /// [`serve`](IrohRemoteProtocol::serve) it alone.
-    pub fn protocol<B: BackendIr>(&self, devices: Vec<Device<B>>) -> IrohRemoteProtocol<B> {
-        IrohRemoteProtocol::new(self.clone(), devices)
-    }
-}
-
 /// Serve Burn Remote over Iroh until the process receives its shutdown signal.
 ///
 /// Binds a server endpoint with the stable identity carried by `secret` and hosts `devices` as the
@@ -366,13 +289,33 @@ pub(crate) async fn start_iroh_async<B: BackendIr>(
     devices: Vec<Device<B>>,
     custom_ops: CustomOpRegistry<B>,
 ) {
-    let node = RemoteNode::bind_with_secret(&secret)
+    use iroh::endpoint::presets;
+
+    let endpoint = Endpoint::builder(presets::N0)
+        .secret_key(secret.secret_key())
+        .alpns(vec![BURN_REMOTE_ALPN.to_vec()])
+        .bind()
         .await
         .expect("Can bind the Burn Remote server endpoint");
-    let router = node
-        .protocol::<B>(devices)
-        .with_custom_ops(custom_ops)
-        .serve();
+
+    let probe = if crate::metrics::TelemetryLogger::enabled() {
+        TelemetryProbe::new(crate::telemetry::CHANNEL_CAPACITY)
+    } else {
+        TelemetryProbe::disabled()
+    };
+
+    let protocol = IrohRemoteProtocol::new(
+        endpoint.clone(),
+        devices,
+        Arc::new(AllowAll),
+        probe,
+        custom_ops,
+    );
+
+    let router = Router::builder(endpoint)
+        .accept(BURN_REMOTE_ALPN, protocol)
+        .spawn();
+
     os_shutdown_signal().await;
     if let Err(err) = router.shutdown().await {
         log::warn!("Burn Remote Iroh router shutdown failed: {err}");

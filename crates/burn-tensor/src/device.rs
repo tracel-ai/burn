@@ -372,11 +372,8 @@ impl Device {
         index: impl Into<DeviceIndex>,
     ) -> Self {
         let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::remote_iroh(
-            endpoint,
-            peer.into(),
-            index,
-        );
+        let device =
+            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
         device.connect();
         Self::new(device)
     }
@@ -415,7 +412,7 @@ impl Device {
         credential: Vec<u8>,
     ) -> Self {
         let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::remote_iroh_authorized(
+        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
             endpoint,
             peer.into(),
             index,

@@ -193,24 +193,24 @@ impl RemoteDevice {
         }
     }
 
-    /// Create an Iroh remote device using a process-level [`RemoteNode`](crate::RemoteNode).
+    /// Create an Iroh remote device dialing `peer` from `endpoint`.
+    ///
+    /// This is the entry behind `Device::remote_iroh`: the application owns the
+    /// [`Endpoint`](iroh::Endpoint) and Burn dials the compute peer from it.
     #[cfg(feature = "iroh")]
-    pub fn from_iroh(
-        node: crate::RemoteNode,
-        peer: iroh::EndpointAddr,
-        device_index: usize,
-    ) -> Self {
-        Self::from_iroh_authorized(node, peer, device_index, Vec::new())
+    pub fn iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr, device_index: usize) -> Self {
+        Self::iroh_authorized(endpoint, peer, device_index, Vec::new())
     }
 
-    /// Create an Iroh remote device carrying an opaque application authorization credential.
+    /// Like [`iroh`](Self::iroh), carrying an authorization credential.
     #[cfg(feature = "iroh")]
-    pub fn from_iroh_authorized(
-        node: crate::RemoteNode,
+    pub fn iroh_authorized(
+        endpoint: &iroh::Endpoint,
         peer: iroh::EndpointAddr,
         device_index: usize,
         authorization: Vec<u8>,
     ) -> Self {
+        let node = crate::node::RemoteNode::from_endpoint(endpoint.clone());
         let endpoint = RemoteEndpoint::Iroh {
             node,
             peer,
@@ -224,39 +224,6 @@ impl RemoteDevice {
             device_index,
             id,
         }
-    }
-
-    /// Create an Iroh remote device dialing `peer` from `endpoint`.
-    ///
-    /// This is the entry behind `Device::remote_iroh`: the application owns the
-    /// [`Endpoint`](iroh::Endpoint) and Burn dials the compute peer from it.
-    #[cfg(feature = "iroh")]
-    pub fn remote_iroh(
-        endpoint: &iroh::Endpoint,
-        peer: iroh::EndpointAddr,
-        device_index: usize,
-    ) -> Self {
-        Self::from_iroh(
-            crate::RemoteNode::from_endpoint(endpoint.clone()),
-            peer,
-            device_index,
-        )
-    }
-
-    /// Like [`remote_iroh`](Self::remote_iroh), carrying an authorization credential.
-    #[cfg(feature = "iroh")]
-    pub fn remote_iroh_authorized(
-        endpoint: &iroh::Endpoint,
-        peer: iroh::EndpointAddr,
-        device_index: usize,
-        authorization: Vec<u8>,
-    ) -> Self {
-        Self::from_iroh_authorized(
-            crate::RemoteNode::from_endpoint(endpoint.clone()),
-            peer,
-            device_index,
-            authorization,
-        )
     }
 
     /// Forces the client connection to be established immediately using the default protocol.
@@ -334,13 +301,13 @@ impl RemoteDevice {
 
     /// List every device hosted by an Iroh peer.
     #[cfg(feature = "iroh")]
-    pub fn enumerate_iroh(node: crate::RemoteNode, peer: iroh::EndpointAddr) -> Vec<Self> {
-        let device = Self::from_iroh(node.clone(), peer.clone(), 0);
+    pub fn enumerate_iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr) -> Vec<Self> {
+        let device = Self::iroh(endpoint, peer.clone(), 0);
         device.connect();
         let count = service::device_count_for(device.id)
             .expect("Device count populated by the init handshake during connect");
         (0..count as usize)
-            .map(|index| Self::from_iroh(node.clone(), peer.clone(), index))
+            .map(|index| Self::iroh(endpoint, peer.clone(), index))
             .collect()
     }
 }

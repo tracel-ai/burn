@@ -16,6 +16,6 @@ pub use builder::{Channel, RemoteServerBuilder};
 pub use burn_router::{CustomOpHandler, CustomOpRegistry};
 
 #[cfg(feature = "iroh")]
-pub use ::iroh::protocol::{Router, RouterBuilder};
-#[cfg(feature = "iroh")]
-pub use iroh::{AuthorizationRequest, IrohRemoteProtocol, PeerAuthorizer, RemoteProtocol};
+pub use iroh::{
+    AllowAll, AuthorizationRequest, IrohRemoteProtocol, PeerAuthorizer, RemoteProtocol,
+};

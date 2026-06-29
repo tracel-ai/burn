@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use iroh::{
     Endpoint, EndpointAddr, EndpointId,
-    endpoint::{Connection, RecvStream, SendStream, presets},
+    endpoint::{Connection, RecvStream, SendStream},
 };
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
@@ -53,41 +53,6 @@ impl core::fmt::Debug for RemoteNode {
 }
 
 impl RemoteNode {
-    /// Bind a server node with the stable identity carried by `secret`.
-    ///
-    /// The endpoint's address is `secret.id()`, so a persisted secret keeps the same address across
-    /// restarts. Used by the turnkey server entry points; applications composing their own Iroh
-    /// router configure the secret on their endpoint directly.
-    #[cfg(not(target_family = "wasm"))]
-    pub async fn bind_with_secret(
-        secret: &crate::RemoteSecret,
-    ) -> Result<Self, iroh::endpoint::BindError> {
-        let endpoint = Endpoint::builder(presets::N0)
-            .secret_key(secret.secret_key())
-            .alpns(vec![BURN_REMOTE_ALPN.to_vec()])
-            .bind()
-            .await?;
-        Ok(Self::from_endpoint(endpoint))
-    }
-
-    // /// Bind a node synchronously, for callers not already in an async runtime (scripts, REPLs,
-    // /// Rust notebooks). Unlike [`bind_with_secret`](Self::bind_with_secret) it needs no ambient
-    // /// runtime or `async`.
-    // ///
-    // /// The endpoint is bound on the shared process-global Burn Remote runtime; devices created
-    // /// from this node (off that runtime, on a sync thread) reuse it, so the endpoint and the
-    // /// session tasks driving it share one executor.
-    // #[cfg(all(feature = "client", not(target_family = "wasm")))]
-    // pub fn bind_blocking() -> Result<Self, iroh::endpoint::BindError> {
-    //     let endpoint = crate::client::service::blocking_runtime().block_on(async {
-    //         Endpoint::builder(presets::N0)
-    //             .alpns(vec![BURN_REMOTE_ALPN.to_vec()])
-    //             .bind()
-    //             .await
-    //     })?;
-    //     Ok(Self::from_endpoint(endpoint))
-    // }
-
     /// Use an application-configured Iroh endpoint.
     ///
     /// Applications serving Burn Remote must include [`BURN_REMOTE_ALPN`] in the endpoint's
@@ -113,32 +78,6 @@ impl RemoteNode {
     /// Access the underlying endpoint for relay, discovery, router, and observability setup.
     pub fn endpoint(&self) -> &Endpoint {
         &self.inner.endpoint
-    }
-
-    /// Create a remote device hosted by `peer`.
-    #[cfg(feature = "client")]
-    pub fn device(
-        &self,
-        peer: impl Into<EndpointAddr>,
-        device_index: usize,
-    ) -> crate::RemoteDevice {
-        crate::RemoteDevice::from_iroh(self.clone(), peer.into(), device_index)
-    }
-
-    /// Create a remote device with an opaque application authorization credential.
-    #[cfg(feature = "client")]
-    pub fn device_authorized(
-        &self,
-        peer: impl Into<EndpointAddr>,
-        device_index: usize,
-        authorization: impl Into<Vec<u8>>,
-    ) -> crate::RemoteDevice {
-        crate::RemoteDevice::from_iroh_authorized(
-            self.clone(),
-            peer.into(),
-            device_index,
-            authorization.into(),
-        )
     }
 
     pub(crate) async fn open_stream(
