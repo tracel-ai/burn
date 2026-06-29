@@ -1753,6 +1753,19 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let output = B::adaptive_avg_pool2d_backward(x, grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::AdaptiveAvgPool3d(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+
+                    let output = B::adaptive_avg_pool3d(x, desc.output_size);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::AdaptiveAvgPool3dBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let grad = handles.get_float_tensor::<B>(&desc.grad);
+
+                    let output = B::adaptive_avg_pool3d_backward(x, grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::MaxPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 

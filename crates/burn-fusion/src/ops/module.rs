@@ -1407,6 +1407,67 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        make_ops!(
+            AdaptiveAvgPool3dOps,
+            AdaptiveAvgPool3dOpIr,
+            |args: &AdaptiveAvgPool3dOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let output = B::adaptive_avg_pool3d(x, args.output_size);
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = AdaptiveAvgPool3dOpIr::create(x.into_ir(), output_size, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool3d(desc.clone())),
+                AdaptiveAvgPool3dOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        make_ops!(
+            AdaptiveAvgPool3dBackwardOps,
+            AdaptiveAvgPool3dBackwardOpIr,
+            |args: &AdaptiveAvgPool3dBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
+                let output = B::adaptive_avg_pool3d_backward(x, grad);
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+        let streams = StreamId::current();
+
+        let client = x.client.clone();
+        let desc = AdaptiveAvgPool3dBackwardOpIr::create(x.into_ir(), grad.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool3dBackward(
+                    desc.clone(),
+                )),
+                AdaptiveAvgPool3dBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn interpolate(
         x: FloatTensor<Self>,
         output_size: [usize; 2],

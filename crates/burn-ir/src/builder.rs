@@ -827,6 +827,24 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    AdaptiveAvgPool3dOpIr {
+        x: TensorIr,
+        output_size: [usize; 3]
+    },
+    shape = Shape::new([x.shape[0], x.shape[1], output_size[0], output_size[1], output_size[2]]),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
+    AdaptiveAvgPool3dBackwardOpIr {
+        x: TensorIr,
+        grad: TensorIr,
+    },
+    shape = x.shape.clone(),
+    dtype = x.dtype
+);
+
+impl_ir_create!(
     InterpolateOpIr {
         x: TensorIr,
         output_size: [usize; 2],

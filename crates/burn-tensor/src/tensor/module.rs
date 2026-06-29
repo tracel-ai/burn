@@ -401,6 +401,14 @@ pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
     )))
 }
 
+/// Applies a [3D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool3d).
+pub fn adaptive_avg_pool3d(x: Tensor<5>, output_size: [usize; 3]) -> Tensor<5> {
+    Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool3d(
+        x.primitive.into_float(),
+        output_size,
+    )))
+}
+
 /// Applies a [1D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
 pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
     Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool1d(
