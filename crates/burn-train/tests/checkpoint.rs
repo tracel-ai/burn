@@ -80,7 +80,7 @@ fn checkpoint_resume_continues_training() {
             .launch(make_learner(&device));
     }
 
-    for epoch in 0..=4 {
+    for epoch in 1..=4 {
         let path = dir_path
             .join("checkpoint")
             .join(format!("model-{epoch}.bpk"));

@@ -181,6 +181,7 @@ mod tests {
             },
             store::LogEventStore,
         },
+        test_utils::start_epoch,
     };
 
     use super::*;
@@ -284,6 +285,7 @@ mod tests {
             starting_epoch: 0,
         });
         for (epoch, (points, should_start, comment)) in (1..).zip(data.iter()) {
+            start_epoch(&mut processor, epoch, points.len());
             for point in points.iter() {
                 process_train(&mut processor, *point, epoch);
             }

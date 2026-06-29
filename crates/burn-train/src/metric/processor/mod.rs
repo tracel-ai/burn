@@ -63,6 +63,21 @@ pub(crate) mod test_utils {
         )));
     }
 
+    pub(crate) fn start_epoch(
+        processor: &mut MinimalEventProcessor<f64, f64>,
+        epoch: usize,
+        num_items: usize,
+    ) {
+        processor.process_train(LearnerEvent::StartSplit {
+            epoch_number: epoch,
+            total_items: num_items,
+        });
+        processor.process_valid(LearnerEvent::StartSplit {
+            epoch_number: epoch,
+            total_items: num_items,
+        });
+    }
+
     pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
         processor.process_train(LearnerEvent::EndSplit(epoch));
         processor.process_valid(LearnerEvent::EndSplit(epoch));
