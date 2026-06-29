@@ -19,7 +19,10 @@ where
 /// Resolve when the process is asked to stop (Ctrl+C, or `SIGTERM` on Unix).
 ///
 /// The single shutdown trigger shared by the turnkey WebSocket and Iroh server entry points.
-#[cfg(all(not(target_family = "wasm"), any(feature = "websocket", feature = "iroh")))]
+#[cfg(all(
+    not(target_family = "wasm"),
+    any(feature = "websocket", feature = "iroh")
+))]
 pub(crate) async fn os_shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()

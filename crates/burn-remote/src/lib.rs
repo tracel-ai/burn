@@ -13,9 +13,9 @@ pub mod client;
 #[cfg(feature = "server")]
 pub mod server;
 
-mod transport;
 pub(crate) mod shared;
 pub mod telemetry;
+mod transport;
 
 #[cfg(feature = "websocket")]
 pub use burn_communication::Protocol;
@@ -30,9 +30,9 @@ pub(crate) mod metrics;
 #[cfg(feature = "iroh")]
 pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
 #[cfg(feature = "iroh")]
-pub use transport::iroh::node::BURN_REMOTE_ALPN;
-#[cfg(feature = "iroh")]
 pub use transport::iroh::RemoteSecret;
+#[cfg(feature = "iroh")]
+pub use transport::iroh::node::BURN_REMOTE_ALPN;
 pub use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]

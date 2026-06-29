@@ -1,5 +1,3 @@
-use crate::PeerAddr;
-use crate::transport::link::{FrameSink, FrameSource};
 use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
 use crate::shared::{
     LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
@@ -10,8 +8,6 @@ use burn_backend::{
     DTypeUsageSet, ExecutionError, TensorData,
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
-#[cfg(feature = "websocket")]
-use burn_communication::ProtocolClient;
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::{DType, DeviceSettings, id::StreamId};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
@@ -21,62 +17,20 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::oneshot;
 
 mod batch;
+mod conn;
 mod pending;
 mod registry;
 mod writer;
 
 use batch::OutgoingBatch;
+use conn::{ResponseChannel, open_channels};
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
-pub(crate) use registry::{RemoteEndpoint, endpoint_for, register_endpoint};
+pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
 use registry::{device_count_cell, settings_cell};
 pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
-
-pub(crate) enum SubmitChannel {
-    #[cfg(feature = "iroh")]
-    Iroh(iroh::endpoint::SendStream),
-    #[cfg(feature = "websocket")]
-    WebSocket(Box<burn_communication::websocket::WsClientSink>),
-}
-
-impl SubmitChannel {
-    pub(crate) async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), String> {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => FrameSink::send(stream, bytes).await,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket(sink) => FrameSink::send(sink.as_mut(), bytes).await,
-        }
-    }
-
-    async fn close(&mut self) -> Result<(), String> {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => FrameSink::close(stream).await,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket(sink) => FrameSink::close(sink.as_mut()).await,
-        }
-    }
-}
-
-enum ResponseChannel {
-    #[cfg(feature = "iroh")]
-    Iroh(iroh::endpoint::RecvStream),
-    #[cfg(feature = "websocket")]
-    WebSocket(Box<burn_communication::websocket::WsClientStream>),
-}
-
-impl ResponseChannel {
-    async fn recv(&mut self) -> Result<Option<bytes::Bytes>, String> {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => FrameSource::recv(stream).await,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket(stream) => FrameSource::recv(stream.as_mut()).await,
-        }
-    }
-}
+pub(crate) use registry::{endpoint_for, register_endpoint};
 
 /// All the state owned by the device-runner thread for a single remote device.
 ///
@@ -290,49 +244,15 @@ impl RemoteService {
         (id, endpoint, device_index)
     }
 
-    /// Open the submit and fetch channels. Done up front so a missing server surfaces here
-    /// rather than on the first op, and the demux/writer tasks can be spawned on already-open
-    /// streams.
-    async fn open_channels(
-        endpoint: &RemoteEndpoint,
-    ) -> Result<(SubmitChannel, ResponseChannel), String> {
-        match endpoint {
-            #[cfg(feature = "iroh")]
-            RemoteEndpoint::Iroh { node, peer, .. } => {
-                let (send, recv) = node
-                    .open_stream(
-                        &PeerAddr::Iroh(peer.clone()),
-                        crate::transport::iroh::node::StreamKind::Session,
-                    )
-                    .await?;
-                Ok((SubmitChannel::Iroh(send), ResponseChannel::Iroh(recv)))
-            }
-            #[cfg(feature = "websocket")]
-            RemoteEndpoint::WebSocket { address, .. } => {
-                use burn_communication::websocket::WsClient;
-                // One full-duplex socket per session, split into the submit (sink) + response
-                // (source) halves — matching the Iroh single-stream model.
-                let channel = WsClient::connect(address.clone(), "session")
-                    .await
-                    .map_err(|err| connect_error("session", &endpoint.peer_addr(), &err))?;
-                let (sink, source) = channel.split();
-                Ok((
-                    SubmitChannel::WebSocket(Box::new(sink)),
-                    ResponseChannel::WebSocket(Box::new(source)),
-                ))
-            }
-        }
-    }
-
-    /// Native synchronous wrapper over [`open_channels`](Self::open_channels): blocks the
-    /// runner thread until the streams are open.
+    /// Native synchronous wrapper over [`open_channels`](conn::open_channels): blocks the runner
+    /// thread until the streams are open.
     #[cfg(not(target_family = "wasm"))]
     fn connect_streams(
         executor: &Executor,
         endpoint: &RemoteEndpoint,
     ) -> (SubmitChannel, ResponseChannel) {
         executor
-            .block_on(Self::open_channels(endpoint))
+            .block_on(open_channels(endpoint))
             .unwrap_or_else(|err: String| panic!("{err}"))
     }
 
@@ -478,7 +398,7 @@ pub(crate) struct WasmConnected {
 pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
     let executor = Executor::WasmLocal;
 
-    let (mut request, mut response) = RemoteService::open_channels(&plan.endpoint)
+    let (mut request, mut response) = open_channels(&plan.endpoint)
         .await
         .unwrap_or_else(|err| panic!("{err}"));
     let (settings, device_count) = RemoteService::handshake_async(
@@ -498,15 +418,6 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
         settings,
         device_count,
     }
-}
-
-/// Actionable panic message for a failed channel connect.
-#[cfg(feature = "websocket")]
-fn connect_error<E: std::fmt::Debug>(route: &str, peer: &PeerAddr, err: &E) -> String {
-    format!(
-        "Failed to open remote '{route}' channel to {peer}: {err:?}. \
-         Is a `burn-remote` compute node running at that peer?"
-    )
 }
 
 impl RemoteService {
@@ -776,8 +687,7 @@ impl RemoteService {
                 self.endpoint.peer_addr(),
                 self.device_index
             );
-            let (mut request, mut response) =
-                Self::connect_streams(&self.executor, &self.endpoint);
+            let (mut request, mut response) = Self::connect_streams(&self.executor, &self.endpoint);
             let (settings, device_count) = Self::handshake(
                 &self.executor,
                 &mut request,

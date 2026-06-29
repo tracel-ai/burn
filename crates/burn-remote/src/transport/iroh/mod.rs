@@ -6,8 +6,8 @@
 mod secret;
 pub use secret::RemoteSecret;
 
-pub mod node;
 mod link;
+pub mod node;
 
 #[cfg(feature = "server")]
 mod transfer;

@@ -115,11 +115,7 @@ impl SubmitWriter {
     /// Best-effort teardown: enqueue an optional final batch, drop the sender so the writer
     /// drains and exits, then (on native) join it so the runtime isn't torn down mid-send. In the
     /// browser the task is detached and finishes draining on the event loop after the sender drops.
-    pub(crate) fn shutdown(
-        &mut self,
-        runtime: &Executor,
-        final_batch: Option<Vec<RemoteMessage>>,
-    ) {
+    pub(crate) fn shutdown(&mut self, runtime: &Executor, final_batch: Option<Vec<RemoteMessage>>) {
         if let (Some(batch), Some(tx)) = (final_batch, self.tx.as_ref()) {
             #[cfg(not(target_family = "wasm"))]
             let _ = runtime.block_on(tx.send(batch));

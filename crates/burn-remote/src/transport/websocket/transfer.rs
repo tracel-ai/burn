@@ -45,10 +45,7 @@ impl<B: BackendIr> TensorTransfer<B> for WebSocketTransfer<B> {
         capability: TransferCapability,
     ) -> Option<TensorData> {
         // Only the WebSocket arm remains when the Iroh transport is compiled out.
-        #[cfg_attr(
-            not(feature = "iroh"),
-            allow(clippy::infallible_destructuring_match)
-        )]
+        #[cfg_attr(not(feature = "iroh"), allow(clippy::infallible_destructuring_match))]
         let address = match remote {
             PeerAddr::WebSocket(address) => address,
             #[cfg(feature = "iroh")]

@@ -20,7 +20,9 @@ impl FrameSink for WsServerSink {
     }
 
     async fn close(&mut self) -> Result<(), String> {
-        WsServerSink::close(self).await.map_err(|err| err.to_string())
+        WsServerSink::close(self)
+            .await
+            .map_err(|err| err.to_string())
     }
 }
 
@@ -41,7 +43,9 @@ impl FrameSink for WsClientSink {
     }
 
     async fn close(&mut self) -> Result<(), String> {
-        WsClientSink::close(self).await.map_err(|err| err.to_string())
+        WsClientSink::close(self)
+            .await
+            .map_err(|err| err.to_string())
     }
 }
 

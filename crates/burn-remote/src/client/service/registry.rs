@@ -1,7 +1,5 @@
 //! Process-global registry connecting Burn's compact `DeviceId` to rich remote endpoints.
 
-#[cfg(feature = "websocket")]
-use burn_communication::Address;
 use burn_ir::TensorId;
 use burn_std::DeviceSettings;
 use std::{
@@ -12,107 +10,7 @@ use std::{
     },
 };
 
-use super::Executor;
-use crate::{PeerAddr, PeerId};
-
-#[cfg(feature = "iroh")]
-use crate::transport::iroh::node::RemoteNode;
-
-/// Everything needed to establish a session with a remote compute peer.
-///
-/// The [`Executor`] is captured at device construction (in the runtime that owns the transport)
-/// and carried here, so the session never depends on the node holding a runtime.
-#[derive(Clone, Debug)]
-pub(crate) enum RemoteEndpoint {
-    #[cfg(feature = "iroh")]
-    Iroh {
-        node: RemoteNode,
-        peer: iroh::EndpointAddr,
-        authorization: Arc<[u8]>,
-        executor: Executor,
-    },
-    #[cfg(feature = "websocket")]
-    WebSocket {
-        address: Address,
-        authorization: Arc<[u8]>,
-        executor: Executor,
-    },
-}
-
-impl RemoteEndpoint {
-    pub(crate) fn peer_addr(&self) -> PeerAddr {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh { peer, .. } => PeerAddr::Iroh(peer.clone()),
-            #[cfg(feature = "websocket")]
-            Self::WebSocket { address, .. } => PeerAddr::WebSocket(address.clone()),
-        }
-    }
-
-    pub(crate) fn peer_id(&self) -> PeerId {
-        self.peer_addr().id()
-    }
-
-    pub(crate) fn authorization(&self) -> &[u8] {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh { authorization, .. } => authorization,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket { authorization, .. } => authorization,
-        }
-    }
-
-    pub(crate) fn executor(&self) -> &Executor {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh { executor, .. } => executor,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket { executor, .. } => executor,
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-enum EndpointKey {
-    #[cfg(feature = "iroh")]
-    Iroh {
-        local: iroh::EndpointId,
-        remote: iroh::EndpointId,
-        authorization: Arc<[u8]>,
-    },
-    #[cfg(feature = "websocket")]
-    WebSocket {
-        address: Address,
-        authorization: Arc<[u8]>,
-    },
-}
-
-impl RemoteEndpoint {
-    fn key(&self) -> EndpointKey {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh {
-                node,
-                peer,
-                authorization,
-                ..
-            } => EndpointKey::Iroh {
-                local: node.id(),
-                remote: peer.id,
-                authorization: authorization.clone(),
-            },
-            #[cfg(feature = "websocket")]
-            Self::WebSocket {
-                address,
-                authorization,
-                ..
-            } => EndpointKey::WebSocket {
-                address: address.clone(),
-                authorization: authorization.clone(),
-            },
-        }
-    }
-}
+use super::conn::{EndpointKey, RemoteEndpoint};
 
 static TENSOR_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
