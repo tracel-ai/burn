@@ -27,8 +27,9 @@ use conn::{ResponseChannel, open_channels};
 use pending::{PendingResponses, Responder};
 use writer::SubmitWriter;
 
+use super::runtime::Executor;
 pub(crate) use conn::{RemoteEndpoint, SubmitChannel};
-use registry::{device_count_cell, settings_cell};
+use registry::{device_count_cell, executor_for, settings_cell};
 pub(crate) use registry::{device_count_for, has_settings, new_tensor_id, settings_for};
 pub(crate) use registry::{endpoint_for, register_endpoint};
 
@@ -81,9 +82,9 @@ pub struct RemoteService {
 impl DeviceService for RemoteService {
     fn init(device_id: DeviceId) -> Self {
         let (id, endpoint, device_index) = Self::resolve_endpoint(device_id);
-        // The executor was captured on the device's endpoint at device-construction time (in the
-        // runtime that owns the transport); the service just reuses it.
-        let executor = endpoint.executor().clone();
+        // The executor was captured at device-construction time (in the runtime that owns the
+        // transport) and stored in the registry alongside the endpoint; the service just reuses it.
+        let executor = executor_for(id).expect("device registered with a captured executor");
         let session_id = SessionId::new();
 
         let probe = if TelemetryLogger::enabled() {
@@ -126,109 +127,6 @@ impl DeviceService for RemoteService {
         // layer never reads what we return here. Handing back an empty handle keeps `init` —
         // and the cubecl lock it runs under — free of the blocking network handshake.
         Arc::new(())
-    }
-}
-
-/// Process-global Tokio runtime for sessions opened outside an ambient runtime.
-///
-/// Fallback for synchronous callers (scripts, REPLs, notebooks) and the legacy WebSocket path.
-/// A native Iroh node also binds on this
-/// runtime so its endpoint and session tasks share one executor. When a device is built inside
-/// an existing runtime, that one is used instead and this fallback is never created.
-#[cfg(not(target_family = "wasm"))]
-pub(crate) fn blocking_runtime() -> &'static tokio::runtime::Runtime {
-    use std::sync::OnceLock;
-    static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-    RUNTIME.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Can build the Burn Remote blocking runtime")
-    })
-}
-
-/// Executor for a remote session's writer and response-demux tasks.
-///
-/// Captured once at device construction and stored on the device endpoint, so the session reuses
-/// whatever runtime owns its transport. On native this wraps a Tokio runtime handle: the ambient
-/// runtime if one is active, otherwise the shared [`blocking_runtime`]. In the browser Iroh runs
-/// on the JS event loop; tasks are spawned with `spawn_local` and blocking calls are unavailable.
-#[derive(Clone, Debug)]
-pub(crate) enum Executor {
-    #[cfg(not(target_family = "wasm"))]
-    Tokio(tokio::runtime::Handle),
-    #[cfg(target_family = "wasm")]
-    WasmLocal,
-}
-
-/// Handle to a spawned session task. Joinable on native; a no-op in the browser where tasks
-/// run on the event loop and cannot be awaited.
-pub(crate) struct SpawnHandle {
-    #[cfg(not(target_family = "wasm"))]
-    inner: tokio::task::JoinHandle<()>,
-}
-
-impl Executor {
-    /// Capture the executor for a new session at device-construction time.
-    ///
-    /// Native: the ambient Tokio runtime if one is active, otherwise the shared [`blocking_runtime`].
-    /// Browser: the JS event loop. The result is stored on the device endpoint.
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn capture() -> Self {
-        match tokio::runtime::Handle::try_current() {
-            Ok(handle) => Self::Tokio(handle),
-            Err(_) => Self::Tokio(blocking_runtime().handle().clone()),
-        }
-    }
-
-    #[cfg(target_family = "wasm")]
-    pub(crate) fn capture() -> Self {
-        Self::WasmLocal
-    }
-
-    pub(crate) fn block_on<F: core::future::Future>(&self, future: F) -> F::Output {
-        match self {
-            #[cfg(not(target_family = "wasm"))]
-            Self::Tokio(handle) => handle.block_on(future),
-            #[cfg(target_family = "wasm")]
-            Self::WasmLocal => {
-                core::mem::drop(future);
-                panic!(
-                    "Blocking remote calls are not supported on wasm. Establish the session with \
-                     `RemoteDevice::connect_async(...).await` and read tensors with \
-                     `into_data_async().await`."
-                )
-            }
-        }
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn spawn<F>(&self, future: F) -> SpawnHandle
-    where
-        F: core::future::Future<Output = ()> + Send + 'static,
-    {
-        match self {
-            Self::Tokio(handle) => SpawnHandle {
-                inner: handle.spawn(future),
-            },
-        }
-    }
-
-    /// Spawn a session task on the browser event loop. The Iroh streams these tasks own are not
-    /// `Send`, which is why the wasm path uses `spawn_local` rather than the native `spawn`.
-    #[cfg(target_family = "wasm")]
-    pub(crate) fn spawn<F>(&self, future: F) -> SpawnHandle
-    where
-        F: core::future::Future<Output = ()> + 'static,
-    {
-        wasm_bindgen_futures::spawn_local(future);
-        SpawnHandle {}
-    }
-
-    /// Wait for a spawned task to finish. No-op in the browser.
-    #[cfg(not(target_family = "wasm"))]
-    fn join(&self, handle: SpawnHandle) {
-        let _ = self.block_on(handle.inner);
     }
 }
 

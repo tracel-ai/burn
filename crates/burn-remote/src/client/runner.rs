@@ -10,7 +10,8 @@ use burn_std::{backtrace::BackTrace, future::DynFut};
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use service::{Executor, RemoteEndpoint};
+use super::runtime::Executor;
+use service::RemoteEndpoint;
 
 // It is very important to block on any request made via the service, since ordering is
 // crucial when registering operations or creating tensors. The `DeviceHandle` queue
@@ -181,10 +182,9 @@ impl RemoteDevice {
         let endpoint = RemoteEndpoint::WebSocket {
             address: burn_communication::Address::from(address),
             authorization: Arc::from([]),
-            executor: Executor::capture(),
         };
         let device_index = device_index as u32;
-        let id = service::register_endpoint(endpoint.clone(), device_index);
+        let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
         Self {
             endpoint,
             device_index,
@@ -213,10 +213,9 @@ impl RemoteDevice {
             node,
             peer,
             authorization: authorization.into(),
-            executor: Executor::capture(),
         };
         let device_index = device_index as u32;
-        let id = service::register_endpoint(endpoint.clone(), device_index);
+        let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
         Self {
             endpoint,
             device_index,

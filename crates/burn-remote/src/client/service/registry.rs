@@ -11,6 +11,7 @@ use std::{
 };
 
 use super::conn::{EndpointKey, RemoteEndpoint};
+use crate::client::runtime::Executor;
 
 static TENSOR_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -27,6 +28,7 @@ struct EndpointRegistry {
 #[derive(Clone)]
 struct EndpointEntry {
     endpoint: RemoteEndpoint,
+    executor: Executor,
     device_index: u32,
     settings: Arc<OnceLock<DeviceSettings>>,
     device_count: Arc<OnceLock<u32>>,
@@ -44,12 +46,19 @@ fn registry() -> &'static Mutex<EndpointRegistry> {
     })
 }
 
-pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> u32 {
+pub(crate) fn register_endpoint(
+    endpoint: RemoteEndpoint,
+    executor: Executor,
+    device_index: u32,
+) -> u32 {
     let key = (endpoint.key(), device_index);
     let mut registry = registry().lock().unwrap();
     if let Some(id) = registry.by_endpoint.get(&key).copied() {
-        // Refresh mutable dialing hints while preserving the stable device id and settings cells.
-        registry.by_index.get_mut(&id).unwrap().endpoint = endpoint;
+        // Refresh mutable dialing hints + the captured runtime while preserving the stable device
+        // id and settings cells.
+        let entry = registry.by_index.get_mut(&id).unwrap();
+        entry.endpoint = endpoint;
+        entry.executor = executor;
         return id;
     }
 
@@ -60,6 +69,7 @@ pub(crate) fn register_endpoint(endpoint: RemoteEndpoint, device_index: u32) -> 
         id,
         EndpointEntry {
             endpoint,
+            executor,
             device_index,
             settings: Arc::new(OnceLock::new()),
             device_count: Arc::new(OnceLock::new()),
@@ -75,6 +85,16 @@ pub(crate) fn endpoint_for(id: u32) -> Option<(RemoteEndpoint, u32)> {
         .by_index
         .get(&id)
         .map(|entry| (entry.endpoint.clone(), entry.device_index))
+}
+
+/// The runtime captured for `id`'s device at construction, used to drive its session tasks.
+pub(crate) fn executor_for(id: u32) -> Option<Executor> {
+    registry()
+        .lock()
+        .unwrap()
+        .by_index
+        .get(&id)
+        .map(|entry| entry.executor.clone())
 }
 
 pub(crate) fn settings_for(id: u32) -> DeviceSettings {

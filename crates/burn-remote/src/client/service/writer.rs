@@ -1,6 +1,7 @@
 //! Outgoing-frame writer task.
 
-use crate::client::service::{Executor, SpawnHandle, SubmitChannel};
+use crate::client::runtime::{Executor, SpawnHandle};
+use crate::client::service::SubmitChannel;
 use crate::shared::RemoteMessage;
 use tokio::sync::mpsc;
 

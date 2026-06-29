@@ -10,17 +10,15 @@ use std::sync::Arc;
 use crate::transport::link::{FrameSink, FrameSource};
 use crate::{PeerAddr, PeerId};
 
-use super::Executor;
-
 #[cfg(feature = "iroh")]
 use crate::transport::iroh::node::RemoteNode;
 #[cfg(feature = "websocket")]
 use burn_communication::{Address, ProtocolClient};
 
-/// Everything needed to establish a session with a remote compute peer.
+/// How to reach a remote compute peer — the transport-specific dial config.
 ///
-/// The [`Executor`] is captured at device construction (in the runtime that owns the transport)
-/// and carried here, so the session never depends on the node holding a runtime.
+/// Pure, comparable config with no runtime state: the executor captured at device construction is
+/// carried separately by the device registry, not embedded here.
 #[derive(Clone, Debug)]
 pub(crate) enum RemoteEndpoint {
     #[cfg(feature = "iroh")]
@@ -28,13 +26,11 @@ pub(crate) enum RemoteEndpoint {
         node: RemoteNode,
         peer: iroh::EndpointAddr,
         authorization: Arc<[u8]>,
-        executor: Executor,
     },
     #[cfg(feature = "websocket")]
     WebSocket {
         address: Address,
         authorization: Arc<[u8]>,
-        executor: Executor,
     },
 }
 
@@ -58,15 +54,6 @@ impl RemoteEndpoint {
             Self::Iroh { authorization, .. } => authorization,
             #[cfg(feature = "websocket")]
             Self::WebSocket { authorization, .. } => authorization,
-        }
-    }
-
-    pub(crate) fn executor(&self) -> &Executor {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh { executor, .. } => executor,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket { executor, .. } => executor,
         }
     }
 
