@@ -10,6 +10,8 @@ mod link;
 pub mod node;
 
 #[cfg(feature = "server")]
+pub mod protocol;
+#[cfg(all(feature = "server", not(target_family = "wasm")))]
 pub mod server;
 #[cfg(feature = "server")]
 mod time;

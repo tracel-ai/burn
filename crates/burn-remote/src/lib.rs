@@ -8,7 +8,7 @@
 //! The optional `websocket` feature retains the legacy address-and-port transport.
 
 #[cfg(feature = "client")]
-pub mod client;
+mod client;
 
 #[cfg(feature = "server")]
 pub mod server;
@@ -17,8 +17,6 @@ pub(crate) mod shared;
 pub mod telemetry;
 mod transport;
 
-#[cfg(feature = "websocket")]
-pub use burn_communication::Protocol;
 pub use burn_ir as ir;
 pub use burn_router::RouterClient;
 
@@ -28,7 +26,7 @@ pub use burn_router::RouterClient;
 pub(crate) mod metrics;
 
 #[cfg(feature = "iroh")]
-pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
+pub use iroh::{Endpoint, EndpointAddr, EndpointId};
 #[cfg(feature = "iroh")]
 pub use transport::iroh::RemoteSecret;
 #[cfg(feature = "iroh")]
@@ -39,18 +37,17 @@ pub use transport::{PeerAddr, PeerId};
 mod __client {
     use super::*;
 
-    use crate::client::RemoteChannel;
     use burn_router::BackendRouter;
 
     /// The remote backend allows you to run computation on a remote device.
     ///
     /// Iroh is the primary transport. Applications own an Iroh [`Endpoint`], resolve a compute peer
     /// through their own discovery/control plane, and construct devices from the endpoint and the
-    /// peer's address with [`RemoteDevice::remote_iroh`] (or the `Device::remote_iroh` facade).
+    /// peer's address with [`RemoteDevice::iroh`] (or the `Device::remote_iroh` facade).
     ///
     /// ```rust, ignore
     /// let endpoint = Endpoint::builder(presets::N0).bind().await?;
-    /// let remote = RemoteDevice::remote_iroh(&endpoint, compute_peer, 0);
+    /// let remote = RemoteDevice::iroh(&endpoint, compute_peer, 0);
     /// ```
     ///
     /// For backends that aren't part of `DispatchDevice` but implement
@@ -68,7 +65,7 @@ mod __client {
     #[cfg(feature = "fusion")]
     pub type RemoteBackend = burn_fusion::Fusion<BackendRouter<RemoteChannel>>;
 
-    pub use client::{CustomOpClient, RemoteDevice};
+    pub use client::{CustomOpClient, RemoteChannel, RemoteDevice};
 }
 #[cfg(feature = "client")]
 pub use __client::*;

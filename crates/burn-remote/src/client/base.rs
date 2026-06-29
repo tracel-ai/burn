@@ -1,7 +1,7 @@
 use super::{RemoteDevice, service::RemoteService};
 use burn_backend::{DeviceHandle, backend::Device};
 
-/// A thin handle to a [`RemoteService`] running on its own device-runner thread.
+/// A thin handle to a `RemoteService` running on its own device-runner thread.
 ///
 /// Every `RouterClient` method delegates to `handle.submit` / `submit_blocking`, so all
 /// connection state, the tokio runtime, the response-demux task, and the op batch buffer

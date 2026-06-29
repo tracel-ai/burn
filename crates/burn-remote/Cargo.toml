@@ -43,7 +43,7 @@ websocket = [
 burn-ir = { workspace = true, features = ["default"] }
 burn-backend = { workspace = true, features = [
     "default",
-    "serde", # For DTypeUsageSet to be de/serialized
+    "serde",   # For DTypeUsageSet to be de/serialized
 ] }
 burn-std = { workspace = true, features = ["default"] }
 burn-router = { workspace = true, features = ["default"] }

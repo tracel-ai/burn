@@ -12,6 +12,6 @@ pub use builder::{Channel, RemoteServerBuilder};
 pub use burn_router::{CustomOpHandler, CustomOpRegistry};
 
 #[cfg(feature = "iroh")]
-pub use crate::transport::iroh::server::{
+pub use crate::transport::iroh::protocol::{
     AllowAll, AuthorizationRequest, IrohRemoteProtocol, PeerAuthorizer, RemoteProtocol,
 };
