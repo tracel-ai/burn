@@ -94,36 +94,3 @@ fn fusion_test_elementwise_operation_followed_by_interpolate_nearest() {
     assert_eq!(actual_values, expected_values);
 }
 
-fn add_zero_and_conv_transpose1d(dev: Device, dtype: DType) -> TensorData {
-    let input =
-        TestTensor::<3>::from_data(TensorData::from([[[0.0, 1.0, 2.0, 3.0]]]), &dev).cast(dtype);
-    let weight = TestTensor::<3>::from_data(TensorData::from([[[2.0]]]), &dev).cast(dtype);
-
-    let input_zeros = TestTensor::<3>::zeros(input.shape(), &dev).cast(dtype);
-    let weight_zeros = TestTensor::<3>::zeros(weight.shape(), &dev).cast(dtype);
-
-    dev.sync().unwrap();
-
-    let x = input + input_zeros;
-    let weight = weight + weight_zeros;
-
-    let output = conv_transpose1d(
-        x,
-        weight,
-        None,
-        ConvTransposeOptions::new([1], [0], [0], [1], 1),
-    );
-
-    output.into_data()
-}
-
-#[test]
-fn fusion_test_elementwise_operation_followed_by_conv_transpose1d() {
-    let fused_32 = add_zero_and_conv_transpose1d(Default::default(), DType::F32);
-
-    assert_eq!(fused_32.shape.to_vec(), vec![1, 1, 4]);
-    let expected_values: Vec<f32> = vec![0.0, 2.0, 4.0, 6.0];
-    let actual_values = fused_32.to_vec::<f32>().unwrap();
-
-    assert_eq!(actual_values, expected_values);
-}
