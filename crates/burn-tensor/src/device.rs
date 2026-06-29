@@ -411,7 +411,7 @@ impl Device {
         credential: Vec<u8>,
     ) -> Self {
         let index = index.into().resolve();
-        let device = burn_dispatch::backends::remote::RemoteDevice::remote_iroh_authorized(
+        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
             endpoint,
             peer.into(),
             index,

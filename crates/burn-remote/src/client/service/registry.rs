@@ -16,7 +16,7 @@ use super::Executor;
 use crate::{PeerAddr, PeerId};
 
 #[cfg(feature = "iroh")]
-use crate::node::RemoteNode;
+use crate::transport::iroh::node::RemoteNode;
 
 /// Everything needed to establish a session with a remote compute peer.
 ///

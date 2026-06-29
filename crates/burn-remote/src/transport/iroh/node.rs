@@ -9,7 +9,7 @@ use iroh::{
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
-use crate::peer::{PeerAddr, PeerId};
+use crate::{PeerAddr, PeerId};
 
 /// ALPN used by the version-one Burn Remote protocol.
 pub const BURN_REMOTE_ALPN: &[u8] = b"burn/remote/1";

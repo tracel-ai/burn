@@ -13,9 +13,7 @@ pub mod client;
 #[cfg(feature = "server")]
 pub mod server;
 
-#[cfg(feature = "iroh")]
-mod node;
-mod peer;
+mod transport;
 pub(crate) mod shared;
 pub mod telemetry;
 
@@ -32,10 +30,10 @@ pub(crate) mod metrics;
 #[cfg(feature = "iroh")]
 pub use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
 #[cfg(feature = "iroh")]
-pub use node::BURN_REMOTE_ALPN;
+pub use transport::iroh::node::BURN_REMOTE_ALPN;
 #[cfg(feature = "iroh")]
-pub use peer::RemoteSecret;
-pub use peer::{PeerAddr, PeerId};
+pub use transport::iroh::RemoteSecret;
+pub use transport::{PeerAddr, PeerId};
 
 #[cfg(feature = "client")]
 mod __client {
@@ -550,9 +548,9 @@ mod tests {
             let session_id = SessionId::new();
 
             rtc.block_on(async {
-                let mut submit = Client::connect(address, "submit")
+                let mut submit = Client::connect(address, "session")
                     .await
-                    .expect("raw submit connect");
+                    .expect("raw session connect");
 
                 let frame = |msgs: Vec<RemoteMessage>| -> Message {
                     Message::new(rmp_serde::to_vec(&msgs).unwrap().into())

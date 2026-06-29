@@ -9,7 +9,7 @@ use tokio::sync::{Mutex, mpsc};
 
 use crate::metrics::{MetricSide, logger_task};
 use crate::server::local_comm::LocalCommService;
-use crate::server::service::{FetchService, SubmitService};
+use crate::server::service::SessionService;
 use crate::server::spawn::spawn_detached;
 use crate::server::transfer::TensorTransfer;
 use crate::server::worker::SessionHandler;
@@ -160,15 +160,14 @@ where
     }
 }
 
-impl<B, T> SubmitService for SessionManager<B, T>
+impl<B, T> SessionService for SessionManager<B, T>
 where
     B: BackendIr,
     T: TensorTransfer<B>,
 {
     /// Resolve the channel used to forward [`Task`]s to `session_id`'s dispatcher thread,
-    /// creating the session (and spawning its handler) on demand. The request loop resolves
-    /// this once per connection and reuses it for every task, instead of re-locking the
-    /// sessions map per task.
+    /// creating the session (and spawning its handler) on demand. The pump resolves this once and
+    /// reuses it for every task, instead of re-locking the sessions map per task.
     async fn session_task_sender(
         &self,
         session_id: SessionId,
@@ -178,42 +177,10 @@ where
             .await
     }
 
-    /// Drop the session, detaching its handler. Removing the map entry drops the inbound task
-    /// sender it holds; once the request connection also drops its cloned task sender, the
-    /// dispatcher's channel closes, so the per-stream workers drain and exit and the handler
-    /// flushes its runner, releasing any backend state held only by this session's tensors.
-    async fn close(&self, session_id: SessionId) {
-        let mut sessions = self.sessions.lock().await;
-        if sessions.remove(&session_id).is_some() {
-            self.probe.emit(|| TelemetryEvent::SessionClosed {
-                session: session_id,
-            });
-        }
-    }
-}
-
-impl<B, T> FetchService for SessionManager<B, T>
-where
-    B: BackendIr,
-    T: TensorTransfer<B>,
-{
-    /// The device settings for `device_index`, used by the response-init handshake before any
-    /// session-specific runner is needed.
-    fn device_settings(&self, device_index: u32) -> burn_std::DeviceSettings {
-        use burn_backend::backend::DeviceOps;
-        self.device(device_index).defaults()
-    }
-
-    /// The total number of devices this server hosts. Sent to the client on the init handshake
-    /// so it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
-    fn device_count(&self) -> u32 {
-        self.devices.len() as u32
-    }
-
     /// Take the response receiver for `session_id`.
     ///
-    /// Returns `Err` if a responder has already been registered for this session — the
-    /// protocol allows only one response socket per session.
+    /// Returns `Err` if a responder has already been registered for this session — the protocol
+    /// allows only one session stream per session.
     async fn take_response_receiver(
         &self,
         session_id: SessionId,
@@ -225,5 +192,31 @@ where
                 .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
         })
         .await
+    }
+
+    /// The device settings for `device_index`, used by the handshake before any session-specific
+    /// runner is needed.
+    fn device_settings(&self, device_index: u32) -> burn_std::DeviceSettings {
+        use burn_backend::backend::DeviceOps;
+        self.device(device_index).defaults()
+    }
+
+    /// The total number of devices this server hosts. Sent to the client on the init handshake so
+    /// it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
+    fn device_count(&self) -> u32 {
+        self.devices.len() as u32
+    }
+
+    /// Drop the session, detaching its handler. Removing the map entry drops the inbound task
+    /// sender it holds; once the pump also drops its cloned task sender, the dispatcher's channel
+    /// closes, so the per-stream workers drain and exit and the handler flushes its runner,
+    /// releasing any backend state held only by this session's tensors.
+    async fn close(&self, session_id: SessionId) {
+        let mut sessions = self.sessions.lock().await;
+        if sessions.remove(&session_id).is_some() {
+            self.probe.emit(|| TelemetryEvent::SessionClosed {
+                session: session_id,
+            });
+        }
     }
 }

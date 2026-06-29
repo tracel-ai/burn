@@ -3,7 +3,10 @@ use crate::{
     websocket::base::parse_ws_address,
 };
 use burn_std::future::DynFut;
-use futures::{SinkExt, StreamExt};
+use futures::{
+    SinkExt, StreamExt,
+    stream::{SplitSink, SplitStream},
+};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async_with_config,
@@ -99,6 +102,67 @@ impl CommunicationChannel for WsClientChannel {
             .await?;
 
         Ok(())
+    }
+}
+
+impl WsClientChannel {
+    /// Split into independently-owned send and receive halves, so a writer task and a reader loop
+    /// can run concurrently over one full-duplex socket.
+    pub fn split(self) -> (WsClientSink, WsClientStream) {
+        let (sink, stream) = self.inner.split();
+        (WsClientSink { inner: sink }, WsClientStream { inner: stream })
+    }
+}
+
+/// Send half of a split [`WsClientChannel`].
+pub struct WsClientSink {
+    inner: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Message>,
+}
+
+impl WsClientSink {
+    pub async fn send(&mut self, msg: Message) -> Result<(), WsClientError> {
+        self.inner
+            .send(tungstenite::Message::Binary(msg.data))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn close(&mut self) -> Result<(), WsClientError> {
+        self.inner
+            .send(tungstenite::Message::Close(Some(
+                tungstenite::protocol::CloseFrame {
+                    code: tungstenite::protocol::frame::coding::CloseCode::Normal,
+                    reason: "Peer is closing".to_string().into(),
+                },
+            )))
+            .await?;
+        Ok(())
+    }
+}
+
+/// Receive half of a split [`WsClientChannel`].
+pub struct WsClientStream {
+    inner: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
+}
+
+impl WsClientStream {
+    /// Mirrors [`WsClientChannel::recv`]: surface binary frames, skip keepalive/text frames, and
+    /// treat a close frame or an exhausted stream as a clean end-of-stream.
+    pub async fn recv(&mut self) -> Result<Option<Message>, WsClientError> {
+        loop {
+            match self.inner.next().await {
+                Some(Ok(tungstenite::Message::Binary(data))) => return Ok(Some(Message { data })),
+                Some(Ok(tungstenite::Message::Close(_close_frame))) => return Ok(None),
+                Some(Ok(
+                    tungstenite::Message::Ping(_)
+                    | tungstenite::Message::Pong(_)
+                    | tungstenite::Message::Text(_)
+                    | tungstenite::Message::Frame(_),
+                )) => continue,
+                Some(Err(err)) => return Err(WsClientError::Tungstenite(err)),
+                None => return Ok(None),
+            }
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::PeerAddr;
+use crate::transport::link::{FrameSink, FrameSource};
 use crate::metrics::{MetricSide, TelemetryLogger, logger_task};
 use crate::shared::{
     LocalTransferId, PROTOCOL_VERSION, RemoteMessage, RequestId, SessionId, SessionInfo,
@@ -10,7 +11,7 @@ use burn_backend::{
     backend::{DeviceId, DeviceService, ServerUtilitiesHandle},
 };
 #[cfg(feature = "websocket")]
-use burn_communication::{CommunicationChannel, Message, ProtocolClient};
+use burn_communication::ProtocolClient;
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::{DType, DeviceSettings, id::StreamId};
 // Only the native `sync` path captures a backtrace; the wasm path returns without blocking.
@@ -36,30 +37,25 @@ pub(crate) enum SubmitChannel {
     #[cfg(feature = "iroh")]
     Iroh(iroh::endpoint::SendStream),
     #[cfg(feature = "websocket")]
-    WebSocket(Box<burn_communication::websocket::WsClientChannel>),
+    WebSocket(Box<burn_communication::websocket::WsClientSink>),
 }
 
 impl SubmitChannel {
     pub(crate) async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), String> {
         match self {
             #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => crate::node::send_frame(stream, &bytes).await,
+            Self::Iroh(stream) => FrameSink::send(stream, bytes).await,
             #[cfg(feature = "websocket")]
-            Self::WebSocket(channel) => channel
-                .send(Message::new(bytes))
-                .await
-                .map_err(|err| err.to_string()),
+            Self::WebSocket(sink) => FrameSink::send(sink.as_mut(), bytes).await,
         }
     }
 
     async fn close(&mut self) -> Result<(), String> {
         match self {
             #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => stream
-                .finish()
-                .map_err(|err| format!("Failed to finish Iroh session stream: {err}")),
+            Self::Iroh(stream) => FrameSink::close(stream).await,
             #[cfg(feature = "websocket")]
-            Self::WebSocket(channel) => channel.close().await.map_err(|err| err.to_string()),
+            Self::WebSocket(sink) => FrameSink::close(sink.as_mut()).await,
         }
     }
 }
@@ -68,44 +64,16 @@ enum ResponseChannel {
     #[cfg(feature = "iroh")]
     Iroh(iroh::endpoint::RecvStream),
     #[cfg(feature = "websocket")]
-    WebSocket(Box<burn_communication::websocket::WsClientChannel>),
+    WebSocket(Box<burn_communication::websocket::WsClientStream>),
 }
 
 impl ResponseChannel {
-    #[allow(unused_variables)]
-    async fn send(&mut self, bytes: bytes::Bytes) -> Result<(), String> {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh(_) => Err("Cannot send through an Iroh receive stream".into()),
-            #[cfg(feature = "websocket")]
-            Self::WebSocket(channel) => channel
-                .send(Message::new(bytes))
-                .await
-                .map_err(|err| err.to_string()),
-        }
-    }
-
     async fn recv(&mut self) -> Result<Option<bytes::Bytes>, String> {
         match self {
             #[cfg(feature = "iroh")]
-            Self::Iroh(stream) => crate::node::recv_frame(stream)
-                .await
-                .map(|frame| frame.map(bytes::Bytes::from)),
+            Self::Iroh(stream) => FrameSource::recv(stream).await,
             #[cfg(feature = "websocket")]
-            Self::WebSocket(channel) => channel
-                .recv()
-                .await
-                .map(|message| message.map(|message| message.data))
-                .map_err(|err| err.to_string()),
-        }
-    }
-
-    fn requires_init(&self) -> bool {
-        match self {
-            #[cfg(feature = "iroh")]
-            Self::Iroh(_) => false,
-            #[cfg(feature = "websocket")]
-            Self::WebSocket(_) => true,
+            Self::WebSocket(stream) => FrameSource::recv(stream.as_mut()).await,
         }
     }
 }
@@ -210,7 +178,7 @@ impl DeviceService for RemoteService {
 /// Process-global Tokio runtime for sessions opened outside an ambient runtime.
 ///
 /// Fallback for synchronous callers (scripts, REPLs, notebooks) and the legacy WebSocket path.
-/// [`RemoteNode::bind_blocking`](crate::node::RemoteNode::bind_blocking) also binds on this
+/// A native Iroh node also binds on this
 /// runtime so its endpoint and session tasks share one executor. When a device is built inside
 /// an existing runtime, that one is used instead and this fallback is never created.
 #[cfg(not(target_family = "wasm"))]
@@ -334,7 +302,7 @@ impl RemoteService {
                 let (send, recv) = node
                     .open_stream(
                         &PeerAddr::Iroh(peer.clone()),
-                        crate::node::StreamKind::Session,
+                        crate::transport::iroh::node::StreamKind::Session,
                     )
                     .await?;
                 Ok((SubmitChannel::Iroh(send), ResponseChannel::Iroh(recv)))
@@ -342,15 +310,15 @@ impl RemoteService {
             #[cfg(feature = "websocket")]
             RemoteEndpoint::WebSocket { address, .. } => {
                 use burn_communication::websocket::WsClient;
-                let submit = WsClient::connect(address.clone(), "submit")
+                // One full-duplex socket per session, split into the submit (sink) + response
+                // (source) halves — matching the Iroh single-stream model.
+                let channel = WsClient::connect(address.clone(), "session")
                     .await
-                    .map_err(|err| connect_error("submit", &endpoint.peer_addr(), &err))?;
-                let fetch = WsClient::connect(address.clone(), "fetch")
-                    .await
-                    .map_err(|err| connect_error("fetch", &endpoint.peer_addr(), &err))?;
+                    .map_err(|err| connect_error("session", &endpoint.peer_addr(), &err))?;
+                let (sink, source) = channel.split();
                 Ok((
-                    SubmitChannel::WebSocket(Box::new(submit)),
-                    ResponseChannel::WebSocket(Box::new(fetch)),
+                    SubmitChannel::WebSocket(Box::new(sink)),
+                    ResponseChannel::WebSocket(Box::new(source)),
                 ))
             }
         }
@@ -385,10 +353,7 @@ impl RemoteService {
         .into();
 
         let result: Result<(DeviceSettings, u32), String> = async {
-            request.send(init_bytes.clone()).await?;
-            if response.requires_init() {
-                response.send(init_bytes).await?;
-            }
+            request.send(init_bytes).await?;
 
             let msg = response
                 .recv()
@@ -792,7 +757,7 @@ impl RemoteService {
         self.flush();
     }
 
-    /// Open the submit/fetch sockets and run the init handshake — exactly once.
+    /// Open the session socket and run the init handshake — exactly once.
     ///
     /// Called lazily from the device-runner thread: from [`flush`](Self::flush) on the first
     /// task, or via [`RemoteClient::ensure_connected`](super::RemoteClient) on the settings

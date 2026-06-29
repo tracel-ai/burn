@@ -1,4 +1,4 @@
-#![cfg(feature = "websocket")]
+//! The turnkey WebSocket compute server.
 
 use std::sync::Arc;
 
@@ -10,22 +10,19 @@ use tokio_util::sync::CancellationToken;
 use burn_communication::{
     ProtocolServer,
     external_comm::{ExternalCommServer, ExternalCommService},
-    websocket::{WebSocket, WsServer},
+    websocket::{WebSocket, WsServer, WsServerChannel},
 };
 
-use super::{
-    service::{FetchHandler, SubmitHandler},
-    session::SessionManager,
-    spawn::os_shutdown_signal,
-    transfer::WebSocketTransfer,
-};
+use super::transfer::WebSocketTransfer;
+use crate::server::{pump::drive_session, session::SessionManager, spawn::os_shutdown_signal};
 
 /// Serve a WebSocket compute node on the given port, until shutdown.
 ///
-/// `custom_ops` holds the handlers used to execute
-/// [`OperationIr::Custom`](burn_ir::OperationIr::Custom) ops (e.g. from a backend extension); pass
-/// [`CustomOpRegistry::default`] when hosting none. Driven through
-/// [`RemoteServerBuilder`](super::RemoteServerBuilder) rather than called directly.
+/// The session protocol is a single full-duplex `/session` socket per session (split into a sink +
+/// source and driven by the shared [`drive_session`] pump); cross-server tensor transfers ride the
+/// same server via [`route_external_comm`](ExternalCommServer::route_external_comm). Driven through
+/// [`RemoteServerBuilder`](crate::server::RemoteServerBuilder) rather than called directly.
+#[cfg(not(target_family = "wasm"))]
 pub(crate) async fn start_websocket_async<B: BackendIr>(
     devices: Vec<Device<B>>,
     port: u16,
@@ -48,13 +45,21 @@ pub(crate) async fn start_websocket_async<B: BackendIr>(
     );
 
     let server = WsServer::new(port)
-        .route("/fetch", {
+        .route("/session", {
             let sessions = sessions.clone();
-            move |stream| FetchHandler::new(sessions, stream).run()
-        })
-        .route("/submit", {
-            let sessions = sessions.clone();
-            move |stream| SubmitHandler::new(sessions, stream).run()
+            move |channel: WsServerChannel| {
+                let sessions = sessions.clone();
+                async move {
+                    let (sink, source) = channel.split();
+                    // WebSocket has no authenticated peer identity, so the server presents none
+                    // (`peer_id: None`) and authorizes every session.
+                    if let Err(err) =
+                        drive_session(source, sink, sessions, None, |_init| Ok(())).await
+                    {
+                        log::warn!("WebSocket remote session failed: {err}");
+                    }
+                }
+            }
         })
         .route_external_comm(external);
 

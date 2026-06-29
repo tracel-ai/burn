@@ -11,15 +11,16 @@ use iroh::{
 
 use crate::{
     BURN_REMOTE_ALPN, PeerId,
-    node::RemoteNode,
     server::{
-        service::{FetchService, SubmitService, parse_init_handshake},
+        pump::drive_session,
         session::SessionManager,
         spawn::{os_shutdown_signal, spawn_detached},
-        transfer::IrohTransfer,
     },
-    shared::{PROTOCOL_VERSION, RemoteMessage, SessionInfo, TaskResponse, TaskResponseContent},
     telemetry::TelemetryProbe,
+    transport::iroh::{
+        IrohTransfer,
+        node::{RemoteNode, StreamKind},
+    },
 };
 
 /// Information presented to a compute node before a remote session is accepted.
@@ -100,110 +101,32 @@ impl<B: BackendIr> IrohRemoteProtocol<B> {
         }
     }
 
+    /// Drive an accepted session stream through the shared [`drive_session`] pump.
+    ///
+    /// The Iroh-specific parts are just the authenticated peer identity (`remote_id`, checked by the
+    /// application's [`PeerAuthorizer`]) and this server's own id, echoed to the client.
     async fn handle_session(
         sessions: Arc<SessionManager<B, IrohTransfer<B>>>,
         authorizer: Arc<dyn PeerAuthorizer>,
         server_id: EndpointId,
         remote_id: EndpointId,
-        mut send: SendStream,
-        mut recv: RecvStream,
+        send: SendStream,
+        recv: RecvStream,
     ) -> Result<(), String> {
-        let handshake = crate::node::recv_frame(&mut recv)
-            .await?
-            .ok_or_else(|| "Session stream closed before initialization".to_string())?;
-        let init = parse_init_handshake(&handshake)?;
-
-        authorizer.authorize(AuthorizationRequest {
-            peer: remote_id,
-            device_index: init.device_index,
-            credential: &init.authorization,
-        })?;
-
-        let task_sender = sessions
-            .session_task_sender(init.session_id, init.device_index)
-            .await;
-        let mut responses = sessions
-            .take_response_receiver(init.session_id, init.device_index)
-            .await?;
-
-        let info = TaskResponse {
-            id: 0,
-            content: TaskResponseContent::Init(SessionInfo {
-                version: PROTOCOL_VERSION,
-                settings: sessions.device_settings(init.device_index),
-                device_count: sessions.device_count(),
-                peer_id: Some(PeerId::Iroh(server_id)),
-            }),
-        };
-        let info = rmp_serde::to_vec(&info)
-            .map_err(|err| format!("Failed to encode session handshake response: {err}"))?;
-        crate::node::send_frame(&mut send, &info).await?;
-
-        let (writer_done, writer_result) = tokio::sync::oneshot::channel();
-        spawn_detached(async move {
-            let result = async {
-                while let Some(response) = responses.recv().await {
-                    let bytes = rmp_serde::to_vec(&response)
-                        .map_err(|err| format!("Failed to encode task response: {err}"))?;
-                    crate::node::send_frame(&mut send, &bytes).await?;
-                }
-                send.finish()
-                    .map_err(|err| format!("Failed to finish session response stream: {err}"))
-            }
-            .await;
-            let _ = writer_done.send(result);
-        });
-
-        let result = loop {
-            let Some(frame) = crate::node::recv_frame(&mut recv).await? else {
-                break Ok(());
-            };
-            let messages: Vec<RemoteMessage> = rmp_serde::from_slice(&frame)
-                .map_err(|err| format!("Invalid remote task batch: {err}"))?;
-            let mut close = false;
-            let mut protocol_error = None;
-            for message in messages {
-                match message {
-                    RemoteMessage::Task(task) => {
-                        task_sender
-                            .send(task)
-                            .await
-                            .map_err(|_| "Session worker stopped".to_string())?;
-                    }
-                    RemoteMessage::Close(id) if id == init.session_id => {
-                        close = true;
-                        break;
-                    }
-                    RemoteMessage::Close(id) => {
-                        protocol_error = Some(format!(
-                            "Session {} attempted to close unrelated session {id}",
-                            init.session_id
-                        ));
-                        break;
-                    }
-                    RemoteMessage::Init(_) => {
-                        protocol_error =
-                            Some("A session stream cannot be initialized twice".into());
-                        break;
-                    }
-                }
-            }
-            if let Some(err) = protocol_error {
-                break Err(err);
-            }
-            if close {
-                break Ok(());
-            }
-        };
-
-        drop(task_sender);
-        sessions.close(init.session_id).await;
-        match writer_result.await {
-            Ok(Ok(())) => {}
-            Ok(Err(err)) => log::warn!("Iroh response writer failed: {err}"),
-            Err(_) => log::warn!("Iroh response writer task stopped before finishing"),
-        }
-        result
+        drive_session(
+            recv,
+            send,
+            sessions,
+            Some(PeerId::Iroh(server_id)),
+            |init| {
+                authorizer.authorize(AuthorizationRequest {
+                    peer: remote_id,
+                    device_index: init.device_index,
+                    credential: &init.authorization,
+                })
+            },
+        )
+        .await
     }
 }
 
@@ -247,7 +170,7 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
             };
 
             match kind {
-                crate::node::StreamKind::Session => {
+                StreamKind::Session => {
                     let sessions = self.sessions.clone();
                     let authorizer = self.authorizer.clone();
                     let server_id = self.node.id();
@@ -261,7 +184,7 @@ impl<B: BackendIr> ProtocolHandler for IrohRemoteProtocol<B> {
                         }
                     });
                 }
-                crate::node::StreamKind::TensorTransfer => {
+                StreamKind::TensorTransfer => {
                     let transfer = self.transfer.clone();
                     spawn_detached(async move {
                         if let Err(err) = transfer.handle_stream(remote_id, send, recv).await {

@@ -208,7 +208,7 @@ impl RemoteDevice {
         device_index: usize,
         authorization: Vec<u8>,
     ) -> Self {
-        let node = crate::node::RemoteNode::from_endpoint(endpoint.clone());
+        let node = crate::transport::iroh::node::RemoteNode::from_endpoint(endpoint.clone());
         let endpoint = RemoteEndpoint::Iroh {
             node,
             peer,

@@ -86,8 +86,8 @@ impl SessionId {
     }
 }
 
-/// A single message on a session's `/submit` (or handshake) stream: either a session-lifecycle
-/// signal (`Init`/`Close`) or a [`Task`] to run.
+/// A single message on a session's stream: either a session-lifecycle signal (`Init`/`Close`) or a
+/// [`Task`] to run.
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RemoteMessage {

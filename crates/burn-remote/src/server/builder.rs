@@ -131,7 +131,12 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
         match self.channel {
             #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => {
-                super::base::start_websocket_async::<B>(self.devices, port, self.custom_ops).await;
+                crate::transport::websocket::start_websocket_async::<B>(
+                    self.devices,
+                    port,
+                    self.custom_ops,
+                )
+                .await;
             }
             #[cfg(feature = "iroh")]
             Channel::Iroh { secret } => {
