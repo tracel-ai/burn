@@ -259,14 +259,20 @@ mod tests {
         let server_addr = server.endpoint().addr();
         drop(server_guard);
 
-        // Client on a node that owns its runtime, driven synchronously (no ambient runtime).
+        // Client driven synchronously (no ambient runtime); the device is created on the client's
+        // runtime so the session reuses it.
         let client_runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap();
         let client_endpoint = client_runtime.block_on(local_endpoint());
-        let client = RemoteNode::from_endpoint_on(client_endpoint, client_runtime.handle().clone());
-        let device = client.device(server_addr, 0);
+        let client = RemoteNode::from_endpoint(client_endpoint);
+        // Create the device on the client's runtime so the session reuses it; ops below then run
+        // synchronously off this non-runtime thread.
+        let device = {
+            let _guard = client_runtime.enter();
+            client.device(server_addr, 0)
+        };
         device.connect();
 
         // Client side: build the custom op and ship it as `OperationIr::Custom`, exactly as the

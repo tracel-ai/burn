@@ -129,10 +129,10 @@ impl ResponseChannel {
 /// caller awaiting each reply.
 ///
 /// All tokio work — connecting, the writer task, awaiting responses, the response-demux
-/// task — happens inside the runtime owned by this struct. The caller never sees a runtime
-/// handle.
+/// task — happens on the [`Executor`] captured from the device's endpoint. The caller never
+/// sees a runtime handle.
 pub struct RemoteService {
-    runtime: ServiceRuntime,
+    executor: Executor,
     /// Where to connect on first use. The connection is established lazily (see
     /// [`ensure_connected`](Self::ensure_connected)) rather than in [`init`](Self::init),
     /// because cubecl holds a process-global device-registry lock across `init` — opening the
@@ -159,7 +159,9 @@ pub struct RemoteService {
 impl DeviceService for RemoteService {
     fn init(device_id: DeviceId) -> Self {
         let (id, endpoint, device_index) = Self::resolve_endpoint(device_id);
-        let runtime = ServiceRuntime::for_endpoint(&endpoint);
+        // The executor was captured on the device's endpoint at device-construction time (in the
+        // runtime that owns the transport); the service just reuses it.
+        let executor = endpoint.executor().clone();
         let session_id = SessionId::new();
 
         let probe = if TelemetryLogger::enabled() {
@@ -168,7 +170,7 @@ impl DeviceService for RemoteService {
             TelemetryProbe::disabled()
         };
         if let Some(task) = logger_task(&probe, MetricSide::Client) {
-            runtime.spawn(task);
+            executor.spawn(task);
         }
 
         // Lazy connect: `init` must return promptly. cubecl holds a process-global
@@ -178,7 +180,7 @@ impl DeviceService for RemoteService {
         // Instead we record the endpoint and open the sockets on the first real use, off the
         // lock and on the device-runner thread (see `ensure_connected`).
         Self {
-            runtime,
+            executor,
             endpoint,
             device_index,
             writer: None,
@@ -205,31 +207,41 @@ impl DeviceService for RemoteService {
     }
 }
 
-/// Build the multi-threaded tokio runtime that hosts the connection, the writer task, and
-/// the response-demux task. IO is enabled for the websocket; the runner thread enters it
-/// only via `block_on`.
-#[cfg(feature = "websocket")]
-fn build_runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_io()
-        .enable_time()
-        .build()
-        .expect("Can build tokio runtime for remote service")
+/// Shared, lazily-built process-global Tokio runtime that backs every remote session opened
+/// without an ambient runtime.
+///
+/// This is the fallback for synchronous callers (scripts, REPLs, notebooks), the legacy websocket
+/// path, and [`RemoteNode::bind_blocking`](crate::RemoteNode::bind_blocking) — which binds its Iroh
+/// endpoint on this same runtime so the endpoint and the session tasks driving it agree on one
+/// executor. When a device *is* built inside a Tokio runtime (e.g. the one owning an Iroh
+/// endpoint), that ambient runtime is used instead and this one is never created.
+#[cfg(not(target_family = "wasm"))]
+pub(crate) fn blocking_runtime() -> &'static tokio::runtime::Runtime {
+    use std::sync::OnceLock;
+    static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Can build the Burn Remote blocking runtime")
+    })
 }
 
 /// Executor that runs a remote session's writer and response-demux tasks.
 ///
-/// On native targets this is the Tokio runtime owning the connection (a shared handle for the
-/// Iroh transport, an owned runtime for the legacy websocket). In the browser there is no Tokio
-/// runtime: Iroh runs on the JS event loop, so tasks are spawned with
-/// [`wasm_bindgen_futures::spawn_local`] and blocking calls are unavailable (the synchronous
-/// connect path is replaced by [`RemoteClient::connect_async`](super::RemoteClient)).
-pub(crate) enum ServiceRuntime {
-    #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-    Shared(tokio::runtime::Handle),
-    #[cfg(feature = "websocket")]
-    Owned(tokio::runtime::Runtime),
-    #[cfg(all(feature = "iroh", target_family = "wasm"))]
+/// Captured once per device at device construction (see [`Executor::capture`]) and stored on the
+/// device's [`RemoteEndpoint`], so a session reuses whatever runtime owns its transport — there is
+/// no per-transport runtime on the node any more. On native this is a Tokio runtime handle: the
+/// ambient runtime when the device is built inside one (the Iroh endpoint's own runtime), otherwise
+/// the shared [`blocking_runtime`]. In the browser there is no Tokio runtime: Iroh runs on the JS
+/// event loop, so tasks are spawned with [`wasm_bindgen_futures::spawn_local`] and blocking calls
+/// are unavailable (the synchronous connect path is replaced by
+/// [`RemoteClient::connect_async`](super::RemoteClient)).
+#[derive(Clone, Debug)]
+pub(crate) enum Executor {
+    #[cfg(not(target_family = "wasm"))]
+    Tokio(tokio::runtime::Handle),
+    #[cfg(target_family = "wasm")]
     WasmLocal,
 }
 
@@ -240,25 +252,30 @@ pub(crate) struct SpawnHandle {
     inner: tokio::task::JoinHandle<()>,
 }
 
-impl ServiceRuntime {
-    fn for_endpoint(endpoint: &RemoteEndpoint) -> Self {
-        match endpoint {
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-            RemoteEndpoint::Iroh { node, .. } => Self::Shared(node.runtime()),
-            #[cfg(all(feature = "iroh", target_family = "wasm"))]
-            RemoteEndpoint::Iroh { .. } => Self::WasmLocal,
-            #[cfg(feature = "websocket")]
-            RemoteEndpoint::WebSocket { .. } => Self::Owned(build_runtime()),
+impl Executor {
+    /// Capture the executor that will drive a remote session, at device-construction time.
+    ///
+    /// Native: the ambient Tokio runtime if the device is built inside one (e.g. the runtime that
+    /// owns the Iroh endpoint), otherwise the shared [`blocking_runtime`]. Browser: the JS event
+    /// loop. The result is cheap to clone and is stored on the [`RemoteEndpoint`].
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn capture() -> Self {
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => Self::Tokio(handle),
+            Err(_) => Self::Tokio(blocking_runtime().handle().clone()),
         }
+    }
+
+    #[cfg(target_family = "wasm")]
+    pub(crate) fn capture() -> Self {
+        Self::WasmLocal
     }
 
     pub(crate) fn block_on<F: core::future::Future>(&self, future: F) -> F::Output {
         match self {
-            #[cfg(all(feature = "iroh", not(target_family = "wasm")))]
-            Self::Shared(handle) => handle.block_on(future),
-            #[cfg(feature = "websocket")]
-            Self::Owned(runtime) => runtime.block_on(future),
-            #[cfg(all(feature = "iroh", target_family = "wasm"))]
+            #[cfg(not(target_family = "wasm"))]
+            Self::Tokio(handle) => handle.block_on(future),
+            #[cfg(target_family = "wasm")]
             Self::WasmLocal => {
                 core::mem::drop(future);
                 panic!(
@@ -275,13 +292,11 @@ impl ServiceRuntime {
     where
         F: core::future::Future<Output = ()> + Send + 'static,
     {
-        let inner = match self {
-            #[cfg(feature = "iroh")]
-            Self::Shared(handle) => handle.spawn(future),
-            #[cfg(feature = "websocket")]
-            Self::Owned(runtime) => runtime.spawn(future),
-        };
-        SpawnHandle { inner }
+        match self {
+            Self::Tokio(handle) => SpawnHandle {
+                inner: handle.spawn(future),
+            },
+        }
     }
 
     /// Spawn a session task on the browser event loop. The Iroh streams these tasks own are not
@@ -352,10 +367,10 @@ impl RemoteService {
     /// runner thread until the streams are open.
     #[cfg(not(target_family = "wasm"))]
     fn connect_streams(
-        runtime: &ServiceRuntime,
+        executor: &Executor,
         endpoint: &RemoteEndpoint,
     ) -> (SubmitChannel, ResponseChannel) {
-        runtime
+        executor
             .block_on(Self::open_channels(endpoint))
             .unwrap_or_else(|err: String| panic!("{err}"))
     }
@@ -419,14 +434,14 @@ impl RemoteService {
     /// Native synchronous wrapper over [`handshake_async`](Self::handshake_async).
     #[cfg(not(target_family = "wasm"))]
     fn handshake(
-        runtime: &ServiceRuntime,
+        executor: &Executor,
         request: &mut SubmitChannel,
         response: &mut ResponseChannel,
         endpoint: &RemoteEndpoint,
         session_id: SessionId,
         device_index: u32,
     ) -> (DeviceSettings, u32) {
-        runtime.block_on(Self::handshake_async(
+        executor.block_on(Self::handshake_async(
             request,
             response,
             endpoint,
@@ -439,12 +454,12 @@ impl RemoteService {
     /// [`RequestId`] via the [`Responder`]. Lives on the service runtime; exits when the
     /// response stream closes.
     fn spawn_response_demux(
-        runtime: &ServiceRuntime,
+        executor: &Executor,
         mut response: ResponseChannel,
         responder: Responder,
     ) {
         // Detached: the task owns the response stream and runs until it closes.
-        let _demux = runtime.spawn(async move {
+        let _demux = executor.spawn(async move {
             loop {
                 match response.recv().await {
                     Ok(Some(msg)) => {
@@ -503,7 +518,7 @@ pub(crate) struct WasmConnected {
 /// so the caller can install it back into the service through the device handle.
 #[cfg(target_family = "wasm")]
 pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
-    let runtime = ServiceRuntime::WasmLocal;
+    let executor = Executor::WasmLocal;
 
     let (mut request, mut response) = RemoteService::open_channels(&plan.endpoint)
         .await
@@ -517,8 +532,8 @@ pub(crate) async fn wasm_connect(plan: WasmConnectPlan) -> WasmConnected {
     )
     .await;
 
-    RemoteService::spawn_response_demux(&runtime, response, plan.responder);
-    let writer = SubmitWriter::spawn(&runtime, request);
+    RemoteService::spawn_response_demux(&executor, response, plan.responder);
+    let writer = SubmitWriter::spawn(&executor, request);
 
     WasmConnected {
         writer,
@@ -713,7 +728,7 @@ impl RemoteService {
         #[cfg(not(target_family = "wasm"))]
         {
             let rx = self.submit_request(|id| Task::SyncBackend(id, stream_id));
-            match self.runtime.block_on(rx) {
+            match self.executor.block_on(rx) {
                 Ok(TaskResponseContent::SyncBackend(res)) => res,
                 Ok(other) => panic!("Invalid response for SyncBackend: {other:?}"),
                 Err(_) => Err(ExecutionError::Generic {
@@ -736,7 +751,7 @@ impl RemoteService {
 
     pub fn dtype_usage(&mut self, dtype: DType) -> DTypeUsageSet {
         let rx = self.submit_request(|id| Task::DTypeUsage(id, dtype));
-        match self.runtime.block_on(rx) {
+        match self.executor.block_on(rx) {
             Ok(TaskResponseContent::DTypeUsage(set)) => set,
             Ok(other) => panic!("Invalid response for DTypeUsage: {other:?}"),
             Err(_) => panic!("Remote response channel closed before dtype_usage completed"),
@@ -803,9 +818,10 @@ impl RemoteService {
                 self.endpoint.peer_addr(),
                 self.device_index
             );
-            let (mut request, mut response) = Self::connect_streams(&self.runtime, &self.endpoint);
+            let (mut request, mut response) =
+                Self::connect_streams(&self.executor, &self.endpoint);
             let (settings, device_count) = Self::handshake(
-                &self.runtime,
+                &self.executor,
                 &mut request,
                 &mut response,
                 &self.endpoint,
@@ -817,8 +833,8 @@ impl RemoteService {
             let _ = self.settings.set(settings);
             let _ = self.device_count.set(device_count);
 
-            Self::spawn_response_demux(&self.runtime, response, self.pending.responder());
-            self.writer = Some(SubmitWriter::spawn(&self.runtime, request));
+            Self::spawn_response_demux(&self.executor, response, self.pending.responder());
+            self.writer = Some(SubmitWriter::spawn(&self.executor, request));
         }
 
         #[cfg(target_family = "wasm")]
@@ -874,7 +890,7 @@ impl RemoteService {
             .writer
             .as_ref()
             .expect("writer is set by ensure_connected");
-        writer.send(&self.runtime, batch);
+        writer.send(&self.executor, batch);
     }
 }
 
@@ -900,6 +916,6 @@ impl Drop for RemoteService {
             .writer
             .as_mut()
             .expect("writer present (checked above)");
-        writer.shutdown(&self.runtime, Some(batch));
+        writer.shutdown(&self.executor, Some(batch));
     }
 }

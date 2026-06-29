@@ -2,7 +2,7 @@ mod base;
 mod channel;
 mod custom_op;
 mod runner;
-mod service;
+pub(crate) mod service;
 
 pub use base::*;
 pub use channel::*;

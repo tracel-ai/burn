@@ -12,12 +12,16 @@ use std::{
     },
 };
 
+use super::Executor;
 use crate::{PeerAddr, PeerId};
 
 #[cfg(feature = "iroh")]
 use crate::RemoteNode;
 
 /// Everything needed to establish a session with a remote compute peer.
+///
+/// The [`Executor`] is captured at device construction (in the runtime that owns the transport)
+/// and carried here, so the session never depends on the node holding a runtime.
 #[derive(Clone, Debug)]
 pub(crate) enum RemoteEndpoint {
     #[cfg(feature = "iroh")]
@@ -25,11 +29,13 @@ pub(crate) enum RemoteEndpoint {
         node: RemoteNode,
         peer: iroh::EndpointAddr,
         authorization: Arc<[u8]>,
+        executor: Executor,
     },
     #[cfg(feature = "websocket")]
     WebSocket {
         address: Address,
         authorization: Arc<[u8]>,
+        executor: Executor,
     },
 }
 
@@ -53,6 +59,15 @@ impl RemoteEndpoint {
             Self::Iroh { authorization, .. } => authorization,
             #[cfg(feature = "websocket")]
             Self::WebSocket { authorization, .. } => authorization,
+        }
+    }
+
+    pub(crate) fn executor(&self) -> &Executor {
+        match self {
+            #[cfg(feature = "iroh")]
+            Self::Iroh { executor, .. } => executor,
+            #[cfg(feature = "websocket")]
+            Self::WebSocket { executor, .. } => executor,
         }
     }
 }
@@ -80,6 +95,7 @@ impl RemoteEndpoint {
                 node,
                 peer,
                 authorization,
+                ..
             } => EndpointKey::Iroh {
                 local: node.id(),
                 remote: peer.id,
@@ -89,6 +105,7 @@ impl RemoteEndpoint {
             Self::WebSocket {
                 address,
                 authorization,
+                ..
             } => EndpointKey::WebSocket {
                 address: address.clone(),
                 authorization: authorization.clone(),

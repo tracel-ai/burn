@@ -30,7 +30,7 @@ let output = Tensor::<1>::from_floats([1.0, 2.0], &device) * 2.0;
 ```
 
 `RemoteNode` is process-level. Clone it rather than creating one per device: clones share one
-Iroh endpoint, executor, peer connection pool, and multiplexed QUIC connections.
+Iroh endpoint, peer connection pool, and multiplexed QUIC connections.
 
 Platforms can issue a `RemoteTicket` containing an `EndpointAddr` and opaque authorization bytes.
 Burn passes the credential to the compute peer's `PeerAuthorizer`; signature format, expiry,

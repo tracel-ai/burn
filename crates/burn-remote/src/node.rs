@@ -32,15 +32,6 @@ const MAX_FRAME_SIZE: usize = 1024 * 1024 * 1024;
 
 struct RemoteNodeInner {
     endpoint: Endpoint,
-    // Native clients drive their session tasks on the Tokio runtime that owns the endpoint.
-    // In the browser those tasks run on the JS event loop, so no handle is stored.
-    #[cfg(all(feature = "client", not(target_family = "wasm")))]
-    runtime: tokio::runtime::Handle,
-    // Drop guard keeping a node-owned runtime alive (set by `bind_blocking`); the handle above is
-    // what is actually used.
-    #[cfg(all(feature = "client", not(target_family = "wasm")))]
-    #[allow(dead_code)]
-    owned_runtime: Option<Arc<tokio::runtime::Runtime>>,
     connections: Mutex<HashMap<EndpointId, Arc<OnceCell<Connection>>>>,
 }
 
@@ -79,65 +70,36 @@ impl RemoteNode {
         Ok(Self::from_endpoint(endpoint))
     }
 
-    /// Bind a node synchronously on a node-owned runtime, for callers not already in an async
-    /// runtime (scripts, REPLs, Rust notebooks). Unlike [`bind_with_secret`](Self::bind_with_secret)
-    /// it needs no ambient runtime or `async`.
-    #[cfg(all(feature = "client", not(target_family = "wasm")))]
-    pub fn bind_blocking() -> Result<Self, iroh::endpoint::BindError> {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("Can build a Tokio runtime for the Burn Remote node"),
-        );
-        let handle = runtime.handle().clone();
-        let endpoint = handle.block_on(async {
-            Endpoint::builder(presets::N0)
-                .alpns(vec![BURN_REMOTE_ALPN.to_vec()])
-                .bind()
-                .await
-        })?;
-        Ok(Self {
-            inner: Arc::new(RemoteNodeInner {
-                endpoint,
-                runtime: handle,
-                owned_runtime: Some(runtime),
-                connections: Mutex::new(HashMap::new()),
-            }),
-        })
-    }
+    // /// Bind a node synchronously, for callers not already in an async runtime (scripts, REPLs,
+    // /// Rust notebooks). Unlike [`bind_with_secret`](Self::bind_with_secret) it needs no ambient
+    // /// runtime or `async`.
+    // ///
+    // /// The endpoint is bound on the shared process-global Burn Remote runtime; devices created
+    // /// from this node (off that runtime, on a sync thread) reuse it, so the endpoint and the
+    // /// session tasks driving it share one executor.
+    // #[cfg(all(feature = "client", not(target_family = "wasm")))]
+    // pub fn bind_blocking() -> Result<Self, iroh::endpoint::BindError> {
+    //     let endpoint = crate::client::service::blocking_runtime().block_on(async {
+    //         Endpoint::builder(presets::N0)
+    //             .alpns(vec![BURN_REMOTE_ALPN.to_vec()])
+    //             .bind()
+    //             .await
+    //     })?;
+    //     Ok(Self::from_endpoint(endpoint))
+    // }
 
     /// Use an application-configured Iroh endpoint.
     ///
     /// Applications serving Burn Remote must include [`BURN_REMOTE_ALPN`] in the endpoint's
     /// accepted ALPN list, or route that ALPN to Burn's protocol handler.
+    ///
+    /// On native client builds, the runtime that drives a device's session is captured when the
+    /// device is created (see [`RemoteNode::device`]), not here — so create devices from the
+    /// Tokio runtime that owns this endpoint.
     pub fn from_endpoint(endpoint: Endpoint) -> Self {
-        // On native client builds the session tasks are spawned onto the runtime that owns the
-        // endpoint, so capture its handle. The wasm and server-only builds don't need one.
-        #[cfg(all(feature = "client", not(target_family = "wasm")))]
-        let runtime = tokio::runtime::Handle::try_current().expect(
-            "RemoteNode::from_endpoint must be called from the Tokio runtime that owns the Iroh endpoint",
-        );
         Self {
             inner: Arc::new(RemoteNodeInner {
                 endpoint,
-                #[cfg(all(feature = "client", not(target_family = "wasm")))]
-                runtime,
-                #[cfg(all(feature = "client", not(target_family = "wasm")))]
-                owned_runtime: None,
-                connections: Mutex::new(HashMap::new()),
-            }),
-        }
-    }
-
-    /// Use an application-configured endpoint with an explicit executor handle.
-    #[cfg(all(feature = "client", not(target_family = "wasm")))]
-    pub fn from_endpoint_on(endpoint: Endpoint, runtime: tokio::runtime::Handle) -> Self {
-        Self {
-            inner: Arc::new(RemoteNodeInner {
-                endpoint,
-                runtime,
-                owned_runtime: None,
                 connections: Mutex::new(HashMap::new()),
             }),
         }
@@ -151,11 +113,6 @@ impl RemoteNode {
     /// Access the underlying endpoint for relay, discovery, router, and observability setup.
     pub fn endpoint(&self) -> &Endpoint {
         &self.inner.endpoint
-    }
-
-    #[cfg(all(feature = "client", not(target_family = "wasm")))]
-    pub(crate) fn runtime(&self) -> tokio::runtime::Handle {
-        self.inner.runtime.clone()
     }
 
     /// Create a remote device hosted by `peer`.

@@ -71,8 +71,9 @@ async fn transfers_tensor_directly_between_iroh_compute_peers() {
 }
 
 /// The synchronous client path used by scripts, REPLs and Rust notebooks: no `async`, no ambient
-/// runtime in the calling code. The client node owns its runtime (via an explicit handle here, the
-/// way [`RemoteNode::bind_blocking`] does internally) and every operation is driven synchronously.
+/// runtime in the calling code. The device is created on the client's runtime (so the session
+/// reuses it, the way [`RemoteNode::bind_blocking`] does internally) and every operation is then
+/// driven synchronously off it.
 #[test]
 fn synchronous_client_round_trip() {
     // Server on its own local runtime, kept alive for the duration of the test.
@@ -93,9 +94,14 @@ fn synchronous_client_round_trip() {
         .build()
         .unwrap();
     let client_endpoint = client_runtime.block_on(local_endpoint());
-    let client = RemoteNode::from_endpoint_on(client_endpoint, client_runtime.handle().clone());
+    let client = RemoteNode::from_endpoint(client_endpoint);
 
-    let remote = client.device(server_addr, 0);
+    // Create the device on the client's runtime so the session captures it; the round-trip below
+    // then runs from this non-runtime thread, exactly what a notebook cell does.
+    let remote = {
+        let _guard = client_runtime.enter();
+        client.device(server_addr, 0)
+    };
     remote.connect();
     let device = Device::new(remote);
 
@@ -108,12 +114,12 @@ fn synchronous_client_round_trip() {
     server_runtime.block_on(router.shutdown()).unwrap();
 }
 
-/// `bind_blocking` builds its own runtime and binds without an ambient one.
-#[test]
-fn bind_blocking_needs_no_ambient_runtime() {
-    let node = RemoteNode::bind_blocking().expect("bind_blocking should bind an endpoint");
-    let _ = node.id();
-}
+// /// `bind_blocking` builds its own runtime and binds without an ambient one.
+// #[test]
+// fn bind_blocking_needs_no_ambient_runtime() {
+//     let node = RemoteNode::bind_blocking().expect("bind_blocking should bind an endpoint");
+//     let _ = node.id();
+// }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn passes_application_credentials_to_the_peer_authorizer() {

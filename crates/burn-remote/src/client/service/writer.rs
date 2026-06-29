@@ -1,6 +1,6 @@
 //! Outgoing-frame writer task.
 
-use crate::client::service::{ServiceRuntime, SpawnHandle, SubmitChannel};
+use crate::client::service::{Executor, SpawnHandle, SubmitChannel};
 use crate::shared::RemoteMessage;
 use tokio::sync::mpsc;
 
@@ -38,7 +38,7 @@ pub(crate) struct SubmitWriter {
 
 impl SubmitWriter {
     /// Spawn the writer task on `runtime`, taking ownership of the submit `channel`.
-    pub(crate) fn spawn(runtime: &ServiceRuntime, mut channel: SubmitChannel) -> Self {
+    pub(crate) fn spawn(runtime: &Executor, mut channel: SubmitChannel) -> Self {
         #[cfg(not(target_family = "wasm"))]
         let (tx, mut rx) = mpsc::channel::<Vec<RemoteMessage>>(WRITE_QUEUE_CAP);
         #[cfg(target_family = "wasm")]
@@ -72,7 +72,7 @@ impl SubmitWriter {
     /// has fallen [`WRITE_QUEUE_CAP`] batches behind (socket backpressure) do we block the runner
     /// thread waiting for room. Wasm: an unbounded, always non-blocking send.
     #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn send(&self, runtime: &ServiceRuntime, batch: Vec<RemoteMessage>) {
+    pub(crate) fn send(&self, runtime: &Executor, batch: Vec<RemoteMessage>) {
         let Some(tx) = self.tx.as_ref() else {
             log::warn!("Remote submit writer already shut down; dropping outgoing batch");
             return;
@@ -100,7 +100,7 @@ impl SubmitWriter {
     }
 
     #[cfg(target_family = "wasm")]
-    pub(crate) fn send(&self, _runtime: &ServiceRuntime, batch: Vec<RemoteMessage>) {
+    pub(crate) fn send(&self, _runtime: &Executor, batch: Vec<RemoteMessage>) {
         let Some(tx) = self.tx.as_ref() else {
             log::warn!("Remote submit writer already shut down; dropping outgoing batch");
             return;
@@ -117,7 +117,7 @@ impl SubmitWriter {
     /// browser the task is detached and finishes draining on the event loop after the sender drops.
     pub(crate) fn shutdown(
         &mut self,
-        runtime: &ServiceRuntime,
+        runtime: &Executor,
         final_batch: Option<Vec<RemoteMessage>>,
     ) {
         if let (Some(batch), Some(tx)) = (final_batch, self.tx.as_ref()) {
