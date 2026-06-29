@@ -804,7 +804,7 @@ impl Dispatch {
     /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
     /// address rather than enumerable local hardware, so they need a dedicated entry point.
     /// Connecting to the server (required to learn its device count) happens here; see
-    /// [`RemoteDevice::enumerate`].
+    /// [`RemoteDevice::enumerate_websocket`].
     ///
     /// Websocket-only: Iroh peers are addressed by endpoint identity, not a URL string.
     #[cfg(feature = "remote-websocket")]
