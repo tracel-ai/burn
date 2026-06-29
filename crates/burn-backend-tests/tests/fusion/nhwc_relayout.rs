@@ -93,4 +93,3 @@ fn fusion_test_elementwise_operation_followed_by_interpolate_nearest() {
     let actual_values = fused_32.to_vec::<f32>().unwrap();
     assert_eq!(actual_values, expected_values);
 }
-
