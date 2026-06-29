@@ -1219,6 +1219,7 @@ dependencies = [
  "serde",
  "sysinfo 0.38.4",
  "systemstat",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing-appender",
  "tracing-core",
