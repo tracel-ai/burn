@@ -162,7 +162,10 @@ impl WsServerChannel {
     /// can run concurrently over one full-duplex socket.
     pub fn split(self) -> (WsServerSink, WsServerStream) {
         let (sink, stream) = self.inner.split();
-        (WsServerSink { inner: sink }, WsServerStream { inner: stream })
+        (
+            WsServerSink { inner: sink },
+            WsServerStream { inner: stream },
+        )
     }
 }
 
