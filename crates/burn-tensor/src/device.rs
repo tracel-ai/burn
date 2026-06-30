@@ -369,7 +369,7 @@ impl Device {
 
     /// Browser counterpart of [`remote_iroh`](Self::remote_iroh). Wasm cannot block to connect,
     /// so the session is established asynchronously before the device is returned.
-    #[cfg(all(feature = "remote", target_family = "wasm"))]
+    #[cfg(any(all(feature = "remote", target_family = "wasm"), doc))]
     pub async fn remote_iroh_async(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
         peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
@@ -403,7 +403,7 @@ impl Device {
     }
 
     /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
-    #[cfg(all(feature = "remote", target_family = "wasm"))]
+    #[cfg(any(all(feature = "remote", target_family = "wasm"), doc))]
     pub async fn remote_iroh_authorized_async(
         endpoint: &burn_dispatch::backends::remote::Endpoint,
         peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,

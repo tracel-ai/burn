@@ -153,7 +153,7 @@ pub async fn start_async(device: DispatchDevice, channel: Channel) {
 /// Build a backend-erased protocol handler for `device`'s backend.
 ///
 /// Resolves the dispatch device to its concrete backend type and returns a [`RemoteProtocol`]
-/// the caller registers on its own Iroh router under [`BURN_REMOTE_ALPN`](burn_remote::BURN_REMOTE_ALPN).
+/// the caller registers on its own Iroh router under [`BURN_REMOTE_ALPN`].
 pub fn remote_protocol(
     device: DispatchDevice,
     endpoint: &Endpoint,
