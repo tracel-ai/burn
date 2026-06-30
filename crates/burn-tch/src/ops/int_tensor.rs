@@ -3,7 +3,7 @@ use std::ops::Range;
 use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, TensorData,
     TensorMetadata,
-    ops::{FloatTensorOps, IntTensorOps},
+    ops::{BitCastHelper, BitcastOps, BitwiseIntTensorOps, FloatTensorOps, IntTensorOps},
     tensor::IntTensor,
 };
 
@@ -460,6 +460,56 @@ impl IntTensorOps<Self> for LibTorch {
         TchOps::argsort(tensor, dim, descending)
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        // NOTE: when dtypes of inputs to an arithmetic operation differ, tch handles type
+        // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html#type-promotion-doc
+
+        // Type promotion is not automatic on all backends so this behavior might differ
+        let kind = dtype.into_kind();
+
+        if tensor.tensor.kind() == kind {
+            tensor
+        } else {
+            TchTensor::new(tensor.tensor.to_kind(kind))
+        }
+    }
+
+    fn int_unfold(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> IntTensor<Self> {
+        TchOps::unfold(tensor, dim, size, step)
+    }
+
+    fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        TchOps::pow(lhs, rhs)
+    }
+
+    fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        lhs.unary_ops(
+            |mut tensor| tensor.f_pow_(rhs.elem::<i64>()).unwrap(),
+            |tensor| tensor.pow_tensor_scalar(rhs.elem::<i64>()),
+        )
+    }
+}
+
+pub struct BitCaster;
+impl BitCastHelper for BitCaster {
+    fn bitcast<T1: TensorMetadata + 'static, T2: TensorMetadata + 'static>(
+        src: T1,
+        target: burn_backend::DType,
+    ) -> T2 {
+        todo!()
+    }
+}
+
+impl BitcastOps<Self> for LibTorch {
+    type BitCaster = BitCaster;
+}
+
+impl BitwiseIntTensorOps<Self> for LibTorch {
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         TchOps::bitwise_and(lhs, rhs)
     }
@@ -502,39 +552,5 @@ impl IntTensorOps<Self> for LibTorch {
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         TchOps::bitwise_right_shift_scalar(lhs, rhs.elem::<i64>())
-    }
-
-    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
-        // NOTE: when dtypes of inputs to an arithmetic operation differ, tch handles type
-        // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html#type-promotion-doc
-
-        // Type promotion is not automatic on all backends so this behavior might differ
-        let kind = dtype.into_kind();
-
-        if tensor.tensor.kind() == kind {
-            tensor
-        } else {
-            TchTensor::new(tensor.tensor.to_kind(kind))
-        }
-    }
-
-    fn int_unfold(
-        tensor: IntTensor<Self>,
-        dim: usize,
-        size: usize,
-        step: usize,
-    ) -> IntTensor<Self> {
-        TchOps::unfold(tensor, dim, size, step)
-    }
-
-    fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        TchOps::pow(lhs, rhs)
-    }
-
-    fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        lhs.unary_ops(
-            |mut tensor| tensor.f_pow_(rhs.elem::<i64>()).unwrap(),
-            |tensor| tensor.pow_tensor_scalar(rhs.elem::<i64>()),
-        )
     }
 }

@@ -1,8 +1,5 @@
 use burn_backend::{
-    DType, Distribution, ElementConversion, ExecutionError, IntDType, Scalar, Shape, Slice,
-    TensorData, TensorMetadata,
-    ops::{FloatTensorOps, IntTensorOps},
-    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
+    DType, Distribution, ElementConversion, ExecutionError, IntDType, Scalar, Shape, Slice, TensorData, TensorMetadata, ops::{BitwiseIntTensorOps, FloatTensorOps, IntTensorOps}, tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{BoolDType, FloatDType};
 
@@ -505,6 +502,29 @@ impl IntTensorOps<Self> for Candle {
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
         sign(tensor)
     }
+
+    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let int_dtype = lhs.dtype();
+        let lhs = Self::int_into_float(lhs, FloatDType::F32);
+        let rhs = Self::int_into_float(rhs, FloatDType::F32);
+
+        let out = Self::float_matmul(lhs, rhs);
+        Self::float_into_int(out, int_dtype.into())
+    }
+
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        let dtype = dtype.into_dtype();
+
+        if tensor.tensor.dtype() == dtype {
+            tensor
+        } else {
+            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
+        }
+    }
+}
+
+
+impl BitwiseIntTensorOps<Self> for Candle {
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         unimplemented!("bitwise_and is not implemented for Candle IntTensor");
     }
@@ -547,24 +567,5 @@ impl IntTensorOps<Self> for Candle {
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         unimplemented!("bitwise_right_shift_scalar is not implemented for Candle IntTensor");
-    }
-
-    fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let int_dtype = lhs.dtype();
-        let lhs = Self::int_into_float(lhs, FloatDType::F32);
-        let rhs = Self::int_into_float(rhs, FloatDType::F32);
-
-        let out = Self::float_matmul(lhs, rhs);
-        Self::float_into_int(out, int_dtype.into())
-    }
-
-    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
-        let dtype = dtype.into_dtype();
-
-        if tensor.tensor.dtype() == dtype {
-            tensor
-        } else {
-            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
-        }
     }
 }

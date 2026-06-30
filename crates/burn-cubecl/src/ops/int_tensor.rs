@@ -1,5 +1,6 @@
 use self::unary_basic_int::BasicIntUnaryKind;
 use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::ops::{BitCastHelper, BitwiseIntTensorOps};
 
 use super::{expand, numeric, permute, unfold};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
@@ -584,6 +585,43 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
         kernel::flip(tensor, axes, bool_dtype.into())
     }
 
+    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
+        kernel::cast(tensor, dtype.into())
+    }
+
+    fn int_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
+    }
+
+    // TODO
+    // fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+    //     todo!()
+    // }
+
+    // fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+    //     todo!()
+    // }
+}
+
+pub struct BitCaster;
+impl BitCastHelper for BitCaster {
+    fn bitcast<
+        T1: burn_backend::TensorMetadata + 'static,
+        T2: burn_backend::TensorMetadata + 'static,
+    >(
+        src: T1,
+        target: DType,
+    ) -> T2 {
+        todo!()
+    }
+}
+
+impl<R: CubeRuntime> BitwiseIntTensorOps<Self> for CubeBackend<R> {
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         numeric::bitwise_and(lhs, rhs)
     }
@@ -638,26 +676,4 @@ impl<R: CubeRuntime> IntTensorOps<Self> for CubeBackend<R> {
             InputScalar::new(rhs, dtype_to_storage_type(dtype)),
         )
     }
-
-    fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
-        kernel::cast(tensor, dtype.into())
-    }
-
-    fn int_unfold(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        size: usize,
-        step: usize,
-    ) -> FloatTensor<Self> {
-        unfold(tensor, dim, size, step)
-    }
-
-    // TODO
-    // fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-    //     todo!()
-    // }
-
-    // fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-    //     todo!()
-    // }
 }

@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::backend::ExecutionError;
+use burn_backend::ops::{BitCastHelper, BitwiseIntTensorOps};
 use burn_std::{BoolDType, FloatDType};
 
 use crate::{BackendRouter, RouterChannel, RouterClient, get_client};
@@ -974,124 +975,6 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
-            client.create_empty_handle()
-        });
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseAnd(desc)))
-            .output()
-    }
-
-    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
-            client.create_empty_handle()
-        });
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseOr(desc)))
-            .output()
-    }
-
-    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
-            client.create_empty_handle()
-        });
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseXor(desc)))
-            .output()
-    }
-
-    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        let client = tensor.client.clone();
-        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseNot(desc)))
-            .output()
-    }
-
-    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let rhs = rhs.into();
-        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseAndScalar(desc)))
-            .output()
-    }
-
-    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let rhs = rhs.into();
-        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseOrScalar(desc)))
-            .output()
-    }
-
-    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let rhs = rhs.into();
-        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseXorScalar(desc)))
-            .output()
-    }
-
-    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
-            client.create_empty_handle()
-        });
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseLeftShift(desc)))
-            .output()
-    }
-
-    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let rhs = rhs.into();
-        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseLeftShiftScalar(
-                desc,
-            )))
-            .output()
-    }
-
-    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
-            client.create_empty_handle()
-        });
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseRightShift(desc)))
-            .output()
-    }
-
-    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        let client = lhs.client.clone();
-        let rhs = rhs.into();
-        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
-
-        client
-            .register(OperationIr::Int(IntOperationIr::BitwiseRightShiftScalar(
-                desc,
-            )))
-            .output()
-    }
-
     fn int_cast(tensor: IntTensor<Self>, dtype: burn_backend::IntDType) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let desc = CastOpIr::create(tensor.into_ir(), dtype.into(), || {
@@ -1307,6 +1190,138 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
                 desc.out.dtype,
                 NumericOperationIr::PowiScalar(desc),
             ))
+            .output()
+    }
+}
+
+pub struct BitCaster;
+impl BitCastHelper for BitCaster {
+    fn bitcast<
+        T1: burn_backend::TensorMetadata + 'static,
+        T2: burn_backend::TensorMetadata + 'static,
+    >(
+        src: T1,
+        target: burn_std::DType,
+    ) -> T2 {
+        todo!()
+    }
+}
+impl<R: RouterChannel> BitwiseIntTensorOps<Self> for BackendRouter<R> {
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseAnd(desc)))
+            .output()
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseOr(desc)))
+            .output()
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseXor(desc)))
+            .output()
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = UnaryOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseNot(desc)))
+            .output()
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let rhs = rhs.into();
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseAndScalar(desc)))
+            .output()
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let rhs = rhs.into();
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseOrScalar(desc)))
+            .output()
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let rhs = rhs.into();
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseXorScalar(desc)))
+            .output()
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseLeftShift(desc)))
+            .output()
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let rhs = rhs.into();
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseLeftShiftScalar(
+                desc,
+            )))
+            .output()
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let desc = BinaryOpIr::create(lhs.into_ir(), rhs.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseRightShift(desc)))
+            .output()
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let rhs = rhs.into();
+        let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Int(IntOperationIr::BitwiseRightShiftScalar(
+                desc,
+            )))
             .output()
     }
 }
