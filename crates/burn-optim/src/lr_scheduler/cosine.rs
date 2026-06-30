@@ -90,11 +90,10 @@ impl LrScheduler for CosineAnnealingLrScheduler {
         })
     }
 
-    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+    fn load_record(&mut self, record: LrSchedulerRecord) {
         if let Some(state) = record.into_state::<CosineAnnealingLrSchedulerState>() {
             self.current_iter = state.current_iter;
         }
-        self
     }
 }
 

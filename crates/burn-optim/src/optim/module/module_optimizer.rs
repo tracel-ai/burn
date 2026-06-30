@@ -1,9 +1,10 @@
 use burn_core as burn;
 
 use super::Optimizer;
+use crate::lr_scheduler::policy::LrPolicy;
 use crate::{
-    DynOptimizer, DynState, LearningRate, MultiGradientsParams, OptimizerRecord, StateSink,
-    StateSource, grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
+    DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, StateSink, StateSource,
+    grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
 };
 
 use alloc::collections::BTreeMap;
@@ -74,15 +75,16 @@ impl ModuleOptimizer {
 
     fn step_common<M: AutodiffModule>(
         &mut self,
-        lr: LearningRate,
+        lr_policy: LrPolicy,
         module: M,
         mut grads: GradAdaptor,
     ) -> M {
         module.map(&mut ModuleOptimizerMapper::new(
+            vec![],
             &self.optim,
             &mut self.states,
             &mut grads,
-            lr,
+            lr_policy,
             self.grad_clipping.as_ref(),
         ))
     }
@@ -92,21 +94,21 @@ impl ModuleOptimizer {
     /// Update the `module` parameters with the given `gradients`, advancing the optimizer state.
     pub fn step<M: AutodiffModule>(
         &mut self,
-        lr: LearningRate,
+        lr_policy: LrPolicy,
         module: M,
         grads: GradientsParams,
     ) -> M {
-        self.step_common(lr, module, grads.into())
+        self.step_common(lr_policy, module, grads.into())
     }
 
     /// Like [`step`](Self::step), but accumulating gradients sourced from multiple devices.
     pub fn step_multi<M: AutodiffModule>(
         &mut self,
-        lr: LearningRate,
+        lr_policy: LrPolicy,
         module: M,
         grads: MultiGradientsParams,
     ) -> M {
-        self.step_common(lr, module, grads.into())
+        self.step_common(lr_policy, module, grads.into())
     }
 
     /// Decompose the optimizer state into a serializable [`OptimizerRecord`].
@@ -256,14 +258,23 @@ impl GradAdaptor {
 
 #[derive(new)]
 struct ModuleOptimizerMapper<'a> {
+    path: Vec<String>,
     optimizer: &'a Arc<dyn DynOptimizer>,
     states: &'a mut HashMap<ParamId, DynState>,
     grads: &'a mut GradAdaptor,
-    lr: LearningRate,
+    lr_policy: LrPolicy,
     grad_clipping: Option<&'a GradientClipping>,
 }
 
 impl ModuleMapper for ModuleOptimizerMapper<'_> {
+    fn enter_module(&mut self, name: &str, _container_type: &str) {
+        self.path.push(name.to_string());
+    }
+
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {
+        self.path.pop();
+    }
+
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, tensor, mapper) = param.consume();
         let grad = self.grads.remove(id);
@@ -297,9 +308,12 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 "Tensor and gradients are on the same device."
             );
 
+            let path = self.path.join(".");
+            let lr = self.lr_policy.lr_from_param(id, Some(path.as_str()));
+
             let (tensor, state) = self.optimizer.step_dyn(
                 D,
-                self.lr,
+                lr,
                 tensor.inner().into_bridge(),
                 clipped_grad.into_bridge(),
                 state.map(|state| self.optimizer.to_device_dyn(state, &device)),

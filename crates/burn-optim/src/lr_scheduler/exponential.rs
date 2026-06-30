@@ -67,11 +67,10 @@ impl LrScheduler for ExponentialLrScheduler {
         })
     }
 
-    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+    fn load_record(&mut self, record: LrSchedulerRecord) {
         if let Some(state) = record.into_state::<ExponentialLrSchedulerState>() {
             self.previous_lr = state.previous_lr;
         }
-        self
     }
 }
 

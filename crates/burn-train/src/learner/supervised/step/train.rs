@@ -1,16 +1,15 @@
-use crate::{LearningComponentsTypes, TrainingModel};
+use crate::LearnerModel;
 use crate::{TrainOutput, TrainStep, TrainingModelInput, TrainingModelOutput};
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
-use burn_core::module::Module;
 use burn_core::tensor::Device;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
 /// Multi devices train step.
-pub struct MultiDevicesTrainStep<LC: LearningComponentsTypes> {
-    workers: Vec<Worker<LC>>,
-    receiver: Receiver<MultiTrainOutput<TrainingModelOutput<LC>>>,
+pub struct MultiDevicesTrainStep<M: LearnerModel> {
+    workers: Vec<Worker<M>>,
+    receiver: Receiver<MultiTrainOutput<TrainingModelOutput<M>>>,
 }
 
 struct Message<M, TI> {
@@ -18,16 +17,16 @@ struct Message<M, TI> {
     model: M,
 }
 
-struct Worker<LC: LearningComponentsTypes> {
+struct Worker<M: LearnerModel> {
     // Not that complex. Extracting into another type would only make it more confusing.
     // #[allow(clippy::type_complexity)]
-    sender_input: Sender<Message<TrainingModel<LC>, TrainingModelInput<LC>>>,
+    sender_input: Sender<Message<M, TrainingModelInput<M>>>,
     device: Device,
     device_id: usize,
 }
 
-impl<LC: LearningComponentsTypes> Worker<LC> {
-    fn register(&self, item: TrainingModelInput<LC>, model: &TrainingModel<LC>) {
+impl<M: LearnerModel> Worker<M> {
+    fn register(&self, item: TrainingModelInput<M>, model: &M) {
         let message = Message {
             item,
             model: model.clone(),
@@ -39,8 +38,8 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
     // #[allow(clippy::type_complexity)]
     fn start(
         &self,
-        sender_output: Sender<MultiTrainOutput<TrainingModelOutput<LC>>>,
-        receiver_input: Receiver<Message<TrainingModel<LC>, TrainingModelInput<LC>>>,
+        sender_output: Sender<MultiTrainOutput<TrainingModelOutput<M>>>,
+        receiver_input: Receiver<Message<M, TrainingModelInput<M>>>,
     ) {
         let device = self.device.clone();
         let device_id = self.device_id;
@@ -50,7 +49,7 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
                 match receiver_input.recv() {
                     Ok(item) => {
                         let model = item.model.fork(&device);
-                        let output = model.step(item.item);
+                        let output = TrainStep::step(&model, item.item);
                         let item = MultiTrainOutput { output, device_id };
 
                         sender_output.send(item).unwrap();
@@ -73,7 +72,7 @@ pub struct MultiTrainOutput<TO> {
     pub(crate) device_id: usize,
 }
 
-impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
+impl<M: LearnerModel> MultiDevicesTrainStep<M> {
     /// Create a new multi devices train step.
     ///
     /// # Arguments
@@ -119,9 +118,9 @@ impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
     /// Outputs.
     pub fn step<'a>(
         &self,
-        dataloaders: &mut [Box<dyn DataLoaderIterator<TrainingModelInput<LC>> + 'a>],
-        model: &TrainingModel<LC>,
-    ) -> (Vec<MultiTrainOutput<TrainingModelOutput<LC>>>, Progress) {
+        dataloaders: &mut [Box<dyn DataLoaderIterator<TrainingModelInput<M>> + 'a>],
+        model: &M,
+    ) -> (Vec<MultiTrainOutput<TrainingModelOutput<M>>>, Progress) {
         let mut num_send = 0;
 
         let mut items_total = 0;
