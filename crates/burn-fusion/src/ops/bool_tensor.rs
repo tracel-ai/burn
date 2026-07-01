@@ -1,7 +1,7 @@
 use crate::{
     Fusion, FusionBackend,
     client::GlobalFusionClient,
-    get_client,
+    get_client, reduce_bool_ops, reduce_bool_whole_ops,
     stream::{StreamId, execution::Operation},
 };
 use burn_backend::{
@@ -12,9 +12,9 @@ use burn_backend::{
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
-    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr,
-    SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr,
-    UnfoldOpIr,
+    OperationOutput, PermuteOpIr, ReduceDimOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
+    ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr,
+    TensorIr, UnaryOpIr, UnfoldOpIr,
 };
 use std::marker::PhantomData;
 
@@ -191,6 +191,90 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::Bool(BoolOperationIr::IntoFloat(desc.clone())),
                 IntoFloatOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_any_dim(tensor: BoolTensor<Self>, dim: usize) -> BoolTensor<Self> {
+        reduce_bool_ops!(BoolAnyDimOps, |tensor, axis| B::bool_any_dim(tensor, axis));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        // Record a single `AnyDim` reduce (bool output) so the cubecl reduce fuser
+        // routes it to cubek's dedicated Any instruction instead of the default
+        // bool->int->sum->compare emulation.
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, dtype, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::AnyDim(desc.clone())),
+                BoolAnyDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_all_dim(tensor: BoolTensor<Self>, dim: usize) -> BoolTensor<Self> {
+        reduce_bool_ops!(BoolAllDimOps, |tensor, axis| B::bool_all_dim(tensor, axis));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let desc = ReduceDimOpIr::create_bool(tensor.into_ir(), dim, 1, dtype, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::AllDim(desc.clone())),
+                BoolAllDimOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+        reduce_bool_whole_ops!(BoolAnyOps, |tensor| B::bool_any(tensor));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        // Whole-tensor `Any`: the reduce fuser only fuses `*Dim` reductions, so this
+        // op is not fused and runs via the fallback, i.e. the bare backend's
+        // dedicated cubek Any instruction rather than the default sum-emulation.
+        let desc =
+            ReduceOpIr::create_bool(tensor.into_ir(), dtype, || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::Any(desc.clone())),
+                BoolAnyOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+        reduce_bool_whole_ops!(BoolAllOps, |tensor| B::bool_all(tensor));
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let desc =
+            ReduceOpIr::create_bool(tensor.into_ir(), dtype, || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::All(desc.clone())),
+                BoolAllOps::<B>::new(desc),
             )
             .output()
     }

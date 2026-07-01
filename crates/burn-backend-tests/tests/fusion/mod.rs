@@ -5,6 +5,7 @@ mod fusion_f16_write_vectorization;
 mod fusion_shape;
 mod int_bitwise;
 mod reduce_broadcasted;
+mod reduce_logical;
 
 use burn_tensor::StreamId;
 use std::sync::atomic::{AtomicU64, Ordering};
