@@ -234,6 +234,25 @@ pub enum Object {
     TorchParam(TensorSnapshot),
 }
 
+impl Object {
+    /// Recursively counts the total number of nodes in the object tree.
+    /// Used to prevent CPU exhaustion from pickle memo bomb attacks.
+    pub fn node_count(&self) -> usize {
+        match self {
+            Object::Tuple(v) | Object::List(v) | Object::PersistentTuple(v) => {
+                1 + v.iter().map(|o| o.node_count()).sum::<usize>()
+            }
+            Object::Dict(m) => {
+                1 + m.values().map(|o| o.node_count()).sum::<usize>()
+            }
+            Object::Reduce { callable, args } | Object::Build { callable, args } => {
+                1 + callable.node_count() + args.node_count()
+            }
+            _ => 1,
+        }
+    }
+}
+
 fn rebuild_from_type_v2(
     o: Object,
     memo: &mut HashMap<u32, Object>,
@@ -854,6 +873,7 @@ pub struct Stack {
     stack: Vec<Object>,
     memo: HashMap<u32, Object>,
     data_source: Option<Arc<LazyDataSource>>,
+    total_memo_nodes: usize,
 }
 
 impl Default for Stack {
@@ -869,6 +889,7 @@ impl Stack {
             stack: Vec::new(),
             memo: HashMap::new(),
             data_source: None,
+            total_memo_nodes: 0,
         }
     }
 
@@ -877,6 +898,7 @@ impl Stack {
             stack: Vec::new(),
             memo: HashMap::new(),
             data_source: Some(data_source),
+            total_memo_nodes: 0,
         }
     }
 
@@ -927,11 +949,22 @@ impl Stack {
         });
     }
 
-    fn memo_get(&self, idx: u32) -> Result<Object> {
-        self.memo
+    fn memo_get(&mut self, idx: u32) -> Result<Object> {
+        let obj = self.memo
             .get(&idx)
             .cloned()
-            .ok_or(PickleError::MemoNotFound(idx))
+            .ok_or(PickleError::MemoNotFound(idx))?;
+
+        // Prevent pickle memo bomb (O(2^N) attack) by limiting the total node count
+        // constructed via memoization to a reasonable threshold.
+        self.total_memo_nodes += obj.node_count();
+        if self.total_memo_nodes > 1_000_000 {
+            return Err(PickleError::InvalidData(
+                "Pickle memo bomb detected: exceeded 1M nodes".to_string(),
+            ));
+        }
+        
+        Ok(obj)
     }
 
     fn memo_put(&mut self, idx: u32, obj: Object) {
@@ -1514,6 +1547,31 @@ pub fn read_pickle_tensors<R: BufRead>(reader: &mut R) -> Result<HashMap<String,
     extract_tensors(&obj, &mut path, &mut tensors);
 
     Ok(tensors)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn test_memo_bomb_mitigation() {
+        // Generate the Billion Laughs equivalent for pickles
+        let mut poc = vec![0x89, b'q', 0x00];
+        let n = 20; // 144 bytes, originally took 2.6s and 10+ million nodes
+        for _ in 0..n {
+            poc.extend_from_slice(&[b'h', 0x00, b'h', 0x00, 0x86, b'q', 0x00]);
+        }
+        poc.push(b'.');
+
+        let mut cursor = Cursor::new(poc);
+        let result = read_pickle(&mut cursor);
+
+        // It should be rejected due to memo bomb protection
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, PickleError::InvalidData(msg) if msg.contains("exceeded 1M nodes")));
+    }
 }
 
 fn extract_tensors<'a>(
