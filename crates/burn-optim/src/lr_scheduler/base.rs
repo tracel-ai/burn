@@ -19,6 +19,18 @@ use burn_pack::{Reader, Scalar, Writer};
 
 use crate::LearningRate;
 
+macro_rules! impl_from_for_scheduler {
+    ($($variant:ident($config:ident)),* $(,)?) => {
+        $(
+            impl From<$config> for LrSchedulerConfig {
+                fn from(config: $config) -> Self {
+                    LrSchedulerConfig::$variant(config)
+                }
+            }
+        )*
+    };
+}
+
 /// Learning rate scheduler defines how the learning rate will evolve during training.
 pub trait LrScheduler: LrSchedulerClone + Send + Sync {
     /// Perform the scheduler step, potentially updating its state, and returning the effective
@@ -212,6 +224,8 @@ impl LrSchedulerRecord {
 /// An enum for possible learning rate scheduler configs.
 #[derive(Config, Debug)]
 pub enum LrSchedulerConfig {
+    /// A constant learning rate.
+    Constant(LearningRate),
     /// A [`LinearLrSchedulerConfig`]
     Linear(LinearLrSchedulerConfig),
     /// A [`CosineAnnealingLrSchedulerConfig`]
@@ -225,6 +239,16 @@ pub enum LrSchedulerConfig {
     /// A [`ComposedLrSchedulerConfig`]
     Composed(ComposedLrSchedulerConfig),
 }
+
+impl_from_for_scheduler!(
+    Constant(LearningRate),
+    Linear(LinearLrSchedulerConfig),
+    Cosine(CosineAnnealingLrSchedulerConfig),
+    Exponential(ExponentialLrSchedulerConfig),
+    Noam(NoamLrSchedulerConfig),
+    Step(StepLrSchedulerConfig),
+    Composed(ComposedLrSchedulerConfig),
+);
 
 #[cfg(test)]
 pub(super) mod test_utils {

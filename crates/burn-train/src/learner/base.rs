@@ -8,8 +8,8 @@ use crate::{
 };
 use burn_core::store::ModuleRecord;
 use burn_core::tensor::Device;
+use burn_optim::lr_scheduler::LrSchedulerRecord;
 use burn_optim::lr_scheduler::policy::{LrPolicy, LrPolicyScheduler};
-use burn_optim::lr_scheduler::{LrScheduler, LrSchedulerRecord};
 use burn_optim::{GradientsParams, ModuleOptimizer, MultiGradientsParams, OptimizerRecord};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -36,16 +36,16 @@ impl<M: LearnerModel> Clone for Learner<M> {
 
 impl<M: LearnerModel> Learner<M> {
     /// Create a learner.
-    pub fn new<S: LrScheduler + 'static>(
+    pub fn new(
         model: M,
         optim: ModuleOptimizer,
-        lr_scheduler: S,
+        lr_scheduler: impl Into<LrPolicyScheduler>,
     ) -> Self {
         Self {
             model,
             optim,
-            lr_scheduler: LrPolicyScheduler::new(lr_scheduler),
-            lr_policy: LrPolicy::from(0.0),
+            lr_scheduler: lr_scheduler.into(),
+            lr_policy: 0.0.into(),
         }
     }
 }

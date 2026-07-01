@@ -17,8 +17,9 @@ use burn::{
     },
     lr_scheduler::{
         composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
-        linear::LinearLrSchedulerConfig,
+        linear::LinearLrSchedulerConfig, policy::LrPolicyConfig,
     },
+    module::ParamGroup,
     prelude::*,
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
@@ -93,6 +94,9 @@ pub fn run(device: Device) {
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
+    let lr_policy =
+        LrPolicyConfig::new(lr_scheduler.into()).add_group(ParamGroup::from_predicate("conv"), 0.0);
+
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
@@ -114,7 +118,8 @@ pub fn run(device: Device) {
     let result = training.launch(Learner::new(
         model,
         config.optimizer.init(),
-        lr_scheduler.init().unwrap(),
+        // lr_scheduler.init().unwrap(),
+        lr_policy.init().unwrap(),
     ));
 
     let dataset_test_plain = Arc::new(MnistDataset::test());
