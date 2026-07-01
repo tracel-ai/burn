@@ -1,10 +1,11 @@
 use super::{
-    super::{BlockPlan, HandleOutput, LaunchPlan},
+    super::{BlockPlan, HandleOutput, LaunchPlan, ReferenceSelection},
     Vect,
 };
 use crate::{
     CubeFusionHandle,
     engine::{
+        codegen::ir::FuseArg,
         launch::{
             HandleInput,
             runner::{Vectorization, VectorizationHandle},
@@ -216,6 +217,12 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
         let mut previous_widths = Vec::with_capacity(block_vectorization.len());
 
+        // Set when a block uses a width-forcing vectorization setting. Only those settings can
+        // leave an owned output registered with a `vector_size` larger than the final block
+        // width, so the output reconciliation below is skipped entirely otherwise (the common
+        // all-`Activated` elementwise case does no extra work).
+        let mut needs_reconciliation = false;
+
         // Unhandled inputs might not get included in any fused blocks for now.
         //
         // So we ensure they are vectorized by setting their vectorization before we set the
@@ -263,6 +270,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                     );
                 }
                 VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos } => {
+                    needs_reconciliation = true;
                     apply_vectorization_block(
                         tmp,
                         &mut plan.handle_inputs,
@@ -275,6 +283,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                     }
                 }
                 VectorizationSetting::EqualThanPreviousBlock { block_pos } => {
+                    needs_reconciliation = true;
                     apply_vectorization_block(
                         tmp,
                         &mut plan.handle_inputs,
@@ -286,6 +295,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                     block_plan.width = previous_widths[block_pos];
                 }
                 VectorizationSetting::Deactivated => {
+                    needs_reconciliation = true;
                     apply_vectorization_block(
                         tmp,
                         &mut plan.handle_inputs,
@@ -308,7 +318,76 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
             previous_widths.push(block_plan.width);
         }
+
+        // Reconcile each owned output's registered `vector_size` with the widths of the blocks
+        // that write it.
+        //
+        // Width-forcing settings (`Deactivated`, `EqualThanPreviousBlock`,
+        // `SmallerOrEqualThanPreviousBlock`) rewrite `block_plan.width` *after*
+        // `apply_vectorization_block` has set the output vectorization, so an output can end up
+        // registered with a `vector_size` larger than the `width` of a block that writes it.
+        // Storing a narrow computed value into such a wider output vector slot is the root cause of
+        // issue #5060 (e.g. `store(ptr<vector<f32, 16>>, f32)`). Only those settings (used by the
+        // reduce / reduce-broadcasted fusers) flip `needs_reconciliation`, so the common
+        // all-`Activated` case skips this pass entirely.
+        //
+        // When the registered `vector_size` does not match the width of every writing block, fall
+        // back to a `vector_size` of 1 so the output is written element-by-element, which is always
+        // valid regardless of the block width. This clamp is the *sole* fix for #5060: the codegen
+        // write path (`write_output_aligned`) does not handle a `vector_size` wider than the write
+        // width and would emit the invalid store, so the reconciliation must guarantee every owned
+        // output is written either at its full width (`vector_size == width`) or de-vectorized here.
+        //
+        // This pass runs after the block loop so every `block_plan.width` is final — including the
+        // widths forced *after* `apply_vectorization_block` inside the width-forcing arms and the
+        // width-0 fallback above.
+        //
+        // Outputs that serve as a block's layout reference are skipped: their `vector_size` defines
+        // that block's `width` (so they are compatible by construction), and de-vectorizing them
+        // would desynchronize the reference position math.
+        if needs_reconciliation {
+            for (output_pos, handle) in plan.handle_outputs.iter_mut().enumerate() {
+                if let HandleOutput::Owned {
+                    relative_id,
+                    vectorization,
+                    ..
+                } = handle
+                    && *vectorization != 1
+                    && !is_reference_output(&plan.blocks, output_pos)
+                {
+                    let compatible = plan
+                        .blocks
+                        .iter()
+                        .filter(|block_plan| block_plan.writes.contains_key(relative_id))
+                        .all(|block_plan| block_plan.width == *vectorization);
+
+                    if !compatible {
+                        *vectorization = 1;
+                    }
+                }
+            }
+        }
     }
+}
+
+/// Returns whether the output at `output_pos` is used as the layout reference of any block. Such
+/// outputs must keep their `vector_size` (it defines the block width), so they are never clamped.
+fn is_reference_output(blocks: &[BlockPlan<'_>], output_pos: usize) -> bool {
+    blocks.iter().any(|block| match &block.reference {
+        ReferenceSelection::Concrete {
+            layout: FuseArg::Output(pos, ..),
+            ..
+        }
+        | ReferenceSelection::SwapDims {
+            original: FuseArg::Output(pos, ..),
+            ..
+        }
+        | ReferenceSelection::VirtualShape {
+            original: FuseArg::Output(pos, ..),
+            ..
+        } => *pos == output_pos,
+        _ => false,
+    })
 }
 
 #[derive(Debug)]
