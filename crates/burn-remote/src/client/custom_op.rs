@@ -9,15 +9,14 @@
 //! and registers a custom op, and gets back `FloatTensor<RemoteBackend>` either way.
 
 use burn_backend::tensor::FloatTensor;
-use burn_communication::Protocol;
 use burn_ir::{CustomOpIr, OperationIr, TensorId};
 
 use crate::client::RemoteChannel;
-use crate::shared::RemoteProtocol;
 use crate::{RemoteBackend, RemoteDevice};
 
-/// The router channel used by the remote backend.
-type Channel = RemoteChannel<<RemoteProtocol as Protocol>::Client>;
+/// The router channel used by the remote backend. Transport-erased, so it carries custom ops over
+/// whichever transport the device was opened on.
+type Channel = RemoteChannel;
 
 /// A client for registering [custom operations](CustomOpIr) on the remote backend, transparently
 /// across the `fusion` feature.
