@@ -1,25 +1,54 @@
 use burn_backend::tensor::Device;
-use burn_communication::websocket::{WebSocket, WsServer};
 use burn_ir::{BackendIr, CustomOpIr, HandleContainer};
 use burn_router::CustomOpRegistry;
 
-use super::base::RemoteServer;
-
 /// Transport used to serve remote clients.
 ///
-/// Selects the protocol the [`RemoteServerBuilder`] serves on. Only WebSocket exists today; the
-/// enum keeps the protocol an open axis.
-#[derive(Debug, Clone, Copy)]
+/// Selects the protocol the [`RemoteServerBuilder`] serves on.
+#[derive(Clone)]
 pub enum Channel {
     /// WebSocket server bound to `0.0.0.0:port`.
+    #[cfg(feature = "websocket")]
     WebSocket {
         /// Port to bind on.
         port: u16,
     },
+    /// Iroh peer-to-peer transport. The server's address is `secret.id()`; clients dial that.
+    #[cfg(feature = "iroh")]
+    Iroh {
+        /// The server's stable identity, its address knob (like a port for WebSocket).
+        secret: Box<crate::RemoteSecret>,
+    },
 }
 
 /// Default port used when none is configured on the builder.
+#[cfg(feature = "websocket")]
 const DEFAULT_PORT: u16 = 3000;
+
+impl core::fmt::Debug for Channel {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            #[cfg(feature = "websocket")]
+            Channel::WebSocket { port } => f.debug_struct("WebSocket").field("port", port).finish(),
+            // Show the public identity, never the secret key material.
+            #[cfg(feature = "iroh")]
+            Channel::Iroh { secret } => f.debug_struct("Iroh").field("id", &secret.id()).finish(),
+        }
+    }
+}
+
+impl Default for Channel {
+    fn default() -> Self {
+        #[cfg(feature = "websocket")]
+        return Channel::WebSocket { port: DEFAULT_PORT };
+        // Without WebSocket the default is Iroh on a fresh random identity; a host that wants a
+        // dialable address sets its own secret with [`Channel::Iroh`].
+        #[cfg(all(feature = "iroh", not(feature = "websocket")))]
+        return Channel::Iroh {
+            secret: Box::new(crate::RemoteSecret::random()),
+        };
+    }
+}
 
 /// Builder for a remote-execution server.
 ///
@@ -29,7 +58,8 @@ const DEFAULT_PORT: u16 = 3000;
 ///
 /// The builder is generic over the concrete backend `B`: custom ops are typed by `B`, since their
 /// handlers call into `B`'s primitives. A backend extension hosts its ops here — the server-side
-/// counterpart of the client building `OperationIr::Custom`.
+/// counterpart of the client building `OperationIr::Custom`. Custom ops are served the same way over
+/// either transport.
 ///
 /// ```rust,ignore
 /// RemoteServerBuilder::new(devices)
@@ -54,12 +84,12 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     /// Create a new builder hosting the given devices.
     ///
     /// `devices` is indexed by the device index a client selects at session init; `devices[0]` is
-    /// the default device. Must be non-empty. Defaults to WebSocket on port `3000` with no custom
-    /// ops.
+    /// the default device. Must be non-empty. Defaults to WebSocket on port `3000` (or Iroh when
+    /// WebSocket is not compiled in) with no custom ops.
     pub fn new(devices: Vec<Device<B>>) -> Self {
         Self {
             devices,
-            channel: Channel::WebSocket { port: DEFAULT_PORT },
+            channel: Channel::default(),
             custom_ops: CustomOpRegistry::default(),
         }
     }
@@ -71,6 +101,7 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     }
 
     /// Set the port, keeping the WebSocket transport. Convenience over [`channel`](Self::channel).
+    #[cfg(feature = "websocket")]
     pub fn port(mut self, port: u16) -> Self {
         self.channel = Channel::WebSocket { port };
         self
@@ -95,16 +126,32 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     }
 
     /// Start the server on the caller's async runtime, serving until shutdown.
+    #[cfg(not(target_family = "wasm"))]
     pub async fn start_async(self) {
         match self.channel {
+            #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => {
-                let server = WsServer::new(port);
-                RemoteServer::<B, WebSocket>::start(self.devices, server, self.custom_ops).await;
+                crate::transport::websocket::start_websocket_async::<B>(
+                    self.devices,
+                    port,
+                    self.custom_ops,
+                )
+                .await;
+            }
+            #[cfg(feature = "iroh")]
+            Channel::Iroh { secret } => {
+                crate::transport::iroh::server::start_iroh_async::<B>(
+                    *secret,
+                    self.devices,
+                    self.custom_ops,
+                )
+                .await;
             }
         }
     }
 
     /// Start the server, blocking the current thread until shutdown.
+    #[cfg(not(target_family = "wasm"))]
     pub fn start(self) {
         let runtime = tokio::runtime::Runtime::new().expect("Failed to build the tokio runtime");
         runtime.block_on(self.start_async());

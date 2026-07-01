@@ -8,7 +8,7 @@ use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::{BoolDType, FloatDType, IntDType, TensorData};
 
-#[cfg(feature = "remote")]
+#[cfg(feature = "remote-websocket")]
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -334,26 +334,90 @@ impl Device {
         Self::new(burn_dispatch::devices::LibTorchDevice::Vulkan)
     }
 
-    /// Remote device identified by a network address (e.g. `"ws://127.0.0.1:3000"`) and the
-    /// index of the device to select on that server.
+    /// Legacy WebSocket remote device. New integrations should prefer [`Device::remote_iroh`].
     ///
-    /// Requires a running [`burn-remote`](burn_dispatch::backends::remote) server at the given
-    /// address. Operations on tensors created with this device are shipped to the server and
-    /// executed there. The `index` selects which of the server's devices to use (the server
-    /// hosts all of its backend's devices); use [`DeviceIndex::Default`] for the server's
-    /// default device. Two remote devices with the same address but different indices target
+    /// Connects to a burn-remote WebSocket server at the given address. `index` selects which of
+    /// the server's devices to use; two devices with the same address but different indices target
     /// distinct devices on the same host.
-    ///
-    /// ```rust,ignore
-    /// Device::remote("ws://host:3000", 0);                    // first device
-    /// Device::remote("ws://host:3000", 1);                    // second device on same host
-    /// Device::remote("ws://host:3000", DeviceIndex::Default); // server-chosen default
-    /// ```
-    #[cfg(feature = "remote")]
-    pub fn remote(address: &str, index: impl Into<DeviceIndex>) -> Self {
+    #[cfg(feature = "remote-websocket")]
+    pub fn remote_websocket(address: &str, index: impl Into<DeviceIndex>) -> Self {
         let index = index.into().resolve();
-        let device = burn_dispatch::devices::RemoteDevice::new(address, index);
+        let device = burn_dispatch::devices::RemoteDevice::websocket(address, index);
         device.connect(); // initializes the connection (required to get the device default settings)
+        Self::new(device)
+    }
+
+    /// Iroh peer-to-peer remote device.
+    ///
+    /// `endpoint` is the application-owned Iroh endpoint to dial from; `peer` is the compute
+    /// server's identity (from [`RemoteSecret::id`](burn_dispatch::backends::remote::RemoteSecret::id)),
+    /// optionally carrying direct/relay dialing hints.
+    /// On wasm, use [`remote_iroh_async`](Self::remote_iroh_async) instead since sessions cannot
+    /// be opened synchronously.
+    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+    pub fn remote_iroh(
+        endpoint: &burn_dispatch::backends::remote::Endpoint,
+        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
+        index: impl Into<DeviceIndex>,
+    ) -> Self {
+        let index = index.into().resolve();
+        let device =
+            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
+        device.connect();
+        Self::new(device)
+    }
+
+    /// Browser counterpart of [`remote_iroh`](Self::remote_iroh). Wasm cannot block to connect,
+    /// so the session is established asynchronously before the device is returned.
+    #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
+    pub async fn remote_iroh_async(
+        endpoint: &burn_dispatch::backends::remote::Endpoint,
+        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
+        index: impl Into<DeviceIndex>,
+    ) -> Self {
+        let index = index.into().resolve();
+        let device =
+            burn_dispatch::backends::remote::RemoteDevice::iroh(endpoint, peer.into(), index);
+        device.connect_async().await;
+        Self::new(device)
+    }
+
+    /// Like `remote_iroh`, but carries an authorization credential the server's PeerAuthorizer
+    /// will check. Use against servers that require a credential; open servers take `remote_iroh`.
+    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+    pub fn remote_iroh_authorized(
+        endpoint: &burn_dispatch::backends::remote::Endpoint,
+        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
+        index: impl Into<DeviceIndex>,
+        credential: Vec<u8>,
+    ) -> Self {
+        let index = index.into().resolve();
+        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
+            endpoint,
+            peer.into(),
+            index,
+            credential,
+        );
+        device.connect();
+        Self::new(device)
+    }
+
+    /// Browser counterpart of `remote_iroh_authorized`. Establishes the session asynchronously.
+    #[cfg(all(feature = "remote", any(target_family = "wasm", doc)))]
+    pub async fn remote_iroh_authorized_async(
+        endpoint: &burn_dispatch::backends::remote::Endpoint,
+        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
+        index: impl Into<DeviceIndex>,
+        credential: Vec<u8>,
+    ) -> Self {
+        let index = index.into().resolve();
+        let device = burn_dispatch::backends::remote::RemoteDevice::iroh_authorized(
+            endpoint,
+            peer.into(),
+            index,
+            credential,
+        );
+        device.connect_async().await;
         Self::new(device)
     }
 
@@ -643,10 +707,10 @@ impl Device {
     /// let local = Device::enumerate(DeviceType::Cuda);
     ///
     /// // Every device hosted by a remote server.
-    /// let remote = Device::enumerate(DeviceType::remote("ws://host:3000"));
+    /// let remote = Device::enumerate(DeviceType::remote_websocket("ws://host:3000"));
     ///
     /// // Filters combine with `|`.
-    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::remote("ws://host:3000"));
+    /// let both = Device::enumerate(DeviceType::Cuda | DeviceType::remote_websocket("ws://host:3000"));
     /// ```
     pub fn enumerate(filter: impl Into<DeviceFilter>) -> Devices {
         #[allow(unused)]
@@ -678,9 +742,9 @@ impl Device {
                 DeviceType::LibTorch => DispatchDeviceId::LibTorch,
                 // Remote devices are keyed by address, not a backend type id, so they take a
                 // dedicated enumeration path (connecting to the server for its device count).
-                #[cfg(feature = "remote")]
+                #[cfg(feature = "remote-websocket")]
                 DeviceType::Remote(address) => {
-                    for device in Dispatch::enumerate_remote(&address) {
+                    for device in Dispatch::enumerate_remote_websocket(&address) {
                         devices.push(Device::new(device));
                     }
                     continue;
@@ -759,17 +823,17 @@ pub enum DeviceType {
     /// Devices hosted by the `burn-remote` server at the given address
     /// (e.g. `"ws://host:3000"`). Unlike the other variants this is resolved at runtime by
     /// connecting to the server, which reports how many devices it exposes.
-    #[cfg(feature = "remote")]
+    #[cfg(feature = "remote-websocket")]
     Remote(String),
 }
 
-#[cfg(feature = "remote")]
+#[cfg(feature = "remote-websocket")]
 impl DeviceType {
     /// Filter selecting every device hosted by the `burn-remote` server at `address`
     /// (e.g. `"ws://host:3000"`).
     ///
     /// Convenience for [`DeviceType::Remote`] that accepts anything string-like.
-    pub fn remote(address: impl Into<String>) -> Self {
+    pub fn remote_websocket(address: impl Into<String>) -> Self {
         DeviceType::Remote(address.into())
     }
 }

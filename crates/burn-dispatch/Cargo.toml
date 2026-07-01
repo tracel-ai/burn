@@ -64,8 +64,12 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 autodiff = ["burn-autodiff"]
-remote = ["std", "burn-remote"]
+# Remote compute client over Iroh.
+remote = ["std", "burn-remote", "burn-remote/iroh"]
+# Host a remote compute server over Iroh.
 remote-server = ["remote", "burn-remote/server"]
+# Add the legacy WebSocket transport.
+remote-websocket = ["remote", "burn-remote/websocket"]
 
 # Backend features
 autotune = [

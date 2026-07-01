@@ -79,7 +79,10 @@ impl<M: LearnerModel> DdpWorker<M> {
                 self.event_processor
                     .lock()
                     .unwrap()
-                    .process_train(LearnerEvent::StartSplit(self.components.train_total_items));
+                    .process_train(LearnerEvent::StartSplit {
+                        epoch_number: epoch,
+                        total_items: self.components.train_total_items,
+                    });
             }
 
             epoch_train.run(
@@ -107,7 +110,10 @@ impl<M: LearnerModel> DdpWorker<M> {
                     self.event_processor
                         .lock()
                         .unwrap()
-                        .process_valid(LearnerEvent::StartSplit(self.components.valid_total_items));
+                        .process_valid(LearnerEvent::StartSplit {
+                            epoch_number: epoch,
+                            total_items: self.components.valid_total_items,
+                        });
                 }
                 let mut event_processor = self.event_processor.lock().unwrap();
                 runner.run(

@@ -51,7 +51,10 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
             let epoch = training_progress.items_processed;
 
-            event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
+            event_processor.process_train(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: train_total_items,
+            });
             epoch_train.run(
                 &mut learner,
                 &training_progress,
@@ -77,7 +80,10 @@ impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrat
                 learner.fork(main_device);
             }
 
-            event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
+            event_processor.process_valid(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: valid_total_items,
+            });
             epoch_valid.run(
                 &learner,
                 &training_progress,

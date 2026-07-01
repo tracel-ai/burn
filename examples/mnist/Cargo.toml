@@ -19,7 +19,7 @@ metal = ["burn/metal"]
 cuda = ["burn/cuda"]
 vulkan = ["burn/vulkan"]
 rocm = ["burn/rocm"]
-remote = ["burn/remote"]
+remote = ["burn/remote-websocket"]
 
 [dependencies]
 burn = { workspace = true, default-features = false, features = [
