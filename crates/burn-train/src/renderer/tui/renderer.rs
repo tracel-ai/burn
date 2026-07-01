@@ -123,7 +123,9 @@ impl TuiMetricsRendererWrapper {
 
     fn send_event(&self, event: TuiRendererEvent) {
         if self.kill_signal.lock().unwrap().try_recv().is_ok() {
-            panic!("Killing training from user input.")
+            self.interrupter
+                .stop(Some("Killing training from user input."));
+            return;
         }
         if let Err(e) = self.sender.send(event) {
             log::warn!("Failed to send TUI event: {e}");
@@ -177,7 +179,9 @@ impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
 impl MetricsRenderer for TuiMetricsRendererWrapper {
     fn manual_close(&mut self) {
         self.send_event(TuiRendererEvent::ManualClose);
-        let _ = self.handle_join.take().unwrap().join();
+        if let Some(handle) = self.handle_join.take() {
+            let _ = handle.join();
+        }
     }
 
     fn register_metric(&mut self, definition: MetricDefinition) {
@@ -298,7 +302,7 @@ impl EvaluationProgressLogger for TuiMetricsRendererWrapper {
 impl Drop for TuiMetricsRendererWrapper {
     fn drop(&mut self) {
         if !std::thread::panicking() {
-            self.send_event(TuiRendererEvent::Close);
+            let _ = self.sender.send(TuiRendererEvent::Close);
             if let Some(handle) = self.handle_join.take() {
                 let _ = handle.join();
             }
@@ -505,7 +509,10 @@ impl TuiMetricsRenderer {
                                  the current training fails. Any code following the training \
                                  won't be executed.",
                             'k',
-                            KillPopupAccept(self.kill_signal.clone()),
+                            KillPopupAccept {
+                                interrupter: self.interrupter.clone(),
+                                kill_signal: self.kill_signal.clone(),
+                            },
                         ),
                         Callback::new(
                             "Cancel",
@@ -601,13 +608,19 @@ impl TuiMetricsRenderer {
 }
 
 struct QuitPopupAccept(Interrupter);
-struct KillPopupAccept(Sender<()>);
+struct KillPopupAccept {
+    interrupter: Interrupter,
+    kill_signal: Sender<()>,
+}
+
 struct PopupCancel;
 
 impl CallbackFn for KillPopupAccept {
     fn call(&self) -> bool {
-        self.0.send(()).unwrap();
-        panic!("Killing training from user input.");
+        self.kill_signal.send(()).unwrap();
+        self.interrupter
+            .stop(Some("Killing training from user input."));
+        true
     }
 }
 
