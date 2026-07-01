@@ -35,6 +35,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
+    // Short-circuit: zero-sized matmul produces a zero-sized output.
+    if lhs.meta.shape().iter().any(|&d| d == 0) || rhs.meta.shape().iter().any(|&d| d == 0) {
+        return output;
+    }
+
     let client = lhs.client.clone();
     let num_cpu_cores = client.properties().hardware.num_cpu_cores;
 
@@ -76,6 +81,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         let tma = TuneGroup::<MatmulAutotuneKey>::new("tma", |key| {
+            // Zero-sized matmuls cannot use TMA kernels.
+            if key.definition.m == 0 || key.definition.n == 0 || key.definition.k == 0 {
+                return PRIORITY_NEVER;
+            }
+
             // For large matmul, we set the max priority to TMA kernels, higher than any other
             // matmuls, since they are the best kernels no matter what.
             //
