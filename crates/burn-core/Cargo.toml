@@ -102,7 +102,7 @@ rand = { workspace = true }
 hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
 
 # Serialize Deserialize
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive", "rc"] }
 
 ahash = { workspace = true }
 half = { workspace = true }
