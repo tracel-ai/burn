@@ -1,5 +1,6 @@
 use alloc::format;
 use alloc::string::String;
+use cubecl_common::{e4m3, e5m2};
 use num_traits::{Float, ToPrimitive};
 
 use super::TensorData;
@@ -253,6 +254,8 @@ impl TensorData {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
             }
+            DType::E4M3 => self.assert_eq_elem::<e4m3>(other),
+            DType::E5M2 => self.assert_eq_elem::<e5m2>(other),
         }
     }
 

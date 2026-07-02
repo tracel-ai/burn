@@ -60,6 +60,8 @@ pub fn dtype_to_elem_type(dtype: DType) -> ElemType {
         DType::Flex32 => ElemType::Float(FloatKind::Flex32),
         DType::F16 => ElemType::Float(FloatKind::F16),
         DType::BF16 => ElemType::Float(FloatKind::BF16),
+        DType::E4M3 => ElemType::Float(FloatKind::E4M3),
+        DType::E5M2 => ElemType::Float(FloatKind::E5M2),
         DType::I64 => ElemType::Int(IntKind::I64),
         DType::I32 => ElemType::Int(IntKind::I32),
         DType::I16 => ElemType::Int(IntKind::I16),

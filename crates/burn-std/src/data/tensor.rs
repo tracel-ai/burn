@@ -5,6 +5,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
+use cubecl_common::{e4m3, e5m2};
 use rand::Rng;
 use thiserror::Error;
 
@@ -335,6 +336,17 @@ impl TensorData {
                         unimplemented!("Not yet implemented for iteration");
                     }
                 },
+
+                DType::E4M3 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &e4m3| e.elem::<E>()),
+                ),
+                DType::E5M2 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &e5m2| e.elem::<E>()),
+                ),
             }
         }
     }
@@ -436,6 +448,8 @@ impl TensorData {
                 Self::full::<u32, _>(shape, fill_value.elem()).into_bool_u32()
             }
             DType::QFloat(_) => unreachable!(),
+            DType::E4M3 => Self::full::<cubecl_common::e4m3, _>(shape, fill_value.elem()),
+            DType::E5M2 => Self::full::<cubecl_common::e5m2, _>(shape, fill_value.elem()),
         }
     }
 
@@ -472,6 +486,8 @@ impl TensorData {
                 DType::F32 | DType::Flex32 => self.convert_inplace_dtype::<f32>(dtype),
                 DType::F16 => self.convert_inplace_dtype::<f16>(dtype),
                 DType::BF16 => self.convert_inplace_dtype::<bf16>(dtype),
+                DType::E4M3 => self.convert_inplace_dtype::<e4m3>(dtype),
+                DType::E5M2 => self.convert_inplace_dtype::<e5m2>(dtype),
                 DType::I64 => self.convert_inplace_dtype::<i64>(dtype),
                 DType::I32 => self.convert_inplace_dtype::<i32>(dtype),
                 DType::I16 => self.convert_inplace_dtype::<i16>(dtype),
@@ -490,6 +506,8 @@ impl TensorData {
                 DType::F32 | DType::Flex32 => self.convert_clone_dtype::<f32>(dtype),
                 DType::F16 => self.convert_clone_dtype::<f16>(dtype),
                 DType::BF16 => self.convert_clone_dtype::<bf16>(dtype),
+                DType::E4M3 => self.convert_clone_dtype::<e4m3>(dtype),
+                DType::E5M2 => self.convert_clone_dtype::<e5m2>(dtype),
                 DType::I64 => self.convert_clone_dtype::<i64>(dtype),
                 DType::I32 => self.convert_clone_dtype::<i32>(dtype),
                 DType::I16 => self.convert_clone_dtype::<i16>(dtype),
@@ -501,6 +519,7 @@ impl TensorData {
                 DType::Bool(BoolStore::Native) => self.convert_clone_dtype::<bool>(dtype),
                 DType::Bool(BoolStore::U8) => self.convert_clone_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U32) => self.convert_clone_dtype::<u32>(dtype),
+
                 DType::QFloat(_) => unreachable!(),
             }
         }
@@ -512,6 +531,8 @@ impl TensorData {
             DType::F32 | DType::Flex32 => self.convert_inplace::<Current, f32>(),
             DType::F16 => self.convert_inplace::<Current, f16>(),
             DType::BF16 => self.convert_inplace::<Current, bf16>(),
+            DType::E4M3 => self.convert_inplace::<Current, e4m3>(),
+            DType::E5M2 => self.convert_inplace::<Current, e5m2>(),
             DType::I64 => self.convert_inplace::<Current, i64>(),
             DType::I32 => self.convert_inplace::<Current, i32>(),
             DType::I16 => self.convert_inplace::<Current, i16>(),
@@ -520,6 +541,7 @@ impl TensorData {
             DType::U32 => self.convert_inplace::<Current, u32>(),
             DType::U16 => self.convert_inplace::<Current, u16>(),
             DType::U8 => self.convert_inplace::<Current, u8>(),
+
             DType::Bool(BoolStore::U8) => self.convert_inplace::<Current, u8>().into_bool_u8(),
             DType::Bool(BoolStore::U32) => self.convert_inplace::<Current, u32>().into_bool_u32(),
             DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),
@@ -546,6 +568,8 @@ impl TensorData {
             DType::F32 | DType::Flex32 => self.convert_clone::<Current, f32>(),
             DType::F16 => self.convert_clone::<Current, f16>(),
             DType::BF16 => self.convert_clone::<Current, bf16>(),
+            DType::E4M3 => self.convert_clone::<Current, e4m3>(),
+            DType::E5M2 => self.convert_clone::<Current, e5m2>(),
             DType::I64 => self.convert_clone::<Current, i64>(),
             DType::I32 => self.convert_clone::<Current, i32>(),
             DType::I16 => self.convert_clone::<Current, i16>(),
@@ -698,6 +722,8 @@ impl core::fmt::Display for TensorData {
             DType::F32 | DType::Flex32 => format!("{:?}", self.as_slice::<f32>().unwrap()),
             DType::F16 => format!("{:?}", self.as_slice::<f16>().unwrap()),
             DType::BF16 => format!("{:?}", self.as_slice::<bf16>().unwrap()),
+            DType::E4M3 => format!("{:?}", self.as_slice::<e4m3>().unwrap()),
+            DType::E5M2 => format!("{:?}", self.as_slice::<e5m2>().unwrap()),
             DType::I64 => format!("{:?}", self.as_slice::<i64>().unwrap()),
             DType::I32 => format!("{:?}", self.as_slice::<i32>().unwrap()),
             DType::I16 => format!("{:?}", self.as_slice::<i16>().unwrap()),

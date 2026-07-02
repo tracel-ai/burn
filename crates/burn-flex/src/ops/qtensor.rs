@@ -13,7 +13,7 @@ use burn_backend::{
     },
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
-use burn_std::{Bytes, Shape, Slice, bf16, f16};
+use burn_std::{Bytes, Shape, Slice, bf16, e4m3, e5m2, f16};
 
 use super::float_storage_as_f32;
 use crate::{Flex, FlexQTensor, FlexTensor, Layout};
@@ -206,6 +206,14 @@ impl QTensorOps<Flex> for Flex {
             FloatDType::BF16 => {
                 let data: Vec<bf16> = dequantized.iter().map(|&v| bf16::from_f32(v)).collect();
                 FlexTensor::new(Bytes::from_elems(data), layout, DType::BF16)
+            }
+            FloatDType::E4M3 => {
+                let data: Vec<e4m3> = dequantized.iter().map(|&v| e4m3::from_f32(v)).collect();
+                FlexTensor::new(Bytes::from_elems(data), layout, DType::E4M3)
+            }
+            FloatDType::E5M2 => {
+                let data: Vec<e5m2> = dequantized.iter().map(|&v| e5m2::from_f32(v)).collect();
+                FlexTensor::new(Bytes::from_elems(data), layout, DType::E5M2)
             }
         }
     }

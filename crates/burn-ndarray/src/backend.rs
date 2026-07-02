@@ -92,7 +92,9 @@ impl Backend for NdArray {
             | DType::U16
             | DType::U8
             | DType::Bool(BoolStore::Native) => burn_backend::DTypeUsage::general(),
-            DType::F16 | DType::BF16 | DType::Bool(_) => burn_backend::DTypeUsageSet::empty(),
+            DType::F16 | DType::BF16 | DType::E4M3 | DType::E5M2 | DType::Bool(_) => {
+                burn_backend::DTypeUsageSet::empty()
+            }
             DType::QFloat(scheme) => {
                 match scheme {
                     QuantScheme {

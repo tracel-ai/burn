@@ -1,5 +1,7 @@
 use core::mem::size_of;
 
+use cubecl_common::{e4m3, e5m2};
+
 use crate::{bf16, f16};
 
 /// A generic trait for converting a value to a number.
@@ -100,6 +102,20 @@ pub trait ToElement {
     #[inline]
     fn to_bf16(&self) -> bf16 {
         bf16::from_f32(self.to_f32())
+    }
+
+    /// Converts the value of `self` to an `f16`. Overflows may map to positive
+    /// or negative infinity.
+    #[inline]
+    fn to_e4m3(&self) -> e4m3 {
+        e4m3::from_f32(self.to_f32())
+    }
+
+    /// Converts the value of `self` to an `f16`. Overflows may map to positive
+    /// or negative infinity.
+    #[inline]
+    fn to_e5m2(&self) -> e5m2 {
+        e5m2::from_f32(self.to_f32())
     }
 
     /// Converts the value of `self` to an `f32`. Overflows may map to positive
@@ -514,6 +530,120 @@ impl ToElement for bf16 {
     #[inline]
     fn to_bool(&self) -> bool {
         *self != bf16::from_f32_const(0.0)
+    }
+}
+
+impl ToElement for e4m3 {
+    #[inline]
+    fn to_i64(&self) -> i64 {
+        Self::to_f32(*self).to_i64()
+    }
+    #[inline]
+    fn to_u64(&self) -> u64 {
+        Self::to_f32(*self).to_u64()
+    }
+    #[inline]
+    fn to_i8(&self) -> i8 {
+        Self::to_f32(*self).to_i8()
+    }
+    #[inline]
+    fn to_u8(&self) -> u8 {
+        Self::to_f32(*self).to_u8()
+    }
+    #[inline]
+    fn to_i16(&self) -> i16 {
+        Self::to_f32(*self).to_i16()
+    }
+    #[inline]
+    fn to_u16(&self) -> u16 {
+        Self::to_f32(*self).to_u16()
+    }
+    #[inline]
+    fn to_i32(&self) -> i32 {
+        Self::to_f32(*self).to_i32()
+    }
+    #[inline]
+    fn to_u32(&self) -> u32 {
+        Self::to_f32(*self).to_u32()
+    }
+    #[inline]
+    fn to_f16(&self) -> f16 {
+        Self::to_f32(*self).to_f16()
+    }
+
+    #[inline]
+    fn to_e4m3(&self) -> e4m3 {
+        *self
+    }
+
+    #[inline]
+    fn to_f32(&self) -> f32 {
+        Self::to_f32(*self)
+    }
+    #[inline]
+    fn to_f64(&self) -> f64 {
+        Self::to_f64(*self)
+    }
+    #[inline]
+    fn to_bool(&self) -> bool {
+        *self != e4m3::from_f32(0.0)
+    }
+}
+
+impl ToElement for e5m2 {
+    #[inline]
+    fn to_i64(&self) -> i64 {
+        Self::to_f32(*self).to_i64()
+    }
+    #[inline]
+    fn to_u64(&self) -> u64 {
+        Self::to_f32(*self).to_u64()
+    }
+    #[inline]
+    fn to_i8(&self) -> i8 {
+        Self::to_f32(*self).to_i8()
+    }
+    #[inline]
+    fn to_u8(&self) -> u8 {
+        Self::to_f32(*self).to_u8()
+    }
+    #[inline]
+    fn to_i16(&self) -> i16 {
+        Self::to_f32(*self).to_i16()
+    }
+    #[inline]
+    fn to_u16(&self) -> u16 {
+        Self::to_f32(*self).to_u16()
+    }
+    #[inline]
+    fn to_i32(&self) -> i32 {
+        Self::to_f32(*self).to_i32()
+    }
+    #[inline]
+    fn to_u32(&self) -> u32 {
+        Self::to_f32(*self).to_u32()
+    }
+    #[inline]
+    fn to_f16(&self) -> f16 {
+        Self::to_f32(*self).to_f16()
+    }
+
+    #[inline]
+    fn to_e5m2(&self) -> e5m2 {
+        *self
+    }
+
+    #[inline]
+    fn to_f32(&self) -> f32 {
+        Self::to_f32(*self)
+    }
+    #[inline]
+    fn to_f64(&self) -> f64 {
+        Self::to_f64(*self)
+    }
+    #[inline]
+    fn to_bool(&self) -> bool {
+        *self != e5m2::from_f32(0.0)
     }
 }
 
