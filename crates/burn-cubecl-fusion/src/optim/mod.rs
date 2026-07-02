@@ -1,5 +1,6 @@
 pub mod elemwise;
 pub mod matmul;
+pub mod nhwc_relayout;
 pub mod reduce;
 pub mod reduce_broadcasted;
 

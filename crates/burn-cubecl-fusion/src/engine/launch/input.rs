@@ -240,6 +240,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     return true;
                 }
             }
+            TensorView::NhwcStrides { .. } => {
+                return false;
+            }
         };
 
         false
