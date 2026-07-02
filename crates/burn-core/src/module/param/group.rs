@@ -266,13 +266,7 @@ impl ParamGroupMatcher {
         match self {
             Self::All => Ok(true),
             Self::Explicit(ids) => Ok(ids.contains(id)),
-            Self::Path(matcher) => path
-                .ok_or_else(|| {
-                    ParamGroupError::InvalidParameter(
-                        "Matching on a path requires giving `matches` a path.".into(),
-                    )
-                })
-                .map(|p| matcher.matches(p))?,
+            Self::Path(matcher) => path.map_or(Ok(false), |p| matcher.matches(p)),
             Self::Combined(matchers) => Ok(matchers.iter().try_fold(false, |acc, m| {
                 m.matches(id, path).map(|matched| acc || matched)
             })?),

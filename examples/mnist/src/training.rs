@@ -20,6 +20,7 @@ use burn::{
         linear::LinearLrSchedulerConfig, policy::LrPolicyConfig,
     },
     module::ParamGroup,
+    optim::SgdConfig,
     prelude::*,
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
@@ -113,11 +114,18 @@ pub fn run(device: Device) {
                 .expect("Failed to create training progress log"),
         )
         .num_epochs(config.num_epochs)
+        .checkpoint(2)
         .summary();
+
+    let optim = config
+        .optimizer
+        .init()
+        .with_group(ParamGroup::from_predicate("conv"), SgdConfig::new().init());
 
     let result = training.launch(Learner::new(
         model,
-        config.optimizer.init(),
+        // config.optimizer.init(),
+        optim,
         // lr_scheduler.init().unwrap(),
         lr_policy.init().unwrap(),
     ));
