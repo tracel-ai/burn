@@ -121,7 +121,7 @@ mod remote {
     /// List every device the remote server hosts and train across all of them.
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote(ADDRESS));
+        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();
@@ -132,7 +132,7 @@ mod remote {
     /// Same enumeration, but drive the devices with distributed data-parallel training.
     #[cfg(feature = "ddp")]
     pub fn run() {
-        let mut devices = Device::enumerate(DeviceType::remote(ADDRESS));
+        let mut devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
         devices
             .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
             .unwrap();

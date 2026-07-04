@@ -26,6 +26,7 @@ use burn::{
     },
 };
 use guide::data::MnistBatcher;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-custom-train-strategy";
@@ -47,8 +48,7 @@ pub struct MnistTrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -150,7 +150,10 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
             log::info!("Executing training step for epoch {}", epoch,);
 
             // Single device / dataloader
-            event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
+            event_processor.process_train(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: train_total_items,
+            });
             let mut iterator = dataloader_train.iter();
             let mut iteration = 0;
 
@@ -184,7 +187,10 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
 
             let model_valid = learner.model().valid();
 
-            event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
+            event_processor.process_valid(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: valid_total_items,
+            });
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
 

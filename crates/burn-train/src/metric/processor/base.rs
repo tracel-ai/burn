@@ -12,11 +12,18 @@ pub enum LearnerEvent<T> {
     Start {
         /// The total number of training epochs.
         total_epochs: usize,
+        /// The starting epoch.
+        starting_epoch: usize,
     },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),
-    /// Signal the start of a split, carrying the total number of items in that split.
-    StartSplit(usize),
+    /// Signal the start of a split.
+    StartSplit {
+        /// The epoch number.
+        epoch_number: usize,
+        /// The total number of items to be processed during this split.
+        total_items: usize,
+    },
     /// Signal the end of a split, carrying the current epoch number.
     EndSplit(usize),
     /// Signal the end of a full epoch.
