@@ -34,6 +34,7 @@ mod layout;
 mod qtensor;
 mod strided_index;
 mod tensor;
+mod zip;
 
 #[doc(hidden)]
 pub mod ops;

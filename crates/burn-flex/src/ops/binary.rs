@@ -443,18 +443,26 @@ where
                 .map(|(&a, &b)| op(a, b))
                 .collect()
         }
-        // Fast path for 2D non-contiguous (common for transpose)
-        _ if lhs.layout().num_dims() == 2 => {
-            apply_2d_strided(lhs_storage, rhs_storage, lhs.layout(), rhs.layout(), op)
-        }
-        // General fallback
+        // Strided/broadcast fallback: collapse both layouts into a
+        // joint loop nest with a specialized (autovectorizable) inner
+        // loop. Only negative-stride (flipped) or over-rank layouts
+        // fall through to the per-element StridedIter odometer.
         _ => {
-            let lhs_iter = StridedIter::new(lhs.layout());
-            let rhs_iter = StridedIter::new(rhs.layout());
-            lhs_iter
-                .zip(rhs_iter)
-                .map(|(li, ri)| op(lhs_storage[li], rhs_storage[ri]))
-                .collect()
+            if let Some(result) =
+                crate::zip::zip_map(lhs_storage, lhs.layout(), rhs_storage, rhs.layout(), &op)
+            {
+                result
+            } else if lhs.layout().num_dims() == 2 {
+                // 2D non-contiguous with negative strides (e.g. flipped)
+                apply_2d_strided(lhs_storage, rhs_storage, lhs.layout(), rhs.layout(), &op)
+            } else {
+                let lhs_iter = StridedIter::new(lhs.layout());
+                let rhs_iter = StridedIter::new(rhs.layout());
+                lhs_iter
+                    .zip(rhs_iter)
+                    .map(|(li, ri)| op(lhs_storage[li], rhs_storage[ri]))
+                    .collect()
+            }
         }
     };
 

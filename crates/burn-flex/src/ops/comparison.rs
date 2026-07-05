@@ -90,8 +90,73 @@ where
         return make_bool_tensor(result, shape, out_dtype);
     }
 
+    // Collapsed loop-nest path for any rank: jointly collapse the two
+    // layouts and run the SIMD compare kernels per contiguous or
+    // broadcast-scalar inner run (e.g. `[2,S,N] > [1,S,N]` becomes two
+    // contiguous `cmp_f32` calls of S*N elements).
+    if let Some(simd_op) = simd_hint
+        && let Some(result) = try_zip_cmp_f32(&lhs, rhs, simd_op)
+    {
+        let shape = lhs.layout().shape().clone();
+        return make_bool_tensor(result, shape, out_dtype);
+    }
+
     // Fallback to generic path
     compare_typed(lhs, rhs, out_dtype, cmp)
+}
+
+/// Comparison over a jointly collapsed loop nest, dispatching each
+/// innermost run to the SIMD kernels. Handles contiguous/contiguous,
+/// contiguous/broadcast-scalar and broadcast-scalar/contiguous inner
+/// runs; returns `None` for anything else (general strided inner,
+/// negative strides) so the caller's generic path takes over.
+#[cfg(feature = "simd")]
+fn try_zip_cmp_f32(lhs: &FlexTensor, rhs: &FlexTensor, op: simd::CmpOp) -> Option<Vec<u8>> {
+    let numel = lhs.layout().num_elements();
+    if numel == 0 {
+        return Some(Vec::new());
+    }
+    let nest = crate::zip::collapse_for_zip(lhs.layout(), rhs.layout())?;
+    if nest.ndim == 0 {
+        return None; // single element; not worth a SIMD dispatch
+    }
+    let (len, l_st, r_st) = nest.inner();
+    let lhs_storage: &[f32] = lhs.storage();
+    let rhs_storage: &[f32] = rhs.storage();
+    let mut out = vec![0u8; numel];
+    let mut pos = 0usize;
+    match (l_st, r_st) {
+        (1, 1) => nest.for_each_run(|lb, rb| {
+            simd::cmp_f32(
+                &lhs_storage[lb..lb + len],
+                &rhs_storage[rb..rb + len],
+                &mut out[pos..pos + len],
+                op,
+            );
+            pos += len;
+        }),
+        (1, 0) => nest.for_each_run(|lb, rb| {
+            simd::cmp_scalar_f32(
+                &lhs_storage[lb..lb + len],
+                rhs_storage[rb],
+                &mut out[pos..pos + len],
+                op,
+            );
+            pos += len;
+        }),
+        (0, 1) => nest.for_each_run(|lb, rb| {
+            simd::cmp_scalar_f32(
+                &rhs_storage[rb..rb + len],
+                lhs_storage[lb],
+                &mut out[pos..pos + len],
+                swap_cmp_op(op),
+            );
+            pos += len;
+        }),
+        _ => return None,
+    }
+    debug_assert_eq!(pos, numel);
+    Some(out)
 }
 
 /// Try optimized outer-product style broadcast comparison.
@@ -335,21 +400,34 @@ where
                 .map(|(&a, &b)| cmp(a, b) as u8)
                 .collect()
         }
-        // Fast path for 2D non-contiguous (common for transpose)
-        _ if lhs.layout().num_dims() == 2 => crate::ops::binary::apply_2d_strided(
-            lhs_storage,
-            rhs_storage,
-            lhs.layout(),
-            rhs.layout(),
-            |a, b| cmp(a, b) as u8,
-        ),
+        // Strided/broadcast fallback: collapsed loop nest first, then
+        // the legacy paths for layouts it can't handle (negative
+        // strides, rank > 8).
         _ => {
-            let lhs_iter = StridedIter::new(lhs.layout());
-            let rhs_iter = StridedIter::new(rhs.layout());
-            lhs_iter
-                .zip(rhs_iter)
-                .map(|(li, ri)| cmp(lhs_storage[li], rhs_storage[ri]) as u8)
-                .collect()
+            if let Some(result) = crate::zip::zip_map(
+                lhs_storage,
+                lhs.layout(),
+                rhs_storage,
+                rhs.layout(),
+                |a, b| cmp(a, b) as u8,
+            ) {
+                result
+            } else if lhs.layout().num_dims() == 2 {
+                crate::ops::binary::apply_2d_strided(
+                    lhs_storage,
+                    rhs_storage,
+                    lhs.layout(),
+                    rhs.layout(),
+                    |a, b| cmp(a, b) as u8,
+                )
+            } else {
+                let lhs_iter = StridedIter::new(lhs.layout());
+                let rhs_iter = StridedIter::new(rhs.layout());
+                lhs_iter
+                    .zip(rhs_iter)
+                    .map(|(li, ri)| cmp(lhs_storage[li], rhs_storage[ri]) as u8)
+                    .collect()
+            }
         }
     };
 
