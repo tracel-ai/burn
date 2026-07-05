@@ -1298,9 +1298,11 @@ mod tests {
     /// non-commutative op.
     #[test]
     fn test_binary_broadcast_lhs_3d_shared_row_sub_f32() {
-        let gamma =
-            FlexTensor::from_data(TensorData::new(vec![100.0f32, 200.0, 300.0, 400.0], vec![4]))
-                .reshape(Shape::from(vec![1, 1, 4]));
+        let gamma = FlexTensor::from_data(TensorData::new(
+            vec![100.0f32, 200.0, 300.0, 400.0],
+            vec![4],
+        ))
+        .reshape(Shape::from(vec![1, 1, 4]));
         let x = FlexTensor::from_data(TensorData::new(
             (0..24).map(|i| i as f32).collect::<Vec<_>>(),
             vec![2, 3, 4],
@@ -1320,10 +1322,8 @@ mod tests {
     #[test]
     fn test_binary_swapped_inplace_shared_lhs_f32() {
         let run = |simd_op: BinaryOp, op_fn: fn(f32, f32) -> f32, expected: &[f32]| {
-            let a = FlexTensor::from_data(TensorData::new(
-                vec![10.0f32, 20.0, 30.0, 40.0],
-                vec![2, 2],
-            ));
+            let a =
+                FlexTensor::from_data(TensorData::new(vec![10.0f32, 20.0, 30.0, 40.0], vec![2, 2]));
             let _keep_alive = a.clone(); // lhs shared: in-place-on-lhs path can't fire
             let b = FlexTensor::from_data(TensorData::new(vec![2.0f32, 4.0, 5.0, 8.0], vec![2, 2]));
             let result = binary_op(

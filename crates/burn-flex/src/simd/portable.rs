@@ -74,17 +74,47 @@ macro_rules! define_inplace_f32_op {
     };
 }
 
-define_inplace_f32_op!(add_inplace_f32, add_inplace_f32_seq, add_inplace_f32_par, |a, b| a + b);
-define_inplace_f32_op!(sub_inplace_f32, sub_inplace_f32_seq, sub_inplace_f32_par, |a, b| a - b);
-define_inplace_f32_op!(mul_inplace_f32, mul_inplace_f32_seq, mul_inplace_f32_par, |a, b| a * b);
-define_inplace_f32_op!(div_inplace_f32, div_inplace_f32_seq, div_inplace_f32_par, |a, b| a / b);
+define_inplace_f32_op!(
+    add_inplace_f32,
+    add_inplace_f32_seq,
+    add_inplace_f32_par,
+    |a, b| a + b
+);
+define_inplace_f32_op!(
+    sub_inplace_f32,
+    sub_inplace_f32_seq,
+    sub_inplace_f32_par,
+    |a, b| a - b
+);
+define_inplace_f32_op!(
+    mul_inplace_f32,
+    mul_inplace_f32_seq,
+    mul_inplace_f32_par,
+    |a, b| a * b
+);
+define_inplace_f32_op!(
+    div_inplace_f32,
+    div_inplace_f32_seq,
+    div_inplace_f32_par,
+    |a, b| a / b
+);
 
 // Reversed kernels: `a[i] = b[i] OP a[i]`. Sub and div are not
 // commutative, so when a binary op is dispatched with swapped operands
 // (the destination buffer holds the original *rhs*), the kernel must
 // compute `src OP dst` instead of `dst OP src`.
-define_inplace_f32_op!(rsub_inplace_f32, rsub_inplace_f32_seq, rsub_inplace_f32_par, |a, b| b - a);
-define_inplace_f32_op!(rdiv_inplace_f32, rdiv_inplace_f32_seq, rdiv_inplace_f32_par, |a, b| b / a);
+define_inplace_f32_op!(
+    rsub_inplace_f32,
+    rsub_inplace_f32_seq,
+    rsub_inplace_f32_par,
+    |a, b| b - a
+);
+define_inplace_f32_op!(
+    rdiv_inplace_f32,
+    rdiv_inplace_f32_seq,
+    rdiv_inplace_f32_par,
+    |a, b| b / a
+);
 
 // ============================================================================
 // f32 shared-row broadcast binary ops
@@ -143,10 +173,7 @@ macro_rules! define_shared_row_f32_op {
                     unsafe {
                         let $d = vload_unaligned::<S, _>(dst.as_ptr().add(base + i));
                         let $r = vload_unaligned::<S, _>(row.as_ptr().add(i));
-                        vstore_unaligned::<S, _>(
-                            dst.as_mut_ptr().add(base + i),
-                            $body,
-                        );
+                        vstore_unaligned::<S, _>(dst.as_mut_ptr().add(base + i), $body);
                     }
                     i += lanes;
                 }
