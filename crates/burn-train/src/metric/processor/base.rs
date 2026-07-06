@@ -91,7 +91,7 @@ pub struct TrainingItem<T> {
     /// The iteration, if it it different from the items processed.
     pub iteration: Option<usize>,
 
-    /// The learning rate.
+    /// The learning rate policy.
     pub lr: Option<LrPolicy>,
 }
 

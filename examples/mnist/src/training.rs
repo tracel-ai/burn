@@ -17,10 +17,8 @@ use burn::{
     },
     lr_scheduler::{
         composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
-        linear::LinearLrSchedulerConfig, policy::LrPolicyConfig,
+        linear::LinearLrSchedulerConfig,
     },
-    module::ParamGroup,
-    optim::SgdConfig,
     prelude::*,
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
@@ -74,7 +72,7 @@ pub fn run(device: Device) {
     let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
     let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
 
-    let ident_trains = generate_idents(Some(1000));
+    let ident_trains = generate_idents(Some(10000));
     let ident_valid = generate_idents(None);
     let dataset_train = DatasetIdent::compose(ident_trains, dataset_train_plain);
     let dataset_valid = DatasetIdent::compose(ident_valid, dataset_valid_plain);
@@ -95,9 +93,6 @@ pub fn run(device: Device) {
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
-    let lr_policy =
-        LrPolicyConfig::new(lr_scheduler.into()).add_group(ParamGroup::from_predicate("conv"), 0.0);
-
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
@@ -114,21 +109,12 @@ pub fn run(device: Device) {
                 .expect("Failed to create training progress log"),
         )
         .num_epochs(config.num_epochs)
-        .checkpoint(2)
         .summary();
-
-    let optim = config.optimizer.init().with_group(
-        ParamGroup::from_predicate("conv"),
-        SgdConfig::new().init(),
-        None,
-    );
 
     let result = training.launch(Learner::new(
         model,
-        // config.optimizer.init(),
-        optim,
-        // lr_scheduler.init().unwrap(),
-        lr_policy.init().unwrap(),
+        config.optimizer.init(),
+        lr_scheduler.init().unwrap(),
     ));
 
     let dataset_test_plain = Arc::new(MnistDataset::test());

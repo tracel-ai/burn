@@ -22,14 +22,12 @@ rocm = ["burn/rocm"]
 remote = ["burn/remote-websocket"]
 
 [dependencies]
-burn = { workspace = true, default-features = false, features = [
+burn = { workspace = true, features = [
     "train",
     "vision",
     "metrics",
-    # "fusion",
+    "fusion",
     "flex",
-    "std",
-    "tui"
 ] }
 
 log = { workspace = true }

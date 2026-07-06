@@ -517,9 +517,8 @@ mod tests {
         ModuleOptimizer::from(SgdConfig::new().init())
     }
 
-    /// to_record / load_record must fully preserve a stateful optimizer's internal state (Adam's
-    /// moment tensors and step counter) so that a step on the restored optimizer is numerically
-    /// identical to one taken on the original.
+    /// to_record / load_record must fully preserve a stateful optimizer's internal state so that
+    /// a step on the restored optimizer is numerically identical to one taken on the original.
     #[test]
     fn default_optimizer_state_survives_round_trip() {
         let device = Device::default().autodiff();

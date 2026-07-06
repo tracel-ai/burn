@@ -29,7 +29,7 @@ impl<M: LearnerModel> Clone for Learner<M> {
             model: self.model.clone(),
             optim: self.optim.clone(),
             lr_scheduler: self.lr_scheduler.clone(),
-            lr_policy: self.lr_policy.clone(), // TODO: Shouldn't be too expensive to clone, but might consider an Arc.
+            lr_policy: self.lr_policy.clone(),
         }
     }
 }
