@@ -4,7 +4,7 @@ use crate::engine::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_std::{DType, Shape, quantization::QuantParam};
+use burn_std::{DType, Shape, Slice, quantization::QuantParam};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
 
@@ -377,6 +377,76 @@ impl FuseBlockBuilder {
             original: Box::new(original),
             shape,
             broadcasted: output.shape[rank - 1] == 0,
+        };
+
+        let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
+            e.insert(Vec::with_capacity(1));
+            self.reads.get_mut(&tensor.id).unwrap()
+        } else {
+            self.reads.get_mut(&tensor.id).unwrap()
+        };
+
+        reads.push(FuseOp::Assign(UnaryFuseArgs {
+            input,
+            out: out.clone(),
+        }));
+
+        Some(out)
+    }
+
+    /// Register an input that is sliced (fuse-on-read).
+    ///
+    /// The `ranges` are the relative slice ranges: their concrete bounds are resolved at launch and
+    /// pushed into the global slice metadata under the returned slice position.
+    pub fn input_sliced(
+        &mut self,
+        tensor: &TensorIr,
+        output: &TensorIr,
+        ranges: &[Slice],
+        resources: &mut FuseResources,
+    ) -> Option<FuseArg> {
+        if matches!(tensor.dtype, DType::QFloat(..)) {
+            return None;
+        }
+        let precision = tensor.dtype.into();
+
+        let input_index = match self.locals.get(precision, tensor.id) {
+            Some(_) => {
+                // Can't fuse an already fused input.
+                if resources.outputs.get(tensor.id).is_some() {
+                    return None;
+                }
+
+                match resources.inputs.get_index(tensor.id) {
+                    Some(index) => {
+                        resources.inputs.update(tensor);
+                        index
+                    }
+                    None => {
+                        return None;
+                    }
+                }
+            }
+            None => resources.inputs.insert(precision, tensor.clone()),
+        };
+
+        let out = self.output(output, resources)?;
+        let original = FuseArg::Input(input_index, precision, LayoutInfo::Unknown);
+
+        let slice_pos = resources.num_sliced;
+        resources.num_sliced += 1;
+
+        resources.views.push(TensorView::Slice {
+            sliced: output.id,
+            original: tensor.id,
+            slice_pos,
+            ranges: ranges.to_vec(),
+        });
+
+        let input = FuseArg::InputSliced {
+            original: Box::new(original),
+            slice_pos,
+            broadcasted: false,
         };
 
         let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {

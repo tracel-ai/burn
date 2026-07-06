@@ -53,6 +53,16 @@ pub enum FuseArg {
         dims: (usize, usize),
         broadcasted: bool,
     },
+    /// A readonly input tensor that is sliced (fuse-on-read).
+    ///
+    /// The concrete per-dim start offsets and steps are not known at fusion time (slice ranges are
+    /// dynamic), so they are resolved at launch and stored in the global slice metadata. `slice_pos`
+    /// points to the `rank`-sized window in that metadata for this slice.
+    InputSliced {
+        original: Box<FuseArg>,
+        slice_pos: usize,
+        broadcasted: bool,
+    },
 }
 
 /// Metadata of a variable shared between blocks.
@@ -90,6 +100,7 @@ impl FuseArg {
             FuseArg::ScalarShape(_) => return FuseType::U32,
             FuseArg::InputReshaped { original, .. } => return original.precision(),
             FuseArg::InputSwapDims { original, .. } => return original.precision(),
+            FuseArg::InputSliced { original, .. } => return original.precision(),
         }
     }
 }
@@ -200,6 +211,15 @@ pub enum FuseOp {
         output: FuseArg,
         scheme: QuantSchemeFuse,
     },
+    /// Writes `value` into the sliced region of `base`, leaving the rest of `base` untouched
+    /// (fuse-on-write slice assign). `slice_pos` points to the per-dim start/step metadata (see
+    /// [`FuseArg::InputSliced`]); `value` is read with a non-vectorized inverse-slice index.
+    SliceAssign {
+        base: FuseArg,
+        value: FuseArg,
+        output: FuseArg,
+        slice_pos: usize,
+    },
 }
 
 impl Display for FuseOp {
@@ -283,6 +303,16 @@ impl Display for FuseOp {
                 "{} = dequantize(values={}, params={})",
                 output, values, params
             ),
+            FuseOp::SliceAssign {
+                base,
+                value,
+                output,
+                slice_pos,
+            } => write!(
+                f,
+                "{} = slice_assign(base={}, value={}, slice_pos={})",
+                output, base, value, slice_pos
+            ),
         }
     }
 }
@@ -332,6 +362,7 @@ impl FuseOp {
             FuseOp::Dequantize { output, .. } => output.precision().into_elem(),
             FuseOp::Rem(op) => op.out.precision().into_elem(),
             FuseOp::Clamp { out, .. } => out.precision().into_elem(),
+            FuseOp::SliceAssign { output, .. } => output.precision().into_elem(),
         }
     }
 
@@ -350,6 +381,14 @@ pub struct GlobalArgs {
     pub scalars: Sequence<InputScalar>,
     /// To be used to perform reshape inside a fused kernel.
     pub reshapes: Sequence<usize>,
+    /// Per-dim slice start offsets used to perform slice-on-read inside a fused kernel.
+    ///
+    /// Values are laid out as contiguous `rank`-sized windows, one per registered slice view (see
+    /// [`FuseArg::InputSliced`]).
+    pub slice_starts: Sequence<usize>,
+    /// Per-dim slice steps (signed) matching [`Self::slice_starts`]. A negative step means the slice
+    /// is reversed, and the matching start already points to the last selected element.
+    pub slice_steps: Sequence<i32>,
     /// When there are no metadata as a reference layout, we provide runtime shape/strides in this
     /// sequence instead.
     pub runtime_layouts: Sequence<usize>,
@@ -442,6 +481,8 @@ impl<R: Runtime> Default for GlobalArgsLaunch<R> {
             tensors: Default::default(),
             scalars: Default::default(),
             reshapes: Default::default(),
+            slice_starts: Default::default(),
+            slice_steps: Default::default(),
             variables: Default::default(),
             runtime_layouts: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
@@ -770,6 +811,16 @@ impl FuseOp {
                 params.multi_block_variable(registers);
                 output.multi_block_variable(registers);
             }
+            FuseOp::SliceAssign {
+                base,
+                value,
+                output,
+                slice_pos: _,
+            } => {
+                base.multi_block_variable(registers);
+                value.multi_block_variable(registers);
+                output.multi_block_variable(registers);
+            }
         }
     }
 }
@@ -961,6 +1012,7 @@ impl Display for FuseArg {
             FuseArg::Literal(val, ..) => write!(f, "literal_{val}"),
             FuseArg::InputReshaped { original, .. } => write!(f, "input_reshaped_{original}"),
             FuseArg::InputSwapDims { original, .. } => write!(f, "input_swap_dims_{original}"),
+            FuseArg::InputSliced { original, .. } => write!(f, "input_sliced_{original}"),
         }
     }
 }

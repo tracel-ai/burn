@@ -162,6 +162,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         block_idx,
                     );
                 }
+                OutputKind::Transform(TensorView::Slice { .. }) => {
+                    // Slices are written as normal outputs (see `output_kind`), never as a transform.
+                    unreachable!("A sliced tensor is written as a normal output")
+                }
             }
         }
 
@@ -340,6 +344,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         if let Some(transform) = self.resources.views.iter().find(|v| match v {
             TensorView::Reshape { reshaped, .. } => reshaped == &output.tensor_relative.id,
             TensorView::SwapDims { swapped, .. } => swapped == &output.tensor_relative.id,
+            // A sliced tensor is read through a view but written as a normal output.
+            TensorView::Slice { .. } => false,
         }) {
             return (OutputKind::Transform(transform.clone()), block_idx);
         }

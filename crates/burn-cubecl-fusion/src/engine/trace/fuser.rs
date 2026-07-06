@@ -6,11 +6,11 @@ use super::{
     FuseResources,
     block::FuseBlockBuilder,
 };
-use super::{FuseTrace, RegisteredTensors};
+use super::{FuseTrace, RegisteredTensors, TensorView};
 use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorIr};
-use burn_std::{DType, Shape};
+use burn_std::{DType, Shape, Slice};
 use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
@@ -271,6 +271,43 @@ impl TraceFuser {
         self.resources.outputs.update(tensor);
         self.block_current
             .input_reshaped(tensor, output, &mut self.resources)
+    }
+
+    /// Allocate a slice metadata window and register the associated view.
+    ///
+    /// Used by slice-assign (fuse-on-write): the per-dim start/step for `ranges` are resolved at
+    /// launch (normalized against `original`'s shape) and stored under the returned slice position.
+    pub fn register_slice(
+        &mut self,
+        original: &TensorIr,
+        sliced: &TensorIr,
+        ranges: &[Slice],
+    ) -> usize {
+        let slice_pos = self.resources.num_sliced;
+        self.resources.num_sliced += 1;
+        self.resources.views.push(TensorView::Slice {
+            sliced: sliced.id,
+            original: original.id,
+            slice_pos,
+            ranges: ranges.to_vec(),
+        });
+        slice_pos
+    }
+
+    /// Register an input that is sliced (fuse-on-read).
+    pub fn input_sliced(
+        &mut self,
+        tensor: &TensorIr,
+        output: &TensorIr,
+        ranges: &[Slice],
+    ) -> Option<FuseArg> {
+        if matches!(tensor.dtype, DType::QFloat(_)) {
+            return None;
+        }
+
+        self.resources.outputs.update(tensor);
+        self.block_current
+            .input_sliced(tensor, output, ranges, &mut self.resources)
     }
 
     /// Register a scalar value.

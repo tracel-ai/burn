@@ -344,6 +344,44 @@ impl TraceOperationFuser {
                     false
                 }
             }
+            BaseOperationIr::Slice(desc) => {
+                // Slice preserves rank; the sliced output must be shape-compatible with the block.
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                if self.fuser.fuse(|fuser| {
+                    fuser.input_sliced(&desc.tensor, &desc.out, &desc.ranges)?;
+                    Some(())
+                }) {
+                    self.num_views += 1;
+                    true
+                } else {
+                    false
+                }
+            }
+            BaseOperationIr::SliceAssign(desc) => {
+                // The output has the base tensor's shape; the region is overwritten by `value`.
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let base = build.input(&desc.tensor)?;
+                    let value = build.input_indexed(&desc.value)?;
+                    let output = build.output(&desc.out)?;
+                    let slice_pos = build.register_slice(&desc.tensor, &desc.out, &desc.ranges);
+
+                    build.fuse_operation(FuseOp::SliceAssign {
+                        base,
+                        value,
+                        output,
+                        slice_pos,
+                    });
+
+                    Some(())
+                })
+            }
             BaseOperationIr::Ones(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;

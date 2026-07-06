@@ -65,6 +65,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 has_multiple_read(original),
             )),
             TensorView::SwapDims { .. } => None,
+            TensorView::Slice { .. } => None,
         });
         let tensors_swapped = self.resources.views.iter().filter_map(|view| match view {
             TensorView::SwapDims {
@@ -79,6 +80,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 dims,
             )),
             TensorView::Reshape { .. } => None,
+            TensorView::Slice { .. } => None,
         });
 
         let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);

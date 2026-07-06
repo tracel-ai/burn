@@ -240,6 +240,18 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     return true;
                 }
             }
+            TensorView::Slice {
+                sliced, original, ..
+            } => {
+                // The sliced output is written normally and can serve as a concrete reference; only
+                // the original input is read through a non-identity layout, so it can't.
+                if original == &tensor_relative.id {
+                    return true;
+                }
+                if sliced == &tensor_relative.id {
+                    return true;
+                }
+            }
         };
 
         false

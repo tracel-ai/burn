@@ -3,7 +3,7 @@ use crate::engine::{
     trace::block::FuseBlock,
 };
 use burn_ir::{TensorId, TensorIr};
-use burn_std::{Shape, Strides};
+use burn_std::{Shape, Slice, Strides};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -181,6 +181,7 @@ pub struct FuseResources {
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
+    pub num_sliced: usize,
     /// Necessary to remove some entries from the context.
     pub dropped: HashSet<TensorId>,
     /// We know during fusion that we have to have those buffers has global.
@@ -225,6 +226,15 @@ pub enum TensorView {
         swapped: TensorId,
         original: TensorId,
         dims: (usize, usize),
+    },
+    Slice {
+        sliced: TensorId,
+        original: TensorId,
+        /// Position of this slice's per-dim metadata window (see [`FuseArg::InputSliced`]).
+        slice_pos: usize,
+        /// The relative slice ranges. Their `start` fields carry binding ids into
+        /// [`Context::ranges`](crate) — the concrete bounds are resolved at launch.
+        ranges: Vec<Slice>,
     },
 }
 

@@ -25,6 +25,11 @@ pub enum Transform {
     ///
     /// The enum entry contains those two axes.
     SwapDims(usize, usize),
+    /// A slice operation has been registered on a tensor.
+    ///
+    /// The enum entry contains the slice position, used to index the per-dim start/step metadata
+    /// (see [`GlobalArgs::slice_starts`](super::ir::GlobalArgs)).
+    Slice(usize),
 }
 
 /// Reads the value from the [arg](FuseArg) and cast it to the generic cube primitive.
@@ -151,6 +156,39 @@ pub fn read<C: Scalar, N: Size>(
                 }
             }
             _ => comptime![panic!("Only input can be swapped dims")],
+        },
+        FuseArg::InputSliced {
+            original,
+            slice_pos,
+            broadcasted,
+        } => match comptime![original.as_ref().clone()] {
+            FuseArg::Input(pos, _precision, layout) => {
+                let global = inputs.tensors.index(pos);
+                let vector_size = global.tensor.vector_size();
+
+                if comptime![!broadcasted && vector_size != config.width] {
+                    read_input_aligned(
+                        inputs,
+                        locals,
+                        pos,
+                        ref_pos,
+                        layout,
+                        config,
+                        comptime![Some(Transform::Slice(slice_pos))],
+                    )
+                } else {
+                    read_input(
+                        inputs,
+                        locals,
+                        pos,
+                        ref_pos,
+                        layout,
+                        config,
+                        comptime![Some(Transform::Slice(slice_pos))],
+                    )
+                }
+            }
+            _ => comptime![panic!("Only input can be sliced")],
         },
     }
 }
@@ -361,6 +399,17 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+            }
+        }
+        Some(Transform::Slice(slice_pos)) => {
+            // Compute each element's original index independently, since a slice generally breaks
+            // the contiguity of the innermost dimension.
+            let ref_pos = ref_pos * config.width;
+            #[unroll]
+            for i in 0..config.width {
+                let index =
+                    sliced_index(inputs, locals, &tensor.tensor, ref_pos + i, config.rank, slice_pos);
                 result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
             }
         }
@@ -766,6 +815,11 @@ fn index_offset_with_layout(
 
             offset / tensor.tensor.vector_size()
         }
+        Some(Transform::Slice(slice_pos)) => {
+            comptime![assert!(range.is_none(), "Can't get a range on a sliced tensor.")];
+
+            sliced_index(inputs, locals, &tensor.tensor, offset_ref, rank, slice_pos)
+        }
         None => {
             let (start, end) = comptime! {match range {
                 Some(range) => range,
@@ -821,6 +875,47 @@ fn reshaped_index(
     }
 
     offset
+}
+
+/// The vectorized index into the original (pre-slice) tensor for a given reference position.
+///
+/// For each dim the output coordinate is recovered from the reference layout, mapped back to the
+/// input coordinate via `start + out_coord * step` (a negative step reverses, with `start` already
+/// pointing at the last selected element), then accumulated using the original tensor strides.
+#[cube]
+#[allow(clippy::clone_on_copy)]
+fn sliced_index<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    original: &Tensor<Vector<C, N>>,
+    offset_ref: usize,
+    #[comptime] rank: usize,
+    #[comptime] slice_pos: usize,
+) -> usize {
+    let meta_base = comptime![slice_pos * rank];
+    let mut offset = 0;
+
+    #[unroll]
+    for i in 0..rank {
+        let out_coord = (offset_ref / locals.ref_strides[i]) % locals.ref_shape[i];
+        let start = inputs.slice_starts[comptime![meta_base + i]];
+        let step = inputs.slice_steps[comptime![meta_base + i]];
+        let in_coord = slice_input_coord(out_coord, start, step);
+        offset += in_coord * original.stride(i);
+    }
+
+    offset / original.vector_size()
+}
+
+/// Maps an output coordinate to the corresponding input coordinate for a single sliced dimension.
+#[cube]
+fn slice_input_coord(out_coord: usize, start: usize, step: i32) -> usize {
+    if step > 0 {
+        start + out_coord * (step as usize)
+    } else {
+        // Reversed slice: `start` is the last selected element, step is negative.
+        start - out_coord * ((-step) as usize)
+    }
 }
 
 #[allow(unreachable_code)]

@@ -282,12 +282,43 @@ fn register_scalars<'h, R: Runtime>(
     }
 
     for relative in views {
-        if let TensorView::Reshape { reshaped, .. } = relative {
-            let global = context.tensors.get(reshaped).unwrap();
+        match relative {
+            TensorView::Reshape { reshaped, .. } => {
+                let global = context.tensors.get(reshaped).unwrap();
 
-            for shape in global.shape.iter() {
-                inputs.reshapes.push(*shape);
+                for shape in global.shape.iter() {
+                    inputs.reshapes.push(*shape);
+                }
             }
+            TensorView::Slice {
+                original, ranges, ..
+            } => {
+                // Resolve the concrete per-dim start/step for this invocation and normalize them
+                // against the original tensor shape, mirroring `slice_with_steps_kernel`.
+                let shape = &context.tensors.get(original).unwrap().shape;
+
+                for dim in 0..shape.num_dims() {
+                    let (start, step) = match ranges.get(dim) {
+                        Some(relative) => {
+                            // The relative range's `start` carries the binding id into `context.ranges`.
+                            let slice = context.ranges[relative.start as usize];
+                            let range = slice.to_range(shape[dim]);
+                            if slice.step > 0 {
+                                (range.start, slice.step as i32)
+                            } else {
+                                // Reversed: start from the last selected element (`end - 1`).
+                                (range.end - 1, slice.step as i32)
+                            }
+                        }
+                        // Dimensions past the provided ranges are kept in full.
+                        None => (0, 1),
+                    };
+
+                    inputs.slice_starts.push(start);
+                    inputs.slice_steps.push(step);
+                }
+            }
+            TensorView::SwapDims { .. } => {}
         }
     }
 }

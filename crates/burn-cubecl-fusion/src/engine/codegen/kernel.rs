@@ -327,6 +327,14 @@ fn fuse(
                 max,
                 out,
             } => clamp::<E, N>(inputs, outputs, locals, pos, input, min, max, out, config),
+            FuseOp::SliceAssign {
+                base,
+                value,
+                output,
+                slice_pos,
+            } => slice_assign::<E, N>(
+                inputs, outputs, locals, pos, base, value, output, slice_pos, config,
+            ),
         }
     }
 }
@@ -768,6 +776,90 @@ fn conditional_assign<C: Scalar, N: Size>(
     let result = select_many(cond, lhs, rhs);
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, out, config);
+}
+
+#[cube]
+#[allow(clippy::too_many_arguments)]
+fn slice_assign<C: Numeric, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] base: FuseArg,
+    #[comptime] value: FuseArg,
+    #[comptime] output: FuseArg,
+    #[comptime] slice_pos: usize,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let pos_value = comptime! {
+        match value {
+            FuseArg::Input(pos, ..) => pos,
+            _ => panic!("Slice assign value must be an indexed input"),
+        }
+    };
+    let meta_base = comptime![slice_pos * config.rank];
+
+    // The base tensor provides every position; the sliced region is overwritten by `value`.
+    let base = read::<C, N>(inputs, &*outputs, &*locals, write_pos, base, config);
+    let value_len = global_len(inputs, pos_value);
+
+    let mut result = Vector::<C, N>::empty();
+    let ref_base = write_pos * config.width;
+
+    #[unroll]
+    for i in 0..config.width {
+        let ref_elem = ref_base + i;
+
+        let mut in_region = true;
+        let mut value_offset = 0;
+
+        #[unroll]
+        for d in 0..config.rank {
+            let coord = (ref_elem / locals.ref_strides[d]) % locals.ref_shape[d];
+            let start = inputs.slice_starts[comptime![meta_base + d]];
+            let step = inputs.slice_steps[comptime![meta_base + d]];
+            let size = global_shape(inputs, d, pos_value);
+            let vstride = global_stride(inputs, d, pos_value);
+
+            // `abs_step`/`rel` are selected on the runtime step sign; the not-taken branch may wrap
+            // on unsigned subtraction, but is masked out below via `dir_ok`/`vc < size`.
+            let abs_step_raw = if step > 0 { step as usize } else { (-step) as usize };
+            let abs_step = if abs_step_raw < 1 { 1 } else { abs_step_raw };
+            let dir_ok = if step > 0 { coord >= start } else { coord <= start };
+            let rel = if step > 0 { coord - start } else { start - coord };
+            let vc = rel / abs_step;
+            let member = dir_ok && rel % abs_step == 0 && vc < size;
+
+            in_region = in_region && member;
+            value_offset += vc * vstride;
+        }
+
+        // Clamp the (possibly wrapped) offset so out-of-region threads never read out of bounds; the
+        // clamped read is discarded when `in_region` is false.
+        let value_offset = if value_offset < value_len {
+            value_offset
+        } else {
+            value_len - 1
+        };
+        let value = read_input::<C, Const<1>>(
+            inputs,
+            &*locals,
+            pos_value,
+            value_offset,
+            LayoutInfo::IsRef,
+            config,
+            None,
+        );
+
+        let chosen = if in_region {
+            value.extract(0)
+        } else {
+            base.extract(i)
+        };
+        result.insert(i, chosen);
+    }
+
+    write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
 }
 
 #[cube]

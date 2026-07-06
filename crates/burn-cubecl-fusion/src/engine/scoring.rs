@@ -92,7 +92,9 @@ impl Scoring {
             ) as usize;
             let count_view = matches!(
                 arg_extractor(args),
-                FuseArg::InputReshaped { .. } | FuseArg::InputSwapDims { .. }
+                FuseArg::InputReshaped { .. }
+                    | FuseArg::InputSwapDims { .. }
+                    | FuseArg::InputSliced { .. }
             ) as usize;
             num_io += count_normal + count_view;
             penalty += count_view;
