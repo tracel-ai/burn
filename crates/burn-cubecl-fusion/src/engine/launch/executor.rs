@@ -12,6 +12,7 @@ use crate::{
 };
 use burn_fusion::stream::{Context, ScalarId};
 use burn_ir::ScalarIr;
+use burn_std::Slice;
 use cubecl::{
     Runtime,
     client::ComputeClient,
@@ -296,31 +297,15 @@ fn register_scalars<'h, R: Runtime>(
                 sliced,
                 ..
             } => {
-                // Resolve the concrete per-dim start/step for this invocation and normalize them
-                // against the original tensor shape, mirroring `slice_with_steps_kernel`.
-                let shape = &context.tensors.get(original).unwrap().shape;
-                // The sliced output shape, used for broadcast-correct coordinate recovery on read.
-                let sliced_shape = context.tensors.get(sliced).unwrap().shape.clone();
+                // Resolve the per-dim start/step/shape for this launch into the global slice
+                // metadata windows read by `sliced_index` / `slice_assign`.
+                let original_shape = &context.tensors.get(original).unwrap().shape;
+                // The sliced output shape drives broadcast-correct coordinate recovery on read.
+                let sliced_shape = &context.tensors.get(sliced).unwrap().shape;
 
-                for dim in 0..shape.num_dims() {
-                    let (start, step) = match ranges.get(dim) {
-                        Some(relative) => {
-                            // The relative range's `start` carries the binding id into `context.ranges`.
-                            let slice = context.ranges[relative.start as usize];
-                            let range = slice.to_range(shape[dim]);
-                            if slice.step > 0 {
-                                (range.start, slice.step as i32)
-                            } else {
-                                // Reversed: start from the last selected element (`end - 1`).
-                                // `saturating_sub` guards the degenerate empty-range case (`end == 0`),
-                                // where the start is unused since no element is selected.
-                                (range.end.saturating_sub(1), slice.step as i32)
-                            }
-                        }
-                        // Dimensions past the provided ranges are kept in full.
-                        None => (0, 1),
-                    };
-
+                for dim in 0..original_shape.num_dims() {
+                    let (start, step) =
+                        slice_start_step(ranges, &context.ranges, dim, original_shape[dim]);
                     inputs.slice_starts.push(start);
                     inputs.slice_steps.push(step);
                     inputs.slice_shapes.push(sliced_shape[dim]);
@@ -328,5 +313,33 @@ fn register_scalars<'h, R: Runtime>(
             }
             TensorView::SwapDims { .. } => {}
         }
+    }
+}
+
+/// The concrete per-launch `(start, step)` for `dim` of a registered slice.
+///
+/// `ranges` are the *relative* ranges: each one's `start` field carries a binding id into
+/// `bindings` (the concrete slices resolved this launch). `start` is normalized to point at the
+/// first selected element — the last selected one for a reversed (negative-step) slice. Dimensions
+/// past `ranges` are kept in full.
+fn slice_start_step(
+    ranges: &[Slice],
+    bindings: &[Slice],
+    dim: usize,
+    axis_size: usize,
+) -> (usize, i32) {
+    let Some(relative) = ranges.get(dim) else {
+        return (0, 1);
+    };
+
+    let slice = bindings[relative.start as usize];
+    let range = slice.to_range(axis_size);
+
+    if slice.step > 0 {
+        (range.start, slice.step as i32)
+    } else {
+        // `saturating_sub` guards the degenerate empty range (`end == 0`); the start is unused when
+        // nothing is selected.
+        (range.end.saturating_sub(1), slice.step as i32)
     }
 }

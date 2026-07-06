@@ -16,6 +16,7 @@ use crate::{
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
+use burn_std::Slice;
 use cubecl::{
     Runtime,
     client::ComputeClient,
@@ -184,21 +185,9 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             } = view
             {
                 let global = context.tensors.get(original).unwrap();
-                let rank = global.shape.num_dims();
-                let axis = vectorization_axis.get(*original, || rank - 1);
+                let axis = vectorization_axis.get(*original, || global.shape.num_dims() - 1);
 
-                // The slice is contiguous along the vectorization axis when that axis is either past
-                // the provided ranges (kept in full) or covered by a full, unit-step range.
-                let contiguous_on_axis = match ranges.get(axis) {
-                    Some(relative) => {
-                        let slice = context.ranges[relative.start as usize];
-                        let range = slice.to_range(global.shape[axis]);
-                        slice.step == 1 && range.start == 0 && range.end == global.shape[axis]
-                    }
-                    None => true,
-                };
-
-                if !contiguous_on_axis {
+                if !slice_contiguous_on_axis(ranges, &context.ranges, axis, global.shape[axis]) {
                     plan.vectorizations.insert(global.id, Vect::Aligned(1));
                 }
             }
@@ -360,6 +349,24 @@ struct BlockVectorization {
     action: VectorizationAction,
     potential: VectorSize,
     broadcasted: bool,
+}
+
+/// Whether a slice reads `axis` contiguously — a full, unit-step range — so a perpendicular vector
+/// along that axis stays valid. `ranges` are the relative ranges (their `start` carries a binding id
+/// into `bindings`); an axis past the provided ranges is kept in full and so is contiguous.
+fn slice_contiguous_on_axis(
+    ranges: &[Slice],
+    bindings: &[Slice],
+    axis: usize,
+    axis_size: usize,
+) -> bool {
+    let Some(relative) = ranges.get(axis) else {
+        return true;
+    };
+
+    let slice = bindings[relative.start as usize];
+    let range = slice.to_range(axis_size);
+    slice.step == 1 && range.start == 0 && range.end == axis_size
 }
 
 fn apply_vectorization_block<R: Runtime>(

@@ -822,41 +822,18 @@ fn slice_assign<C: Numeric, N: Size>(
             let coord = (ref_elem / locals.ref_strides[d]) % out_shape;
             let start = inputs.slice_starts[comptime![meta_base + d]];
             let step = inputs.slice_steps[comptime![meta_base + d]];
-            let size = global_shape(inputs, d, pos_value);
-            let vstride = global_stride(inputs, d, pos_value);
+            let value_size = global_shape(inputs, d, pos_value);
+            let value_stride = global_stride(inputs, d, pos_value);
 
-            // `abs_step`/`rel` are selected on the runtime step sign; the not-taken branch may wrap
-            // on unsigned subtraction, but is masked out below via `dir_ok`/`vc < size`. The
-            // sign-dependent parts go through helpers so `step` stays pinned to `i32`.
-            let abs_step = slice_abs_step(step);
-            let dir_ok = slice_dir_ok(coord, start, step);
-            let rel = slice_rel(coord, start, step);
-            let vc = rel / abs_step;
-            let member = dir_ok && rel % abs_step == 0 && vc < size;
-
-            in_region = in_region && member;
-            value_offset += vc * vstride;
+            let mapped = slice_assign_dim(coord, start, step, value_size);
+            in_region = in_region && mapped.in_region;
+            value_offset += mapped.value_coord * value_stride;
         }
 
-        // Clamp the (possibly wrapped) offset so out-of-region threads never read out of bounds; the
-        // clamped read is discarded when `in_region` is false.
-        let value_offset = if value_offset < value_len {
-            value_offset
-        } else {
-            value_len - 1
-        };
-        let value = read_input::<C, Const<1>>(
-            inputs,
-            &*locals,
-            pos_value,
-            value_offset,
-            LayoutInfo::IsRef,
-            config,
-            None,
-        );
+        let value = read_value_element::<C>(inputs, &*locals, pos_value, value_offset, value_len, config);
 
         let chosen = if in_region {
-            value.extract(0)
+            value
         } else {
             base.extract(i)
         };
@@ -864,6 +841,63 @@ fn slice_assign<C: Numeric, N: Size>(
     }
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+/// Per-dimension result of mapping a base coordinate back onto the assigned `value` tensor.
+#[derive(CubeType)]
+struct SliceAssignDim {
+    /// Whether the coordinate falls inside the sliced region along this dimension.
+    in_region: bool,
+    /// The corresponding coordinate within the `value` tensor along this dimension.
+    value_coord: usize,
+}
+
+/// Maps a base-space `coord` back onto the assigned `value` tensor for one dimension: whether it
+/// lies in the sliced region, and its coordinate within `value`.
+///
+/// `slice_rel`'s not-taken branch may wrap on unsigned subtraction, but the `dir_ok` and
+/// `value_coord < value_size` guards mask that out.
+#[cube]
+fn slice_assign_dim(coord: usize, start: usize, step: i32, value_size: usize) -> SliceAssignDim {
+    let abs_step = slice_abs_step(step);
+    let rel = slice_rel(coord, start, step);
+    let value_coord = rel / abs_step;
+    let in_region =
+        slice_dir_ok(coord, start, step) && rel % abs_step == 0 && value_coord < value_size;
+
+    SliceAssignDim {
+        in_region,
+        value_coord,
+    }
+}
+
+/// Reads a single scalar from the assigned `value` tensor at `value_offset`, clamped to the last
+/// element so out-of-region threads never read out of bounds (the clamped value is discarded by the
+/// caller when the thread is outside the sliced region).
+#[cube]
+fn read_value_element<C: Numeric>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] pos_value: usize,
+    value_offset: usize,
+    value_len: usize,
+    #[comptime] config: &FuseBlockConfig,
+) -> C {
+    let clamped = if value_offset < value_len {
+        value_offset
+    } else {
+        value_len - 1
+    };
+    let value = read_input::<C, Const<1>>(
+        inputs,
+        locals,
+        pos_value,
+        clamped,
+        LayoutInfo::IsRef,
+        config,
+        None,
+    );
+    value.extract(0)
 }
 
 /// Magnitude of a slice step (always ≥ 1 for a real slice). `step` is kept as a typed parameter so

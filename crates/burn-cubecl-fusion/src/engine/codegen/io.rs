@@ -95,103 +95,87 @@ pub fn read<C: Scalar, N: Size>(
             original,
             shape,
             broadcasted,
-        } => match comptime![original.as_ref().clone()] {
-            FuseArg::Input(pos, _precision, layout) => {
-                let global = inputs.tensors.index(pos);
-                let vector_size = global.tensor.vector_size();
-
-                if comptime![!broadcasted && vector_size != config.width] {
-                    read_input_aligned(
-                        inputs,
-                        locals,
-                        pos,
-                        ref_pos,
-                        layout,
-                        config,
-                        comptime![Some(Transform::Reshape(shape))],
-                    )
-                } else {
-                    read_input(
-                        inputs,
-                        locals,
-                        pos,
-                        ref_pos,
-                        layout,
-                        config,
-                        comptime![Some(Transform::Reshape(shape))],
-                    )
-                }
-            }
-            _ => comptime![panic!("Only input can be reshaped")],
-        },
+        } => read_transformed_input(
+            inputs,
+            locals,
+            comptime![original.as_ref().clone()],
+            ref_pos,
+            comptime![Transform::Reshape(shape)],
+            broadcasted,
+            config,
+        ),
         FuseArg::InputSwapDims {
             original,
             dims,
             broadcasted,
-        } => match comptime![original.as_ref().clone()] {
-            FuseArg::Input(pos, _precision, layout) => {
-                let global = inputs.tensors.index(pos);
-                let vector_size = global.tensor.vector_size();
-
-                if comptime![!broadcasted && vector_size != config.width] {
-                    read_input_aligned(
-                        inputs,
-                        locals,
-                        pos,
-                        ref_pos,
-                        layout,
-                        config,
-                        comptime![Some(Transform::SwapDims(dims.0, dims.1))],
-                    )
-                } else {
-                    read_input(
-                        inputs,
-                        locals,
-                        pos,
-                        ref_pos,
-                        layout,
-                        config,
-                        comptime![Some(Transform::SwapDims(dims.0, dims.1))],
-                    )
-                }
-            }
-            _ => comptime![panic!("Only input can be swapped dims")],
-        },
+        } => read_transformed_input(
+            inputs,
+            locals,
+            comptime![original.as_ref().clone()],
+            ref_pos,
+            comptime![Transform::SwapDims(dims.0, dims.1)],
+            broadcasted,
+            config,
+        ),
+        // Broadcasting for a sliced read is handled inside `sliced_index` (modulo over the slice
+        // output shape), so it never needs the broadcast-specific read path.
         FuseArg::InputSliced {
             original,
             slice_pos,
-        } => match comptime![original.as_ref().clone()] {
-            FuseArg::Input(pos, _precision, layout) => {
-                let global = inputs.tensors.index(pos);
-                let vector_size = global.tensor.vector_size();
+        } => read_transformed_input(
+            inputs,
+            locals,
+            comptime![original.as_ref().clone()],
+            ref_pos,
+            comptime![Transform::Slice(slice_pos)],
+            false,
+            config,
+        ),
+    }
+}
 
-                // Broadcasting is handled by `sliced_index` (modulo over the slice output shape), so
-                // a sliced read only needs the aligned path when the input can't be loaded as a full
-                // block-width vector.
-                if comptime![vector_size != config.width] {
-                    read_input_aligned(
-                        inputs,
-                        locals,
-                        pos,
-                        ref_pos,
-                        layout,
-                        config,
-                        comptime![Some(Transform::Slice(slice_pos))],
-                    )
-                } else {
-                    read_input(
-                        inputs,
-                        locals,
-                        pos,
-                        ref_pos,
-                        layout,
-                        config,
-                        comptime![Some(Transform::Slice(slice_pos))],
-                    )
-                }
+/// Reads an input tensor through a runtime `transform` (reshape / swap-dims / slice).
+///
+/// Falls back to the per-element aligned path when the tensor can't be loaded as a full block-width
+/// vector (and it isn't a broadcast read, which the aligned path doesn't handle).
+#[cube]
+fn read_transformed_input<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] original: FuseArg,
+    ref_pos: usize,
+    #[comptime] transform: Transform,
+    #[comptime] broadcasted: bool,
+    #[comptime] config: &FuseBlockConfig,
+) -> Vector<C, N> {
+    match comptime![original] {
+        FuseArg::Input(pos, _precision, layout) => {
+            let global = inputs.tensors.index(pos);
+            let vector_size = global.tensor.vector_size();
+
+            if comptime![!broadcasted && vector_size != config.width] {
+                read_input_aligned(
+                    inputs,
+                    locals,
+                    pos,
+                    ref_pos,
+                    layout,
+                    config,
+                    comptime![Some(transform.clone())],
+                )
+            } else {
+                read_input(
+                    inputs,
+                    locals,
+                    pos,
+                    ref_pos,
+                    layout,
+                    config,
+                    comptime![Some(transform.clone())],
+                )
             }
-            _ => comptime![panic!("Only input can be sliced")],
-        },
+        }
+        _ => comptime![panic!("Only an input can be transformed")],
     }
 }
 
