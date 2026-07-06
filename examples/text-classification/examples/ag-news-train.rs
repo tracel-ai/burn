@@ -108,11 +108,11 @@ mod wgpu {
 
 #[cfg(feature = "remote")]
 mod remote {
-    use burn::tensor::{Device, DeviceType};
     #[cfg(feature = "ddp")]
     use crate::ElemType;
     #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
+    use burn::tensor::{Device, DeviceType};
     #[cfg(feature = "ddp")]
     use burn::tensor::{DeviceConfig, Element};
     #[cfg(feature = "ddp")]
