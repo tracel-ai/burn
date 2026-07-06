@@ -363,6 +363,7 @@ impl alloc::fmt::Debug for PathMatcher {
     fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
         match self {
             Self::Exact(arg0) => f.debug_tuple("Exact").field(arg0).finish(),
+            #[cfg(feature = "std")]
             Self::Regex(arg0) => f.debug_tuple("Regex").field(arg0).finish(),
             Self::Include(arg0) => f.debug_tuple("Include").field(arg0).finish(),
         }
