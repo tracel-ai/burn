@@ -5194,6 +5194,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lora-finetuning"
+version = "0.22.0-pre.1"
+dependencies = [
+ "burn",
+ "derive-new",
+ "log",
+ "serde",
+ "tokenizers",
+]
+
+[[package]]
 name = "lru"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
