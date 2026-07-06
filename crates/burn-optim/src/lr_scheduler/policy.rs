@@ -36,7 +36,7 @@ impl LrPolicy {
         self.groups
             .iter()
             .filter_map(|val| val.group.matches(&id, path).then_some(val.lr))
-            .last()
+            .next_back()
             .unwrap_or(self.default)
     }
 

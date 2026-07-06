@@ -122,9 +122,8 @@ impl ModuleOptimizer {
             optim: optim.into().default_optim,
             grad_clipping,
         });
-        self.param_state_map.retain(|id, param_state| {
-            !group.matches(id, param_state.path.as_ref().map(|p| p.as_str()))
-        });
+        self.param_state_map
+            .retain(|id, param_state| !group.matches(id, param_state.path.as_deref()));
         self
     }
 }
@@ -162,7 +161,7 @@ impl ModuleOptimizer {
                     .matches(&id, path)
                     .then_some((&val.optim, val.grad_clipping.clone()))
             })
-            .last()
+            .next_back()
             .unwrap_or((&self.default_optim, self.default_grad_clipping.clone()))
     }
 
@@ -265,7 +264,7 @@ impl ModuleOptimizer {
                     ParamId::from(id),
                     ParamOptimizationState {
                         optim: optim.clone(),
-                        path: path.map(|p| p.clone()),
+                        path: path.cloned(),
                         state,
                         grad_clipping,
                     },
@@ -379,7 +378,7 @@ impl<'a> ModuleOptimizerMapper<'a> {
                     .matches(&id, path)
                     .then_some((val.optim.clone(), val.grad_clipping.clone()))
             })
-            .last()
+            .next_back()
             .unwrap_or((self.optimizer.clone(), self.grad_clipping.cloned()))
     }
 }

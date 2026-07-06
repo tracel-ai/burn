@@ -6,6 +6,7 @@ use super::linear::LinearLrSchedulerConfig;
 use super::noam::NoamLrSchedulerConfig;
 use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
+use crate::lr_scheduler::step::StepLrSchedulerConfig;
 use crate::lr_scheduler::{DynLrScheduler, LrSchedulerConfig};
 
 use burn::config::Config;
@@ -60,7 +61,13 @@ impl ComposedLrSchedulerConfig {
         })
     }
 
-    /// Appends a [linear scheduler](LinearLrScheduler).
+    /// Appends a [constant learning rate](crate::lr_scheduler::constant::ConstantLr).
+    pub fn constant(mut self, lr: LearningRate) -> Self {
+        self.schedulers.push(LrSchedulerConfig::Constant(lr));
+        self
+    }
+
+    /// Appends a [linear scheduler](crate::lr_scheduler::linear::LinearLrScheduler).
     pub fn linear(mut self, config: LinearLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Linear(config));
         self
@@ -72,15 +79,27 @@ impl ComposedLrSchedulerConfig {
         self
     }
 
-    /// Appends an [exponential scheduler](ExponentialLrScheduler).
+    /// Appends an [exponential scheduler](crate::lr_scheduler::exponential::ExponentialLrScheduler).
     pub fn exponential(mut self, config: ExponentialLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Exponential(config));
         self
     }
 
-    /// Appends a [noam scheduler](NoamLrScheduler).
+    /// Appends a [noam scheduler](crate::lr_scheduler::noam::NoamLrScheduler).
     pub fn noam(mut self, config: NoamLrSchedulerConfig) -> Self {
         self.schedulers.push(LrSchedulerConfig::Noam(config));
+        self
+    }
+
+    /// Appends a [step scheduler](crate::lr_scheduler::step::StepLrScheduler).
+    pub fn step(mut self, config: StepLrSchedulerConfig) -> Self {
+        self.schedulers.push(LrSchedulerConfig::Step(config));
+        self
+    }
+
+    /// Appends a [composed scheduler](ComposedLrScheduler).
+    pub fn composed(mut self, config: Self) -> Self {
+        self.schedulers.push(LrSchedulerConfig::Composed(config));
         self
     }
 }

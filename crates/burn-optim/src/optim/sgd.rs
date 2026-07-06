@@ -84,7 +84,7 @@ impl Optimizer for Sgd {
         }
 
         let state = SgdState::new(state_momentum);
-        let delta = grad.mul_scalar::<f64>(lr.into());
+        let delta = grad.mul_scalar(lr);
 
         (tensor - delta, Some(state))
     }

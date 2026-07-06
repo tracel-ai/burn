@@ -137,7 +137,7 @@ impl ParamGroup {
     /// Matches parameters by regex pattern (e.g., "^model\.layer\.\d+$")
     ///
     /// # Errors
-    /// Returns a [ParamGroupError::GroupInitError] if the string cannot be compiled into a valid regex.
+    /// Returns a [ParamGroupError::InvalidPatternError] if the string cannot be compiled into a valid regex.
     pub fn from_regex<S: AsRef<str>>(pattern: S) -> Result<Self, ParamGroupError> {
         ParamGroup::from_regexes(vec![pattern])
     }
@@ -147,7 +147,7 @@ impl ParamGroup {
     /// (e.g., "^encoder\.layer\.\d+", and "bias$" )
     ///
     /// # Errors
-    /// Returns a [ParamGroupError::GroupInitError] if the strings cannot be compiled into a valid regex.
+    /// Returns a [ParamGroupError::InvalidPatternError] if the strings cannot be compiled into a valid regex.
     pub fn from_regexes<S: AsRef<str>>(patterns: Vec<S>) -> Result<Self, ParamGroupError> {
         let mut new_patterns = vec![];
         for pattern in patterns {
@@ -171,7 +171,7 @@ impl ParamGroup {
     /// (e.g., "^encoder\.layer\.\d+$", or "^decoder\.layer\.\d+$" )
     ///
     /// # Errors
-    /// Returns a [ParamGroupError::GroupInitError] if the strings cannot be compiled into a valid regex.
+    /// Returns a [ParamGroupError::InvalidPatternError] if the strings cannot be compiled into a valid regex.
     pub fn from_any_regexes<S: AsRef<str>>(patterns: Vec<S>) -> Result<Self, ParamGroupError> {
         let mut matchers = vec![];
         for pattern in patterns {
@@ -258,10 +258,8 @@ impl ParamGroupMatcher {
         match self {
             Self::All => true,
             Self::Explicit(ids) => ids.contains(id),
-            Self::Path(matcher) => path.map_or(false, |p| matcher.matches(p)),
-            Self::Combined(matchers) => matchers
-                .iter()
-                .fold(false, |acc, m| m.matches(id, path) || acc),
+            Self::Path(matcher) => path.is_some_and(|p| matcher.matches(p)),
+            Self::Combined(matchers) => matchers.iter().any(|m| m.matches(id, path)),
         }
     }
 
@@ -320,7 +318,7 @@ mod regex_serde {
 
     use super::*;
 
-    pub fn serialize<S>(regexes: &Vec<Regex>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(regexes: &[Regex], serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
