@@ -822,11 +822,11 @@ fn slice_assign<C: Numeric, N: Size>(
             let vstride = global_stride(inputs, d, pos_value);
 
             // `abs_step`/`rel` are selected on the runtime step sign; the not-taken branch may wrap
-            // on unsigned subtraction, but is masked out below via `dir_ok`/`vc < size`.
-            let abs_step_raw = if step > 0 { step as usize } else { (-step) as usize };
-            let abs_step = if abs_step_raw < 1 { 1 } else { abs_step_raw };
-            let dir_ok = if step > 0 { coord >= start } else { coord <= start };
-            let rel = if step > 0 { coord - start } else { start - coord };
+            // on unsigned subtraction, but is masked out below via `dir_ok`/`vc < size`. The
+            // sign-dependent parts go through helpers so `step` stays pinned to `i32`.
+            let abs_step = slice_abs_step(step);
+            let dir_ok = slice_dir_ok(coord, start, step);
+            let rel = slice_rel(coord, start, step);
             let vc = rel / abs_step;
             let member = dir_ok && rel % abs_step == 0 && vc < size;
 
@@ -860,6 +860,30 @@ fn slice_assign<C: Numeric, N: Size>(
     }
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+/// Magnitude of a slice step (always ≥ 1 for a real slice). `step` is kept as a typed parameter so
+/// its `i32` type stays pinned through the sign-dependent branch.
+#[cube]
+fn slice_abs_step(step: i32) -> usize {
+    if step > 0 {
+        step as usize
+    } else {
+        (-step) as usize
+    }
+}
+
+/// Whether `coord` lies on the correct side of `start` for the step direction.
+#[cube]
+fn slice_dir_ok(coord: usize, start: usize, step: i32) -> bool {
+    if step > 0 { coord >= start } else { coord <= start }
+}
+
+/// Unsigned distance from `start` to `coord` along the step direction (before dividing by the step
+/// magnitude). The not-taken branch may wrap; callers mask it out.
+#[cube]
+fn slice_rel(coord: usize, start: usize, step: i32) -> usize {
+    if step > 0 { coord - start } else { start - coord }
 }
 
 #[cube]
