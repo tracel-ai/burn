@@ -879,9 +879,13 @@ fn reshaped_index(
 
 /// The vectorized index into the original (pre-slice) tensor for a given reference position.
 ///
-/// For each dim the output coordinate is recovered from the reference layout, mapped back to the
-/// input coordinate via `start + out_coord * step` (a negative step reverses, with `start` already
-/// pointing at the last selected element), then accumulated using the original tensor strides.
+/// For each dim the output coordinate is recovered by delinearizing the reference position with the
+/// reference strides but taking the modulo over the *slice output* shape. When the slice output is
+/// broadcast into a larger block (an output dim of `1`), this maps every thread to coord `0`, so all
+/// threads read the same element — the broadcast-correct behaviour. When the slice output matches the
+/// reference exactly, it reduces to the plain reference coordinate. The coordinate is then mapped
+/// back to the input via `start + out_coord * step` (a negative step reverses, with `start` already
+/// pointing at the last selected element) and accumulated using the original tensor strides.
 #[cube]
 #[allow(clippy::clone_on_copy)]
 fn sliced_index<C: Scalar, N: Size>(
@@ -897,7 +901,8 @@ fn sliced_index<C: Scalar, N: Size>(
 
     #[unroll]
     for i in 0..rank {
-        let out_coord = (offset_ref / locals.ref_strides[i]) % locals.ref_shape[i];
+        let out_shape = inputs.slice_shapes[comptime![meta_base + i]];
+        let out_coord = (offset_ref / locals.ref_strides[i]) % out_shape;
         let start = inputs.slice_starts[comptime![meta_base + i]];
         let step = inputs.slice_steps[comptime![meta_base + i]];
         let in_coord = slice_input_coord(out_coord, start, step);

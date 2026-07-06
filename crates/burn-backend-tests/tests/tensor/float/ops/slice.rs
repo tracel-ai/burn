@@ -589,3 +589,54 @@ fn test_slice_with_steps_3d() {
     ]);
     sliced.into_data().assert_eq(&expected, false);
 }
+
+// Regression tests for slice fusion (fuse-on-read). Adding an elementwise op after the slice lets
+// the fusion engine read the slice directly from the original tensor. When the slice output is
+// *broadcast* into a larger block, the block iterates over more elements than the slice output has,
+// so the sliced read must recover the coordinate against the slice output shape, not the block
+// reference — otherwise it reads neighbouring elements. See `sliced_index`.
+
+#[test]
+fn should_fuse_slice_fully_broadcast() {
+    let device = Default::default();
+    let a = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+    let b = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0]], &device);
+
+    // `s` is [1, 1] and broadcasts across the whole [2, 2] block: every element must read a[0, 0].
+    let s = a.slice([0..1, 0..1]);
+    let output = b + s;
+
+    let expected = TensorData::from([[11.0, 21.0], [31.0, 41.0]]);
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_fuse_slice_partial_broadcast() {
+    let device = Default::default();
+    let a = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+    let b = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0]], &device);
+
+    // `s` is [2, 1] and broadcasts along the last dim: row r must read a[r, 0] for both columns.
+    let s = a.slice([0..2, 0..1]);
+    let output = b + s;
+
+    let expected = TensorData::from([[11.0, 21.0], [33.0, 43.0]]);
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_fuse_multiple_slices_of_same_input() {
+    let device = Default::default();
+    // Two differently-shaped slices of the same source, each consumed so both fuse-on-read. Each
+    // slice must resolve its own metadata window and output shape independently.
+    let a = TestTensor::<2>::from_data([[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]], &device);
+
+    let first = a.clone().slice([0..1, 0..1]); // [[0.0]]
+    let rest = a.slice([0..1, 3..6]); // [[3.0, 4.0, 5.0]]
+
+    let first = (first + 100.0).into_data();
+    let rest = (rest * 2.0).into_data();
+
+    first.assert_eq(&TensorData::from([[100.0]]), false);
+    rest.assert_eq(&TensorData::from([[6.0, 8.0, 10.0]]), false);
+}

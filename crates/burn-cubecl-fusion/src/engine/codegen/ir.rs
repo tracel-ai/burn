@@ -389,6 +389,10 @@ pub struct GlobalArgs {
     /// Per-dim slice steps (signed) matching [`Self::slice_starts`]. A negative step means the slice
     /// is reversed, and the matching start already points to the last selected element.
     pub slice_steps: Sequence<i32>,
+    /// Per-dim slice *output* shape matching [`Self::slice_starts`]. Used to recover the slice's own
+    /// output coordinate from the block reference position, which is broadcast-correct when the
+    /// slice output is broadcast into a larger block (a dim of `1` maps every thread to coord `0`).
+    pub slice_shapes: Sequence<usize>,
     /// When there are no metadata as a reference layout, we provide runtime shape/strides in this
     /// sequence instead.
     pub runtime_layouts: Sequence<usize>,
@@ -483,6 +487,7 @@ impl<R: Runtime> Default for GlobalArgsLaunch<R> {
             reshapes: Default::default(),
             slice_starts: Default::default(),
             slice_steps: Default::default(),
+            slice_shapes: Default::default(),
             variables: Default::default(),
             runtime_layouts: Default::default(),
             _phantom_runtime: std::marker::PhantomData,

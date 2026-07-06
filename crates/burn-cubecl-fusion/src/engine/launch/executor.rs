@@ -291,11 +291,16 @@ fn register_scalars<'h, R: Runtime>(
                 }
             }
             TensorView::Slice {
-                original, ranges, ..
+                original,
+                ranges,
+                sliced,
+                ..
             } => {
                 // Resolve the concrete per-dim start/step for this invocation and normalize them
                 // against the original tensor shape, mirroring `slice_with_steps_kernel`.
                 let shape = &context.tensors.get(original).unwrap().shape;
+                // The sliced output shape, used for broadcast-correct coordinate recovery on read.
+                let sliced_shape = context.tensors.get(sliced).unwrap().shape.clone();
 
                 for dim in 0..shape.num_dims() {
                     let (start, step) = match ranges.get(dim) {
@@ -316,6 +321,7 @@ fn register_scalars<'h, R: Runtime>(
 
                     inputs.slice_starts.push(start);
                     inputs.slice_steps.push(step);
+                    inputs.slice_shapes.push(sliced_shape[dim]);
                 }
             }
             TensorView::SwapDims { .. } => {}
