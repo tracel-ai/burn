@@ -406,13 +406,17 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
         }
         Some(Transform::Slice(slice_pos)) => {
             // Compute each element's original index independently, since a slice generally breaks
-            // the contiguity of the innermost dimension.
+            // the contiguity of the innermost dimension. `sliced_index` yields an element offset,
+            // split into (line, lane) so this stays correct whether the original is scalar or
+            // vectorized (a vectorized original occurs when only non-vec axes are sliced).
             let ref_pos = ref_pos * config.width;
+            let vector_size = tensor.tensor.vector_size();
             #[unroll]
             for i in 0..config.width {
-                let index =
+                let offset =
                     sliced_index(inputs, locals, &tensor.tensor, ref_pos + i, config.rank, slice_pos);
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+                let value = tensor.tensor[offset / vector_size].extract(offset % vector_size);
+                result.insert(i, C::cast_from(value))
             }
         }
         None => {
@@ -820,7 +824,11 @@ fn index_offset_with_layout(
         Some(Transform::Slice(slice_pos)) => {
             comptime![assert!(range.is_none(), "Can't get a range on a sliced tensor.")];
 
+            // `sliced_index` returns an element offset; convert to a line index for the vectorized
+            // read (valid because a slice keeps the vectorization only when the vec axis is
+            // contiguous, so the element offset is line-aligned — see the vectorization planner).
             sliced_index(inputs, locals, &tensor.tensor, offset_ref, rank, slice_pos)
+                / tensor.tensor.vector_size()
         }
         None => {
             let (start, end) = comptime! {match range {
@@ -879,7 +887,7 @@ fn reshaped_index(
     offset
 }
 
-/// The vectorized index into the original (pre-slice) tensor for a given reference position.
+/// The element index into the original (pre-slice) tensor for a given reference position.
 ///
 /// For each dim the output coordinate is recovered by delinearizing the reference position with the
 /// reference strides but taking the modulo over the *slice output* shape. When the slice output is
@@ -888,6 +896,9 @@ fn reshaped_index(
 /// reference exactly, it reduces to the plain reference coordinate. The coordinate is then mapped
 /// back to the input via `start + out_coord * step` (a negative step reverses, with `start` already
 /// pointing at the last selected element) and accumulated using the original tensor strides.
+///
+/// The returned value is an *element* offset; callers convert to a line index (and lane) using the
+/// original tensor's vector size.
 #[cube]
 #[allow(clippy::clone_on_copy)]
 fn sliced_index<C: Scalar, N: Size>(
@@ -911,7 +922,7 @@ fn sliced_index<C: Scalar, N: Size>(
         offset += in_coord * original.stride(i);
     }
 
-    offset / original.vector_size()
+    offset
 }
 
 /// Maps an output coordinate to the corresponding input coordinate for a single sliced dimension.

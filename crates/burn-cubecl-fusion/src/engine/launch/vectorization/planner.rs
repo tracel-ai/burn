@@ -168,20 +168,39 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.vectorizations.insert(global.id, Vect::Aligned(1));
         }
 
-        // A tensor read through a slice view can't be loaded as a vector: the per-dim steps are
-        // dynamic (resolved at launch), so the innermost dimension may be non-contiguous and the
-        // planner can't prove otherwise. Force scalar reads on the original. Only fuse-on-read
-        // slices read the original this way — a slice-assign base is read contiguously and keeps its
-        // vectorization.
+        // A tensor read through a slice view can only stay vectorized if the vectorization axis is
+        // read contiguously. Slicing that axis (a non-unit step, or a partial/offset range) breaks
+        // the perpendicular vector, so force scalar reads then; slicing *other* axes only shifts the
+        // per-vector base offset (still line-aligned since the axis shape is a multiple of the vector
+        // width), so vectorization is preserved. Only fuse-on-read slices read the original this way —
+        // a slice-assign base is read contiguously and keeps its vectorization.
+        let vectorization_axis = runner.axis(plan);
         for view in self.resources.views.iter() {
             if let TensorView::Slice {
                 original,
+                ranges,
                 on_read: true,
                 ..
             } = view
             {
                 let global = context.tensors.get(original).unwrap();
-                plan.vectorizations.insert(global.id, Vect::Aligned(1));
+                let rank = global.shape.num_dims();
+                let axis = vectorization_axis.get(*original, || rank - 1);
+
+                // The slice is contiguous along the vectorization axis when that axis is either past
+                // the provided ranges (kept in full) or covered by a full, unit-step range.
+                let contiguous_on_axis = match ranges.get(axis) {
+                    Some(relative) => {
+                        let slice = context.ranges[relative.start as usize];
+                        let range = slice.to_range(global.shape[axis]);
+                        slice.step == 1 && range.start == 0 && range.end == global.shape[axis]
+                    }
+                    None => true,
+                };
+
+                if !contiguous_on_axis {
+                    plan.vectorizations.insert(global.id, Vect::Aligned(1));
+                }
             }
         }
 
