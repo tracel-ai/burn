@@ -241,11 +241,37 @@ impl ParamGroup {
     }
 }
 
+mod arc_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::*;
+
+    pub fn serialize<S, T>(val: &Arc<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Serialize,
+    {
+        val.as_ref().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<Arc<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        let v = T::deserialize(deserializer)?;
+        Ok(Arc::new(v))
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 enum ParamGroupMatcher {
     All,
+    #[serde(with = "arc_serde")]
     Explicit(Arc<Vec<ParamId>>),
+    #[serde(with = "arc_serde")]
     Path(Arc<PathMatcher>),
+    #[serde(with = "arc_serde")]
     Combined(Arc<Vec<Self>>),
 }
 
