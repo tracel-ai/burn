@@ -815,7 +815,11 @@ fn slice_assign<C: Numeric, N: Size>(
 
         #[unroll]
         for d in 0..config.rank {
-            let coord = (ref_elem / locals.ref_strides[d]) % locals.ref_shape[d];
+            // Recover the coordinate in the *output* (base) space rather than the block reference,
+            // so the region test stays correct when the assigned tensor is broadcast into a larger
+            // block (an output dim of `1` maps every thread to coord `0`). See `sliced_index`.
+            let out_shape = inputs.slice_shapes[comptime![meta_base + d]];
+            let coord = (ref_elem / locals.ref_strides[d]) % out_shape;
             let start = inputs.slice_starts[comptime![meta_base + d]];
             let step = inputs.slice_steps[comptime![meta_base + d]];
             let size = global_shape(inputs, d, pos_value);

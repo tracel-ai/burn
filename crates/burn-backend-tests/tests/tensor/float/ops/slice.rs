@@ -625,6 +625,20 @@ fn should_fuse_slice_partial_broadcast() {
 }
 
 #[test]
+fn should_fuse_negative_step_slice() {
+    let device = Default::default();
+    // Reversed slice consumed by an elementwise op, exercising the fused reverse-read path.
+    let a = TestTensor::<2>::from_data([[0.0, 1.0, 2.0, 3.0]], &device);
+    let b = TestTensor::<2>::from_data([[10.0, 20.0, 30.0, 40.0]], &device);
+
+    let s = a.slice(s![.., ..;-1]); // [[3, 2, 1, 0]]
+    let output = b + s;
+
+    let expected = TensorData::from([[13.0, 22.0, 31.0, 40.0]]);
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 fn should_fuse_multiple_slices_of_same_input() {
     let device = Default::default();
     // Two differently-shaped slices of the same source, each consumed so both fuse-on-read. Each
@@ -639,4 +653,27 @@ fn should_fuse_multiple_slices_of_same_input() {
 
     first.assert_eq(&TensorData::from([[100.0]]), false);
     rest.assert_eq(&TensorData::from([[6.0, 8.0, 10.0]]), false);
+}
+
+#[test]
+fn should_fuse_slice_assign_broadcast() {
+    let device = Default::default();
+    // base [1,4]; slice_assign output is [1,4], then broadcast-added into a [3,4] block. The fused
+    // slice-assign must recover the region coordinate in the base shape, not the block reference.
+    let base = TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0]], &device);
+    let val = TestTensor::<2>::from_data([[100.0, 200.0]], &device);
+    let big = TestTensor::<2>::from_data(
+        [[0.0, 0.0, 0.0, 0.0], [10.0, 10.0, 10.0, 10.0], [20.0, 20.0, 20.0, 20.0]],
+        &device,
+    );
+
+    let assigned = base.slice_assign([0..1, 0..2], val); // [[100, 200, 3, 4]]
+    let output = big + assigned; // broadcast [1,4] -> [3,4]
+
+    let expected = TensorData::from([
+        [100.0, 200.0, 3.0, 4.0],
+        [110.0, 210.0, 13.0, 14.0],
+        [120.0, 220.0, 23.0, 24.0],
+    ]);
+    output.into_data().assert_eq(&expected, false);
 }

@@ -290,6 +290,7 @@ impl TraceFuser {
             original: original.id,
             slice_pos,
             ranges: ranges.to_vec(),
+            on_read: false,
         });
         slice_pos
     }

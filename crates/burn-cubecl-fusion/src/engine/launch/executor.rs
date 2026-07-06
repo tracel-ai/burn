@@ -312,7 +312,9 @@ fn register_scalars<'h, R: Runtime>(
                                 (range.start, slice.step as i32)
                             } else {
                                 // Reversed: start from the last selected element (`end - 1`).
-                                (range.end - 1, slice.step as i32)
+                                // `saturating_sub` guards the degenerate empty-range case (`end == 0`),
+                                // where the start is unused since no element is selected.
+                                (range.end.saturating_sub(1), slice.step as i32)
                             }
                         }
                         // Dimensions past the provided ranges are kept in full.

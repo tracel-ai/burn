@@ -235,6 +235,10 @@ pub enum TensorView {
         /// The relative slice ranges. Their `start` fields carry binding ids into
         /// [`Context::ranges`](crate) — the concrete bounds are resolved at launch.
         ranges: Vec<Slice>,
+        /// `true` for fuse-on-read (`slice`), where `original` is read through the non-contiguous
+        /// slice layout and must not be vectorized; `false` for fuse-on-write (`slice_assign`),
+        /// where `original` is the base read contiguously and can keep its normal vectorization.
+        on_read: bool,
     },
 }
 

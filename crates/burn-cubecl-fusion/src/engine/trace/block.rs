@@ -441,12 +441,12 @@ impl FuseBlockBuilder {
             original: tensor.id,
             slice_pos,
             ranges: ranges.to_vec(),
+            on_read: true,
         });
 
         let input = FuseArg::InputSliced {
             original: Box::new(original),
             slice_pos,
-            broadcasted: false,
         };
 
         let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {

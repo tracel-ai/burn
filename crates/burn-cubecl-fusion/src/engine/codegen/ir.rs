@@ -61,7 +61,6 @@ pub enum FuseArg {
     InputSliced {
         original: Box<FuseArg>,
         slice_pos: usize,
-        broadcasted: bool,
     },
 }
 

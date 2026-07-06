@@ -170,9 +170,16 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
         // A tensor read through a slice view can't be loaded as a vector: the per-dim steps are
         // dynamic (resolved at launch), so the innermost dimension may be non-contiguous and the
-        // planner can't prove otherwise. Force scalar reads on the original.
+        // planner can't prove otherwise. Force scalar reads on the original. Only fuse-on-read
+        // slices read the original this way — a slice-assign base is read contiguously and keeps its
+        // vectorization.
         for view in self.resources.views.iter() {
-            if let TensorView::Slice { original, .. } = view {
+            if let TensorView::Slice {
+                original,
+                on_read: true,
+                ..
+            } = view
+            {
                 let global = context.tensors.get(original).unwrap();
                 plan.vectorizations.insert(global.id, Vect::Aligned(1));
             }

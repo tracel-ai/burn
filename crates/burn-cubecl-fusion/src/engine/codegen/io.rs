@@ -160,13 +160,15 @@ pub fn read<C: Scalar, N: Size>(
         FuseArg::InputSliced {
             original,
             slice_pos,
-            broadcasted,
         } => match comptime![original.as_ref().clone()] {
             FuseArg::Input(pos, _precision, layout) => {
                 let global = inputs.tensors.index(pos);
                 let vector_size = global.tensor.vector_size();
 
-                if comptime![!broadcasted && vector_size != config.width] {
+                // Broadcasting is handled by `sliced_index` (modulo over the slice output shape), so
+                // a sliced read only needs the aligned path when the input can't be loaded as a full
+                // block-width vector.
+                if comptime![vector_size != config.width] {
                     read_input_aligned(
                         inputs,
                         locals,
