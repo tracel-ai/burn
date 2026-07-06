@@ -313,6 +313,7 @@ impl ParamGroupMatcher {
     }
 }
 
+#[cfg(feature = "std")]
 mod regex_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -358,8 +359,8 @@ impl PathMatcher {
     }
 }
 
-impl std::fmt::Debug for PathMatcher {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl alloc::fmt::Debug for PathMatcher {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
         match self {
             Self::Exact(arg0) => f.debug_tuple("Exact").field(arg0).finish(),
             Self::Regex(arg0) => f.debug_tuple("Regex").field(arg0).finish(),
