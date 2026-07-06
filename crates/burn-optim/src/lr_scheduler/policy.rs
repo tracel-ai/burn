@@ -35,12 +35,7 @@ impl LrPolicy {
     pub fn lr_from_param(&self, id: ParamId, path: Option<&str>) -> LearningRate {
         self.groups
             .iter()
-            .filter_map(|val| {
-                val.group
-                    .matches(&id, path)
-                    .expect("Failed to match a parameter group.")
-                    .then_some(val.lr)
-            })
+            .filter_map(|val| val.group.matches(&id, path).then_some(val.lr))
             .last()
             .unwrap_or(self.default)
     }

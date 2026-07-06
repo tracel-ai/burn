@@ -123,9 +123,7 @@ impl ModuleOptimizer {
             grad_clipping,
         });
         self.param_state_map.retain(|id, param_state| {
-            !group
-                .matches(id, param_state.path.as_ref().map(|p| p.as_str()))
-                .unwrap()
+            !group.matches(id, param_state.path.as_ref().map(|p| p.as_str()))
         });
         self
     }
@@ -162,7 +160,6 @@ impl ModuleOptimizer {
             .filter_map(|val| {
                 val.group
                     .matches(&id, path)
-                    .expect("Failed to match a parameter group.")
                     .then_some((&val.optim, val.grad_clipping.clone()))
             })
             .last()
@@ -362,7 +359,6 @@ impl ModuleOptimizerMapper<'_> {
             .filter_map(|val| {
                 val.group
                     .matches(&id, path)
-                    .expect("Failed to match a parameter group.")
                     .then_some((val.optim.clone(), val.grad_clipping.clone()))
             })
             .last()
