@@ -194,8 +194,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                     .map(|v| v.vector_size())
                     .unwrap_or(1);
 
-                if !slice_aligned_on_axis(ranges, &context.ranges, axis, global.shape[axis], line_size)
-                {
+                if !slice_aligned_on_axis(
+                    ranges,
+                    &context.ranges,
+                    axis,
+                    global.shape[axis],
+                    line_size,
+                ) {
                     plan.vectorizations.insert(global.id, Vect::Aligned(1));
                 }
             }
@@ -378,7 +383,9 @@ fn slice_aligned_on_axis(
 
     let slice = bindings[relative.start as usize];
     let range = slice.to_range(axis_size);
-    slice.step == 1 && range.start % line_size == 0 && (range.end - range.start) % line_size == 0
+    slice.step == 1
+        && range.start.is_multiple_of(line_size)
+        && (range.end - range.start).is_multiple_of(line_size)
 }
 
 fn apply_vectorization_block<R: Runtime>(
