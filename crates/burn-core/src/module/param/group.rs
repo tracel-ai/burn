@@ -241,11 +241,37 @@ impl ParamGroup {
     }
 }
 
+mod arc_serde {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::*;
+
+    pub fn serialize<S, T>(val: &Arc<T>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Serialize,
+    {
+        val.as_ref().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<Arc<T>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        let v = T::deserialize(deserializer)?;
+        Ok(Arc::new(v))
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 enum ParamGroupMatcher {
     All,
+    #[serde(with = "arc_serde")]
     Explicit(Arc<Vec<ParamId>>),
+    #[serde(with = "arc_serde")]
     Path(Arc<PathMatcher>),
+    #[serde(with = "arc_serde")]
     Combined(Arc<Vec<Self>>),
 }
 
@@ -313,6 +339,7 @@ impl ParamGroupMatcher {
     }
 }
 
+#[cfg(feature = "std")]
 mod regex_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -358,10 +385,11 @@ impl PathMatcher {
     }
 }
 
-impl std::fmt::Debug for PathMatcher {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl alloc::fmt::Debug for PathMatcher {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
         match self {
             Self::Exact(arg0) => f.debug_tuple("Exact").field(arg0).finish(),
+            #[cfg(feature = "std")]
             Self::Regex(arg0) => f.debug_tuple("Regex").field(arg0).finish(),
             Self::Include(arg0) => f.debug_tuple("Include").field(arg0).finish(),
         }
