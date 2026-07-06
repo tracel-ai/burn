@@ -184,7 +184,7 @@ mod tests {
 
             let grads = loss.backward();
             let grads = GradientsParams::from_grads(grads, &model);
-            model = optim.step(0.5, model, grads);
+            model = optim.step(0.5.into(), model, grads);
         }
 
         // Training reduced the loss...
@@ -199,7 +199,10 @@ mod tests {
         assert!(model.weight.adapter().is_some());
         let b_after = model.weight.adapter().unwrap().b.val();
         let b_change = (b_after - b_before).abs().sum().into_scalar::<f32>();
-        assert!(b_change > 0.0, "adapter factor B should be updated by training");
+        assert!(
+            b_change > 0.0,
+            "adapter factor B should be updated by training"
+        );
 
         // ...while the frozen base weight is left untouched.
         model
