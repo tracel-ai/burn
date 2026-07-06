@@ -184,6 +184,19 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
     fn register_max_block(&mut self, operation: &OperationIr, max_blocks: usize) -> bool {
         if max_blocks == 1 {
+            // With a single block every op is force-fused into it. A no-input creation op
+            // (`zeros`/`empty`/`full`/…) that can't fuse into the current block would close it and
+            // be flushed *with* the block — trapping its buffer so the consumer that arrives next
+            // round reads it as a global input instead of fusing on-write (e.g. RoPE's `zeros`
+            // wedged between the `neg` and its `slice_assign`). Defer it instead: it re-enters the
+            // next round, starts a fresh block, and fuses with its consumer. Creation ops have no
+            // inputs, so nothing already in the block depends on it and re-emitting it is free.
+            if let Some(block) = self.blocks.first()
+                && operation.inputs().next().is_none()
+                && !block.would_fuse(operation, self.length)
+            {
+                return false;
+            }
             // Register in the single block with a force.
             self.register_inner(operation, true);
             return true;

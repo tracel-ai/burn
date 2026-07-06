@@ -806,7 +806,6 @@ fn slice_assign<C: Numeric, N: Size>(
     let mut result = Vector::<C, N>::empty();
     let ref_base = write_pos * config.width;
 
-    #[unroll]
     for i in 0..config.width {
         let ref_elem = ref_base + i;
 
