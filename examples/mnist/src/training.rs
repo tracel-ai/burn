@@ -117,10 +117,11 @@ pub fn run(device: Device) {
         .checkpoint(2)
         .summary();
 
-    let optim = config
-        .optimizer
-        .init()
-        .with_group(ParamGroup::from_predicate("conv"), SgdConfig::new().init());
+    let optim = config.optimizer.init().with_group(
+        ParamGroup::from_predicate("conv"),
+        SgdConfig::new().init(),
+        None,
+    );
 
     let result = training.launch(Learner::new(
         model,

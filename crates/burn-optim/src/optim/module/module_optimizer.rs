@@ -26,6 +26,7 @@ const RANK_KEY: &str = "__rank";
 #[derive(Clone)]
 struct OptimizerGroup {
     group: ParamGroup,
+    grad_clipping: Option<GradientClipping>,
     optim: Arc<dyn DynOptimizer>,
 }
 
@@ -33,6 +34,7 @@ struct OptimizerGroup {
 #[derive(Clone)]
 struct ParamOptimizationState {
     optim: Arc<dyn DynOptimizer>,
+    grad_clipping: Option<GradientClipping>,
     path: Option<String>,
     state: DynState,
 }
@@ -48,8 +50,7 @@ pub struct ModuleOptimizer {
     default_optim: Arc<dyn DynOptimizer>,
     optim_groups: Vec<OptimizerGroup>,
     param_state_map: HashMap<ParamId, ParamOptimizationState>,
-    // TODO: grad_clipping per param group.
-    grad_clipping: Option<GradientClipping>,
+    default_grad_clipping: Option<GradientClipping>,
 }
 
 impl<O> From<O> for ModuleOptimizer
@@ -60,7 +61,7 @@ where
         Self {
             default_optim: Arc::new(optim),
             param_state_map: HashMap::new(),
-            grad_clipping: None,
+            default_grad_clipping: None,
             optim_groups: vec![],
         }
     }
@@ -69,12 +70,12 @@ where
 impl ModuleOptimizer {
     /// Check if the optimizer has gradient clipping.
     pub fn has_gradient_clipping(&self) -> bool {
-        self.grad_clipping.is_some()
+        self.default_grad_clipping.is_some()
     }
 
     /// Access the gradient clipping.
     pub fn grad_clipping(&self) -> Option<&GradientClipping> {
-        self.grad_clipping.as_ref()
+        self.default_grad_clipping.as_ref()
     }
 
     /// Sets the gradient clipping.
@@ -87,7 +88,7 @@ impl ModuleOptimizer {
     ///
     /// The optimizer.
     pub fn with_grad_clipping(mut self, gradient_clipping: GradientClipping) -> Self {
-        self.grad_clipping = Some(gradient_clipping);
+        self.default_grad_clipping = Some(gradient_clipping);
         self
     }
 
@@ -104,16 +105,22 @@ impl ModuleOptimizer {
             &mut self.param_state_map,
             &mut grads,
             lr_policy,
-            self.grad_clipping.as_ref(),
+            self.default_grad_clipping.as_ref(),
         ))
     }
 
     /// Add a parameter group-specific optimizer. Parameters matching this group will be optimized
     /// using the provided optimizer. Existing states for parameters matching this group will be reset.
-    pub fn with_group(mut self, group: ParamGroup, optim: impl Into<ModuleOptimizer>) -> Self {
+    pub fn with_group(
+        mut self,
+        group: ParamGroup,
+        optim: impl Into<ModuleOptimizer>,
+        grad_clipping: Option<GradientClipping>,
+    ) -> Self {
         self.optim_groups.push(OptimizerGroup {
             group: group.clone(),
             optim: optim.into().default_optim,
+            grad_clipping,
         });
         self.param_state_map.retain(|id, param_state| {
             !group
@@ -145,17 +152,21 @@ impl ModuleOptimizer {
         self.step_common(lr_policy, module, grads.into())
     }
 
-    fn optimizer_from_param(&self, id: ParamId, path: Option<&str>) -> &'_ Arc<dyn DynOptimizer> {
+    fn optim_from_param(
+        &self,
+        id: ParamId,
+        path: Option<&str>,
+    ) -> (&'_ Arc<dyn DynOptimizer>, Option<GradientClipping>) {
         self.optim_groups
             .iter()
             .filter_map(|val| {
                 val.group
                     .matches(&id, path)
                     .expect("Failed to match a parameter group.")
-                    .then_some(&val.optim)
+                    .then_some((&val.optim, val.grad_clipping.clone()))
             })
             .last()
-            .unwrap_or(&self.default_optim)
+            .unwrap_or((&self.default_optim, self.default_grad_clipping.clone()))
     }
 
     /// Decompose the optimizer state into a serializable [`OptimizerRecord`].
@@ -248,7 +259,8 @@ impl ModuleOptimizer {
         for (id, rank) in ranks {
             let prefix = id.to_string();
             let path = paths.get(&id);
-            let optim = self.optimizer_from_param(id.into(), path.map(|path| path.as_str()));
+            let (optim, grad_clipping) =
+                self.optim_from_param(id.into(), path.map(|path| path.as_str()));
             // Skip parameters whose state can't be reconstructed (truncated/foreign record); they
             // are re-initialized lazily on the next step rather than aborting the load.
             if let Some(state) = optim.state_unflatten(rank, &prefix, &mut source, &device) {
@@ -258,6 +270,7 @@ impl ModuleOptimizer {
                         optim: optim.clone(),
                         path: path.map(|p| p.clone()),
                         state,
+                        grad_clipping,
                     },
                 );
             }
@@ -339,17 +352,21 @@ struct ModuleOptimizerMapper<'a> {
 }
 
 impl ModuleOptimizerMapper<'_> {
-    fn optimizer_from_param(&self, id: ParamId, path: Option<&str>) -> &'_ Arc<dyn DynOptimizer> {
+    fn optimizer_from_param(
+        &self,
+        id: ParamId,
+        path: Option<&str>,
+    ) -> (Arc<dyn DynOptimizer>, Option<GradientClipping>) {
         self.optimizer_groups
             .iter()
             .filter_map(|val| {
                 val.group
                     .matches(&id, path)
                     .expect("Failed to match a parameter group.")
-                    .then_some(&val.optim)
+                    .then_some((val.optim.clone(), val.grad_clipping.clone()))
             })
             .last()
-            .unwrap_or(self.optimizer)
+            .unwrap_or((self.optimizer.clone(), self.grad_clipping.cloned()))
     }
 }
 
@@ -379,12 +396,27 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 tensor
             };
 
+            let path = self.path.join(".");
+            let (optim, grad_clipping, existing_dyn_state) = match entry.map(|(_, s)| s) {
+                Some(ParamOptimizationState {
+                    optim,
+                    grad_clipping,
+                    state,
+                    ..
+                }) => (optim, grad_clipping, Some(state)),
+                None => {
+                    let (optim, grad_clipping) =
+                        self.optimizer_from_param(id, Some(path.as_str())).clone();
+                    (optim, grad_clipping, None)
+                }
+            };
+
             debug_assert_eq!(
                 grad.device(),
                 device,
                 "The gradient is on the provided device"
             );
-            let clipped_grad: Tensor<D> = if let Some(g_clipping) = self.grad_clipping {
+            let clipped_grad: Tensor<D> = if let Some(g_clipping) = grad_clipping.as_ref() {
                 g_clipping.clip_gradient(grad)
             } else {
                 grad
@@ -396,17 +428,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 "Tensor and gradients are on the same device."
             );
 
-            let path = self.path.join(".");
             let lr = self.lr_policy.lr_from_param(id, Some(path.as_str()));
-
-            let (optim, existing_dyn_state) = match entry.map(|(_, s)| s) {
-                Some(ParamOptimizationState { optim, state, .. }) => (optim, Some(state)),
-                None => (
-                    self.optimizer_from_param(id, Some(path.as_str())).clone(),
-                    None,
-                ),
-            };
-
             let (tensor, state) = optim.step_dyn(
                 D,
                 lr,
@@ -422,6 +444,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                         optim,
                         path: Some(path),
                         state,
+                        grad_clipping,
                     },
                 );
             }
@@ -526,6 +549,7 @@ mod tests {
             sgd().with_group(
                 ParamGroup::from_predicate("layer_a"),
                 AdamConfig::new().init(),
+                None,
             )
         };
         let mut optim = make_optim();
@@ -581,6 +605,7 @@ mod tests {
         optim = optim.with_group(
             ParamGroup::from_predicate("layer_a"),
             SgdConfig::new().init(),
+            None,
         );
 
         let x = Tensor::<2>::random([2, 4], Distribution::Default, &device);
@@ -592,6 +617,51 @@ mod tests {
         assert_eq!(
             time_key_count, 2,
             "only layer_b params should carry Adam's time scalar after group switch"
+        );
+    }
+
+    #[test]
+    fn group_grad_clipping_applies_only_to_matching_params() {
+        let device = Device::default().autodiff();
+        let mut model = make_model(&device);
+
+        let lr_value = 0.01;
+        let threshold = 0.01_f32;
+        let bound = (lr_value * threshold as f64) as f32;
+
+        let mut optim = sgd().with_group(
+            ParamGroup::from_predicate("layer_a"),
+            SgdConfig::new().init(),
+            Some(GradientClipping::Value(threshold)),
+        );
+
+        // Large inputs produce gradients that clearly exceed the clipping threshold.
+        let x = Tensor::<2>::random([2, 4], Distribution::Uniform(100.0, 200.0), &device);
+        let weight_a_before = model.layer_a.weight.val();
+        let weight_b_before = model.layer_b.weight.val();
+
+        model = optim.step(
+            LrPolicy::from(lr_value),
+            model.clone(),
+            make_grads(&model, x),
+        );
+
+        let diff_a = weight_a_before - model.layer_a.weight.val();
+        let diff_b = weight_b_before - model.layer_b.weight.val();
+
+        let eps = 1e-6_f32;
+        for value in diff_a.into_data().iter::<f32>() {
+            assert!(
+                value.abs() <= bound + eps,
+                "layer_a's group grad_clipping should keep every update within lr * threshold"
+            );
+        }
+        assert!(
+            diff_b
+                .into_data()
+                .iter::<f32>()
+                .any(|value| value.abs() > bound + eps),
+            "layer_b uses the default optimizer and should not be clipped"
         );
     }
 
