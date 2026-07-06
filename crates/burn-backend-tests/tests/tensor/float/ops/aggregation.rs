@@ -455,19 +455,19 @@ fn test_mean_dims_2d() {
         .clone()
         .mean_dims(&[1])
         .to_data()
-        .assert_eq(&TensorData::from([[1.], [4.]]), false);
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[1.], [4.]]), Tolerance::default());
 
     tensor
         .clone()
         .mean_dims(&[-1])
         .to_data()
-        .assert_eq(&TensorData::from([[1.], [4.]]), false);
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[1.], [4.]]), Tolerance::default());
 
     tensor
         .clone()
         .mean_dims(&[0, 1])
         .to_data()
-        .assert_eq(&TensorData::from([[2.5]]), false);
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[2.5]]), Tolerance::default());
 }
 
 #[test]

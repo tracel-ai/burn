@@ -342,13 +342,16 @@ impl AutodiffBackend for Dispatch {
     fn grad_replace(tensor: &DispatchTensor, grads: &mut Self::Gradients, grad: DispatchTensor) {
         let DispatchTensor {
             kind,
-            checkpointing,
+            checkpointing: _,
         } = tensor;
+        // The grad is an inner (non-autodiff) tensor, so it never carries a checkpointing
+        // strategy (`checkpointing: None`), whereas the target tensor is autodiff-tracked
+        // (`checkpointing: Some(_)`). Its checkpointing is irrelevant here: we only replace the
+        // stored gradient value.
         let DispatchTensor {
             kind: grad,
-            checkpointing: grad_ckp,
+            checkpointing: _,
         } = grad;
-        debug_assert_eq!(checkpointing, &grad_ckp);
 
         match &kind {
             DispatchTensorKind::Autodiff(inner_kind) => match (&**inner_kind, grad) {
