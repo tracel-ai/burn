@@ -397,8 +397,14 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             let vector_size = tensor.tensor.vector_size();
             #[unroll]
             for i in 0..config.width {
-                let offset =
-                    sliced_index(inputs, locals, &tensor.tensor, ref_pos + i, config.rank, slice_pos);
+                let offset = sliced_index(
+                    inputs,
+                    locals,
+                    &tensor.tensor,
+                    ref_pos + i,
+                    config.rank,
+                    slice_pos,
+                );
                 let value = tensor.tensor[offset / vector_size].extract(offset % vector_size);
                 result.insert(i, C::cast_from(value))
             }
@@ -806,7 +812,10 @@ fn index_offset_with_layout(
             offset / tensor.tensor.vector_size()
         }
         Some(Transform::Slice(slice_pos)) => {
-            comptime![assert!(range.is_none(), "Can't get a range on a sliced tensor.")];
+            comptime![assert!(
+                range.is_none(),
+                "Can't get a range on a sliced tensor."
+            )];
 
             // `sliced_index` returns an element offset; convert to a line index for the vectorized
             // read (valid because a slice keeps the vectorization only when the vec axis is

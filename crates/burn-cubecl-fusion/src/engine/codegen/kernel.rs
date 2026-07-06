@@ -830,13 +830,10 @@ fn slice_assign<C: Numeric, N: Size>(
             value_offset += mapped.value_coord * value_stride;
         }
 
-        let value = read_value_element::<C>(inputs, &*locals, pos_value, value_offset, value_len, config);
+        let value =
+            read_value_element::<C>(inputs, &*locals, pos_value, value_offset, value_len, config);
 
-        let chosen = if in_region {
-            value
-        } else {
-            base.extract(i)
-        };
+        let chosen = if in_region { value } else { base.extract(i) };
         result.insert(i, chosen);
     }
 
@@ -862,8 +859,9 @@ fn slice_assign_dim(coord: usize, start: usize, step: i32, value_size: usize) ->
     let abs_step = slice_abs_step(step);
     let rel = slice_rel(coord, start, step);
     let value_coord = rel / abs_step;
-    let in_region =
-        slice_dir_ok(coord, start, step) && rel % abs_step == 0 && value_coord < value_size;
+    let in_region = slice_dir_ok(coord, start, step)
+        && rel.is_multiple_of(abs_step)
+        && value_coord < value_size;
 
     SliceAssignDim {
         in_region,
@@ -914,14 +912,22 @@ fn slice_abs_step(step: i32) -> usize {
 /// Whether `coord` lies on the correct side of `start` for the step direction.
 #[cube]
 fn slice_dir_ok(coord: usize, start: usize, step: i32) -> bool {
-    if step > 0 { coord >= start } else { coord <= start }
+    if step > 0 {
+        coord >= start
+    } else {
+        coord <= start
+    }
 }
 
 /// Unsigned distance from `start` to `coord` along the step direction (before dividing by the step
 /// magnitude). The not-taken branch may wrap; callers mask it out.
 #[cube]
 fn slice_rel(coord: usize, start: usize, step: i32) -> usize {
-    if step > 0 { coord - start } else { start - coord }
+    if step > 0 {
+        coord - start
+    } else {
+        start - coord
+    }
 }
 
 #[cube]

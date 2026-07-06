@@ -631,10 +631,7 @@ fn should_fuse_slice_on_outer_axis_vectorized() {
     // the vector width), so the fused read must stay correct while the block vectorizes.
     let data: Vec<f32> = (0..24).map(|i| i as f32).collect();
     let a = TestTensor::<2>::from_data(TensorData::new(data, [3, 8]), &device);
-    let b = TestTensor::<2>::from_data(
-        TensorData::new(vec![100.0f32; 16], [2, 8]),
-        &device,
-    );
+    let b = TestTensor::<2>::from_data(TensorData::new(vec![100.0f32; 16], [2, 8]), &device);
 
     let s = a.slice([1..3, 0..8]); // rows 1,2 — inner axis full
     let output = s + b;
@@ -659,8 +656,12 @@ fn should_fuse_slice_on_middle_axis_vectorized_3d() {
     let output = s + b;
 
     let expected = TensorData::from([
-        [[1008.0, 1009.0, 1010.0, 1011.0, 1012.0, 1013.0, 1014.0, 1015.0]],
-        [[1032.0, 1033.0, 1034.0, 1035.0, 1036.0, 1037.0, 1038.0, 1039.0]],
+        [[
+            1008.0, 1009.0, 1010.0, 1011.0, 1012.0, 1013.0, 1014.0, 1015.0,
+        ]],
+        [[
+            1032.0, 1033.0, 1034.0, 1035.0, 1036.0, 1037.0, 1038.0, 1039.0,
+        ]],
     ]);
     output.into_data().assert_eq(&expected, false);
 }
@@ -704,7 +705,11 @@ fn should_fuse_slice_assign_broadcast() {
     let base = TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0]], &device);
     let val = TestTensor::<2>::from_data([[100.0, 200.0]], &device);
     let big = TestTensor::<2>::from_data(
-        [[0.0, 0.0, 0.0, 0.0], [10.0, 10.0, 10.0, 10.0], [20.0, 20.0, 20.0, 20.0]],
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [10.0, 10.0, 10.0, 10.0],
+            [20.0, 20.0, 20.0, 20.0],
+        ],
         &device,
     );
 
