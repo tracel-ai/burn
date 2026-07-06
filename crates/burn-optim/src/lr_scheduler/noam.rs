@@ -70,11 +70,10 @@ impl LrScheduler for NoamLrScheduler {
         LrSchedulerRecord::from_state(&NoamLrSchedulerState { step: self.step })
     }
 
-    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+    fn load_record(&mut self, record: LrSchedulerRecord) {
         if let Some(state) = record.into_state::<NoamLrSchedulerState>() {
             self.step = state.step;
         }
-        self
     }
 }
 

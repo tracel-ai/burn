@@ -65,7 +65,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
                 if tensor.status == TensorStatus::ReadWrite {
                     self.variables.remove(&tensor.id);
                 };
-                handles.free(tensor)
+                R::free_handle(handles, tensor)
             });
 
         self.global.drain(0..num_drained);

@@ -1,5 +1,4 @@
 use burn_backend::{DTypeUsageSet, ExecutionError, TensorData};
-use burn_communication::{Address, external_comm::TensorTransferId};
 use burn_ir::{GraphBindings, GraphId, OperationIr, TensorId, TensorIr};
 use burn_std::{
     DType, DeviceSettings,
@@ -7,6 +6,11 @@ use burn_std::{
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+
+use crate::{PeerAddr, PeerId};
+
+/// Current Burn Remote application-protocol version.
+pub const PROTOCOL_VERSION: u16 = 1;
 
 /// Routing id for a task whose result is fetched back.
 ///
@@ -16,6 +20,44 @@ use std::fmt::Display;
 /// have no id because no result ever comes back. Collective ops (all-reduce, sync-collective)
 /// are plain fire-and-forget [`OperationIr`]s carried by [`Task::RegisterOperation`].
 pub type RequestId = u64;
+
+/// Process-local rendezvous id for moving tensors between devices on one compute peer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LocalTransferId(u64);
+
+impl LocalTransferId {
+    #[cfg(feature = "client")]
+    pub fn next(&mut self) {
+        self.0 += 1;
+    }
+}
+
+impl From<u64> for LocalTransferId {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+/// Unforgeable, bounded-use capability authorizing a peer-to-peer tensor download.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TransferCapability([u8; 32]);
+
+impl TransferCapability {
+    #[cfg(feature = "client")]
+    pub fn random() -> Self {
+        Self(rand::random())
+    }
+
+    /// Deterministic compatibility key for the legacy 64-bit WebSocket transfer service.
+    #[cfg(feature = "websocket")]
+    pub(crate) fn legacy_id(self) -> u64 {
+        u64::from_le_bytes(
+            self.0[..8]
+                .try_into()
+                .expect("slice has exactly eight bytes"),
+        )
+    }
+}
 
 /// Unique identifier that can represent a session.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
@@ -37,25 +79,65 @@ impl SessionId {
             id: IdGenerator::generate(),
         }
     }
+
+    /// The underlying numeric identifier.
+    pub fn value(&self) -> u64 {
+        self.id
+    }
 }
 
-/// A single message on a session's `/submit` (or handshake) stream: either a session-lifecycle
-/// signal (`Init`/`Close`) or a [`Task`] to run.
+/// A single message on a session's stream: either a session-lifecycle signal (`Init`/`Close`) or a
+/// [`Task`] to run.
 #[allow(missing_docs, clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RemoteMessage {
     /// A unit of work to run within the bound session.
     Task(Task),
     /// Open a session bound to the device at the given index on the server.
-    Init(SessionId, u32),
+    Init(SessionInit),
     Close(SessionId),
+}
+
+/// Client-side session handshake.
+#[allow(missing_docs)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SessionInit {
+    pub version: u16,
+    pub session_id: SessionId,
+    pub device_index: u32,
+    /// Opaque application credential interpreted by the compute node's authorizer.
+    #[serde(with = "serde_bytes")]
+    pub authorization: Vec<u8>,
+}
+
+impl SessionInit {
+    #[cfg(any(feature = "client", test))]
+    pub fn new(session_id: SessionId, device_index: u32, authorization: Vec<u8>) -> Self {
+        Self {
+            version: PROTOCOL_VERSION,
+            session_id,
+            device_index,
+            authorization,
+        }
+    }
+}
+
+/// Server-side session handshake response.
+#[allow(missing_docs)]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SessionInfo {
+    pub version: u16,
+    pub settings: DeviceSettings,
+    pub device_count: u32,
+    /// Authenticated identity of the compute node, when the transport provides one.
+    pub peer_id: Option<PeerId>,
 }
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TensorRemote {
-    pub transfer_id: TensorTransferId,
-    pub address: Address,
+    pub capability: TransferCapability,
+    pub peer: PeerAddr,
 }
 
 #[allow(missing_docs, clippy::large_enum_variant)]
@@ -104,7 +186,8 @@ pub enum Task {
         stream_id: StreamId,
         tensor: TensorIr,
         count: u32,
-        transfer_id: TensorTransferId,
+        capability: TransferCapability,
+        target: PeerId,
     },
     /// Source side of a same-host transfer: hand the device-resident primitive for `tensor`
     /// to the server's local comm registry under `transfer_id`. No host readback — the
@@ -117,7 +200,7 @@ pub enum Task {
     ExposeTensorLocal {
         stream_id: StreamId,
         tensor: TensorIr,
-        transfer_id: TensorTransferId,
+        transfer_id: LocalTransferId,
     },
     /// Target side of a same-host transfer: wait for `transfer_id` to be exposed, move the
     /// primitive onto this session's device, and register it under `new_id`.
@@ -126,7 +209,7 @@ pub enum Task {
     /// on the same stream as the ops that use the transferred tensor.
     RegisterTensorLocal {
         stream_id: StreamId,
-        transfer_id: TensorTransferId,
+        transfer_id: LocalTransferId,
         new_id: TensorId,
     },
     ReadTensor(RequestId, StreamId, TensorIr),
@@ -146,7 +229,7 @@ pub struct TaskResponse {
 pub enum TaskResponseContent {
     /// Server responds with the selected device's settings plus the total number of devices
     /// it hosts (so the client can enumerate them, see [`RemoteDevice::enumerate`]).
-    Init(DeviceSettings, u32),
+    Init(SessionInfo),
     ReadTensor(Result<TensorData, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
     DTypeUsage(DTypeUsageSet),

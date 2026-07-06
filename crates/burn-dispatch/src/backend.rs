@@ -21,6 +21,7 @@ use burn_autodiff::grads::Gradients;
 
 #[allow(unused)]
 use crate::DispatchDeviceId;
+#[allow(unused)]
 use crate::DispatchTensorKind;
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};
@@ -792,7 +793,7 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "remote")]
             // Remote devices are keyed by a network address, which the type-id-only
-            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote`] to list the devices
+            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote_websocket`] to list the devices
             // behind a given address.
             DispatchDeviceId::Remote => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
@@ -804,10 +805,12 @@ impl Dispatch {
     /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
     /// address rather than enumerable local hardware, so they need a dedicated entry point.
     /// Connecting to the server (required to learn its device count) happens here; see
-    /// [`RemoteDevice::enumerate`].
-    #[cfg(feature = "remote")]
-    pub fn enumerate_remote(address: &str) -> Vec<DispatchDevice> {
-        RemoteDevice::enumerate(address)
+    /// [`RemoteDevice::enumerate_websocket`].
+    ///
+    /// Websocket-only: Iroh peers are addressed by endpoint identity, not a URL string.
+    #[cfg(feature = "remote-websocket")]
+    pub fn enumerate_remote_websocket(address: &str) -> Vec<DispatchDevice> {
+        RemoteDevice::enumerate_websocket(address)
             .into_iter()
             .map(DispatchDevice::Remote)
             .collect()

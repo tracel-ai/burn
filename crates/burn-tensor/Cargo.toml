@@ -47,8 +47,12 @@ webgpu = ["wgpu", "burn-dispatch/webgpu", "cubecl-webgpu"]
 metal = ["wgpu", "burn-dispatch/metal", "cubecl-metal"]
 cpu = ["burn-dispatch/cpu", "cubecl-cpu"]
 autodiff = ["burn-dispatch/autodiff"]
+# Remote compute client over Iroh.
 remote = ["std", "burn-dispatch/remote"]
-server = ["remote", "burn-dispatch/remote-server"]
+# Host a remote compute server over Iroh. Wasm-compatible.
+remote-server = ["remote", "burn-dispatch/remote-server"]
+# Add the legacy WebSocket transport.
+remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
 
 # For backend extensions
 extension = []

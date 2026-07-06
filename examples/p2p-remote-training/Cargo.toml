@@ -1,0 +1,19 @@
+[package]
+authors     = ["Jonathan Richard"]
+edition.workspace = true
+license.workspace = true
+name        = "p2p-remote-training"
+publish     = false
+version.workspace = true
+description = "P2P distributed training via Iroh transport with topic-based discovery"
+
+[lints]
+workspace = true
+
+[dependencies]
+burn        = { workspace = true, features = ["remote-server", "flex"] }
+tokio       = { workspace = true, features = ["rt-multi-thread", "macros"] }
+iroh        = { workspace = true }
+blake3      = "1"
+tracing             = { workspace = true }
+tracing-subscriber  = { workspace = true, features = ["env-filter", "fmt"] }

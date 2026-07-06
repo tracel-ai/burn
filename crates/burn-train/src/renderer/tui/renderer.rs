@@ -217,7 +217,7 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
 impl TrainingProgressLogger for TuiMetricsRendererWrapper {
     fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>) {
         self.training_progress.global =
-            Progress::new(starting_epoch, total_epochs, Some("epochs".to_string())); // HERE
+            Progress::new(starting_epoch, total_epochs, Some("epochs".to_string()));
         if let Some(items) = total_items {
             self.training_progress.split = Progress::new(0, items, Some("items".to_string()));
         }

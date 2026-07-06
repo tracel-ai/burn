@@ -112,7 +112,7 @@ mod tests {
         let loss = layer.forward(random_tensor(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(LEARNING_RATE, layer, grads);
+        let _layer = optim.step(LEARNING_RATE.into(), layer, grads);
 
         let record = optim.to_record();
 
@@ -140,7 +140,7 @@ mod tests {
         let loss = layer.forward(random_tensor(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(LEARNING_RATE, layer, grads);
+        let _layer = optim.step(LEARNING_RATE.into(), layer, grads);
 
         let record = optim.to_record();
         let bytes = optim.into_bytes().unwrap();

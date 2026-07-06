@@ -75,11 +75,10 @@ impl LrScheduler for LinearLrScheduler {
         })
     }
 
-    fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+    fn load_record(&mut self, record: LrSchedulerRecord) {
         if let Some(state) = record.into_state::<LinearLrSchedulerState>() {
             self.remaining_iters = state.remaining_iters;
         }
-        self
     }
 }
 
