@@ -99,9 +99,8 @@ impl ModuleOptimizer {
         mut grads: GradAdaptor,
     ) -> M {
         module.map(&mut ModuleOptimizerMapper::new(
-            vec![],
             &self.default_optim,
-            self.optim_groups.iter().map(|g| g).collect(),
+            self.optim_groups.iter().collect(),
             &mut self.param_state_map,
             &mut grads,
             lr_policy,
@@ -110,7 +109,8 @@ impl ModuleOptimizer {
     }
 
     /// Add a parameter group-specific optimizer. Parameters matching this group will be optimized
-    /// using the provided optimizer. Existing states for parameters matching this group will be reset.
+    /// using the provided optimizer and gradient clipping.
+    /// Existing states for parameters matching this group will be reset.
     pub fn with_group(
         mut self,
         group: ParamGroup,
@@ -337,7 +337,6 @@ impl GradAdaptor {
     }
 }
 
-#[derive(new)]
 struct ModuleOptimizerMapper<'a> {
     path: Vec<String>,
     optimizer: &'a Arc<dyn DynOptimizer>,
@@ -348,7 +347,26 @@ struct ModuleOptimizerMapper<'a> {
     grad_clipping: Option<&'a GradientClipping>,
 }
 
-impl ModuleOptimizerMapper<'_> {
+impl<'a> ModuleOptimizerMapper<'a> {
+    pub(crate) fn new(
+        optimizer: &'a Arc<dyn DynOptimizer>,
+        optimizer_groups: Vec<&'a OptimizerGroup>,
+        states: &'a mut HashMap<ParamId, ParamOptimizationState>,
+        grads: &'a mut GradAdaptor,
+        lr_policy: LrPolicy,
+        grad_clipping: Option<&'a GradientClipping>,
+    ) -> Self {
+        Self {
+            path: vec![],
+            optimizer,
+            optimizer_groups,
+            states,
+            grads,
+            lr_policy,
+            grad_clipping,
+        }
+    }
+
     fn optimizer_from_param(
         &self,
         id: ParamId,

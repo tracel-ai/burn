@@ -156,13 +156,11 @@ impl LrPolicyScheduler {
         }
     }
 
-    // TODO: should the param group be saved/loaded along with the record?
     /// Get the current state of the schedulers as a [record](LrSchedulerRecord).
     pub fn to_record(&self) -> super::LrSchedulerRecord {
         let mut record = LrSchedulerRecord::new();
         for (index, item) in self.scheduler_groups.iter().enumerate() {
             let sub = item.scheduler.to_record();
-            // record = record.with_record(&index.to_string(), sub.with_group(item.group.clone()));
             record = record.with_record(&index.to_string(), sub);
         }
 
@@ -172,7 +170,6 @@ impl LrPolicyScheduler {
         record
     }
 
-    // TODO: should the param group be saved/loaded along with the record?
     /// Load the state of the schedulers from a [record](LrSchedulerRecord).
     pub fn load_record(mut self, record: super::LrSchedulerRecord) -> Self {
         self.scheduler_groups = self

@@ -21,7 +21,7 @@ use burn_autodiff::grads::Gradients;
 
 #[allow(unused)]
 use crate::DispatchDeviceId;
-#[allow(unused_imports)]
+#[allow(unused)]
 use crate::DispatchTensorKind;
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};
