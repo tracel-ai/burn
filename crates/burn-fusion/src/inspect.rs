@@ -485,6 +485,19 @@ pub mod matchers {
         })
     }
 
+    /// Matches a `zeros` tensor creation on any element type (`BaseFloat`/`BaseInt`/`BaseBool`).
+    pub fn is_zeros() -> OpMatcher {
+        use burn_ir::BaseOperationIr;
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::BaseFloat(BaseOperationIr::Zeros(_))
+                    | OperationIr::BaseInt(BaseOperationIr::Zeros(_))
+                    | OperationIr::BaseBool(BaseOperationIr::Zeros(_))
+            )
+        })
+    }
+
     /// Matches a `slice_assign` on any element type (`BaseFloat`/`BaseInt`/`BaseBool`).
     pub fn is_slice_assign() -> OpMatcher {
         use burn_ir::BaseOperationIr;

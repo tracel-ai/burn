@@ -73,6 +73,10 @@ impl<O: NumOperations> StreamOptimizer<O> {
                         op_kind(operation)
                     )
                 });
+                // A block that couldn't be merged with a sibling can still fuse with this very
+                // operation — just in the next round. Defer such creation blocks instead of
+                // flushing them here (see [`Self::defer_fusable_creation_blocks`]).
+                self.defer_fusable_creation_blocks(operation);
                 self.stopped = true;
                 return;
             }
@@ -304,6 +308,46 @@ impl<O: NumOperations> StreamOptimizer<O> {
                 MergeBlockStep::Partial
             }
             MergeBlocksResult::Fail => MergeBlockStep::Fail,
+        }
+    }
+
+    /// When `operation` couples blocks that can't be merged, the stream stops and flushes every
+    /// current block. But a block whose ops are all input-less creation ops (e.g. a `zeros`/`empty`
+    /// that `operation` writes into) can still fuse with `operation` itself — the merge only failed
+    /// against an *incompatible sibling* it happened to also touch (a differently-shaped `value`
+    /// producer, say). Flushing it here materializes the buffer and forces `operation` to read it
+    /// back as a global input.
+    ///
+    /// Instead, drop such blocks from this round so they re-enter the next round together with
+    /// `operation` and fuse on-write. Creation blocks have no inputs, so re-emitting them next
+    /// round is free and cannot disturb tensor lifetimes. Only blocks that `operation` would
+    /// genuinely fuse with are dropped (so a `slice_assign`'s indexed `value` producer — which can
+    /// never become a fused local — is still flushed), and at least one block is always kept so the
+    /// round makes progress.
+    fn defer_fusable_creation_blocks(&mut self, operation: &OperationIr) {
+        let nodes = operation.nodes();
+        let order = self.length;
+
+        let deferrable = self
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, block)| {
+                block.contains_tensors(&nodes)
+                    && block.is_creation_only()
+                    && block.would_fuse(operation, order)
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+
+        // Keep at least one block so the round still flushes progress (an empty block list would
+        // make `optimize` operate on nothing).
+        if deferrable.is_empty() || deferrable.len() >= self.blocks.len() {
+            return;
+        }
+
+        for index in deferrable.into_iter().rev() {
+            self.blocks.remove(index);
         }
     }
 

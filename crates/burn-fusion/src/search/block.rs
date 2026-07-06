@@ -81,6 +81,37 @@ impl<O: NumOperations> Block<O> {
         }
     }
 
+    /// Returns whether every operation in the block is an input-less creation op (`zeros` / `ones`
+    /// / `full` / `empty`).
+    ///
+    /// Such a block has no data dependencies, so it can be dropped from the current optimization
+    /// round and re-emitted in a later one for free — which is what lets a `zeros`/`empty` that a
+    /// `slice_assign` writes into defer to the round that actually fuses the slice-assign chain,
+    /// instead of being flushed and read back as a global input.
+    pub fn is_creation_only(&self) -> bool {
+        !self.operations.is_empty()
+            && self
+                .operations
+                .iter()
+                .all(|op| op.inputs().next().is_none())
+    }
+
+    /// Returns whether appending `operation` would extend at least one of the block's fusions —
+    /// i.e. some builder fuses it on top of what it already holds, rather than rejecting it (which
+    /// would close the builder) or ignoring it.
+    pub fn would_fuse(&self, operation: &OperationIr, order: usize) -> bool {
+        let lengths_before = self.builders.iter().map(|b| b.len()).collect::<Vec<_>>();
+
+        let mut trial = self.clone();
+        trial.register_op(operation, order);
+
+        trial
+            .builders
+            .iter()
+            .zip(lengths_before)
+            .any(|(builder, before)| builder.len() > before)
+    }
+
     /// Returns if the block contains any of the provided [tensors](TensorIr).
     pub fn contains_tensors(&self, tensors: &[&TensorIr]) -> bool {
         for node in tensors {

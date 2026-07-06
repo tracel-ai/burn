@@ -5,6 +5,7 @@ mod fusion_f16_write_vectorization;
 mod fusion_shape;
 mod int_bitwise;
 mod reduce_broadcasted;
+mod rope_repro;
 mod slice_assign;
 
 use burn_tensor::StreamId;
