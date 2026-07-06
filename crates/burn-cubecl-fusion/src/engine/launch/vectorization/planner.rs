@@ -170,11 +170,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         }
 
         // A tensor read through a slice view can only stay vectorized if the vectorization axis is
-        // read contiguously. Slicing that axis (a non-unit step, or a partial/offset range) breaks
-        // the perpendicular vector, so force scalar reads then; slicing *other* axes only shifts the
-        // per-vector base offset (still line-aligned since the axis shape is a multiple of the vector
-        // width), so vectorization is preserved. Only fuse-on-read slices read the original this way —
-        // a slice-assign base is read contiguously and keeps its vectorization.
+        // read in whole, line-aligned vectors. A slice of that axis is fine as long as its start and
+        // length are multiples of the tensor's vector width (e.g. rotate-half and other aligned
+        // splits); an unaligned offset/length or a non-unit step would break the vectors, so force
+        // scalar reads then. Slicing *other* axes only shifts the per-vector base offset (still
+        // line-aligned since the axis shape is a multiple of the vector width), so vectorization is
+        // preserved. Only fuse-on-read slices read the original this way — a slice-assign base is read
+        // contiguously and keeps its vectorization.
         let vectorization_axis = runner.axis(plan);
         for view in self.resources.views.iter() {
             if let TensorView::Slice {
@@ -186,8 +188,14 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             {
                 let global = context.tensors.get(original).unwrap();
                 let axis = vectorization_axis.get(*original, || global.shape.num_dims() - 1);
+                let line_size = plan
+                    .vectorizations
+                    .get(&global.id)
+                    .map(|v| v.vector_size())
+                    .unwrap_or(1);
 
-                if !slice_contiguous_on_axis(ranges, &context.ranges, axis, global.shape[axis]) {
+                if !slice_aligned_on_axis(ranges, &context.ranges, axis, global.shape[axis], line_size)
+                {
                     plan.vectorizations.insert(global.id, Vect::Aligned(1));
                 }
             }
@@ -351,14 +359,18 @@ struct BlockVectorization {
     broadcasted: bool,
 }
 
-/// Whether a slice reads `axis` contiguously — a full, unit-step range — so a perpendicular vector
-/// along that axis stays valid. `ranges` are the relative ranges (their `start` carries a binding id
-/// into `bindings`); an axis past the provided ranges is kept in full and so is contiguous.
-fn slice_contiguous_on_axis(
+/// Whether a slice reads `axis` in whole, line-aligned vectors, so a vector along that axis stays
+/// valid. That holds for a full unit-step range, and also for a partial unit-step range whose start
+/// and length are both multiples of `line_size` — e.g. the aligned halves of a rotate-half, where
+/// each half still maps to whole `line_size`-wide vectors. A strided range, or one whose offset or
+/// length splits a vector, is rejected. `ranges` are the relative ranges (their `start` carries a
+/// binding id into `bindings`); an axis past the provided ranges is kept in full and so is aligned.
+fn slice_aligned_on_axis(
     ranges: &[Slice],
     bindings: &[Slice],
     axis: usize,
     axis_size: usize,
+    line_size: usize,
 ) -> bool {
     let Some(relative) = ranges.get(axis) else {
         return true;
@@ -366,7 +378,7 @@ fn slice_contiguous_on_axis(
 
     let slice = bindings[relative.start as usize];
     let range = slice.to_range(axis_size);
-    slice.step == 1 && range.start == 0 && range.end == axis_size
+    slice.step == 1 && range.start % line_size == 0 && (range.end - range.start) % line_size == 0
 }
 
 fn apply_vectorization_block<R: Runtime>(
