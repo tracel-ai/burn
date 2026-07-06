@@ -472,6 +472,32 @@ pub mod matchers {
         })
     }
 
+    /// Matches an `empty` tensor creation on any element type (`BaseFloat`/`BaseInt`/`BaseBool`).
+    pub fn is_empty() -> OpMatcher {
+        use burn_ir::BaseOperationIr;
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::BaseFloat(BaseOperationIr::Empty(_))
+                    | OperationIr::BaseInt(BaseOperationIr::Empty(_))
+                    | OperationIr::BaseBool(BaseOperationIr::Empty(_))
+            )
+        })
+    }
+
+    /// Matches a `slice_assign` on any element type (`BaseFloat`/`BaseInt`/`BaseBool`).
+    pub fn is_slice_assign() -> OpMatcher {
+        use burn_ir::BaseOperationIr;
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::BaseFloat(BaseOperationIr::SliceAssign(_))
+                    | OperationIr::BaseInt(BaseOperationIr::SliceAssign(_))
+                    | OperationIr::BaseBool(BaseOperationIr::SliceAssign(_))
+            )
+        })
+    }
+
     /// Matches the memory-bookkeeping `Drop` op emitted when a tensor is deallocated.
     /// These aren't really operations — useful to filter out when counting ops in
     /// fusion-shape tests.

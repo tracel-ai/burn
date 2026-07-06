@@ -416,6 +416,29 @@ impl TraceOperationFuser {
                     Some(())
                 })
             }
+            BaseOperationIr::Empty(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                // `empty` has no defined contents, so we are free to realize it as zeros. Doing so
+                // lets the allocation participate in the block (rather than closing it and forcing a
+                // standalone allocation), which is what makes an `empty` + `slice_assign` chain fuse
+                // into a single kernel: the base is materialized as a zero-initialized local that the
+                // following `slice_assign` reads and overwrites in place — no extra global buffer and
+                // no read from uninitialized memory.
+                let elem: ElemType = dtype_to_elem_type(desc.out.dtype);
+                let precision = elem.into();
+                let input = FuseArg::Literal(0, precision);
+
+                self.fuser.fuse(|fuser| {
+                    let out = fuser.output(&desc.out)?;
+
+                    fuser.fuse_operation(FuseOp::Assign(UnaryFuseArgs { input, out }));
+
+                    Some(())
+                })
+            }
             BaseOperationIr::Gather(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
