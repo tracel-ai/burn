@@ -16,8 +16,6 @@ use burn_tensor::{Bool, Int, Tensor};
 /// Errors tied to [ParamGroup]'s.
 #[derive(Debug)]
 pub enum ParamGroupError {
-    /// Parameter used to match are invalid.
-    InvalidParameter(String),
     /// Use of an invalid Regex pattern.
     InvalidPatternError(String),
 }
