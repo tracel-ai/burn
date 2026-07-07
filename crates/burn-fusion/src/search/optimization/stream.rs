@@ -26,7 +26,10 @@ pub struct StreamOptimizer<O> {
 impl<O: NumOperations> StreamOptimizer<O> {
     /// Create a new stream optimizer.
     pub fn new(builders: Vec<Box<dyn OperationFuser<O>>>) -> Self {
-        // Too high and it may break the fusion cache always retriggering explorations.
+        // Too high and it may break the fusion cache always retriggering explorations. It also
+        // bounds the per-op cost of the dependency analysis: every registration that touches
+        // several blocks rebuilds the block DAG and its transitive reachability, which scale
+        // quadratically (and worse) with the number of blocks.
         let max_blocks = Some(config().fusion().beam_search.max_blocks);
         Self {
             builders,
@@ -508,7 +511,15 @@ fn assemble<O>(
 }
 
 /// Run every operation unfused, in ascending stream order — always a valid execution order.
+///
+/// This is the last-resort fallback: every fusion in the segment is dropped. Logged so a segment
+/// that silently degrades shows up when investigating fusion regressions.
 fn unfused_stream_order<O>(mut positions: Vec<usize>) -> BlockOptimization<O> {
+    let num_ops = positions.len();
+    log_fusion(FusionLogLevel::Medium, || {
+        format!("[repair] falling back to unfused stream order ({num_ops} ops)")
+    });
+
     positions.sort_unstable();
     let ordering = Arc::new(positions.clone());
     BlockOptimization::new(ExecutionStrategy::Operations { ordering }, positions)
