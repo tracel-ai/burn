@@ -28,7 +28,7 @@ fn frozen_group_param_unchanged_after_training() {
     let optim = SgdConfig::new().init();
 
     let scheduler = LrPolicyConfig::new(1e-2.into())
-        .add_group(ParamGroup::from_predicate("frozen"), 0.0_f64)
+        .with_group(ParamGroup::from_predicate("frozen"), 0.0_f64)
         .init()
         .unwrap();
 

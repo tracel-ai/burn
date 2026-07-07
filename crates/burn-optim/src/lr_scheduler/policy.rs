@@ -17,15 +17,16 @@ struct LrGroup {
 /// A policy that determines what learning rate to use for a trainable parameter.
 #[derive(Clone, Default)]
 pub struct LrPolicy {
-    default: f64,
     groups: Vec<LrGroup>,
 }
 
 impl From<LearningRate> for LrPolicy {
     fn from(value: LearningRate) -> Self {
         Self {
-            default: value,
-            groups: vec![],
+            groups: vec![LrGroup {
+                group: ParamGroup::all(),
+                lr: value,
+            }],
         }
     }
 }
@@ -37,12 +38,15 @@ impl LrPolicy {
             .iter()
             .filter_map(|val| val.group.matches(&id, path).then_some(val.lr))
             .next_back()
-            .unwrap_or(self.default)
+            .expect("Should match at least one parameter group.")
     }
 
-    /// Get the default learning rate value.
+    /// Get the default learning rate value which's group matches all parameters.
     pub fn default(&self) -> LearningRate {
-        self.default
+        self.groups
+            .first()
+            .expect("Should have at least one learning rate.")
+            .lr
     }
 }
 
@@ -73,45 +77,50 @@ pub struct LrPolicyConfig {
 /// (e.g., discriminative layer training or fine-tuning).
 #[derive(Clone)]
 pub struct LrPolicyScheduler {
-    default: DynLrScheduler,
-    scheduler_groups: Vec<LrSchedulerGroup>,
+    groups: Vec<LrSchedulerGroup>,
 }
 
 impl LrPolicyConfig {
     /// Initialize a new learning rate policy scheduler.
     pub fn init(&self) -> Result<LrPolicyScheduler, String> {
         let mut groups = Vec::with_capacity(self.scheduler_groups.len());
+
+        let default = match &self.default {
+            LrSchedulerConfig::Constant(lr) => (*lr).into(),
+            LrSchedulerConfig::Linear(config) => config.build()?.into(),
+            LrSchedulerConfig::Cosine(config) => config.build()?.into(),
+            LrSchedulerConfig::Exponential(config) => config.build()?.into(),
+            LrSchedulerConfig::Noam(config) => config.build()?.into(),
+            LrSchedulerConfig::Step(config) => config.build()?.into(),
+            LrSchedulerConfig::Composed(config) => config.build()?.into(),
+        };
+        groups.push(LrSchedulerGroup {
+            group: ParamGroup::all(),
+            scheduler: default,
+        });
+
         for group in self.scheduler_groups.iter() {
             let scheduler = match &group.scheduler {
                 LrSchedulerConfig::Constant(lr) => (*lr).into(),
-                LrSchedulerConfig::Linear(config) => config.init()?.into(),
-                LrSchedulerConfig::Cosine(config) => config.init()?.into(),
-                LrSchedulerConfig::Exponential(config) => config.init()?.into(),
-                LrSchedulerConfig::Noam(config) => config.init()?.into(),
-                LrSchedulerConfig::Step(config) => config.init()?.into(),
-                LrSchedulerConfig::Composed(config) => config.init()?.into(),
+                LrSchedulerConfig::Linear(config) => config.build()?.into(),
+                LrSchedulerConfig::Cosine(config) => config.build()?.into(),
+                LrSchedulerConfig::Exponential(config) => config.build()?.into(),
+                LrSchedulerConfig::Noam(config) => config.build()?.into(),
+                LrSchedulerConfig::Step(config) => config.build()?.into(),
+                LrSchedulerConfig::Composed(config) => config.build()?.into(),
             };
             groups.push(LrSchedulerGroup::new(group.group.clone(), scheduler));
         }
 
-        let default = match &self.default {
-            LrSchedulerConfig::Constant(lr) => (*lr).into(),
-            LrSchedulerConfig::Linear(config) => config.init()?.into(),
-            LrSchedulerConfig::Cosine(config) => config.init()?.into(),
-            LrSchedulerConfig::Exponential(config) => config.init()?.into(),
-            LrSchedulerConfig::Noam(config) => config.init()?.into(),
-            LrSchedulerConfig::Step(config) => config.init()?.into(),
-            LrSchedulerConfig::Composed(config) => config.init()?.into(),
-        };
-
-        Ok(LrPolicyScheduler {
-            default,
-            scheduler_groups: groups,
-        })
+        Ok(LrPolicyScheduler { groups })
     }
 
     /// Add a new parameter group to the scheduler's policy.
-    pub fn add_group(mut self, group: ParamGroup, scheduler: impl Into<LrSchedulerConfig>) -> Self {
+    pub fn with_group(
+        mut self,
+        group: ParamGroup,
+        scheduler: impl Into<LrSchedulerConfig>,
+    ) -> Self {
         self.scheduler_groups.push(LrSchedulerGroupConfig {
             group,
             scheduler: scheduler.into(),
@@ -121,24 +130,24 @@ impl LrPolicyConfig {
 }
 
 impl LrPolicyScheduler {
-    /// Create a [LrPolicyScheduler] with no registered parameter group.
+    /// Create a [LrPolicyScheduler].
     ///
     /// # Arguments
     ///
-    /// * `default_scheduler` - The policy's default learning rate scheduler.
-    pub fn new<S: LrScheduler + 'static>(default_scheduler: S) -> Self {
+    /// * `scheduler` - The policy's default learning rate scheduler.
+    pub fn new<S: LrScheduler + 'static>(scheduler: S) -> Self {
         Self {
-            default: default_scheduler.into(),
-            scheduler_groups: vec![],
+            groups: vec![LrSchedulerGroup {
+                group: ParamGroup::all(),
+                scheduler: scheduler.into(),
+            }],
         }
     }
 
     /// Perform the scheduler step of every scheduler and returns the effective learning rate policy.
     pub fn step(&mut self) -> LrPolicy {
-        let default_lr = self.default.step();
-
         let groups = self
-            .scheduler_groups
+            .groups
             .iter_mut()
             .map(|s| {
                 let lr = s.scheduler.step();
@@ -150,30 +159,24 @@ impl LrPolicyScheduler {
             })
             .collect();
 
-        LrPolicy {
-            default: default_lr,
-            groups,
-        }
+        LrPolicy { groups }
     }
 
     /// Get the current state of the schedulers as a [record](LrSchedulerRecord).
     pub fn to_record(&self) -> super::LrSchedulerRecord {
         let mut record = LrSchedulerRecord::new();
-        for (index, item) in self.scheduler_groups.iter().enumerate() {
+        for (index, item) in self.groups.iter().enumerate() {
             let sub = item.scheduler.to_record();
             record = record.with_record(&index.to_string(), sub);
         }
-
-        let default_record = self.default.to_record();
-        record = record.with_record(&self.scheduler_groups.len().to_string(), default_record);
 
         record
     }
 
     /// Load the state of the schedulers from a [record](LrSchedulerRecord).
     pub fn load_record(mut self, record: super::LrSchedulerRecord) -> Self {
-        self.scheduler_groups = self
-            .scheduler_groups
+        self.groups = self
+            .groups
             .into_iter()
             .enumerate()
             .map(|(index, item)| {
@@ -187,15 +190,12 @@ impl LrPolicyScheduler {
             })
             .collect();
 
-        let sub = record.record(&self.scheduler_groups.len().to_string());
-        self.default = self.default.load_record(sub);
-
         self
     }
 
     /// Add a new parameter group to the scheduler's policy.
     pub fn with_group(mut self, group: ParamGroup, scheduler: impl Into<DynLrScheduler>) -> Self {
-        self.scheduler_groups.push(LrSchedulerGroup {
+        self.groups.push(LrSchedulerGroup {
             group,
             scheduler: scheduler.into(),
         });
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn step_advances_linear_default_scheduler() {
-        let linear = LinearLrSchedulerConfig::new(0.9, 0.5, 4).init().unwrap();
+        let linear = LinearLrSchedulerConfig::new(0.9, 0.5, 4).build().unwrap();
         let mut scheduler = LrPolicyScheduler::new(linear);
 
         let expected = [0.9, 0.8, 0.7, 0.6, 0.5, 0.5];
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn save_load_preserves_default_scheduler_state() {
         let make =
-            || LrPolicyScheduler::new(LinearLrSchedulerConfig::new(1.0, 0.1, 9).init().unwrap());
+            || LrPolicyScheduler::new(LinearLrSchedulerConfig::new(1.0, 0.1, 9).build().unwrap());
 
         let mut original = make();
         let mut truth = make();
@@ -273,7 +273,7 @@ mod tests {
         let id_default = ParamId::new();
 
         let mut scheduler = LrPolicyConfig::new(0.001.into())
-            .add_group(ParamGroup::from_ids(vec![id_group.clone()]), 0.1)
+            .with_group(ParamGroup::from_ids(vec![id_group.clone()]), 0.1)
             .init()
             .unwrap();
 
@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn path_group_matches_param_by_path_substring() {
         let mut scheduler = LrPolicyConfig::new(0.001.into())
-            .add_group(ParamGroup::from_predicate("backbone"), 0.1)
+            .with_group(ParamGroup::from_predicate("backbone"), 0.1)
             .init()
             .unwrap();
 
@@ -312,11 +312,11 @@ mod tests {
 
         let mut scheduler =
             LrPolicyConfig::new(LinearLrSchedulerConfig::new(0.001, 0.0001, 4).into())
-                .add_group(
+                .with_group(
                     ParamGroup::from_ids(vec![id_a.clone()]),
                     LinearLrSchedulerConfig::new(0.1, 0.01, 4),
                 )
-                .add_group(
+                .with_group(
                     ParamGroup::from_ids(vec![id_b.clone()]),
                     LinearLrSchedulerConfig::new(0.5, 0.05, 4),
                 )
@@ -354,7 +354,7 @@ mod tests {
 
         let make = || {
             LrPolicyConfig::new(LinearLrSchedulerConfig::new(0.01, 0.001, 9).into())
-                .add_group(
+                .with_group(
                     ParamGroup::from_ids(vec![id_group.clone()]),
                     LinearLrSchedulerConfig::new(0.1, 0.01, 9),
                 )
