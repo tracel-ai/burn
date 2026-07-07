@@ -359,18 +359,26 @@ impl<O> BlockOptimization<O> {
     /// reusable on every subsequent identical sync.
     ///
     /// The uncovered positions are always a trailing run of the segment (interior
-    /// holes are re-optimized by the stream optimizer before this is called), so
-    /// appending them last preserves the hazard-respecting execution order.
+    /// holes are re-optimized by the stream optimizer before this is called — enforced
+    /// by a debug assertion), so appending them last preserves the hazard-respecting
+    /// execution order.
     pub fn include_trailing(&mut self, num_operations: usize) {
         if self.ordering.len() >= num_operations {
             return;
         }
 
-        let mut resolved = vec![false; num_operations];
-        for &position in &self.ordering {
-            resolved[position] = true;
+        #[cfg(debug_assertions)]
+        {
+            let mut resolved = vec![false; num_operations];
+            for &position in &self.ordering {
+                resolved[position] = true;
+            }
+            debug_assert!(
+                resolved[..self.ordering.len()].iter().all(|&r| r),
+                "uncovered positions must be a trailing run of the segment"
+            );
         }
-        let trailing: Vec<usize> = (0..num_operations).filter(|&i| !resolved[i]).collect();
+        let trailing: Vec<usize> = (self.ordering.len()..num_operations).collect();
 
         let tail = ExecutionStrategy::Operations {
             ordering: Arc::new(trailing.clone()),

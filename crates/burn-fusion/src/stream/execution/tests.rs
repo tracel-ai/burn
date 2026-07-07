@@ -414,7 +414,15 @@ fn should_support_overlapping_optimizations() {
             operations: vec![operation_1(), operation_2(), operation_1()],
             triggers: vec![ExecutionTrigger::OnSync],
             optimization: BlockOptimization {
-                strategy: ExecutionStrategy::operations(3),
+                strategy: ExecutionStrategy::Composed(vec![
+                    Box::new(ExecutionStrategy::optimization(TestOptimization::new(
+                        builder_id_1,
+                        2,
+                    ))),
+                    Box::new(ExecutionStrategy::Operations {
+                        ordering: Arc::new(vec![2]),
+                    }),
+                ]),
                 ordering: vec![0, 1, 2],
             },
         },
@@ -478,7 +486,12 @@ fn should_reuse_sync_plan_on_next_pass() {
             operations: vec![operation_1(), operation_2(), operation_3()],
             triggers: vec![ExecutionTrigger::OnSync],
             optimization: BlockOptimization {
-                strategy: ExecutionStrategy::optimization(TestOptimization::new(0, 2)),
+                strategy: ExecutionStrategy::Composed(vec![
+                    Box::new(ExecutionStrategy::optimization(TestOptimization::new(0, 2))),
+                    Box::new(ExecutionStrategy::Operations {
+                        ordering: Arc::new(vec![2]),
+                    }),
+                ]),
                 ordering: vec![0, 1, 2],
             },
         },
