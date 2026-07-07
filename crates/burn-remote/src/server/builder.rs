@@ -128,6 +128,10 @@ impl<B: BackendIr> RemoteServerBuilder<B> {
     /// Start the server on the caller's async runtime, serving until shutdown.
     #[cfg(not(target_family = "wasm"))]
     pub async fn start_async(self) {
+        // The backend is hosted on an async runtime: tensor readbacks must materialize
+        // eagerly rather than deferring a blocking device→host copy onto an executor worker.
+        burn_std::set_runtime_kind(burn_std::RuntimeKind::Async);
+
         match self.channel {
             #[cfg(feature = "websocket")]
             Channel::WebSocket { port } => {
