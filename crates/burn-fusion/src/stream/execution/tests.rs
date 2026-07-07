@@ -400,6 +400,9 @@ fn should_support_overlapping_optimizations() {
                 ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
                 ExecutionTrigger::OnSync,
+                // The sync also observed `operation_1` following the plan, and records
+                // it so the next identical pass executes without re-exploring.
+                ExecutionTrigger::OnOperations(vec![operation_1()]),
             ],
             optimization: BlockOptimization {
                 strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
@@ -435,6 +438,71 @@ fn should_support_overlapping_optimizations() {
 
     stream.add(operation_3());
     stream.assert_last_executed(plan_id_5);
+}
+
+/// A plan discovered at a sync point must be reusable on the next identical pass
+/// without re-exploring.
+///
+/// This is the shape of an autoregressive inference step: the graph defers past the
+/// fusable prefix because some fuser is still open, the step ends on a sync, and the
+/// exploration only optimizes a prefix of the segment (the tail stays unfused). The
+/// ops that followed the optimized prefix must become an `OnOperations` trigger —
+/// exactly like plans discovered lazily — so the next pass executes the cached plan
+/// as the tail op streams in, instead of re-running the whole exploration on every
+/// step.
+#[test]
+fn should_reuse_sync_plan_on_next_pass() {
+    let plan_pair = 0; // [operation_1, operation_2], fused.
+    let plan_tail = 1; // [operation_3], the unfused tail.
+
+    let pair_builder = TestOptimizationBuilder::new(0, vec![operation_1(), operation_2()]);
+    // A builder that wants a longer sequence: it stays open past the tail op, which is
+    // what defers the whole segment until the sync.
+    let hungry_builder = TestOptimizationBuilder::new(
+        1,
+        vec![operation_1(), operation_2(), operation_3(), operation_1()],
+    );
+    let mut stream = TestStream::new(vec![Box::new(pair_builder), Box::new(hungry_builder)]);
+
+    // First pass: everything defers, the sync explores and executes both plans.
+    stream.add(operation_1());
+    stream.add(operation_2());
+    stream.add(operation_3());
+    stream.assert_number_of_executions(0);
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(2);
+    stream.assert_last_executed(plan_tail);
+
+    // The sync-discovered plan learned both its triggers: the sync itself, and the
+    // tail ops that followed it.
+    stream.assert_plan(
+        plan_pair,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2()],
+            triggers: vec![
+                ExecutionTrigger::OnSync,
+                ExecutionTrigger::OnOperations(vec![operation_3()]),
+            ],
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::optimization(TestOptimization::new(0, 2)),
+                ordering: vec![0, 1],
+            },
+        },
+    );
+
+    // Second pass: the tail op fires the trigger, so the cached plan executes during
+    // lazy streaming — no sync needed, no re-exploration.
+    stream.add(operation_1());
+    stream.add(operation_2());
+    stream.assert_number_of_executions(2);
+    stream.add(operation_3());
+    stream.assert_number_of_executions(3);
+    stream.assert_last_executed(plan_pair);
+
+    stream.sync();
+    stream.assert_number_of_executions(4);
+    stream.assert_last_executed(plan_tail);
 }
 
 impl TestStream {

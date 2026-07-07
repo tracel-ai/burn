@@ -198,20 +198,35 @@ impl<O: NumOperations> Processor<O> {
                     }
                 }
             }
-            ExecutionMode::Sync => match policy.action(store, relative, ExecutionMode::Sync) {
-                Action::Execute(id) => {
-                    store.add_trigger(id, ExecutionTrigger::OnSync);
-                    id
+            ExecutionMode::Sync => {
+                // Also record the ops that followed the optimized prefix, exactly like
+                // the lazy branch above: without this trigger, the plan can only match
+                // a sync segment of the exact same length, and a recurring graph that
+                // ends with a non-optimized tail (e.g. an autoregressive decoding step)
+                // re-runs the whole exploration on every sync.
+                let next_ops = &operations[num_optimized..operations.len()];
+                let mut triggers = vec![ExecutionTrigger::OnSync];
+                if !next_ops.is_empty() {
+                    triggers.push(ExecutionTrigger::OnOperations(next_ops.to_vec()));
                 }
-                _ => {
-                    let plan = ExecutionPlan {
-                        operations: relative.to_vec(),
-                        triggers: vec![ExecutionTrigger::OnSync],
-                        optimization,
-                    };
-                    store.add(plan)
+
+                match policy.action(store, relative, ExecutionMode::Sync) {
+                    Action::Execute(id) => {
+                        for trigger in triggers {
+                            store.add_trigger(id, trigger);
+                        }
+                        id
+                    }
+                    _ => {
+                        let plan = ExecutionPlan {
+                            operations: relative.to_vec(),
+                            triggers,
+                            optimization,
+                        };
+                        store.add(plan)
+                    }
                 }
-            },
+            }
         }
     }
 }
