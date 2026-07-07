@@ -560,13 +560,16 @@ impl Chunk {
         let mut freed = HashSet::new();
         for &position in &positions {
             for tensor in operations[position].inputs() {
+                // A ReadWrite read frees the tensor even when this chunk also produced it — the
+                // write-after-read hazard against readers in *other* chunks still applies
+                // (mirrors [Block::register_op]).
+                if let TensorStatus::ReadWrite = tensor.status {
+                    freed.insert(tensor.id);
+                }
                 if produced.contains(&tensor.id) {
                     continue;
                 }
                 read.insert(tensor.id);
-                if let TensorStatus::ReadWrite = tensor.status {
-                    freed.insert(tensor.id);
-                }
             }
         }
 
@@ -596,5 +599,96 @@ impl GraphNode for Chunk {
 
     fn position(&self) -> usize {
         self.positions.iter().copied().min().unwrap_or(0)
+    }
+}
+
+/// Tests for the [repair_order] pass, driving it directly with hand-built chunkings.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::stream::execution::tests::TestOptimization;
+    use burn_backend::{DType, Shape};
+    use burn_ir::{BinaryOpIr, NumericOperationIr, TensorIr};
+
+    fn tensor(id: u64) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::new([32, 32]),
+            status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
+        }
+    }
+
+    fn add(lhs: u64, rhs: u64, out: u64) -> OperationIr {
+        OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(BinaryOpIr {
+                lhs: tensor(lhs),
+                rhs: tensor(rhs),
+                out: tensor(out),
+            }),
+        )
+    }
+
+    /// Like [add] but reads `lhs` with `ReadWrite` status (last use — frees the tensor).
+    fn add_rw(lhs: u64, rhs: u64, out: u64) -> OperationIr {
+        let mut lhs = tensor(lhs);
+        lhs.status = TensorStatus::ReadWrite;
+        OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(BinaryOpIr {
+                lhs,
+                rhs: tensor(rhs),
+                out: tensor(out),
+            }),
+        )
+    }
+
+    fn fused(ordering: Vec<usize>) -> ExecutionStrategy<TestOptimization> {
+        ExecutionStrategy::Optimization {
+            opt: TestOptimization::new(0, ordering.len()),
+            ordering: Arc::new(ordering),
+            score: 0,
+        }
+    }
+
+    fn unfused(ordering: Vec<usize>) -> ExecutionStrategy<TestOptimization> {
+        ExecutionStrategy::Operations {
+            ordering: Arc::new(ordering),
+        }
+    }
+
+    fn composed(
+        parts: Vec<ExecutionStrategy<TestOptimization>>,
+    ) -> ExecutionStrategy<TestOptimization> {
+        ExecutionStrategy::Composed(parts.into_iter().map(Box::new).collect())
+    }
+
+    /// A chunk producing AND freeing the same tensor still constrains readers in other chunks:
+    /// the free must be a write-after-read edge. With the edge, the chunk-level cycle is
+    /// detected and the unfused chunk is split around the fused one, salvaging the fusion;
+    /// without it, the invalid order is only caught by the final validation, which unfuses the
+    /// whole segment.
+    #[test]
+    fn splits_unfused_produce_free_chunk_instead_of_unfusing_everything() {
+        let ops = vec![
+            add(1, 2, 10),     // 0: produces 10 (unfused chunk)
+            add(10, 3, 100),   // 1: fused, reads 10
+            add(100, 4, 101),  // 2: fused
+            add_rw(10, 5, 11), // 3: frees 10 (same unfused chunk as op 0)
+        ];
+        let opt = BlockOptimization::new(
+            composed(vec![fused(vec![1, 2]), unfused(vec![0, 3])]),
+            vec![1, 2, 0, 3],
+        );
+
+        let repaired = repair_order(opt, &ops);
+
+        // The fused pair survives; the produce/free chunk is split around it.
+        assert_eq!(repaired.ordering, vec![0, 1, 2, 3]);
+        assert_eq!(
+            repaired.strategy,
+            composed(vec![unfused(vec![0]), fused(vec![1, 2]), unfused(vec![3])]),
+        );
     }
 }
