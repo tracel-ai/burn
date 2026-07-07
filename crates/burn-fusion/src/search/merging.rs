@@ -245,21 +245,16 @@ fn merge_accumulator<O: NumOperations>(
     let mut merged_success = false;
 
     for block in blocks {
-        // Skip a contraction that would create a dependency cycle. `base.constituents` grows as
-        // it absorbs blocks, so this correctly accounts for everything already merged in.
-        if !guard.can_contract(base.constituents(), block.constituents()) {
-            merged_failed.push((*block).clone());
-            continue;
-        }
-
-        let mut base_current = base.clone();
-        match base_current.merge(block) {
-            false => {
-                merged_failed.push((*block).clone());
-            }
-            true => {
+        // `merge_two` checks the cycle guard and tries both merge directions — the accumulator
+        // may depend on the block, in which case only folding the accumulator *into* the block
+        // yields a valid operation order.
+        match merge_two(&base, block, guard) {
+            Some(merged) => {
                 merged_success = true;
-                base = base_current;
+                base = merged;
+            }
+            None => {
+                merged_failed.push(block.clone());
             }
         }
     }
@@ -469,6 +464,63 @@ mod tests {
                 failed: vec![failed]
             }
         );
+    }
+
+    /// The accumulator may depend on a block it tries to absorb: folding that block's ops at the
+    /// end would fuse a consumer before its producer. The merge must then happen in the other
+    /// direction (the accumulator folded into the block), preserving a full merge instead of
+    /// degrading to a partial one.
+    #[test]
+    fn test_merge_blocks_accumulator_reverses_direction() {
+        use burn_backend::{DType, Shape};
+        use burn_ir::{
+            BinaryOpIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
+        };
+
+        fn add(lhs: u64, rhs: u64, out: u64) -> OperationIr {
+            let tensor = |id: u64| TensorIr {
+                id: TensorId::new(id),
+                shape: Shape::new([32, 32]),
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
+            };
+            OperationIr::NumericFloat(
+                DType::F32,
+                NumericOperationIr::Add(BinaryOpIr {
+                    lhs: tensor(lhs),
+                    rhs: tensor(rhs),
+                    out: tensor(out),
+                }),
+            )
+        }
+
+        let x = add(1, 2, 10);
+        let y = add(50, 3, 11); // Reads 50...
+        let z = add(4, 5, 50); // ...which this op produces.
+        let w = add(6, 7, 12); // Independent.
+
+        // The builder accepts exactly the reversed merge order [z, x, y, w].
+        let pattern = vec![z.clone(), x.clone(), y.clone(), w.clone(), x.clone()];
+        let builders: Vec<Box<dyn OperationFuser<TestOptimization>>> =
+            vec![Box::new(TestOptimizationBuilder::new(0, pattern))];
+
+        let mut block1 = Block::new(&builders);
+        block1.register(&x, 0, true);
+        block1.register(&y, 5, true);
+        let mut block2 = Block::new(&builders);
+        block2.register(&z, 3, true);
+        let mut block3 = Block::new(&builders);
+        block3.register(&w, 6, true);
+
+        let actual = merge(vec![block1, block2, block3]);
+
+        let mut expected = Block::new(&builders);
+        expected.register(&z, 3, true);
+        expected.register(&x, 0, true);
+        expected.register(&y, 5, true);
+        expected.register(&w, 6, true);
+
+        assert_eq!(actual, MergeBlocksResult::Full(expected));
     }
 
     fn builders() -> Vec<Box<dyn OperationFuser<TestOptimization>>> {

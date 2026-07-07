@@ -174,7 +174,7 @@ mod reachability {
     /// A → C → B chain: contracting A and B would trap C between them.
     fn chain() -> Vec<TestNode> {
         vec![
-            TestNode::new(0).produces([100]),            // A
+            TestNode::new(0).produces([100]),              // A
             TestNode::new(1).reads([100]).produces([200]), // C
             TestNode::new(2).reads([200]).produces([300]), // B
         ]
@@ -270,6 +270,17 @@ mod lifetime {
         ];
 
         assert!(!is_valid_execution_order(&nodes, &[1, 0]));
+    }
+
+    #[test]
+    fn read_after_free_is_invalid() {
+        let nodes = vec![
+            TestNode::new(0).frees([1]).produces([10]),
+            TestNode::new(1).reads([1]).produces([11]),
+        ];
+
+        assert!(!is_valid_execution_order(&nodes, &[0, 1]));
+        assert!(is_valid_execution_order(&nodes, &[1, 0]));
     }
 
     #[test]

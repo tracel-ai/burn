@@ -73,10 +73,7 @@ impl SubGraph {
     /// Whether the two subgraphs share at least one node.
     #[cfg(test)]
     pub fn intersects(&self, other: &Self) -> bool {
-        self.words
-            .iter()
-            .zip(&other.words)
-            .any(|(a, b)| a & b != 0)
+        self.words.iter().zip(&other.words).any(|(a, b)| a & b != 0)
     }
 
     /// The nodes of the subgraph, in ascending index order.

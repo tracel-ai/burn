@@ -2,7 +2,7 @@ use super::blocks::BlocksOptimizer;
 use crate::{
     NumOperations, OperationFuser,
     search::{
-        Block, BlockOptimization, RegistrationResult,
+        Block, BlockOptimization, OperationNode, RegistrationResult,
         graph::{Dag, GraphNode, is_valid_execution_order},
         merging::{MergeBlocksResult, merge_blocks},
         optimization::blocks::BlocksOptimizerResult,
@@ -403,8 +403,8 @@ enum MergeBlockStep {
 /// [GraphNode] for the hazard rules deriving the edges). Ties keep the earliest stream position
 /// first, reproducing the historical order when there are no hazards.
 ///
-/// If the chunk graph has a cycle — the chunking can't be linearized as atomic units — fall back
-/// to running every operation unfused in stream order, which is always valid.
+/// If the chunk graph has a cycle — the chunking can't be linearized as atomic units — unfused
+/// chunks are [split](repair_order_split) to break the cycle before giving up on fusion.
 fn repair_order<O>(opt: BlockOptimization<O>, operations: &[OperationIr]) -> BlockOptimization<O> {
     let (strategies, ordering) = match opt.strategy {
         ExecutionStrategy::Composed(items) => (items, opt.ordering),
@@ -423,30 +423,83 @@ fn repair_order<O>(opt: BlockOptimization<O>, operations: &[OperationIr]) -> Blo
     let mut offset = 0;
     for strategy in &strategies {
         let len = strategy_len(strategy);
-        chunks.push(Chunk::new(ordering[offset..offset + len].to_vec(), operations));
+        chunks.push(Chunk::new(
+            ordering[offset..offset + len].to_vec(),
+            operations,
+        ));
         offset += len;
     }
 
     let order = match Dag::new(&chunks).topological_order() {
         Some(order) => order,
-        // Cycle: the chunking isn't linearizable — run everything unfused in stream order.
-        None => {
-            return unfused_stream_order(chunks.into_iter().flat_map(|c| c.positions).collect());
-        }
+        // The chunks can't be linearized as atomic units. Unfused chunks are free to split
+        // (their ops execute individually), which may break the cycle while every fused
+        // optimization survives intact.
+        None => return repair_order_split(strategies, chunks, operations),
     };
 
+    assemble(strategies, &chunks, &order, operations)
+}
+
+/// Retry [repair_order] with every [Operations](ExecutionStrategy::Operations) chunk split into
+/// single-operation chunks, keeping fused optimizations atomic. Splitting only removes ordering
+/// constraints, so this resolves any cycle that isn't between fused chunks themselves.
+fn repair_order_split<O>(
+    strategies: Vec<Box<ExecutionStrategy<O>>>,
+    chunks: Vec<Chunk>,
+    operations: &[OperationIr],
+) -> BlockOptimization<O> {
+    let mut split_strategies = Vec::new();
+    let mut split_chunks = Vec::new();
+    for (strategy, chunk) in strategies.into_iter().zip(chunks) {
+        match *strategy {
+            ExecutionStrategy::Operations { .. } => {
+                for position in chunk.positions {
+                    split_strategies.push(Box::new(ExecutionStrategy::Operations {
+                        ordering: Arc::new(vec![position]),
+                    }));
+                    split_chunks.push(Chunk::new(vec![position], operations));
+                }
+            }
+            strategy => {
+                split_strategies.push(Box::new(strategy));
+                split_chunks.push(chunk);
+            }
+        }
+    }
+
+    match Dag::new(&split_chunks).topological_order() {
+        Some(order) => assemble(split_strategies, &split_chunks, &order, operations),
+        // Fused chunks are mutually dependent: the segment isn't executable as built — run
+        // everything unfused in stream order, which is always valid.
+        None => unfused_stream_order(
+            split_chunks
+                .into_iter()
+                .flat_map(|chunk| chunk.positions)
+                .collect(),
+        ),
+    }
+}
+
+/// Emit the strategies in the given chunk order, validating the final operation-level ordering.
+fn assemble<O>(
+    strategies: Vec<Box<ExecutionStrategy<O>>>,
+    chunks: &[Chunk],
+    order: &[usize],
+    operations: &[OperationIr],
+) -> BlockOptimization<O> {
     let mut slots: Vec<Option<Box<ExecutionStrategy<O>>>> =
         strategies.into_iter().map(Some).collect();
     let mut new_strategies = Vec::with_capacity(order.len());
-    let mut new_ordering = Vec::with_capacity(ordering.len());
-    for &k in &order {
+    let mut new_ordering = Vec::new();
+    for &k in order {
         new_strategies.push(slots[k].take().expect("each chunk taken once"));
         new_ordering.extend_from_slice(&chunks[k].positions);
     }
 
-    // A chunk that is internally mis-ordered (e.g. a merge that concatenated two blocks' orderings
-    // out of stream order) can still violate handle lifetimes even after the chunk-level sort. If
-    // the result isn't executable, fall back to running every operation unfused in stream order.
+    // A chunk that is internally mis-ordered can still violate handle lifetimes even after the
+    // chunk-level sort. If the result isn't executable, fall back to running every operation
+    // unfused in stream order.
     if !ordering_is_valid(&new_ordering, operations) {
         return unfused_stream_order(new_ordering);
     }
@@ -545,33 +598,3 @@ impl GraphNode for Chunk {
         self.positions.iter().copied().min().unwrap_or(0)
     }
 }
-
-/// A single operation at its stream position, viewed as a [GraphNode].
-struct OperationNode<'a> {
-    position: usize,
-    operation: &'a OperationIr,
-}
-
-impl GraphNode for OperationNode<'_> {
-    type Resource = TensorId;
-
-    fn produced(&self) -> impl Iterator<Item = TensorId> {
-        self.operation.outputs().map(|tensor| tensor.id)
-    }
-
-    fn read(&self) -> impl Iterator<Item = TensorId> {
-        self.operation.inputs().map(|tensor| tensor.id)
-    }
-
-    fn freed(&self) -> impl Iterator<Item = TensorId> {
-        self.operation
-            .inputs()
-            .filter(|tensor| matches!(tensor.status, TensorStatus::ReadWrite))
-            .map(|tensor| tensor.id)
-    }
-
-    fn position(&self) -> usize {
-        self.position
-    }
-}
-

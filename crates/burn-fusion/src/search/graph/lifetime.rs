@@ -12,9 +12,13 @@ pub fn is_valid_execution_order<N: GraphNode>(nodes: &[N], order: &[usize]) -> b
     let produced: HashSet<N::Resource> = order.iter().flat_map(|&i| nodes[i].produced()).collect();
 
     let mut alive = HashSet::new();
+    let mut dead = HashSet::new();
     for &i in order {
         let node = &nodes[i];
         for resource in node.read() {
+            if dead.contains(&resource) {
+                return false; // Read after the resource was freed: bad order.
+            }
             if !alive.contains(&resource) {
                 if produced.contains(&resource) {
                     return false; // Produced in this segment but not live yet: bad order.
@@ -24,8 +28,11 @@ pub fn is_valid_execution_order<N: GraphNode>(nodes: &[N], order: &[usize]) -> b
         }
         for resource in node.freed() {
             alive.remove(&resource);
+            dead.insert(resource);
         }
         for resource in node.produced() {
+            // Producing redefines the resource, even if an id were ever reused after a free.
+            dead.remove(&resource);
             alive.insert(resource);
         }
     }

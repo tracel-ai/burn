@@ -1,6 +1,6 @@
 use crate::{
     FuserStatus, NumOperations, OperationFuser,
-    search::graph::{GraphNode, SubGraph},
+    search::graph::{GraphNode, SubGraph, is_valid_execution_order},
     stream::store::ExecutionStrategy,
 };
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
@@ -63,6 +63,37 @@ impl<O> Block<O> {
     /// Seed this block's [constituents](Self::constituents) to a single original block index.
     pub fn seed_constituent(&mut self, index: usize) {
         self.constituents = SubGraph::single(index);
+    }
+}
+
+/// A single operation at its stream position, viewed as a [GraphNode].
+pub struct OperationNode<'a> {
+    /// The operation.
+    pub operation: &'a OperationIr,
+    /// The stream position of the operation.
+    pub position: usize,
+}
+
+impl GraphNode for OperationNode<'_> {
+    type Resource = TensorId;
+
+    fn produced(&self) -> impl Iterator<Item = TensorId> {
+        self.operation.outputs().map(|tensor| tensor.id)
+    }
+
+    fn read(&self) -> impl Iterator<Item = TensorId> {
+        self.operation.inputs().map(|tensor| tensor.id)
+    }
+
+    fn freed(&self) -> impl Iterator<Item = TensorId> {
+        self.operation
+            .inputs()
+            .filter(|tensor| matches!(tensor.status, TensorStatus::ReadWrite))
+            .map(|tensor| tensor.id)
+    }
+
+    fn position(&self) -> usize {
+        self.position
     }
 }
 
@@ -164,6 +195,14 @@ impl<O: NumOperations> Block<O> {
             self.register(op, *pos, true);
         }
 
+        // A block executes as one contiguous unit in registration order (fused kernels replay
+        // the fusion order). Appending the other block's operations can place a consumer before
+        // its producer — or a free before a read — when the blocks depend on each other. Reject
+        // such merges here; the caller can retry in the other direction.
+        if !self.has_valid_internal_order() {
+            return false;
+        }
+
         // If the merged block can still be improved, keep it — that's the
         // usual lazy-optimization signal.
         if self.still_optimizing() {
@@ -179,6 +218,23 @@ impl<O: NumOperations> Block<O> {
 
     fn has_ready_optimization(&self) -> bool {
         self.builders.iter().any(|b| b.properties().ready)
+    }
+
+    /// Whether the block's operations, executed in registration order, respect tensor lifetimes
+    /// (no read before the producing operation, no read after the freeing operation).
+    fn has_valid_internal_order(&self) -> bool {
+        let nodes = self
+            .operations
+            .iter()
+            .zip(&self.ordering)
+            .map(|(operation, &position)| OperationNode {
+                operation,
+                position,
+            })
+            .collect::<Vec<_>>();
+        let registration_order = (0..nodes.len()).collect::<Vec<_>>();
+
+        is_valid_execution_order(&nodes, &registration_order)
     }
 
     /// Register an [operation](OperationIr) in the current block.
@@ -491,5 +547,67 @@ mod tests {
         let guard = Dag::new(&blocks).reachability();
 
         assert!(!guard.can_contract(blocks[0].constituents(), blocks[1].constituents()));
+    }
+
+    /// A block with a builder open to any prefix of `pattern`, owning the given ops.
+    ///
+    /// The builder keeps the block `still_optimizing` as long as the registered ops follow the
+    /// pattern, so merge acceptance is driven by the pattern and the tests below can isolate the
+    /// internal-order validation.
+    fn block_with_pattern(
+        pattern: &[OperationIr],
+        ops: &[(OperationIr, usize)],
+    ) -> Block<TestOptimization> {
+        use crate::stream::execution::tests::TestOptimizationBuilder;
+
+        let builders: Vec<Box<dyn OperationFuser<TestOptimization>>> =
+            vec![Box::new(TestOptimizationBuilder::new(0, pattern.to_vec()))];
+        let mut block = Block::new(&builders);
+        for (op, pos) in ops {
+            block.register(op, *pos, true);
+        }
+        block
+    }
+
+    #[test]
+    fn merge_rejects_consumer_fused_before_producer() {
+        let x = add(1, 2, 10);
+        let y = add(50, 3, 11); // Reads 50...
+        let z = add(4, 5, 50); // ...which this op produces.
+
+        // The pattern accepts the forward merge order [x, y, z], so only the internal-order
+        // validation can reject it: y would be fused before the op producing its input.
+        let pattern = [x.clone(), y.clone(), z.clone(), x.clone()];
+        let mut base = block_with_pattern(&pattern, &[(x, 0), (y, 1)]);
+        let producer = block_with_pattern(&pattern, &[(z, 2)]);
+
+        assert!(!base.merge(&producer));
+    }
+
+    #[test]
+    fn merge_accepts_producer_fused_before_consumer() {
+        let x = add(1, 2, 10);
+        let y = add(50, 3, 11);
+        let z = add(4, 5, 50);
+
+        // Same blocks as above, merged in the other direction: [z, x, y] is causal.
+        let pattern = [z.clone(), x.clone(), y.clone(), x.clone()];
+        let consumers = block_with_pattern(&pattern, &[(x, 0), (y, 1)]);
+        let mut base = block_with_pattern(&pattern, &[(z, 2)]);
+
+        assert!(base.merge(&consumers));
+    }
+
+    #[test]
+    fn merge_rejects_free_fused_before_read() {
+        let reader = add(100, 1, 2); // Reads 100.
+        let freer = add_rw(100, 3, 4); // Frees 100.
+
+        // Fusing the free before the read would release the tensor under the reader.
+        let pattern = [freer.clone(), reader.clone(), reader.clone()];
+        let mut base = block_with_pattern(&pattern, &[(freer, 1)]);
+        let other = block_with_pattern(&pattern, &[(reader, 0)]);
+
+        assert!(!base.merge(&other));
     }
 }
