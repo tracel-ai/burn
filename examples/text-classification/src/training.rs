@@ -36,7 +36,7 @@ pub struct ExperimentConfig {
     pub num_epochs: usize,
 }
 
-fn create_artifact_dir(artifact_dir: &str) {
+pub(crate) fn create_artifact_dir(artifact_dir: &str) {
     std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }

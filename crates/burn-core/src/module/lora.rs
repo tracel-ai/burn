@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use burn_tensor::{Distribution, Tensor};
 
-use crate::module::{LoraAdapter, ModuleMapper, Param, Quantizer};
+use crate::module::{LoraAdapter, ModuleMapper, Param, ParamGroup, Quantizer};
 
 /// Configuration describing how to attach LoRA adapters to a module's weights.
 #[derive(Debug, Clone)]
@@ -38,17 +38,37 @@ impl LoraConfig {
 /// any other module) keeps working, now producing `base + scale * (a @ b)` for adapted weights.
 #[derive(Debug, Clone)]
 pub struct LoraMapper {
+    group: ParamGroup,
     config: LoraConfig,
+    path: Vec<String>,
 }
 
 impl LoraMapper {
     /// Create a new mapper from the given configuration.
     pub fn new(config: LoraConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            group: ParamGroup::all(),
+            path: vec![],
+        }
+    }
+
+    /// Specify a parameter group on which to apply the LoRA.
+    pub fn for_group(mut self, group: ParamGroup) -> Self {
+        self.group = group;
+        self
     }
 }
 
 impl ModuleMapper for LoraMapper {
+    fn enter_module(&mut self, name: &str, _container_type: &str) {
+        self.path.push(name.to_string());
+    }
+
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {
+        self.path.pop();
+    }
+
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         // LoRA only adapts 2-D weight matrices. Every other base parameter is frozen too, so that
         // only the adapter factors are trained (the canonical LoRA fine-tuning contract).
@@ -66,19 +86,24 @@ impl ModuleMapper for LoraMapper {
         // Freeze the base weight; only the adapter factors will be trained.
         let base = Param::from_mapped_value(id, tensor.set_require_grad(false), mapper);
 
-        // Standard LoRA init: A ~ N(0, std) and B = 0, so the initial delta (and the model output)
-        // is unchanged when the adapter is first attached.
-        let std = self.config.init_std.unwrap_or(1.0 / rank as f64);
-        let a = Tensor::<2>::random([d_in, rank], Distribution::Normal(0.0, std), &device);
-        let b = Tensor::<2>::zeros([rank, d_out], &device);
+        let path = self.path.join(".");
+        if self.group.matches(&id, Some(&path)) {
+            // Standard LoRA init: A ~ N(0, std) and B = 0, so the initial delta (and the model output)
+            // is unchanged when the adapter is first attached.
+            let std = self.config.init_std.unwrap_or(1.0 / rank as f64);
+            let a = Tensor::<2>::random([d_in, rank], Distribution::Normal(0.0, std), &device);
+            let b = Tensor::<2>::zeros([rank, d_out], &device);
 
-        let adapter = LoraAdapter {
-            a: Param::from_tensor(a),
-            b: Param::from_tensor(b),
-            scale: self.config.alpha / rank as f64,
-        };
+            let adapter = LoraAdapter {
+                a: Param::from_tensor(a),
+                b: Param::from_tensor(b),
+                scale: self.config.alpha / rank as f64,
+            };
 
-        base.with_adapter(Some(Box::new(adapter)))
+            return base.with_adapter(Some(Box::new(adapter)));
+        }
+
+        base
     }
 }
 
@@ -157,7 +182,9 @@ mod tests {
         // Distinct parameter ids for base / a / b.
         let ids = [weight.id, adapter.a.id, adapter.b.id];
         assert_eq!(
-            ids.iter().collect::<alloc::collections::BTreeSet<&ParamId>>().len(),
+            ids.iter()
+                .collect::<alloc::collections::BTreeSet<&ParamId>>()
+                .len(),
             3
         );
 
@@ -214,8 +241,7 @@ mod tests {
     fn lora_backward_grads_adapter_only() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model =
-            SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
 
         // Forward through the composed weight and backpropagate.
         let loss = model.weight.val().sum();
@@ -262,21 +288,62 @@ mod tests {
         assert_eq!(composed.into_data().shape, original.into_data().shape);
     }
 
+    #[test]
+    fn for_group_restricts_adapter_to_matching_parameters() {
+        use crate as burn;
+
+        #[derive(Module, Debug)]
+        struct TwoWeights {
+            a: Param<Tensor<2>>,
+            b: Param<Tensor<2>>,
+        }
+
+        let device = test_device();
+        let model = TwoWeights {
+            a: Param::from_tensor(Tensor::random(
+                [4, 4],
+                burn_tensor::Distribution::Default,
+                &device,
+            )),
+            b: Param::from_tensor(Tensor::random(
+                [4, 4],
+                burn_tensor::Distribution::Default,
+                &device,
+            )),
+        };
+
+        let config = LoraConfig::new(2, 4.0);
+        let group = ParamGroup::from_predicate("a");
+        let model = model.apply_lora(&mut LoraMapper::new(config).for_group(group));
+
+        // Only the parameter whose path matches the group gets an adapter attached.
+        assert!(
+            model.a.adapter().is_some(),
+            "parameter in the group should get a LoRA adapter"
+        );
+        assert!(
+            model.b.adapter().is_none(),
+            "parameter outside the group should not get a LoRA adapter"
+        );
+
+        // Every 2-D weight is frozen regardless of group membership.
+        assert!(!model.a.base().is_require_grad());
+        assert!(!model.b.val().is_require_grad());
+    }
+
     #[cfg(feature = "autodiff")]
     #[test]
     fn lora_valid_folds_adapter_for_inference() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model =
-            SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
 
         let inference = model.valid();
         // The inference parameter has no adapter (folded) and equals the composed training weight.
         assert!(inference.weight.adapter().is_none());
-        inference
-            .weight
-            .val()
-            .into_data()
-            .assert_approx_eq::<f32>(&model.weight.val().inner().into_data(), Tolerance::default());
+        inference.weight.val().into_data().assert_approx_eq::<f32>(
+            &model.weight.val().inner().into_data(),
+            Tolerance::default(),
+        );
     }
 }
