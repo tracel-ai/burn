@@ -484,7 +484,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
     pub fn shape(&self, arg: &FuseArg) -> Shape {
         match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.shape.clone(),
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            TensorArg::Alias { shape, .. } => shape.clone(),
         }
     }
 
@@ -524,7 +524,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
     pub fn strides(&self, arg: &FuseArg) -> Strides {
         match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.strides.clone(),
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            TensorArg::Alias { strides, .. } => strides.clone(),
         }
     }
 

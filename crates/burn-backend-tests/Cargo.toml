@@ -44,7 +44,11 @@ remote = ["burn-tensor/remote"]
 autotune = ["burn-tensor/autotune"]
 autotune-checks = ["burn-tensor/autotune-checks"]
 memory-checks = ["burn-fusion?/memory-checks"]
-fusion = ["burn-tensor/fusion", "burn-fusion/test-util"]
+fusion = [
+    "burn-tensor/fusion",
+    "burn-fusion/test-util",
+    "burn-cubecl-fusion?/test-util",
+]
 
 # CubeCL backends
 cube = [
@@ -54,6 +58,8 @@ cube = [
     "burn-ndarray",
     # Not used directly, but included to avoid recompiling with and without fusion
     "burn-cubecl",
+    # Direct dependency so fusion tests can assert launch-level decisions (in-place aliasing).
+    "burn-cubecl-fusion",
 ]
 
 # Test configs
@@ -80,6 +86,7 @@ burn-cubecl = { workspace = true, optional = true, features = [
     "default",
     "fusion",
 ] }
+burn-cubecl-fusion = { workspace = true, optional = true }
 
 # Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
 burn-fusion = { workspace = true, optional = true }

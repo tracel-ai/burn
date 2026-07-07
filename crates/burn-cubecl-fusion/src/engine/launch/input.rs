@@ -38,7 +38,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
 
                     if let TensorStatus::ReadWrite = tensor_relative.status {
-                        plan.cleared.push(tensor_global.id);
+                        // This execution consumes the tensor: take back the clone that
+                        // `get_handle` left in the container so that `can_mut()` sees the
+                        // true reference count (memory pool + this handle). Keeping the
+                        // clone around during planning made `can_mut()` always false,
+                        // disabling every in-place alias. On execution failure the handle
+                        // is restored by [FuseTraceLauncher::rollback](super::base).
+                        context.handles.remove_handle(tensor_global.id);
                     }
 
                     let mut new_strides = handle.strides.clone();

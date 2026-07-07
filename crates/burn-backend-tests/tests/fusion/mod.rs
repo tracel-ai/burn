@@ -4,6 +4,7 @@ mod cat;
 mod fusion_f16_broadcast;
 mod fusion_f16_write_vectorization;
 mod fusion_shape;
+mod inplace;
 mod int_bitwise;
 mod reduce_broadcasted;
 
