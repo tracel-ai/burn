@@ -9,7 +9,7 @@ use crate::{
 use burn_core::store::ModuleRecord;
 use burn_core::tensor::Device;
 use burn_optim::lr_scheduler::LrSchedulerRecord;
-use burn_optim::lr_scheduler::policy::{LrPolicy, LrPolicyScheduler};
+use burn_optim::lr_scheduler::policy::{ModuleLearningRate, ModuleLrScheduler};
 use burn_optim::{GradientsParams, ModuleOptimizer, MultiGradientsParams, OptimizerRecord};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,8 +19,8 @@ use std::sync::{Arc, Mutex};
 pub struct Learner<M: LearnerModel> {
     pub(crate) model: M,
     optim: ModuleOptimizer,
-    lr_scheduler: LrPolicyScheduler,
-    lr_policy: LrPolicy,
+    lr_scheduler: ModuleLrScheduler,
+    lr_module: ModuleLearningRate,
 }
 
 impl<M: LearnerModel> Clone for Learner<M> {
@@ -29,7 +29,7 @@ impl<M: LearnerModel> Clone for Learner<M> {
             model: self.model.clone(),
             optim: self.optim.clone(),
             lr_scheduler: self.lr_scheduler.clone(),
-            lr_policy: self.lr_policy.clone(),
+            lr_module: self.lr_module.clone(),
         }
     }
 }
@@ -39,13 +39,13 @@ impl<M: LearnerModel> Learner<M> {
     pub fn new(
         model: M,
         optim: ModuleOptimizer,
-        lr_scheduler: impl Into<LrPolicyScheduler>,
+        lr_scheduler: impl Into<ModuleLrScheduler>,
     ) -> Self {
         Self {
             model,
             optim,
             lr_scheduler: lr_scheduler.into(),
-            lr_policy: 0.0.into(),
+            lr_module: 0.0.into(),
         }
     }
 }
@@ -62,13 +62,13 @@ impl<M: LearnerModel> Learner<M> {
     }
 
     /// Returns the current learning rate.
-    pub fn lr_current(&self) -> LrPolicy {
-        self.lr_policy.clone()
+    pub fn lr_current(&self) -> ModuleLearningRate {
+        self.lr_module.clone()
     }
 
     /// Executes a step of the learning rate scheduler.
     pub fn lr_step(&mut self) {
-        self.lr_policy = self.lr_scheduler.step();
+        self.lr_module = self.lr_scheduler.step();
     }
 
     /// Runs a step of the model for training, which executes the forward and backward passes.
@@ -94,7 +94,7 @@ impl<M: LearnerModel> Learner<M> {
     pub fn optimizer_step(&mut self, grads: GradientsParams) {
         self.model = self
             .model()
-            .optimize(&mut self.optim, self.lr_policy.clone(), grads);
+            .optimize(&mut self.optim, self.lr_module.clone(), grads);
     }
 
     /// Optimize the current module with the provided gradients and learning rate.
@@ -107,7 +107,7 @@ impl<M: LearnerModel> Learner<M> {
     pub fn optimizer_step_multi(&mut self, grads: MultiGradientsParams) {
         self.model = self
             .model()
-            .optimize_multi(&mut self.optim, self.lr_policy.clone(), grads);
+            .optimize_multi(&mut self.optim, self.lr_module.clone(), grads);
     }
 
     /// Load the module state from a [record](ModuleRecord).

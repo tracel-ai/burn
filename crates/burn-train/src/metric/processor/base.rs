@@ -1,5 +1,5 @@
 use burn_core::data::dataloader::Progress;
-use burn_optim::lr_scheduler::policy::LrPolicy;
+use burn_optim::lr_scheduler::policy::ModuleLearningRate;
 
 use crate::{
     LearnerSummary,
@@ -91,8 +91,8 @@ pub struct TrainingItem<T> {
     /// The iteration, if it it different from the items processed.
     pub iteration: Option<usize>,
 
-    /// The learning rate policy.
-    pub lr: Option<LrPolicy>,
+    /// The learning rate for a module's parameters.
+    pub lr: Option<ModuleLearningRate>,
 }
 
 impl<T: ItemLazy> ItemLazy for TrainingItem<T> {

@@ -34,7 +34,7 @@ impl Metric for LearningRateMetric {
 
     fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> SerializedEntry {
         // TODO: We only log the default learning rate. Yet another motivation to introduce metric groups.
-        let lr = metadata.lr.as_ref().map(|val| val.default()).unwrap_or(0.0);
+        let lr = metadata.lr.as_ref().map(|val| val.base()).unwrap_or(0.0);
 
         self.state
             .update(lr, 1, FormatOptions::new(self.name()).precision(2))

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use burn_core::data::dataloader::Progress;
-use burn_optim::lr_scheduler::policy::LrPolicy;
+use burn_optim::lr_scheduler::policy::ModuleLearningRate;
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {
@@ -12,7 +12,7 @@ pub struct MetricMetadata {
     pub iteration: Option<usize>,
 
     /// The current learning rate.
-    pub lr: Option<LrPolicy>,
+    pub lr: Option<ModuleLearningRate>,
 }
 
 impl MetricMetadata {

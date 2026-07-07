@@ -5,7 +5,7 @@ mod common;
 use common::*;
 
 use burn_core::{module::ParamGroup, tensor::Device};
-use burn_optim::{SgdConfig, lr_scheduler::policy::LrPolicyConfig};
+use burn_optim::{SgdConfig, lr_scheduler::policy::ModuleLrSchedulerConfig};
 use burn_train::{Learner, SupervisedTraining, logger::InMemoryMetricLogger, metric::LossMetric};
 
 /// Test the integration of [LrPolicyScheduler](burn_optim::lr_scheduler::policy::LrPolicyScheduler) in burn-train.
@@ -27,7 +27,7 @@ fn frozen_group_param_unchanged_after_training() {
 
     let optim = SgdConfig::new().init();
 
-    let scheduler = LrPolicyConfig::new(1e-2.into())
+    let scheduler = ModuleLrSchedulerConfig::new(1e-2.into())
         .with_group(ParamGroup::from_predicate("frozen"), 0.0_f64)
         .init()
         .unwrap();
