@@ -161,7 +161,7 @@ pub struct MuonConfig {
 
 impl MuonConfig {
     /// Build a [`Muon`] from the config.
-    pub fn build(&self) -> Muon {
+    pub(crate) fn build(&self) -> Muon {
         let momentum = Momentum::new(&self.momentum);
         let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
 

@@ -40,7 +40,7 @@ pub struct SgdState<const D: usize> {
 
 impl SgdConfig {
     /// Build a [`Sgd`] from the config.
-    pub fn build(&self) -> Sgd {
+    pub(crate) fn build(&self) -> Sgd {
         Sgd {
             momentum: self.momentum.as_ref().map(Momentum::new),
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),

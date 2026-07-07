@@ -35,7 +35,7 @@ pub struct RmsPropConfig {
 
 impl RmsPropConfig {
     /// Build a [`RmsProp`] from the config.
-    pub fn build(&self) -> RmsProp {
+    pub(crate) fn build(&self) -> RmsProp {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
         RmsProp {
             alpha: self.alpha,

@@ -114,7 +114,7 @@ impl Optimizer for AdamW {
 
 impl AdamWConfig {
     /// Build an [`AdamW`] from the config.
-    pub fn build(&self) -> AdamW {
+    pub(crate) fn build(&self) -> AdamW {
         AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,
