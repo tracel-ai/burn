@@ -602,11 +602,12 @@ impl GraphNode for Chunk {
     }
 }
 
-/// Tests for the [repair_order] pass, driving it directly with hand-built chunkings.
+/// Tests for the [repair_order] pass (driven directly with hand-built chunkings) and the
+/// [on_dependent_op](StreamOptimizer::on_dependent_op) stop paths.
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream::execution::tests::TestOptimization;
+    use crate::stream::execution::tests::{TestOptimization, TestOptimizationBuilder};
     use burn_backend::{DType, Shape};
     use burn_ir::{BinaryOpIr, NumericOperationIr, TensorIr};
 
@@ -644,12 +645,20 @@ mod tests {
         )
     }
 
-    fn fused(ordering: Vec<usize>) -> ExecutionStrategy<TestOptimization> {
+    fn fused_with(
+        builder_id: usize,
+        ordering: Vec<usize>,
+        score: u64,
+    ) -> ExecutionStrategy<TestOptimization> {
         ExecutionStrategy::Optimization {
-            opt: TestOptimization::new(0, ordering.len()),
+            opt: TestOptimization::new(builder_id, ordering.len()),
             ordering: Arc::new(ordering),
-            score: 0,
+            score,
         }
+    }
+
+    fn fused(ordering: Vec<usize>) -> ExecutionStrategy<TestOptimization> {
+        fused_with(0, ordering, 0)
     }
 
     fn unfused(ordering: Vec<usize>) -> ExecutionStrategy<TestOptimization> {
@@ -690,5 +699,151 @@ mod tests {
             repaired.strategy,
             composed(vec![unfused(vec![0]), fused(vec![1, 2]), unfused(vec![3])]),
         );
+    }
+
+    /// A chunk appended after a chunk it feeds (a hole depending on a later-spliced hole) is
+    /// moved before its consumer.
+    #[test]
+    fn reorders_chunks_by_dependency() {
+        let ops = vec![
+            add(1, 2, 5),   // 0: fused
+            add(5, 3, 10),  // 1: fused, produces 10
+            add(10, 4, 20), // 2: unfused, reads 10
+        ];
+        // The consumer chunk was placed first.
+        let opt = BlockOptimization::new(
+            composed(vec![unfused(vec![2]), fused(vec![0, 1])]),
+            vec![2, 0, 1],
+        );
+
+        let repaired = repair_order(opt, &ops);
+
+        assert_eq!(repaired.ordering, vec![0, 1, 2]);
+        assert_eq!(
+            repaired.strategy,
+            composed(vec![fused(vec![0, 1]), unfused(vec![2])]),
+        );
+    }
+
+    /// Two fused chunks that feed each other cannot be linearized as atomic units and cannot be
+    /// split — the whole segment falls back to unfused stream order.
+    #[test]
+    fn falls_back_to_unfused_when_fused_chunks_cycle() {
+        let ops = vec![
+            add(1, 2, 10),  // 0: chunk A, produces 10
+            add(10, 6, 20), // 1: chunk B, reads 10, produces 20
+            add(20, 7, 21), // 2: chunk B
+            add(20, 5, 11), // 3: chunk A, reads 20
+        ];
+        let opt = BlockOptimization::new(
+            composed(vec![fused(vec![0, 3]), fused(vec![1, 2])]),
+            vec![0, 3, 1, 2],
+        );
+
+        let repaired = repair_order(opt, &ops);
+
+        assert_eq!(repaired.ordering, vec![0, 1, 2, 3]);
+        assert_eq!(repaired.strategy, unfused(vec![0, 1, 2, 3]));
+    }
+
+    /// A single (non-composed) strategy whose internal order breaks a tensor lifetime is
+    /// replaced by unfused stream order.
+    #[test]
+    fn single_strategy_with_invalid_order_unfuses() {
+        let ops = vec![
+            add(1, 2, 10),  // 0: produces 10
+            add(10, 3, 11), // 1: reads 10
+        ];
+        // The consumer is fused before its producer.
+        let opt = BlockOptimization::new(fused(vec![1, 0]), vec![1, 0]);
+
+        let repaired = repair_order(opt, &ops);
+
+        assert_eq!(repaired.ordering, vec![0, 1]);
+        assert_eq!(repaired.strategy, unfused(vec![0, 1]));
+    }
+
+    /// A single strategy with a valid order passes through untouched.
+    #[test]
+    fn single_strategy_with_valid_order_passes_through() {
+        let ops = vec![add(1, 2, 10), add(10, 3, 11)];
+        let opt = BlockOptimization::new(fused(vec![0, 1]), vec![0, 1]);
+
+        let repaired = repair_order(opt, &ops);
+
+        assert_eq!(repaired.ordering, vec![0, 1]);
+        assert_eq!(repaired.strategy, fused(vec![0, 1]));
+    }
+
+    /// Build a [StreamOptimizer] with one [TestOptimizationBuilder] per pattern.
+    fn optimizer(patterns: Vec<Vec<OperationIr>>) -> StreamOptimizer<TestOptimization> {
+        let builders = patterns
+            .into_iter()
+            .enumerate()
+            .map(|(i, p)| {
+                Box::new(TestOptimizationBuilder::new(i, p))
+                    as Box<dyn OperationFuser<TestOptimization>>
+            })
+            .collect();
+        StreamOptimizer::new(builders)
+    }
+
+    /// A dependent op arrives while the block cap is full of un-mergeable (ready) blocks: the
+    /// segment stops, the op is deferred, and the blocks registered so far still optimize.
+    #[test]
+    fn dependent_op_at_max_blocks_stops_when_no_merge_possible() {
+        let a1 = add(100, 101, 102);
+        let a2 = add(102, 103, 104);
+        let b1 = add(200, 201, 202);
+        let b2 = add(202, 203, 204);
+        let c = add(104, 204, 105); // Reads A's 104 and B's 204.
+
+        let mut opt = optimizer(vec![
+            vec![a1.clone(), a2.clone()],
+            vec![b1.clone(), b2.clone()],
+        ]);
+        opt.max_blocks = Some(2);
+
+        for op in [&a1, &a2, &b1, &b2] {
+            opt.register(op);
+        }
+        assert!(!opt.stopped);
+
+        // Both blocks hold their own ready fusion, so force-merging cannot free a slot.
+        opt.register(&c);
+        assert!(opt.stopped);
+
+        let ops = vec![a1, a2, b1, b2];
+        let res = opt.optimize(&ops);
+        assert_eq!(res.ordering, vec![0, 1, 2, 3]);
+        assert_eq!(
+            res.strategy,
+            composed(vec![
+                fused_with(0, vec![0, 1], 2),
+                fused_with(1, vec![2, 3], 2),
+            ]),
+        );
+    }
+
+    /// The defensive cycle check in [on_dependent_op](StreamOptimizer::on_dependent_op): an op
+    /// that reads a tensor a block frees AND a tensor the same block produces would have to run
+    /// both before and after that block. Unreachable from a valid stream (it reads a freed
+    /// tensor), so the path is driven directly.
+    #[test]
+    fn dependent_op_creating_a_cycle_stops_segment() {
+        let a = add_rw(1, 2, 3); // Block A: frees 1, produces 3.
+        let b = add(10, 11, 12); // Block B: unrelated.
+        let n = add(1, 3, 20); // Reads 1 (freed by A) and 3 (produced by A).
+
+        let mut opt = optimizer(vec![]);
+        opt.max_blocks = None;
+        opt.register(&a);
+        opt.register(&b);
+        assert_eq!(opt.blocks.len(), 2);
+
+        opt.on_dependent_op(&n);
+
+        assert!(opt.stopped);
+        assert_eq!(opt.blocks.len(), 2, "the cyclic block was rejected");
     }
 }
