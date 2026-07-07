@@ -3,7 +3,8 @@ use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use crate::{
     NumOperations,
     search::{
-        Block, BlockOptimization, MergeGuard, topological_order,
+        Block, BlockOptimization,
+        graph::Dag,
         merging::{MergeBlocksResult, merge_blocks},
     },
     stream::store::ExecutionStrategy,
@@ -68,8 +69,9 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         // Emit blocks in a valid execution order: a dependency must run before its dependents.
         // The set is acyclic (register keeps it so, and `merging_pass` only accepts cycle-free
         // merges), so `topological_order` always succeeds; fall back to the current order if not.
-        let order =
-            topological_order(&blocks).unwrap_or_else(|| (0..blocks.len()).collect::<Vec<_>>());
+        let order = Dag::new(&blocks)
+            .topological_order()
+            .unwrap_or_else(|| (0..blocks.len()).collect::<Vec<_>>());
         let mut slots: Vec<Option<Block<O>>> = blocks.into_iter().map(Some).collect();
         let blocks: Vec<Block<O>> = order
             .into_iter()
@@ -138,7 +140,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
             block.seed_constituent(i);
         }
         let blocks = self.blocks.iter().collect::<Vec<_>>();
-        let guard = MergeGuard::new(&blocks);
+        let guard = Dag::new(&blocks).reachability();
 
         match merge_blocks(&blocks, false, &guard) {
             MergeBlocksResult::Full(block) => {

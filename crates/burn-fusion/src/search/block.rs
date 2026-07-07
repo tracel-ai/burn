@@ -1,4 +1,8 @@
-use crate::{FuserStatus, NumOperations, OperationFuser, stream::store::ExecutionStrategy};
+use crate::{
+    FuserStatus, NumOperations, OperationFuser,
+    search::graph::{GraphNode, SubGraph},
+    stream::store::ExecutionStrategy,
+};
 use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use std::{collections::HashSet, sync::Arc};
 
@@ -14,20 +18,16 @@ pub struct Block<O> {
     /// Tensor ids produced (as an output) by an operation of this block.
     produced: HashSet<TensorId>,
     /// Tensor ids consumed by this block but produced elsewhere (external inputs).
-    ///
-    /// A dependency edge `self -> other` exists iff `self.inputs_external` intersects
-    /// `other.produced` — i.e. this block consumes a tensor the other block produces.
-    inputs_external: HashSet<TensorId>,
+    read: HashSet<TensorId>,
     /// Tensor ids this block reads with [ReadWrite](TensorStatus::ReadWrite) status — i.e. it is
-    /// the last use and frees/reuses the buffer in place. Any other block that also reads such a
-    /// tensor must execute *before* this one (a write-after-read / anti-dependency).
-    reads_rw: HashSet<TensorId>,
-    /// Bitmask of the original block indices this block subsumes.
+    /// the last use and frees/reuses the buffer in place.
+    freed: HashSet<TensorId>,
+    /// The original blocks this block subsumes.
     ///
-    /// Seeded to a single bit by the optimizer before a merge pass and OR-ed together on
-    /// [merge](Self::merge). Used by the merge guard to reason about the original dependency
-    /// DAG through the recursive merging.
-    constituents: u64,
+    /// Seeded to a single node by the optimizer before a merge pass and unioned on
+    /// [merge](Self::merge), so the [Reachability](crate::search::graph::Reachability) guard can
+    /// reason about the original dependency graph through the recursive merging.
+    constituents: SubGraph,
     ordering: Vec<usize>,
     /// The start position in the relative execution stream.
     pub start_pos: usize,
@@ -55,29 +55,36 @@ pub struct BlockOptimization<O> {
 }
 
 impl<O> Block<O> {
-    /// Tensor ids produced (as an output) by an operation of this block.
-    pub fn produced(&self) -> &HashSet<TensorId> {
-        &self.produced
+    /// The original blocks this block subsumes.
+    pub fn constituents(&self) -> &SubGraph {
+        &self.constituents
     }
 
-    /// Tensor ids consumed by this block but produced elsewhere (external inputs).
-    pub fn inputs_external(&self) -> &HashSet<TensorId> {
-        &self.inputs_external
-    }
-
-    /// Tensor ids this block reads with [ReadWrite](TensorStatus::ReadWrite) status.
-    pub fn reads_rw(&self) -> &HashSet<TensorId> {
-        &self.reads_rw
-    }
-
-    /// Bitmask of the original block indices this block subsumes.
-    pub fn constituents(&self) -> u64 {
-        self.constituents
-    }
-
-    /// Seed this block's [constituents](Self::constituents) mask to a single original index.
+    /// Seed this block's [constituents](Self::constituents) to a single original block index.
     pub fn seed_constituent(&mut self, index: usize) {
-        self.constituents = 1 << index;
+        self.constituents = SubGraph::single(index);
+    }
+}
+
+/// The dependency edges between blocks are derived from what each block reads, produces, and
+/// frees — see [GraphNode].
+impl<O> GraphNode for Block<O> {
+    type Resource = TensorId;
+
+    fn produced(&self) -> impl Iterator<Item = TensorId> {
+        self.produced.iter().copied()
+    }
+
+    fn read(&self) -> impl Iterator<Item = TensorId> {
+        self.read.iter().copied()
+    }
+
+    fn freed(&self) -> impl Iterator<Item = TensorId> {
+        self.freed.iter().copied()
+    }
+
+    fn position(&self) -> usize {
+        self.start_pos
     }
 }
 
@@ -89,9 +96,9 @@ impl<O: NumOperations> Block<O> {
             operations: Vec::new(),
             ids: HashSet::new(),
             produced: HashSet::new(),
-            inputs_external: HashSet::new(),
-            reads_rw: HashSet::new(),
-            constituents: 0,
+            read: HashSet::new(),
+            freed: HashSet::new(),
+            constituents: SubGraph::empty(),
             ordering: Vec::new(),
             start_pos: usize::MAX,
             end_pos: usize::MIN,
@@ -149,9 +156,9 @@ impl<O: NumOperations> Block<O> {
         let self_ready = self.has_ready_optimization();
         let other_ready = other.has_ready_optimization();
 
-        // Absorb the other block's original-index provenance so the merge guard sees the
-        // combined set on any subsequent `can_merge` check.
-        self.constituents |= other.constituents;
+        // Absorb the other block's provenance so the merge guard sees the combined set on any
+        // subsequent `can_contract` check.
+        self.constituents.union_with(&other.constituents);
 
         for (op, pos) in other.operations.iter().zip(&other.ordering) {
             self.register(op, *pos, true);
@@ -242,21 +249,21 @@ impl<O: NumOperations> Block<O> {
             self.ids.insert(node.id);
         }
 
-        // Maintain the produced / external-input sets incrementally. A consumed id becomes an
-        // external input only while nothing in the block has produced it; producing an id makes
+        // Maintain the produced / external-read sets incrementally. A consumed id counts as an
+        // external read only while nothing in the block has produced it; producing an id makes
         // it internal (and clears any earlier external record). This is order-independent, so it
         // stays correct when `merge` folds ops in a non-causal order.
         for node in operation.inputs() {
             if !self.produced.contains(&node.id) {
-                self.inputs_external.insert(node.id);
+                self.read.insert(node.id);
             }
             if let TensorStatus::ReadWrite = node.status {
-                self.reads_rw.insert(node.id);
+                self.freed.insert(node.id);
             }
         }
         for node in operation.outputs() {
             self.produced.insert(node.id);
-            self.inputs_external.remove(&node.id);
+            self.read.remove(&node.id);
         }
     }
 }
@@ -359,12 +366,130 @@ impl<O> Clone for Block<O> {
             operations: self.operations.clone(),
             ids: self.ids.clone(),
             produced: self.produced.clone(),
-            inputs_external: self.inputs_external.clone(),
-            reads_rw: self.reads_rw.clone(),
-            constituents: self.constituents,
+            read: self.read.clone(),
+            freed: self.freed.clone(),
+            constituents: self.constituents.clone(),
             ordering: self.ordering.clone(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
         }
+    }
+}
+
+/// Integration of [Block] with the [graph](crate::search::graph) algorithms: dependency edges
+/// between blocks are derived from the tensors they read, produce, and free.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::graph::Dag;
+    use crate::stream::execution::tests::TestOptimization;
+    use burn_backend::{DType, Shape};
+    use burn_ir::{BinaryOpIr, NumericOperationIr};
+
+    fn tensor(id: u64) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::new([32, 32]),
+            status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
+        }
+    }
+
+    fn add(lhs: u64, rhs: u64, out: u64) -> OperationIr {
+        OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(BinaryOpIr {
+                lhs: tensor(lhs),
+                rhs: tensor(rhs),
+                out: tensor(out),
+            }),
+        )
+    }
+
+    /// Like [add] but reads `lhs` with `ReadWrite` status (it is freed / reused in place).
+    fn add_rw(lhs: u64, rhs: u64, out: u64) -> OperationIr {
+        let mut lhs = tensor(lhs);
+        lhs.status = TensorStatus::ReadWrite;
+        OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(BinaryOpIr {
+                lhs,
+                rhs: tensor(rhs),
+                out: tensor(out),
+            }),
+        )
+    }
+
+    /// A block owning the given `(operation, position)` pairs. No builders needed — the
+    /// dependency analysis only reads the data-flow sets and `start_pos`.
+    fn block(ops: &[(OperationIr, usize)]) -> Block<TestOptimization> {
+        let builders: Vec<Box<dyn OperationFuser<TestOptimization>>> = Vec::new();
+        let mut block = Block::new(&builders);
+        for (op, pos) in ops {
+            block.register(op, *pos, true);
+        }
+        block
+    }
+
+    #[test]
+    fn dependency_beats_start_pos_in_topological_order() {
+        // Block 0 (start_pos 0) consumes tensor 50, which block 1 (start_pos 5) produces.
+        let blocks = vec![
+            block(&[(add(50, 1, 2), 0)]), // Consumes 50 -> depends on block 1.
+            block(&[(add(9, 8, 50), 5)]), // Produces 50.
+        ];
+
+        assert_eq!(Dag::new(&blocks).topological_order(), Some(vec![1, 0]));
+    }
+
+    #[test]
+    fn mutual_dependency_between_blocks_is_a_cycle() {
+        // Block 0 produces 100 (consumed by block 1) and consumes 200 (produced by block 1).
+        let blocks = vec![
+            block(&[(add(1, 2, 100), 0), (add(200, 3, 101), 1)]),
+            block(&[(add(100, 4, 200), 2)]),
+        ];
+
+        assert!(!Dag::new(&blocks).is_acyclic());
+    }
+
+    #[test]
+    fn freeing_block_runs_after_reading_block() {
+        // Both blocks read tensor 100 (produced elsewhere): block 0 read-only, block 1 frees it
+        // (ReadWrite). The freer must run after the reader.
+        let blocks = vec![
+            block(&[(add(100, 1, 2), 0)]),    // Reads 100 read-only.
+            block(&[(add_rw(100, 3, 4), 1)]), // Frees 100.
+        ];
+
+        assert_eq!(Dag::new(&blocks).topological_order(), Some(vec![0, 1]));
+    }
+
+    #[test]
+    fn merge_guard_blocks_contraction_around_intermediate_block() {
+        // A(0) -> C(1) -> B(2): C sits between A and B, so merging A and B would create a cycle.
+        let mut blocks = vec![
+            block(&[(add(1, 2, 100), 0)]),   // A: produces 100.
+            block(&[(add(100, 3, 200), 1)]), // C: consumes 100, produces 200.
+            block(&[(add(200, 4, 300), 2)]), // B: consumes 200.
+        ];
+        for (i, block) in blocks.iter_mut().enumerate() {
+            block.seed_constituent(i);
+        }
+        let guard = Dag::new(&blocks).reachability();
+
+        // A and B cannot merge (C is between them)...
+        assert!(!guard.can_contract(blocks[0].constituents(), blocks[2].constituents()));
+        // ...but each direct edge is fine.
+        assert!(guard.can_contract(blocks[0].constituents(), blocks[1].constituents()));
+        assert!(guard.can_contract(blocks[1].constituents(), blocks[2].constituents()));
+    }
+
+    #[test]
+    fn merge_guard_refuses_unseeded_blocks() {
+        let blocks = vec![block(&[(add(1, 2, 3), 0)]), block(&[(add(4, 5, 6), 1)])];
+        let guard = Dag::new(&blocks).reachability();
+
+        assert!(!guard.can_contract(blocks[0].constituents(), blocks[1].constituents()));
     }
 }

@@ -1,5 +1,5 @@
-use super::{Block, MergeGuard};
-use crate::NumOperations;
+use super::Block;
+use crate::{NumOperations, search::graph::Reachability};
 
 #[derive(Debug, PartialEq)]
 /// The result of [merging](merge_blocks) [blocks](Block).
@@ -37,7 +37,7 @@ pub enum MergeBlocksResult<O> {
 pub fn merge_blocks<O: NumOperations>(
     blocks: &[&Block<O>],
     sorted: bool,
-    guard: &MergeGuard,
+    guard: &Reachability,
 ) -> MergeBlocksResult<O> {
     if blocks.is_empty() {
         return MergeBlocksResult::Fail;
@@ -104,7 +104,7 @@ impl<O> Default for MergeBlockStep1<O> {
 
 fn merge_blocks_step1<O: NumOperations>(
     blocks: &[&Block<O>],
-    guard: &MergeGuard,
+    guard: &Reachability,
 ) -> MergeBlockStep1<O> {
     let step_size = blocks.len() / 2;
     let num_steps = f32::ceil(blocks.len() as f32 / step_size as f32) as usize;
@@ -139,7 +139,7 @@ fn merge_blocks_step1<O: NumOperations>(
 
 fn merge_blocks_step2<O: NumOperations>(
     mut step1: MergeBlockStep1<O>,
-    guard: &MergeGuard,
+    guard: &Reachability,
 ) -> MergeBlocksResult<O> {
     // First let's try to merge partial graphs.
     if step1.partial.len() > 1 {
@@ -238,7 +238,7 @@ fn merge_blocks_step2<O: NumOperations>(
 fn merge_accumulator<O: NumOperations>(
     base: &Block<O>,
     blocks: &[Block<O>],
-    guard: &MergeGuard,
+    guard: &Reachability,
 ) -> MergeBlocksResult<O> {
     let mut base = base.clone();
     let mut merged_failed = Vec::<Block<O>>::new();
@@ -247,7 +247,7 @@ fn merge_accumulator<O: NumOperations>(
     for block in blocks {
         // Skip a contraction that would create a dependency cycle. `base.constituents` grows as
         // it absorbs blocks, so this correctly accounts for everything already merged in.
-        if !guard.can_merge(base.constituents(), block.constituents()) {
+        if !guard.can_contract(base.constituents(), block.constituents()) {
             merged_failed.push((*block).clone());
             continue;
         }
@@ -281,9 +281,9 @@ fn merge_accumulator<O: NumOperations>(
 fn merge_two<O: NumOperations>(
     a: &Block<O>,
     b: &Block<O>,
-    guard: &MergeGuard,
+    guard: &Reachability,
 ) -> Option<Block<O>> {
-    if !guard.can_merge(a.constituents(), b.constituents()) {
+    if !guard.can_contract(a.constituents(), b.constituents()) {
         return None;
     }
 
@@ -307,16 +307,18 @@ mod tests {
     pub use crate::stream::execution::tests::{TestOptimization, TestOptimizationBuilder};
     use crate::{
         OperationFuser,
+        search::graph::Dag,
         stream::tests::{operation_1, operation_2, operation_3},
     };
 
-    /// Seed constituents by index, build the [MergeGuard] from the blocks, and merge (sorted).
+    /// Seed constituents by index, build the [Reachability] guard from the blocks, and merge
+    /// (sorted).
     fn merge(mut blocks: Vec<Block<TestOptimization>>) -> MergeBlocksResult<TestOptimization> {
         for (i, block) in blocks.iter_mut().enumerate() {
             block.seed_constituent(i);
         }
         let refs = blocks.iter().collect::<Vec<_>>();
-        let guard = MergeGuard::new(&refs);
+        let guard = Dag::new(&refs).reachability();
         merge_blocks(&refs, true, &guard)
     }
 

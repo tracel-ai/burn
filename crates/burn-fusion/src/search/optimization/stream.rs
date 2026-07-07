@@ -2,7 +2,8 @@ use super::blocks::BlocksOptimizer;
 use crate::{
     NumOperations, OperationFuser,
     search::{
-        Block, BlockOptimization, MergeGuard, RegistrationResult, has_cycle,
+        Block, BlockOptimization, RegistrationResult,
+        graph::{Dag, GraphNode, is_valid_execution_order},
         merging::{MergeBlocksResult, merge_blocks},
         optimization::blocks::BlocksOptimizerResult,
     },
@@ -273,7 +274,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
             block.seed_constituent(i);
         }
         let all_blocks = self.blocks.iter().collect::<Vec<_>>();
-        let guard = MergeGuard::new(&all_blocks);
+        let guard = Dag::new(&all_blocks).reachability();
 
         let blocks_to_merge = self
             .blocks
@@ -337,7 +338,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
     /// The new block owns the operation's outputs and records its upstream inputs as external —
     /// those external inputs form the dependency edges. A freshly created block is a pure sink, so
     /// it cannot create a cycle, except through an in-place output that re-produces an upstream
-    /// tensor; that case is caught by the defensive [has_cycle] check.
+    /// tensor; that case is caught by the defensive acyclicity check.
     fn on_dependent_op(&mut self, operation: &OperationIr) {
         // Dependent blocks count toward the cap. With no room left, try to free a slot by
         // force-merging mergeable blocks; if that fails, stop the segment (the op is deferred).
@@ -363,7 +364,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
         block.register(operation, self.length, true);
         self.blocks.push(block);
 
-        if has_cycle(&self.blocks) {
+        if !Dag::new(&self.blocks).is_acyclic() {
             self.blocks.pop();
             let length = self.length;
             log_fusion(FusionLogLevel::Medium, || {
@@ -398,19 +399,13 @@ enum MergeBlockStep {
 ///
 /// Blocks and re-optimized holes are placed by separate, incremental heuristics that can't see the
 /// whole picture (a hole may depend on another hole spliced later). This final pass treats each
-/// top-level strategy as an atomic chunk and topologically sorts them by hazard edges:
+/// top-level strategy as an atomic [Chunk] node and orders the chunks topologically (see
+/// [GraphNode] for the hazard rules deriving the edges). Ties keep the earliest stream position
+/// first, reproducing the historical order when there are no hazards.
 ///
-/// - **read-after-write**: a chunk that reads a tensor must run after the chunk that produces it;
-/// - **write-after-read**: a chunk that frees a tensor (reads it `ReadWrite`, its last use) must run
-///   after every chunk that reads that tensor.
-///
-/// Ties keep the earliest stream position first (stable, reproduces the historical order when there
-/// are no hazards). If the chunk graph has a cycle — the chunking can't be linearized as atomic
-/// units — fall back to running every operation unfused in stream order, which is always valid.
-fn repair_order<O>(
-    opt: BlockOptimization<O>,
-    operations: &[OperationIr],
-) -> BlockOptimization<O> {
+/// If the chunk graph has a cycle — the chunking can't be linearized as atomic units — fall back
+/// to running every operation unfused in stream order, which is always valid.
+fn repair_order<O>(opt: BlockOptimization<O>, operations: &[OperationIr]) -> BlockOptimization<O> {
     let (strategies, ordering) = match opt.strategy {
         ExecutionStrategy::Composed(items) => (items, opt.ordering),
         // A single strategy has nothing to reorder across, but a merge can still leave its ops
@@ -423,94 +418,30 @@ fn repair_order<O>(
         }
     };
 
-    let n = strategies.len();
-    let mut chunks: Vec<Vec<usize>> = Vec::with_capacity(n);
+    // Split the concatenated ordering back into one chunk per top-level strategy.
+    let mut chunks = Vec::with_capacity(strategies.len());
     let mut offset = 0;
-    for s in &strategies {
-        let len = strategy_len(s);
-        chunks.push(ordering[offset..offset + len].to_vec());
+    for strategy in &strategies {
+        let len = strategy_len(strategy);
+        chunks.push(Chunk::new(ordering[offset..offset + len].to_vec(), operations));
         offset += len;
     }
 
-    let mut produces = vec![HashSet::<TensorId>::new(); n];
-    let mut reads = vec![HashSet::<TensorId>::new(); n];
-    let mut frees = vec![HashSet::<TensorId>::new(); n];
-    for i in 0..n {
-        for &p in &chunks[i] {
-            for t in operations[p].outputs() {
-                produces[i].insert(t.id);
-            }
+    let order = match Dag::new(&chunks).topological_order() {
+        Some(order) => order,
+        // Cycle: the chunking isn't linearizable — run everything unfused in stream order.
+        None => {
+            return unfused_stream_order(chunks.into_iter().flat_map(|c| c.positions).collect());
         }
-        for &p in &chunks[i] {
-            for t in operations[p].inputs() {
-                if produces[i].contains(&t.id) {
-                    continue;
-                }
-                reads[i].insert(t.id);
-                if let TensorStatus::ReadWrite = t.status {
-                    frees[i].insert(t.id);
-                }
-            }
-        }
-    }
-
-    // `i` depends on `j` (j before i) if i reads what j produces, or i frees what j reads.
-    let mut indegree = vec![0usize; n];
-    let mut successors: Vec<Vec<usize>> = vec![Vec::new(); n];
-    for i in 0..n {
-        for j in 0..n {
-            if i == j {
-                continue;
-            }
-            if intersects(&reads[i], &produces[j]) || intersects(&frees[i], &reads[j]) {
-                indegree[i] += 1;
-                successors[j].push(i);
-            }
-        }
-    }
-
-    let min_pos: Vec<usize> = chunks
-        .iter()
-        .map(|c| c.iter().copied().min().unwrap_or(0))
-        .collect();
-
-    let mut order = Vec::with_capacity(n);
-    let mut done = vec![false; n];
-    for _ in 0..n {
-        let mut pick: Option<usize> = None;
-        for k in 0..n {
-            if done[k] || indegree[k] != 0 {
-                continue;
-            }
-            match pick {
-                None => pick = Some(k),
-                Some(p) => {
-                    if (min_pos[k], k) < (min_pos[p], p) {
-                        pick = Some(k);
-                    }
-                }
-            }
-        }
-        match pick {
-            Some(k) => {
-                done[k] = true;
-                order.push(k);
-                for &s in &successors[k] {
-                    indegree[s] -= 1;
-                }
-            }
-            // Cycle: the chunking isn't linearizable — run everything unfused in stream order.
-            None => return unfused_stream_order(chunks.into_iter().flatten().collect()),
-        }
-    }
+    };
 
     let mut slots: Vec<Option<Box<ExecutionStrategy<O>>>> =
         strategies.into_iter().map(Some).collect();
-    let mut new_strategies = Vec::with_capacity(n);
+    let mut new_strategies = Vec::with_capacity(order.len());
     let mut new_ordering = Vec::with_capacity(ordering.len());
     for &k in &order {
         new_strategies.push(slots[k].take().expect("each chunk taken once"));
-        new_ordering.extend_from_slice(&chunks[k]);
+        new_ordering.extend_from_slice(&chunks[k].positions);
     }
 
     // A chunk that is internally mis-ordered (e.g. a merge that concatenated two blocks' orderings
@@ -530,37 +461,19 @@ fn unfused_stream_order<O>(mut positions: Vec<usize>) -> BlockOptimization<O> {
     BlockOptimization::new(ExecutionStrategy::Operations { ordering }, positions)
 }
 
-/// Simulate tensor handle lifetimes over an execution order: every operation's inputs must be live
-/// when it runs. A tensor read `ReadWrite` is freed after that read; tensors first seen as inputs
-/// come from an earlier segment and are assumed live.
+/// Whether the execution order respects tensor handle lifetimes: every operation's inputs must be
+/// live when it runs (see [is_valid_execution_order]).
 fn ordering_is_valid(ordering: &[usize], operations: &[OperationIr]) -> bool {
-    let produced: HashSet<TensorId> = ordering
+    let nodes = operations
         .iter()
-        .flat_map(|&p| operations[p].outputs().map(|t| t.id))
-        .collect();
-    let mut alive: HashSet<TensorId> = HashSet::new();
-    for &p in ordering {
-        for t in operations[p].inputs() {
-            if !alive.contains(&t.id) {
-                if produced.contains(&t.id) {
-                    return false; // produced in this segment but not live yet: bad order
-                }
-                alive.insert(t.id); // external tensor from a prior segment
-            }
-            if let TensorStatus::ReadWrite = t.status {
-                alive.remove(&t.id);
-            }
-        }
-        for t in operations[p].outputs() {
-            alive.insert(t.id);
-        }
-    }
-    true
-}
+        .enumerate()
+        .map(|(position, operation)| OperationNode {
+            position,
+            operation,
+        })
+        .collect::<Vec<_>>();
 
-fn intersects(a: &HashSet<TensorId>, b: &HashSet<TensorId>) -> bool {
-    let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
-    small.iter().any(|id| large.contains(id))
+    is_valid_execution_order(&nodes, ordering)
 }
 
 /// Number of stream positions a strategy covers (its share of the concatenated ordering).
@@ -569,6 +482,96 @@ fn strategy_len<O>(strategy: &ExecutionStrategy<O>) -> usize {
         ExecutionStrategy::Optimization { ordering, .. } => ordering.len(),
         ExecutionStrategy::Operations { ordering } => ordering.len(),
         ExecutionStrategy::Composed(items) => items.iter().map(|s| strategy_len(s)).sum(),
+    }
+}
+
+/// One top-level strategy of a composed optimization, viewed as a single atomic [GraphNode]
+/// covering the stream positions of its operations.
+struct Chunk {
+    positions: Vec<usize>,
+    produced: HashSet<TensorId>,
+    read: HashSet<TensorId>,
+    freed: HashSet<TensorId>,
+}
+
+impl Chunk {
+    fn new(positions: Vec<usize>, operations: &[OperationIr]) -> Self {
+        let mut produced = HashSet::new();
+        for &position in &positions {
+            for tensor in operations[position].outputs() {
+                produced.insert(tensor.id);
+            }
+        }
+
+        let mut read = HashSet::new();
+        let mut freed = HashSet::new();
+        for &position in &positions {
+            for tensor in operations[position].inputs() {
+                if produced.contains(&tensor.id) {
+                    continue;
+                }
+                read.insert(tensor.id);
+                if let TensorStatus::ReadWrite = tensor.status {
+                    freed.insert(tensor.id);
+                }
+            }
+        }
+
+        Self {
+            positions,
+            produced,
+            read,
+            freed,
+        }
+    }
+}
+
+impl GraphNode for Chunk {
+    type Resource = TensorId;
+
+    fn produced(&self) -> impl Iterator<Item = TensorId> {
+        self.produced.iter().copied()
+    }
+
+    fn read(&self) -> impl Iterator<Item = TensorId> {
+        self.read.iter().copied()
+    }
+
+    fn freed(&self) -> impl Iterator<Item = TensorId> {
+        self.freed.iter().copied()
+    }
+
+    fn position(&self) -> usize {
+        self.positions.iter().copied().min().unwrap_or(0)
+    }
+}
+
+/// A single operation at its stream position, viewed as a [GraphNode].
+struct OperationNode<'a> {
+    position: usize,
+    operation: &'a OperationIr,
+}
+
+impl GraphNode for OperationNode<'_> {
+    type Resource = TensorId;
+
+    fn produced(&self) -> impl Iterator<Item = TensorId> {
+        self.operation.outputs().map(|tensor| tensor.id)
+    }
+
+    fn read(&self) -> impl Iterator<Item = TensorId> {
+        self.operation.inputs().map(|tensor| tensor.id)
+    }
+
+    fn freed(&self) -> impl Iterator<Item = TensorId> {
+        self.operation
+            .inputs()
+            .filter(|tensor| matches!(tensor.status, TensorStatus::ReadWrite))
+            .map(|tensor| tensor.id)
+    }
+
+    fn position(&self) -> usize {
+        self.position
     }
 }
 
