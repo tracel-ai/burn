@@ -1,5 +1,6 @@
 use super::{GraphNode, SubGraph};
-use std::collections::HashSet;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashSet};
 
 /// A dependency graph over a fixed list of nodes, with edges derived from the nodes' data-flow
 /// sets (see [GraphNode]).
@@ -20,10 +21,11 @@ impl Dag {
 
         let dependencies = io
             .iter()
-            .map(|node| {
+            .enumerate()
+            .map(|(i, node)| {
                 let mut deps = SubGraph::empty();
                 for (j, other) in io.iter().enumerate() {
-                    if !core::ptr::eq(node, other) && node.depends_on(other) {
+                    if i != j && node.depends_on(other) {
                         deps.insert(j);
                     }
                 }
@@ -55,24 +57,34 @@ impl Dag {
     /// emitted first, so an edge-free graph reproduces the original program order.
     pub fn topological_order(&self) -> Option<Vec<usize>> {
         let n = self.len();
-        let mut emitted = SubGraph::empty();
-        let mut order = Vec::with_capacity(n);
-
-        for _ in 0..n {
-            let next = (0..n)
-                .filter(|&i| !emitted.contains(i))
-                .filter(|&i| {
-                    let mut waiting = self.dependencies[i].clone();
-                    waiting.subtract(&emitted);
-                    waiting.is_empty()
-                })
-                .min_by_key(|&i| (self.positions[i], i))?;
-
-            emitted.insert(next);
-            order.push(next);
+        let mut pending = vec![0usize; n];
+        let mut dependents = vec![Vec::new(); n];
+        for (i, deps) in self.dependencies.iter().enumerate() {
+            for j in deps.iter() {
+                pending[i] += 1;
+                dependents[j].push(i);
+            }
         }
 
-        Some(order)
+        // Min-heap of the nodes ready to execute, keyed by `(position, index)`.
+        let mut ready: BinaryHeap<Reverse<(usize, usize)>> = (0..n)
+            .filter(|&i| pending[i] == 0)
+            .map(|i| Reverse((self.positions[i], i)))
+            .collect();
+
+        let mut order = Vec::with_capacity(n);
+        while let Some(Reverse((_, i))) = ready.pop() {
+            order.push(i);
+            for &dependent in &dependents[i] {
+                pending[dependent] -= 1;
+                if pending[dependent] == 0 {
+                    ready.push(Reverse((self.positions[dependent], dependent)));
+                }
+            }
+        }
+
+        // A node still pending at the end sits on a cycle.
+        (order.len() == n).then_some(order)
     }
 
     /// Whether the graph can be linearized.

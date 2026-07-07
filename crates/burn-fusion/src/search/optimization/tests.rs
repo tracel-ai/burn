@@ -8,30 +8,10 @@
 use std::sync::Arc;
 
 use super::StreamOptimizer;
+use crate::search::testing::add;
 use crate::stream::execution::tests::{TestOptimization, TestOptimizationBuilder};
 use crate::{OperationFuser, search::BlockOptimization, stream::store::ExecutionStrategy};
-use burn_backend::{DType, Shape};
-use burn_ir::{BinaryOpIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus};
-
-fn tensor(id: u64) -> TensorIr {
-    TensorIr {
-        id: TensorId::new(id),
-        shape: Shape::new([32, 32]),
-        status: TensorStatus::ReadOnly,
-        dtype: DType::F32,
-    }
-}
-
-fn add(lhs: u64, rhs: u64, out: u64) -> OperationIr {
-    OperationIr::NumericFloat(
-        DType::F32,
-        NumericOperationIr::Add(BinaryOpIr {
-            lhs: tensor(lhs),
-            rhs: tensor(rhs),
-            out: tensor(out),
-        }),
-    )
-}
+use burn_ir::OperationIr;
 
 /// Build a [StreamOptimizer] with one [TestOptimizationBuilder] per pattern.
 fn optimizer(patterns: Vec<Vec<OperationIr>>) -> StreamOptimizer<TestOptimization> {

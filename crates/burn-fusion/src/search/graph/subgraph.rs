@@ -37,6 +37,7 @@ impl SubGraph {
     }
 
     /// Whether the subgraph contains the node.
+    #[cfg(test)]
     pub fn contains(&self, node: usize) -> bool {
         self.words
             .get(node / BITS)

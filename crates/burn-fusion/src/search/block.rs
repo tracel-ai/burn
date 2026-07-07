@@ -438,43 +438,8 @@ impl<O> Clone for Block<O> {
 mod tests {
     use super::*;
     use crate::search::graph::Dag;
+    use crate::search::testing::{add, add_rw};
     use crate::stream::execution::tests::TestOptimization;
-    use burn_backend::{DType, Shape};
-    use burn_ir::{BinaryOpIr, NumericOperationIr};
-
-    fn tensor(id: u64) -> TensorIr {
-        TensorIr {
-            id: TensorId::new(id),
-            shape: Shape::new([32, 32]),
-            status: TensorStatus::ReadOnly,
-            dtype: DType::F32,
-        }
-    }
-
-    fn add(lhs: u64, rhs: u64, out: u64) -> OperationIr {
-        OperationIr::NumericFloat(
-            DType::F32,
-            NumericOperationIr::Add(BinaryOpIr {
-                lhs: tensor(lhs),
-                rhs: tensor(rhs),
-                out: tensor(out),
-            }),
-        )
-    }
-
-    /// Like [add] but reads `lhs` with `ReadWrite` status (it is freed / reused in place).
-    fn add_rw(lhs: u64, rhs: u64, out: u64) -> OperationIr {
-        let mut lhs = tensor(lhs);
-        lhs.status = TensorStatus::ReadWrite;
-        OperationIr::NumericFloat(
-            DType::F32,
-            NumericOperationIr::Add(BinaryOpIr {
-                lhs,
-                rhs: tensor(rhs),
-                out: tensor(out),
-            }),
-        )
-    }
 
     /// A block owning the given `(operation, position)` pairs. No builders needed — the
     /// dependency analysis only reads the data-flow sets and `start_pos`.

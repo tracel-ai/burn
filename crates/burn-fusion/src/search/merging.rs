@@ -472,27 +472,7 @@ mod tests {
     /// degrading to a partial one.
     #[test]
     fn test_merge_blocks_accumulator_reverses_direction() {
-        use burn_backend::{DType, Shape};
-        use burn_ir::{
-            BinaryOpIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
-        };
-
-        fn add(lhs: u64, rhs: u64, out: u64) -> OperationIr {
-            let tensor = |id: u64| TensorIr {
-                id: TensorId::new(id),
-                shape: Shape::new([32, 32]),
-                status: TensorStatus::ReadOnly,
-                dtype: DType::F32,
-            };
-            OperationIr::NumericFloat(
-                DType::F32,
-                NumericOperationIr::Add(BinaryOpIr {
-                    lhs: tensor(lhs),
-                    rhs: tensor(rhs),
-                    out: tensor(out),
-                }),
-            )
-        }
+        use crate::search::testing::add;
 
         let x = add(1, 2, 10);
         let y = add(50, 3, 11); // Reads 50...

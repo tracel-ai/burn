@@ -618,43 +618,8 @@ impl GraphNode for Chunk {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::testing::{add, add_rw};
     use crate::stream::execution::tests::{TestOptimization, TestOptimizationBuilder};
-    use burn_backend::{DType, Shape};
-    use burn_ir::{BinaryOpIr, NumericOperationIr, TensorIr};
-
-    fn tensor(id: u64) -> TensorIr {
-        TensorIr {
-            id: TensorId::new(id),
-            shape: Shape::new([32, 32]),
-            status: TensorStatus::ReadOnly,
-            dtype: DType::F32,
-        }
-    }
-
-    fn add(lhs: u64, rhs: u64, out: u64) -> OperationIr {
-        OperationIr::NumericFloat(
-            DType::F32,
-            NumericOperationIr::Add(BinaryOpIr {
-                lhs: tensor(lhs),
-                rhs: tensor(rhs),
-                out: tensor(out),
-            }),
-        )
-    }
-
-    /// Like [add] but reads `lhs` with `ReadWrite` status (last use — frees the tensor).
-    fn add_rw(lhs: u64, rhs: u64, out: u64) -> OperationIr {
-        let mut lhs = tensor(lhs);
-        lhs.status = TensorStatus::ReadWrite;
-        OperationIr::NumericFloat(
-            DType::F32,
-            NumericOperationIr::Add(BinaryOpIr {
-                lhs,
-                rhs: tensor(rhs),
-                out: tensor(out),
-            }),
-        )
-    }
 
     fn fused_with(
         builder_id: usize,
