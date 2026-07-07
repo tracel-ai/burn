@@ -344,6 +344,55 @@ impl<O> BlockOptimization<O> {
         }
         self.strategy.map_ordering(mapping);
     }
+
+    /// Extend the optimization to cover all `num_operations` of its segment: the
+    /// positions the search left uncovered (the drained tail of a block whose best
+    /// fusion stopped early) are appended as un-fused
+    /// [operations](ExecutionStrategy::Operations) in a
+    /// [composed](ExecutionStrategy::Composed) strategy.
+    ///
+    /// Leaving the tail out is right in lazy mode — it seeds the next exploration
+    /// round, where more incoming operations may fuse with it. At a sync the segment
+    /// is final: no later round can pick the tail up, and a plan covering only part
+    /// of the segment can never be matched again (plan lookup at a sync compares the
+    /// whole remaining segment). Covering the full segment makes the cached plan
+    /// reusable on every subsequent identical sync.
+    ///
+    /// The uncovered positions are always a trailing run of the segment (interior
+    /// holes are re-optimized by the stream optimizer before this is called — enforced
+    /// by a debug assertion), so appending them last preserves the hazard-respecting
+    /// execution order.
+    pub fn include_trailing(&mut self, num_operations: usize) {
+        if self.ordering.len() >= num_operations {
+            return;
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            let mut resolved = vec![false; num_operations];
+            for &position in &self.ordering {
+                resolved[position] = true;
+            }
+            debug_assert!(
+                resolved[..self.ordering.len()].iter().all(|&r| r),
+                "uncovered positions must be a trailing run of the segment"
+            );
+        }
+        let trailing: Vec<usize> = (self.ordering.len()..num_operations).collect();
+
+        let tail = ExecutionStrategy::Operations {
+            ordering: Arc::new(trailing.clone()),
+        };
+        let strategy = core::mem::replace(&mut self.strategy, ExecutionStrategy::Composed(vec![]));
+        self.strategy = match strategy {
+            ExecutionStrategy::Composed(mut items) => {
+                items.push(Box::new(tail));
+                ExecutionStrategy::Composed(items)
+            }
+            single => ExecutionStrategy::Composed(vec![Box::new(single), Box::new(tail)]),
+        };
+        self.ordering.extend(trailing);
+    }
 }
 
 impl<O> ExecutionStrategy<O> {
