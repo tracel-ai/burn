@@ -192,6 +192,14 @@ impl<O: NumOperations> Block<O> {
     ///
     /// This will modify the current block even if the other block isn't correctly merged.
     pub fn merge(&mut self, other: &Block<O>) -> bool {
+        // A block executes as one contiguous unit in registration order (fused kernels replay
+        // the fusion order). Appending the other block's operations can place a consumer before
+        // its producer — or a free before a read — when the blocks depend on each other. Reject
+        // such merges before mutating anything; the caller can retry in the other direction.
+        if !self.can_append(other) {
+            return false;
+        }
+
         let self_ready = self.has_ready_optimization();
         let other_ready = other.has_ready_optimization();
 
@@ -201,14 +209,6 @@ impl<O: NumOperations> Block<O> {
 
         for (op, pos) in other.operations.iter().zip(&other.ordering) {
             self.register(op, *pos, true);
-        }
-
-        // A block executes as one contiguous unit in registration order (fused kernels replay
-        // the fusion order). Appending the other block's operations can place a consumer before
-        // its producer — or a free before a read — when the blocks depend on each other. Reject
-        // such merges here; the caller can retry in the other direction.
-        if !self.has_valid_internal_order() {
-            return false;
         }
 
         // If the merged block can still be improved, keep it — that's the
@@ -228,10 +228,14 @@ impl<O: NumOperations> Block<O> {
         self.builders.iter().any(|b| b.properties().ready)
     }
 
-    /// Whether the block's operations, executed in registration order, respect tensor lifetimes
+    /// Whether appending the other block's operations after this block's — the registration
+    /// order a [merge](Self::merge) in this direction produces — respects every tensor lifetime
     /// (no read before the producing operation, no read after the freeing operation).
-    fn has_valid_internal_order(&self) -> bool {
-        is_valid_execution_order(self.operation_nodes())
+    ///
+    /// This is the validity check `merge` performs, exposed so callers can test a merge
+    /// direction *before* paying for a deep clone of the base block.
+    pub fn can_append<'a>(&'a self, other: &'a Block<O>) -> bool {
+        is_valid_execution_order(self.operation_nodes().chain(other.operation_nodes()))
     }
 
     /// The block's operations in registration order, viewed as [graph nodes](OperationNode).

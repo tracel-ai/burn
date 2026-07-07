@@ -282,18 +282,23 @@ fn merge_two<O: NumOperations>(
         return None;
     }
 
-    let mut base = a.clone();
-
-    if base.merge(b) {
-        return Some(base);
+    // Test each direction's operation order before paying for a deep clone of the base block
+    // (operations, builders, and data-flow sets all clone).
+    if a.can_append(b) {
+        let mut base = a.clone();
+        if base.merge(b) {
+            return Some(base);
+        }
     }
 
-    let mut base = b.clone();
-
-    match base.merge(a) {
-        true => Some(base),
-        false => None,
+    if b.can_append(a) {
+        let mut base = b.clone();
+        if base.merge(a) {
+            return Some(base);
+        }
     }
+
+    None
 }
 
 #[cfg(test)]
