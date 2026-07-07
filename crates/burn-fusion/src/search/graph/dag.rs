@@ -10,6 +10,8 @@ use std::collections::BinaryHeap;
 pub struct Dag {
     /// `dependencies[i]` = nodes that must execute before node `i` (direct edges only).
     dependencies: Vec<SubGraph>,
+    /// `dependents[j]` = nodes that directly depend on node `j` (transpose of `dependencies`).
+    dependents: Vec<SubGraph>,
     /// Tie-break position of each node (see [GraphNode::position]).
     positions: Vec<usize>,
 }
@@ -17,22 +19,22 @@ pub struct Dag {
 impl Dag {
     /// Build the dependency graph of the given nodes.
     pub fn new<N: GraphNode>(nodes: &[N]) -> Self {
-        let dependencies = nodes
-            .iter()
-            .enumerate()
-            .map(|(i, node)| {
-                let mut deps = SubGraph::empty();
-                for (j, other) in nodes.iter().enumerate() {
-                    if i != j && depends_on(node, other) {
-                        deps.insert(j);
-                    }
+        let n = nodes.len();
+        let mut dependencies = vec![SubGraph::empty(); n];
+        let mut dependents = vec![SubGraph::empty(); n];
+
+        for (i, node) in nodes.iter().enumerate() {
+            for (j, other) in nodes.iter().enumerate() {
+                if i != j && depends_on(node, other) {
+                    dependencies[i].insert(j);
+                    dependents[j].insert(i);
                 }
-                deps
-            })
-            .collect();
+            }
+        }
 
         Self {
             dependencies,
+            dependents,
             positions: nodes.iter().map(|n| n.position()).collect(),
         }
     }
@@ -55,14 +57,7 @@ impl Dag {
     /// emitted first, so an edge-free graph reproduces the original program order.
     pub fn topological_order(&self) -> Option<Vec<usize>> {
         let n = self.len();
-        let mut pending = vec![0usize; n];
-        let mut dependents = vec![Vec::new(); n];
-        for (i, deps) in self.dependencies.iter().enumerate() {
-            for j in deps.iter() {
-                pending[i] += 1;
-                dependents[j].push(i);
-            }
-        }
+        let mut pending: Vec<usize> = self.dependencies.iter().map(SubGraph::len).collect();
 
         // Min-heap of the nodes ready to execute, keyed by `(position, index)`.
         let mut ready: BinaryHeap<Reverse<(usize, usize)>> = (0..n)
@@ -73,7 +68,7 @@ impl Dag {
         let mut order = Vec::with_capacity(n);
         while let Some(Reverse((_, i))) = ready.pop() {
             order.push(i);
-            for &dependent in &dependents[i] {
+            for dependent in self.dependents[i].iter() {
                 pending[dependent] -= 1;
                 if pending[dependent] == 0 {
                     ready.push(Reverse((self.positions[dependent], dependent)));

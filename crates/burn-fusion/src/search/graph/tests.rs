@@ -66,10 +66,11 @@ mod subgraph {
         assert!(set.is_empty());
 
         set.insert(3);
-        set.insert(70); // Second word.
+        set.insert(70); // Spills past the inline word.
         assert!(set.contains(3));
         assert!(set.contains(70));
         assert!(!set.contains(4));
+        assert_eq!(set.len(), 2);
         assert_eq!(set.iter().collect::<Vec<_>>(), vec![3, 70]);
     }
 
