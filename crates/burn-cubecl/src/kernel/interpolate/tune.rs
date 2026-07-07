@@ -117,7 +117,7 @@ fn create_key<R: CubeRuntime>(
 ) -> InterpolateAutotuneKey {
     let elem_input = dtype_to_elem_type(input.dtype);
     let elem_output = dtype_to_elem_type(input.dtype);
-    let mode = map_mode(options.mode);
+    let mode = map_mode(options.mode.clone());
 
     InterpolateAutotuneKey::generate(
         elem_input,
