@@ -11,6 +11,19 @@ pub struct Block<O> {
     builders: Vec<Box<dyn OperationFuser<O>>>,
     operations: Vec<OperationIr>,
     ids: HashSet<TensorId>,
+    /// Tensor ids produced (as an output) by an operation of this block.
+    produced: HashSet<TensorId>,
+    /// Tensor ids consumed by this block but produced elsewhere (external inputs).
+    ///
+    /// A dependency edge `self -> other` exists iff `self.inputs_external` intersects
+    /// `other.produced` — i.e. this block consumes a tensor the other block produces.
+    inputs_external: HashSet<TensorId>,
+    /// Bitmask of the original block indices this block subsumes.
+    ///
+    /// Seeded to a single bit by the optimizer before a merge pass and OR-ed together on
+    /// [merge](Self::merge). Used by the merge guard to reason about the original dependency
+    /// DAG through the recursive merging.
+    constituents: u64,
     ordering: Vec<usize>,
     /// The start position in the relative execution stream.
     pub start_pos: usize,
@@ -37,6 +50,28 @@ pub struct BlockOptimization<O> {
     pub ordering: Vec<usize>,
 }
 
+impl<O> Block<O> {
+    /// Tensor ids produced (as an output) by an operation of this block.
+    pub fn produced(&self) -> &HashSet<TensorId> {
+        &self.produced
+    }
+
+    /// Tensor ids consumed by this block but produced elsewhere (external inputs).
+    pub fn inputs_external(&self) -> &HashSet<TensorId> {
+        &self.inputs_external
+    }
+
+    /// Bitmask of the original block indices this block subsumes.
+    pub fn constituents(&self) -> u64 {
+        self.constituents
+    }
+
+    /// Seed this block's [constituents](Self::constituents) mask to a single original index.
+    pub fn seed_constituent(&mut self, index: usize) {
+        self.constituents = 1 << index;
+    }
+}
+
 impl<O: NumOperations> Block<O> {
     /// Create a new block that will be optimized with the provided [optimization builders](OptimizationBuilder).
     pub fn new(builders: &[Box<dyn OperationFuser<O>>]) -> Self {
@@ -44,6 +79,9 @@ impl<O: NumOperations> Block<O> {
             builders: builders.iter().map(|o| o.clone_dyn()).collect(),
             operations: Vec::new(),
             ids: HashSet::new(),
+            produced: HashSet::new(),
+            inputs_external: HashSet::new(),
+            constituents: 0,
             ordering: Vec::new(),
             start_pos: usize::MAX,
             end_pos: usize::MIN,
@@ -100,6 +138,10 @@ impl<O: NumOperations> Block<O> {
     pub fn merge(&mut self, other: &Block<O>) -> bool {
         let self_ready = self.has_ready_optimization();
         let other_ready = other.has_ready_optimization();
+
+        // Absorb the other block's original-index provenance so the merge guard sees the
+        // combined set on any subsequent `can_merge` check.
+        self.constituents |= other.constituents;
 
         for (op, pos) in other.operations.iter().zip(&other.ordering) {
             self.register(op, *pos, true);
@@ -188,6 +230,20 @@ impl<O: NumOperations> Block<O> {
 
         for node in operation.nodes() {
             self.ids.insert(node.id);
+        }
+
+        // Maintain the produced / external-input sets incrementally. A consumed id becomes an
+        // external input only while nothing in the block has produced it; producing an id makes
+        // it internal (and clears any earlier external record). This is order-independent, so it
+        // stays correct when `merge` folds ops in a non-causal order.
+        for node in operation.inputs() {
+            if !self.produced.contains(&node.id) {
+                self.inputs_external.insert(node.id);
+            }
+        }
+        for node in operation.outputs() {
+            self.produced.insert(node.id);
+            self.inputs_external.remove(&node.id);
         }
     }
 }
@@ -289,6 +345,9 @@ impl<O> Clone for Block<O> {
             builders: self.builders.iter().map(|b| b.clone_dyn()).collect(),
             operations: self.operations.clone(),
             ids: self.ids.clone(),
+            produced: self.produced.clone(),
+            inputs_external: self.inputs_external.clone(),
+            constituents: self.constituents,
             ordering: self.ordering.clone(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,

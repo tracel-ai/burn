@@ -365,3 +365,43 @@ fn pattern_straddles_incomplete_merged_blocks() {
     assert_eq!(res.ordering, vec![0, 2, 1]);
     assert_eq!(res.strategy, operations(vec![0, 2, 1]));
 }
+
+// ---------------------------------------------------------------------------
+// Dependent blocks.
+//
+// Block A and block B each hold their own *ready* fusion. Merging them would
+// hide one of the two fusions, so `Block::merge` refuses. Op C then reads an
+// output of A and an output of B, so it references two un-mergeable blocks.
+//
+// Previously this stopped the search entirely. Now C gets its own block that
+// *depends on* A and B; the search continues and every op is covered. C's
+// (unfused) block is emitted after both blocks it depends on.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn dependent_block_created_instead_of_stopping() {
+    let a1 = add(100, 101, 102);
+    let a2 = add(102, 103, 104); // block A produces 104
+    let b1 = add(200, 201, 202);
+    let b2 = add(202, 203, 204); // block B produces 204
+    let c = add(104, 204, 105); // reads A's 104 and B's 204
+
+    let ops = vec![a1.clone(), a2.clone(), b1.clone(), b2.clone(), c.clone()];
+
+    let res = run(
+        &ops,
+        vec![vec![a1.clone(), a2.clone()], vec![b1.clone(), b2.clone()]],
+    );
+
+    // All five ops are covered (the search did not stop at C) and C runs after
+    // both A and B — a valid topological order.
+    assert_eq!(res.ordering, vec![0, 1, 2, 3, 4]);
+    assert_eq!(
+        res.strategy,
+        composed(vec![
+            optimization(0, 2, vec![0, 1], 2),
+            optimization(1, 2, vec![2, 3], 2),
+            operations(vec![4]),
+        ]),
+    );
+}

@@ -3,7 +3,7 @@ use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use crate::{
     NumOperations,
     search::{
-        Block, BlockOptimization,
+        Block, BlockOptimization, MergeGuard, topological_order,
         merging::{MergeBlocksResult, merge_blocks},
     },
     stream::store::ExecutionStrategy,
@@ -13,8 +13,9 @@ use crate::{
 ///
 /// # Notes
 ///
-/// What we know here is that every block is independent at that time and can be executed
-/// in any order.
+/// The blocks form a dependency DAG: a block may depend on another when it consumes a tensor the
+/// other produces. Blocks with no dependency between them can still be merged/reordered freely;
+/// dependent blocks must be emitted in a topological order (dependencies first).
 ///
 /// The contract is that the length of operations executed must include all operations. If we don't
 /// find an optimization that can be executed with that constraint, we return a
@@ -47,11 +48,11 @@ impl<O: NumOperations> BlocksOptimizer<O> {
     /// Optimizes the blocks.
     ///
     /// Strategy:
-    /// 1. Try to merge blocks together — independent blocks have no data
-    ///    dependency, so reordering across a merge is safe.
-    /// 2. Ask every resulting block for its best optimization (or the
-    ///    fallback [Operations](ExecutionStrategy::Operations) if no builder
-    ///    matched) and concatenate the strategies.
+    /// 1. Try to merge blocks together — the merge guard rejects any contraction that would
+    ///    create a dependency cycle, so a surviving merge is always order-safe.
+    /// 2. Emit the blocks in a topological order (dependencies first) and ask every block for its
+    ///    best optimization (or the fallback [Operations](ExecutionStrategy::Operations) if no
+    ///    builder matched), concatenating the strategies.
     /// 3. An *interior* unresolved position — an op that no block's final
     ///    ordering covered, but which sits before some other resolved
     ///    position — is a hole that must be filled by a second optimization
@@ -63,6 +64,17 @@ impl<O: NumOperations> BlocksOptimizer<O> {
 
         let num_ops = self.num_ops;
         let blocks = core::mem::take(&mut self.blocks);
+
+        // Emit blocks in a valid execution order: a dependency must run before its dependents.
+        // The set is acyclic (register keeps it so, and `merging_pass` only accepts cycle-free
+        // merges), so `topological_order` always succeeds; fall back to the current order if not.
+        let order =
+            topological_order(&blocks).unwrap_or_else(|| (0..blocks.len()).collect::<Vec<_>>());
+        let mut slots: Vec<Option<Block<O>>> = blocks.into_iter().map(Some).collect();
+        let blocks: Vec<Block<O>> = order
+            .into_iter()
+            .map(|i| slots[i].take().expect("each block taken once"))
+            .collect();
 
         let mut strategies: Vec<Box<ExecutionStrategy<O>>> = Vec::with_capacity(blocks.len());
         let mut ordering = Vec::new();
@@ -119,9 +131,16 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         }
 
         Block::sort(&mut self.blocks);
-        let blocks = self.blocks.iter().collect::<Vec<_>>();
 
-        match merge_blocks(&blocks, false) {
+        // Seed constituents so the guard can reason about the original dependency DAG through the
+        // recursive merging, then reject any contraction that would create a cycle.
+        for (i, block) in self.blocks.iter_mut().enumerate() {
+            block.seed_constituent(i);
+        }
+        let blocks = self.blocks.iter().collect::<Vec<_>>();
+        let guard = MergeGuard::new(&blocks);
+
+        match merge_blocks(&blocks, false, &guard) {
             MergeBlocksResult::Full(block) => {
                 self.blocks = vec![block];
             }

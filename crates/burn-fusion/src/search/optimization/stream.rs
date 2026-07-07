@@ -2,14 +2,15 @@ use super::blocks::BlocksOptimizer;
 use crate::{
     NumOperations, OperationFuser,
     search::{
-        Block, BlockOptimization, RegistrationResult,
+        Block, BlockOptimization, MergeGuard, RegistrationResult, has_cycle,
         merging::{MergeBlocksResult, merge_blocks},
         optimization::blocks::BlocksOptimizerResult,
     },
     stream::{execution::op_kind, store::ExecutionStrategy},
 };
-use burn_ir::OperationIr;
+use burn_ir::{OperationIr, TensorId};
 use burn_std::config::{config, fusion::FusionLogLevel, log_fusion};
+use std::collections::HashSet;
 
 /// Optimize a stream of [operations](OperationIr) using a list of [builders](OptimizationBuilder).
 pub struct StreamOptimizer<O> {
@@ -58,22 +59,15 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
         match self.merge_blocks(operation, false) {
             MergeBlockStep::Full | MergeBlockStep::NoNeed => {}
-            step @ (MergeBlockStep::Fail | MergeBlockStep::Partial) => {
-                // With the given operation, blocks are no longer independent.
-                let reason = match step {
-                    MergeBlockStep::Fail => "merge failed",
-                    MergeBlockStep::Partial => "merge partial",
-                    _ => unreachable!(),
-                };
-                let num_blocks = self.blocks.len();
-                let length = self.length;
-                log_fusion(FusionLogLevel::Medium, || {
-                    format!(
-                        "[stream] stopped ({reason}) at op {length} ({}); {num_blocks} blocks",
-                        op_kind(operation)
-                    )
-                });
-                self.stopped = true;
+            MergeBlockStep::Fail | MergeBlockStep::Partial => {
+                // The operation ties together blocks that couldn't be merged into one. Instead of
+                // giving up on the segment, give the operation its own block that *depends* on the
+                // blocks it reads from — the block set becomes a dependency DAG.
+                self.on_dependent_op(operation);
+                if self.stopped {
+                    return;
+                }
+                self.length += 1;
                 return;
             }
         }
@@ -136,9 +130,22 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
                     optimization_of_holes.map_ordering(&holes);
 
-                    strategies.push(Box::new(optimization_of_holes.strategy));
-                    holes.drain(0..optimization_of_holes.ordering.len());
-                    ordering.append(&mut optimization_of_holes.ordering);
+                    // `ordering` now holds the real stream positions consumed this round.
+                    let consumed = optimization_of_holes.ordering.len();
+                    let hole_positions = optimization_of_holes.ordering;
+
+                    // A resolved strategy may consume a tensor produced by one of these hole ops.
+                    // Insert the hole strategy *before* the first resolved strategy that depends on
+                    // it (rather than always appending) so producers still run before consumers.
+                    let (insert_strategy, insert_offset) =
+                        hole_insertion_point(&strategies, &ordering, &hole_positions, operations);
+
+                    strategies.insert(
+                        insert_strategy,
+                        Box::new(optimization_of_holes.strategy),
+                    );
+                    ordering.splice(insert_offset..insert_offset, hole_positions);
+                    holes.drain(0..consumed);
 
                     if holes.is_empty() {
                         break;
@@ -265,6 +272,15 @@ impl<O: NumOperations> StreamOptimizer<O> {
             return MergeBlockStep::NoNeed;
         }
 
+        // Seed each block with its index, then build the cycle guard over ALL blocks — a block
+        // that "sits between" two merge candidates need not itself be a candidate, so the guard
+        // must see the full dependency graph, not just the subset being merged.
+        for (i, block) in self.blocks.iter_mut().enumerate() {
+            block.seed_constituent(i);
+        }
+        let all_blocks = self.blocks.iter().collect::<Vec<_>>();
+        let guard = MergeGuard::new(&all_blocks);
+
         let blocks_to_merge = self
             .blocks
             .iter()
@@ -275,7 +291,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
             })
             .collect::<Vec<_>>();
 
-        let merged = merge_blocks(&blocks_to_merge, false);
+        let merged = merge_blocks(&blocks_to_merge, false, &guard);
 
         let mut clear_blocks = || {
             let mut indices = block_merges.to_vec();
@@ -321,6 +337,60 @@ impl<O: NumOperations> StreamOptimizer<O> {
             )
         });
     }
+
+    /// Give the operation its own block that depends on the blocks it reads from.
+    ///
+    /// The new block owns the operation's outputs and records its upstream inputs as external —
+    /// those external inputs form the dependency edges. A freshly created block is a pure sink, so
+    /// it cannot create a cycle, except through an in-place output that re-produces an upstream
+    /// tensor; that case is caught by the defensive [has_cycle] check.
+    fn on_dependent_op(&mut self, operation: &OperationIr) {
+        // Dependent blocks count toward the cap. With no room left, try to free a slot by
+        // force-merging mergeable blocks; if that fails, stop the segment (the op is deferred).
+        if let Some(max_blocks) = self.max_blocks
+            && self.blocks.len() >= max_blocks
+        {
+            self.merge_blocks(operation, true);
+
+            if self.blocks.len() >= max_blocks {
+                let length = self.length;
+                log_fusion(FusionLogLevel::Medium, || {
+                    format!(
+                        "[stream] stopped (max_blocks={max_blocks} reached on dependency) at op {length} ({})",
+                        op_kind(operation)
+                    )
+                });
+                self.stopped = true;
+                return;
+            }
+        }
+
+        let mut block = Block::new(&self.builders);
+        block.register(operation, self.length, true);
+        self.blocks.push(block);
+
+        if has_cycle(&self.blocks) {
+            self.blocks.pop();
+            let length = self.length;
+            log_fusion(FusionLogLevel::Medium, || {
+                format!(
+                    "[stream] stopped (unresolvable dependency cycle) at op {length} ({})",
+                    op_kind(operation)
+                )
+            });
+            self.stopped = true;
+            return;
+        }
+
+        let length = self.length;
+        let num_blocks = self.blocks.len();
+        log_fusion(FusionLogLevel::Full, || {
+            format!(
+                "[stream] op {length} {} → new dependent block (total: {num_blocks})",
+                op_kind(operation)
+            )
+        });
+    }
 }
 
 enum MergeBlockStep {
@@ -328,4 +398,51 @@ enum MergeBlockStep {
     Partial,
     Fail,
     NoNeed,
+}
+
+/// Number of stream positions a strategy covers (its share of the concatenated ordering).
+fn strategy_len<O>(strategy: &ExecutionStrategy<O>) -> usize {
+    match strategy {
+        ExecutionStrategy::Optimization { ordering, .. } => ordering.len(),
+        ExecutionStrategy::Operations { ordering } => ordering.len(),
+        ExecutionStrategy::Composed(items) => items.iter().map(|s| strategy_len(s)).sum(),
+    }
+}
+
+/// Where to splice a batch of re-optimized hole operations into the strategy list.
+///
+/// Returns `(strategy_index, ordering_offset)` of the first already-emitted strategy that consumes
+/// a tensor produced by the hole batch — the hole strategy must run before it. When nothing depends
+/// on the batch, it goes at the end (the historical behavior). The block set is acyclic, so this
+/// point is always after every strategy the batch itself depends on.
+fn hole_insertion_point<O>(
+    strategies: &[Box<ExecutionStrategy<O>>],
+    ordering: &[usize],
+    hole_positions: &[usize],
+    operations: &[OperationIr],
+) -> (usize, usize) {
+    let hole_outputs: HashSet<TensorId> = hole_positions
+        .iter()
+        .flat_map(|&p| operations[p].outputs().map(|t| t.id))
+        .collect();
+
+    if hole_outputs.is_empty() {
+        return (strategies.len(), ordering.len());
+    }
+
+    let mut offset = 0;
+    for (k, strategy) in strategies.iter().enumerate() {
+        let len = strategy_len(strategy);
+        let covered = &ordering[offset..offset + len];
+        let consumes = covered
+            .iter()
+            .any(|&p| operations[p].inputs().any(|t| hole_outputs.contains(&t.id)));
+
+        if consumes {
+            return (k, offset);
+        }
+        offset += len;
+    }
+
+    (strategies.len(), ordering.len())
 }
