@@ -309,6 +309,14 @@ fn fuse(
                 output,
                 dim,
             } => concat::<E, N>(inputs, outputs, locals, pos, dim, tensors, output, config),
+            FuseOp::SliceAssign {
+                tensor,
+                value,
+                output,
+                starts,
+            } => slice_assign::<E, N>(
+                inputs, outputs, locals, pos, tensor, value, starts, output, config,
+            ),
             FuseOp::Dequantize {
                 values,
                 params,
@@ -785,7 +793,7 @@ fn concat<C: Scalar, N: Size>(
         #[unroll]
         for t in 0..tensors.len() {
             let tensor = comptime![tensors.get(t).unwrap().clone()];
-            let pos_tensor = comptime![concat_input_pos(&tensor)];
+            let pos_tensor = comptime![indexed_input_pos(&tensor)];
 
             let shape_tensor_dim = global_shape(inputs, dim, pos_tensor);
             let offset_dim_end = offset_dim_start + shape_tensor_dim;
@@ -834,7 +842,7 @@ fn concat<C: Scalar, N: Size>(
             #[unroll]
             for t in 0..tensors.len() {
                 let tensor = comptime![tensors.get(t).unwrap().clone()];
-                let pos_tensor = comptime![concat_input_pos(&tensor)];
+                let pos_tensor = comptime![indexed_input_pos(&tensor)];
 
                 let shape_tensor_dim = global_shape(inputs, dim, pos_tensor);
                 let offset_dim_end = offset_dim_start + shape_tensor_dim;
@@ -872,10 +880,10 @@ fn concat<C: Scalar, N: Size>(
     write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
 }
 
-fn concat_input_pos(arg: &FuseArg) -> usize {
+fn indexed_input_pos(arg: &FuseArg) -> usize {
     match arg {
         FuseArg::Input(pos, ..) => *pos,
-        _ => panic!("Cat input isn't a global input"),
+        _ => panic!("Indexed input isn't a global input"),
     }
 }
 
@@ -924,6 +932,99 @@ fn concat_input_offset(
     }
 
     index
+}
+
+#[cube]
+/// Assigns `value` into the region of `tensor` starting at the runtime `starts` offsets: inside
+/// the region the output reads `value` at the shifted coordinate, outside it reads `tensor` at
+/// the same coordinate. The region extent is `value`'s runtime shape — slice ends never appear,
+/// so one compiled kernel serves any offsets and value shapes.
+fn slice_assign<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] tensor: FuseArg,
+    #[comptime] value: FuseArg,
+    #[comptime] starts: Vec<FuseArg>,
+    #[comptime] output: FuseArg,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let pos_tensor = comptime![indexed_input_pos(&tensor)];
+    let pos_value = comptime![indexed_input_pos(&value)];
+
+    let vector_size_ref = locals.ref_vector_size;
+    let write_pos_elem = write_pos * vector_size_ref;
+
+    // Coordinates on every axis but the last are shared by all lanes of the vector: resolve
+    // region membership and accumulate both source offsets once.
+    let mut inside_before_last = true;
+    let mut offset_tensor = 0;
+    let mut offset_value = 0;
+
+    #[unroll]
+    for d in 0..comptime![config.rank - 1] {
+        let start = read_scalar::<usize>(inputs, comptime![starts.get(d).unwrap().clone()]);
+        let shape_value_dim = global_shape(inputs, d, pos_value);
+        // The mod by the tensor shape wraps the coordinate when the block reference shape
+        // broadcasts beyond the slice_assign output.
+        let coordinate = write_pos_elem / locals.ref_strides[d]
+            % locals.ref_shape[d]
+            % global_shape(inputs, d, pos_tensor);
+
+        inside_before_last =
+            inside_before_last && coordinate >= start && coordinate < start + shape_value_dim;
+        offset_tensor += coordinate * global_stride(inputs, d, pos_tensor);
+        // Wraps (unsigned) when the coordinate is before the region; only consumed when inside.
+        offset_value += (coordinate - start) * global_stride(inputs, d, pos_value);
+    }
+
+    // The region may start and end anywhere along the last (vectorization) axis, so each lane
+    // picks its own source, like `concat` along the vectorization axis.
+    let last = comptime![config.rank - 1];
+    let start_last = read_scalar::<usize>(inputs, comptime![starts.get(last).unwrap().clone()]);
+    let shape_value_last = global_shape(inputs, last, pos_value);
+    let shape_tensor_last = global_shape(inputs, last, pos_tensor);
+    let stride_tensor_last = global_stride(inputs, last, pos_tensor);
+    let stride_value_last = global_stride(inputs, last, pos_value);
+    let (stride_ref_last, shape_ref_last) = (locals.ref_strides[last], locals.ref_shape[last]);
+
+    let mut result = Vector::<C, N>::empty();
+
+    #[unroll]
+    for i in 0..vector_size_ref {
+        let coordinate =
+            (write_pos_elem + i) / stride_ref_last % shape_ref_last % shape_tensor_last;
+        let inside = inside_before_last
+            && coordinate >= start_last
+            && coordinate < start_last + shape_value_last;
+
+        if inside {
+            let input = read_input::<C, Const<1>>(
+                inputs,
+                &*locals,
+                pos_value,
+                offset_value + (coordinate - start_last) * stride_value_last,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+            result.insert(i, input.extract(0));
+        } else {
+            let input = read_input::<C, Const<1>>(
+                inputs,
+                &*locals,
+                pos_tensor,
+                offset_tensor + coordinate * stride_tensor_last,
+                LayoutInfo::IsRef,
+                config,
+                None,
+            );
+            result.insert(i, input.extract(0));
+        }
+    }
+
+    write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
 }
 
 #[cube]

@@ -4,13 +4,14 @@ use super::{
         settings::FuseSettings,
     },
     FuseResources,
+    base::ScalarSource,
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
 use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorIr};
-use burn_std::{DType, Shape};
+use burn_std::{DType, Shape, tensor::Slice};
 use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
@@ -246,6 +247,25 @@ impl TraceFuser {
         Some(input)
     }
 
+    /// Register an input like [input_indexed](Self::input_indexed), additionally marking it as
+    /// an in-place candidate for the current block's output.
+    ///
+    /// Only valid when the op reads the tensor solely at the coordinate being written (e.g.
+    /// `slice_assign`'s base tensor); the marking is skipped if the tensor was already indexed
+    /// by another op, which may read it at arbitrary coordinates.
+    pub fn input_indexed_inplace(&mut self, tensor: &TensorIr) -> Option<FuseArg> {
+        let fresh = !self.resources.indexed.contains_key(&tensor.id);
+        let input = self.input_indexed(tensor)?;
+
+        if fresh {
+            self.resources
+                .indexed_inplace
+                .push((tensor.id, self.blocks_previous.len()));
+        }
+
+        Some(input)
+    }
+
     /// Register an input with swapped dims.
     pub fn input_swap_dims(
         &mut self,
@@ -284,8 +304,23 @@ impl TraceFuser {
 
         let new_index = self.resources.scalars.len();
 
-        self.resources.scalars.push((precision, id.value));
+        self.resources
+            .scalars
+            .push(ScalarSource::Value(precision, id.value));
         FuseArg::Scalar(new_index, precision)
+    }
+
+    /// Register a slice-range start as a runtime u32 scalar.
+    ///
+    /// `slice` is the RELATIVE slice: its `start` field carries the binding id into
+    /// `Context::ranges`, from which the concrete start is resolved at launch.
+    pub fn range_start(&mut self, slice: &Slice) -> FuseArg {
+        let new_index = self.resources.scalars.len();
+
+        self.resources
+            .scalars
+            .push(ScalarSource::RangeStart(slice.start as u64));
+        FuseArg::Scalar(new_index, FuseType::U32)
     }
 
     /// Finish fusing and returns the created trace.

@@ -199,6 +199,14 @@ pub enum FuseOp {
         output: FuseArg,
         dim: usize,
     },
+    SliceAssign {
+        tensor: FuseArg,
+        value: FuseArg,
+        output: FuseArg,
+        /// Per-dim slice starts as runtime u32 scalars ([FuseArg::Scalar]); the region extent
+        /// comes from `value`'s runtime shape, so slice ends never appear.
+        starts: Vec<FuseArg>,
+    },
     Dequantize {
         values: FuseArg,
         params: FuseArg,
@@ -292,6 +300,24 @@ impl Display for FuseOp {
                 }
                 write!(f, "], dim={dim})")
             }
+            FuseOp::SliceAssign {
+                tensor,
+                value,
+                output,
+                starts,
+            } => {
+                write!(
+                    f,
+                    "{output} = slice_assign(tensor={tensor}, value={value}, starts=["
+                )?;
+                for (i, start) in starts.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{start}")?;
+                }
+                write!(f, "])")
+            }
             FuseOp::Dequantize {
                 values,
                 params,
@@ -349,6 +375,7 @@ impl FuseOp {
             FuseOp::Gather { output, .. } => output.precision().into_elem(),
             FuseOp::Select { output, .. } => output.precision().into_elem(),
             FuseOp::Cat { output, .. } => output.precision().into_elem(),
+            FuseOp::SliceAssign { output, .. } => output.precision().into_elem(),
             FuseOp::Dequantize { output, .. } => output.precision().into_elem(),
             FuseOp::Rem(op) => op.out.precision().into_elem(),
             FuseOp::Clamp { out, .. } => out.precision().into_elem(),
@@ -788,6 +815,16 @@ impl FuseOp {
                 for input in inputs {
                     input.multi_block_variable(registers);
                 }
+                output.multi_block_variable(registers);
+            }
+            FuseOp::SliceAssign {
+                tensor,
+                value,
+                output,
+                starts: _,
+            } => {
+                tensor.multi_block_variable(registers);
+                value.multi_block_variable(registers);
                 output.multi_block_variable(registers);
             }
             FuseOp::Dequantize {

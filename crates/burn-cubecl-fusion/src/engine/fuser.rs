@@ -8,7 +8,7 @@ use burn_backend::cubecl::dtype_to_elem_type;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, IntOperationIr, NumericOperationIr, OperationIr,
-    ScalarOpIr, TensorIr, UnaryOpIr,
+    ScalarOpIr, TensorIr, TensorStatus, UnaryOpIr,
 };
 use burn_std::{
     DType, Shape,
@@ -478,6 +478,54 @@ impl TraceOperationFuser {
                         lhs,
                         rhs,
                         out,
+                    });
+
+                    Some(())
+                })
+            }
+            BaseOperationIr::SliceAssign(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                // The fused kernel rewrites the whole output, so it's only worth it when the
+                // tensor's buffer can be reused for the output; otherwise the standalone kernel
+                // (which copies lazily and writes only the region) is better.
+                if desc.tensor.status != TensorStatus::ReadWrite || !self.settings.inplace {
+                    return false;
+                }
+
+                // Stepped assigns keep the standalone kernel. `step` survives relativization
+                // (unlike the bounds), so this gate is part of the plan-cache key and a cached
+                // fused plan can never be replayed for a stepped range.
+                if desc.ranges.len() != desc.out.shape.rank()
+                    || desc.ranges.iter().any(|slice| slice.step != 1)
+                {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    // The base tensor is only ever read at the coordinate being written, so its
+                    // buffer can be reused for the output — unless `value` is the same tensor,
+                    // which is read at shifted coordinates.
+                    let tensor = if desc.tensor.id != desc.value.id {
+                        build.input_indexed_inplace(&desc.tensor)?
+                    } else {
+                        build.input_indexed(&desc.tensor)?
+                    };
+                    let value = build.input_indexed(&desc.value)?;
+                    let starts = desc
+                        .ranges
+                        .iter()
+                        .map(|slice| build.range_start(slice))
+                        .collect();
+                    let output = build.output(&desc.out)?;
+
+                    build.fuse_operation(FuseOp::SliceAssign {
+                        tensor,
+                        value,
+                        starts,
+                        output,
                     });
 
                     Some(())

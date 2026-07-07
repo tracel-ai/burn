@@ -127,6 +127,42 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             if !is_a_view {
                 self.analyze_normal(plan, pos, tensor_relative, handle);
             }
+        } else if let Some((_, block_idx)) = self
+            .resources
+            .indexed_inplace
+            .iter()
+            .find(|(id, _)| *id == tensor_relative.id)
+        {
+            self.analyze_indexed_inplace(plan, pos, tensor_relative, handle, *block_idx);
+        }
+    }
+
+    /// Analyzes if an indexed input marked as in-place candidate (see
+    /// [FuseResources::indexed_inplace]) can donate its buffer to its block's output, like a
+    /// normal in-place input.
+    fn analyze_indexed_inplace(
+        &self,
+        plan: &mut LaunchPlan<'a, R>,
+        pos: usize,
+        tensor_relative: &'a TensorIr,
+        handle: &CubeFusionHandle<R>,
+        block_idx: usize,
+    ) {
+        if self.blocks[block_idx].shape_ref != tensor_relative.shape {
+            return;
+        }
+
+        if tensor_relative.status == TensorStatus::ReadWrite
+            && self.blocks[block_idx].settings.inplace
+            && handle.handle.can_mut()
+        {
+            plan.blocks[block_idx]
+                .potential_inplaces
+                .push(PotentialInplace {
+                    input_pos: pos,
+                    tensor_relative,
+                    strides: handle.strides.clone(),
+                });
         }
     }
 

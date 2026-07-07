@@ -486,6 +486,18 @@ pub mod matchers {
         })
     }
 
+    /// Matches a `SliceAssign` on any tensor kind.
+    pub fn is_slice_assign() -> OpMatcher {
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::BaseFloat(BaseOperationIr::SliceAssign(_))
+                    | OperationIr::BaseInt(BaseOperationIr::SliceAssign(_))
+                    | OperationIr::BaseBool(BaseOperationIr::SliceAssign(_))
+            )
+        })
+    }
+
     /// Matches the memory-bookkeeping `Drop` op emitted when a tensor is deallocated.
     /// These aren't really operations — useful to filter out when counting ops in
     /// fusion-shape tests.

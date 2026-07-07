@@ -1,6 +1,8 @@
 use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
 use crate::engine::launch::runner::TraceRunner;
-use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
+use crate::engine::trace::{
+    FuseResources, ScalarSource, TensorView, TraceError, TuneOutput, block::FuseBlock,
+};
 use crate::{
     CubeFusionHandle,
     engine::{
@@ -263,21 +265,37 @@ fn register_outputs<R: Runtime>(
 }
 
 fn register_scalars<'h, R: Runtime>(
-    scalars: impl Iterator<Item = &'h (FuseType, u64)>,
+    scalars: impl Iterator<Item = &'h ScalarSource>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
     context: &mut Context<CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<R>,
 ) {
-    for (precision, id) in scalars {
-        let dtype = precision.into_storage_type();
-        match context.scalars.get(&ScalarId { value: *id }) {
-            Some(scalar) => match scalar {
-                ScalarIr::Float(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::Int(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::UInt(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::Bool(val) => inputs.scalars.push(InputScalar::new(*val as u8, dtype)),
-            },
-            None => panic!("Scalar ID not found"),
+    for source in scalars {
+        match source {
+            ScalarSource::Value(precision, id) => {
+                let dtype = precision.into_storage_type();
+                match context.scalars.get(&ScalarId { value: *id }) {
+                    Some(scalar) => match scalar {
+                        ScalarIr::Float(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                        ScalarIr::Int(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                        ScalarIr::UInt(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                        ScalarIr::Bool(val) => {
+                            inputs.scalars.push(InputScalar::new(*val as u8, dtype))
+                        }
+                    },
+                    None => panic!("Scalar ID not found"),
+                }
+            }
+            ScalarSource::RangeStart(id) => {
+                let slice = context
+                    .ranges
+                    .get(*id as usize)
+                    .expect("Range binding not found");
+                inputs.scalars.push(InputScalar::new(
+                    slice.start as u32,
+                    FuseType::U32.into_storage_type(),
+                ));
+            }
         }
     }
 

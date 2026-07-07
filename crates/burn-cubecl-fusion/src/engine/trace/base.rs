@@ -174,10 +174,14 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
 pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
-    pub scalars: Vec<(FuseType, u64)>,
+    pub scalars: Vec<ScalarSource>,
     // TODO: Making put a map of global registers.
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, FuseArg>,
+    /// Indexed inputs whose op reads them only at the coordinate being written (e.g.
+    /// `slice_assign`'s base tensor), making them safe in-place candidates for the output of
+    /// the block at the stored index.
+    pub indexed_inplace: Vec<(TensorId, usize)>,
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
@@ -190,6 +194,20 @@ pub struct FuseResources {
     ///
     /// TODO: Not all registers should be globals.
     pub registers: BTreeMap<TensorId, FuseArg>,
+}
+
+/// Where a scalar kernel argument gets its value at launch time.
+///
+/// Scalars occupy positions in [`FuseResources::scalars`]; the launch pushes one
+/// [InputScalar](super::super::codegen::InputScalar) per entry, in order, so a
+/// [FuseArg::Scalar](crate::engine::codegen::FuseArg::Scalar) position stays valid for
+/// both sources.
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum ScalarSource {
+    /// Bound per-invocation from `Context::scalars` by scalar id.
+    Value(FuseType, u64),
+    /// Slice-range start, bound per-invocation from `Context::ranges[id].start` as a u32.
+    RangeStart(u64),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

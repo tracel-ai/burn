@@ -18,9 +18,9 @@ pub struct Context<H> {
     /// Shape mapping from relative shape ids to global (real) shape ids.
     pub shapes_relative2global: HashMap<usize, usize>,
     /// Concrete slice ranges found in the graph, indexed by the placeholder id assigned during
-    /// relativization (the value carried in a relativized range's `start` field). Ranges can change
+    /// relativization (the value carried in a relativized range's `start` field). Bounds can change
     /// for the same relative graph — like scalars — so they are kept out of the relative form and
-    /// rebound per invocation.
+    /// rebound per invocation. `step` stays literal in the relative form.
     pub ranges: Vec<Slice>,
 }
 
@@ -167,13 +167,17 @@ impl OperationConverter {
     /// `ScalarIr::UInt(placeholder)`. The relative form is thus invariant to the actual bounds, so
     /// graphs that differ only in slice ranges still match — and graph replay restores the concrete
     /// range from [`Context::ranges`] / `GraphBindings::ranges`.
+    ///
+    /// Only `start` and `end` are erased: `step` is kept literal so that fusers can gate on it
+    /// (e.g. only fusing unit-step `slice_assign`) without a cached plan being replayed for a
+    /// stepped range it can't handle.
     fn relative_range(&mut self, range: &Slice) -> Slice {
         let id = self.ranges.len();
         self.ranges.push(*range);
         Slice {
             start: id as isize,
             end: None,
-            step: 1,
+            step: range.step,
         }
     }
 }
