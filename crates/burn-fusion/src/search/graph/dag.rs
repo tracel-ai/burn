@@ -1,6 +1,6 @@
 use super::{GraphNode, SubGraph};
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::BinaryHeap;
 
 /// A dependency graph over a fixed list of nodes, with edges derived from the nodes' data-flow
 /// sets (see [GraphNode]).
@@ -17,15 +17,13 @@ pub struct Dag {
 impl Dag {
     /// Build the dependency graph of the given nodes.
     pub fn new<N: GraphNode>(nodes: &[N]) -> Self {
-        let io = nodes.iter().map(NodeIo::new).collect::<Vec<_>>();
-
-        let dependencies = io
+        let dependencies = nodes
             .iter()
             .enumerate()
             .map(|(i, node)| {
                 let mut deps = SubGraph::empty();
-                for (j, other) in io.iter().enumerate() {
-                    if i != j && node.depends_on(other) {
+                for (j, other) in nodes.iter().enumerate() {
+                    if i != j && depends_on(node, other) {
                         deps.insert(j);
                     }
                 }
@@ -171,30 +169,11 @@ impl Reachability {
     }
 }
 
-/// The data-flow sets of a node, collected once so edge derivation is set intersections.
-struct NodeIo<R> {
-    produced: HashSet<R>,
-    read: HashSet<R>,
-    freed: HashSet<R>,
-}
-
-impl<R: Copy + Eq + core::hash::Hash> NodeIo<R> {
-    fn new<N: GraphNode<Resource = R>>(node: &N) -> Self {
-        Self {
-            produced: node.produced().collect(),
-            read: node.read().collect(),
-            freed: node.freed().collect(),
-        }
-    }
-
-    /// Whether `self` must execute after `other`: read-after-write (`self` reads a resource
-    /// `other` produces) or write-after-read (`self` frees a resource `other` reads).
-    fn depends_on(&self, other: &Self) -> bool {
-        intersects(&self.read, &other.produced) || intersects(&self.freed, &other.read)
-    }
-}
-
-fn intersects<R: Eq + core::hash::Hash>(a: &HashSet<R>, b: &HashSet<R>) -> bool {
-    let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
-    small.iter().any(|r| large.contains(r))
+/// Whether `node` must execute after `other`: read-after-write (`node` reads a resource `other`
+/// produces) or write-after-read (`node` frees a resource `other` reads).
+///
+/// Works directly on the nodes' own data-flow sets through the [GraphNode] membership queries —
+/// no intermediate collection.
+fn depends_on<N: GraphNode>(node: &N, other: &N) -> bool {
+    node.read().any(|r| other.produces(r)) || node.freed().any(|r| other.reads(r))
 }

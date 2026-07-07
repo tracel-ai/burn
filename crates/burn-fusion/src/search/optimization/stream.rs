@@ -608,6 +608,14 @@ impl GraphNode for Chunk {
         self.freed.iter().copied()
     }
 
+    fn produces(&self, resource: TensorId) -> bool {
+        self.produced.contains(&resource)
+    }
+
+    fn reads(&self, resource: TensorId) -> bool {
+        self.read.contains(&resource)
+    }
+
     fn position(&self) -> usize {
         self.positions.iter().copied().min().unwrap_or(0)
     }
