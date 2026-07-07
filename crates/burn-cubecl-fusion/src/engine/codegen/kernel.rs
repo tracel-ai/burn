@@ -304,6 +304,11 @@ fn fuse(
             } => select_indices::<E, N>(
                 inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
+            FuseOp::Cat {
+                inputs: tensors,
+                output,
+                dim,
+            } => concat::<E, N>(inputs, outputs, locals, pos, dim, tensors, output, config),
             FuseOp::Dequantize {
                 values,
                 params,
@@ -744,6 +749,160 @@ fn select_indices<C: Numeric, N: Size>(
                 None,
             );
             result.insert(i, input.extract(0));
+        }
+    }
+
+    write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+#[cube]
+fn concat<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] dim: usize,
+    #[comptime] tensors: Vec<FuseArg>,
+    #[comptime] output: FuseArg,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let (vector_size_ref, stride_dim_ref, shape_dim_ref) = (
+        locals.ref_vector_size,
+        locals.ref_strides[dim],
+        locals.ref_shape[dim],
+    );
+
+    let mut result = Vector::<C, N>::empty();
+
+    if comptime![dim != config.rank - 1] {
+        // The concatenation axis isn't the vectorization axis, therefore the whole vector is
+        // contained in a single input tensor.
+        let write_pos_elem = write_pos * vector_size_ref;
+        let coordinate_dim = write_pos_elem / stride_dim_ref % shape_dim_ref;
+
+        let mut offset_dim_start = 0;
+
+        #[unroll]
+        for t in 0..tensors.len() {
+            let tensor = comptime![tensors.get(t).unwrap().clone()];
+            let pos_tensor = comptime! {
+                match tensor.clone() {
+                    FuseArg::Input(pos, ..) => pos,
+                    _ => panic!("Cat input isn't a global input"),
+                }
+            };
+
+            let shape_tensor_dim = global_shape(inputs, dim, pos_tensor);
+            let offset_dim_end = offset_dim_start + shape_tensor_dim;
+
+            if coordinate_dim >= offset_dim_start && coordinate_dim < offset_dim_end {
+                let mut index = 0;
+
+                if comptime![dim > 0] {
+                    let index_before = global_offset(
+                        inputs,
+                        &*outputs,
+                        &*locals,
+                        write_pos,
+                        tensor.clone(),
+                        comptime![Some((0, dim))],
+                        config,
+                    );
+                    index += index_before;
+                }
+
+                if comptime![dim + 1 < config.rank] {
+                    let index_after = global_offset(
+                        inputs,
+                        &*outputs,
+                        &*locals,
+                        write_pos,
+                        tensor,
+                        comptime![Some((dim + 1, config.rank))],
+                        config,
+                    );
+                    index += index_after;
+                }
+
+                let stride_tensor_dim = global_stride(inputs, dim, pos_tensor);
+                index += (coordinate_dim - offset_dim_start) * stride_tensor_dim;
+
+                let stride_tensor_vector =
+                    global_stride(inputs, comptime![config.rank - 1], pos_tensor);
+
+                #[unroll]
+                for i in 0..vector_size_ref {
+                    let input = read_input::<C, Const<1>>(
+                        inputs,
+                        &*locals,
+                        pos_tensor,
+                        index + i * stride_tensor_vector,
+                        LayoutInfo::IsRef,
+                        config,
+                        None,
+                    );
+                    result.insert(i, input.extract(0));
+                }
+            }
+
+            offset_dim_start = offset_dim_end;
+        }
+    } else {
+        // The concatenation happens along the vectorization axis, therefore each element of the
+        // vector may come from a different input tensor.
+        let write_pos_elem = write_pos * vector_size_ref;
+
+        #[unroll]
+        for i in 0..vector_size_ref {
+            let coordinate_dim = (write_pos_elem + i) / stride_dim_ref % shape_dim_ref;
+            let mut offset_dim_start = 0;
+
+            #[unroll]
+            for t in 0..tensors.len() {
+                let tensor = comptime![tensors.get(t).unwrap().clone()];
+                let pos_tensor = comptime! {
+                    match tensor.clone() {
+                        FuseArg::Input(pos, ..) => pos,
+                        _ => panic!("Cat input isn't a global input"),
+                    }
+                };
+
+                let shape_tensor_dim = global_shape(inputs, dim, pos_tensor);
+                let offset_dim_end = offset_dim_start + shape_tensor_dim;
+
+                if coordinate_dim >= offset_dim_start && coordinate_dim < offset_dim_end {
+                    let mut index = 0;
+
+                    if comptime![dim > 0] {
+                        let index_before = global_offset(
+                            inputs,
+                            &*outputs,
+                            &*locals,
+                            write_pos,
+                            tensor,
+                            comptime![Some((0, dim))],
+                            config,
+                        );
+                        index += index_before;
+                    }
+
+                    let stride_tensor_dim = global_stride(inputs, dim, pos_tensor);
+                    index += (coordinate_dim - offset_dim_start) * stride_tensor_dim;
+
+                    let input = read_input::<C, Const<1>>(
+                        inputs,
+                        &*locals,
+                        pos_tensor,
+                        index,
+                        LayoutInfo::IsRef,
+                        config,
+                        None,
+                    );
+                    result.insert(i, input.extract(0));
+                }
+
+                offset_dim_start = offset_dim_end;
+            }
         }
     }
 
