@@ -233,11 +233,12 @@ impl ParamGroup {
     }
 
     /// Exclude the given group from the current group
-    pub fn exclude(&mut self, group: &Self) {
+    pub fn exclude(mut self, group: Self) -> Self {
         self.excludes = match &self.excludes {
             Some(excluded) => Some(excluded.clone().fuse(&group.matcher)),
             None => Some(group.matcher.clone()),
         };
+        self
     }
 }
 
@@ -476,10 +477,9 @@ mod tests {
     fn exclude_removes_matching_ids_from_a_group() {
         let id = ParamId::new();
         let excluded_id = ParamId::new();
-        let mut group = ParamGroup::from_ids(vec![id.clone(), excluded_id.clone()]);
         let exclude_group = ParamGroup::from_ids(vec![excluded_id.clone()]);
-
-        group.exclude(&exclude_group);
+        let group =
+            ParamGroup::from_ids(vec![id.clone(), excluded_id.clone()]).exclude(exclude_group);
 
         assert!(group.matches(&id, None));
         assert!(!group.matches(&excluded_id, None));
@@ -488,8 +488,8 @@ mod tests {
     #[test]
     fn exclude_filters_path_matches() {
         let id = ParamId::new();
-        let mut group = ParamGroup::from_predicate("backbone");
-        group.exclude(&ParamGroup::from_path("model.backbone.bias"));
+        let group = ParamGroup::from_predicate("backbone")
+            .exclude(ParamGroup::from_path("model.backbone.bias"));
 
         assert!(group.matches(&id, Some("model.backbone.weight")));
         assert!(!group.matches(&id, Some("model.backbone.bias")));
@@ -498,11 +498,9 @@ mod tests {
     #[test]
     fn exclude_ignores_excludes_on_the_provided_group() {
         let id = ParamId::new();
-        let mut excluded = ParamGroup::from_path("model.backbone.bias");
-        excluded.exclude(&ParamGroup::from_path("model.backbone.weight"));
-
-        let mut group = ParamGroup::from_path("model.backbone.weight");
-        group.exclude(&excluded);
+        let excluded = ParamGroup::from_path("model.backbone.bias")
+            .exclude(ParamGroup::from_path("model.backbone.weight"));
+        let group = ParamGroup::from_path("model.backbone.weight").exclude(excluded);
 
         assert!(group.matches(&id, Some("model.backbone.weight")));
         assert!(!group.matches(&id, Some("model.backbone.bias")));
