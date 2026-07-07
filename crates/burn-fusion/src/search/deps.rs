@@ -4,10 +4,15 @@ use burn_ir::TensorId;
 
 use super::Block;
 
-/// Whether `a` depends on `b`: `a` consumes at least one tensor that `b` produces, so `b` must
-/// execute before `a`.
+/// Whether `a` depends on `b` (so `b` must execute before `a`). Two reasons:
+///
+/// - **read-after-write**: `a` consumes a tensor `b` produces.
+/// - **write-after-read (anti-dependency)**: `a` reads a tensor with `ReadWrite` status — it is the
+///   last use and frees/reuses the buffer — while `b` also reads that tensor. Reordering `a` before
+///   `b` would free the buffer out from under `b`. This is the hazard that keeps in-place ops
+///   correct once operations are reordered across blocks.
 fn depends_on<O>(a: &Block<O>, b: &Block<O>) -> bool {
-    intersects(a.inputs_external(), b.produced())
+    intersects(a.inputs_external(), b.produced()) || intersects(a.reads_rw(), b.inputs_external())
 }
 
 fn intersects(a: &HashSet<TensorId>, b: &HashSet<TensorId>) -> bool {
@@ -211,6 +216,20 @@ mod tests {
         )
     }
 
+    /// Like [add] but reads `lhs` with `ReadWrite` status (it is freed / reused in place).
+    fn add_rw(lhs: u64, rhs: u64, out: u64) -> OperationIr {
+        let mut lhs = tensor(lhs);
+        lhs.status = TensorStatus::ReadWrite;
+        OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::Add(BinaryOpIr {
+                lhs,
+                rhs: tensor(rhs),
+                out: tensor(out),
+            }),
+        )
+    }
+
     /// A block owning the given `(operation, position)` pairs. No builders needed — the dependency
     /// helpers only read the produced / external-input sets and `start_pos`.
     fn block(ops: &[(OperationIr, usize)]) -> Block<TestOptimization> {
@@ -289,6 +308,20 @@ mod tests {
         // ...but each direct edge is fine.
         assert!(guard.can_merge(blocks[0].constituents(), blocks[1].constituents()));
         assert!(guard.can_merge(blocks[1].constituents(), blocks[2].constituents()));
+    }
+
+    #[test]
+    fn war_edge_orders_freer_after_reader() {
+        // Both blocks read tensor 100 (produced elsewhere): block 0 read-only, block 1 frees it
+        // (ReadWrite). The freer must run after the reader, so block 1 depends on block 0.
+        let blocks = vec![
+            block(&[(add(100, 1, 2), 0)]),    // reads 100 read-only
+            block(&[(add_rw(100, 3, 4), 1)]), // frees 100
+        ];
+        assert!(depends_on(&blocks[1], &blocks[0]));
+        assert!(!depends_on(&blocks[0], &blocks[1]));
+        // A topological order must place the reader (0) before the freer (1).
+        assert_eq!(topological_order(&blocks), Some(vec![0, 1]));
     }
 
     #[test]

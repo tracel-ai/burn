@@ -1,5 +1,5 @@
 use crate::{FuserStatus, NumOperations, OperationFuser, stream::store::ExecutionStrategy};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use std::{collections::HashSet, sync::Arc};
 
 /// A block represents a list of operations, not necessarily in the same order as the execution
@@ -18,6 +18,10 @@ pub struct Block<O> {
     /// A dependency edge `self -> other` exists iff `self.inputs_external` intersects
     /// `other.produced` — i.e. this block consumes a tensor the other block produces.
     inputs_external: HashSet<TensorId>,
+    /// Tensor ids this block reads with [ReadWrite](TensorStatus::ReadWrite) status — i.e. it is
+    /// the last use and frees/reuses the buffer in place. Any other block that also reads such a
+    /// tensor must execute *before* this one (a write-after-read / anti-dependency).
+    reads_rw: HashSet<TensorId>,
     /// Bitmask of the original block indices this block subsumes.
     ///
     /// Seeded to a single bit by the optimizer before a merge pass and OR-ed together on
@@ -61,6 +65,11 @@ impl<O> Block<O> {
         &self.inputs_external
     }
 
+    /// Tensor ids this block reads with [ReadWrite](TensorStatus::ReadWrite) status.
+    pub fn reads_rw(&self) -> &HashSet<TensorId> {
+        &self.reads_rw
+    }
+
     /// Bitmask of the original block indices this block subsumes.
     pub fn constituents(&self) -> u64 {
         self.constituents
@@ -81,6 +90,7 @@ impl<O: NumOperations> Block<O> {
             ids: HashSet::new(),
             produced: HashSet::new(),
             inputs_external: HashSet::new(),
+            reads_rw: HashSet::new(),
             constituents: 0,
             ordering: Vec::new(),
             start_pos: usize::MAX,
@@ -240,6 +250,9 @@ impl<O: NumOperations> Block<O> {
             if !self.produced.contains(&node.id) {
                 self.inputs_external.insert(node.id);
             }
+            if let TensorStatus::ReadWrite = node.status {
+                self.reads_rw.insert(node.id);
+            }
         }
         for node in operation.outputs() {
             self.produced.insert(node.id);
@@ -347,6 +360,7 @@ impl<O> Clone for Block<O> {
             ids: self.ids.clone(),
             produced: self.produced.clone(),
             inputs_external: self.inputs_external.clone(),
+            reads_rw: self.reads_rw.clone(),
             constituents: self.constituents,
             ordering: self.ordering.clone(),
             start_pos: self.start_pos,

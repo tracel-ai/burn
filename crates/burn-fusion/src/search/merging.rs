@@ -3,6 +3,8 @@ use crate::NumOperations;
 
 #[derive(Debug, PartialEq)]
 /// The result of [merging](merge_blocks) [blocks](Block).
+// `Full`/`Partial` carry owned blocks by design; the size gap between variants is expected.
+#[allow(clippy::large_enum_variant)]
 pub enum MergeBlocksResult<O> {
     /// All [blocks](Block) merged into one.
     Full(Block<O>),

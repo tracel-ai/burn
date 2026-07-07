@@ -8,9 +8,10 @@ use crate::{
     },
     stream::{execution::op_kind, store::ExecutionStrategy},
 };
-use burn_ir::{OperationIr, TensorId};
+use burn_ir::{OperationIr, TensorId, TensorStatus};
 use burn_std::config::{config, fusion::FusionLogLevel, log_fusion};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 /// Optimize a stream of [operations](OperationIr) using a list of [builders](OptimizationBuilder).
 pub struct StreamOptimizer<O> {
@@ -108,7 +109,7 @@ impl<O: NumOperations> StreamOptimizer<O> {
     pub fn optimize(&self, operations: &[OperationIr]) -> BlockOptimization<O> {
         let result = BlocksOptimizer::new(self.blocks.clone()).optimize();
 
-        match result {
+        let out = match result {
             BlocksOptimizerResult::Full(block_optimization) => block_optimization,
             BlocksOptimizerResult::WithHoles {
                 mut strategies,
@@ -130,21 +131,12 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
                     optimization_of_holes.map_ordering(&holes);
 
-                    // `ordering` now holds the real stream positions consumed this round.
+                    // Append the re-optimized holes as their own chunk; `repair_order` (below) puts
+                    // every chunk into a hazard-respecting execution order, so the placement here
+                    // doesn't need to be correct — only complete.
                     let consumed = optimization_of_holes.ordering.len();
-                    let hole_positions = optimization_of_holes.ordering;
-
-                    // A resolved strategy may consume a tensor produced by one of these hole ops.
-                    // Insert the hole strategy *before* the first resolved strategy that depends on
-                    // it (rather than always appending) so producers still run before consumers.
-                    let (insert_strategy, insert_offset) =
-                        hole_insertion_point(&strategies, &ordering, &hole_positions, operations);
-
-                    strategies.insert(
-                        insert_strategy,
-                        Box::new(optimization_of_holes.strategy),
-                    );
-                    ordering.splice(insert_offset..insert_offset, hole_positions);
+                    strategies.push(Box::new(optimization_of_holes.strategy));
+                    ordering.append(&mut optimization_of_holes.ordering);
                     holes.drain(0..consumed);
 
                     if holes.is_empty() {
@@ -154,7 +146,9 @@ impl<O: NumOperations> StreamOptimizer<O> {
 
                 BlockOptimization::new(ExecutionStrategy::Composed(strategies), ordering)
             }
-        }
+        };
+
+        repair_order(out, operations)
     }
 
     /// Reset the state of the optimizer.
@@ -400,6 +394,175 @@ enum MergeBlockStep {
     NoNeed,
 }
 
+/// Reorder the top-level strategy chunks so the execution order respects tensor handle lifetimes.
+///
+/// Blocks and re-optimized holes are placed by separate, incremental heuristics that can't see the
+/// whole picture (a hole may depend on another hole spliced later). This final pass treats each
+/// top-level strategy as an atomic chunk and topologically sorts them by hazard edges:
+///
+/// - **read-after-write**: a chunk that reads a tensor must run after the chunk that produces it;
+/// - **write-after-read**: a chunk that frees a tensor (reads it `ReadWrite`, its last use) must run
+///   after every chunk that reads that tensor.
+///
+/// Ties keep the earliest stream position first (stable, reproduces the historical order when there
+/// are no hazards). If the chunk graph has a cycle — the chunking can't be linearized as atomic
+/// units — fall back to running every operation unfused in stream order, which is always valid.
+fn repair_order<O>(
+    opt: BlockOptimization<O>,
+    operations: &[OperationIr],
+) -> BlockOptimization<O> {
+    let (strategies, ordering) = match opt.strategy {
+        ExecutionStrategy::Composed(items) => (items, opt.ordering),
+        // A single strategy has nothing to reorder across, but a merge can still leave its ops
+        // internally out of stream order — validate, and unfuse in stream order if it's broken.
+        single => {
+            if ordering_is_valid(&opt.ordering, operations) {
+                return BlockOptimization::new(single, opt.ordering);
+            }
+            return unfused_stream_order(opt.ordering);
+        }
+    };
+
+    let n = strategies.len();
+    let mut chunks: Vec<Vec<usize>> = Vec::with_capacity(n);
+    let mut offset = 0;
+    for s in &strategies {
+        let len = strategy_len(s);
+        chunks.push(ordering[offset..offset + len].to_vec());
+        offset += len;
+    }
+
+    let mut produces = vec![HashSet::<TensorId>::new(); n];
+    let mut reads = vec![HashSet::<TensorId>::new(); n];
+    let mut frees = vec![HashSet::<TensorId>::new(); n];
+    for i in 0..n {
+        for &p in &chunks[i] {
+            for t in operations[p].outputs() {
+                produces[i].insert(t.id);
+            }
+        }
+        for &p in &chunks[i] {
+            for t in operations[p].inputs() {
+                if produces[i].contains(&t.id) {
+                    continue;
+                }
+                reads[i].insert(t.id);
+                if let TensorStatus::ReadWrite = t.status {
+                    frees[i].insert(t.id);
+                }
+            }
+        }
+    }
+
+    // `i` depends on `j` (j before i) if i reads what j produces, or i frees what j reads.
+    let mut indegree = vec![0usize; n];
+    let mut successors: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for i in 0..n {
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            if intersects(&reads[i], &produces[j]) || intersects(&frees[i], &reads[j]) {
+                indegree[i] += 1;
+                successors[j].push(i);
+            }
+        }
+    }
+
+    let min_pos: Vec<usize> = chunks
+        .iter()
+        .map(|c| c.iter().copied().min().unwrap_or(0))
+        .collect();
+
+    let mut order = Vec::with_capacity(n);
+    let mut done = vec![false; n];
+    for _ in 0..n {
+        let mut pick: Option<usize> = None;
+        for k in 0..n {
+            if done[k] || indegree[k] != 0 {
+                continue;
+            }
+            match pick {
+                None => pick = Some(k),
+                Some(p) => {
+                    if (min_pos[k], k) < (min_pos[p], p) {
+                        pick = Some(k);
+                    }
+                }
+            }
+        }
+        match pick {
+            Some(k) => {
+                done[k] = true;
+                order.push(k);
+                for &s in &successors[k] {
+                    indegree[s] -= 1;
+                }
+            }
+            // Cycle: the chunking isn't linearizable — run everything unfused in stream order.
+            None => return unfused_stream_order(chunks.into_iter().flatten().collect()),
+        }
+    }
+
+    let mut slots: Vec<Option<Box<ExecutionStrategy<O>>>> =
+        strategies.into_iter().map(Some).collect();
+    let mut new_strategies = Vec::with_capacity(n);
+    let mut new_ordering = Vec::with_capacity(ordering.len());
+    for &k in &order {
+        new_strategies.push(slots[k].take().expect("each chunk taken once"));
+        new_ordering.extend_from_slice(&chunks[k]);
+    }
+
+    // A chunk that is internally mis-ordered (e.g. a merge that concatenated two blocks' orderings
+    // out of stream order) can still violate handle lifetimes even after the chunk-level sort. If
+    // the result isn't executable, fall back to running every operation unfused in stream order.
+    if !ordering_is_valid(&new_ordering, operations) {
+        return unfused_stream_order(new_ordering);
+    }
+
+    BlockOptimization::new(ExecutionStrategy::Composed(new_strategies), new_ordering)
+}
+
+/// Run every operation unfused, in ascending stream order — always a valid execution order.
+fn unfused_stream_order<O>(mut positions: Vec<usize>) -> BlockOptimization<O> {
+    positions.sort_unstable();
+    let ordering = Arc::new(positions.clone());
+    BlockOptimization::new(ExecutionStrategy::Operations { ordering }, positions)
+}
+
+/// Simulate tensor handle lifetimes over an execution order: every operation's inputs must be live
+/// when it runs. A tensor read `ReadWrite` is freed after that read; tensors first seen as inputs
+/// come from an earlier segment and are assumed live.
+fn ordering_is_valid(ordering: &[usize], operations: &[OperationIr]) -> bool {
+    let produced: HashSet<TensorId> = ordering
+        .iter()
+        .flat_map(|&p| operations[p].outputs().map(|t| t.id))
+        .collect();
+    let mut alive: HashSet<TensorId> = HashSet::new();
+    for &p in ordering {
+        for t in operations[p].inputs() {
+            if !alive.contains(&t.id) {
+                if produced.contains(&t.id) {
+                    return false; // produced in this segment but not live yet: bad order
+                }
+                alive.insert(t.id); // external tensor from a prior segment
+            }
+            if let TensorStatus::ReadWrite = t.status {
+                alive.remove(&t.id);
+            }
+        }
+        for t in operations[p].outputs() {
+            alive.insert(t.id);
+        }
+    }
+    true
+}
+
+fn intersects(a: &HashSet<TensorId>, b: &HashSet<TensorId>) -> bool {
+    let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    small.iter().any(|id| large.contains(id))
+}
+
 /// Number of stream positions a strategy covers (its share of the concatenated ordering).
 fn strategy_len<O>(strategy: &ExecutionStrategy<O>) -> usize {
     match strategy {
@@ -409,40 +572,3 @@ fn strategy_len<O>(strategy: &ExecutionStrategy<O>) -> usize {
     }
 }
 
-/// Where to splice a batch of re-optimized hole operations into the strategy list.
-///
-/// Returns `(strategy_index, ordering_offset)` of the first already-emitted strategy that consumes
-/// a tensor produced by the hole batch — the hole strategy must run before it. When nothing depends
-/// on the batch, it goes at the end (the historical behavior). The block set is acyclic, so this
-/// point is always after every strategy the batch itself depends on.
-fn hole_insertion_point<O>(
-    strategies: &[Box<ExecutionStrategy<O>>],
-    ordering: &[usize],
-    hole_positions: &[usize],
-    operations: &[OperationIr],
-) -> (usize, usize) {
-    let hole_outputs: HashSet<TensorId> = hole_positions
-        .iter()
-        .flat_map(|&p| operations[p].outputs().map(|t| t.id))
-        .collect();
-
-    if hole_outputs.is_empty() {
-        return (strategies.len(), ordering.len());
-    }
-
-    let mut offset = 0;
-    for (k, strategy) in strategies.iter().enumerate() {
-        let len = strategy_len(strategy);
-        let covered = &ordering[offset..offset + len];
-        let consumes = covered
-            .iter()
-            .any(|&p| operations[p].inputs().any(|t| hole_outputs.contains(&t.id)));
-
-        if consumes {
-            return (k, offset);
-        }
-        offset += len;
-    }
-
-    (strategies.len(), ordering.len())
-}
