@@ -26,13 +26,19 @@ const RANK_KEY: &str = "__rank";
 #[derive(Clone)]
 struct OptimizerGroup {
     group: ParamGroup,
-    grad_clipping: Option<GradientClipping>,
     optim: Arc<dyn DynOptimizer>,
+    grad_clipping: Option<GradientClipping>,
+}
+
+impl OptimizerGroup {
+    pub(crate) fn set_gradient_clipping(&mut self, gradient_clipping: GradientClipping) {
+        self.grad_clipping = Some(gradient_clipping)
+    }
 }
 
 /// Keep a reference to the optimizer to avoid matching every step.
 #[derive(Clone)]
-struct ParamOptimizationState {
+struct OptimizationContext {
     optim: Arc<dyn DynOptimizer>,
     grad_clipping: Option<GradientClipping>,
     path: Option<String>,
@@ -45,12 +51,14 @@ struct ParamOptimizationState {
 /// dynamic optimizer, and per-parameter states are kept as type-erased states keyed by
 /// [`ParamId`](burn::module::ParamId). Build one with `optimizer.into()` or
 /// `OptimizerConfig::init()`.
+///
+/// It is possible to use different optimizers for different parameters. To do so, use the
+/// [ModuleOptimizer::with_group] function to add an optimizer for all parameters matching the
+/// provided group.
 #[derive(Clone)]
 pub struct ModuleOptimizer {
-    default_optim: Arc<dyn DynOptimizer>,
-    optim_groups: Vec<OptimizerGroup>,
-    param_state_map: HashMap<ParamId, ParamOptimizationState>,
-    default_grad_clipping: Option<GradientClipping>,
+    optimizers: Vec<OptimizerGroup>,
+    param_context: HashMap<ParamId, OptimizationContext>,
 }
 
 impl<O> From<O> for ModuleOptimizer
@@ -59,26 +67,35 @@ where
 {
     fn from(optim: O) -> Self {
         Self {
-            default_optim: Arc::new(optim),
-            param_state_map: HashMap::new(),
-            default_grad_clipping: None,
-            optim_groups: vec![],
+            param_context: HashMap::new(),
+            optimizers: vec![OptimizerGroup {
+                group: ParamGroup::all(),
+                optim: Arc::new(optim),
+                grad_clipping: None,
+            }],
         }
     }
 }
 
 impl ModuleOptimizer {
     /// Check if the optimizer has gradient clipping.
+    /// If there are multiple optimizers, checks if any group has gradient clipping.
     pub fn has_gradient_clipping(&self) -> bool {
-        self.default_grad_clipping.is_some()
+        self.optimizers.iter().any(|g| g.grad_clipping.is_some())
     }
 
     /// Access the gradient clipping.
+    /// If there are multiple optimizers, returns the first optimizer's [GradientClipping].
     pub fn grad_clipping(&self) -> Option<&GradientClipping> {
-        self.default_grad_clipping.as_ref()
+        self.optimizers
+            .first()
+            .expect("Should have at least one optimizer")
+            .grad_clipping
+            .as_ref()
     }
 
     /// Sets the gradient clipping.
+    /// If there are multiple optimizers, assigns it to the first one.
     ///
     /// # Arguments
     ///
@@ -88,7 +105,10 @@ impl ModuleOptimizer {
     ///
     /// The optimizer.
     pub fn with_grad_clipping(mut self, gradient_clipping: GradientClipping) -> Self {
-        self.default_grad_clipping = Some(gradient_clipping);
+        self.optimizers
+            .first_mut()
+            .expect("Should have at least one optimizer")
+            .set_gradient_clipping(gradient_clipping);
         self
     }
 
@@ -99,30 +119,40 @@ impl ModuleOptimizer {
         mut grads: GradAdaptor,
     ) -> M {
         module.map(&mut ModuleOptimizerMapper::new(
-            &self.default_optim,
-            self.optim_groups.iter().collect(),
-            &mut self.param_state_map,
+            self.optimizers.iter().collect(),
+            &mut self.param_context,
             &mut grads,
             lr_policy,
-            self.default_grad_clipping.as_ref(),
         ))
     }
 
-    /// Add a parameter group-specific optimizer. Parameters matching this group will be optimized
-    /// using the provided optimizer and gradient clipping.
-    /// Existing states for parameters matching this group will be reset.
-    pub fn with_group(
+    /// Adds an optimizer specific to a parameter group.
+    ///
+    /// Parameters matching this group will be optimized using the provided optimizer
+    /// and gradient clipping configuration.
+    ///
+    /// ### Matching Rules
+    /// * **Precedence:** If a parameter matches multiple groups, the *last* group added takes precedence.
+    /// * **Fallback:** The first optimizer added must match all parameters to act as a global fallback.
+    ///
+    /// ### Side Effects
+    /// * **State Reset:** Adding a new group will reset any existing optimizer states for parameters
+    ///   that match the new group.
+    pub fn with_group<O>(
         mut self,
         group: ParamGroup,
-        optim: impl Into<ModuleOptimizer>,
+        optim: O,
         grad_clipping: Option<GradientClipping>,
-    ) -> Self {
-        self.optim_groups.push(OptimizerGroup {
+    ) -> Self
+    where
+        O: DynOptimizer + 'static,
+    {
+        self.optimizers.push(OptimizerGroup {
             group: group.clone(),
-            optim: optim.into().default_optim,
+            optim: Arc::new(optim),
             grad_clipping,
         });
-        self.param_state_map
+        self.param_context
             .retain(|id, param_state| !group.matches(id, param_state.path.as_deref()));
         self
     }
@@ -154,7 +184,7 @@ impl ModuleOptimizer {
         id: ParamId,
         path: Option<&str>,
     ) -> (&'_ Arc<dyn DynOptimizer>, Option<GradientClipping>) {
-        self.optim_groups
+        self.optimizers
             .iter()
             .filter_map(|val| {
                 val.group
@@ -162,7 +192,7 @@ impl ModuleOptimizer {
                     .then_some((&val.optim, val.grad_clipping.clone()))
             })
             .next_back()
-            .unwrap_or((&self.default_optim, self.default_grad_clipping.clone()))
+            .expect("Should match at least one parameter group.")
     }
 
     /// Decompose the optimizer state into a serializable [`OptimizerRecord`].
@@ -171,7 +201,7 @@ impl ModuleOptimizer {
         let mut scalars = BTreeMap::new();
         let mut paths = BTreeMap::new();
 
-        for (id, param_state) in self.param_state_map.iter() {
+        for (id, param_state) in self.param_context.iter() {
             let prefix = id.val().to_string();
             let mut sink = StateSink::default();
             param_state
@@ -262,7 +292,7 @@ impl ModuleOptimizer {
             if let Some(state) = optim.state_unflatten(rank, &prefix, &mut source, &device) {
                 states.insert(
                     ParamId::from(id),
-                    ParamOptimizationState {
+                    OptimizationContext {
                         optim: optim.clone(),
                         path: path.cloned(),
                         state,
@@ -272,7 +302,7 @@ impl ModuleOptimizer {
             }
         }
 
-        self.param_state_map = states;
+        self.param_context = states;
         self
     }
 
@@ -338,31 +368,25 @@ impl GradAdaptor {
 
 struct ModuleOptimizerMapper<'a> {
     path: Vec<String>,
-    optimizer: &'a Arc<dyn DynOptimizer>,
     optimizer_groups: Vec<&'a OptimizerGroup>,
-    states: &'a mut HashMap<ParamId, ParamOptimizationState>,
+    states: &'a mut HashMap<ParamId, OptimizationContext>,
     grads: &'a mut GradAdaptor,
     lr_policy: LrPolicy,
-    grad_clipping: Option<&'a GradientClipping>,
 }
 
 impl<'a> ModuleOptimizerMapper<'a> {
     pub(crate) fn new(
-        optimizer: &'a Arc<dyn DynOptimizer>,
         optimizer_groups: Vec<&'a OptimizerGroup>,
-        states: &'a mut HashMap<ParamId, ParamOptimizationState>,
+        states: &'a mut HashMap<ParamId, OptimizationContext>,
         grads: &'a mut GradAdaptor,
         lr_policy: LrPolicy,
-        grad_clipping: Option<&'a GradientClipping>,
     ) -> Self {
         Self {
             path: vec![],
-            optimizer,
             optimizer_groups,
             states,
             grads,
             lr_policy,
-            grad_clipping,
         }
     }
 
@@ -379,7 +403,7 @@ impl<'a> ModuleOptimizerMapper<'a> {
                     .then_some((val.optim.clone(), val.grad_clipping.clone()))
             })
             .next_back()
-            .unwrap_or((self.optimizer.clone(), self.grad_clipping.cloned()))
+            .expect("Should match at least one parameter group.")
     }
 }
 
@@ -411,7 +435,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 
             let path = self.path.join(".");
             let (optim, grad_clipping, existing_dyn_state) = match entry.map(|(_, s)| s) {
-                Some(ParamOptimizationState {
+                Some(OptimizationContext {
                     optim,
                     grad_clipping,
                     state,
@@ -453,7 +477,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
             if let Some(state) = state {
                 self.states.insert(
                     key.unwrap_or(id),
-                    ParamOptimizationState {
+                    OptimizationContext {
                         optim,
                         path: Some(path),
                         state,
@@ -560,7 +584,7 @@ mod tests {
         let make_optim = || {
             sgd().with_group(
                 ParamGroup::from_predicate("layer_a"),
-                AdamConfig::new().init(),
+                AdamConfig::new().build(),
                 None,
             )
         };
@@ -616,7 +640,7 @@ mod tests {
         // Switch layer_a to SGD. Its Adam state must be cleared.
         optim = optim.with_group(
             ParamGroup::from_predicate("layer_a"),
-            SgdConfig::new().init(),
+            SgdConfig::new().build(),
             None,
         );
 
@@ -643,7 +667,7 @@ mod tests {
 
         let mut optim = sgd().with_group(
             ParamGroup::from_predicate("layer_a"),
-            SgdConfig::new().init(),
+            SgdConfig::new().build(),
             Some(GradientClipping::Value(threshold)),
         );
 

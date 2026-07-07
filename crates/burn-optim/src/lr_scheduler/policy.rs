@@ -192,6 +192,15 @@ impl LrPolicyScheduler {
 
         self
     }
+
+    /// Add a new parameter group to the scheduler's policy.
+    pub fn with_group(mut self, group: ParamGroup, scheduler: impl Into<DynLrScheduler>) -> Self {
+        self.scheduler_groups.push(LrSchedulerGroup {
+            group,
+            scheduler: scheduler.into(),
+        });
+        self
+    }
 }
 
 impl<S> From<S> for LrPolicyScheduler
