@@ -136,6 +136,13 @@ impl<O: NumOperations> Processor<O> {
         }
     }
 
+    /// Number of optimizations built so far; a cached plan that is reused does not
+    /// count. Used by tests to assert that recurring graphs stop exploring.
+    #[cfg(test)]
+    pub(crate) fn num_explorations(&self) -> usize {
+        self.explorer.num_explorations()
+    }
+
     fn reset(&mut self, store: &mut ExecutionPlanStore<O>, operations: &[OperationIr]) {
         self.explorer.reset(operations);
         self.policy.reset();
