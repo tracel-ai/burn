@@ -500,7 +500,7 @@ fn assemble<O>(
         new_ordering.extend_from_slice(&chunks[k].positions);
     }
 
-    // A chunk that is internally mis-ordered can still violate handle lifetimes even after the
+    // A chunk that is internally miss-ordered can still violate handle lifetimes even after the
     // chunk-level sort. If the result isn't executable, fall back to running every operation
     // unfused in stream order.
     if !ordering_is_valid(&new_ordering, operations) {
