@@ -252,6 +252,11 @@ mod reachability {
 mod lifetime {
     use super::*;
 
+    /// Run the lifetime simulation on `nodes` executed in the given order.
+    fn valid(nodes: &[TestNode], order: &[usize]) -> bool {
+        is_valid_execution_order(order.iter().map(|&i| &nodes[i]))
+    }
+
     #[test]
     fn program_order_is_valid() {
         let nodes = vec![
@@ -259,7 +264,7 @@ mod lifetime {
             TestNode::new(1).frees([10]).produces([11]),
         ];
 
-        assert!(is_valid_execution_order(&nodes, &[0, 1]));
+        assert!(valid(&nodes, &[0, 1]));
     }
 
     #[test]
@@ -269,7 +274,7 @@ mod lifetime {
             TestNode::new(1).reads([10]).produces([11]),
         ];
 
-        assert!(!is_valid_execution_order(&nodes, &[1, 0]));
+        assert!(!valid(&nodes, &[1, 0]));
     }
 
     #[test]
@@ -279,8 +284,8 @@ mod lifetime {
             TestNode::new(1).reads([1]).produces([11]),
         ];
 
-        assert!(!is_valid_execution_order(&nodes, &[0, 1]));
-        assert!(is_valid_execution_order(&nodes, &[1, 0]));
+        assert!(!valid(&nodes, &[0, 1]));
+        assert!(valid(&nodes, &[1, 0]));
     }
 
     #[test]
@@ -291,7 +296,7 @@ mod lifetime {
             TestNode::new(1).reads([1, 10]).produces([11]),
         ];
 
-        assert!(is_valid_execution_order(&nodes, &[0, 1]));
+        assert!(valid(&nodes, &[0, 1]));
     }
 
     #[test]
@@ -302,6 +307,6 @@ mod lifetime {
             TestNode::new(1).reads([10]).produces([11]),
         ];
 
-        assert!(is_valid_execution_order(&nodes, &[1]));
+        assert!(valid(&nodes, &[1]));
     }
 }

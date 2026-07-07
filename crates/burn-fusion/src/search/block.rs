@@ -231,18 +231,18 @@ impl<O: NumOperations> Block<O> {
     /// Whether the block's operations, executed in registration order, respect tensor lifetimes
     /// (no read before the producing operation, no read after the freeing operation).
     fn has_valid_internal_order(&self) -> bool {
-        let nodes = self
-            .operations
+        is_valid_execution_order(self.operation_nodes())
+    }
+
+    /// The block's operations in registration order, viewed as [graph nodes](OperationNode).
+    fn operation_nodes(&self) -> impl Iterator<Item = OperationNode<'_>> + Clone {
+        self.operations
             .iter()
             .zip(&self.ordering)
             .map(|(operation, &position)| OperationNode {
                 operation,
                 position,
             })
-            .collect::<Vec<_>>();
-        let registration_order = (0..nodes.len()).collect::<Vec<_>>();
-
-        is_valid_execution_order(&nodes, &registration_order)
     }
 
     /// Register an [operation](OperationIr) in the current block.

@@ -528,16 +528,10 @@ fn unfused_stream_order<O>(mut positions: Vec<usize>) -> BlockOptimization<O> {
 /// Whether the execution order respects tensor handle lifetimes: every operation's inputs must be
 /// live when it runs (see [is_valid_execution_order]).
 fn ordering_is_valid(ordering: &[usize], operations: &[OperationIr]) -> bool {
-    let nodes = operations
-        .iter()
-        .enumerate()
-        .map(|(position, operation)| OperationNode {
-            position,
-            operation,
-        })
-        .collect::<Vec<_>>();
-
-    is_valid_execution_order(&nodes, ordering)
+    is_valid_execution_order(ordering.iter().map(|&position| OperationNode {
+        operation: &operations[position],
+        position,
+    }))
 }
 
 /// Number of stream positions a strategy covers (its share of the concatenated ordering).
