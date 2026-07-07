@@ -214,3 +214,128 @@ fn cat_int_then_elementwise_computes_correctly() {
         );
     });
 }
+
+/// `cat` on bool tensors goes through the `BaseBool` path and should fuse with a following
+/// element-wise op (`equal` is the base op available on bool).
+#[test]
+fn cat_bool_then_elementwise_computes_correctly() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+
+        let a = TestTensorBool::<1>::from_data([true, false, true], &device);
+        let b = TestTensorBool::<1>::from_data([false, true], &device);
+        let c = TestTensorBool::<1>::from_data([true, true, false, false, true], &device);
+        device.sync().unwrap();
+
+        let inspector = FusionInspector::install(stream);
+        let out = TestTensorBool::cat(vec![a, b], 0).equal(c);
+        out.into_data()
+            .assert_eq(&TensorData::from([true, false, false, true, true]), false);
+        device.sync().unwrap();
+
+        let reports = inspector.drain();
+        let tables = reports
+            .iter()
+            .map(|report| report.format_table())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        assert!(
+            reports
+                .iter()
+                .flat_map(|report| report.blocks.iter())
+                .any(|block| matches!(block.kind, BlockKind::Fused { .. })
+                    && block.operations.iter().any(matchers::is_cat())),
+            "bool cat should be part of a fused block\n\n{tables}",
+        );
+    });
+}
+
+/// `cat` of a non-contiguous (transposed) input: the fused kernel must follow the input's
+/// actual strides. Concatenating on the last dim also exercises the per-element path.
+#[test]
+fn cat_transposed_input_last_dim_computes_correctly() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+
+        let a = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        // Non-contiguous handle of shape [3, 2].
+        let a = a.swap_dims(0, 1);
+        let b = TestTensor::<2>::from_data([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]], &device);
+        device.sync().unwrap();
+
+        let inspector = FusionInspector::install(stream);
+        let out = TestTensor::cat(vec![a, b], 1).mul_scalar(2.0);
+        out.into_data().assert_approx_eq::<FloatElem>(
+            &TensorData::from([
+                [2.0, 8.0, 20.0, 40.0],
+                [4.0, 10.0, 60.0, 80.0],
+                [6.0, 12.0, 100.0, 120.0],
+            ]),
+            Tolerance::default(),
+        );
+        device.sync().unwrap();
+
+        let reports = inspector.drain();
+        let tables = reports
+            .iter()
+            .map(|report| report.format_table())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        assert!(
+            reports
+                .iter()
+                .flat_map(|report| report.blocks.iter())
+                .any(|block| matches!(block.kind, BlockKind::Fused { .. })
+                    && block.operations.iter().any(matchers::is_cat())),
+            "cat of a transposed input should be part of a fused block\n\n{tables}",
+        );
+    });
+}
+
+/// The `cat` output is broadcast by the following element-wise op: the fused block's
+/// reference shape is larger than the cat output along a non-cat axis, so cat input reads
+/// must wrap around on that axis.
+#[test]
+fn cat_output_broadcast_by_elementwise_computes_correctly() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+
+        let a = TestTensor::<2>::from_data([[1.0, 2.0, 3.0]], &device);
+        let b = TestTensor::<2>::from_data([[10.0, 20.0, 30.0, 40.0, 50.0]], &device);
+        let c = TestTensor::<2>::from_data([[100.0; 8], [200.0; 8]], &device);
+        device.sync().unwrap();
+
+        let inspector = FusionInspector::install(stream);
+        // cat([1, 3], [1, 5]) = [1, 8], broadcast against [2, 8].
+        let out = TestTensor::cat(vec![a, b], 1) + c;
+        out.into_data().assert_approx_eq::<FloatElem>(
+            &TensorData::from([
+                [101.0, 102.0, 103.0, 110.0, 120.0, 130.0, 140.0, 150.0],
+                [201.0, 202.0, 203.0, 210.0, 220.0, 230.0, 240.0, 250.0],
+            ]),
+            Tolerance::default(),
+        );
+        device.sync().unwrap();
+
+        let reports = inspector.drain();
+        let tables = reports
+            .iter()
+            .map(|report| report.format_table())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        assert!(
+            reports
+                .iter()
+                .flat_map(|report| report.blocks.iter())
+                .any(|block| matches!(block.kind, BlockKind::Fused { .. })
+                    && block.operations.iter().any(matchers::is_cat())),
+            "broadcast cat should be part of a fused block\n\n{tables}",
+        );
+    });
+}
