@@ -418,6 +418,29 @@ impl TraceOperationFuser {
                     Some(())
                 })
             }
+            BaseOperationIr::Cat(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.fuser.fuse(|build| {
+                    let mut tensors = Vec::with_capacity(desc.tensors.len());
+
+                    for tensor in desc.tensors.iter() {
+                        tensors.push(build.input_indexed(tensor)?);
+                    }
+
+                    let output = build.output(&desc.out)?;
+
+                    build.fuse_operation(FuseOp::Cat {
+                        inputs: tensors,
+                        output,
+                        dim: desc.dim,
+                    });
+
+                    Some(())
+                })
+            }
             BaseOperationIr::MaskWhere(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;

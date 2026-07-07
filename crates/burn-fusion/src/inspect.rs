@@ -330,7 +330,9 @@ pub(crate) fn emit_handle_snapshot(stream_id: StreamId, ids: impl IntoIterator<I
 pub mod matchers {
     use super::OpMatcher;
     use burn_backend::DType;
-    use burn_ir::{FloatOperationIr, IntOperationIr, NumericOperationIr, OperationIr};
+    use burn_ir::{
+        BaseOperationIr, FloatOperationIr, IntOperationIr, NumericOperationIr, OperationIr,
+    };
 
     /// Matches a float add (`a + b`) on the given dtype.
     pub fn is_add_float(dtype: DType) -> OpMatcher {
@@ -494,6 +496,18 @@ pub mod matchers {
                 OperationIr::BaseFloat(BaseOperationIr::SwapDims(_))
                     | OperationIr::BaseInt(BaseOperationIr::SwapDims(_))
                     | OperationIr::BaseBool(BaseOperationIr::SwapDims(_))
+            )
+        })
+    }
+
+    /// Matches a `Cat` (concatenation) on any tensor kind.
+    pub fn is_cat() -> OpMatcher {
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::BaseFloat(BaseOperationIr::Cat(_))
+                    | OperationIr::BaseInt(BaseOperationIr::Cat(_))
+                    | OperationIr::BaseBool(BaseOperationIr::Cat(_))
             )
         })
     }
