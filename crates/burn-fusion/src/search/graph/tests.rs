@@ -230,6 +230,24 @@ mod reachability {
     }
 
     #[test]
+    fn cyclic_graph_falls_back_to_fixpoint() {
+        // 0 ↔ 1 feed each other (a cycle); 2 reads from 1.
+        let nodes = vec![
+            TestNode::new(0).reads([200]).produces([100]),
+            TestNode::new(1).reads([100]).produces([200]),
+            TestNode::new(2).reads([200]).produces([300]),
+        ];
+        let dag = Dag::new(&nodes);
+        assert!(!dag.is_acyclic());
+
+        let reachability = dag.reachability();
+        // Contracting the cycle itself is legal — it disappears inside the contracted node...
+        assert!(reachability.can_contract(&SubGraph::single(0), &SubGraph::single(1)));
+        // ...but node 1 still sits between node 0 and node 2.
+        assert!(!reachability.can_contract(&SubGraph::single(0), &SubGraph::single(2)));
+    }
+
+    #[test]
     fn supports_more_than_64_nodes() {
         // A chain of 70 nodes: node i reads what node i-1 produces.
         let nodes = (0..70)

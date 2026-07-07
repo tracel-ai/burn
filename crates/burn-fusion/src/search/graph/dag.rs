@@ -90,22 +90,38 @@ impl Dag {
         let n = self.len();
         let mut ancestors = self.dependencies.clone();
 
-        // Propagate to a fixpoint: every node absorbs the ancestors of its ancestors.
-        loop {
-            let mut changed = false;
-            for i in 0..n {
-                let mut absorbed = ancestors[i].clone();
-                for j in ancestors[i].iter().collect::<Vec<_>>() {
-                    absorbed.union_with(&ancestors[j]);
-                }
-                if absorbed != ancestors[i] {
-                    ancestors[i] = absorbed;
-                    changed = true;
+        // A node absorbs the (final) ancestor sets of its direct dependencies. In execution
+        // order every dependency is processed before its dependents, so a single pass is
+        // complete. Taking the set out and putting it back sidesteps the aliasing between
+        // `ancestors[i]` and `ancestors[j]` without any clone (`j != i`: no self-edges).
+        match self.topological_order() {
+            Some(order) => {
+                for i in order {
+                    let mut acc = core::mem::take(&mut ancestors[i]);
+                    for j in self.dependencies[i].iter() {
+                        acc.union_with(&ancestors[j]);
+                    }
+                    ancestors[i] = acc;
                 }
             }
-            if !changed {
-                break;
-            }
+            // On a cycle no linear pass exists (defensive — the merge guards keep the block set
+            // acyclic): relax the direct edges to a fixpoint instead. Unions only grow, so a
+            // length change is an exact change signal.
+            None => loop {
+                let mut changed = false;
+                for i in 0..n {
+                    let mut acc = core::mem::take(&mut ancestors[i]);
+                    let before = acc.len();
+                    for j in self.dependencies[i].iter() {
+                        acc.union_with(&ancestors[j]);
+                    }
+                    changed |= acc.len() != before;
+                    ancestors[i] = acc;
+                }
+                if !changed {
+                    break;
+                }
+            },
         }
 
         // Descendants are the transpose of ancestors.
