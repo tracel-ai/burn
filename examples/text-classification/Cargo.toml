@@ -28,7 +28,7 @@ ddp = []
 
 [dependencies]
 # Burn
-burn = { workspace = true, default-features = false, features = [
+burn = { workspace = true, features = [
     "train",
     "optim",
     "tui",
@@ -36,7 +36,7 @@ burn = { workspace = true, default-features = false, features = [
     "metrics",
     "flex",
     "autotune",
-    # "fusion",
+    "fusion",
     "std",
 ] }
 log = { workspace = true }
