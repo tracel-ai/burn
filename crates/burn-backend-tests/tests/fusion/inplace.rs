@@ -139,6 +139,68 @@ fn read_only_input_is_not_written_inplace() {
     });
 }
 
+/// A consumed elemwise input feeding a fused reduce must alias the elemwise output.
+///
+/// The aliased output becomes the read block's reference layout, so the reduce runner
+/// resolves the reference against an aliased output argument: this covers the
+/// output-arg reference form and the `TensorArg::Alias` arms of
+/// `GlobalArgsLaunch::shape/strides`, which elemwise-only chains don't exercise.
+#[test]
+fn reduce_fusion_elemwise_output_writes_inplace() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+
+        let make_input = || {
+            let tensor =
+                TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], &device);
+            // Materialize the init op before the fused chain, so the chain starts from
+            // an existing buffer and the init doesn't show up in the inspected reports.
+            let _ = tensor.clone().into_data();
+            device.sync().unwrap();
+            tensor
+        };
+
+        // `out` stays alive across the reduce, so it is a global output of the fused
+        // read block, while `tensor` is consumed and can be aliased. The elemwise ops
+        // on both sides of the reduce each eliminate an intermediate, giving the reduce
+        // fuser an I/O saving over a plain elemwise fusion (which must stop at
+        // `sum_dim`) so the reduce optimization wins the block.
+        let run = |tensor: TestTensor<2>, offset: f32| {
+            let out = tensor.add_scalar(offset).mul_scalar(2.0);
+            let sum = out.clone().sum_dim(1);
+            let res = sum.mul_scalar(3.0).add_scalar(offset);
+            (out.into_data(), res.into_data())
+        };
+
+        // Warmup with the same (relative) graph: first execution may go through autotune,
+        // where benchmark trials run on forked contexts that (correctly) never alias.
+        let _ = run(make_input(), 0.0);
+        device.sync().unwrap();
+
+        let input = make_input();
+        let inspector = FusionInspector::install(stream);
+        let before = inplace_alias_count();
+        let (out, res) = run(input, 1.0);
+        device.sync().unwrap();
+        let after = inplace_alias_count();
+
+        out.assert_approx_eq::<FloatElem>(
+            &TensorData::from([[4.0, 6.0, 8.0, 10.0], [12.0, 14.0, 16.0, 18.0]]),
+            Tolerance::default(),
+        );
+        res.assert_approx_eq::<FloatElem>(
+            &TensorData::from([[85.0], [181.0]]),
+            Tolerance::default(),
+        );
+        assert_all_fused(&inspector.drain(), "reduce with consumed elemwise input");
+        assert!(
+            after > before,
+            "the elemwise output feeding the fused reduce should alias the consumed input buffer",
+        );
+    });
+}
+
 /// Repeated consuming updates (the KV-cache pattern) must alias on every iteration while
 /// the cached execution plan is reused, and values must stay correct throughout.
 #[test]

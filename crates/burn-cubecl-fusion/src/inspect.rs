@@ -12,8 +12,11 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 static INPLACE_ALIAS_COUNT: AtomicU64 = AtomicU64::new(0);
 
-/// The number of fused-kernel outputs that aliased (reused) an input buffer instead of
-/// allocating their own, since process start.
+/// The number of fused-kernel outputs planned to alias (reuse) an input buffer instead
+/// of allocating their own, since process start.
+///
+/// Counted at plan time: a plan whose execution later fails and rolls back still
+/// increments the counter, so treat it as an upper bound on executed aliases.
 pub fn inplace_alias_count() -> u64 {
     INPLACE_ALIAS_COUNT.load(Ordering::Relaxed)
 }

@@ -342,6 +342,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
 
         let block = &plan.blocks[block_idx];
+        let ref_layout_setting = &self.blocks[block_idx].settings.ref_layout;
         let kind = block
             .potential_inplaces
             .iter()
@@ -350,13 +351,20 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
                     && &*pi.strides == strides
-                    // When no reference has been selected yet, this output becomes the
-                    // reference (see [Self::inplace_output]); an already-selected
-                    // reference must have compatible strides. Requiring an existing
-                    // reference here made the first output of every block ineligible,
-                    // since the reference is only selected while processing outputs.
-                    && (!block.reference.is_found()
-                        || block.reference.compatible_strides_for_inplace(strides))
+                    && if block.reference.is_found() {
+                        // An already-selected reference must have compatible strides.
+                        block.reference.compatible_strides_for_inplace(strides)
+                    } else {
+                        // When no reference has been selected yet, this output becomes
+                        // the reference (see [Self::inplace_output]); requiring an
+                        // existing reference here made the first output of every block
+                        // ineligible, since the reference is only selected while
+                        // processing outputs. Blocks that inherit their reference from
+                        // another block are excluded: the inherited layout is unknown
+                        // at this point, so it cannot be validated against the
+                        // candidate's strides.
+                        !matches!(ref_layout_setting, RefLayoutSetting::SameAsBlock { .. })
+                    }
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
             .unwrap_or(OutputKind::Normal);
@@ -386,12 +394,19 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         };
 
-        if !block.reference.is_found()
-            && !matches!(
-                self.blocks[block_idx].settings.ref_layout,
-                RefLayoutSetting::SameAsBlock { .. }
-            )
-        {
+        // [Self::output_kind] only selects inplace when the reference is already
+        // validated or this output can become the reference, which blocks inheriting
+        // their reference from another block (`SameAsBlock`) never can.
+        debug_assert!(
+            block.reference.is_found()
+                || !matches!(
+                    self.blocks[block_idx].settings.ref_layout,
+                    RefLayoutSetting::SameAsBlock { .. }
+                ),
+            "inplace alias selected for a `SameAsBlock` block without a validated reference",
+        );
+
+        if !block.reference.is_found() {
             // The aliased output shares the input's buffer and layout, so the reference
             // is expressed with the output argument. Runners assume references are
             // either output-concrete or virtual; an input-concrete reference here would
