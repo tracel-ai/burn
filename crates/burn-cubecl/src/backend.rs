@@ -1,7 +1,8 @@
 use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
+    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
+    TensorData,
 };
 use burn_std::{BoolStore, DType};
 use cubecl::{
@@ -14,6 +15,13 @@ use std::marker::PhantomData;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 #[cfg(not(feature = "fusion"))]
 use burn_ir::{BackendIr, TensorHandle};
+
+/// Turn a cubecl graph-capture error into a backend [`ExecutionError`].
+fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
+    ExecutionError::WithContext {
+        reason: format!("{err}"),
+    }
+}
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
@@ -59,6 +67,32 @@ where
         futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),
         })
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = R::client(device);
+        client.graph_prepare().map_err(graph_err)
+    }
+
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = R::client(device);
+        client.start_capture().map_err(graph_err)
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph, ExecutionError> {
+        let client = R::client(device);
+        let graph = client.stop_capture().map_err(graph_err)?;
+        Ok(BackendGraph::new(graph))
+    }
+
+    fn graph_replay(_device: &Self::Device, graph: &BackendGraph) -> Result<(), ExecutionError> {
+        graph
+            .downcast_ref::<cubecl::client::Graph<R>>()
+            .ok_or_else(|| ExecutionError::WithContext {
+                reason: "graph_replay was given a graph from a different backend".into(),
+            })?
+            .replay()
+            .map_err(graph_err)
     }
 
     fn memory_persistent_allocations<

@@ -322,6 +322,17 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         is_require_grad_impl(&self.primitive)
     }
 
+    /// Whether this tensor's buffer can be mutated in place — i.e. this handle
+    /// uniquely owns the allocation, so an in-place op writes it directly
+    /// instead of copying first (see [`FloatTensorOps::float_can_mut`]).
+    ///
+    /// The cubecl backends answer precisely from the handle reference count;
+    /// others default to `true`. Useful to assert a hot-path op (e.g. a
+    /// KV-cache `slice_assign`) stays in place rather than silently copying.
+    pub fn can_mut(&self) -> bool {
+        can_mut_impl(&self.primitive)
+    }
+
     /// Mark the tensor as tracked or untracked depending on the require_grad argument.
     /// When tracked, the gradients will be available after the backward pass.
     ///
@@ -1143,6 +1154,14 @@ fn is_require_grad_impl(p: &BridgeTensor) -> bool {
     match kind {
         BridgeKind::Float => Dispatch::float_is_require_grad(tensor),
         BridgeKind::QFloat => Dispatch::q_is_require_grad(tensor),
+        _ => panic!("Should be Float primitive kind"),
+    }
+}
+
+fn can_mut_impl(p: &BridgeTensor) -> bool {
+    let (kind, tensor) = p.as_parts();
+    match kind {
+        BridgeKind::Float => Dispatch::float_can_mut(tensor),
         _ => panic!("Should be Float primitive kind"),
     }
 }

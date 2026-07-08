@@ -805,6 +805,18 @@ pub trait FloatTensorOps<B: Backend> {
         false
     }
 
+    /// Whether the tensor's buffer can be mutated in place — i.e. this handle
+    /// uniquely owns it, so an in-place op (`slice_assign`, an inplace kernel)
+    /// writes the existing allocation instead of copying it first.
+    ///
+    /// The default is `true` (assume unique ownership); backends that track
+    /// buffer aliasing (the cubecl backends, via the handle reference count)
+    /// override it with the precise answer. Intended for validation — asserting
+    /// that a hot-path op stays in place — not for driving correctness.
+    fn float_can_mut(_tensor: &FloatTensor<B>) -> bool {
+        true
+    }
+
     /// Sum of all elements in a tensor.
     ///
     /// # Arguments

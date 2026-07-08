@@ -75,6 +75,36 @@ pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
 ///
 /// ## Documentation
 ///
+/// An opaque, backend-owned captured graph (see
+/// [`Backend::graph_stop_capture`]). Wraps the backend's own graph handle; the
+/// backend downcasts it in [`Backend::graph_replay`].
+#[derive(Debug)]
+pub struct BackendGraph {
+    inner: alloc::boxed::Box<dyn core::any::Any + Send + Sync>,
+}
+
+impl BackendGraph {
+    /// Wrap a backend graph handle.
+    pub fn new<T: core::any::Any + Send + Sync>(graph: T) -> Self {
+        Self {
+            inner: alloc::boxed::Box::new(graph),
+        }
+    }
+
+    /// Borrow the backend graph handle, or `None` if produced by another backend.
+    pub fn downcast_ref<T: core::any::Any>(&self) -> Option<&T> {
+        self.inner.downcast_ref::<T>()
+    }
+}
+
+/// The error returned by the default (unsupported) graph-capture methods.
+fn graph_unsupported() -> ExecutionError {
+    ExecutionError::Generic {
+        reason: alloc::string::String::from("graph capture is not supported by this backend"),
+        backtrace: BackTrace::capture(),
+    }
+}
+
 /// Most of the documentation for each function can be found on the user API
 #[cfg_attr(doc, doc = crate::doc_tensor!())]
 #[cfg_attr(not(doc), doc = "`Tensor`")]
@@ -135,6 +165,35 @@ pub trait Backend:
     /// Sync the backend, ensure that all computation are finished.
     fn sync(_device: &Self::Device) -> Result<(), ExecutionError> {
         Ok(())
+    }
+
+    /// Prepare `device` for an upcoming graph capture: route allocations into a
+    /// stable pool so every buffer allocated before [`graph_stop_capture`] can
+    /// be pinned. Call before the warmup run. No-op by default.
+    ///
+    /// See [`burn_graph`](crate) — the closure-based `capture` helper drives
+    /// this whole sequence.
+    fn graph_prepare(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    /// Begin recording launches on `device` into a graph (see
+    /// [`graph_stop_capture`](Backend::graph_stop_capture)). Errors on backends
+    /// without hardware graph support, so callers fall back to re-running.
+    fn graph_start_capture(_device: &Self::Device) -> Result<(), ExecutionError> {
+        Err(graph_unsupported())
+    }
+
+    /// Stop recording and return the captured [`BackendGraph`], ready to
+    /// [`graph_replay`](Backend::graph_replay).
+    fn graph_stop_capture(_device: &Self::Device) -> Result<BackendGraph, ExecutionError> {
+        Err(graph_unsupported())
+    }
+
+    /// Replay a captured [`BackendGraph`] — one dispatch re-running the recorded
+    /// launches against their original buffers.
+    fn graph_replay(_device: &Self::Device, _graph: &BackendGraph) -> Result<(), ExecutionError> {
+        Err(graph_unsupported())
     }
 
     /// Flush any pending operation of the backend.
