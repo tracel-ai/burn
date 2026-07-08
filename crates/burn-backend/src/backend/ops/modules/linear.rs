@@ -1,36 +1,62 @@
 use alloc::vec;
+use alloc::vec::Vec;
 
 use crate::tensor::FloatTensor;
 use crate::{Backend, TensorMetadata};
-use burn_std::Shape;
+use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy, Shape};
 
 /// Default [linear](crate::ops::ModuleOps::linear) forward implementation.
 ///
 /// Computes `y = x @ weight [+ bias]`.
 ///
-/// Weight `[d_input, d_output]` and bias `[d_output]` are broadcast to match x's rank
-/// before the matmul. The decomposition stays a plain broadcast matmul — no view
-/// ops — so fusion engines can match the matmul with its epilogue; turning the
-/// broadcast batches into a single full matmul is the launch's job (see
-/// `merged_rows` in burn-cubecl-fusion / burn-cubecl).
+/// The weight is shared by every leading dim of x, so when the batched matmul
+/// would tile poorly, the [transform policy](MatmulTransformPolicy) folds the
+/// leading dims into the rows and the product runs as one `[rows, d_input] @
+/// [d_input, d_output]` matmul. Otherwise weight and bias broadcast to x's rank
+/// for a batched matmul.
 pub(crate) fn linear<B: Backend>(
     x: FloatTensor<B>,
     weight: FloatTensor<B>,
     bias: Option<FloatTensor<B>>,
 ) -> FloatTensor<B> {
-    let ndims = x.shape().num_dims();
+    let shape = x.shape();
+    let ndims = shape.num_dims();
 
-    // Reshape weight [d_input, d_output] -> [1, ..., 1, d_input, d_output] for batch matmul.
-    let weight = unsqueeze_leading::<B>(weight, ndims);
-    let output = B::float_matmul(x, weight);
+    let analysis = MatmulTransformAnalysis::from_shapes(&shape, &weight.shape());
 
-    match bias {
-        Some(bias) => {
-            // Reshape bias [d_output] -> [1, ..., 1, d_output] to match output rank.
-            let bias = unsqueeze_leading::<B>(bias, ndims);
-            B::float_add(output, bias)
+    match MatmulTransformPolicy::default().action(&analysis) {
+        MatmulTransformAction::MergeBatches { rows } => {
+            let d_input = shape[ndims - 1];
+            let d_output = weight.shape()[1];
+
+            let x = B::float_reshape(x, Shape::new([rows, d_input]));
+            let mut output = B::float_matmul(x, weight);
+
+            if let Some(bias) = bias {
+                let bias = B::float_reshape(bias, Shape::new([1, d_output]));
+                output = B::float_add(output, bias);
+            }
+
+            let out_dims: Vec<usize> =
+                (0..ndims - 1).map(|i| shape[i]).chain([d_output]).collect();
+            B::float_reshape(output, Shape::from(out_dims))
         }
-        None => output,
+        MatmulTransformAction::Keep => {
+            // Reshape weight [d_input, d_output] -> [1, ..., 1, d_input, d_output]
+            // for batch matmul.
+            let weight = unsqueeze_leading::<B>(weight, ndims);
+            let output = B::float_matmul(x, weight);
+
+            match bias {
+                Some(bias) => {
+                    // Reshape bias [d_output] -> [1, ..., 1, d_output] to match
+                    // output rank.
+                    let bias = unsqueeze_leading::<B>(bias, ndims);
+                    B::float_add(output, bias)
+                }
+                None => output,
+            }
+        }
     }
 }
 
@@ -64,7 +90,7 @@ fn flatten_leading<B: Backend>(tensor: FloatTensor<B>) -> FloatTensor<B> {
 /// Default [linear_x_backward](crate::ops::ModuleOps::linear_x_backward) implementation.
 ///
 /// Computes `dx = output_grad @ weight^T` — a [linear] forward against the
-/// transposed weight, so it shares the batched vec-mat transformation.
+/// transposed weight, so it shares the transform policy.
 pub(crate) fn linear_x_backward<B: Backend>(
     weight: FloatTensor<B>,
     output_grad: FloatTensor<B>,

@@ -2,7 +2,7 @@ use super::init_matmul_output;
 use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
-use burn_std::{Metadata, QuantLevel};
+use burn_std::{MatmulTransformAnalysis, MatmulTransformPolicy, QuantLevel};
 use cubek::{
     matmul::{
         definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
@@ -44,16 +44,17 @@ pub fn matmul<R: CubeRuntime>(
 ) -> Result<CubeTensor<R>, MatmulSetupError> {
     let out = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
-    // When the rhs is broadcast over every batch dim and the lhs/out rows are
-    // contiguous across the innermost batch dim, merge that dim into the rows:
-    // `[.., b, m, k] @ [.., 1, k, n]` runs as one `[.., 1, b*m, k]` matmul
-    // instead of `b` broadcast matmuls that each re-read the whole rhs. Pure
-    // metadata — the launch operands share the handles, the returned tensor
-    // keeps the broadcast shape.
+    // A broadcast-rhs batched matmul that would tile poorly is folded into a
+    // single matmul: `[.., b, m, k] @ [.., 1, k, n]` runs as `[.., 1, b*m, k]`
+    // instead of `b` matmuls that each re-read the whole rhs. Pure metadata —
+    // the launch operands share the handles, the returned tensor keeps the
+    // broadcast shape.
     let mut out_launch = out.clone();
-    if lhs.qparams.is_none() && can_merge_rows(&lhs.meta, &rhs.meta, &out.meta) {
-        merge_rows(&mut lhs.meta);
-        merge_rows(&mut out_launch.meta);
+    if lhs.qparams.is_none() {
+        let analysis = MatmulTransformAnalysis::from_metadata(&lhs.meta, &rhs.meta, &out.meta);
+        let action = MatmulTransformPolicy::default().action(&analysis);
+        action.apply(&mut lhs.meta);
+        action.apply(&mut out_launch.meta);
     }
 
     match strategy {
@@ -67,69 +68,6 @@ pub fn matmul<R: CubeRuntime>(
             Ok(out)
         }
     }
-}
-
-/// Whether the innermost batch dim of a broadcast-rhs matmul can merge into the
-/// row dim (see [matmul]).
-fn can_merge_rows(lhs: &Metadata, rhs: &Metadata, out: &Metadata) -> bool {
-    let rank = out.rank();
-    if rank < 3 || lhs.rank() != rank || rhs.rank() != rank {
-        return false;
-    }
-
-    // Every batch dim of the rhs must be broadcast.
-    if rhs.shape().to_vec()[..rank - 2].iter().any(|&d| d != 1) {
-        return false;
-    }
-    // Only the innermost batch dim merges; outer ones must be 1.
-    if lhs.shape().to_vec()[..rank - 3].iter().any(|&d| d != 1) {
-        return false;
-    }
-    if out.shape().to_vec()[..rank - 3].iter().any(|&d| d != 1) {
-        return false;
-    }
-
-    let batch = out.shape()[rank - 3];
-    let rows = out.shape()[rank - 2];
-    if batch == 1 {
-        // Nothing to merge.
-        return false;
-    }
-    // Only the degenerate batched vec-mat merges: with real per-batch rows the
-    // batched matmul already tiles well, and measurements show it beats the
-    // merged single matmul.
-    if rows != 1 {
-        return false;
-    }
-    // The lhs can't be broadcast over the merged rows.
-    if lhs.shape()[rank - 3] != batch || lhs.shape()[rank - 2] != rows {
-        return false;
-    }
-
-    rows_mergeable(lhs) && rows_mergeable(out)
-}
-
-/// Rows advance with a single stride across dims `rank-3` and `rank-2`.
-fn rows_mergeable(meta: &Metadata) -> bool {
-    let rank = meta.rank();
-    meta.shape()[rank - 2] == 1
-        || meta.strides()[rank - 3] == meta.shape()[rank - 2] * meta.strides()[rank - 2]
-}
-
-/// Reinterpret `[.., b, m, k]` as `[.., 1, b*m, k]`.
-fn merge_rows(meta: &mut Metadata) {
-    let rank = meta.rank();
-
-    let rows = meta.shape()[rank - 3] * meta.shape()[rank - 2];
-    let stride_row = match meta.shape()[rank - 2] == 1 {
-        true => meta.strides()[rank - 3],
-        false => meta.strides()[rank - 2],
-    };
-
-    meta.shape_mut()[rank - 2] = rows;
-    meta.shape_mut()[rank - 3] = 1;
-    meta.strides_mut()[rank - 2] = stride_row;
-    meta.strides_mut()[rank - 3] = rows * stride_row;
 }
 
 pub(crate) fn launch_matmul_naive<R: CubeRuntime>(
