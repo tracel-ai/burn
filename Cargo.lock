@@ -801,6 +801,7 @@ dependencies = [
  "burn-autodiff",
  "burn-backend",
  "burn-cubecl",
+ "burn-cubecl-fusion",
  "burn-fusion",
  "burn-ndarray",
  "burn-tensor",

@@ -92,7 +92,7 @@ impl Optimizer for Adam {
 
 impl AdamConfig {
     /// Build an [`Adam`] from the config.
-    pub fn build(&self) -> Adam {
+    pub(crate) fn build(&self) -> Adam {
         Adam {
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,

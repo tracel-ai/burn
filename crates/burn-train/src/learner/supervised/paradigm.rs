@@ -305,7 +305,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     }
 
     /// Register a checkpointer that will save the [optimizer](burn_optim::ModuleOptimizer), the
-    /// [model](LearnerModel) and the [learning rate scheduler](burn_optim::lr_scheduler::policy::LrPolicyScheduler) to separate burnpack files.
+    /// [model](LearnerModel) and the [learning rate scheduler](burn_optim::lr_scheduler::module_lr_scheduler::ModuleLrScheduler) to separate burnpack files.
     pub fn with_default_checkpointers(mut self) -> Self {
         let checkpoint_dir = self.directory.join("checkpoint");
         let checkpointer_model = FileCheckpointer::new(&checkpoint_dir, "model");
@@ -322,7 +322,7 @@ impl<M: LearnerModel> SupervisedTraining<M> {
     }
 
     /// Register your own checkpointers that will save the [optimizer](burn_optim::ModuleOptimizer), the
-    /// [model](LearnerModel) and the [learning rate scheduler](burn_optim::lr_scheduler::policy::LrPolicyScheduler) to separate burnpack files.
+    /// [model](LearnerModel) and the [learning rate scheduler](burn_optim::lr_scheduler::module_lr_scheduler::ModuleLrScheduler) to separate burnpack files.
     pub fn with_custom_checkpointers<CM, CO, CL>(
         mut self,
         module_checkpointer: CM,

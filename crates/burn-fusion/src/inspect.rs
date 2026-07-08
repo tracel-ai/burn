@@ -474,6 +474,32 @@ pub mod matchers {
         })
     }
 
+    /// Matches a `reshape` on any element type (`BaseFloat`/`BaseInt`/`BaseBool`).
+    pub fn is_reshape() -> OpMatcher {
+        use burn_ir::BaseOperationIr;
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::BaseFloat(BaseOperationIr::Reshape(_))
+                    | OperationIr::BaseInt(BaseOperationIr::Reshape(_))
+                    | OperationIr::BaseBool(BaseOperationIr::Reshape(_))
+            )
+        })
+    }
+
+    /// Matches a `swap_dims` on any element type (`BaseFloat`/`BaseInt`/`BaseBool`).
+    pub fn is_swap_dims() -> OpMatcher {
+        use burn_ir::BaseOperationIr;
+        Box::new(|op| {
+            matches!(
+                op,
+                OperationIr::BaseFloat(BaseOperationIr::SwapDims(_))
+                    | OperationIr::BaseInt(BaseOperationIr::SwapDims(_))
+                    | OperationIr::BaseBool(BaseOperationIr::SwapDims(_))
+            )
+        })
+    }
+
     /// Matches a `Cat` (concatenation) on any tensor kind.
     pub fn is_cat() -> OpMatcher {
         Box::new(|op| {

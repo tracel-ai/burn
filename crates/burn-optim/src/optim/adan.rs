@@ -101,7 +101,7 @@ impl Optimizer for Adan {
 
 impl AdanConfig {
     /// Build an [`Adan`] from the config.
-    pub fn build(&self) -> Adan {
+    pub(crate) fn build(&self) -> Adan {
         Adan {
             momentum: AdaptiveNesterovMomentum {
                 beta_1: self.beta_1,

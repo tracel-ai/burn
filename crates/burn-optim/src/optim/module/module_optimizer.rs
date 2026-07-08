@@ -2,7 +2,7 @@ use burn_core as burn;
 use burn_core::module::ParamGroup;
 
 use super::Optimizer;
-use crate::lr_scheduler::policy::LrPolicy;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 use crate::{
     DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, StateSink, StateSource,
     grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
@@ -114,7 +114,7 @@ impl ModuleOptimizer {
 
     fn step_common<M: AutodiffModule>(
         &mut self,
-        lr_policy: LrPolicy,
+        lr_policy: ModuleLearningRate,
         module: M,
         mut grads: GradAdaptor,
     ) -> M {
@@ -162,21 +162,21 @@ impl ModuleOptimizer {
     /// Update the `module` parameters with the given `gradients`, advancing the optimizer state.
     pub fn step<M: AutodiffModule>(
         &mut self,
-        lr_policy: LrPolicy,
+        lr_module: ModuleLearningRate,
         module: M,
         grads: GradientsParams,
     ) -> M {
-        self.step_common(lr_policy, module, grads.into())
+        self.step_common(lr_module, module, grads.into())
     }
 
     /// Like [`step`](Self::step), but accumulating gradients sourced from multiple devices.
     pub fn step_multi<M: AutodiffModule>(
         &mut self,
-        lr_policy: LrPolicy,
+        lr_module: ModuleLearningRate,
         module: M,
         grads: MultiGradientsParams,
     ) -> M {
-        self.step_common(lr_policy, module, grads.into())
+        self.step_common(lr_module, module, grads.into())
     }
 
     fn optim_from_param(
@@ -371,7 +371,7 @@ struct ModuleOptimizerMapper<'a> {
     optimizer_groups: Vec<&'a OptimizerGroup>,
     states: &'a mut HashMap<ParamId, OptimizationContext>,
     grads: &'a mut GradAdaptor,
-    lr_policy: LrPolicy,
+    lr_module: ModuleLearningRate,
 }
 
 impl<'a> ModuleOptimizerMapper<'a> {
@@ -379,14 +379,14 @@ impl<'a> ModuleOptimizerMapper<'a> {
         optimizer_groups: Vec<&'a OptimizerGroup>,
         states: &'a mut HashMap<ParamId, OptimizationContext>,
         grads: &'a mut GradAdaptor,
-        lr_policy: LrPolicy,
+        lr_module: ModuleLearningRate,
     ) -> Self {
         Self {
             path: vec![],
             optimizer_groups,
             states,
             grads,
-            lr_policy,
+            lr_module,
         }
     }
 
@@ -465,7 +465,7 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
                 "Tensor and gradients are on the same device."
             );
 
-            let lr = self.lr_policy.lr_from_param(id, Some(path.as_str()));
+            let lr = self.lr_module.lr_from_param(id, Some(path.as_str()));
             let (tensor, state) = optim.step_dyn(
                 D,
                 lr,
@@ -508,7 +508,10 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AdamConfig, GradientsParams, SgdConfig, lr_scheduler::policy::LrPolicy};
+    use crate::{
+        AdamConfig, GradientsParams, SgdConfig,
+        lr_scheduler::module_lr_scheduler::ModuleLearningRate,
+    };
     use burn::module::ParamGroup;
     use burn::tensor::{Distribution, Tensor, Tolerance};
     use burn_derive::Module;
@@ -532,8 +535,8 @@ mod tests {
         GradientsParams::from_grads(out.mean().backward(), model)
     }
 
-    fn lr() -> LrPolicy {
-        LrPolicy::from(0.01_f64)
+    fn lr() -> ModuleLearningRate {
+        ModuleLearningRate::from(0.01_f64)
     }
 
     fn sgd() -> ModuleOptimizer {
@@ -677,7 +680,7 @@ mod tests {
         let weight_b_before = model.layer_b.weight.val();
 
         model = optim.step(
-            LrPolicy::from(lr_value),
+            ModuleLearningRate::from(lr_value),
             model.clone(),
             make_grads(&model, x),
         );

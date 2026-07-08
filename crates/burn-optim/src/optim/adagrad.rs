@@ -74,7 +74,7 @@ impl Optimizer for AdaGrad {
 
 impl AdaGradConfig {
     /// Build an [`AdaGrad`] from the config.
-    pub fn build(&self) -> AdaGrad {
+    pub(crate) fn build(&self) -> AdaGrad {
         AdaGrad {
             lr_decay: LrDecay {
                 lr_decay: self.lr_decay,
