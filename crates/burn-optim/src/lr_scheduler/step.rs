@@ -3,7 +3,7 @@ use burn_core as burn;
 use burn::config::Config;
 
 use super::{LrScheduler, LrSchedulerRecord, String};
-use crate::lr_scheduler::policy::ModuleLrScheduler;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use crate::{LearningRate, RecordState};
 
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).

@@ -5,7 +5,7 @@ mod common;
 use common::*;
 
 use burn_core::{module::ParamGroup, tensor::Device};
-use burn_optim::{SgdConfig, lr_scheduler::policy::ModuleLrSchedulerConfig};
+use burn_optim::{SgdConfig, lr_scheduler::module_lr_scheduler::ModuleLrSchedulerConfig};
 use burn_train::{Learner, SupervisedTraining, logger::InMemoryMetricLogger, metric::LossMetric};
 
 /// Test the integration of [LrPolicyScheduler](burn_optim::lr_scheduler::policy::LrPolicyScheduler) in burn-train.

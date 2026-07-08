@@ -6,7 +6,7 @@ use super::linear::LinearLrSchedulerConfig;
 use super::noam::NoamLrSchedulerConfig;
 use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
-use crate::lr_scheduler::policy::ModuleLrScheduler;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use crate::lr_scheduler::step::StepLrSchedulerConfig;
 use crate::lr_scheduler::{DynLrScheduler, LrSchedulerConfig};
 

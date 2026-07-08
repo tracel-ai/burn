@@ -1,5 +1,5 @@
 use burn_core::data::dataloader::Progress;
-use burn_optim::lr_scheduler::policy::ModuleLearningRate;
+use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 
 use crate::{
     LearnerSummary,

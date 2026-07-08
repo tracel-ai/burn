@@ -2,7 +2,7 @@ use burn_core as burn;
 use burn_core::module::ParamGroup;
 
 use super::Optimizer;
-use crate::lr_scheduler::policy::ModuleLearningRate;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 use crate::{
     DynOptimizer, DynState, MultiGradientsParams, OptimizerRecord, StateSink, StateSource,
     grad_clipping::GradientClipping, optim::GradientsParams, optim::state::join_path,
@@ -508,7 +508,10 @@ impl ModuleMapper for ModuleOptimizerMapper<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AdamConfig, GradientsParams, SgdConfig, lr_scheduler::policy::ModuleLearningRate};
+    use crate::{
+        AdamConfig, GradientsParams, SgdConfig,
+        lr_scheduler::module_lr_scheduler::ModuleLearningRate,
+    };
     use burn::module::ParamGroup;
     use burn::tensor::{Distribution, Tensor, Tolerance};
     use burn_derive::Module;

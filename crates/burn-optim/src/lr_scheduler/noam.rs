@@ -5,7 +5,7 @@ use burn::config::Config;
 use super::{LrScheduler, LrSchedulerRecord, String};
 use crate::LearningRate;
 use crate::RecordState;
-use crate::lr_scheduler::policy::ModuleLrScheduler;
+use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 
 /// Configuration to create a [noam](NoamLrScheduler) learning rate scheduler.
 #[derive(Config, Debug)]

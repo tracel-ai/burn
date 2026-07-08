@@ -9,7 +9,7 @@ use crate::{
 use burn_core::store::ModuleRecord;
 use burn_core::tensor::Device;
 use burn_optim::lr_scheduler::LrSchedulerRecord;
-use burn_optim::lr_scheduler::policy::{ModuleLearningRate, ModuleLrScheduler};
+use burn_optim::lr_scheduler::module_lr_scheduler::{ModuleLearningRate, ModuleLrScheduler};
 use burn_optim::{GradientsParams, ModuleOptimizer, MultiGradientsParams, OptimizerRecord};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};

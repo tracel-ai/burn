@@ -2,7 +2,7 @@ use crate::{ItemLazy, renderer::MetricsRenderer};
 use burn_core::{module::AutodiffModule, tensor::Gradients};
 use burn_optim::{
     GradientsParams, ModuleOptimizer, MultiGradientsParams,
-    lr_scheduler::policy::ModuleLearningRate,
+    lr_scheduler::module_lr_scheduler::ModuleLearningRate,
 };
 
 /// A training output.
