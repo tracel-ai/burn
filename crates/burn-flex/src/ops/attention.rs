@@ -274,13 +274,24 @@ where
 
     let seq_kv = k_shape[2];
     let val_dim = v_shape[3];
+    let kv_heads = k_shape[1];
 
     assert_eq!(k_shape[0], batch, "attention: key batch mismatch");
-    assert_eq!(k_shape[1], heads, "attention: key heads mismatch");
     assert_eq!(k_shape[3], head_dim, "attention: key head_dim mismatch");
     assert_eq!(v_shape[0], batch, "attention: value batch mismatch");
-    assert_eq!(v_shape[1], heads, "attention: value heads mismatch");
+    assert_eq!(
+        v_shape[1], kv_heads,
+        "attention: key and value must agree on head count"
+    );
     assert_eq!(v_shape[2], seq_kv, "attention: value seq_kv mismatch");
+    // Grouped/Multi-Query Attention: each K/V head is shared by `q_per_kv` query
+    // heads. Standard MHA is the special case `q_per_kv == 1`. Matches the ONNX
+    // `Attention` spec, which requires `q_heads % kv_heads == 0`.
+    assert!(
+        kv_heads > 0 && heads.is_multiple_of(kv_heads),
+        "attention: q_heads ({heads}) must be divisible by kv_heads ({kv_heads})"
+    );
+    let q_per_kv = heads / kv_heads;
 
     let target = [batch, heads, seq_q, seq_kv];
     let mask_bcast = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
@@ -319,9 +330,9 @@ where
     let q_head_stride = seq_q * head_dim;
     let q_batch_stride = heads * q_head_stride;
     let k_head_stride = seq_kv * head_dim;
-    let k_batch_stride = heads * k_head_stride;
+    let k_batch_stride = kv_heads * k_head_stride;
     let v_head_stride = seq_kv * val_dim;
-    let v_batch_stride = heads * v_head_stride;
+    let v_batch_stride = kv_heads * v_head_stride;
     let o_head_stride = seq_q * val_dim;
     let o_batch_stride = heads * o_head_stride;
     let mask_tile_len = seq_q * seq_kv;
@@ -345,9 +356,11 @@ where
 
     for b in 0..batch {
         for h in 0..heads {
+            // Map query head `h` to its shared K/V head (GQA/MQA).
+            let kv_h = h / q_per_kv;
             let q_off = b * q_batch_stride + h * q_head_stride;
-            let k_off = b * k_batch_stride + h * k_head_stride;
-            let v_off = b * v_batch_stride + h * v_head_stride;
+            let k_off = b * k_batch_stride + kv_h * k_head_stride;
+            let v_off = b * v_batch_stride + kv_h * v_head_stride;
             let o_off = b * o_batch_stride + h * o_head_stride;
             let mask_off = b * mask_batch_step + h * mask_head_step;
             let bias_off = b * bias_batch_step + h * bias_head_step;
@@ -708,16 +721,27 @@ where
 
     let seq_kv = k_shape[2];
     let val_dim = v_shape[3];
+    let kv_heads = k_shape[1];
 
     assert_eq!(k_shape[0], batch, "attention_naive: key batch mismatch");
-    assert_eq!(k_shape[1], heads, "attention_naive: key heads mismatch");
     assert_eq!(
         k_shape[3], head_dim,
         "attention_naive: key head_dim mismatch"
     );
     assert_eq!(v_shape[0], batch, "attention_naive: value batch mismatch");
-    assert_eq!(v_shape[1], heads, "attention_naive: value heads mismatch");
+    assert_eq!(
+        v_shape[1], kv_heads,
+        "attention_naive: key and value must agree on head count"
+    );
     assert_eq!(v_shape[2], seq_kv, "attention_naive: value seq_kv mismatch");
+    // Grouped/Multi-Query Attention: each K/V head is shared by `q_per_kv` query
+    // heads. Standard MHA is the special case `q_per_kv == 1`. Matches the ONNX
+    // `Attention` spec, which requires `q_heads % kv_heads == 0`.
+    assert!(
+        kv_heads > 0 && heads.is_multiple_of(kv_heads),
+        "attention_naive: q_heads ({heads}) must be divisible by kv_heads ({kv_heads})"
+    );
+    let q_per_kv = heads / kv_heads;
 
     let target = [batch, heads, seq_q, seq_kv];
     let mask_bcast = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
@@ -756,9 +780,9 @@ where
     let q_head_stride = seq_q * head_dim;
     let q_batch_stride = heads * q_head_stride;
     let k_head_stride = seq_kv * head_dim;
-    let k_batch_stride = heads * k_head_stride;
+    let k_batch_stride = kv_heads * k_head_stride;
     let v_head_stride = seq_kv * val_dim;
-    let v_batch_stride = heads * v_head_stride;
+    let v_batch_stride = kv_heads * v_head_stride;
     let o_head_stride = seq_q * val_dim;
     let o_batch_stride = heads * o_head_stride;
     let mask_tile_len = seq_q * seq_kv;
@@ -775,9 +799,11 @@ where
 
     for b in 0..batch {
         for h in 0..heads {
+            // Map query head `h` to its shared K/V head (GQA/MQA).
+            let kv_h = h / q_per_kv;
             let q_off = b * q_batch_stride + h * q_head_stride;
-            let k_off = b * k_batch_stride + h * k_head_stride;
-            let v_off = b * v_batch_stride + h * v_head_stride;
+            let k_off = b * k_batch_stride + kv_h * k_head_stride;
+            let v_off = b * v_batch_stride + kv_h * v_head_stride;
             let o_off = b * o_batch_stride + h * o_head_stride;
             let mask_off = b * mask_batch_step + h * mask_head_step;
             let bias_off = b * bias_batch_step + h * bias_head_step;
@@ -984,6 +1010,109 @@ mod tests {
         for (i, (&a, &b)) in bcast.iter().zip(full).enumerate() {
             assert!((a - b).abs() < 1e-5, "{label} mismatch at {i}: {a} vs {b}");
         }
+    }
+
+    /// Repeat each K/V head `q_per_kv` times along the head dim, turning a
+    /// `[batch, kv_heads, seq, dim]` buffer into the `[batch, q_heads, seq, dim]`
+    /// buffer that plain MHA would consume. Used as the GQA/MQA reference.
+    fn repeat_kv_heads(
+        data: &[f32],
+        batch: usize,
+        kv_heads: usize,
+        seq: usize,
+        dim: usize,
+        q_per_kv: usize,
+    ) -> Vec<f32> {
+        let head_len = seq * dim;
+        let mut out = Vec::with_capacity(batch * kv_heads * q_per_kv * head_len);
+        for b in 0..batch {
+            for kv in 0..kv_heads {
+                let base = (b * kv_heads + kv) * head_len;
+                for _ in 0..q_per_kv {
+                    out.extend_from_slice(&data[base..base + head_len]);
+                }
+            }
+        }
+        out
+    }
+
+    /// Grouped/Multi-Query Attention (`kv_heads < q_heads`) must equal plain MHA
+    /// where each K/V head has been repeated `q_heads / kv_heads` times. This is
+    /// the ONNX Attention-23 / burn-ndarray semantics. Covers both the naive and
+    /// flash inner loops (issue #3864's sibling, #4930).
+    fn check_grouped_attention(q_heads: usize, kv_heads: usize) {
+        let q_per_kv = q_heads / kv_heads;
+        let batch = 2;
+        let seq_q = 3;
+        let seq_kv = 4;
+        let head_dim = 5;
+
+        let build = |shape: &[usize], g: &dyn Fn(usize) -> f32| -> Vec<f32> {
+            let len: usize = shape.iter().product();
+            (0..len).map(g).collect()
+        };
+
+        let q = build(&[batch, q_heads, seq_q, head_dim], &|i| {
+            (i as f32 * 0.1).sin()
+        });
+        let k = build(&[batch, kv_heads, seq_kv, head_dim], &|i| {
+            (i as f32 * 0.1 + 1.0).sin()
+        });
+        let v = build(&[batch, kv_heads, seq_kv, head_dim], &|i| {
+            (i as f32 * 0.1 + 2.0).sin()
+        });
+
+        let k_full = repeat_kv_heads(&k, batch, kv_heads, seq_kv, head_dim, q_per_kv);
+        let v_full = repeat_kv_heads(&v, batch, kv_heads, seq_kv, head_dim, q_per_kv);
+
+        type AttnFn = fn(
+            FlexTensor,
+            FlexTensor,
+            FlexTensor,
+            Option<FlexTensor>,
+            Option<FlexTensor>,
+            AttentionModuleOptions,
+        ) -> FlexTensor;
+        let cases: [(&str, AttnFn); 2] = [
+            ("naive", super::attention_naive),
+            ("flash", super::attention_flash),
+        ];
+
+        for (label, run) in cases {
+            let out_gqa = run(
+                flex_f32(q.clone(), &[batch, q_heads, seq_q, head_dim]),
+                flex_f32(k.clone(), &[batch, kv_heads, seq_kv, head_dim]),
+                flex_f32(v.clone(), &[batch, kv_heads, seq_kv, head_dim]),
+                None,
+                None,
+                Default::default(),
+            );
+            let out_ref = run(
+                flex_f32(q.clone(), &[batch, q_heads, seq_q, head_dim]),
+                flex_f32(k_full.clone(), &[batch, q_heads, seq_kv, head_dim]),
+                flex_f32(v_full.clone(), &[batch, q_heads, seq_kv, head_dim]),
+                None,
+                None,
+                Default::default(),
+            );
+            assert_attention_outputs_close(
+                out_gqa.storage(),
+                out_ref.storage(),
+                &alloc::format!("{label} gqa(q={q_heads},kv={kv_heads}) vs repeated-kv"),
+            );
+        }
+    }
+
+    #[test]
+    fn test_attention_gqa_matches_repeated_kv() {
+        // 4 query heads, 2 KV heads: each KV head shared by 2 query heads.
+        check_grouped_attention(4, 2);
+    }
+
+    #[test]
+    fn test_attention_mqa_matches_repeated_kv() {
+        // Multi-Query Attention: a single KV head shared by all 4 query heads.
+        check_grouped_attention(4, 1);
     }
 
     #[test]
