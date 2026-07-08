@@ -27,6 +27,7 @@ fn select_device() -> Device {
             },
             Err(_) => DeviceIndex::Default,
         };
+        println!("{index:?}");
         return Device::cuda(index);
     }
 
