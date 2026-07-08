@@ -2162,20 +2162,19 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (input, dim) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // Zero-safe gradient of cumprod (issue #3864).
+                    // zero-safe cumprod gradient (#3864).
                     //
-                    // The gradient is `grad_input[i] = left[i] * tail[i]` where
+                    // grad_input[i] = left[i] * tail[i] where
                     //   left[i] = prod(input[0..i])                        (exclusive prefix product)
                     //   tail[i] = sum_{j>=i}(grad[j] * prod(input[i+1..=j]))
                     //
-                    // Crucially this formula never divides by `input[i]`, so it stays
-                    // finite when the input contains zeros (the previous
-                    // `reverse_cumsum(grad * output) / input` formulation produced NaN).
+                    // no division by input[i], so it stays finite when the input has zeros -
+                    // the old `reverse_cumsum(grad * output) / input` gave NaN there.
                     //
-                    // `tail` satisfies the reverse recurrence
+                    // tail via the reverse recurrence
                     //   tail[n-1] = grad[n-1]
-                    //   tail[i]   = grad[i] + input[i+1] * tail[i+1]   (for i < n-1)
-                    // which we evaluate sequentially along `dim`.
+                    //   tail[i]   = grad[i] + input[i+1] * tail[i+1]   (i < n-1)
+                    // evaluated sequentially along `dim`.
 
                     let shape = input.shape();
                     let ndims = shape.num_dims();
@@ -2191,8 +2190,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     };
 
                     // left[i] = prod(input[0..i]); left[0] = 1.
-                    // Build by prepending a `1` along `dim`, dropping the last element,
-                    // then taking the inclusive cumulative product.
+                    // prepend a 1 along `dim`, drop the last element, then inclusive cumprod.
                     let mut ones_dims: Vec<usize> = (0..ndims).map(|d| shape[d]).collect();
                     ones_dims[dim] = 1;
                     let ones = B::float_ones(Shape::from(ones_dims), &device, dtype.into());

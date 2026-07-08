@@ -38,11 +38,10 @@ fn should_diff_cumprod_2d() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
-// The following tests exercise the zero-safe cumprod gradient (issue #3864).
-// The gradient is computed as `left[i] * tail[i]` (exclusive prefix product
-// times a reverse-accumulated tail) rather than `reverse_cumsum(grad * output)
-// / input`, so it stays finite when the input contains zeros. Expected values
-// are taken from PyTorch's `torch.cumprod` backward.
+// these exercise the zero-safe cumprod gradient (#3864): `left[i] * tail[i]`
+// (exclusive prefix product times a reverse-accumulated tail) instead of
+// `reverse_cumsum(grad * output) / input`, so zeros don't blow up to NaN.
+// expected values from PyTorch's `torch.cumprod` backward.
 
 #[test]
 fn should_diff_cumprod_zero_in_middle() {
