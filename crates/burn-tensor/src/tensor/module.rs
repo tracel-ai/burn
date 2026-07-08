@@ -2,7 +2,7 @@ use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
 
 use crate::{
-    Bool, Int, Tensor, check,
+    Bool, DType, Int, Tensor, check,
     check::TensorCheck,
     ops::{
         AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
@@ -457,6 +457,18 @@ pub fn linear<const D: usize>(
         let input = input.unsqueeze::<2>();
         let output = linear(input, weight, bias);
         return output.squeeze_dim(0);
+    }
+
+    // A quantized weight must stay quantized: `linear_impl` converts its
+    // operands to float, which would dequantize (materialize) the whole weight
+    // matrix on every forward. Lower to the quantized matmul instead, which
+    // streams the packed weight directly.
+    if let DType::QFloat(_) = weight.dtype() {
+        let output = input.matmul(weight.unsqueeze::<D>());
+        return match bias {
+            Some(bias) => output + bias.unsqueeze(),
+            None => output,
+        };
     }
 
     Tensor::new(linear_impl(

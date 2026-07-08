@@ -223,15 +223,15 @@ burn-vision = { path = "crates/burn-vision", version = "0.22.0-pre.1", default-f
 burn-wgpu = { path = "crates/burn-wgpu", version = "0.22.0-pre.1", default-features = false }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3beb9afaa0acf2d3f7b2dfff4ebf6dedfb316825" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3beb9afaa0acf2d3f7b2dfff4ebf6dedfb316825" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3beb9afaa0acf2d3f7b2dfff4ebf6dedfb316825" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "3ec66d7fcfc8a9ca91961300104b6a32046c284e" }
+# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3beb9afaa0acf2d3f7b2dfff4ebf6dedfb316825" }
+# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3beb9afaa0acf2d3f7b2dfff4ebf6dedfb316825" }
+# cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3beb9afaa0acf2d3f7b2dfff4ebf6dedfb316825" }
+# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "3ec66d7fcfc8a9ca91961300104b6a32046c284e" }
 ### For local development. ###
-# cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
-# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
-# cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
-# cubek = { path = "../cubek/crates/cubek", default-features = false }
+cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
+cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
 # cubecl = { version = "0.10.0", default-features = false }
 # cubecl-common = { version = "0.10.0", default-features = false }
