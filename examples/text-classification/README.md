@@ -2,6 +2,7 @@
 
 This project provides an example implementation for training and inferencing text classification
 models on AG News and DbPedia datasets using the Rust-based Burn Deep Learning Library.
+It also provides an example of finetuning using [LoRA](https://arxiv.org/pdf/2106.09685) (See [this section](#finetuning-using-lora)).
 
 > **Note**  
 > This example makes use of the HuggingFace [`datasets`](https://huggingface.co/docs/datasets/index)
@@ -117,4 +118,21 @@ cd burn
 # AG News
 cargo run --example ag-news-train --release --features metal   # Train on the ag news dataset
 cargo run --example ag-news-infer --release --features metal   # Run inference on the ag news dataset
+```
+
+# Finetuning Using LoRA
+
+This example finetunes a pre-trained text classification model on the AG News dataset using [LoRA](https://arxiv.org/pdf/2106.09685).
+To run it, you need to provide a `model.bpk`file containing the weights of the pre-trained text classification model.
+Such a file can be obtained by running the `db-pedia-train` example using one of the commands above.
+You can then run the finetuning example using any of the backends listed above. For example, with Wgpu:
+
+```bash
+git clone https://github.com/tracel-ai/burn.git
+cd burn
+
+# Use the --release flag to really speed up training.
+
+# AG News
+cargo run --example ag-news-finetune --release --features wgpu   # Finetune pre-trained `model.bpk` weights on the ag news dataset
 ```
