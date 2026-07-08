@@ -11,7 +11,7 @@ workspace = true
 
 [features]
 # TODO: remove
-default = ["remote"]
+default = ["remote-server"]
 f16 = []
 flex32 = []
 tch-cpu = ["burn/tch"]
@@ -20,6 +20,7 @@ wgpu = ["burn/wgpu"]
 vulkan = ["burn/vulkan"]
 flex = ["burn/flex"]
 remote = ["burn/remote-websocket"]
+remote-server = ["burn/remote-server", "blake3"]
 cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 metal = ["burn/metal"]
@@ -51,3 +52,8 @@ tokenizers = { version = "0.22.2", default-features = false, features = [
 # Utils
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
+
+# Iroh remote transport (client): binds the endpoint the remote device dials from.
+iroh = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+blake3 = { version = "1", optional = true }

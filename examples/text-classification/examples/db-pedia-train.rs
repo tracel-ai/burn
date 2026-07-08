@@ -105,23 +105,62 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "remote")]
+#[cfg(feature = "remote-server")]
 mod remote {
     #[cfg(feature = "ddp")]
+    use burn::tensor::DeviceType;
+    #[cfg(feature = "ddp")]
     use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
-    use burn::tensor::{Device, DeviceType};
     #[cfg(feature = "ddp")]
     use burn::train::ExecutionStrategy;
+    use burn::{server::RemoteSecret, tensor::Device};
 
-    /// Address of the `burn-remote` server to train against.
+    /// Address of the `burn-remote` server to train against (legacy WebSocket / DDP path only).
+    #[cfg(feature = "ddp")]
     const ADDRESS: &str = "ws://localhost:3000";
 
-    /// List every device the remote server hosts and train across all of them.
+    /// Derive a stable server identity from a human-friendly topic, so both ends agree on the address
+    /// without exchanging keys. The topic acts as a shared secret here (anyone who knows it can host as
+    /// this identity), which suits a demo; a real deployment would use `RemoteSecret::random()` and
+    /// share its `id()`.
+    fn topic_secret(topic: &str) -> RemoteSecret {
+        let hash = blake3::hash(format!("burn-p2p:{topic}").as_bytes());
+        RemoteSecret::from_bytes(*hash.as_bytes())
+    }
+
+    /// Connect to the remote compute server over Iroh and train against its first device.
+    ///
+    /// Iroh reaches the server by cryptographic identity, not IP:port — it does NAT traversal and
+    /// relay fallback for you, so no public IP or port forwarding is required. Both ends derive the
+    /// same identity from the shared `topic`.
     #[cfg(not(feature = "ddp"))]
     pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote_websocket(ADDRESS));
+        use iroh::{Endpoint, EndpointId, endpoint::presets};
 
-        crate::launch_single(devices.into_vec().pop().unwrap());
+        let args: Vec<String> = std::env::args().collect();
+        let topic = args
+            .get(2)
+            .map(String::as_str)
+            .unwrap_or("db-pedia-train-default");
+
+        let server_id: EndpointId = topic_secret(topic).id();
+
+        println!("topic     : {topic}");
+        println!("server id : {server_id}");
+        println!("connecting...");
+
+        // A multi-thread runtime is required: `remote_iroh` blocks to establish the session while
+        // Iroh drives networking on the runtime's worker threads.
+        let runtime = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+        runtime.block_on(async move {
+            let endpoint = Endpoint::builder(presets::N0)
+                .bind()
+                .await
+                .expect("failed to bind iroh endpoint");
+            let device = Device::remote_iroh(&endpoint, server_id, 0);
+            println!("connected\n");
+            crate::launch_single(device);
+        });
     }
 
     /// Same enumeration, but drive the devices with distributed data-parallel training.
@@ -167,6 +206,6 @@ fn main() {
     cuda::run();
     #[cfg(feature = "rocm")]
     rocm::run();
-    #[cfg(feature = "remote")]
+    #[cfg(feature = "remote-server")]
     remote::run();
 }

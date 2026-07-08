@@ -19,3 +19,5 @@ flex = ["burn/flex"]
 
 [dependencies]
 burn = { workspace = true, features = ["default", "remote-server", "remote-websocket"] }
+blake3 = "1"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

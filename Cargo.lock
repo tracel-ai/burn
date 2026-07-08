@@ -9439,7 +9439,9 @@ dependencies = [
 name = "server"
 version = "0.22.0-pre.1"
 dependencies = [
+ "blake3",
  "burn",
+ "tokio",
 ]
 
 [[package]]
@@ -10112,11 +10114,14 @@ dependencies = [
 name = "text-classification"
 version = "0.22.0-pre.1"
 dependencies = [
+ "blake3",
  "burn",
  "derive-new",
+ "iroh",
  "log",
  "serde",
  "tokenizers",
+ "tokio",
 ]
 
 [[package]]
