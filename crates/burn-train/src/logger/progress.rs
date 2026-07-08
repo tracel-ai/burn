@@ -26,7 +26,7 @@ use burn_core::data::dataloader::Progress;
 /// Implementors are responsible for tracking `total_items` and epoch state in order
 /// to reconstruct the full progress picture when `update_split` is called.
 pub trait TrainingProgressLogger: Send {
-    /// Called once at the start of training, providing the total number of epochs and teh starting epoch.
+    /// Called once at the start of training, providing the total number of epochs and the starting epoch.
     ///
     /// The total number of items of the training can optionally be provided if it is known.
     fn start(&mut self, total_epochs: usize, starting_epoch: usize, total_items: Option<usize>);

@@ -28,10 +28,10 @@ pub struct TextClassificationModelConfig {
 // Define the model structure
 #[derive(Module, Debug)]
 pub struct TextClassificationModel {
-    pub transformer: TransformerEncoder,
-    pub embedding_token: Embedding,
-    pub embedding_pos: Embedding,
-    pub output: Linear,
+    transformer: TransformerEncoder,
+    embedding_token: Embedding,
+    embedding_pos: Embedding,
+    output: Linear,
     n_classes: usize,
 }
 
