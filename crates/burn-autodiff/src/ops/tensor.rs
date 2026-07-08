@@ -2160,33 +2160,62 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 _checkpointer: &mut Checkpointer,
             ) {
                 let (input, dim) = ops.state;
-                let output = B::float_cumprod(input.clone(), dim);
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // Gradient of cumprod using negative step slicing
-                    // Formula: grad_input[i] = sum_{j>=i}(grad_output[j] * output[j] / input[i])
-                    //        = (1 / input[i]) * sum_{j>=i}(grad_output[j] * output[j])
-                    //        = (1 / input) * reverse_cumsum(grad * output)
+                    // Zero-safe gradient of cumprod (issue #3864).
                     //
-                    // LIMITATION: This produces NaN when input contains zeros.
-                    // A proper zero-safe implementation requires more sophisticated algorithms
-                    // (see PyTorch's cumprod_backward or JAX's associative_scan approach).
-                    // TODO: Implement zero-safe gradient computation.
-                    // See: https://github.com/tracel-ai/burn/issues/3864
+                    // The gradient is `grad_input[i] = left[i] * tail[i]` where
+                    //   left[i] = prod(input[0..i])                        (exclusive prefix product)
+                    //   tail[i] = sum_{j>=i}(grad[j] * prod(input[i+1..=j]))
+                    //
+                    // Crucially this formula never divides by `input[i]`, so it stays
+                    // finite when the input contains zeros (the previous
+                    // `reverse_cumsum(grad * output) / input` formulation produced NaN).
+                    //
+                    // `tail` satisfies the reverse recurrence
+                    //   tail[n-1] = grad[n-1]
+                    //   tail[i]   = grad[i] + input[i+1] * tail[i+1]   (for i < n-1)
+                    // which we evaluate sequentially along `dim`.
 
-                    let grad_times_output = B::float_mul(grad, output.clone());
+                    let shape = input.shape();
+                    let ndims = shape.num_dims();
+                    let n = shape[dim];
+                    let device = grad.device();
+                    let dtype = grad.dtype();
 
-                    // Create slices to reverse along the specified dimension
-                    let shape = grad_times_output.shape();
-                    let mut slices = vec![Slice::full(); shape.num_dims()];
-                    slices[dim] = Slice::with_step(0, None, -1);
+                    // Slice a single index `i` along `dim`, keeping the dimension.
+                    let slice_at = |tensor: FloatTensor<B>, i: usize| {
+                        let mut slices = vec![Slice::full(); ndims];
+                        slices[dim] = Slice::new(i as isize, Some(i as isize + 1), 1);
+                        B::float_slice(tensor, &slices)
+                    };
 
-                    // Reverse, cumsum, reverse back using negative step slicing
-                    let grad_reversed = B::float_slice(grad_times_output, &slices);
-                    let grad_cumsum = B::float_cumsum(grad_reversed, dim);
-                    let grad_result = B::float_slice(grad_cumsum, &slices);
+                    // left[i] = prod(input[0..i]); left[0] = 1.
+                    // Build by prepending a `1` along `dim`, dropping the last element,
+                    // then taking the inclusive cumulative product.
+                    let mut ones_dims: Vec<usize> = (0..ndims).map(|d| shape[d]).collect();
+                    ones_dims[dim] = 1;
+                    let ones = B::float_ones(Shape::from(ones_dims), &device, dtype.into());
+                    let mut head_slices = vec![Slice::full(); ndims];
+                    head_slices[dim] = Slice::new(0, Some(n as isize - 1), 1);
+                    let input_head = B::float_slice(input.clone(), &head_slices);
+                    let shifted = B::float_cat(vec![ones, input_head], dim);
+                    let left = B::float_cumprod(shifted, dim);
 
-                    B::float_div(grad_result, input)
+                    // tail[i] via the reverse recurrence, collected front-to-back.
+                    let mut tail_parts: Vec<FloatTensor<B>> = Vec::with_capacity(n);
+                    let mut acc = slice_at(grad.clone(), n - 1);
+                    tail_parts.push(acc.clone());
+                    for i in (0..n - 1).rev() {
+                        let grad_i = slice_at(grad.clone(), i);
+                        let input_next = slice_at(input.clone(), i + 1);
+                        acc = B::float_add(grad_i, B::float_mul(input_next, acc));
+                        tail_parts.push(acc.clone());
+                    }
+                    tail_parts.reverse();
+                    let tail = B::float_cat(tail_parts, dim);
+
+                    B::float_mul(left, tail)
                 });
             }
         }
