@@ -93,7 +93,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
             // Gradients linked to each parameter of the model
             let grads = GradientsParams::from_grads(grads, &model);
             // Update the model using the optimizer
-            model = optim.step(config.lr, model, grads);
+            model = optim.step(config.lr.into(), model, grads);
         }
 
         // The averaged train loss per epoch

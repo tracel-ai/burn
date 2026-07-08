@@ -1,27 +1,26 @@
 use burn_core::data::dataloader::Progress;
-use burn_core::module::AutodiffModule;
 use burn_optim::GradientsAccumulator;
 use std::sync::{Arc, Mutex};
 
 use crate::SupervisedTrainingEventProcessor;
 use crate::learner::base::Interrupter;
 use crate::metric::processor::{EventProcessorTraining, LearnerEvent, TrainingItem};
-use crate::{InferenceStep, Learner, LearningComponentsTypes, TrainLoader, ValidLoader};
+use crate::{InferenceStep, Learner, LearnerModel, TrainLoader, ValidLoader};
 
 /// A validation epoch.
 #[derive(new)]
-pub struct DdpValidEpoch<LC: LearningComponentsTypes> {
-    dataloader: ValidLoader<LC>,
+pub struct DdpValidEpoch<M: LearnerModel> {
+    dataloader: ValidLoader<M>,
 }
 
 /// A training epoch.
 #[derive(new)]
-pub struct DdpTrainEpoch<LC: LearningComponentsTypes> {
-    dataloader: TrainLoader<LC>,
+pub struct DdpTrainEpoch<M: LearnerModel> {
+    dataloader: TrainLoader<M>,
     grad_accumulation: Option<usize>,
 }
 
-impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
+impl<M: LearnerModel> DdpValidEpoch<M> {
     /// Runs the validation epoch.
     ///
     /// # Arguments
@@ -30,9 +29,9 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
     /// * `processor` - The event processor to use.
     pub fn run(
         &self,
-        model: &<LC as LearningComponentsTypes>::Model,
+        model: &M,
         global_progress: &Progress,
-        processor: &mut SupervisedTrainingEventProcessor<LC>,
+        processor: &mut SupervisedTrainingEventProcessor<M>,
         interrupter: &Interrupter,
     ) {
         let epoch = global_progress.items_processed;
@@ -46,7 +45,7 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
             let progress = iterator.progress();
             iteration += 1;
 
-            let item = model.step(item);
+            let item = InferenceStep::step(&model, item);
             let item = TrainingItem::new(item, progress, Some(iteration), None);
 
             processor.process_valid(LearnerEvent::ProcessedItem(item));
@@ -59,7 +58,7 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
     }
 }
 
-impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
+impl<M: LearnerModel> DdpTrainEpoch<M> {
     /// Runs the training epoch.
     ///
     /// # Arguments
@@ -74,9 +73,9 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
     /// The trained model and the optimizer.
     pub fn run(
         &self,
-        learner: &mut Learner<LC>,
+        learner: &mut Learner<M>,
         global_progress: &Progress,
-        processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
+        processor: Arc<Mutex<SupervisedTrainingEventProcessor<M>>>,
         interrupter: &Interrupter,
         peer_count: usize,
     ) {

@@ -114,7 +114,7 @@ impl Optimizer for AdamW {
 
 impl AdamWConfig {
     /// Build an [`AdamW`] from the config.
-    pub fn build(&self) -> AdamW {
+    pub(crate) fn build(&self) -> AdamW {
         AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,
@@ -242,7 +242,7 @@ mod tests {
         let mut optimizer = create_adamw();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let _linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let bytes = optimizer.into_bytes().unwrap();
         assert!(!bytes.is_empty());
@@ -289,7 +289,7 @@ mod tests {
 
             let grads = linear.forward(x).backward();
             let grads = GradientsParams::from_grads(grads, &linear);
-            linear = optimizer.step(LEARNING_RATE, linear, grads);
+            linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
         }
 
         let state_updated = linear;
@@ -400,11 +400,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let state_updated = linear;
         let weights_expected = TensorData::from([
@@ -479,11 +479,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let state_updated = linear;
         let weights_expected = TensorData::from([
@@ -552,11 +552,11 @@ mod tests {
 
         let grads = linear.forward(x.clone()).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());

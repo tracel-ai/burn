@@ -1,7 +1,6 @@
 use crate::{
-    EventProcessorTraining, Learner, LearnerEvent, LearningComponentsTypes,
-    SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
-    TrainingModel, ValidLoader,
+    EventProcessorTraining, Learner, LearnerEvent, LearnerModel, SupervisedLearningStrategy,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, ValidLoader,
     single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
 use burn_core::{data::dataloader::Progress, tensor::Device};
@@ -43,15 +42,15 @@ impl Iterator for TrainingLoop {
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDeviceTrainingStrategy {
+impl<M: LearnerModel> SupervisedLearningStrategy<M> for SingleDeviceTrainingStrategy {
     fn fit(
         &self,
-        training_components: TrainingComponents<LC>,
-        mut learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
+        training_components: TrainingComponents<M>,
+        mut learner: Learner<M>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: ValidLoader<M>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (M, SupervisedTrainingEventProcessor<M>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let train_total_items = dataloader_train.num_items();
         let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
@@ -61,9 +60,9 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for SingleDevic
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
 
-        let epoch_train: SingleDeviceTrainEpoch<LC> =
+        let epoch_train: SingleDeviceTrainEpoch<M> =
             SingleDeviceTrainEpoch::new(dataloader_train, training_components.grad_accumulation);
-        let epoch_valid: SingleDeviceValidEpoch<LC> =
+        let epoch_valid: SingleDeviceValidEpoch<M> =
             SingleDeviceValidEpoch::new(dataloader_valid.clone());
 
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {

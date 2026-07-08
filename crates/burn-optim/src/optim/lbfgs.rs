@@ -547,7 +547,11 @@ impl LBFGS {
             .collect();
         let scalars = sink.scalars.into_iter().collect();
 
-        OptimizerRecord { tensors, scalars }
+        OptimizerRecord {
+            tensors,
+            scalars,
+            paths: Default::default(),
+        }
     }
 
     /// Load the optimizer state from an [`OptimizerRecord`].
