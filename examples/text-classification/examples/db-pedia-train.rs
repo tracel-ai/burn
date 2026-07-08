@@ -39,6 +39,9 @@ pub fn launch_single(mut device: Device) {
 #[cfg(all(feature = "cuda", not(feature = "ddp")))]
 pub fn launch_multi() {
     let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
+    devices
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+        .unwrap();
 
     launch(ExecutionStrategy::MultiDevice(
         devices.into_vec(),
@@ -49,6 +52,9 @@ pub fn launch_multi() {
 #[cfg(all(feature = "cuda", feature = "ddp"))]
 pub fn launch_multi() {
     let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
+    devices
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+        .unwrap();
 
     launch(ExecutionStrategy::ddp(
         devices.into_vec(),
