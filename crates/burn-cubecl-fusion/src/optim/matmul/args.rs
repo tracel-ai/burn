@@ -49,6 +49,13 @@ pub struct FusedMatmulInput {
     c: Option<MatmulArg>,
     #[cube(comptime)]
     out: FuseArg,
+    /// The problem was reinterpreted by merging the innermost batch dim into the
+    /// rows (`[.., b, m, k]` read as `[.., 1, b*m, k]`): lhs and out views take
+    /// their row dim across dims `rank-3` and `rank-2`. The epilogue is
+    /// unaffected — with the mergeable layouts this requires, every element
+    /// keeps its linear position.
+    #[cube(comptime)]
+    merged_rows: bool,
 }
 
 #[cube]
@@ -129,6 +136,7 @@ impl MatmulArgs for FusedMatmulArgs {
             comptime![state.a.clone()],
             comptime![state.config.clone()],
             state.lhs_layout_config,
+            comptime![state.merged_rows],
         )
     }
 
@@ -149,6 +157,7 @@ impl MatmulArgs for FusedMatmulArgs {
             comptime![state.b.clone()],
             comptime![state.config.clone()],
             comptime![state.rhs_layout_config],
+            false,
         )
     }
 
@@ -171,6 +180,7 @@ impl MatmulArgs for FusedMatmulArgs {
                     c,
                     comptime![state.config.clone()],
                     comptime![state.out_layout_config],
+                    false,
                 );
                 ComptimeOption::Some(view)
             }
@@ -194,11 +204,22 @@ impl MatmulArgs for FusedMatmulArgs {
     ) -> ViewMut<'_, EO, BatchedCoords> {
         let rank = comptime![state.config.rank];
 
-        let shape_row = state.locals.ref_shape[rank - 2] as u32;
+        let mut shape_row = state.locals.ref_shape[rank - 2] as u32;
         let shape_col = state.locals.ref_shape[rank - 1] as u32;
 
-        let stride_row = state.locals.ref_strides[rank - 2];
+        let mut stride_row = state.locals.ref_strides[rank - 2];
         let stride_col = state.locals.ref_strides[rank - 1];
+
+        if comptime![state.merged_rows] {
+            // Rows span dims `rank-3` and `rank-2`; when the inner dim is 1 the
+            // rows advance by the outer stride.
+            stride_row = select(
+                state.locals.ref_shape[rank - 2] == 1,
+                state.locals.ref_strides[rank - 3],
+                stride_row,
+            );
+            shape_row *= state.locals.ref_shape[rank - 3] as u32;
+        }
 
         let mut outputs = state.outputs.clone();
         let mut locals = state.locals.clone();
@@ -245,6 +266,7 @@ fn global_view<E: CubePrimitive>(
     #[comptime] arg: MatmulArg,
     #[comptime] config: FuseBlockConfig,
     #[comptime] layout_config: GlobalLayoutConfig,
+    #[comptime] merged_rows: bool,
 ) -> View<'static, E, BatchedCoords> {
     let rank = comptime![config.rank];
     let data = comptime![arg.data().clone()];
@@ -256,6 +278,11 @@ fn global_view<E: CubePrimitive>(
     let mut shape_row = data_tensor.tensor.shape(rank - 2) as u32;
     let mut shape_col = data_tensor.tensor.shape(rank - 1) as u32;
     let mut packing = comptime![1];
+
+    if comptime![merged_rows] {
+        // Rows span dims `rank-3` and `rank-2` (see [FusedMatmulInput::merged_rows]).
+        shape_row *= data_tensor.tensor.shape(rank - 3) as u32;
+    }
 
     if arg.scheme().is_some() {
         let scheme = arg.scheme().unwrap();
@@ -287,6 +314,7 @@ fn global_view<E: CubePrimitive>(
         data_tensor.tensor.vector_size(),
         layout_config,
         packing,
+        merged_rows,
     );
     let data_buf = GlobalInput::new(inputs, locals, data, comptime![config.clone()], None);
 
@@ -315,6 +343,7 @@ fn global_view<E: CubePrimitive>(
                         1usize,
                         layout_config,
                         1u32,
+                        false,
                     );
                     GlobalScaleLayout::new_BlockScaled(BlockScaledLayout::new(
                         shape,
@@ -380,6 +409,7 @@ fn global_layout(
     #[comptime] vector_size: VectorSize,
     #[comptime] layout_config: GlobalLayoutConfig,
     #[comptime] packing: u32,
+    #[comptime] merged_rows: bool,
 ) -> GlobalLayout {
     let rank = comptime![config.rank];
     let data_tensor = match comptime![arg.clone()] {
@@ -389,8 +419,18 @@ fn global_layout(
 
     let (shape_row, shape_col) = shape;
 
-    let stride_row = data_tensor.tensor.stride(rank - 2);
+    let mut stride_row = data_tensor.tensor.stride(rank - 2);
     let stride_col = data_tensor.tensor.stride(rank - 1);
+
+    if comptime![merged_rows] {
+        // Rows span dims `rank-3` and `rank-2`; when the inner dim is 1 the
+        // rows advance by the outer stride.
+        stride_row = select(
+            data_tensor.tensor.shape(rank - 2) == 1,
+            data_tensor.tensor.stride(rank - 3),
+            stride_row,
+        );
+    }
 
     GlobalLayout::new(
         batch_layout,
@@ -494,6 +534,8 @@ pub struct FusedMatmulState {
     rhs_layout_config: GlobalLayoutConfig,
     #[cube(comptime)]
     out_layout_config: GlobalLayoutConfig,
+    #[cube(comptime)]
+    merged_rows: bool,
     batch_shape: Sequence<FastDivmod<u32>>,
 }
 
@@ -530,6 +572,7 @@ impl FusedMatmulState {
             lhs_layout_config,
             rhs_layout_config,
             out_layout_config,
+            merged_rows: comptime![inputs.merged_rows],
             batch_shape,
         }
     }

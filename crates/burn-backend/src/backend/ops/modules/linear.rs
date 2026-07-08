@@ -9,35 +9,17 @@ use burn_std::Shape;
 /// Computes `y = x @ weight [+ bias]`.
 ///
 /// Weight `[d_input, d_output]` and bias `[d_output]` are broadcast to match x's rank
-/// before the matmul.
-///
-/// A batched vec-mat x `[..., b, 1, d_input]` is reinterpreted as `[..., 1, b,
-/// d_input]` — the same problem transformation `Tensor::matmul` applies — so the
-/// product runs as one general matmul of `b` rows instead of `b` broadcast
-/// vec-mats that each re-read the whole weight.
+/// before the matmul. The decomposition stays a plain broadcast matmul — no view
+/// ops — so fusion engines can match the matmul with its epilogue; turning the
+/// broadcast batches into a single full matmul is the launch's job (see
+/// `merged_rows` in burn-cubecl-fusion / burn-cubecl).
 pub(crate) fn linear<B: Backend>(
     x: FloatTensor<B>,
     weight: FloatTensor<B>,
     bias: Option<FloatTensor<B>>,
 ) -> FloatTensor<B> {
-    let shape = x.shape();
-    let ndims = shape.num_dims();
+    let ndims = x.shape().num_dims();
 
-    if ndims >= 3 && shape[ndims - 2] == 1 && shape[ndims - 3] != 1 {
-        let x = B::float_swap_dims(x, ndims - 3, ndims - 2);
-        let output = forward::<B>(x, weight, bias, ndims);
-        return B::float_swap_dims(output, ndims - 3, ndims - 2);
-    }
-
-    forward::<B>(x, weight, bias, ndims)
-}
-
-fn forward<B: Backend>(
-    x: FloatTensor<B>,
-    weight: FloatTensor<B>,
-    bias: Option<FloatTensor<B>>,
-    ndims: usize,
-) -> FloatTensor<B> {
     // Reshape weight [d_input, d_output] -> [1, ..., 1, d_input, d_output] for batch matmul.
     let weight = unsqueeze_leading::<B>(weight, ndims);
     let output = B::float_matmul(x, weight);

@@ -22,6 +22,7 @@ use cubecl::{
     client::ComputeClient,
     prelude::*,
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
+    zspace::{Shape, Strides},
 };
 use cubek::{
     matmul::{
@@ -444,6 +445,31 @@ impl FusedMatmulLaunch<'_> {
             vector_sizes.rhs *= scheme.num_quants();
         }
 
+        // When the rhs is broadcast over every batch dim and the lhs/out rows are
+        // contiguous across the innermost batch dim, merge that dim into the rows:
+        // `[.., b, m, k] @ [.., 1, k, n]` runs as one `[b*m, k] @ [k, n]` matmul
+        // instead of `b` broadcast matmuls that each re-read the whole rhs. The
+        // views read the merged row dim through the `merged_rows` flag; the fused
+        // epilogue is unaffected since every element keeps its linear position.
+        let out_strides_ref = outputs.strides_ref(&config.ref_layout, config.rank);
+        let merged_rows = matches!(self.matmul.lhs, MatmulArg::Normal(_))
+            && can_merge_rows(
+                &lhs_shape,
+                &lhs_strides,
+                &rhs_shape,
+                &out_shape,
+                &out_strides_ref,
+            );
+
+        let (lhs_shape, lhs_strides, out_shape) = match merged_rows {
+            true => {
+                let (lhs_shape, lhs_strides) = merge_rows(&lhs_shape, &lhs_strides);
+                let (out_shape, _) = merge_rows(&out_shape, &out_strides_ref);
+                (lhs_shape, lhs_strides, out_shape)
+            }
+            false => (lhs_shape, lhs_strides, out_shape),
+        };
+
         let out_strides = MatrixLayout::RowMajor.to_strides(&out_shape);
         let problem = MatmulProblem::from_shapes_and_strides(
             lhs_shape,
@@ -480,6 +506,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -512,6 +539,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -548,6 +576,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -569,6 +598,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -590,6 +620,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -611,6 +642,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -632,6 +664,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -653,6 +686,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -674,6 +708,7 @@ impl FusedMatmulLaunch<'_> {
                         self.matmul.rhs.clone(),
                         None,
                         self.matmul.out.clone(),
+                        merged_rows,
                     ),
                     outputs,
                     problem,
@@ -686,6 +721,77 @@ impl FusedMatmulLaunch<'_> {
             }
         }
     }
+}
+
+/// Whether the innermost batch dim of a broadcast-rhs matmul can merge into the
+/// row dim (see the `merged_rows` flag on `FusedMatmulInput`).
+fn can_merge_rows(
+    lhs_shape: &Shape,
+    lhs_strides: &Strides,
+    rhs_shape: &Shape,
+    out_shape: &Shape,
+    out_strides: &Strides,
+) -> bool {
+    let rank = out_shape.num_dims();
+    if rank < 3 {
+        return false;
+    }
+
+    // Every batch dim of the rhs must be broadcast.
+    if rhs_shape.to_vec()[..rank - 2].iter().any(|&d| d != 1) {
+        return false;
+    }
+    // Only the innermost batch dim merges; outer ones must be 1.
+    if lhs_shape.to_vec()[..rank - 3].iter().any(|&d| d != 1) {
+        return false;
+    }
+    if out_shape.to_vec()[..rank - 3].iter().any(|&d| d != 1) {
+        return false;
+    }
+
+    let batch = out_shape[rank - 3];
+    let rows = out_shape[rank - 2];
+    if batch == 1 {
+        // Nothing to merge.
+        return false;
+    }
+    // Only the degenerate batched vec-mat merges: with real per-batch rows the
+    // batched matmul already tiles well, and measurements show it beats the
+    // merged single matmul.
+    if rows != 1 {
+        return false;
+    }
+    // The lhs can't be broadcast over the merged rows.
+    if lhs_shape[rank - 3] != batch || lhs_shape[rank - 2] != rows {
+        return false;
+    }
+
+    rows_mergeable(lhs_shape, lhs_strides, rank) && rows_mergeable(out_shape, out_strides, rank)
+}
+
+/// Rows advance with a single stride across dims `rank-3` and `rank-2`.
+fn rows_mergeable(shape: &Shape, strides: &Strides, rank: usize) -> bool {
+    shape[rank - 2] == 1 || strides[rank - 3] == shape[rank - 2] * strides[rank - 2]
+}
+
+/// Reinterpret `[.., b, m, k]` as `[.., 1, b*m, k]`.
+fn merge_rows(shape: &Shape, strides: &Strides) -> (Shape, Strides) {
+    let rank = shape.num_dims();
+    let mut shape = shape.clone();
+    let mut strides = strides.clone();
+
+    let rows = shape[rank - 3] * shape[rank - 2];
+    let stride_row = match shape[rank - 2] == 1 {
+        true => strides[rank - 3],
+        false => strides[rank - 2],
+    };
+
+    shape[rank - 2] = rows;
+    shape[rank - 3] = 1;
+    strides[rank - 2] = stride_row;
+    strides[rank - 3] = rows * stride_row;
+
+    (shape, strides)
 }
 
 fn launch_inner_fix_dtype<R: Runtime, A: BatchMatmulRoutine<()>>(
