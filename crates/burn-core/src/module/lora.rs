@@ -1,4 +1,9 @@
-use alloc::boxed::Box;
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use burn_tensor::{Distribution, Tensor};
 
 use crate::module::{LoraAdapter, ModuleMapper, Param, ParamGroup, Quantizer};
