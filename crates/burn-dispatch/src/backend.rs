@@ -29,7 +29,7 @@ use crate::{DispatchDevice, DispatchTensor};
 /// The main execution backend in Burn.
 ///
 /// [`Dispatch`] acts as a global backend that can manage multiple underlying
-/// backends (e.g., `Cpu`, `Cuda`, `Wgpu`, `Metal`, etc.).  
+/// backends (e.g., `Cpu`, `Cuda`, `Wgpu`, `Metal`, etc.).
 /// It is responsible for:
 /// - Dispatching tensor operations to the appropriate backend.
 /// - Managing cross-backend tensor transfers.
