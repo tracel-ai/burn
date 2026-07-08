@@ -284,9 +284,8 @@ where
         "attention: key and value must agree on head count"
     );
     assert_eq!(v_shape[2], seq_kv, "attention: value seq_kv mismatch");
-    // Grouped/Multi-Query Attention: each K/V head is shared by `q_per_kv` query
-    // heads. Standard MHA is the special case `q_per_kv == 1`. Matches the ONNX
-    // `Attention` spec, which requires `q_heads % kv_heads == 0`.
+    // GQA/MQA: each K/V head is shared by `q_per_kv` query heads; MHA is just
+    // `q_per_kv == 1`. ONNX `Attention` spec requires `q_heads % kv_heads == 0`.
     assert!(
         kv_heads > 0 && heads.is_multiple_of(kv_heads),
         "attention: q_heads ({heads}) must be divisible by kv_heads ({kv_heads})"
@@ -734,9 +733,8 @@ where
         "attention_naive: key and value must agree on head count"
     );
     assert_eq!(v_shape[2], seq_kv, "attention_naive: value seq_kv mismatch");
-    // Grouped/Multi-Query Attention: each K/V head is shared by `q_per_kv` query
-    // heads. Standard MHA is the special case `q_per_kv == 1`. Matches the ONNX
-    // `Attention` spec, which requires `q_heads % kv_heads == 0`.
+    // GQA/MQA: each K/V head is shared by `q_per_kv` query heads; MHA is just
+    // `q_per_kv == 1`. ONNX `Attention` spec requires `q_heads % kv_heads == 0`.
     assert!(
         kv_heads > 0 && heads.is_multiple_of(kv_heads),
         "attention_naive: q_heads ({heads}) must be divisible by kv_heads ({kv_heads})"
@@ -1012,9 +1010,9 @@ mod tests {
         }
     }
 
-    /// Repeat each K/V head `q_per_kv` times along the head dim, turning a
+    /// repeat each K/V head `q_per_kv` times along the head dim, turning a
     /// `[batch, kv_heads, seq, dim]` buffer into the `[batch, q_heads, seq, dim]`
-    /// buffer that plain MHA would consume. Used as the GQA/MQA reference.
+    /// one plain MHA would consume - the GQA/MQA reference.
     fn repeat_kv_heads(
         data: &[f32],
         batch: usize,
@@ -1036,10 +1034,9 @@ mod tests {
         out
     }
 
-    /// Grouped/Multi-Query Attention (`kv_heads < q_heads`) must equal plain MHA
-    /// where each K/V head has been repeated `q_heads / kv_heads` times. This is
-    /// the ONNX Attention-23 / burn-ndarray semantics. Covers both the naive and
-    /// flash inner loops (issue #3864's sibling, #4930).
+    /// GQA/MQA (`kv_heads < q_heads`) must equal plain MHA with each K/V head
+    /// repeated `q_heads / kv_heads` times - ONNX Attention-23 / burn-ndarray
+    /// semantics. covers both the naive and flash inner loops (#4930).
     fn check_grouped_attention(q_heads: usize, kv_heads: usize) {
         let q_per_kv = q_heads / kv_heads;
         let batch = 2;
