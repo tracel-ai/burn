@@ -43,7 +43,7 @@ pub fn lora_finetuning<D: TextClassificationDataset + 'static>(
     .init(&strategy.main_device().clone().autodiff());
 
     // Load pre-trained weights.
-    let model = model.load_file(&"model.bpk");
+    let model = model.load_file("model.bpk");
 
     // Apply LoRA to the attention module's query, value, output and feed-forward weights.
     let r = 8.0;
