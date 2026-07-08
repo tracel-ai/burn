@@ -168,6 +168,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.vectorizations.insert(global.id, Vect::Aligned(1));
         }
 
+        for view in self.resources.views.iter() {
+            if let TensorView::NhwcStrides { id, .. } = view {
+                let global = context.tensors.get(id).unwrap();
+                plan.vectorizations.insert(global.id, Vect::Aligned(1));
+            }
+        }
+
         let mut block_vectorization = Vec::with_capacity(self.blocks.len());
         for _ in 0..self.blocks.len() {
             block_vectorization.push(Vec::new());

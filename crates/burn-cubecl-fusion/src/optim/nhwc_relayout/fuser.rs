@@ -59,10 +59,10 @@ impl<R: Runtime> NHWCRelayoutFuser<R> {
 
     fn settings() -> FuseSettings {
         FuseSettings {
-            broadcast: false,
-            output_shape_updates: false,
-            inplace: false,
-            vectorization: VectorizationSetting::Deactivated,
+            broadcast: true,
+            output_shape_updates: true,
+            inplace: true,
+            vectorization: VectorizationSetting::Activated,
             ref_layout: RefLayoutSetting::Any,
         }
     }

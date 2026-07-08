@@ -35,6 +35,7 @@ impl<R: Runtime> NHWCRelayoutOptimization<R> {
             .launch(&self.client, &self.device, context)
             .expect("elemwise launch should succeed");
 
+        // The fallback corresponds to the operation that benefits from NHWC relayout.
         fallback(self.len - 1).run(context);
     }
 

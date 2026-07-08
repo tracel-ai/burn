@@ -479,12 +479,16 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) {
         let block = &mut plan.blocks[block_idx];
 
+        let is_allowed_by_settings = match self.blocks[block_idx].settings.ref_layout {
+            RefLayoutSetting::SameAsBlock { .. } => false,
+            RefLayoutSetting::OnlyContiguous => is_contiguous(&tensor_global.shape, &strides),
+            _ => true,
+        };
+
         if !block.reference.is_found()
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
-            && !matches!(
-                self.blocks[block_idx].settings.ref_layout,
-                RefLayoutSetting::SameAsBlock { .. }
-            )
+            && base_layout_info != LayoutInfo::Unknown
+            && is_allowed_by_settings
         {
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Output(output.pos_original, output.precision, base_layout_info),
