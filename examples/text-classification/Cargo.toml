@@ -10,7 +10,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = []
+# TODO: remove
+default = ["remote"]
 f16 = []
 flex32 = []
 tch-cpu = ["burn/tch"]
