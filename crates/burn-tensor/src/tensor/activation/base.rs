@@ -14,6 +14,15 @@ pub fn relu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     tensor.relu()
 }
 
+/// Applies the ReLU6 function element-wise, the rectified linear unit clamped to
+/// the range `[0, 6]` (as used in [MobileNetV2](https://arxiv.org/abs/1801.04381)).
+///
+#[cfg_attr(doc, doc = "$$\\text{ReLU6}\\(x\\) = \\min\\(\\max\\(0, x\\), 6\\)$$")]
+#[cfg_attr(not(doc), doc = "`ReLU6(x) = min(max(0, x), 6)`")]
+pub fn relu6<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
+    tensor.clamp(0.0, 6.0)
+}
+
 /// Applies the leaky rectified linear unit function element-wise.
 ///
 #[cfg_attr(
