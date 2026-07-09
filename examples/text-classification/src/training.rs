@@ -12,7 +12,7 @@ use crate::{
 
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
-    lr_scheduler::{linear::LinearLrSchedulerConfig, noam::NoamLrSchedulerConfig},
+    lr_scheduler::noam::NoamLrSchedulerConfig,
     nn::{attention::SeqLengthOption, transformer::TransformerEncoderConfig},
     optim::AdamConfig,
     prelude::*,
@@ -86,9 +86,10 @@ pub fn train<D: TextClassificationDataset + 'static>(
     let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
         .with_warmup_steps(1000)
         .with_model_size(config.transformer.d_model);
+    // TODO: remove and try to find an elegant way to scale LR with DDP devices.
     let lr_scheduler = ComposedLrSchedulerConfig::new()
         .noam(lr_scheduler)
-        .linear(LinearLrSchedulerConfig::new(4.0, 4.0, 1000))
+        .constant(4.0)
         .init()
         .unwrap();
 
