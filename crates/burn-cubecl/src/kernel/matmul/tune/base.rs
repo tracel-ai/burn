@@ -1,3 +1,5 @@
+use alloc::sync::Arc;
+
 use crate::{
     CubeRuntime, CubeTuneId,
     kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
@@ -6,8 +8,9 @@ use crate::{
 use burn_backend::DType;
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
-    std::tensor::MatrixBatchLayout,
-    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
+    std::{tensor::MatrixBatchLayout, throughput::measure_peak_throughput},
+    throughput::{ThroughputKey, ThroughputMode},
+    tune::{AutotuneBound, LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
     components::tile::TileMatmulKind,
@@ -50,6 +53,19 @@ pub fn matmul_autotune<R: CubeRuntime>(
     let num_cpu_cores = client.properties().hardware.num_cpu_cores;
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
+
+    let throughput_limits: Vec<(f64, f32)> = vec![(
+        measure_peak_throughput(
+            &client,
+            ThroughputKey {
+                mode: ThroughputMode::Memory,
+                dtype: dtype_to_storage_type(out_dtype).elem_type(), //might not work for packed (i.e. E2M1)
+            },
+        )
+        .ops_per_s(),
+        0.5,
+    )];
+    // let throughput_limits = vec![];
 
     let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 3;
@@ -181,6 +197,22 @@ pub fn matmul_autotune<R: CubeRuntime>(
         }
 
         let mut set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>);
+
+        let limit = throughput_limits.clone();
+        set = set.with_bounds(Arc::new(move |key| {
+            let m = key.definition.m;
+            let n = key.definition.n;
+            let k = key.definition.k;
+
+            limit
+                .iter()
+                .map(|(throughput, threshold)| AutotuneBound {
+                    ops_count: 2 * m * n * k,
+                    throughput: *throughput,
+                    threshold: *threshold,
+                })
+                .collect()
+        }));
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
