@@ -11,7 +11,8 @@ workspace = true
 
 [features]
 # TODO: remove
-default = ["remote-server"]
+default = ["remote-iroh", "ddp"]
+# default = ["cuda", "ddp"]
 f16 = []
 flex32 = []
 tch-cpu = ["burn/tch"]
@@ -20,7 +21,7 @@ wgpu = ["burn/wgpu"]
 vulkan = ["burn/vulkan"]
 flex = ["burn/flex"]
 remote = ["burn/remote-websocket"]
-remote-server = ["burn/remote-server", "blake3"]
+remote-iroh = ["burn/remote-server", "blake3"]
 cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 metal = ["burn/metal"]

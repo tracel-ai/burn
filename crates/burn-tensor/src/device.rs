@@ -759,6 +759,31 @@ impl Device {
 
         Devices(devices)
     }
+
+    /// List every device hosted by the Iroh compute peer `peer`, dialed from `endpoint`.
+    ///
+    /// The Iroh counterpart of enumerating through [`enumerate`](Self::enumerate).
+    /// Iroh peers are addressed by cryptographic endpoint identity
+    /// rather than a URL string, and [`iroh::Endpoint`] is not `Eq`, so it cannot be carried in the
+    /// [`DeviceType`] filter — hence this dedicated entry point. Connecting to the peer (required to
+    /// learn its device count) happens here.
+    ///
+    /// ```rust,ignore
+    /// let endpoint = Endpoint::builder(presets::N0).bind().await?;
+    /// let devices = Device::enumerate_remote_iroh(&endpoint, peer);
+    /// ```
+    #[cfg(all(feature = "remote", not(target_family = "wasm")))]
+    pub fn enumerate_remote_iroh(
+        endpoint: &burn_dispatch::backends::remote::Endpoint,
+        peer: impl Into<burn_dispatch::backends::remote::EndpointAddr>,
+    ) -> Devices {
+        Devices(
+            Dispatch::enumerate_remote_iroh(endpoint, peer.into())
+                .into_iter()
+                .map(Device::new)
+                .collect(),
+        )
+    }
 }
 
 /// Map our backend-agnostic [`DeviceKind`] onto cubecl's `WgpuDevice` enum.
@@ -825,6 +850,11 @@ pub enum DeviceType {
     /// connecting to the server, which reports how many devices it exposes.
     #[cfg(feature = "remote-websocket")]
     Remote(String),
+    // #[cfg(feature = "remote")]
+    // RemoteIroh {
+    //     endpoint: burn_dispatch::backends::remote::Endpoint,
+    //     peer: burn_dispatch::backends::remote::EndpointAddr,
+    // },
 }
 
 #[cfg(feature = "remote-websocket")]

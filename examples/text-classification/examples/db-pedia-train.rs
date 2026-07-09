@@ -1,3 +1,10 @@
+#[cfg(all(feature = "cuda", not(feature = "ddp")))]
+use burn::tensor::Devices;
+#[cfg(all(any(feature = "cuda", feature = "remote-iroh"), feature = "ddp"))]
+use burn::tensor::{
+    Devices,
+    distributed::{DistributedConfig, ReduceOperation},
+};
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -37,25 +44,15 @@ pub fn launch_single(mut device: Device) {
 }
 
 #[cfg(all(feature = "cuda", not(feature = "ddp")))]
-pub fn launch_multi() {
-    let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
-    devices
-        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
-        .unwrap();
-
+pub fn launch_multi(devices: Devices) {
     launch(ExecutionStrategy::MultiDevice(
         devices.into_vec(),
         burn::train::MultiDeviceOptim::OptimSharded,
     ))
 }
 
-#[cfg(all(feature = "cuda", feature = "ddp"))]
-pub fn launch_multi() {
-    let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
-    devices
-        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
-        .unwrap();
-
+#[cfg(all(any(feature = "cuda", feature = "remote-iroh"), feature = "ddp"))]
+pub fn launch_multi(devices: Devices) {
     launch(ExecutionStrategy::ddp(
         devices.into_vec(),
         DistributedConfig {
@@ -105,21 +102,11 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "remote-server")]
+#[cfg(feature = "remote-iroh")]
 mod remote {
-    #[cfg(feature = "ddp")]
-    use burn::tensor::DeviceType;
-    #[cfg(feature = "ddp")]
-    use burn::tensor::distributed::{DistributedConfig, ReduceOperation};
-    #[cfg(feature = "ddp")]
-    use burn::train::ExecutionStrategy;
     use burn::{server::RemoteSecret, tensor::Device};
 
-    /// Address of the `burn-remote` server to train against (legacy WebSocket / DDP path only).
-    #[cfg(feature = "ddp")]
-    const ADDRESS: &str = "ws://localhost:3000";
-
-    /// Derive a stable server identity from a human-friendly topic, so both ends agree on the address
+    /// Derive a stable iroh identity from a human-friendly topic, so both ends agree on the address
     /// without exchanging keys. The topic acts as a shared secret here (anyone who knows it can host as
     /// this identity), which suits a demo; a real deployment would use `RemoteSecret::random()` and
     /// share its `id()`.
@@ -128,12 +115,11 @@ mod remote {
         RemoteSecret::from_bytes(*hash.as_bytes())
     }
 
-    /// Connect to the remote compute server over Iroh and train against its first device.
+    /// Connect to the remote compute iroh over Iroh and train against its first device.
     ///
-    /// Iroh reaches the server by cryptographic identity, not IP:port — it does NAT traversal and
+    /// Iroh reaches the iroh by cryptographic identity, not IP:port — it does NAT traversal and
     /// relay fallback for you, so no public IP or port forwarding is required. Both ends derive the
     /// same identity from the shared `topic`.
-    #[cfg(not(feature = "ddp"))]
     pub fn run() {
         use iroh::{Endpoint, EndpointId, endpoint::presets};
 
@@ -143,44 +129,67 @@ mod remote {
             .map(String::as_str)
             .unwrap_or("db-pedia-train-default");
 
-        let server_id: EndpointId = topic_secret(topic).id();
+        let iroh_id: EndpointId = topic_secret(topic).id();
 
         println!("topic     : {topic}");
-        println!("server id : {server_id}");
+        println!("iroh id : {iroh_id}");
         println!("connecting...");
 
-        // A multi-thread runtime is required: `remote_iroh` blocks to establish the session while
-        // Iroh drives networking on the runtime's worker threads.
-        let runtime = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
-        runtime.block_on(async move {
-            let endpoint = Endpoint::builder(presets::N0)
-                .bind()
-                .await
-                .expect("failed to bind iroh endpoint");
-            let device = Device::remote_iroh(&endpoint, server_id, 0);
-            println!("connected\n");
-            crate::launch_single(device);
-        });
-    }
+        #[cfg(not(feature = "ddp"))]
+        {
+            // A multi-thread runtime is required: `remote_iroh` blocks to establish the session while
+            // Iroh drives networking on the runtime's worker threads.
+            let runtime = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+            runtime.block_on(async move {
+                let endpoint = Endpoint::builder(presets::N0)
+                    .bind()
+                    .await
+                    .expect("failed to bind iroh endpoint");
+                let device = Device::remote_iroh(&endpoint, iroh_id, 0);
+                println!("connected\n");
+                crate::launch_single(device);
+            });
+        }
 
-    /// Same enumeration, but drive the devices with distributed data-parallel training.
-    #[cfg(feature = "ddp")]
-    pub fn run() {
-        let devices = Device::enumerate(DeviceType::remote(ADDRESS));
+        #[cfg(feature = "ddp")]
+        {
+            // A multi-thread runtime is required: `remote_iroh` blocks to establish the session while
+            // Iroh drives networking on the runtime's worker threads.
+            let runtime = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+            runtime.block_on(async move {
+                use burn::tensor::DeviceConfig;
+                use burn::tensor::Element;
 
-        crate::launch_single(ExecutionStrategy::ddp(
-            devices.into_vec(),
-            DistributedConfig {
-                all_reduce_op: ReduceOperation::Mean,
-            },
-        ));
+                use crate::ElemType;
+
+                let endpoint = Endpoint::builder(presets::N0)
+                    .bind()
+                    .await
+                    .expect("failed to bind iroh endpoint");
+                let mut devices = Device::enumerate_remote_iroh(&endpoint, iroh_id);
+                println!("connected\n");
+                devices
+                    .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+                    .unwrap();
+                crate::launch_multi(devices);
+            });
+        }
     }
 }
 
 #[cfg(feature = "cuda")]
 mod cuda {
+    use burn::tensor::{Device, DeviceConfig, Element};
+
+    use crate::ElemType;
+
     pub fn run() {
-        crate::launch_multi();
+        let mut devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
+        devices
+            .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+            .unwrap();
+
+        crate::launch_multi(devices);
     }
 }
 
@@ -206,6 +215,6 @@ fn main() {
     cuda::run();
     #[cfg(feature = "rocm")]
     rocm::run();
-    #[cfg(feature = "remote-server")]
+    #[cfg(feature = "remote-iroh")]
     remote::run();
 }

@@ -814,4 +814,24 @@ impl Dispatch {
             .map(DispatchDevice::Remote)
             .collect()
     }
+
+    /// List every device hosted by the Iroh compute peer `peer`, dialed from `endpoint`.
+    ///
+    ///
+    /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
+    /// address rather than enumerable local hardware, so they need a dedicated entry point.
+    /// Connecting to the server (required to learn its device count) happens here; see
+    /// [`RemoteDevice::enumerate_websocket`].
+    ///
+    /// Iroh-only: websocket servers are addressed by a URL string, not endpoint identity.
+    #[cfg(feature = "remote")]
+    pub fn enumerate_remote_iroh(
+        endpoint: &burn_remote::Endpoint,
+        peer: burn_remote::EndpointAddr,
+    ) -> Vec<DispatchDevice> {
+        RemoteDevice::enumerate_iroh(endpoint, peer)
+            .into_iter()
+            .map(DispatchDevice::Remote)
+            .collect()
+    }
 }
