@@ -513,6 +513,7 @@ impl ImageFolderDataset {
                     .join(",")
             )],
         )
+        .case_insensitive(true)
         .follow_links(true)
         .sort_by(|p1: &DirEntry, p2: &DirEntry| p1.path().cmp(p2.path())) // order by path
         .build()
@@ -712,7 +713,10 @@ impl ImageFolderDataset {
     /// Check if extension is supported.
     fn check_extension<S: AsRef<str>>(extension: &S) -> Result<String, ImageLoaderError> {
         let extension = extension.as_ref();
-        if !SUPPORTED_FILES.contains(&extension) {
+        if !SUPPORTED_FILES
+            .iter()
+            .any(|&e| e.eq_ignore_ascii_case(extension))
+        {
             Err(ImageLoaderError::InvalidFileExtensionError(
                 extension.to_string(),
             ))
@@ -762,7 +766,7 @@ mod tests {
         let root = Path::new(DATASET_ROOT);
         let items = vec![
             (root.join("orange").join("dot.jpg"), "orange".to_string()),
-            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.JPG"), "red".to_string()),
             (root.join("red").join("dot.png"), "red".to_string()),
         ];
         let dataset =
@@ -802,7 +806,7 @@ mod tests {
         let root = Path::new(DATASET_ROOT);
         let items = vec![
             (root.join("orange").join("dot.jpg"), "orange".to_string()),
-            (root.join("red").join("dot.jpg"), "red".to_string()),
+            (root.join("red").join("dot.JPG"), "red".to_string()),
             (root.join("red").join("dot.png"), "red".to_string()),
         ];
         let dataset =
@@ -827,7 +831,7 @@ mod tests {
                 vec!["dot".to_string(), "orange".to_string()],
             ),
             (
-                root.join("red").join("dot.jpg"),
+                root.join("red").join("dot.JPG"),
                 vec!["dot".to_string(), "red".to_string()],
             ),
             (
