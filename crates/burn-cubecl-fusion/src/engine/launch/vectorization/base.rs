@@ -75,18 +75,12 @@ impl VectorSizeOverrides {
     pub fn tensor(&self, tensor_id: &TensorId) -> Option<&Vec<VectorSize>> {
         let map = match &self.state {
             Some(val) => val,
-            None => match &self.default {
-                Some(val) => return Some(val),
-                None => return None,
-            },
+            None => return self.default.as_ref(),
         };
 
         match map.get(tensor_id) {
             Some(val) => Some(val),
-            None => match &self.default {
-                Some(val) => Some(val),
-                None => None,
-            },
+            None => self.default.as_ref(),
         }
     }
 }
