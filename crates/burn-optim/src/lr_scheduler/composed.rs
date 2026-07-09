@@ -81,6 +81,10 @@ impl ComposedLrSchedulerConfig {
         self.schedulers.push(LrSchedulerConfig::Noam(config));
         self
     }
+
+    // pub fn constant(mut self, config: LearningRate) -> Self {
+    //     // self.schedulers.push(LrSchedulerConfig::Cosine(()));
+    // }
 }
 
 #[derive(Config, Debug)]

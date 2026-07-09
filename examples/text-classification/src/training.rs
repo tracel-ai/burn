@@ -10,16 +10,19 @@ use crate::{
     model::TextClassificationModelConfig,
 };
 
-use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
-    lr_scheduler::noam::NoamLrSchedulerConfig,
+    lr_scheduler::{linear::LinearLrSchedulerConfig, noam::NoamLrSchedulerConfig},
     nn::{attention::SeqLengthOption, transformer::TransformerEncoderConfig},
     optim::AdamConfig,
     prelude::*,
     train::metric::{
         AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
     },
+};
+use burn::{
+    lr_scheduler::composed::ComposedLrSchedulerConfig,
+    train::{ExecutionStrategy, Learner, SupervisedTraining},
 };
 use std::{path::PathBuf, sync::Arc};
 
@@ -82,7 +85,10 @@ pub fn train<D: TextClassificationDataset + 'static>(
     // Initialize learning rate scheduler
     let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
         .with_warmup_steps(1000)
-        .with_model_size(config.transformer.d_model)
+        .with_model_size(config.transformer.d_model);
+    let lr_scheduler = ComposedLrSchedulerConfig::new()
+        .noam(lr_scheduler)
+        .linear(LinearLrSchedulerConfig::new(4.0, 4.0, 1000))
         .init()
         .unwrap();
 
