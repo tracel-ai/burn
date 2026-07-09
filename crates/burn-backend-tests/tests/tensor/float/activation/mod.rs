@@ -20,4 +20,5 @@ mod softmin;
 mod softplus;
 mod softsign;
 mod tanh_activation;
+mod threshold;
 mod thresholded_relu;
