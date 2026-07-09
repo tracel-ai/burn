@@ -12,7 +12,7 @@ use alloc::vec;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
-use burn_backend::{AutodiffBackend, Backend, BackendTypes, DType, ExecutionError};
+use burn_backend::{AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError};
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -74,6 +74,22 @@ impl Backend for Dispatch {
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::sync(device))
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_prepare(device))
+    }
+
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_start_capture(device))
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph, ExecutionError> {
+        dispatch_device!(device, |device| B::graph_stop_capture(device))
+    }
+
+    fn graph_replay(device: &Self::Device, graph: &BackendGraph) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_replay(device, graph))
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {

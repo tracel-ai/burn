@@ -805,6 +805,13 @@ pub trait FloatTensorOps<B: Backend> {
         false
     }
 
+    /// Whether the tensor's buffer can be mutated in place — i.e. this handle
+    /// uniquely owns it, so an in-place op (`slice_assign`, an inplace kernel)
+    /// writes the existing allocation instead of copying it first.
+    fn float_can_mut(_tensor: &FloatTensor<B>) -> bool {
+        false
+    }
+
     /// Sum of all elements in a tensor.
     ///
     /// # Arguments

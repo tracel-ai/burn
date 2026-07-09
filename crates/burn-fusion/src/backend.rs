@@ -4,7 +4,7 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendTypes, DType, DeviceOps, ExecutionError,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};
@@ -91,6 +91,38 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
         client.sync(move || B::flush(&device))
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // `client.sync` drains the lazy queue and runs the closure without a
+        // device sync — the inner backend then arms persistent allocation.
+        client.sync(move || B::graph_prepare(&device))
+    }
+
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain any pending fused operations so nothing leaks into the capture
+        // window before it opens, then begin capture on the same stream.
+        client.sync(move || B::graph_start_capture(&device))
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph, ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let device = device.clone();
+        // Drain the capture run's fused kernels onto the captured stream (this
+        // is where they actually launch), then close the capture.
+        client.sync(move || B::graph_stop_capture(&device))
+    }
+
+    fn graph_replay(device: &Self::Device, graph: &BackendGraph) -> Result<(), ExecutionError> {
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        // Drain any queued fused operations onto the stream first (no device
+        // sync), then launch the captured graph after them.
+        client.sync(|| ());
+        B::graph_replay(device, graph)
     }
 }
 
