@@ -168,7 +168,7 @@ pub trait Backend:
     }
 
     /// Prepare `device` for an upcoming graph capture: route allocations into a
-    /// stable pool so every buffer allocated before [`graph_stop_capture`] can
+    /// stable pool so every buffer allocated before graph_stop_capture can
     /// be pinned. Call before the warmup run. No-op by default.
     ///
     /// See [`burn_graph`](crate) — the closure-based `capture` helper drives
