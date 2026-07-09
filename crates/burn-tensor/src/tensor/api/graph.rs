@@ -63,6 +63,10 @@ where
         // Record the closure's launches into a graph.
         Ok(()) => {
             let output = closure();
+            // A failed stop still resets the stream out of capture mode (the
+            // backend guarantees this even on error), so falling back to `None` —
+            // re-running the closure on replay — stays correct; we lose the
+            // graph, not stream health.
             (Dispatch::graph_stop_capture(dispatch).ok(), output)
         }
         // No hardware graph support: fall back to re-running the closure.

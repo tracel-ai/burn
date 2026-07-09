@@ -327,8 +327,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// instead of copying first (see [`FloatTensorOps::float_can_mut`]).
     ///
     /// The cubecl backends answer precisely from the handle reference count;
-    /// others default to `true`. Useful to assert a hot-path op (e.g. a
-    /// KV-cache `slice_assign`) stays in place rather than silently copying.
+    /// others conservatively default to `false` — they may alias the buffer, so
+    /// an in-place write can't be assumed safe. Useful to assert a hot-path op
+    /// (e.g. a KV-cache `slice_assign`) stays in place rather than silently copying.
     pub fn can_mut(&self) -> bool {
         can_mut_impl(&self.primitive)
     }

@@ -91,9 +91,7 @@ where
         // lands in the stream's error queue and surfaces on the next sync/flush.
         graph
             .downcast_ref::<cubecl::client::Graph<R>>()
-            .ok_or_else(|| ExecutionError::WithContext {
-                reason: "graph_replay was given a graph from a different backend".into(),
-            })?
+            .ok_or_else(|| graph_err("graph_replay was given a graph from a different backend"))?
             .replay();
         Ok(())
     }
