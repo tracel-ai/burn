@@ -125,6 +125,19 @@ where
         self.primitive.dtype()
     }
 
+    /// Whether this tensor's buffer can be mutated in place — i.e. this handle
+    /// uniquely owns the allocation, so an in-place op writes it directly
+    /// instead of copying first (see `TensorMetadata::can_mut`).
+    ///
+    /// Backends that track buffer ownership (cubecl, fusion, tch) answer
+    /// precisely from the handle reference count; others conservatively return
+    /// `false` — they may alias the buffer, so an in-place write can't be
+    /// assumed safe. Useful to assert a hot-path op (e.g. a KV-cache
+    /// `slice_assign`) stays in place rather than silently copying.
+    pub fn can_mut(&self) -> bool {
+        self.primitive.can_mut()
+    }
+
     /// Create an empty tensor of the given shape.
     ///
     /// # Arguments

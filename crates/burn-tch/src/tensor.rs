@@ -93,6 +93,11 @@ impl TensorMetadata for TchTensor {
     fn device(&self) -> Self::Device {
         self.tensor.device().into()
     }
+
+    fn can_mut(&self) -> bool {
+        // The inherent method: unique storage and no broadcast stride.
+        TchTensor::can_mut(self)
+    }
 }
 
 impl core::fmt::Display for TchTensor {

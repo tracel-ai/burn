@@ -38,6 +38,12 @@ impl TensorMetadata for CandleTensor {
     fn device(&self) -> CandleDevice {
         self.tensor.device().clone().into()
     }
+
+    fn can_mut(&self) -> bool {
+        // Candle tensors share storage behind an `Arc` with no public
+        // uniqueness check, so in-place mutation can never be assumed safe.
+        false
+    }
 }
 
 impl CandleTensor {

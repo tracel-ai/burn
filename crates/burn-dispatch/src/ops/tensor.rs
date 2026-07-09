@@ -484,10 +484,6 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(ref tensor, float, |tensor| B::float_is_require_grad(tensor))
     }
 
-    fn float_can_mut(tensor: &FloatTensor<Self>) -> bool {
-        unary_float!(ref tensor, float, |tensor| B::float_can_mut(tensor))
-    }
-
     // Default implementation
     fn float_zeros(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_zeros(shape, device, dtype))

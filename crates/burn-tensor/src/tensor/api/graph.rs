@@ -14,13 +14,22 @@ use burn_dispatch::Dispatch;
 /// capture, so the closure must read its inputs from, and write its outputs to,
 /// **stable** buffers held across the loop. Refresh those inputs in place with
 /// [`Tensor::inplace`](crate::Tensor::inplace)-style writes before each replay.
+///
+/// # Safety
+///
+/// The graph has no explicit input/state/output signature: whatever buffers the
+/// closure touched during capture are what every replay reads and writes, with
+/// nothing tracking them afterwards. [`replay`](Graph::replay) is therefore
+/// `unsafe` — see its safety contract. Safe, structured APIs can be layered on
+/// top of this mechanism for specific workloads (e.g. a decode step with pinned
+/// KV-cache and token buffers).
 pub struct Graph<T, F> {
     device: Device,
     output: T,
     closure: F,
     /// The captured hardware graph, or `None` to re-run the closure (a backend
     /// without graph support, or a capture that failed).
-    hardware: Option<BackendGraph>,
+    hardware: Option<BackendGraph<Dispatch>>,
 }
 
 /// Capture `closure` for repeated replay (see [`Graph`]).
@@ -92,10 +101,35 @@ where
     /// buffers first. On the fallback path it re-executes the closure. The
     /// returned reference is the output produced during capture (whose buffer
     /// the replay just overwrote), or the fresh output on the fallback path.
-    pub fn replay(&mut self) -> &T {
+    ///
+    /// # Safety
+    ///
+    /// On the hardware path this dispatches the recorded kernels against the raw
+    /// device buffers the closure touched during capture, with nothing checking
+    /// they are still valid. The caller must guarantee, until the replay's work
+    /// completes (e.g. it is followed by a read of the output or a device sync):
+    ///
+    /// - **Liveness** — every tensor the captured closure read or wrote still
+    ///   exists. Dropping one frees its buffer for reuse by other allocations,
+    ///   and a later replay would read or overwrite whatever now lives there.
+    ///   Tensors owned by the closure (or by `self`, like the output) are kept
+    ///   alive automatically; tensors the closure only borrowed must outlive
+    ///   the replays.
+    /// - **No concurrent use** — no other stream or thread reads or writes a
+    ///   tensor shared with the graph while the replay executes; the replay is
+    ///   only ordered against work on its own capture stream.
+    /// - **Same-stream refreshes** — input refreshes and output reads are
+    ///   issued on the stream the graph was captured on (the same device
+    ///   thread/client), so they order correctly against the replay rather
+    ///   than racing it with stale or torn data.
+    ///
+    /// On the fallback path (no hardware graph) this simply re-runs the closure
+    /// and is trivially safe.
+    pub unsafe fn replay(&mut self) -> &T {
         match &self.hardware {
             Some(graph) => {
-                Dispatch::graph_replay(self.device.as_dispatch(), graph)
+                // Safety: forwarded verbatim from this method's own contract.
+                unsafe { Dispatch::graph_replay(self.device.as_dispatch(), graph) }
                     .expect("graph replay should succeed");
             }
             None => {

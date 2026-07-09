@@ -29,6 +29,35 @@ pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata<Device = Self::Device> + 'static;
+
+    /// Captured graph primitive returned by [`Backend::graph_stop_capture`] and
+    /// consumed by [`Backend::graph_replay`]: a backend-owned recording of a
+    /// launch sequence that replays as a single dispatch.
+    ///
+    /// Backends without graph-capture support use [`GraphUnsupported`], an
+    /// uninhabited type — their capture methods only ever error, so no value of
+    /// it can exist.
+    type GraphPrimitive: Clone + Send + Sync + core::fmt::Debug + 'static;
+}
+
+/// Captured graph primitive type used by the backend (see
+/// [`BackendTypes::GraphPrimitive`]).
+pub type BackendGraph<B> = <B as BackendTypes>::GraphPrimitive;
+
+/// Placeholder [graph primitive](BackendTypes::GraphPrimitive) for backends
+/// without graph-capture support.
+///
+/// Uninhabited: `graph_stop_capture` on such backends always errors, so a value
+/// of this type can never be constructed (and `graph_replay` can never be called).
+#[derive(Debug, Clone, Copy)]
+pub enum GraphUnsupported {}
+
+/// The error returned by the default (unsupported) graph-capture methods.
+fn graph_unsupported() -> ExecutionError {
+    ExecutionError::Generic {
+        reason: alloc::string::String::from("graph capture is not supported by this backend"),
+        backtrace: BackTrace::capture(),
+    }
 }
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
@@ -75,36 +104,6 @@ pub trait BackendTypes: Clone + Send + Sync + core::fmt::Debug + 'static {
 ///
 /// ## Documentation
 ///
-/// An opaque, backend-owned captured graph (see
-/// [`Backend::graph_stop_capture`]). Wraps the backend's own graph handle; the
-/// backend downcasts it in [`Backend::graph_replay`].
-#[derive(Debug)]
-pub struct BackendGraph {
-    inner: alloc::boxed::Box<dyn core::any::Any + Send + Sync>,
-}
-
-impl BackendGraph {
-    /// Wrap a backend graph handle.
-    pub fn new<T: core::any::Any + Send + Sync>(graph: T) -> Self {
-        Self {
-            inner: alloc::boxed::Box::new(graph),
-        }
-    }
-
-    /// Borrow the backend graph handle, or `None` if produced by another backend.
-    pub fn downcast_ref<T: core::any::Any>(&self) -> Option<&T> {
-        self.inner.downcast_ref::<T>()
-    }
-}
-
-/// The error returned by the default (unsupported) graph-capture methods.
-fn graph_unsupported() -> ExecutionError {
-    ExecutionError::Generic {
-        reason: alloc::string::String::from("graph capture is not supported by this backend"),
-        backtrace: BackTrace::capture(),
-    }
-}
-
 /// Most of the documentation for each function can be found on the user API
 #[cfg_attr(doc, doc = crate::doc_tensor!())]
 #[cfg_attr(not(doc), doc = "`Tensor`")]
@@ -184,15 +183,32 @@ pub trait Backend:
         Err(graph_unsupported())
     }
 
-    /// Stop recording and return the captured [`BackendGraph`], ready to
-    /// [`graph_replay`](Backend::graph_replay).
-    fn graph_stop_capture(_device: &Self::Device) -> Result<BackendGraph, ExecutionError> {
+    /// Stop recording and return the captured [graph](BackendTypes::GraphPrimitive),
+    /// ready to [`graph_replay`](Backend::graph_replay).
+    fn graph_stop_capture(_device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
         Err(graph_unsupported())
     }
 
-    /// Replay a captured [`BackendGraph`] — one dispatch re-running the recorded
-    /// launches against their original buffers.
-    fn graph_replay(_device: &Self::Device, _graph: &BackendGraph) -> Result<(), ExecutionError> {
+    /// Replay a captured [graph](BackendTypes::GraphPrimitive) — one dispatch
+    /// re-running the recorded launches against their original buffers.
+    ///
+    /// # Safety
+    ///
+    /// The replay dispatches raw device work against the exact buffers recorded
+    /// at capture time, with nothing tracking whether those buffers are still
+    /// valid. The caller must guarantee, for every tensor the captured closure
+    /// read or wrote:
+    ///
+    /// - its buffer is still alive — no tensor referenced by the graph has been
+    ///   freed (and its memory possibly reallocated) since capture;
+    /// - it is not concurrently read or written by work on another stream or
+    ///   thread while the replay executes;
+    /// - input refreshes and output reads are issued on the stream the graph
+    ///   was captured on, so they order correctly against the replay.
+    unsafe fn graph_replay(
+        _device: &Self::Device,
+        _graph: &BackendGraph<Self>,
+    ) -> Result<(), ExecutionError> {
         Err(graph_unsupported())
     }
 

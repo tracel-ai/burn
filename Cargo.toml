@@ -240,3 +240,12 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
+
+### Local development against the cubecl checkout: redirect the cubecl git
+### source (used by burn AND by cubek's own cubecl dependency) to the local
+### path so a single cubecl instance is compiled. Remove before merging, after
+### pushing cubecl and bumping the rev above.
+[patch."https://github.com/tracel-ai/cubecl"]
+cubecl = { path = "../cubecl/crates/cubecl" }
+cubecl-common = { path = "../cubecl/crates/cubecl-common" }
+cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace" }
