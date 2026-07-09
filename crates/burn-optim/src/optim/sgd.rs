@@ -40,7 +40,7 @@ pub struct SgdState<const D: usize> {
 
 impl SgdConfig {
     /// Build a [`Sgd`] from the config.
-    pub fn build(&self) -> Sgd {
+    pub(crate) fn build(&self) -> Sgd {
         Sgd {
             momentum: self.momentum.as_ref().map(Momentum::new),
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
@@ -112,7 +112,7 @@ mod tests {
         let loss = layer.forward(random_tensor(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(LEARNING_RATE, layer, grads);
+        let _layer = optim.step(LEARNING_RATE.into(), layer, grads);
 
         let record = optim.to_record();
 
@@ -140,7 +140,7 @@ mod tests {
         let loss = layer.forward(random_tensor(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(LEARNING_RATE, layer, grads);
+        let _layer = optim.step(LEARNING_RATE.into(), layer, grads);
 
         let record = optim.to_record();
         let bytes = optim.into_bytes().unwrap();

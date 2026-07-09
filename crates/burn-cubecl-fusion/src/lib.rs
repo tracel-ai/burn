@@ -3,6 +3,9 @@ extern crate derive_new;
 
 pub mod optim;
 
+#[cfg(feature = "test-util")]
+pub mod inspect;
+
 mod base;
 
 pub(crate) mod engine;

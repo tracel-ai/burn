@@ -238,8 +238,7 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
         handle.clone()
     }
 
-    /// Reclaim a `ReadWrite` (last-use) handle as the fusion engine drains a block
-    /// ([`drain_queue`](crate::stream::queue)).
+    /// Reclaim a `ReadWrite` (last-use) handle as the fusion engine drains a block.
     ///
     /// The default removes the container entry; the handle's own `Drop` releases the backend
     /// resource. This is correct for local backends, whose handle is an `Arc`-style buffer refcount.
