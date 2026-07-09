@@ -10,8 +10,8 @@ fn should_diff_linear_with_bias() {
         &device,
     )
     .require_grad();
-    let weight = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device)
-        .require_grad();
+    let weight =
+        TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device).require_grad();
     let bias = TestTensor::<1>::from_data([0.1, 0.2, 0.3], &device).require_grad();
 
     let output = linear(x.clone(), weight.clone(), Some(bias.clone()));

@@ -37,8 +37,7 @@ pub(crate) fn linear<B: Backend>(
                 output = B::float_add(output, bias);
             }
 
-            let out_dims: Vec<usize> =
-                (0..ndims - 1).map(|i| shape[i]).chain([d_output]).collect();
+            let out_dims: Vec<usize> = (0..ndims - 1).map(|i| shape[i]).chain([d_output]).collect();
             B::float_reshape(output, Shape::from(out_dims))
         }
         MatmulTransformAction::Keep => {

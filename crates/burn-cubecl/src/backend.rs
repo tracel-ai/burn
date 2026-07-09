@@ -86,13 +86,16 @@ where
     }
 
     fn graph_replay(_device: &Self::Device, graph: &BackendGraph) -> Result<(), ExecutionError> {
+        // cubecl's `Graph::replay` is fire-and-forget: it enqueues the dispatch
+        // and returns immediately, so a replay failure is not reported here — it
+        // lands in the stream's error queue and surfaces on the next sync/flush.
         graph
             .downcast_ref::<cubecl::client::Graph<R>>()
             .ok_or_else(|| ExecutionError::WithContext {
                 reason: "graph_replay was given a graph from a different backend".into(),
             })?
-            .replay()
-            .map_err(graph_err)
+            .replay();
+        Ok(())
     }
 
     fn memory_persistent_allocations<

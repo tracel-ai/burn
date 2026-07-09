@@ -23,9 +23,9 @@ mod trunc;
 pub use autodiff::*;
 pub use base::*;
 pub use cartesian_grid::cartesian_grid;
-pub use graph::{Graph, capture};
 pub use cast::*;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
+pub use graph::{Graph, capture};
 pub use options::*;
 pub use transaction::*;
 
