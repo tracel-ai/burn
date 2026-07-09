@@ -223,10 +223,10 @@ burn-vision = { path = "crates/burn-vision", version = "0.22.0-pre.1", default-f
 burn-wgpu = { path = "crates/burn-wgpu", version = "0.22.0-pre.1", default-features = false }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "270bbdb7f6aa17251a68093f30466860c36c927c" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "270bbdb7f6aa17251a68093f30466860c36c927c" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "270bbdb7f6aa17251a68093f30466860c36c927c" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "fa014b7fda1e9856b309a561d61c6dc03283ddf7" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9110136fe5bb3c6e7dc0295100fe7f88342ceb6e" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9110136fe5bb3c6e7dc0295100fe7f88342ceb6e" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9110136fe5bb3c6e7dc0295100fe7f88342ceb6e" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "5f837200f459a6a0694a0aae5655881599c400c8" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -240,12 +240,3 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
-
-### Local development against the cubecl checkout: redirect the cubecl git
-### source (used by burn AND by cubek's own cubecl dependency) to the local
-### path so a single cubecl instance is compiled. Remove before merging, after
-### pushing cubecl and bumping the rev above.
-[patch."https://github.com/tracel-ai/cubecl"]
-cubecl = { path = "../cubecl/crates/cubecl" }
-cubecl-common = { path = "../cubecl/crates/cubecl-common" }
-cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace" }
