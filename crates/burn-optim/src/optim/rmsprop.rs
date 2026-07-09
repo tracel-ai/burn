@@ -35,7 +35,7 @@ pub struct RmsPropConfig {
 
 impl RmsPropConfig {
     /// Build a [`RmsProp`] from the config.
-    pub fn build(&self) -> RmsProp {
+    pub(crate) fn build(&self) -> RmsProp {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
         RmsProp {
             alpha: self.alpha,
@@ -332,7 +332,7 @@ mod tests {
         let mut optimizer = create_rmsprop();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let _linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let bytes = optimizer.into_bytes().unwrap();
         assert!(!bytes.is_empty());
@@ -393,12 +393,12 @@ mod tests {
         // println!("linear is {:?}", linear);
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         // println!("linear is {:?}", linear);
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         // println!("linear is {:?}", linear);
         let state_updated = linear;
@@ -469,11 +469,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let state_updated = linear;
         let weights_expected = TensorData::from([

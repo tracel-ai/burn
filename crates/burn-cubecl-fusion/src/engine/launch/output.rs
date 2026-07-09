@@ -212,9 +212,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 context.handles.remove_handle(tensor_global.id);
             }
         }
-        for id in plan.cleared.drain(..) {
-            context.handles.remove_handle(id);
-        }
     }
 
     fn select_reference_from_inputs(
@@ -345,6 +342,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
 
         let block = &plan.blocks[block_idx];
+        let ref_layout_setting = &self.blocks[block_idx].settings.ref_layout;
         let kind = block
             .potential_inplaces
             .iter()
@@ -353,7 +351,20 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
                     && &*pi.strides == strides
-                    && block.reference.compatible_strides_for_inplace(strides)
+                    && if block.reference.is_found() {
+                        // An already-selected reference must have compatible strides.
+                        block.reference.compatible_strides_for_inplace(strides)
+                    } else {
+                        // When no reference has been selected yet, this output becomes
+                        // the reference (see [Self::inplace_output]); requiring an
+                        // existing reference here made the first output of every block
+                        // ineligible, since the reference is only selected while
+                        // processing outputs. Blocks that inherit their reference from
+                        // another block are excluded: the inherited layout is unknown
+                        // at this point, so it cannot be validated against the
+                        // candidate's strides.
+                        !matches!(ref_layout_setting, RefLayoutSetting::SameAsBlock { .. })
+                    }
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
             .unwrap_or(OutputKind::Normal);
@@ -373,6 +384,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
+        #[cfg(feature = "test-util")]
+        crate::inspect::record_inplace_alias();
         let potential_inplace = block.potential_inplaces.remove(input_index);
         let handle_input = match plan.handle_inputs.get(potential_inplace.input_pos).unwrap() {
             HandleInput::Normal(handle) => handle,
@@ -381,20 +394,25 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         };
 
-        if !block.reference.is_found()
-            && !matches!(
-                self.blocks[block_idx].settings.ref_layout,
-                RefLayoutSetting::SameAsBlock { .. }
-            )
-        {
-            let index_input = self
-                .resources
-                .inputs
-                .get_index(potential_inplace.tensor_relative.id)
-                .unwrap();
+        // [Self::output_kind] only selects inplace when the reference is already
+        // validated or this output can become the reference, which blocks inheriting
+        // their reference from another block (`SameAsBlock`) never can.
+        debug_assert!(
+            block.reference.is_found()
+                || !matches!(
+                    self.blocks[block_idx].settings.ref_layout,
+                    RefLayoutSetting::SameAsBlock { .. }
+                ),
+            "inplace alias selected for a `SameAsBlock` block without a validated reference",
+        );
 
+        if !block.reference.is_found() {
+            // The aliased output shares the input's buffer and layout, so the reference
+            // is expressed with the output argument. Runners assume references are
+            // either output-concrete or virtual; an input-concrete reference here would
+            // be resolved against the wrong argument list.
             block.reference = ReferenceSelection::Concrete {
-                layout: FuseArg::Input(index_input, output.precision, LayoutInfo::IsRef),
+                layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
             };

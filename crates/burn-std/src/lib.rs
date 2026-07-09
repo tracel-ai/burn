@@ -34,6 +34,10 @@ pub use element::*;
 mod device_settings;
 pub use device_settings::*;
 
+/// Runtime kind of the host program (async / sync / no-std).
+pub mod runtime_kind;
+pub use runtime_kind::*;
+
 /// Distributed configurations.
 pub mod distributed;
 

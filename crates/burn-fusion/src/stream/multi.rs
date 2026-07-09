@@ -165,7 +165,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// - Then alias the backing handle under `dst`. `register_handle` clones the
     ///   cubecl handle (`Arc`-style), so both ids share refcount on the buffer
     ///   until each side's own `Drop` op runs.
-    pub(crate) fn tag_shared_view(
+    pub fn tag_shared_view(
         &mut self,
         src_stream: StreamId,
         src: TensorId,

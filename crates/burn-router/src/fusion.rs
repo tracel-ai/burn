@@ -344,7 +344,7 @@ impl<R: RouterChannel> Operation<RouterFusionRuntime<R>> for CustomOperation<R> 
 
 /// A reusable group of operations, registered once on the backend and thereafter invoked by id.
 ///
-/// The recorded [`graph`](Self::graph) is in *relative* form (positional tensor ids, relative
+/// The recorded [`graph`](Vec<OperationIr>) is in *relative* form (positional tensor ids, relative
 /// shape-dim ids, scalar placeholders), which is invariant across invocations — that is what lets
 /// the backend cache it and the client reuse it. On each [`execute`](Optimization::execute) only
 /// the concrete bindings are computed from the [`Context`] and sent; the (large) graph itself

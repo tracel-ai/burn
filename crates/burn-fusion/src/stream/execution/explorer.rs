@@ -96,10 +96,25 @@ impl<O: NumOperations> Explorer<O> {
             return ExplorationAction::Continue;
         }
 
-        let optimization = self.optimizer.optimize(operations);
+        let mut optimization = self.optimizer.optimize(operations);
         self.num_explorations += 1;
 
+        // At a sync the segment is final: fold the drained tail the search left for
+        // "the next round" into the plan as un-fused operations, so the cached plan
+        // covers the whole segment and can be matched by the policy on the next
+        // identical sync instead of re-exploring the same graph every time.
+        if let ExecutionMode::Sync = mode {
+            optimization.include_trailing(operations.len());
+        }
+
         ExplorationAction::Completed(optimization)
+    }
+
+    /// Number of optimizations built so far; a cached plan that is reused does not
+    /// count. Used by tests to assert that recurring graphs stop exploring.
+    #[cfg(test)]
+    pub(crate) fn num_explorations(&self) -> usize {
+        self.num_explorations
     }
 
     /// Reset the state of the explorer to the provided list of operations.
