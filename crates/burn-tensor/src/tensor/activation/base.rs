@@ -14,6 +14,21 @@ pub fn relu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     tensor.relu()
 }
 
+/// Applies the HardTanh function element-wise, clamping each element to the
+/// range `[min_val, max_val]` (a cheap, piecewise-linear approximation of tanh).
+///
+#[cfg_attr(not(doc), doc = "`HardTanh(x) = max(min_val, min(max_val, x))`")]
+pub fn hardtanh<const D: usize>(tensor: Tensor<D>, min_val: f64, max_val: f64) -> Tensor<D> {
+    tensor.clamp(min_val, max_val)
+}
+
+/// Applies the Tanhshrink function element-wise, `x - tanh(x)`.
+///
+#[cfg_attr(not(doc), doc = "`Tanhshrink(x) = x - tanh(x)`")]
+pub fn tanhshrink<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
+    tensor.clone().sub(tensor.tanh())
+}
+
 /// Applies the leaky rectified linear unit function element-wise.
 ///
 #[cfg_attr(
