@@ -54,17 +54,42 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let throughput_limits: Vec<(f64, f32)> = vec![(
-        measure_peak_throughput(
-            &client,
-            ThroughputKey {
-                mode: ThroughputMode::Memory,
-                dtype: dtype_to_storage_type(out_dtype).elem_type(), //might not work for packed (i.e. E2M1)
+    let throughput_limits: Vec<(f64, f32, fn(&MatmulAutotuneKey) -> usize)> = vec![
+        (
+            measure_peak_throughput(
+                &client,
+                ThroughputKey {
+                    mode: ThroughputMode::Memory,
+                    dtype: dtype_to_storage_type(out_dtype).elem_type(), //might not work for packed (i.e. E2M1)
+                },
+            )
+            .ops_per_s(),
+            0.9,
+            |key| {
+                let m = key.definition.m;
+                let n = key.definition.n;
+                let k = key.definition.k;
+                m * k + k * n + m * n
             },
-        )
-        .ops_per_s(),
-        0.5,
-    )];
+        ),
+        (
+            measure_peak_throughput(
+                &client,
+                ThroughputKey {
+                    mode: ThroughputMode::ComputeDirect,
+                    dtype: dtype_to_storage_type(out_dtype).elem_type(), //might not work for packed (i.e. E2M1)
+                },
+            )
+            .ops_per_s(),
+            0.9,
+            |key| {
+                let m = key.definition.m;
+                let n = key.definition.n;
+                let k = key.definition.k;
+                m * n * (2 * k - 1)
+            },
+        ),
+    ];
     // let throughput_limits = vec![];
 
     let tunables = TUNER.init(move || {
@@ -200,14 +225,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
         let limit = throughput_limits.clone();
         set = set.with_bounds(Arc::new(move |key| {
-            let m = key.definition.m;
-            let n = key.definition.n;
-            let k = key.definition.k;
-
             limit
                 .iter()
-                .map(|(throughput, threshold)| AutotuneBound {
-                    ops_count: 2 * m * n * k,
+                .map(|(throughput, threshold, ops_count)| AutotuneBound {
+                    ops_count: ops_count(key),
                     throughput: *throughput,
                     threshold: *threshold,
                 })
