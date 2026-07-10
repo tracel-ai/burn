@@ -39,9 +39,7 @@ fn capture_replay_matches_eager() {
     let input = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
     let expected = input.clone().mul_scalar(2.0).add_scalar(1.0).into_data();
 
-    let mut graph = burn_tensor::capture(&device, || {
-        input.clone().mul_scalar(2.0).add_scalar(1.0)
-    });
+    let mut graph = burn_tensor::capture(&device, || input.clone().mul_scalar(2.0).add_scalar(1.0));
 
     for _ in 0..3 {
         let out = unsafe { graph.replay() }.clone().into_data();
