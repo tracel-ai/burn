@@ -12,8 +12,8 @@ pub struct Quantizer {
     pub calibration: Calibration,
     /// The quantization scheme.
     pub scheme: QuantScheme,
-    /// The parameter group to quantize (when `None`, all parameters are quantized).
-    pub group: Option<ParamGroup>,
+    /// The parameter group to quantize.
+    pub group: ParamGroup,
 }
 
 impl Quantizer {
@@ -23,13 +23,13 @@ impl Quantizer {
             path: vec![],
             calibration,
             scheme,
-            group: None,
+            group: ParamGroup::all(),
         }
     }
 
     /// Set the parameter group to quantize.
     pub fn set_group(&mut self, group: ParamGroup) {
-        self.group = Some(group)
+        self.group = group
     }
 }
 
@@ -45,11 +45,7 @@ impl ModuleMapper for Quantizer {
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, mut tensor, mapper) = param.consume();
         let path = self.path.join(".");
-        if self
-            .group
-            .as_ref()
-            .is_none_or(|g| g.matches(&id, Some(&path)))
-        {
+        if self.group.matches(&id, Some(&path)) {
             let range = compute_range(&self.scheme, &tensor, &self.calibration);
             let qparams = compute_q_params(&self.scheme, range);
             tensor = tensor.quantize(&self.scheme, qparams);
