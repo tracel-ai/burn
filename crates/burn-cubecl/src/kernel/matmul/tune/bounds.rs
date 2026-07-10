@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
@@ -8,7 +8,11 @@ use cubecl::{
     throughput::{CmmaDims, ComputeCmmaConfig, ThroughputKey, ThroughputMode},
     tune::{AutotuneBound, Bounds, BoundsGenerator},
 };
-use cubek::matmul::strategy::MatmulAutotuneKey;
+use cubek::matmul::{
+    components::tile::TileMatmulKind,
+    definition::{MatmulElems, MatmulGlobalElems},
+    strategy::MatmulAutotuneKey,
+};
 
 use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
 
@@ -37,11 +41,34 @@ fn autotune_bounds<R: CubeRuntime>(
     let elem_rhs = dtype_to_storage_type(rhs.dtype);
     let elem_out = dtype_to_storage_type(out.dtype);
 
+    let lhs_shape = lhs.meta.shape();
+    let rhs_shape = rhs.meta.shape();
+    let ndims = lhs_shape.len();
+
+    let m = lhs_shape[ndims - 2];
+    let k = lhs_shape[ndims - 1];
+    let n = rhs_shape[ndims - 1];
+    let batches = lhs_shape[..ndims - 2].iter().product::<usize>();
+
+    let compute =
+        matmul_compute_throughput_selection(client, elem_lhs, elem_rhs, elem_out, (m, n, k));
+    let compute_mode = match compute.cmma_tile {
+        Some((tile_m, tile_n, tile_k)) => ThroughputMode::ComputeCmma(ComputeCmmaConfig {
+            accumulator_type: compute.acc.elem_type(),
+            cmma_dims: CmmaDims {
+                m: tile_m as usize,
+                n: tile_n as usize,
+                k: tile_k as usize,
+            },
+        }),
+        None => ThroughputMode::ComputeDirect,
+    };
+
     let compute_throughput = measure_peak_throughput(
         client,
         ThroughputKey {
-            mode: compute_mode(client, &(elem_lhs, elem_rhs, elem_out)),
-            dtype: elem_out.elem_type(),
+            mode: compute_mode,
+            dtype: compute.acc.elem_type(),
         },
     );
 
@@ -53,53 +80,60 @@ fn autotune_bounds<R: CubeRuntime>(
         },
     );
 
-    let lhs_shape = lhs.meta.shape();
-    let rhs_shape = rhs.meta.shape();
-    let ndims = lhs_shape.len();
-
-    let m = lhs_shape[ndims - 2];
-    let k = lhs_shape[ndims - 1];
-    let n = rhs_shape[ndims - 1];
-    let batches = lhs_shape[..ndims - 2].iter().product::<usize>();
-
     vec![
         AutotuneBound {
             ops_count: batches * m * n * (2 * k - 1), // Theoretical matmul compute operations
             throughput: compute_throughput.ops_per_s(),
-            threshold: 1.0,
+            threshold: 0.85,
         },
         AutotuneBound {
             ops_count: lhs.meta.num_elements() + rhs.meta.num_elements() + out.meta.num_elements(), // Theoretical matmul memory reads and writes operations
             throughput: memory_throughput.ops_per_s(),
-            threshold: 1.0,
+            threshold: 0.85,
         },
     ]
 }
 
-/// Determines the optimal compute mode for the given operation.
-fn compute_mode<R: CubeRuntime>(
-    client: &ComputeClient<R>,
-    (elem_lhs, elem_rhs, elem_out): &(StorageType, StorageType, StorageType),
-) -> ThroughputMode {
-    let max_cmma = client
-        .properties()
-        .features
-        .matmul
-        .cmma
-        .iter()
-        .filter(|c| c.a_type == *elem_lhs && c.b_type == *elem_rhs && c.cd_type == *elem_out)
-        .max_by_key(|c| c.m * c.n * c.k);
+/// Compute-throughput selection for a matmul problem, resolved from the same register
+/// element types and cmma tile availability the matmul kernel uses.
+///
+/// Keeps the autotune compute bound anchored to the kernel that will actually run, rather
+/// than an independent scan of the hardware cmma set that can pick a peak no available
+/// kernel reaches.
+#[derive(Debug, Clone, Copy)]
+pub struct MatmulComputeThroughputSelection {
+    /// Accumulator register type: the element type the throughput probe should measure.
+    pub acc: StorageType,
+    /// The accelerated (cmma) tile `(m, n, k)` to measure, or `None` when the matmul will
+    /// fall back to a non-accelerated (direct) kernel for this problem.
+    pub cmma_tile: Option<(u32, u32, u32)>,
+}
 
-    if let Some(config) = max_cmma {
-        ThroughputMode::ComputeCmma(ComputeCmmaConfig {
-            accumulator_type: elem_out.elem_type(),
-            cmma_dims: CmmaDims {
-                m: config.m as usize,
-                n: config.n as usize,
-                k: config.k as usize,
-            },
-        })
-    } else {
-        ThroughputMode::ComputeDirect
+/// Resolves the compute-throughput selection for the given global element types and
+/// problem size, matching how the matmul resolves register types and cmma availability.
+pub fn matmul_compute_throughput_selection<R: CubeRuntime>(
+    client: &ComputeClient<R>,
+    lhs: StorageType,
+    rhs: StorageType,
+    out: StorageType,
+    (m, n, k): (usize, usize, usize),
+) -> MatmulComputeThroughputSelection {
+    let elems = MatmulElems::from_globals(&MatmulGlobalElems { lhs, rhs, out });
+
+    let cmma_tile = TileMatmulKind::Cmma
+        .supported_sizes(
+            client,
+            elems.lhs_register,
+            elems.rhs_register,
+            elems.acc_register,
+        )
+        .into_iter()
+        .filter(|tile| m >= tile.m() as usize && n >= tile.n() as usize && k >= tile.k() as usize)
+        .max_by_key(|tile| tile.m() as u64 * tile.n() as u64 * tile.k() as u64)
+        .map(|tile| (tile.m(), tile.n(), tile.k()));
+
+    MatmulComputeThroughputSelection {
+        acc: elems.acc_register,
+        cmma_tile,
     }
 }
