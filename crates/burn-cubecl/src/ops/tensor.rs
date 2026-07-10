@@ -71,10 +71,6 @@ where
         super::to_device(tensor, device)
     }
 
-    fn float_can_mut(tensor: &FloatTensor<Self>) -> bool {
-        tensor.can_mut()
-    }
-
     fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         let dtype = dtype.into();
         super::empty(shape, device, dtype)

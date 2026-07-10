@@ -41,6 +41,8 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
+
+    type GraphPrimitive = cubecl::client::Graph<R>;
 }
 
 impl<R> Backend for CubeBackend<R>
@@ -79,20 +81,22 @@ where
         client.start_capture().map_err(graph_err)
     }
 
-    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph, ExecutionError> {
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
         let client = R::client(device);
-        let graph = client.stop_capture().map_err(graph_err)?;
-        Ok(BackendGraph::new(graph))
+        client.stop_capture().map_err(graph_err)
     }
 
-    fn graph_replay(_device: &Self::Device, graph: &BackendGraph) -> Result<(), ExecutionError> {
+    unsafe fn graph_replay(
+        _device: &Self::Device,
+        graph: &BackendGraph<Self>,
+    ) -> Result<(), ExecutionError> {
         // cubecl's `Graph::replay` is fire-and-forget: it enqueues the dispatch
         // and returns immediately, so a replay failure is not reported here — it
         // lands in the stream's error queue and surfaces on the next sync/flush.
-        graph
-            .downcast_ref::<cubecl::client::Graph<R>>()
-            .ok_or_else(|| graph_err("graph_replay was given a graph from a different backend"))?
-            .replay();
+        //
+        // Safety: the buffer-liveness and stream-ordering obligations are the
+        // caller's, forwarded verbatim from this method's own contract.
+        unsafe { graph.replay() };
         Ok(())
     }
 

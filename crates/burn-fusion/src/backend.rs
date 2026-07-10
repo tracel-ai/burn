@@ -29,6 +29,10 @@ impl<B: FusionBackend> BackendTypes for Fusion<B> {
     type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
+
+    // Fusion adds nothing to a captured graph: the fused kernels are recorded
+    // on the inner backend's stream, so the graph handle is the inner one.
+    type GraphPrimitive = B::GraphPrimitive;
 }
 
 impl<B: FusionBackend> Backend for Fusion<B> {
@@ -109,7 +113,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         client.sync(move || B::graph_start_capture(&device))
     }
 
-    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph, ExecutionError> {
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let device = device.clone();
         // Drain the capture run's fused kernels onto the captured stream (this
@@ -117,12 +121,16 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         client.sync(move || B::graph_stop_capture(&device))
     }
 
-    fn graph_replay(device: &Self::Device, graph: &BackendGraph) -> Result<(), ExecutionError> {
+    unsafe fn graph_replay(
+        device: &Self::Device,
+        graph: &BackendGraph<Self>,
+    ) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         // Drain any queued fused operations onto the stream first (no device
         // sync), then launch the captured graph after them.
         client.sync(|| ());
-        B::graph_replay(device, graph)
+        // Safety: forwarded verbatim from this method's own contract.
+        unsafe { B::graph_replay(device, graph) }
     }
 }
 
