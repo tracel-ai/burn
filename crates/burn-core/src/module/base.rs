@@ -1,4 +1,4 @@
-use crate::module::ParamGroup;
+use crate::module::{ParamGroup, ParamGroupRequireGrad};
 
 use super::{Param, ParamId, Quantizer};
 use alloc::{string::String, vec::Vec};
@@ -103,10 +103,33 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
     /// a small fraction of the parameters instead of finetuning all of them.
     fn no_grad(self) -> Self {
-        module!(
-            map = self,
-            ops = |tensor: Tensor<D>| tensor.set_require_grad(false)
-        )
+        let mut mapper = ParamGroupRequireGrad::new(ParamGroup::all(), false);
+        self.map(&mut mapper)
+    }
+
+    /// Set `require_grad` to `false` for every parameter in the given group, leaving the rest
+    /// of the module untouched.
+    ///
+    /// This is the group-scoped counterpart to [no_grad](Module::no_grad): where `no_grad` freezes
+    /// the whole module tree, `freeze_group` freezes only the parameters matched by `group`.  
+    ///
+    /// # Warnings
+    ///
+    /// Like [no_grad](Module::no_grad), this should not be used for inference; use
+    /// [valid](AutodiffModule::valid) with AD modules instead.
+    fn freeze_group(self, group: ParamGroup) -> Self {
+        let mut mapper = ParamGroupRequireGrad::new(group, false);
+        self.map(&mut mapper)
+    }
+
+    /// Set `require_grad` to `true` for every parameter in the given group, leaving the rest
+    /// of the module untouched.
+    ///
+    /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for the
+    /// parameters matched by `group`, e.g. to unfreeze a previously frozen backbone.
+    fn unfreeze_group(self, group: ParamGroup) -> Self {
+        let mut mapper = ParamGroupRequireGrad::new(group, true);
+        self.map(&mut mapper)
     }
 
     /// Move the module and all of its sub-modules to the autodiff backend.
@@ -432,6 +455,7 @@ pub trait AutodiffModule: Module + Send + core::fmt::Debug {
 mod tests {
     use super::*;
 
+    use crate::module::ParamGroup;
     use crate::{test_device, test_utils::SimpleLinear};
 
     #[test]
@@ -463,5 +487,40 @@ mod tests {
         let module = module.train();
         assert!(!module.weight.is_require_grad());
         assert!(!module.weight.require_grad); // stateful
+    }
+
+    #[test]
+    fn freeze_group_freezes_only_selected_params() {
+        let device = test_device().autodiff();
+        let module = SimpleLinear::new(4, 4, &device);
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.bias.as_ref().unwrap().is_require_grad());
+
+        let module = module.freeze_group(ParamGroup::from_path("weight"));
+
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.require_grad);
+
+        let bias = module.bias.as_ref().unwrap();
+        assert!(bias.is_require_grad());
+        assert!(bias.require_grad);
+    }
+
+    #[test]
+    fn unfreeze_group_only_thaws_selected_params() {
+        let device = test_device().autodiff();
+        let module = SimpleLinear::new(4, 4, &device);
+
+        let module = module.no_grad();
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.bias.as_ref().unwrap().is_require_grad());
+
+        let module = module.unfreeze_group(ParamGroup::from_path("weight"));
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.weight.require_grad);
+        assert!(!module.bias.as_ref().unwrap().is_require_grad());
+        assert!(!module.bias.as_ref().unwrap().require_grad);
     }
 }
