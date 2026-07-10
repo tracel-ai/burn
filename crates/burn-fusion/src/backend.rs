@@ -65,7 +65,25 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         input: Input,
         func: Func,
     ) -> Output {
-        B::memory_persistent_allocations(device, input, func)
+        // The inner backend's closure-bracketed toggle would arm the *calling*
+        // thread's stream, but fused operations execute on the fusion server
+        // thread and allocate on its stream. Arm a standing mode from that
+        // thread instead — `sync` first drains previously recorded operations,
+        // keeping them out of the persistent window.
+        let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
+        let armed = device.clone();
+        client.sync(move || B::memory_persistent(&armed, true));
+
+        // Record on this thread; the server drains the fused operations onto
+        // its (armed) stream as it goes.
+        let output = func(input);
+
+        // Drain the remaining recording inside the window (`sync` drains
+        // before running its closure), then disarm.
+        let disarmed = device.clone();
+        client.sync(move || B::memory_persistent(&disarmed, false));
+
+        output
     }
 
     fn memory_cleanup(device: &Self::Device) {
@@ -279,6 +297,17 @@ pub trait FusionBackend:
 
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
+
+    /// Set the standing persistent-allocation mode of the device stream that
+    /// executes fused operations.
+    ///
+    /// `Fusion`'s `memory_persistent_allocations` cannot bracket the inner
+    /// allocations with a closure: fused operations are recorded on the
+    /// calling thread but execute later, on the fusion execution thread and
+    /// its own device stream. The execution thread arms/disarms this standing
+    /// mode instead (see the `Backend` impl). Defaults to a no-op for
+    /// backends without allocation modes.
+    fn memory_persistent(_device: &Self::Device, _enabled: bool) {}
 }
 
 // Fusion implements `BackendIr` to enable router backend usage.
