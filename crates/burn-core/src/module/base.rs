@@ -1,3 +1,5 @@
+use crate::module::ParamGroup;
+
 use super::{Param, ParamId, Quantizer};
 use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
@@ -141,6 +143,12 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
     /// Quantize the weights of the module.
     fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
+        self.map(quantizer)
+    }
+
+    /// Quantize the weights of the given parameter group.
+    fn quantize_weights_group(self, quantizer: &mut Quantizer, group: ParamGroup) -> Self {
+        quantizer.set_group(group);
         self.map(quantizer)
     }
 
