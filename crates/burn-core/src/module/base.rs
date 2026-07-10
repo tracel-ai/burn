@@ -1,4 +1,4 @@
-use crate::module::{ParamGroup, ParamGroupRequireGrad};
+use crate::module::ParamGroup;
 
 use super::{Param, ParamId, Quantizer};
 use alloc::{string::String, vec::Vec};
@@ -23,6 +23,37 @@ macro_rules! module {
             }
         }
         let mut mapper = Mapper;
+        $module.map(&mut mapper)
+    }};
+    (map=$module:ident, ops=$item:expr, group=$group:ident) => {{
+        struct Mapper {
+            pub path: Vec<String>,
+            pub group: ParamGroup,
+        }
+        impl ModuleMapper for Mapper {
+            fn enter_module(&mut self, name: &str, _container_type: &str) {
+                self.path.push(name.to_string());
+            }
+
+            fn exit_module(&mut self, _name: &str, _container_type: &str) {
+                self.path.pop();
+            }
+
+            fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+                let (id, tensor, mapper) = param.consume();
+                let path = self.path.join(".");
+                if self.group.matches(&id, Some(&path)) {
+                    let func = $item;
+                    let tensor = func(tensor);
+                    return Param::from_mapped_value(id, tensor, mapper);
+                }
+                Param::from_mapped_value(id, tensor, mapper)
+            }
+        }
+        let mut mapper = Mapper {
+            path: vec![],
+            group: $group,
+        };
         $module.map(&mut mapper)
     }};
     (visit_float=$module:ident, ops=$item:expr, state=$state_ty:ty, init=$init:expr) => {{
@@ -103,8 +134,10 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// AD modules. This is mostly useful when performing partial finetuning, which is updating only
     /// a small fraction of the parameters instead of finetuning all of them.
     fn no_grad(self) -> Self {
-        let mut mapper = ParamGroupRequireGrad::new(ParamGroup::all(), false);
-        self.map(&mut mapper)
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(false)
+        )
     }
 
     /// Set `require_grad` to `false` for every parameter in the given group, leaving the rest
@@ -118,18 +151,24 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Like [no_grad](Module::no_grad), this should not be used for inference; use
     /// [valid](AutodiffModule::valid) with AD modules instead.
     fn freeze_group(self, group: ParamGroup) -> Self {
-        let mut mapper = ParamGroupRequireGrad::new(group, false);
-        self.map(&mut mapper)
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
+            group = group
+        )
     }
 
     /// Set `require_grad` to `true` for every parameter in the given group, leaving the rest
     /// of the module untouched.
     ///
     /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for the
-    /// parameters matched by `group`, e.g. to unfreeze a previously frozen backbone.
+    /// parameters matched by `group`, e.g. to unfreeze a previously frozen module.
     fn unfreeze_group(self, group: ParamGroup) -> Self {
-        let mut mapper = ParamGroupRequireGrad::new(group, true);
-        self.map(&mut mapper)
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(true),
+            group = group
+        )
     }
 
     /// Move the module and all of its sub-modules to the autodiff backend.
@@ -143,7 +182,6 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     where
         Self: AutodiffModule,
     {
-        // <Self as HasAutodiffModule>::TrainModule::from_inner(self)
         AutodiffModule::from_inner(self)
     }
 
