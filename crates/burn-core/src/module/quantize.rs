@@ -1,3 +1,8 @@
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+
 use burn_tensor::{
     Tensor,
     quantization::{Calibration, QuantScheme, compute_q_params, compute_range},
@@ -20,7 +25,7 @@ impl Quantizer {
     /// Create a new [Quantizer].
     pub fn new(calibration: Calibration, scheme: QuantScheme) -> Self {
         Self {
-            path: vec![],
+            path: alloc::vec![],
             calibration,
             scheme,
             group: ParamGroup::all(),

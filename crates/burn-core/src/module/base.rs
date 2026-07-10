@@ -1,7 +1,10 @@
 use crate::module::ParamGroup;
 
 use super::{Param, ParamId, Quantizer};
-use alloc::{string::String, vec::Vec};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Device, Int, Tensor};
 
@@ -51,7 +54,7 @@ macro_rules! module {
             }
         }
         let mut mapper = Mapper {
-            path: vec![],
+            path: alloc::vec![],
             group: $group,
         };
         $module.map(&mut mapper)
