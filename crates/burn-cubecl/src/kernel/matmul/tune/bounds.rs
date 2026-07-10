@@ -4,23 +4,28 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     client::ComputeClient,
     ir::StorageType,
-    std::throughput::measure_peak_throughput,
+    std::throughput::{measure_launch_overhead, measure_peak_throughput},
     throughput::{CmmaDims, ComputeCmmaConfig, ThroughputKey, ThroughputMode},
-    tune::{AutotuneBound, BoundsGenerator},
+    tune::{AutotuneBound, Bounds, BoundsGenerator},
 };
 use cubek::matmul::strategy::MatmulAutotuneKey;
 
 use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
 
-type Bounds<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
+type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
 
 /// Creates a closure that calculates performance bounds for matrix multiplication autotuning.
-pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) -> Arc<Bounds<R>> {
+pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) -> Arc<BoundsGen<R>> {
     let owned_client = client.clone();
 
-    Arc::new(move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| {
-        autotune_bounds(&owned_client, tensors)
-    })
+    let launch_overhead = measure_launch_overhead(&owned_client);
+
+    Arc::new(
+        move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| Bounds {
+            bounds: autotune_bounds(&owned_client, tensors),
+            launch_overhead,
+        },
+    )
 }
 
 /// Calculates the theoretical compute and memory throughput bounds for a specific matrix multiplication operation.
@@ -61,12 +66,12 @@ fn autotune_bounds<R: CubeRuntime>(
         AutotuneBound {
             ops_count: batches * m * n * (2 * k - 1), // Theoretical matmul compute operations
             throughput: compute_throughput.ops_per_s(),
-            threshold: 0.9,
+            threshold: 1.0,
         },
         AutotuneBound {
             ops_count: lhs.meta.num_elements() + rhs.meta.num_elements() + out.meta.num_elements(), // Theoretical matmul memory reads and writes operations
             throughput: memory_throughput.ops_per_s(),
-            threshold: 0.9,
+            threshold: 1.0,
         },
     ]
 }
