@@ -31,7 +31,20 @@ pub fn attention_autotune<R: CubeRuntime>(
             TuneGroup::<AttentionAutotuneKey>::new("flash_attention", |_key| PRIORITY_MAX);
 
         let fallback = TuneGroup::<AttentionAutotuneKey>::new("fallback", |key| {
-            if key.seq_q > 4096 {
+            // The fallback materializes the full (total_batches, seq_q, seq_kv)
+            // score matrix, which the flash kernels never allocate — and even
+            // *benchmarking* it pays that allocation. Let it compete only while
+            // the matrix is trivially small (decode-like shapes); past that it
+            // is strictly a last resort for shapes no flash kernel can run,
+            // since an O(seq_q · seq_kv) spike can exceed a memory budget sized
+            // for flash attention.
+            const MAX_SCORE_BYTES: usize = 32 * 1024 * 1024;
+            let score_bytes = key
+                .total_batches
+                .saturating_mul(key.seq_q)
+                .saturating_mul(key.seq_kv)
+                .saturating_mul(4);
+            if score_bytes > MAX_SCORE_BYTES {
                 PRIORITY_MIN
             } else {
                 PRIORITY_MAX
