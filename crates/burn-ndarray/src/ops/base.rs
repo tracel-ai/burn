@@ -1608,10 +1608,11 @@ fn arg_view<E: NdArrayElement + PartialOrd, I: NdArrayElement + PartialOrd>(
             // Select e when:
             // - acc is not NaN AND (e is NaN OR normal comparison holds)
             let cmp = !is_acc_nan
-                && (is_e_nan || match cmp {
-                    CmpType::Min => e < &acc.0,
-                    CmpType::Max => e > &acc.0,
-                });
+                && (is_e_nan
+                    || match cmp {
+                        CmpType::Min => e < &acc.0,
+                        CmpType::Max => e > &acc.0,
+                    });
 
             if cmp { (*e, idx) } else { acc }
         });
