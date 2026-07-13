@@ -18,6 +18,8 @@ use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
 
 type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
 
+const THRESHOLD: f32 = 0.85;
+
 /// Creates a closure that calculates performance bounds for matrix multiplication autotuning.
 pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) -> Arc<BoundsGen<R>> {
     let owned_client = client.clone();
@@ -72,24 +74,27 @@ fn autotune_bounds<R: CubeRuntime>(
         },
     );
 
-    let memory_throughput = measure_peak_throughput(
-        client,
-        ThroughputKey {
-            mode: ThroughputMode::Memory,
-            dtype: elem_out.elem_type(),
-        },
-    );
+    let memory_key = ThroughputKey {
+        mode: ThroughputMode::Memory,
+        dtype: elem_out.elem_type(),
+    };
+
+    let memory_throughput = measure_peak_throughput(client, memory_key);
+
+    let lhs_bytes = lhs.meta.num_elements() * elem_lhs.elem_type().size();
+    let rhs_bytes = rhs.meta.num_elements() * elem_rhs.elem_type().size();
+    let out_bytes = out.meta.num_elements() * elem_out.elem_type().size();
 
     vec![
         AutotuneBound {
-            ops_count: batches * m * n * (2 * k - 1), // Theoretical matmul compute operations
+            ops_count: batches * m * n * (2 * k - 1),
             throughput: compute_throughput.ops_per_s(),
-            threshold: 0.85,
+            threshold: THRESHOLD,
         },
         AutotuneBound {
-            ops_count: lhs.meta.num_elements() + rhs.meta.num_elements() + out.meta.num_elements(), // Theoretical matmul memory reads and writes operations
-            throughput: memory_throughput.ops_per_s(),
-            threshold: 0.85,
+            ops_count: lhs_bytes + rhs_bytes + out_bytes,
+            throughput: memory_throughput.bytes_per_s(&memory_key),
+            threshold: THRESHOLD,
         },
     ]
 }
