@@ -6,9 +6,16 @@
 //!
 //! Usage:
 //!   runner --list-backends
-//!   runner --backend <name> --m <M> --k <K> --n <N> --input <dtype> --output <dtype>
+//!   runner --backend <name> --matmul <MxKxN> [--matmul <MxKxN> ...] \
+//!          --input <dtype> --output <dtype> [--run-dir <path>]
+//!
+//! With `--run-dir`, a per-run `cubecl.toml` is written there so the autotune log and cache
+//! land inside that directory (the UI passes one directory per run). Without it, the crate's
+//! fallback `cubecl.toml` is used.
 
-use autotune_observability::{example_dir, start_fresh_session};
+use std::path::PathBuf;
+
+use autotune_observability::{example_dir, write_run_config};
 use burn::tensor::{Device, DeviceConfig, DeviceKind, Element, FloatDType, Tensor, TensorData};
 
 fn main() {
@@ -21,10 +28,6 @@ fn main() {
         return;
     }
 
-    // The `cubecl.toml` next to this crate configures the autotune logger; run from here so it's
-    // discovered and the log lands at the path the UI reads.
-    let _ = std::env::set_current_dir(example_dir());
-
     let cfg = match RunConfig::parse(&args) {
         Ok(cfg) => cfg,
         Err(err) => {
@@ -32,6 +35,21 @@ fn main() {
             std::process::exit(2);
         }
     };
+
+    // Run from the per-run directory (its `cubecl.toml` directs the log + cache there), or from
+    // the crate dir as a fallback. Set before the backend first touches cubecl.
+    let workdir = match &cfg.run_dir {
+        Some(dir) => {
+            if let Err(err) = write_run_config(dir) {
+                eprintln!("could not set up run dir {}: {err}", dir.display());
+                std::process::exit(2);
+            }
+            let _ = std::fs::write(dir.join("meta.txt"), cfg.meta());
+            dir.clone()
+        }
+        None => example_dir(),
+    };
+    let _ = std::env::set_current_dir(&workdir);
 
     let Some(mut device) = device_for(&cfg.backend) else {
         eprintln!(
@@ -49,74 +67,136 @@ fn main() {
             .int_dtype(<i32 as Element>::dtype()),
     );
 
-    start_fresh_session();
+    for (index, shape) in cfg.matmuls.iter().enumerate() {
+        println!(
+            "running matmul {} / {}: {}  {}x{} * {}x{}  in={} out={}",
+            index + 1,
+            cfg.matmuls.len(),
+            shape.name(),
+            shape.m,
+            shape.k,
+            shape.k,
+            shape.n,
+            cfg.input_name,
+            cfg.output_name
+        );
 
-    println!(
-        "running {}  {}x{} * {}x{}  in={} out={}",
-        cfg.backend, cfg.m, cfg.k, cfg.k, cfg.n, cfg.input_name, cfg.output_name
-    );
-
-    match run_matmul(&device, cfg.m, cfg.k, cfg.n, cfg.input, cfg.output) {
-        Ok(()) => println!("done"),
-        Err(err) => {
-            eprintln!("matmul failed: {err}");
-            std::process::exit(1);
+        match run_matmul(&device, shape.m, shape.k, shape.n, cfg.input, cfg.output) {
+            Ok(()) => {}
+            Err(err) => {
+                eprintln!("matmul {} failed: {err}", index + 1);
+                std::process::exit(1);
+            }
         }
     }
+    println!("done");
 }
 
 struct RunConfig {
     backend: String,
-    m: usize,
-    k: usize,
-    n: usize,
+    matmuls: Vec<MatmulShape>,
     input: FloatDType,
     input_name: String,
     output: FloatDType,
     output_name: String,
+    run_dir: Option<PathBuf>,
+}
+
+struct MatmulShape {
+    m: usize,
+    k: usize,
+    n: usize,
+}
+
+impl MatmulShape {
+    fn name(&self) -> String {
+        format!("{}x{}x{}", self.m, self.k, self.n)
+    }
 }
 
 impl RunConfig {
     fn parse(args: &[String]) -> Result<Self, String> {
         let mut backend = "wgpu".to_string();
-        let (mut m, mut k, mut n) = (512usize, 512usize, 512usize);
+        let mut matmuls = Vec::new();
+        let mut legacy_shape = [None; 3];
         let mut input_name = "f32".to_string();
         let mut output_name = "f32".to_string();
+        let mut run_dir = None;
 
         let mut it = args.iter();
         while let Some(flag) = it.next() {
             match flag.as_str() {
                 "--backend" => backend = next(&mut it, flag)?,
-                "--m" => m = parse_usize(&next(&mut it, flag)?, flag)?,
-                "--k" => k = parse_usize(&next(&mut it, flag)?, flag)?,
-                "--n" => n = parse_usize(&next(&mut it, flag)?, flag)?,
+                "--matmul" => matmuls.push(parse_matmul(&next(&mut it, flag)?, flag)?),
+                "--m" => legacy_shape[0] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
+                "--k" => legacy_shape[1] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
+                "--n" => legacy_shape[2] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
                 "--input" => input_name = next(&mut it, flag)?,
                 "--output" => output_name = next(&mut it, flag)?,
+                "--run-dir" => run_dir = Some(PathBuf::from(next(&mut it, flag)?)),
                 other => return Err(format!("unknown argument '{other}'")),
             }
         }
 
         let input = float_dtype(&input_name)?;
         let output = float_dtype(&output_name)?;
+        if matmuls.is_empty() {
+            matmuls.push(MatmulShape {
+                m: legacy_shape[0].unwrap_or(512),
+                k: legacy_shape[1].unwrap_or(512),
+                n: legacy_shape[2].unwrap_or(512),
+            });
+        } else if legacy_shape.iter().any(Option::is_some) {
+            return Err("use --matmul or legacy --m/--k/--n, not both".into());
+        }
         Ok(Self {
             backend,
-            m,
-            k,
-            n,
+            matmuls,
             input,
             input_name,
             output,
             output_name,
+            run_dir,
         })
+    }
+
+    fn meta(&self) -> String {
+        format!(
+            "backend={}\nmatmuls={}\ninput={} output={}\n",
+            self.backend,
+            self.matmuls
+                .iter()
+                .map(MatmulShape::name)
+                .collect::<Vec<_>>()
+                .join(","),
+            self.input_name,
+            self.output_name
+        )
     }
 }
 
 fn next(it: &mut std::slice::Iter<'_, String>, flag: &str) -> Result<String, String> {
-    it.next().cloned().ok_or(format!("missing value for {flag}"))
+    it.next()
+        .cloned()
+        .ok_or(format!("missing value for {flag}"))
 }
 
 fn parse_usize(value: &str, flag: &str) -> Result<usize, String> {
-    value.parse().map_err(|_| format!("{flag} expects an integer, got '{value}'"))
+    value
+        .parse()
+        .map_err(|_| format!("{flag} expects an integer, got '{value}'"))
+}
+
+fn parse_matmul(value: &str, flag: &str) -> Result<MatmulShape, String> {
+    let dimensions: Vec<_> = value.split('x').collect();
+    if dimensions.len() != 3 {
+        return Err(format!("{flag} expects MxKxN, got '{value}'"));
+    }
+    Ok(MatmulShape {
+        m: parse_usize(dimensions[0], flag)?,
+        k: parse_usize(dimensions[1], flag)?,
+        n: parse_usize(dimensions[2], flag)?,
+    })
 }
 
 fn float_dtype(name: &str) -> Result<FloatDType, String> {

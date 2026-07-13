@@ -1,3 +1,5 @@
+# The runner writes a per-run cubecl.toml into each run directory (see write_run_config) that
+# points the autotune log and cache into that directory. This file is only a fallback for
+# manual `cargo run --bin runner` without --run-dir.
 [autotune.logger]
 level = "full"
-file = "autotune.log"

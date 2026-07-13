@@ -9,13 +9,16 @@ use egui::text::{LayoutJob, TextFormat};
 use egui::{Color32, FontId};
 
 use crate::ansi::{self, AnsiStyle};
-use crate::{CandidateKind, DTYPE_NAMES, TuneEvent, example_dir, load_events, log_path};
+use crate::{
+    CandidateKind, DTYPE_NAMES, TuneEvent, example_dir, list_runs, load_events, run_log_path,
+    runs_dir,
+};
 
 /// Selectable backends: (dropdown label, `--backend` value, cargo `--features` value). wgpu is
 /// the baseline; the others need their feature (and toolchain), and wgpu can't do tensor cores.
 const BACKENDS: [(&str, &str, &str); 5] = [
     ("wgpu", "wgpu", "backend"),
-    ("cuda (tensor cores)", "cuda", "cuda"),
+    ("cuda", "cuda", "cuda"),
     ("vulkan", "vulkan", "vulkan"),
     ("metal", "metal", "metal"),
     ("cpu", "cpu", "cpu"),
@@ -27,43 +30,59 @@ enum RunMsg {
     Done { ok: bool },
 }
 
-pub struct AutotuneObservabilityApp {
-    log_path: PathBuf,
+/// One archived run: its directory, parsed events, and whether it is currently shown.
+struct RunView {
+    name: String,
+    dir: PathBuf,
     events: Vec<TuneEvent>,
-    selected: usize,
-    input_dtype: usize,
-    output_dtype: usize,
+    selected: bool,
+}
+
+#[derive(Clone, Copy)]
+struct MatmulShape {
     m: usize,
     k: usize,
     n: usize,
+}
+
+pub struct AutotuneObservabilityApp {
+    runs: Vec<RunView>,
+    selected: usize,
+    input_dtype: usize,
+    output_dtype: usize,
+    matmuls: Vec<MatmulShape>,
     only_short_circuits: bool,
     status: String,
     output: LayoutJob,
     ansi_style: AnsiStyle,
     text_color: Color32,
     run_rx: Option<Receiver<RunMsg>>,
+    /// Directory name of the in-flight run, selected once it finishes successfully.
+    pending_run: Option<String>,
 }
 
 impl Default for AutotuneObservabilityApp {
     fn default() -> Self {
-        let log_path = log_path();
-        let events = load_events(&log_path);
-        Self {
-            log_path,
-            events,
+        let mut app = Self {
+            runs: Vec::new(),
             selected: 0,
             input_dtype: 0,
             output_dtype: 0,
-            m: 512,
-            k: 512,
-            n: 512,
+            matmuls: vec![MatmulShape {
+                m: 512,
+                k: 512,
+                n: 512,
+            }],
             only_short_circuits: false,
             status: String::from("Ready."),
             output: LayoutJob::default(),
             ansi_style: AnsiStyle::default(),
             text_color: Color32::GRAY,
             run_rx: None,
-        }
+            pending_run: None,
+        };
+        app.rescan_runs(None);
+        app
     }
 }
 
@@ -72,9 +91,40 @@ impl AutotuneObservabilityApp {
         self.run_rx.is_some()
     }
 
-    fn reload(&mut self) {
-        self.events = load_events(&self.log_path);
-        self.status = format!("Loaded {} tune events.", self.events.len());
+    /// Rebuild the run list from disk, preserving which runs are shown (by name) and optionally
+    /// forcing `select` to be shown.
+    fn rescan_runs(&mut self, select: Option<&str>) {
+        let shown: Vec<String> = self
+            .runs
+            .iter()
+            .filter(|r| r.selected)
+            .map(|r| r.name.clone())
+            .collect();
+
+        self.runs = list_runs()
+            .into_iter()
+            .map(|dir| {
+                let name = dir
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let events = load_events(&run_log_path(&dir));
+                let selected = Some(name.as_str()) == select || shown.contains(&name);
+                RunView {
+                    name,
+                    dir,
+                    events,
+                    selected,
+                }
+            })
+            .collect();
+
+        // Default to showing the newest run when nothing is selected.
+        if !self.runs.iter().any(|r| r.selected) {
+            if let Some(first) = self.runs.first_mut() {
+                first.selected = true;
+            }
+        }
     }
 
     /// Launch the runner through `cargo run` on a worker thread. Cargo builds it on demand (in
@@ -92,24 +142,33 @@ impl AutotuneObservabilityApp {
         }
         cargo_args.extend(["--bin", "runner", "--features", feature].map(String::from));
         cargo_args.push("--".into());
-        let (m, k, n) = (self.m.to_string(), self.k.to_string(), self.n.to_string());
-        cargo_args.extend(
-            [
-                "--backend",
-                backend,
-                "--m",
-                m.as_str(),
-                "--k",
-                k.as_str(),
-                "--n",
-                n.as_str(),
-                "--input",
-                input,
-                "--output",
-                output,
-            ]
-            .map(String::from),
+
+        let shape_names: Vec<String> = self
+            .matmuls
+            .iter()
+            .map(|shape| format!("{}x{}x{}", shape.m, shape.k, shape.n))
+            .collect();
+        let stamp = now_millis();
+        let id = format!(
+            "{stamp}-{backend}-{}-{input}-{output}",
+            shape_names.join("_")
         );
+        let run_dir = runs_dir().join(&id);
+
+        cargo_args
+            .extend(["--backend", backend, "--input", input, "--output", output].map(String::from));
+        for shape in &self.matmuls {
+            cargo_args.extend([
+                "--matmul".to_string(),
+                format!("{}x{}x{}", shape.m, shape.k, shape.n),
+            ]);
+        }
+        cargo_args.extend([
+            "--run-dir".to_string(),
+            run_dir.to_string_lossy().into_owned(),
+        ]);
+
+        self.pending_run = Some(id);
 
         self.ansi_style = AnsiStyle::default();
         self.push_line(&format!("$ cargo {}", cargo_args.join(" ")));
@@ -157,24 +216,36 @@ impl AutotuneObservabilityApp {
         }
 
         match finished {
-            Some(ok) => {
+            Some(true) => {
                 self.run_rx = None;
-                self.reload();
-                self.status = if ok {
-                    format!("Run finished — {} tune events.", self.events.len())
-                } else {
-                    String::from("Run failed — see output panel.")
+                let id = self.pending_run.take();
+                self.rescan_runs(id.as_deref());
+                self.status = match id {
+                    Some(id) => format!("Run {id} archived."),
+                    None => String::from("Run finished."),
                 };
+            }
+            Some(false) => {
+                self.run_rx = None;
+                self.pending_run = None;
+                self.status = String::from("Run failed — see output panel.");
             }
             None => ctx.request_repaint(),
         }
     }
 
-    fn clear_log(&mut self) {
-        let _ = std::fs::remove_file(log_path());
-        self.events.clear();
-        self.status = String::from("Cleared the log view.");
+    fn delete_run(&mut self, dir: &std::path::Path) {
+        let _ = std::fs::remove_dir_all(dir);
+        self.rescan_runs(None);
+        self.status = String::from("Deleted run.");
     }
+}
+
+fn now_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0)
 }
 
 /// Map an ANSI style to a concrete colour. The palette is chosen to stay legible on both light
@@ -216,7 +287,6 @@ fn stream_command(args: Vec<String>, tx: Sender<RunMsg>) {
         .current_dir(example_dir())
         // Force colour: cargo and rustc emit ANSI codes we parse for the console pane.
         .env("CARGO_TERM_COLOR", "always")
-        .env("CUBECL_LOG_AUTOTUNE", "full")
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -268,18 +338,38 @@ impl eframe::App for AutotuneObservabilityApp {
                             ui.selectable_value(&mut self.selected, i, *label);
                         }
                     });
-
                 ui.separator();
                 dtype_field(ui, "in", "in_dtype", &mut self.input_dtype);
                 dtype_field(ui, "out", "out_dtype", &mut self.output_dtype);
             });
 
             ui.horizontal(|ui| {
-                ui.label("Matmul (m×k · k×n)");
-                size_field(ui, "m", &mut self.m);
-                size_field(ui, "k", &mut self.k);
-                size_field(ui, "n", &mut self.n);
+                ui.label("Matmuls (m×k · k×n)");
+                let can_remove = self.matmuls.len() > 1;
+                let mut remove = None;
+                for (index, shape) in self.matmuls.iter_mut().enumerate() {
+                    ui.group(|ui| {
+                        ui.horizontal(|ui| {
+                            size_fields(ui, shape);
+                            if can_remove && ui.small_button("×").clicked() {
+                                remove = Some(index);
+                            }
+                        });
+                    });
+                }
+                if let Some(index) = remove {
+                    self.matmuls.remove(index);
+                }
+                if ui.button("+ add").clicked() {
+                    self.matmuls.push(MatmulShape {
+                        m: 512,
+                        k: 512,
+                        n: 512,
+                    });
+                }
+            });
 
+            ui.horizontal(|ui| {
                 ui.add_enabled_ui(!self.running(), |ui| {
                     if ui.button("Run matmul").clicked() {
                         self.run_matmul();
@@ -288,21 +378,25 @@ impl eframe::App for AutotuneObservabilityApp {
                 if self.running() {
                     ui.spinner();
                 }
-                if ui.button("Reload log").clicked() {
-                    self.reload();
+                if ui.button("Rescan runs").clicked() {
+                    self.rescan_runs(None);
                 }
-                if ui.button("Clear log").clicked() {
-                    self.clear_log();
-                }
-            });
-
-            ui.horizontal(|ui| {
                 ui.checkbox(&mut self.only_short_circuits, "Only short-circuits");
-                let count = self.events.iter().filter(|e| e.short_circuit).count();
+                let (events, shorted) = self
+                    .runs
+                    .iter()
+                    .filter(|r| r.selected)
+                    .flat_map(|r| r.events.iter())
+                    .fold((0usize, 0usize), |(e, s), ev| {
+                        (e + 1, s + ev.short_circuit.is_some() as usize)
+                    });
                 ui.label(format!(
-                    "{} events · {count} short-circuited",
-                    self.events.len()
+                    "{} shown event(s) · {shorted} short-circuited",
+                    events
                 ));
+            });
+            ui.horizontal(|ui| {
+                ui.label("Hold Shift while dragging a dimension to change m, k, and n together.");
             });
             ui.add_space(4.0);
         });
@@ -327,19 +421,68 @@ impl eframe::App for AutotuneObservabilityApp {
                     });
             });
 
+        egui::Panel::left("runs")
+            .resizable(true)
+            .default_size(220.0)
+            .show(ui, |ui| {
+                ui.add_space(4.0);
+                ui.strong(format!("Runs ({})", self.runs.len()));
+                ui.separator();
+
+                let mut delete = None;
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for (i, run) in self.runs.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            if ui.small_button("🗑").clicked() {
+                                delete = Some(i);
+                            }
+                            ui.checkbox(&mut run.selected, &run.name);
+                        });
+                    }
+                });
+                if let Some(i) = delete {
+                    let dir = self.runs[i].dir.clone();
+                    self.delete_run(&dir);
+                }
+            });
+
         egui::CentralPanel::default().show(ui, |ui| {
-            if self.events.is_empty() {
-                ui.label("No tune events yet. Pick a backend/dtype/size and Run matmul.");
+            if !self.runs.iter().any(|r| r.selected) {
+                ui.label("No run selected. Run a matmul, or tick a run on the left.");
                 return;
             }
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                for (idx, event) in self.events.iter().enumerate() {
-                    if self.only_short_circuits && !event.short_circuit {
-                        continue;
-                    }
-                    event_view(ui, idx, event);
-                    ui.separator();
+                for run in self.runs.iter().filter(|r| r.selected) {
+                    let shorted = run
+                        .events
+                        .iter()
+                        .filter(|e| e.short_circuit.is_some())
+                        .count();
+                    let header = format!(
+                        "{}  —  {} events, {shorted} short-circuited",
+                        run.name,
+                        run.events.len()
+                    );
+                    egui::CollapsingHeader::new(header)
+                        .id_salt(&run.name)
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            ui.push_id(&run.name, |ui| {
+                                let mut shown = 0;
+                                for (idx, event) in run.events.iter().enumerate() {
+                                    if self.only_short_circuits && event.short_circuit.is_none() {
+                                        continue;
+                                    }
+                                    event_view(ui, idx, event);
+                                    ui.separator();
+                                    shown += 1;
+                                }
+                                if shown == 0 {
+                                    ui.weak("(no matching events)");
+                                }
+                            });
+                        });
                 }
             });
         });
@@ -355,9 +498,43 @@ fn is_release() -> bool {
         .unwrap_or(false)
 }
 
-fn size_field(ui: &mut egui::Ui, label: &str, value: &mut usize) {
-    ui.label(label);
-    ui.add(egui::DragValue::new(value).range(1..=16384).speed(8.0));
+fn size_fields(ui: &mut egui::Ui, shape: &mut MatmulShape) {
+    let original = [
+        shape.m.ilog2().min(14),
+        shape.k.ilog2().min(14),
+        shape.n.ilog2().min(14),
+    ];
+    let mut exponents = original;
+    let mut changed = None;
+
+    for (index, (label, exponent)) in ["m", "k", "n"]
+        .into_iter()
+        .zip(exponents.iter_mut())
+        .enumerate()
+    {
+        ui.label(label);
+        if ui
+            .add(
+                egui::DragValue::new(exponent)
+                    .range(0..=14)
+                    .speed(0.15)
+                    .custom_formatter(|exponent, _| (1usize << exponent as u32).to_string()),
+            )
+            .changed()
+        {
+            changed = Some(index);
+        }
+    }
+
+    if let Some(changed) = changed {
+        let delta = exponents[changed] as isize - original[changed] as isize;
+        if ui.input(|input| input.modifiers.shift) {
+            exponents = original.map(|exponent| (exponent as isize + delta).clamp(0, 14) as u32);
+        }
+        shape.m = 1usize << exponents[0];
+        shape.k = 1usize << exponents[1];
+        shape.n = 1usize << exponents[2];
+    }
 }
 
 fn dtype_field(ui: &mut egui::Ui, label: &str, id: &str, selected: &mut usize) {
@@ -376,10 +553,13 @@ fn event_view(ui: &mut egui::Ui, idx: usize, event: &TuneEvent) {
     let skipped = event.count(CandidateKind::Skipped);
     let invalid = event.count(CandidateKind::Invalid);
 
-    let title = if event.short_circuit {
-        egui::RichText::new(format!("#{idx}  {}  ⚡ short-circuit", event.fastest))
-            .strong()
-            .color(ORANGE)
+    let title = if let Some(short_circuit) = event.short_circuit {
+        egui::RichText::new(format!(
+            "#{idx}  {}  ⚡ short-circuit - achieved {:.2}% of limit",
+            event.fastest, short_circuit
+        ))
+        .strong()
+        .color(ORANGE)
     } else {
         egui::RichText::new(format!("#{idx}  {}", event.fastest)).strong()
     };
@@ -395,6 +575,24 @@ fn event_view(ui: &mut egui::Ui, idx: usize, event: &TuneEvent) {
                 ui.colored_label(GRAY, format!("{skipped} skipped"));
                 ui.colored_label(RED, format!("{invalid} invalid"));
             });
+
+            if !event.candidate_progress.is_empty() {
+                ui.add_space(6.0);
+                limit_graph(ui, event);
+            }
+
+            if !event.bounds.is_empty() {
+                ui.collapsing("throughput bounds", |ui| {
+                    for line in &event.bounds {
+                        let color = if line.starts_with("Short circuiting") {
+                            ORANGE
+                        } else {
+                            ui.style().visuals.text_color()
+                        };
+                        ui.colored_label(color, egui::RichText::new(line).monospace());
+                    }
+                });
+            }
 
             if !event.context.is_empty() {
                 ui.collapsing("planner context (tuning groups)", |ui| {
@@ -420,6 +618,92 @@ fn event_view(ui: &mut egui::Ui, idx: usize, event: &TuneEvent) {
                 });
             }
         });
+}
+
+fn limit_graph(ui: &mut egui::Ui, event: &TuneEvent) {
+    let samples = &event.candidate_progress;
+    if samples.is_empty() {
+        return;
+    }
+
+    let desired_height = 92.0;
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), desired_height),
+        egui::Sense::hover(),
+    );
+    let painter = ui.painter_at(rect);
+    let visuals = ui.visuals();
+    let frame = rect.shrink(2.0);
+
+    painter.rect_filled(frame, egui::CornerRadius::same(6), visuals.faint_bg_color);
+
+    let plot_rect = frame.shrink2(egui::vec2(10.0, 12.0));
+    let max_sample = samples.iter().copied().fold(100.0_f32, f32::max).max(110.0);
+    let scale = plot_rect.height() / max_sample.max(1.0);
+    let threshold_y = plot_rect.bottom() - (100.0 * scale);
+
+    painter.line_segment(
+        [
+            egui::pos2(plot_rect.left(), threshold_y),
+            egui::pos2(plot_rect.right(), threshold_y),
+        ],
+        egui::Stroke::new(1.0, ORANGE),
+    );
+    painter.text(
+        egui::pos2(plot_rect.left(), threshold_y - 1.0),
+        egui::Align2::LEFT_BOTTOM,
+        "100% limit",
+        FontId::monospace(9.0),
+        ORANGE,
+    );
+
+    let slot_width = plot_rect.width() / samples.len() as f32;
+    for (index, percent) in samples.iter().copied().enumerate() {
+        let slot_center = plot_rect.left() + slot_width * (index as f32 + 0.5);
+        let bar_width = (slot_width * 0.62).clamp(8.0, 28.0);
+        let bar_height = (percent * scale).min(plot_rect.height());
+        let top = plot_rect.bottom() - bar_height;
+        let bar_rect = egui::Rect::from_min_max(
+            egui::pos2(slot_center - bar_width / 2.0, top),
+            egui::pos2(slot_center + bar_width / 2.0, plot_rect.bottom()),
+        );
+        let fill = if percent > 100.0 { ORANGE } else { GREEN };
+        painter.rect_filled(
+            bar_rect,
+            egui::CornerRadius::same(4),
+            fill.gamma_multiply(0.88),
+        );
+        painter.rect_stroke(
+            bar_rect,
+            egui::CornerRadius::same(4),
+            egui::Stroke::new(1.0, fill),
+            egui::StrokeKind::Outside,
+        );
+        painter.text(
+            egui::pos2(slot_center, (top - 2.0).max(plot_rect.top())),
+            egui::Align2::CENTER_BOTTOM,
+            format!("{percent:.0}%"),
+            FontId::monospace(9.0),
+            visuals.text_color(),
+        );
+        painter.text(
+            egui::pos2(slot_center, plot_rect.bottom() + 2.0),
+            egui::Align2::CENTER_TOP,
+            format!("#{}", index + 1),
+            FontId::monospace(9.0),
+            GRAY,
+        );
+    }
+
+    if event.short_circuit.is_some() {
+        painter.text(
+            egui::pos2(plot_rect.right(), plot_rect.top() - 1.0),
+            egui::Align2::RIGHT_BOTTOM,
+            "short-circuit crossed 100%",
+            FontId::monospace(9.0),
+            ORANGE,
+        );
+    }
 }
 
 const ORANGE: egui::Color32 = egui::Color32::from_rgb(0xE0, 0x8A, 0x1E);

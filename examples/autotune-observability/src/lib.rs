@@ -6,23 +6,19 @@ pub fn example_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// Path of the autotune log file produced by the shipped `cubecl.toml`.
-pub fn log_path() -> PathBuf {
-    example_dir().join("autotune.log")
-}
-
-/// Root of the persistent autotune cache (`target/autotune`).
-pub fn autotune_cache_dir() -> PathBuf {
-    example_dir().join("target").join("autotune")
-}
-
-/// Wipe the on-disk autotune cache and log. The `runner` process calls this before every run:
-/// because each run is a fresh process, its in-memory tuner cache starts empty, and wiping the
-/// on-disk cache means nothing is loaded into it — so the same config re-tunes (and re-logs)
-/// every single time, which is the whole point of shelling out to a subprocess.
-pub fn start_fresh_session() {
-    let _ = std::fs::remove_dir_all(autotune_cache_dir());
-    let _ = std::fs::remove_file(log_path());
+/// Write a per-run `cubecl.toml` inside `run_dir` pointing the autotune log and the cache it
+/// generates into that directory. The runner runs with `run_dir` as its working directory, so
+/// cubecl discovers this config (it wins over the crate's fallback `cubecl.toml`). Each run
+/// therefore gets its own empty cache — so the same config re-tunes (and re-logs) every time —
+/// and both the log and the cache are archived side by side for later reference.
+pub fn write_run_config(run_dir: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(run_dir)?;
+    let log = run_dir.join("autotune.log");
+    let cache = run_dir.join("cache");
+    let config = format!(
+        "[autotune.logger]\nlevel = \"full\"\nfile = {log:?}\n\n[autotune.cache]\nfile = {cache:?}\n"
+    );
+    std::fs::write(run_dir.join("cubecl.toml"), config)
 }
 
 /// Float dtypes selectable in the UI. The input dtype is what drives the matmul autotune key
@@ -53,16 +49,18 @@ pub struct Candidate {
 }
 
 /// A single autotune decision parsed from the log: the kernel that won, the tune key, the
-/// planner context (the `- Tuning: [..]` groups — fewer batches here is where bound-driven
-/// short-circuits show up), and the categorized per-candidate outcomes.
+/// planner context (the `- Tuning: [..]` groups), the throughput-bound lines emitted while
+/// tuning (where the short-circuit decision is logged), and the per-candidate outcomes.
 #[derive(Debug, Clone, Default)]
 pub struct TuneEvent {
     pub fastest: String,
     pub key: String,
     pub context: String,
     pub tuning_batches: usize,
+    pub bounds: Vec<String>,
+    pub candidate_progress: Vec<f32>,
     pub candidates: Vec<Candidate>,
-    pub short_circuit: bool,
+    pub short_circuit: Option<f32>,
 }
 
 impl TuneEvent {
@@ -71,28 +69,39 @@ impl TuneEvent {
     }
 }
 
-const SHORT_CIRCUIT_HINTS: [&str; 4] = ["bound", "short", "throughput", "overhead"];
-
 /// Parse a full-level autotune log into a list of tune events.
 ///
-/// Each event starts at a `Fastest result <name>-<key>. Context: <context>` header line.
-/// The context value (`- Tuning: [..]`) continues on following `- `-prefixed lines; every
-/// other line until the next header is a candidate outcome.
+/// The throughput-bound lines (`Calculated bounds`, `Autotune candidate … achieved …%`,
+/// `Short circuiting …`) are logged *while* tuning, so they precede that autotune's
+/// `Fastest result` header. They are buffered and attached to the event they lead into. After
+/// the header, the context continues on `- `-prefixed lines and everything else is a candidate.
 pub fn parse_log(text: &str) -> Vec<TuneEvent> {
     let mut events = Vec::new();
     let mut current: Option<TuneEvent> = None;
+    let mut pending_bounds: Vec<String> = Vec::new();
+    let mut pending_candidate_progress: Vec<f32> = Vec::new();
 
     for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
         if let Some(rest) = line.strip_prefix("Fastest result ") {
             if let Some(event) = current.take() {
                 events.push(finalize(event));
             }
-            current = Some(parse_header(rest));
-        } else if let Some(event) = current.as_mut() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
+            let mut event = parse_header(rest);
+            event.bounds = std::mem::take(&mut pending_bounds);
+            event.candidate_progress = std::mem::take(&mut pending_candidate_progress);
+            current = Some(event);
+        } else if is_bounds_line(line) {
+            // Belongs to the *next* autotune, whose header hasn't been seen yet.
+            pending_bounds.push(line.to_string());
+            if let Some(progress) = parse_candidate_progress(line) {
+                pending_candidate_progress.push(progress);
             }
+        } else if let Some(event) = current.as_mut() {
             if let Some(context) = line.strip_prefix("- ") {
                 if !event.context.is_empty() {
                     event.context.push('\n');
@@ -107,11 +116,31 @@ pub fn parse_log(text: &str) -> Vec<TuneEvent> {
         }
     }
 
-    if let Some(event) = current.take() {
+    if let Some(mut event) = current.take() {
+        // Trailing bounds with no following header still describe the last autotune's context.
+        event.bounds.extend(pending_bounds);
+        event.candidate_progress.extend(pending_candidate_progress);
         events.push(finalize(event));
     }
 
     events
+}
+
+/// Whether a line is one of the throughput-bound / short-circuit log messages.
+fn is_bounds_line(line: &str) -> bool {
+    line.starts_with("Calculated bounds")
+        || line.starts_with("Autotune candidate")
+        || line.starts_with("Short circuiting")
+}
+
+fn parse_candidate_progress(line: &str) -> Option<f32> {
+    if !line.starts_with("Autotune candidate") {
+        return None;
+    }
+
+    line.split_whitespace()
+        .find(|word| word.ends_with('%'))
+        .and_then(|word| word.trim_end_matches('%').parse::<f32>().ok())
 }
 
 fn parse_header(rest: &str) -> TuneEvent {
@@ -136,10 +165,22 @@ fn parse_header(rest: &str) -> TuneEvent {
 }
 
 fn finalize(mut event: TuneEvent) -> TuneEvent {
-    let context = event.context.to_lowercase();
-    event.short_circuit = SHORT_CIRCUIT_HINTS
+    event.short_circuit = if event
+        .bounds
         .iter()
-        .any(|hint| context.contains(hint));
+        .any(|line| line.starts_with("Short circuiting"))
+    {
+        event
+            .bounds
+            .iter()
+            .filter(|line| line.starts_with("Autotune candidate"))
+            .last()
+            .and_then(|line| line.split_whitespace().find(|word| word.ends_with('%')))
+            .and_then(|s| s.trim_end_matches('%').parse::<f32>().ok())
+    } else {
+        None
+    };
+
     event
 }
 
@@ -166,6 +207,30 @@ pub fn load_events(path: &Path) -> Vec<TuneEvent> {
         Ok(text) => parse_log(&text),
         Err(_) => Vec::new(),
     }
+}
+
+/// Directory holding archived runs, one sub-directory per run.
+pub fn runs_dir() -> PathBuf {
+    example_dir().join("runs")
+}
+
+/// Archived run directories, newest first (their names are millisecond-timestamp-prefixed).
+pub fn list_runs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = std::fs::read_dir(runs_dir())
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect();
+    dirs.sort();
+    dirs.reverse();
+    dirs
+}
+
+/// Path to an archived run's log file.
+pub fn run_log_path(run_dir: &Path) -> PathBuf {
+    run_dir.join("autotune.log")
 }
 
 pub mod ansi;
