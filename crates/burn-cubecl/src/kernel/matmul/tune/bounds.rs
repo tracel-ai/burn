@@ -24,12 +24,10 @@ const THRESHOLD: f32 = 0.85;
 pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) -> Arc<BoundsGen<R>> {
     let owned_client = client.clone();
 
-    let launch_overhead = measure_launch_overhead(&owned_client);
-
     Arc::new(
         move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| Bounds {
             bounds: autotune_bounds(&owned_client, tensors),
-            launch_overhead,
+            launch_overhead: measure_launch_overhead(&owned_client),
         },
     )
 }
