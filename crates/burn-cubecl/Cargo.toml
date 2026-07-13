@@ -53,6 +53,9 @@ fusion-experimental = ["fusion"]
 
 template = []
 
+# Prefer chained float sum / reduce (no cross-cube atomics) for bit-reproducible training.
+deterministic = []
+
 distributed = [
     "std",
     "burn-backend/distributed",

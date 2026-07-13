@@ -104,11 +104,19 @@ pub enum SumStrategy {
 
 impl Default for SumStrategy {
     fn default() -> Self {
-        #[cfg(feature = "autotune")]
-        return Self::Autotune;
+        // `deterministic`: chained reduce avoids cross-cube float atomics in OneShot
+        // shared_sum (non-associative + undefined completion order → multi-step drift).
+        #[cfg(feature = "deterministic")]
+        return Self::Chained(KernelReduceStrategy::Unspecified);
 
-        #[cfg(not(feature = "autotune"))]
-        return Self::OneShot(4);
+        #[cfg(not(feature = "deterministic"))]
+        {
+            #[cfg(feature = "autotune")]
+            return Self::Autotune;
+
+            #[cfg(not(feature = "autotune"))]
+            return Self::OneShot(4);
+        }
     }
 }
 
@@ -248,10 +256,16 @@ pub enum KernelReduceStrategy {
 
 impl Default for KernelReduceStrategy {
     fn default() -> Self {
-        #[cfg(feature = "autotune")]
-        return Self::Autotune;
-
-        #[cfg(not(feature = "autotune"))]
+        #[cfg(feature = "deterministic")]
         return Self::Unspecified;
+
+        #[cfg(not(feature = "deterministic"))]
+        {
+            #[cfg(feature = "autotune")]
+            return Self::Autotune;
+
+            #[cfg(not(feature = "autotune"))]
+            return Self::Unspecified;
+        }
     }
 }
