@@ -269,3 +269,122 @@ impl Default for KernelReduceStrategy {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Feature contract: `deterministic` selects chained float sum (no OneShot atomics).
+    #[test]
+    #[cfg(feature = "deterministic")]
+    fn default_sum_strategy_is_chained_with_deterministic() {
+        assert!(matches!(
+            SumStrategy::default(),
+            SumStrategy::Chained(KernelReduceStrategy::Unspecified)
+        ));
+        assert!(matches!(
+            KernelReduceStrategy::default(),
+            KernelReduceStrategy::Unspecified
+        ));
+    }
+
+    /// Feature contract: without `deterministic`, keep upstream Autotune/OneShot defaults.
+    #[test]
+    #[cfg(all(not(feature = "deterministic"), feature = "autotune"))]
+    fn default_sum_strategy_is_autotune_without_deterministic() {
+        assert!(matches!(SumStrategy::default(), SumStrategy::Autotune));
+        assert!(matches!(
+            KernelReduceStrategy::default(),
+            KernelReduceStrategy::Autotune
+        ));
+    }
+
+    /// Multi-step float-sum feedback: each step's `sum` scales the next input.
+    ///
+    /// A/B via feature (two separate `cargo test` invocations):
+    /// - `--features deterministic`: `SumStrategy::default()` (Chained) → reproducible
+    /// - default features: `SumStrategy::OneShot` (what Autotune often selects) → diverges
+    ///
+    /// ```text
+    /// cargo test -p burn-cubecl --features deterministic multi_step_float_sum
+    /// cargo test -p burn-cubecl multi_step_float_sum
+    /// ```
+    mod multi_step_float_sum {
+        use super::*;
+        use crate::ops::{from_data, into_data_sync};
+        use burn_backend::TensorData;
+        use cubecl::wgpu::{WgpuDevice, WgpuRuntime};
+
+        const N: usize = 1 << 18;
+        const STEPS: usize = 40;
+        const EPS: f32 = 1e-5;
+
+        fn fixed_values() -> Vec<f32> {
+            (0..N)
+                .map(|i| ((i % 997) as f32 * 0.0017).sin() * 0.5)
+                .collect()
+        }
+
+        fn feedback_probe(mut strategy: impl FnMut() -> SumStrategy) -> f32 {
+            let device = WgpuDevice::default();
+            let mut values = fixed_values();
+            let mut last = 0.0f32;
+            for _ in 0..STEPS {
+                let t = from_data::<WgpuRuntime>(TensorData::new(values.clone(), [N]), &device);
+                let out = sum(t, strategy()).expect("sum");
+                last = into_data_sync::<WgpuRuntime>(out)
+                    .as_slice::<f32>()
+                    .unwrap()[0];
+                // Feed a *mean-scale* back so noise accumulates without exploding to NaN.
+                let mean = last / N as f32;
+                let scale = (1.0 - 0.05 * mean).clamp(0.5, 1.5);
+                for v in &mut values {
+                    *v *= scale;
+                }
+            }
+            last
+        }
+
+        #[test]
+        #[cfg(feature = "deterministic")]
+        fn multi_step_float_sum_is_reproducible_with_deterministic() {
+            assert!(
+                matches!(
+                    SumStrategy::default(),
+                    SumStrategy::Chained(KernelReduceStrategy::Unspecified)
+                ),
+                "deterministic feature must select Chained as default"
+            );
+            let a = feedback_probe(SumStrategy::default);
+            let b = feedback_probe(SumStrategy::default);
+            let delta = (a - b).abs();
+            assert!(
+                delta < EPS,
+                "Chained default should be bit-stable across runs: \
+                 run1={a}, run2={b}, Δ={delta}"
+            );
+        }
+
+        #[test]
+        #[cfg(not(feature = "deterministic"))]
+        fn multi_step_float_sum_diverges_without_deterministic() {
+            // Upstream default is Autotune, which frequently selects OneShot shared_sum
+            // (cross-cube float atomics). Probe that hazardous path directly.
+            assert!(
+                matches!(SumStrategy::default(), SumStrategy::Autotune),
+                "without deterministic, default should remain Autotune"
+            );
+            let mut max_delta = 0.0f32;
+            for _ in 0..3 {
+                let a = feedback_probe(|| SumStrategy::OneShot(8));
+                let b = feedback_probe(|| SumStrategy::OneShot(8));
+                max_delta = max_delta.max((a - b).abs());
+            }
+            assert!(
+                max_delta > EPS,
+                "OneShot (Autotune's common pick) should diverge across runs; max Δ={max_delta}"
+            );
+        }
+    }
+}
+

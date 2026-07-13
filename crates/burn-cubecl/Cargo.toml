@@ -95,6 +95,10 @@ futures-lite = { workspace = true, features = ["std"] }
 serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
+[dev-dependencies]
+# WgpuRuntime for GPU sum A/B tests in `kernel/reduce/base` (enables `cubecl/wgpu` via unification).
+burn-wgpu = { workspace = true }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]
