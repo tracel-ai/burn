@@ -30,6 +30,8 @@ autotune-checks = ["burn-cubecl/autotune-checks"]
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 template = ["burn-cubecl/template", "cubecl/template"]
+# Opt-in bit-reproducible float sum/reduce (no cross-cube float atomics).
+deterministic = ["burn-cubecl/deterministic"]
 
 # Backends
 metal = ["cubecl-msl"]

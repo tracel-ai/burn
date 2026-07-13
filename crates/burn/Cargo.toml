@@ -167,6 +167,8 @@ simd = ["burn-ndarray?/simd", "burn-flex?/simd"]
 x86-v4 = ["burn-flex?/x86-v4"]
 apple-amx = ["burn-flex?/apple-amx"]
 template = ["burn-wgpu?/template"]
+# Opt-in bit-reproducible GPU float reductions (forwards to burn-cubecl).
+deterministic = ["burn-wgpu?/deterministic"]
 collective = ["burn-collective", "burn-optim/collective"]
 distributed = ["std",
     "burn-core/distributed",
