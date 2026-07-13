@@ -1,4 +1,4 @@
-use crate::module::ParamGroup;
+use crate::module::{LoraConfig, ParamGroup};
 
 use super::{LoraMapper, Param, ParamId, QLoraMapper, Quantizer};
 use alloc::{
@@ -212,7 +212,7 @@ pub trait Module: Clone + Send + core::fmt::Debug {
 
     /// Quantize the weights of the given parameter group.
     fn quantize_weights_group(self, quantizer: &mut Quantizer, group: ParamGroup) -> Self {
-        quantizer.set_group(group);
+        quantizer.set_param_group(group);
         self.map(quantizer)
     }
 
@@ -220,20 +220,22 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     ///
     /// The same module keeps working without any code changes; adapted weights now produce
     /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
-    fn apply_lora(self, mapper: &mut LoraMapper) -> Self
+    fn apply_lora(self, config: LoraConfig) -> Self
     where
         Self: Sized,
     {
-        self.map(mapper)
+        let mut mapper = LoraMapper::new(config);
+        self.map(&mut mapper)
     }
 
     /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
     /// adapters to 2-D weights.
-    fn apply_qlora(self, mapper: &mut QLoraMapper) -> Self
+    fn apply_qlora(self, config: LoraConfig, quantizer: Quantizer) -> Self
     where
         Self: Sized,
     {
-        self.map(mapper)
+        let mut mapper = QLoraMapper::new(config, quantizer);
+        self.map(&mut mapper)
     }
 
     /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).

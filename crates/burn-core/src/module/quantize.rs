@@ -33,7 +33,7 @@ impl Quantizer {
     }
 
     /// Set the parameter group to quantize.
-    pub fn set_group(&mut self, group: ParamGroup) {
+    pub fn set_param_group(&mut self, group: ParamGroup) {
         self.group = group
     }
 }

@@ -17,6 +17,8 @@ pub struct LoraConfig {
     pub alpha: f64,
     /// Standard deviation used to initialize the `A` factor. Defaults to `1 / rank`.
     pub init_std: Option<f64>,
+    /// The parameter group on which to apply the LoRA.
+    pub param_group: ParamGroup,
 }
 
 impl LoraConfig {
@@ -26,7 +28,14 @@ impl LoraConfig {
             rank,
             alpha,
             init_std: None,
+            param_group: ParamGroup::all(),
         }
+    }
+
+    /// Set the parameter group to quantize on which to apply the LoRA.
+    pub fn set_param_group(mut self, group: ParamGroup) -> Self {
+        self.param_group = group;
+        self
     }
 }
 
@@ -153,8 +162,8 @@ mod tests {
     fn lora_model(in_features: usize, out_features: usize) -> (SimpleLinear, super::LoraConfig) {
         let device = test_device();
         let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(in_features, out_features, &device)
-            .apply_lora(&mut LoraMapper::new(config.clone()));
+        let model =
+            SimpleLinear::new(in_features, out_features, &device).apply_lora(config.clone());
         (model, config)
     }
 
@@ -215,7 +224,7 @@ mod tests {
 
         // A freshly-prepared model has different random base/A and zero B.
         let device = test_device();
-        let target = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let target = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         let record = model.clone().into_record();
         let loaded = target.load_record(record);
@@ -246,7 +255,7 @@ mod tests {
     fn lora_backward_grads_adapter_only() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         // Forward through the composed weight and backpropagate.
         let loss = model.weight.val().sum();
@@ -317,9 +326,9 @@ mod tests {
             )),
         };
 
-        let config = LoraConfig::new(2, 4.0);
         let group = ParamGroup::from_predicate("a");
-        let model = model.apply_lora(&mut LoraMapper::new(config).for_group(group));
+        let config = LoraConfig::new(2, 4.0).set_param_group(group);
+        let model = model.apply_lora(config);
 
         // Only the parameter whose path matches the group gets an adapter attached.
         assert!(
@@ -341,7 +350,7 @@ mod tests {
     fn lora_valid_folds_adapter_for_inference() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         let inference = model.valid();
         // The inference parameter has no adapter (folded) and equals the composed training weight.
