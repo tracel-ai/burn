@@ -278,6 +278,17 @@ impl BridgeTensor {
         }
     }
 
+    /// Whether the tensor's buffer can be mutated in place (see
+    /// [`TensorMetadata::can_mut`]).
+    pub fn can_mut(&self) -> bool {
+        match self.as_variant() {
+            BridgeTensorVariant::Bool(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::Int(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::Float(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::QFloat(tensor) => tensor.can_mut(),
+        }
+    }
+
     /// Returns the shape of the tensor.
     pub fn shape(&self) -> burn_std::Shape {
         match self.as_variant() {

@@ -75,6 +75,16 @@ impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
     fn device(&self) -> Self::Device {
         self.client.device().clone()
     }
+
+    fn can_mut(&self) -> bool {
+        // Same rule as `status` at drain time: a handle shared on its stream
+        // (count > 1) is read-only, a unique one is read-write and the fused
+        // kernel may write its buffer in place.
+        matches!(
+            self.status(self.count.load(Ordering::Acquire)),
+            TensorStatus::ReadWrite
+        )
+    }
 }
 
 impl<R: FusionRuntime> FusionTensor<R> {

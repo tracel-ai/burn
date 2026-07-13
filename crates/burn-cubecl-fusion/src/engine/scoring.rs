@@ -36,13 +36,13 @@ impl Scoring {
 
         for b in trace.blocks.iter() {
             // Count reads in block
-            for (_, ops) in b.reads.iter() {
+            for ops in b.reads.values() {
                 let result = self.count_fused_io(ops, |args| &args.input);
                 num_reads_fused += result.0;
                 num_penalty += result.1;
             }
             // Count writes in block
-            for (_, ops) in b.writes.iter() {
+            for ops in b.writes.values() {
                 let result = self.count_fused_io(ops, |args| &args.out);
                 num_writes_fused += result.0;
                 num_penalty += result.1;
