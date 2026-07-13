@@ -235,8 +235,9 @@ pub fn run_log_path(run_dir: &Path) -> PathBuf {
 
 pub mod ansi;
 
-mod run_support;
+pub mod run_support;
 mod ui_components;
 
 mod app;
 pub use app::AutotuneObservabilityApp;
+pub use run_support::ProblemKind;

@@ -1,8 +1,8 @@
 use eframe::egui;
 
 use super::AutotuneObservabilityApp;
-use crate::run_support::{BACKENDS, MatmulShape};
-use crate::ui_components::{dtype_field, event_view, size_fields};
+use crate::run_support::{BACKENDS, MatmulShape, ProblemKind};
+use crate::ui_components::{dtype_field, event_view, problem_field, size_fields};
 
 impl AutotuneObservabilityApp {
     pub(super) fn render_controls_panel(&mut self, ui: &mut egui::Ui) {
@@ -20,16 +20,25 @@ impl AutotuneObservabilityApp {
                 ui.separator();
                 dtype_field(ui, "in", "in_dtype", &mut self.input_dtype);
                 dtype_field(ui, "out", "out_dtype", &mut self.output_dtype);
+                ui.separator();
+                problem_field(ui, &mut self.problem);
             });
 
             ui.horizontal(|ui| {
-                ui.label("Matmuls (m×k · k×n)");
-                let can_remove = self.matmuls.len() > 1;
+                let (shape_label, field_labels) = match self.problem {
+                    ProblemKind::Matmul => ("Matmul shapes (m×k · k×n)", ["m", "k", "n"]),
+                    ProblemKind::Attention => (
+                        "Attention shapes (batch×seq×head)",
+                        ["batch", "seq", "head"],
+                    ),
+                };
+                ui.label(shape_label);
+                let can_remove = self.shapes.len() > 1;
                 let mut remove = None;
-                for (index, shape) in self.matmuls.iter_mut().enumerate() {
+                for (index, shape) in self.shapes.iter_mut().enumerate() {
                     ui.group(|ui| {
                         ui.horizontal(|ui| {
-                            size_fields(ui, shape);
+                            size_fields(ui, shape, field_labels);
                             if can_remove && ui.small_button("×").clicked() {
                                 remove = Some(index);
                             }
@@ -37,10 +46,10 @@ impl AutotuneObservabilityApp {
                     });
                 }
                 if let Some(index) = remove {
-                    self.matmuls.remove(index);
+                    self.shapes.remove(index);
                 }
                 if ui.button("+ add").clicked() {
-                    self.matmuls.push(MatmulShape {
+                    self.shapes.push(MatmulShape {
                         m: 512,
                         k: 512,
                         n: 512,
@@ -50,8 +59,11 @@ impl AutotuneObservabilityApp {
 
             ui.horizontal(|ui| {
                 ui.add_enabled_ui(!self.running(), |ui| {
-                    if ui.button("Run matmul").clicked() {
-                        self.run_matmul();
+                    if ui
+                        .button(format!("Run {}", self.problem.label().to_lowercase()))
+                        .clicked()
+                    {
+                        self.run_selected_problem();
                     }
                 });
                 if self.running() {
@@ -76,7 +88,14 @@ impl AutotuneObservabilityApp {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Hold Shift while dragging a dimension to change m, k, and n together.");
+                ui.label(match self.problem {
+                    ProblemKind::Matmul => {
+                        "Hold Shift while dragging a dimension to change m, k, and n together."
+                    }
+                    ProblemKind::Attention => {
+                        "Attention shape fields map to batch, sequence length, and head dimension."
+                    }
+                });
             });
             ui.add_space(4.0);
         });
@@ -134,7 +153,7 @@ impl AutotuneObservabilityApp {
     pub(super) fn render_events_panel(&mut self, ui: &mut egui::Ui) {
         egui::CentralPanel::default().show(ui, |ui| {
             if !self.runs.iter().any(|r| r.selected) {
-                ui.label("No run selected. Run a matmul, or tick a run on the left.");
+                ui.label("No run selected. Run a workload, or tick a run on the left.");
                 return;
             }
 

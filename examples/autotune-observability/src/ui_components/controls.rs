@@ -1,7 +1,7 @@
-use crate::run_support::MatmulShape;
 use crate::DTYPE_NAMES;
+use crate::run_support::{MatmulShape, ProblemKind};
 
-pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut MatmulShape) {
+pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut MatmulShape, labels: [&str; 3]) {
     let original = [
         shape.m.ilog2().min(14),
         shape.k.ilog2().min(14),
@@ -10,11 +10,7 @@ pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut MatmulShape) {
     let mut exponents = original;
     let mut changed = None;
 
-    for (index, (label, exponent)) in ["m", "k", "n"]
-        .into_iter()
-        .zip(exponents.iter_mut())
-        .enumerate()
-    {
+    for (index, (label, exponent)) in labels.into_iter().zip(exponents.iter_mut()).enumerate() {
         ui.label(label);
         if ui
             .add(
@@ -47,6 +43,17 @@ pub(crate) fn dtype_field(ui: &mut egui::Ui, label: &str, id: &str, selected: &m
         .show_ui(ui, |ui| {
             for (i, name) in DTYPE_NAMES.iter().enumerate() {
                 ui.selectable_value(selected, i, *name);
+            }
+        });
+}
+
+pub(crate) fn problem_field(ui: &mut egui::Ui, selected: &mut ProblemKind) {
+    ui.label("Problem");
+    egui::ComboBox::from_id_salt("problem")
+        .selected_text(selected.label())
+        .show_ui(ui, |ui| {
+            for problem in ProblemKind::ALL {
+                ui.selectable_value(selected, problem, problem.label());
             }
         });
 }

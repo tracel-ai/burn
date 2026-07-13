@@ -53,10 +53,11 @@ impl AutotuneObservabilityApp {
     /// the UI's profile, with the selected backend's feature), and stdout/stderr — build
     /// progress and the run itself — stream back line by line. A fresh process per run means an
     /// empty in-memory autotune cache, so the same config re-tunes every time.
-    pub(super) fn run_matmul(&mut self) {
+    pub(super) fn run_selected_problem(&mut self) {
         let (_, backend, feature) = BACKENDS[self.selected];
         let input = DTYPE_NAMES[self.input_dtype];
         let output = DTYPE_NAMES[self.output_dtype];
+        let problem = self.problem;
 
         let mut cargo_args: Vec<String> = vec!["run".into()];
         if is_release() {
@@ -66,22 +67,34 @@ impl AutotuneObservabilityApp {
         cargo_args.push("--".into());
 
         let shape_names: Vec<String> = self
-            .matmuls
+            .shapes
             .iter()
             .map(|shape| format!("{}x{}x{}", shape.m, shape.k, shape.n))
             .collect();
         let stamp = now_millis();
         let id = format!(
-            "{stamp}-{backend}-{}-{input}-{output}",
+            "{stamp}-{backend}-{}-{}-{input}-{output}",
+            problem.name(),
             shape_names.join("_")
         );
         let run_dir = runs_dir().join(&id);
 
-        cargo_args
-            .extend(["--backend", backend, "--input", input, "--output", output].map(String::from));
-        for shape in &self.matmuls {
+        cargo_args.extend(
+            [
+                "--backend",
+                backend,
+                "--problem",
+                problem.name(),
+                "--input",
+                input,
+                "--output",
+                output,
+            ]
+            .map(String::from),
+        );
+        for shape in &self.shapes {
             cargo_args.extend([
-                "--matmul".to_string(),
+                "--shape".to_string(),
                 format!("{}x{}x{}", shape.m, shape.k, shape.n),
             ]);
         }
@@ -94,7 +107,10 @@ impl AutotuneObservabilityApp {
 
         self.ansi_style = Default::default();
         self.push_line(&format!("$ cargo {}", cargo_args.join(" ")));
-        self.status = String::from("Running… (first run of a backend compiles it)");
+        self.status = format!(
+            "Running {}… (first run of a backend compiles it)",
+            problem.label().to_lowercase()
+        );
 
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || stream_command(cargo_args, tx));

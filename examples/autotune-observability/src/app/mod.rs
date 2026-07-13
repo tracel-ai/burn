@@ -5,7 +5,7 @@ use egui::Color32;
 use egui::text::LayoutJob;
 
 use crate::ansi::AnsiStyle;
-use crate::run_support::{MatmulShape, RunMsg, RunView};
+use crate::run_support::{MatmulShape, ProblemKind, RunMsg, RunView};
 
 mod actions;
 mod panels;
@@ -15,7 +15,8 @@ pub struct AutotuneObservabilityApp {
     selected: usize,
     input_dtype: usize,
     output_dtype: usize,
-    matmuls: Vec<MatmulShape>,
+    problem: ProblemKind,
+    shapes: Vec<MatmulShape>,
     only_short_circuits: bool,
     status: String,
     output: LayoutJob,
@@ -33,7 +34,8 @@ impl Default for AutotuneObservabilityApp {
             selected: 0,
             input_dtype: 0,
             output_dtype: 0,
-            matmuls: vec![MatmulShape {
+            problem: ProblemKind::Matmul,
+            shapes: vec![MatmulShape {
                 m: 512,
                 k: 512,
                 n: 512,

@@ -1,12 +1,13 @@
-//! Headless one-shot matmul runner.
+//! Headless one-shot workload runner.
 //!
-//! The UI shells out to this binary once per "Run" so each matmul happens in a fresh process:
+//! The UI shells out to this binary once per "Run" so each workload happens in a fresh process:
 //! the in-memory autotune cache starts empty every time, so the same config re-tunes (and
 //! re-logs) on every run. It also keeps burn out of the UI binary, so the UI rebuilds fast.
 //!
 //! Usage:
 //!   runner --list-backends
-//!   runner --backend <name> --matmul <MxKxN> [--matmul <MxKxN> ...] \
+//!   runner --backend <name> --problem <matmul|attention> \
+//!          --shape <DxExF> [--shape <DxExF> ...] \
 //!          --input <dtype> --output <dtype> [--run-dir <path>]
 //!
 //! With `--run-dir`, a per-run `cubecl.toml` is written there so the autotune log and cache
@@ -15,8 +16,10 @@
 
 use std::path::PathBuf;
 
-use autotune_observability::{example_dir, write_run_config};
-use burn::tensor::{Device, DeviceConfig, DeviceKind, Element, FloatDType, Tensor, TensorData};
+use autotune_observability::{ProblemKind, example_dir, write_run_config};
+use burn::tensor::{
+    Device, DeviceConfig, DeviceKind, Element, FloatDType, Tensor, TensorData, module,
+};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -67,24 +70,33 @@ fn main() {
             .int_dtype(<i32 as Element>::dtype()),
     );
 
-    for (index, shape) in cfg.matmuls.iter().enumerate() {
+    for (index, shape) in cfg.shapes.iter().enumerate() {
         println!(
-            "running matmul {} / {}: {}  {}x{} * {}x{}  in={} out={}",
+            "running {} {} / {}: {}  {}x{}x{}  in={} out={}",
+            cfg.problem.name(),
             index + 1,
-            cfg.matmuls.len(),
+            cfg.shapes.len(),
             shape.name(),
             shape.m,
-            shape.k,
             shape.k,
             shape.n,
             cfg.input_name,
             cfg.output_name
         );
 
-        match run_matmul(&device, shape.m, shape.k, shape.n, cfg.input, cfg.output) {
+        let result = match cfg.problem {
+            ProblemKind::Matmul => {
+                run_matmul(&device, shape.m, shape.k, shape.n, cfg.input, cfg.output)
+            }
+            ProblemKind::Attention => {
+                run_attention(&device, shape.m, shape.k, shape.n, cfg.input, cfg.output)
+            }
+        };
+
+        match result {
             Ok(()) => {}
             Err(err) => {
-                eprintln!("matmul {} failed: {err}", index + 1);
+                eprintln!("{} {} failed: {err}", cfg.problem.name(), index + 1);
                 std::process::exit(1);
             }
         }
@@ -94,7 +106,8 @@ fn main() {
 
 struct RunConfig {
     backend: String,
-    matmuls: Vec<MatmulShape>,
+    problem: ProblemKind,
+    shapes: Vec<MatmulShape>,
     input: FloatDType,
     input_name: String,
     output: FloatDType,
@@ -117,7 +130,8 @@ impl MatmulShape {
 impl RunConfig {
     fn parse(args: &[String]) -> Result<Self, String> {
         let mut backend = "wgpu".to_string();
-        let mut matmuls = Vec::new();
+        let mut problem = ProblemKind::Matmul;
+        let mut shapes = Vec::new();
         let mut legacy_shape = [None; 3];
         let mut input_name = "f32".to_string();
         let mut output_name = "f32".to_string();
@@ -127,7 +141,8 @@ impl RunConfig {
         while let Some(flag) = it.next() {
             match flag.as_str() {
                 "--backend" => backend = next(&mut it, flag)?,
-                "--matmul" => matmuls.push(parse_matmul(&next(&mut it, flag)?, flag)?),
+                "--problem" => problem = ProblemKind::from_str(&next(&mut it, flag)?)?,
+                "--shape" | "--matmul" => shapes.push(parse_matmul(&next(&mut it, flag)?, flag)?),
                 "--m" => legacy_shape[0] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
                 "--k" => legacy_shape[1] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
                 "--n" => legacy_shape[2] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
@@ -140,18 +155,19 @@ impl RunConfig {
 
         let input = float_dtype(&input_name)?;
         let output = float_dtype(&output_name)?;
-        if matmuls.is_empty() {
-            matmuls.push(MatmulShape {
+        if shapes.is_empty() {
+            shapes.push(MatmulShape {
                 m: legacy_shape[0].unwrap_or(512),
                 k: legacy_shape[1].unwrap_or(512),
                 n: legacy_shape[2].unwrap_or(512),
             });
         } else if legacy_shape.iter().any(Option::is_some) {
-            return Err("use --matmul or legacy --m/--k/--n, not both".into());
+            return Err("use --shape or legacy --m/--k/--n, not both".into());
         }
         Ok(Self {
             backend,
-            matmuls,
+            problem,
+            shapes,
             input,
             input_name,
             output,
@@ -162,9 +178,10 @@ impl RunConfig {
 
     fn meta(&self) -> String {
         format!(
-            "backend={}\nmatmuls={}\ninput={} output={}\n",
+            "backend={}\nproblem={}\nshapes={}\ninput={} output={}\n",
             self.backend,
-            self.matmuls
+            self.problem.name(),
+            self.shapes
                 .iter()
                 .map(MatmulShape::name)
                 .collect::<Vec<_>>()
@@ -251,15 +268,40 @@ fn run_matmul(
     input: FloatDType,
     output: FloatDType,
 ) -> Result<(), String> {
-    let a = Tensor::<2>::from_data(TensorData::new(fill(m, k), [m, k]), device).cast(input);
-    let b = Tensor::<2>::from_data(TensorData::new(fill(k, n), [k, n]), device).cast(input);
+    let a = Tensor::<2>::from_data(TensorData::new(fill(&[m, k]), [m, k]), device).cast(input);
+    let b = Tensor::<2>::from_data(TensorData::new(fill(&[k, n]), [k, n]), device).cast(input);
 
     let _c = a.matmul(b).cast(output);
     device.sync().map_err(|err| format!("{err:?}"))
 }
 
-fn fill(rows: usize, cols: usize) -> Vec<f32> {
-    (0..rows * cols)
+fn fill(dims: &[usize]) -> Vec<f32> {
+    let len = dims.iter().product();
+    (0..len)
         .map(|i| ((i % 1000) as f32 / 1000.0) - 0.5)
         .collect()
+}
+
+/// Run a single attention workload using `module::attention` to exercise attention autotuning.
+/// Shape mapping for `m x k x n` is:
+/// - `m`: batch size
+/// - `k`: sequence length
+/// - `n`: head dimension
+fn run_attention(
+    device: &Device,
+    m: usize,
+    k: usize,
+    n: usize,
+    input: FloatDType,
+    output: FloatDType,
+) -> Result<(), String> {
+    let query = Tensor::<4>::from_data(TensorData::new(fill(&[m, 1, k, n]), [m, 1, k, n]), device)
+        .cast(input);
+    let key = Tensor::<4>::from_data(TensorData::new(fill(&[m, 1, k, n]), [m, 1, k, n]), device)
+        .cast(input);
+    let value = Tensor::<4>::from_data(TensorData::new(fill(&[m, 1, k, n]), [m, 1, k, n]), device)
+        .cast(input);
+
+    let _out = module::attention(query, key, value, None, None, Default::default()).cast(output);
+    device.sync().map_err(|err| format!("{err:?}"))
 }
