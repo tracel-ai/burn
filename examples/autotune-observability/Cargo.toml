@@ -1,0 +1,40 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "autotune-observability"
+description = "UI + runner for observing matmul autotune logs"
+publish = false
+version.workspace = true
+
+[lints]
+workspace = true
+
+# The UI links only egui — build it with `cargo run --bin ui` for fast rebuilds.
+[[bin]]
+name = "ui"
+path = "bin/ui.rs"
+
+# The runner links burn and runs one matmul per process. It needs the `backend` feature, so it
+# is skipped by a plain `cargo build`/`--bin ui`. Build it once with:
+#   cargo build --bin runner --features backend        # wgpu only
+#   cargo build --bin runner --features cuda           # + tensor cores
+[[bin]]
+name = "runner"
+path = "bin/runner.rs"
+required-features = ["backend"]
+
+[features]
+default = []
+# Pulls in burn (wgpu + autotune) for the runner. wgpu is the always-available baseline.
+backend = ["dep:burn"]
+# Extra backends for the runner; each implies `backend`. wgpu can't target tensor cores, so
+# use `--features cuda` for those.
+cuda = ["backend", "burn/cuda"]
+vulkan = ["backend", "burn/vulkan"]
+metal = ["backend", "burn/metal"]
+cpu = ["backend", "burn/cpu"]
+
+[dependencies]
+burn = { workspace = true, features = ["wgpu", "autotune"], optional = true }
+eframe = "0.35"
+egui = "0.35"

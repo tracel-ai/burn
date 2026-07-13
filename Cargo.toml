@@ -238,5 +238,13 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-zspace = { version = "0.10.0", default-features = false }
 # cubek = { version = "0.2.0", default-features = false }
 
+[patch."https://github.com/tracel-ai/cubecl"]
+cubecl = { path = "../cubecl/crates/cubecl" }
+cubecl-common = { path = "../cubecl/crates/cubecl-common" }
+cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace" }
+
+[patch."https://github.com/tracel-ai/cubek"]
+cubek = { path = "../cubek/crates/cubek" }
+
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
