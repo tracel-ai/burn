@@ -1,6 +1,9 @@
 use crate::{
     CubeRuntime, CubeTuneId,
-    kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
+    kernel::matmul::{
+        launch_matmul, launch_matmul_naive, tune::bounds::create_matmul_bounds,
+        utils::init_matmul_output,
+    },
     tensor::CubeTensor,
 };
 use burn_backend::DType;
@@ -25,10 +28,12 @@ use cubek::matmul::{
     strategy::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
 };
 
+pub(super) type Inputs<R> = (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>);
+
 fn matmul_input_gen<R: CubeRuntime>(
     _key: &MatmulAutotuneKey,
-    (lhs, rhs, out): &(CubeTensor<R>, CubeTensor<R>, CubeTensor<R>),
-) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
+    (lhs, rhs, out): &Inputs<R>,
+) -> Inputs<R> {
     (lhs.clone(), rhs.clone(), out.copy())
 }
 
@@ -47,6 +52,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     }
 
     let client = lhs.client.clone();
+    let bounds_client = client.clone();
     let num_cpu_cores = client.properties().hardware.num_cpu_cores;
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
@@ -181,6 +187,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
         }
 
         let mut set = TunableSet::new(create_key::<R>, matmul_input_gen::<R>);
+
+        set = set.with_bounds(create_matmul_bounds(&bounds_client));
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
@@ -502,9 +510,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     output
 }
 
-fn create_key<R: CubeRuntime>(
-    (lhs, rhs, out): &(CubeTensor<R>, CubeTensor<R>, CubeTensor<R>),
-) -> MatmulAutotuneKey {
+fn create_key<R: CubeRuntime>((lhs, rhs, out): &Inputs<R>) -> MatmulAutotuneKey {
     MatmulAutotuneKey::generate(
         &lhs.client,
         lhs.meta.shape(),
