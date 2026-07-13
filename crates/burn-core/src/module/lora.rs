@@ -17,6 +17,8 @@ pub struct LoraConfig {
     pub alpha: f64,
     /// Standard deviation used to initialize the `A` factor. Defaults to `1 / rank`.
     pub init_std: Option<f64>,
+    /// The parameter group on which to apply the LoRA.
+    pub param_group: ParamGroup,
 }
 
 impl LoraConfig {
@@ -26,7 +28,14 @@ impl LoraConfig {
             rank,
             alpha,
             init_std: None,
+            param_group: ParamGroup::all(),
         }
+    }
+
+    /// Set the parameter group to quantize on which to apply the LoRA.
+    pub fn set_param_group(mut self, group: ParamGroup) -> Self {
+        self.param_group = group;
+        self
     }
 }
 
@@ -43,7 +52,6 @@ impl LoraConfig {
 /// any other module) keeps working, now producing `base + scale * (a @ b)` for adapted weights.
 #[derive(Debug, Clone)]
 pub struct LoraMapper {
-    group: ParamGroup,
     config: LoraConfig,
     path: Vec<String>,
 }
@@ -53,14 +61,13 @@ impl LoraMapper {
     pub fn new(config: LoraConfig) -> Self {
         Self {
             config,
-            group: ParamGroup::all(),
             path: vec![],
         }
     }
 
     /// Specify a parameter group on which to apply the LoRA.
     pub fn for_group(mut self, group: ParamGroup) -> Self {
-        self.group = group;
+        self.config.param_group = group;
         self
     }
 }
@@ -92,7 +99,7 @@ impl ModuleMapper for LoraMapper {
         let base = Param::from_mapped_value(id, tensor.set_require_grad(false), mapper);
 
         let path = self.path.join(".");
-        if self.group.matches(&id, Some(&path)) {
+        if self.config.param_group.matches(&id, Some(&path)) {
             // Standard LoRA init: A ~ N(0, std) and B = 0, so the initial delta (and the model output)
             // is unchanged when the adapter is first attached.
             let std = self.config.init_std.unwrap_or(1.0 / rank as f64);
@@ -153,8 +160,8 @@ mod tests {
     fn lora_model(in_features: usize, out_features: usize) -> (SimpleLinear, super::LoraConfig) {
         let device = test_device();
         let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(in_features, out_features, &device)
-            .apply_lora(&mut LoraMapper::new(config.clone()));
+        let model =
+            SimpleLinear::new(in_features, out_features, &device).apply_lora(config.clone());
         (model, config)
     }
 
@@ -215,7 +222,7 @@ mod tests {
 
         // A freshly-prepared model has different random base/A and zero B.
         let device = test_device();
-        let target = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let target = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         let record = model.clone().into_record();
         let loaded = target.load_record(record);
@@ -246,7 +253,7 @@ mod tests {
     fn lora_backward_grads_adapter_only() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         // Forward through the composed weight and backpropagate.
         let loss = model.weight.val().sum();
@@ -259,7 +266,7 @@ mod tests {
         assert!(model.weight.base().grad(&grads).is_none());
     }
 
-    #[cfg(not(feature = "tch"))]
+    // #[cfg(not(feature = "tch"))]
     #[test]
     fn qlora_quantizes_base_and_attaches_adapter() {
         use crate::module::Quantizer;
@@ -273,15 +280,12 @@ mod tests {
             .with_value(QuantValue::Q8S)
             .with_level(QuantLevel::Tensor)
             .with_param(QuantParam::F32);
-        let quantizer = Quantizer {
-            calibration: Calibration::MinMax,
-            scheme,
-        };
+        let quantizer = Quantizer::new(Calibration::MinMax, scheme);
 
         let original = SimpleLinear::new(8, 8, &device).weight.val();
 
-        let model = SimpleLinear::new(8, 8, &device)
-            .apply_qlora(&mut QLoraMapper::new(LoraConfig::new(2, 4.0), quantizer));
+        let model =
+            SimpleLinear::new(8, 8, &device).apply_qlora(LoraConfig::new(2, 4.0), quantizer);
 
         let weight = &model.weight;
         assert!(weight.adapter().is_some());
@@ -294,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    fn for_group_restricts_adapter_to_matching_parameters() {
+    fn param_group_restricts_adapter_to_matching_parameters() {
         use crate as burn;
 
         #[derive(Module, Debug)]
@@ -317,9 +321,9 @@ mod tests {
             )),
         };
 
-        let config = LoraConfig::new(2, 4.0);
         let group = ParamGroup::from_predicate("a");
-        let model = model.apply_lora(&mut LoraMapper::new(config).for_group(group));
+        let config = LoraConfig::new(2, 4.0).set_param_group(group);
+        let model = model.apply_lora(config);
 
         // Only the parameter whose path matches the group gets an adapter attached.
         assert!(
@@ -341,7 +345,7 @@ mod tests {
     fn lora_valid_folds_adapter_for_inference() {
         let device = test_device().autodiff();
         let config = LoraConfig::new(2, 4.0);
-        let model = SimpleLinear::new(4, 6, &device).apply_lora(&mut LoraMapper::new(config));
+        let model = SimpleLinear::new(4, 6, &device).apply_lora(config);
 
         let inference = model.valid();
         // The inference parameter has no adapter (folded) and equals the composed training weight.

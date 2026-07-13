@@ -3,11 +3,11 @@ use std::sync::Arc;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::transform::SamplerDataset;
 use burn::module::LoraConfig;
+use burn::prelude::*;
 use burn::train::metric::{
     AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
 };
 use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
-use burn::{module::LoraMapper, prelude::*};
 
 use crate::{
     TextClassificationDataset,
@@ -47,7 +47,7 @@ pub fn lora_finetuning<D: TextClassificationDataset + 'static>(
 
     // Apply LoRA to the attention module's query, value, output and feed-forward weights.
     let r = 8.0;
-    let mut model = model.apply_lora(&mut LoraMapper::new(LoraConfig::new(r as usize, 2.0 * r)));
+    let mut model = model.apply_lora(LoraConfig::new(r as usize, 2.0 * r));
     // Reset the classification head with the current dataset's number of classes.
     model.reset_head(D::num_classes());
 
