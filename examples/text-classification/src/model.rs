@@ -134,6 +134,14 @@ impl TextClassificationModel {
 
         softmax(output, 1)
     }
+
+    pub fn reset_head(&mut self, num_classes: usize) {
+        self.n_classes = num_classes;
+        self.output = LinearConfig::new(self.transformer.d_model, self.n_classes)
+            .init(&self.transformer.devices()[0]);
+        self.output.weight = self.output.weight.clone().set_require_grad(true);
+        self.output.bias = self.output.bias.clone().map(|b| b.set_require_grad(true));
+    }
 }
 
 /// Define training step

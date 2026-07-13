@@ -1,4 +1,5 @@
 use super::ParamId;
+use super::lora::LoraAdapter;
 use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
@@ -123,6 +124,11 @@ pub struct Param<T: Parameter> {
     pub(crate) param_mapper: ParamMapper<T>,
     // For stateful `module.valid()` <> `module.train()`
     pub(crate) require_grad: bool,
+    /// Optional LoRA adapter. When present, the stored [state](Self::state) holds the frozen
+    /// (optionally quantized) base weight and [val](Self::val) returns the composed value
+    /// `base + scale * (a @ b)`. The adapter's trainable factors are surfaced as regular
+    /// parameters by the module traversal (see the `Module` impl for `Param<Tensor<D>>`).
+    pub(crate) adapter: Option<Box<LoraAdapter>>,
 }
 
 #[derive(Clone)]
@@ -219,6 +225,17 @@ pub trait Parameter: sealed::Sealed + Clone + core::fmt::Debug + Send {
     /// Moves the parameter to the target device if it is not already on it,
     /// applying any kind-specific preparation required for the loading lifecycle (e.g. detach).
     fn load_to_device(self, device: &Device) -> Self;
+
+    /// Compose a frozen base parameter with a LoRA low-rank [adapter](LoraAdapter), returning
+    /// `base + scale * (a @ b)`.
+    ///
+    /// Only float tensor parameters implement a meaningful composition; for other parameter kinds
+    /// this is a no-op, since adapters are never attached to them.
+    #[doc(hidden)]
+    fn compose_lora(self, adapter: &LoraAdapter) -> Self {
+        let _ = adapter;
+        self
+    }
 }
 
 /// The deferred initialization state for lazy parameters.
@@ -256,6 +273,7 @@ impl<T: Parameter> Param<T> {
             state: LazyInitState::initialized(value),
             param_mapper: Default::default(),
             require_grad,
+            adapter: None,
         }
     }
 
@@ -280,15 +298,55 @@ impl<T: Parameter> Param<T> {
             }),
             param_mapper: Default::default(),
             require_grad: is_require_grad,
+            adapter: None,
         }
     }
 
-    /// Gets the parameter value, initializing it lazily if needed.
+    /// Gets the effective parameter value, initializing it lazily if needed.
     ///
     /// For initialized parameters, this returns a clone of the cached value.
-    /// For uninitialized parameters, this triggers initialization:
+    /// For uninitialized parameters, this triggers initialization.
+    ///
+    /// When a LoRA [adapter](LoraAdapter) is attached, this returns the composed value
+    /// `base + scale * (a @ b)` rather than the raw stored base. Use [`base`](Self::base) to
+    /// access the raw stored value without composition.
     pub fn val(&self) -> T {
+        let base = self.deref().clone();
+        match &self.adapter {
+            Some(adapter) => base.compose_lora(adapter),
+            None => base,
+        }
+    }
+
+    /// Gets the raw stored parameter value (the frozen base when a LoRA adapter is attached),
+    /// **without** applying any adapter composition.
+    pub fn base(&self) -> T {
         self.deref().clone()
+    }
+
+    /// The LoRA [adapter](LoraAdapter) attached to this parameter, if any.
+    pub fn adapter(&self) -> Option<&LoraAdapter> {
+        self.adapter.as_deref()
+    }
+
+    /// Returns a cheap clone of this parameter with any LoRA adapter detached.
+    ///
+    /// The clone shares the same lazy-initialization state, so the raw base value is not
+    /// duplicated. Used to route the optimizer/record traversal over the structural base.
+    pub(crate) fn without_adapter(&self) -> Self {
+        Self {
+            id: self.id,
+            state: self.state.clone(),
+            param_mapper: self.param_mapper.clone(),
+            require_grad: self.require_grad,
+            adapter: None,
+        }
+    }
+
+    /// Attaches (or replaces) the LoRA adapter on this parameter.
+    pub(crate) fn with_adapter(mut self, adapter: Option<Box<LoraAdapter>>) -> Self {
+        self.adapter = adapter;
+        self
     }
 
     /// Check if the parameter has been initialized.
@@ -304,9 +362,13 @@ impl<T: Parameter> Param<T> {
         self.consume().1
     }
 
-    /// Gets the parameter id and value while consuming the parameter.
+    /// Gets the parameter id and raw value while consuming the parameter.
+    ///
+    /// Returns the raw stored value (the frozen base when a LoRA adapter is attached); any
+    /// adapter is dropped. Module traversals strip the adapter before calling into `map_float`,
+    /// so mappers always observe the structural base.
     pub fn consume(self) -> (ParamId, T, ParamMapper<T>) {
-        let tensor = self.val();
+        let tensor = self.deref().clone();
 
         core::mem::drop(self.state);
 
@@ -324,6 +386,7 @@ impl<T: Parameter> Param<T> {
             state: LazyInitState::initialized(tensor),
             param_mapper,
             require_grad,
+            adapter: None,
         }
     }
 
@@ -338,6 +401,7 @@ impl<T: Parameter> Param<T> {
             state: LazyInitState::initialized(value),
             param_mapper,
             require_grad,
+            adapter: None,
         }
     }
 
@@ -383,6 +447,7 @@ impl<T: Parameter> Param<T> {
                     id: base.id,
                     param_mapper: base.param_mapper.clone(),
                     require_grad: base.require_grad,
+                    adapter: None,
                     state: LazyInitState::uninitialized(Uninitialized {
                         // (device, require_grad) are already encoded in `Uninitialized` state and
                         // applied when `base.val()` triggers initialization. The transformed tensor
@@ -544,6 +609,7 @@ impl<T: Parameter> Clone for Param<T> {
             state: self.state.clone(),
             param_mapper: self.param_mapper.clone(),
             require_grad: self.require_grad,
+            adapter: self.adapter.clone(),
         }
     }
 }
