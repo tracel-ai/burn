@@ -69,9 +69,11 @@ where
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                         KeyCode::PageDown => {
-                            app.events_scroll = app.events_scroll.saturating_add(1)
+                            app.events_scroll = app.events_scroll.saturating_add(10)
                         }
-                        KeyCode::PageUp => app.events_scroll = app.events_scroll.saturating_sub(1),
+                        KeyCode::PageUp => app.events_scroll = app.events_scroll.saturating_sub(10),
+                        KeyCode::Home => app.events_scroll = 0,
+                        KeyCode::End => app.events_scroll = u16::MAX,
                         KeyCode::Down | KeyCode::Char('j') => {
                             if let Some(selected) = app.run_list_state.selected() {
                                 if selected < app.runs.len().saturating_sub(1) {
