@@ -43,15 +43,15 @@ pub(crate) fn example_rel() -> PathBuf {
         .unwrap_or_default()
 }
 
-/// Repos to push to the remote: always the workspace root, plus any repo pointed to by an active
-/// `[patch]` (cubecl / cubek) so a locally-patched build reproduces remotely.
+/// Repos to push to the remote: always the workspace root, plus any sibling repo referenced by a
+/// local `path = "../…"` dependency (cubecl / cubek) so a locally-patched build reproduces remotely.
 pub(crate) fn repos_to_sync() -> Vec<SyncRepo> {
     let root = workspace_root();
     let mut repos = vec![SyncRepo {
         name: dir_name(&root),
         local: root.clone(),
     }];
-    for local in active_patch_repos(&root) {
+    for local in external_repos(&root) {
         repos.push(SyncRepo {
             name: dir_name(&local),
             local,
@@ -66,39 +66,57 @@ fn dir_name(path: &Path) -> String {
         .unwrap_or_else(|| "repo".to_string())
 }
 
-/// Parse the workspace `Cargo.toml` for active (uncommented) `[patch."…"]` sections and return
-/// the local repo root each patched crate path points into (deduplicated). Returns nothing when
-/// there is no workspace manifest or no active patch, in which case only the root is synced.
-fn active_patch_repos(root: &Path) -> Vec<PathBuf> {
+/// Local sibling repos the build depends on, resolved to absolute (deduplicated) paths. Returns
+/// nothing when there is no workspace manifest or no such dependency, in which case only the root
+/// is synced.
+fn external_repos(root: &Path) -> Vec<PathBuf> {
     let Ok(text) = std::fs::read_to_string(root.join("Cargo.toml")) else {
         return Vec::new();
     };
 
     let mut repos: Vec<PathBuf> = Vec::new();
-    let mut in_patch = false;
-    for raw in text.lines() {
+    for repo_rel in external_repo_rels(&text) {
+        if let Ok(repo) = root.join(&repo_rel).canonicalize()
+            && !repos.contains(&repo)
+        {
+            repos.push(repo);
+        }
+    }
+    repos
+}
+
+/// Parse a workspace `Cargo.toml` for active (uncommented) dependency-table path overrides that
+/// point at a *sibling* repo (`path = "../…"`), and return each such repo's root relative path
+/// (deduplicated). This covers both `[patch."…"]` sections and plain `path` dependencies declared
+/// under `[dependencies]` / `[workspace.dependencies]` (how burn overrides cubecl / cubek locally).
+/// Intra-workspace path deps (e.g. `crates/burn-cubecl`) are ignored — the root already covers them.
+fn external_repo_rels(manifest: &str) -> Vec<String> {
+    let mut rels: Vec<String> = Vec::new();
+    let mut in_deps = false;
+    for raw in manifest.lines() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
         if line.starts_with('[') {
-            in_patch = line.starts_with("[patch.");
+            in_deps = line.starts_with("[patch.") || line.contains("dependencies]");
             continue;
         }
-        if !in_patch {
+        if !in_deps {
             continue;
         }
-        if let Some(path) = patch_path(line) {
-            // `path` is like `../cubecl/crates/cubecl`; the repo root is the part before `/crates/`.
-            let repo_rel = path.split("/crates/").next().unwrap_or(&path);
-            if let Ok(repo) = root.join(repo_rel).canonicalize()
-                && !repos.contains(&repo)
-            {
-                repos.push(repo);
-            }
+        let Some(path) = patch_path(line) else { continue };
+        // Only sibling repos (`../…`) need syncing; intra-workspace paths stay with the root.
+        if !path.starts_with("..") {
+            continue;
+        }
+        // `path` is like `../cubecl/crates/cubecl`; the repo root is the part before `/crates/`.
+        let repo_rel = path.split("/crates/").next().unwrap_or(&path).to_string();
+        if !rels.contains(&repo_rel) {
+            rels.push(repo_rel);
         }
     }
-    repos
+    rels
 }
 
 /// Extract the `path = "…"` value from a patch dependency line, if present.
@@ -112,7 +130,7 @@ fn patch_path(line: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::patch_path;
+    use super::{external_repo_rels, patch_path};
 
     #[test]
     fn parses_patch_path() {
@@ -127,5 +145,42 @@ mod tests {
     fn repo_root_is_part_before_crates() {
         let path = "../cubecl/crates/cubecl";
         assert_eq!(path.split("/crates/").next(), Some("../cubecl"));
+    }
+
+    #[test]
+    fn detects_sibling_repos_from_workspace_dependencies() {
+        // Mirrors burn's layout: cubecl/cubek overridden via `[workspace.dependencies]` (no
+        // `[patch]` section), alongside intra-workspace crate deps and a commented-out git source.
+        let manifest = r#"
+[workspace.dependencies]
+burn-cubecl = { path = "crates/burn-cubecl", version = "0.22.0-pre.1" }
+# cubecl = { git = "https://github.com/tracel-ai/cubecl", rev = "abc" }
+cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+cubek = { path = "../cubek/crates/cubek", default-features = false }
+
+[profile.dev]
+opt-level = 0
+"#;
+        assert_eq!(external_repo_rels(manifest), vec!["../cubecl", "../cubek"]);
+    }
+
+    #[test]
+    fn detects_sibling_repos_from_patch_section() {
+        let manifest = r#"
+[patch.crates-io]
+cubecl = { path = "../cubecl/crates/cubecl" }
+"#;
+        assert_eq!(external_repo_rels(manifest), vec!["../cubecl"]);
+    }
+
+    #[test]
+    fn ignores_intra_workspace_and_registry_deps() {
+        let manifest = r#"
+[workspace.dependencies]
+burn-cubecl = { path = "crates/burn-cubecl" }
+serde = { version = "1" }
+"#;
+        assert!(external_repo_rels(manifest).is_empty());
     }
 }
