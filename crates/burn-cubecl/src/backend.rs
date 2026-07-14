@@ -189,23 +189,6 @@ where
         let client = R::client(device);
         client.flush().unwrap();
     }
-
-    fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
-        device: &Self::Device,
-        input: Input,
-        func: Func,
-    ) -> Output {
-        let client = R::client(device);
-        let output = client.memory_static_allocation(input, func);
-        let memory = client.memory_usage();
-        println!("{memory}");
-        output
-    }
-
-    fn memory_cleanup(device: &Self::Device) {
-        let client = R::client(device);
-        client.memory_cleanup();
-    }
 }
 
 impl<R: CubeRuntime> core::fmt::Debug for CubeBackend<R> {
