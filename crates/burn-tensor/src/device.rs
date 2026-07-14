@@ -608,6 +608,27 @@ impl Device {
         Dispatch::ad_enabled(self.as_dispatch())
     }
 
+    /// Returns `true` if this device supports `dtype` for general computation:
+    /// storage, conversion, *and* arithmetic.
+    ///
+    /// A type can be less than generally supported — bf16 on a Vulkan device,
+    /// for example, is often storable and convertible but has no arithmetic
+    /// (SPIR-V's `SPV_KHR_bfloat16` permits only conversions, dot products,
+    /// and cooperative-matrix use). Computing in such a type produces
+    /// backend-dependent garbage, so check before selecting a reduced
+    /// precision:
+    ///
+    /// ```rust,ignore
+    /// let dtype = if device.supports_dtype(FloatDType::BF16) {
+    ///     FloatDType::BF16
+    /// } else {
+    ///     FloatDType::F32
+    /// };
+    /// ```
+    pub fn supports_dtype(&self, dtype: impl Into<burn_std::DType>) -> bool {
+        Dispatch::supports_dtype(self.as_dispatch(), dtype.into())
+    }
+
     /// Sets the current allocation mode to persistent.
     pub fn memory_persistent_allocations<
         Output: Send,
