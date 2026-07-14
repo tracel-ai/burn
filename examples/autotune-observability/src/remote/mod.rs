@@ -36,6 +36,8 @@ pub(crate) struct RemoteRun {
     pub force_sync: bool,
     /// Pass `--no-throughput-cache` to the runner so the peak bound is re-benchmarked.
     pub disable_throughput_cache: bool,
+    /// Disable short circuits in autotune.
+    pub disable_short_circuit: bool,
 }
 
 /// Drive a full remote run and stream progress, always ending with [`RunMsg::Done`].
@@ -181,8 +183,12 @@ fn expand_tilde(path: &str, home: &str) -> String {
 /// The OS-independent `cargo run …` command. Always release, since debug autotune timings are
 /// meaningless.
 fn cargo_tail(run: &RemoteRun, remote_run_dir: &str) -> String {
+    let mut env_prefix = String::new();
+    if run.disable_short_circuit {
+        env_prefix.push_str("CUBECL_AUTOTUNE_SHORT_CIRCUIT=0 ");
+    }
     let mut command = format!(
-        "cargo run --release --bin runner --features {} -- \
+        "{env_prefix}cargo run --release --bin runner --features {} -- \
          --backend {} --problem {} --input {} --output {}",
         run.feature,
         run.backend,

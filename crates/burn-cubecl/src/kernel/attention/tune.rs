@@ -52,7 +52,9 @@ pub fn attention_autotune<R: CubeRuntime>(
         });
 
         let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
-        set = set.with_bounds(super::bounds::create_attention_bounds(&bounds_client));
+        set = set
+            .with_bounds(super::bounds::create_attention_bounds(&bounds_client))
+            .with_short_circuit(false);
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(

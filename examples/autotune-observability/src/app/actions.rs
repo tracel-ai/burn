@@ -201,7 +201,12 @@ impl AutotuneObservabilityApp {
         let mut n = self.run_books.books.len() + 1;
         let name = loop {
             let candidate = format!("Book {n}");
-            if !self.run_books.books.iter().any(|book| book.name == candidate) {
+            if !self
+                .run_books
+                .books
+                .iter()
+                .any(|book| book.name == candidate)
+            {
                 break candidate;
             }
             n += 1;
@@ -387,6 +392,7 @@ impl AutotuneObservabilityApp {
                 local_run_dir: run_dir,
                 force_sync: self.force_sync,
                 disable_throughput_cache: self.disable_throughput_cache,
+                disable_short_circuit: self.disable_short_circuit,
             };
             thread::spawn(move || run_remote(cfg, run, cancel_flag, tx));
         } else {
@@ -427,13 +433,18 @@ impl AutotuneObservabilityApp {
                 cargo_args.push("--no-throughput-cache".to_string());
             }
 
+            let mut envs = Vec::new();
+            if self.disable_short_circuit {
+                envs.push(("CUBECL_AUTOTUNE_SHORT_CIRCUIT".into(), "0".into()));
+            }
+
             self.push_line(&format!("$ cargo {}", cargo_args.join(" ")));
             self.status = format!(
                 "Running {}{}… (first run of a backend compiles it)",
                 problem.label().to_lowercase(),
                 queue_suffix
             );
-            thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
+            thread::spawn(move || stream_command(cargo_args, envs, tx, cancel_flag));
         }
 
         self.run_rx = Some(rx);

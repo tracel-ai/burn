@@ -42,6 +42,7 @@ pub(crate) struct App {
     pub(crate) remote_edit: Option<RemoteField>,
     pub(crate) force_sync: bool,
     pub(crate) disable_throughput_cache: bool,
+    pub(crate) disable_short_circuit: bool,
     pub(crate) status: String,
 
     pub(crate) run_books: RunBooks,
@@ -86,6 +87,7 @@ impl App {
             remote_edit: None,
             force_sync: false,
             disable_throughput_cache: false,
+            disable_short_circuit: false,
             status: String::from("Ready."),
             run_books: RunBooks::load(),
             selected_book: 0,
@@ -207,6 +209,7 @@ impl App {
                 local_run_dir: run_dir,
                 force_sync: self.force_sync,
                 disable_throughput_cache: self.disable_throughput_cache,
+                disable_short_circuit: self.disable_short_circuit,
             };
             thread::spawn(move || run_remote(cfg, run, cancel_flag, tx));
         } else {
@@ -235,10 +238,14 @@ impl App {
             if self.disable_throughput_cache {
                 cargo_args.push("--no-throughput-cache".into());
             }
+            let mut envs = Vec::new();
+            if self.disable_short_circuit {
+                envs.push(("CUBECL_AUTOTUNE_SHORT_CIRCUIT".into(), "0".into()));
+            }
             self.output_lines
                 .push(format!("$ cargo {}", cargo_args.join(" ")));
             self.status = String::from("Running locally…");
-            thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
+            thread::spawn(move || stream_command(cargo_args, envs, tx, cancel_flag));
         }
 
         self.run_rx = Some(rx);

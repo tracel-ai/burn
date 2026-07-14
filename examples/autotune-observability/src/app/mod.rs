@@ -52,6 +52,8 @@ pub struct AutotuneObservabilityApp {
     force_sync: bool,
     /// Re-benchmark the peak-throughput bound each run instead of reusing cubecl's global cache.
     disable_throughput_cache: bool,
+    /// Disable short circuits in autotune.
+    disable_short_circuit: bool,
     /// Named run books (e.g. one of matmuls, one of attentions), saved to disk. Each book is a
     /// batch of run configs launchable one-by-one or all at once.
     run_books: RunBooks,
@@ -87,6 +89,7 @@ impl Default for AutotuneObservabilityApp {
             conn_test: None,
             force_sync: false,
             disable_throughput_cache: false,
+            disable_short_circuit: false,
             run_books: RunBooks::load(),
             selected_book: 0,
             run_book_editing: None,

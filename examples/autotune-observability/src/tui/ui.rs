@@ -235,6 +235,8 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 } else {
                     "off"
                 }),
+                Span::styled(" | [v] no short-circuits: ", Style::default().fg(Color::Cyan)),
+                Span::raw(if app.disable_short_circuit { "ON" } else { "off" }),
             ])
         } else {
             Line::from(vec![
@@ -244,6 +246,8 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 } else {
                     "off"
                 }),
+                Span::styled(" | [v] no short-circuits: ", Style::default().fg(Color::Cyan)),
+                Span::raw(if app.disable_short_circuit { "ON" } else { "off" }),
             ])
         };
         vec![

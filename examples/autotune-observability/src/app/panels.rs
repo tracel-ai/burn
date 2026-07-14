@@ -128,6 +128,10 @@ impl AutotuneObservabilityApp {
                     .on_hover_text(
                         "Disable cubecl's throughput cache so the peak bound is measured every run",
                     );
+                ui.checkbox(&mut self.disable_short_circuit, "Disable short circuits")
+                    .on_hover_text(
+                        "Disable short circuits in autotune",
+                    );
                 let rerun_label = if selected_runs <= 1 {
                     String::from("Rerun Selected")
                 } else {

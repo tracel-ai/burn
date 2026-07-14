@@ -142,6 +142,9 @@ where
                         KeyCode::Char('t') => {
                             app.disable_throughput_cache = !app.disable_throughput_cache
                         }
+                        KeyCode::Char('v') => {
+                            app.disable_short_circuit = !app.disable_short_circuit
+                        }
                         KeyCode::Enter | KeyCode::Char('r') => app.run_selected_problem(),
                         KeyCode::Char('D') => {
                             if let Some(selected) = app.run_list_state.selected() {

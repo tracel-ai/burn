@@ -49,7 +49,9 @@ pub fn autotune_reduce<R: CubeRuntime>(
         const PRIORITY_SKIP: i8 = -1;
 
         let mut set = TunableSet::new(create_key::<R>, reduce_input_gen::<R>);
-        set = set.with_bounds(create_reduce_bounds(&bounds_client));
+        set = set
+            .with_bounds(create_reduce_bounds(&bounds_client))
+            .with_short_circuit(false);
 
         let default_group =
             TuneGroup::<ReduceAutotuneKey>::new("default_reduce", |_key| PRIORITY_MAX);

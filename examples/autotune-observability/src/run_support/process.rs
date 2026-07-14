@@ -10,10 +10,19 @@ use std::time::Duration;
 
 /// Run `cargo <args>` in the example dir, streaming interleaved stdout+stderr as [`RunMsg::Line`]
 /// and finishing with [`RunMsg::Done`].
-pub(crate) fn stream_command(args: Vec<String>, tx: Sender<RunMsg>, cancel_flag: Arc<AtomicBool>) {
-    let mut child = match Command::new("cargo")
-        .current_dir(crate::example_dir())
-        .env("CARGO_TERM_COLOR", "always")
+pub(crate) fn stream_command(
+    args: Vec<String>,
+    envs: Vec<(String, String)>,
+    tx: Sender<RunMsg>,
+    cancel_flag: Arc<AtomicBool>,
+) {
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(crate::example_dir());
+    cmd.env("CARGO_TERM_COLOR", "always");
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    let mut child = match cmd
         .args(&args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
