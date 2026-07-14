@@ -117,7 +117,9 @@ where
                         KeyCode::Char('h') => app.remote_edit = Some(RemoteField::Host),
                         KeyCode::Char('g') => app.remote_edit = Some(RemoteField::Base),
                         KeyCode::Char('w') => app.remote_edit = Some(RemoteField::Password),
-                        KeyCode::Char('f') => app.force_sync = !app.force_sync,
+                        KeyCode::Char('f') if app.remote.enabled => {
+                            app.force_sync = !app.force_sync
+                        }
                         KeyCode::Char('t') => {
                             app.disable_throughput_cache = !app.disable_throughput_cache
                         }

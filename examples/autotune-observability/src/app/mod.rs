@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::mpsc::Receiver;
 
 use eframe::egui;
@@ -10,6 +11,16 @@ use crate::run_support::{ProblemKind, RunMsg, RunView};
 
 mod actions;
 mod panels;
+
+#[derive(Clone)]
+struct LaunchRequest {
+    backend: String,
+    problem: ProblemKind,
+    input: String,
+    output: String,
+    shapes: Vec<Vec<usize>>,
+    source_label: Option<String>,
+}
 
 pub struct AutotuneObservabilityApp {
     runs: Vec<RunView>,
@@ -27,6 +38,10 @@ pub struct AutotuneObservabilityApp {
     run_cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// Directory name of the in-flight run, selected once it finishes successfully.
     pending_run: Option<String>,
+    /// Saved runs queued by "Rerun Selected", launched one after another.
+    rerun_queue: VecDeque<LaunchRequest>,
+    /// Optional popup content for customizing saved runs before rerunning them.
+    rerun_popup: Option<Vec<LaunchRequest>>,
     rename_buffer: Option<(usize, String)>,
     built_backends: Vec<String>,
     comparison_mode: bool,
@@ -56,6 +71,8 @@ impl Default for AutotuneObservabilityApp {
             run_rx: None,
             run_cancel: None,
             pending_run: None,
+            rerun_queue: VecDeque::new(),
+            rerun_popup: None,
             rename_buffer: None,
             built_backends: Vec::new(),
             comparison_mode: false,
@@ -103,5 +120,6 @@ impl eframe::App for AutotuneObservabilityApp {
         self.render_output_panel(ui);
         self.render_runs_panel(ui);
         self.render_events_panel(ui);
+        self.render_rerun_popup(&ctx);
     }
 }

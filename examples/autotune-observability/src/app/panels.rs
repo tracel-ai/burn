@@ -103,6 +103,7 @@ impl AutotuneObservabilityApp {
             });
 
             ui.horizontal(|ui| {
+                let selected_runs = self.runs.iter().filter(|r| r.selected).count();
                 ui.add_enabled_ui(!self.running(), |ui| {
                     let (_, backend_name, _) = BACKENDS[self.selected];
                     let needs_build = !self.built_backends.iter().any(|b| b == backend_name);
@@ -127,11 +128,30 @@ impl AutotuneObservabilityApp {
                     .on_hover_text(
                         "Disable cubecl's throughput cache so the peak bound is measured every run",
                     );
+                let rerun_label = if selected_runs <= 1 {
+                    String::from("Rerun Selected")
+                } else {
+                    format!("Rerun Selected ({selected_runs})")
+                };
+                let rerun_response = ui
+                    .add_enabled(
+                        !self.running() && selected_runs > 0,
+                        egui::Button::new(rerun_label),
+                    )
+                    .on_hover_text(
+                        "Shift-click to preview and override backend/input/output dtypes before rerunning",
+                    );
+                if rerun_response.clicked() {
+                    if ui.input(|inp| inp.modifiers.shift) {
+                        self.open_rerun_selected_popup();
+                    } else {
+                        self.rerun_selected_runs();
+                    }
+                }
                 if ui.button("Rescan runs").clicked() {
                     self.rescan_backends();
                     self.rescan_runs(None);
                 }
-                let selected_runs = self.runs.iter().filter(|r| r.selected).count();
                 if selected_runs >= 2 {
                     if ui
                         .button(if self.comparison_mode {
@@ -178,6 +198,117 @@ impl AutotuneObservabilityApp {
         });
     }
 
+    pub(super) fn render_rerun_popup(&mut self, ctx: &egui::Context) {
+        let Some(requests) = self.rerun_popup.as_mut() else {
+            return;
+        };
+
+        let mut open = true;
+        let mut start = false;
+        let mut cancel = false;
+        egui::Window::new("Customize reruns")
+            .collapsible(false)
+            .resizable(true)
+            .default_width(760.0)
+            .open(&mut open)
+            .show(ctx, |ui| {
+                ui.label("Shift-clicked reruns let you preview the saved runs and override backend/input/output dtypes before replaying them.");
+                ui.separator();
+                egui::ScrollArea::vertical()
+                    .max_height(320.0)
+                    .show(ui, |ui| {
+                        egui::Grid::new("rerun_popup_grid")
+                            .striped(true)
+                            .num_columns(6)
+                            .show(ui, |ui| {
+                                ui.strong("Run");
+                                ui.strong("Problem");
+                                ui.strong("Shapes");
+                                ui.strong("Backend");
+                                ui.strong("Input");
+                                ui.strong("Output");
+                                ui.end_row();
+
+                                for (index, request) in requests.iter_mut().enumerate() {
+                                    let label = request.source_label.as_deref().unwrap_or("(saved run)");
+                                    let shapes = request
+                                        .shapes
+                                        .iter()
+                                        .map(|shape| {
+                                            shape
+                                                .iter()
+                                                .map(|dim| dim.to_string())
+                                                .collect::<Vec<_>>()
+                                                .join("x")
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(", ");
+
+                                    ui.label(label);
+                                    ui.label(request.problem.label());
+                                    ui.label(shapes);
+
+                                    egui::ComboBox::from_id_salt(("rerun_backend", index))
+                                        .selected_text(&request.backend)
+                                        .show_ui(ui, |ui| {
+                                            for (label, backend, _) in BACKENDS.iter() {
+                                                ui.selectable_value(
+                                                    &mut request.backend,
+                                                    (*backend).to_string(),
+                                                    *label,
+                                                );
+                                            }
+                                        });
+                                    egui::ComboBox::from_id_salt(("rerun_input", index))
+                                        .selected_text(&request.input)
+                                        .show_ui(ui, |ui| {
+                                            for dtype in crate::DTYPE_NAMES.iter() {
+                                                ui.selectable_value(
+                                                    &mut request.input,
+                                                    (*dtype).to_string(),
+                                                    *dtype,
+                                                );
+                                            }
+                                        });
+                                    egui::ComboBox::from_id_salt(("rerun_output", index))
+                                        .selected_text(&request.output)
+                                        .show_ui(ui, |ui| {
+                                            for dtype in crate::DTYPE_NAMES.iter() {
+                                                ui.selectable_value(
+                                                    &mut request.output,
+                                                    (*dtype).to_string(),
+                                                    *dtype,
+                                                );
+                                            }
+                                        });
+                                    ui.end_row();
+                                }
+                            });
+                    });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button("Start reruns").clicked() {
+                        start = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+
+        if cancel {
+            open = false;
+        }
+
+        if start {
+            if let Some(requests) = self.rerun_popup.take() {
+                self.start_rerun_requests(requests);
+            }
+        } else if !open {
+            self.rerun_popup = None;
+        }
+    }
+
     pub(super) fn render_output_panel(&mut self, ui: &mut egui::Ui) {
         egui::Panel::bottom("output")
             .resizable(true)
@@ -214,47 +345,48 @@ impl AutotuneObservabilityApp {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                    for (i, run) in self.runs.iter_mut().enumerate() {
-                        ui.horizontal(|ui| {
-                            if ui.small_button("🗑").clicked() {
-                                delete = Some(i);
-                            }
-                            let is_renaming = self
-                                .rename_buffer
-                                .as_ref()
-                                .map_or(false, |(ri, _)| *ri == i);
-                            if is_renaming {
-                                let (_, buffer) = self.rename_buffer.as_mut().unwrap();
-                                let response = ui.text_edit_singleline(buffer);
-                                if response.lost_focus()
-                                    && ui.input(|inp| inp.key_pressed(egui::Key::Enter))
-                                {
-                                    finish_rename = Some((i, buffer.clone()));
-                                } else if response.lost_focus() {
-                                    finish_rename = Some((i, buffer.clone()));
+                        for (i, run) in self.runs.iter_mut().enumerate() {
+                            ui.horizontal(|ui| {
+                                if ui.small_button("🗑").clicked() {
+                                    delete = Some(i);
                                 }
-                            } else {
-                                let label = run.custom_name.as_deref().unwrap_or(&run.name);
-                                ui.checkbox(&mut run.selected, "");
-                                if ui.small_button("✏").on_hover_text("Rename run").clicked() {
-                                    self.rename_buffer = Some((i, label.to_string()));
+                                let is_renaming = self
+                                    .rename_buffer
+                                    .as_ref()
+                                    .map_or(false, |(ri, _)| *ri == i);
+                                if is_renaming {
+                                    let (_, buffer) = self.rename_buffer.as_mut().unwrap();
+                                    let response = ui.text_edit_singleline(buffer);
+                                    if response.lost_focus()
+                                        && ui.input(|inp| inp.key_pressed(egui::Key::Enter))
+                                    {
+                                        finish_rename = Some((i, buffer.clone()));
+                                    } else if response.lost_focus() {
+                                        finish_rename = Some((i, buffer.clone()));
+                                    }
+                                } else {
+                                    let label = run.custom_name.as_deref().unwrap_or(&run.name);
+                                    ui.checkbox(&mut run.selected, "");
+                                    if ui.small_button("✏").on_hover_text("Rename run").clicked()
+                                    {
+                                        self.rename_buffer = Some((i, label.to_string()));
+                                    }
+                                    // Truncate the (long) run name so the panel can shrink below it;
+                                    // the full name is on hover, and clicking it toggles selection.
+                                    let name = ui
+                                        .add(
+                                            egui::Label::new(label)
+                                                .truncate()
+                                                .sense(egui::Sense::click()),
+                                        )
+                                        .on_hover_text(label);
+                                    if name.clicked() {
+                                        run.selected = !run.selected;
+                                    }
                                 }
-                                // Truncate the (long) run name so the panel can shrink below it;
-                                // the full name is on hover, and clicking it toggles selection.
-                                let name = ui
-                                    .add(
-                                        egui::Label::new(label)
-                                            .truncate()
-                                            .sense(egui::Sense::click()),
-                                    )
-                                    .on_hover_text(label);
-                                if name.clicked() {
-                                    run.selected = !run.selected;
-                                }
-                            }
-                        });
-                    }
-                });
+                            });
+                        }
+                    });
                 if let Some((i, name)) = finish_rename {
                     self.rename_run(i, name);
                     self.rename_buffer = None;

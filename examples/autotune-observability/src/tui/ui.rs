@@ -85,16 +85,22 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     let controls_text = if let Some(field) = app.remote_edit {
         let (name, value) = match field {
             RemoteField::Host => ("Host (user@host or ssh alias)", app.remote.host.clone()),
-            RemoteField::Base => ("Base dir (blank = remote temp)", app.remote.base_dir.clone()),
-            RemoteField::Password => {
-                ("Password (blank = key)", "*".repeat(app.remote.password.len()))
-            }
+            RemoteField::Base => (
+                "Base dir (blank = remote temp)",
+                app.remote.base_dir.clone(),
+            ),
+            RemoteField::Password => (
+                "Password (blank = key)",
+                "*".repeat(app.remote.password.len()),
+            ),
         };
         vec![
             Line::from(vec![
                 Span::styled(
                     format!(" Edit {name}: "),
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(format!("[ {value}█ ]"), Style::default().fg(Color::Yellow)),
             ]),
@@ -140,13 +146,13 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 } else {
                     app.remote.host.as_str()
                 }),
-                Span::styled("  [g]base: ", Style::default().fg(Color::Cyan)),
+                Span::styled("  [g]base remote dir: ", Style::default().fg(Color::Cyan)),
                 Span::raw(if app.remote.base_dir.is_empty() {
                     "<temp>"
                 } else {
                     app.remote.base_dir.as_str()
                 }),
-                Span::styled("  [w]pass", Style::default().fg(Color::Cyan)),
+                Span::styled("  [w]password", Style::default().fg(Color::Cyan)),
             ])
         } else {
             Line::from(vec![
@@ -154,16 +160,27 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 Span::styled("OFF (local)", Style::default().fg(Color::DarkGray)),
             ])
         };
-        let toggles_line = Line::from(vec![
-            Span::styled(" [f] force-sync: ", Style::default().fg(Color::Cyan)),
-            Span::raw(if app.force_sync { "ON" } else { "off" }),
-            Span::styled(" | [t] re-bench peak: ", Style::default().fg(Color::Cyan)),
-            Span::raw(if app.disable_throughput_cache {
-                "ON"
-            } else {
-                "off"
-            }),
-        ]);
+        let toggles_line = if app.remote.enabled {
+            Line::from(vec![
+                Span::styled(" [f] force-sync: ", Style::default().fg(Color::Cyan)),
+                Span::raw(if app.force_sync { "ON" } else { "off" }),
+                Span::styled(" | [t] re-bench peak: ", Style::default().fg(Color::Cyan)),
+                Span::raw(if app.disable_throughput_cache {
+                    "ON"
+                } else {
+                    "off"
+                }),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(" [t] re-bench peak: ", Style::default().fg(Color::Cyan)),
+                Span::raw(if app.disable_throughput_cache {
+                    "ON"
+                } else {
+                    "off"
+                }),
+            ])
+        };
         vec![
             Line::from(vec![
                 Span::styled(" [b] Backend: ", Style::default().fg(Color::Cyan)),

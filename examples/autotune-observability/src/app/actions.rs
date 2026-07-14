@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::mpsc::{self};
 use std::thread;
 
@@ -5,11 +6,11 @@ use eframe::egui;
 use egui::FontId;
 use egui::text::TextFormat;
 
-use super::AutotuneObservabilityApp;
+use super::{AutotuneObservabilityApp, LaunchRequest};
 use crate::ansi::{self};
 use crate::remote::{RemoteRun, run_remote, test_connection};
 use crate::run_support::{
-    BACKENDS, RunMsg, RunView, ansi_color, is_release, now_millis, stream_command,
+    BACKENDS, ProblemKind, RunMsg, RunView, ansi_color, is_release, now_millis, stream_command,
 };
 use crate::{DTYPE_NAMES, list_runs, load_events, run_log_path, runs_dir};
 
@@ -60,15 +61,129 @@ impl AutotuneObservabilityApp {
     /// progress and the run itself — stream back line by line. A fresh process per run means an
     /// empty in-memory autotune cache, so the same config re-tunes every time.
     pub(super) fn run_selected_problem(&mut self) {
-        let (_, backend, feature) = BACKENDS[self.selected];
-        let input = DTYPE_NAMES[self.input_dtype];
-        let output = DTYPE_NAMES[self.output_dtype];
-        let problem = self.problem;
+        self.rerun_queue.clear();
+        let request = LaunchRequest {
+            backend: BACKENDS[self.selected].1.to_string(),
+            problem: self.problem,
+            input: DTYPE_NAMES[self.input_dtype].to_string(),
+            output: DTYPE_NAMES[self.output_dtype].to_string(),
+            shapes: self.shapes.clone(),
+            source_label: None,
+        };
+        if let Err(err) = self.start_run_request(request) {
+            self.status = err;
+        }
+    }
 
-        let shape_names: Vec<String> = self
-            .shapes
+    pub(super) fn rerun_selected_runs(&mut self) {
+        self.rerun_popup = None;
+        if let Some(requests) = self.collect_selected_rerun_requests() {
+            self.start_rerun_requests(requests);
+        }
+    }
+
+    pub(super) fn open_rerun_selected_popup(&mut self) {
+        self.rerun_popup = self.collect_selected_rerun_requests();
+    }
+    fn collect_selected_rerun_requests(&mut self) -> Option<Vec<LaunchRequest>> {
+        self.rerun_queue.clear();
+
+        let selected: Vec<(String, String, std::path::PathBuf)> = self
+            .runs
             .iter()
-            .map(|shape| shape.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("x"))
+            .filter(|run| run.selected)
+            .map(|run| {
+                (
+                    run.name.clone(),
+                    run.custom_name.clone().unwrap_or_else(|| run.name.clone()),
+                    run.dir.clone(),
+                )
+            })
+            .collect();
+
+        let mut requests = Vec::new();
+        let mut skipped = Vec::new();
+        for (name, label, dir) in selected {
+            match Self::load_launch_request(&name, &label, &dir) {
+                Ok(request) => requests.push(request),
+                Err(err) => skipped.push(format!("{label}: {err}")),
+            }
+        }
+
+        if requests.is_empty() {
+            self.status = if skipped.is_empty() {
+                String::from("No selected runs to rerun.")
+            } else {
+                format!("Couldn't rerun selected runs: {}", skipped.join("; "))
+            };
+            return None;
+        }
+
+        if !skipped.is_empty() {
+            for message in skipped {
+                self.push_line(&format!("[rerun skipped] {message}"));
+            }
+        }
+
+        Some(requests)
+    }
+
+    pub(super) fn start_rerun_requests(&mut self, mut requests: Vec<LaunchRequest>) {
+        let total = requests.len();
+        let first = requests.remove(0);
+        self.rerun_queue = requests.into();
+        self.push_line(&format!("[rerun] queued {total} selected run(s)"));
+        if let Err(err) = self.start_run_request(first) {
+            self.status = err;
+            self.start_next_queued_run();
+        }
+    }
+    fn start_run_request(&mut self, request: LaunchRequest) -> Result<(), String> {
+        let Some((_, backend, feature)) = BACKENDS
+            .iter()
+            .copied()
+            .find(|(_, backend, _)| *backend == request.backend)
+        else {
+            return Err(format!(
+                "Unknown backend '{}' in saved run",
+                request.backend
+            ));
+        };
+
+        if !DTYPE_NAMES.contains(&request.input.as_str()) {
+            return Err(format!(
+                "Unknown input dtype '{}' in saved run",
+                request.input
+            ));
+        }
+        if !DTYPE_NAMES.contains(&request.output.as_str()) {
+            return Err(format!(
+                "Unknown output dtype '{}' in saved run",
+                request.output
+            ));
+        }
+        if request.shapes.is_empty() {
+            return Err(String::from("Saved run has no shapes to replay"));
+        }
+
+        let problem = request.problem;
+        let input = request.input;
+        let output = request.output;
+        let shapes = request.shapes;
+        let queued_remaining = self.rerun_queue.len();
+        if let Some(source) = &request.source_label {
+            self.push_line(&format!("[rerun] {source}"));
+        }
+
+        let shape_names: Vec<String> = shapes
+            .iter()
+            .map(|shape| {
+                shape
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join("x")
+            })
             .collect();
         let stamp = now_millis();
         let id = format!(
@@ -85,21 +200,28 @@ impl AutotuneObservabilityApp {
         let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
 
+        let queue_suffix = match queued_remaining {
+            0 => String::new(),
+            1 => String::from(" (1 rerun queued)"),
+            n => format!(" ({n} reruns queued)"),
+        };
+
         if self.remote.enabled {
             self.push_line(&format!("$ remote run on {}", self.remote.host));
             self.status = format!(
-                "Running {} on {} (syncing + building on first run)…",
+                "Running {} on {}{}…",
                 problem.label().to_lowercase(),
-                self.remote.host
+                self.remote.host,
+                queue_suffix
             );
             let cfg = self.remote.clone();
             let run = RemoteRun {
                 feature: feature.to_string(),
                 backend: backend.to_string(),
                 problem,
-                input: input.to_string(),
-                output: output.to_string(),
-                shapes: self.shapes.clone(),
+                input,
+                output,
+                shapes,
                 id,
                 local_run_dir: run_dir,
                 force_sync: self.force_sync,
@@ -120,16 +242,20 @@ impl AutotuneObservabilityApp {
                     "--problem",
                     problem.name(),
                     "--input",
-                    input,
+                    &input,
                     "--output",
-                    output,
+                    &output,
                 ]
                 .map(String::from),
             );
-            for shape in &self.shapes {
+            for shape in &shapes {
                 cargo_args.extend([
                     "--shape".to_string(),
-                    shape.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("x"),
+                    shape
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>()
+                        .join("x"),
                 ]);
             }
             cargo_args.extend([
@@ -142,16 +268,112 @@ impl AutotuneObservabilityApp {
 
             self.push_line(&format!("$ cargo {}", cargo_args.join(" ")));
             self.status = format!(
-                "Running {}… (first run of a backend compiles it)",
-                problem.label().to_lowercase()
+                "Running {}{}… (first run of a backend compiles it)",
+                problem.label().to_lowercase(),
+                queue_suffix
             );
             thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
         }
 
         self.run_rx = Some(rx);
+        Ok(())
+    }
+
+    fn start_next_queued_run(&mut self) -> bool {
+        while let Some(request) = self.rerun_queue.pop_front() {
+            match self.start_run_request(request) {
+                Ok(()) => return true,
+                Err(err) => self.push_line(&format!("[rerun skipped] {err}")),
+            }
+        }
+        false
+    }
+
+    fn load_launch_request(name: &str, label: &str, dir: &Path) -> Result<LaunchRequest, String> {
+        Self::load_launch_request_from_meta(dir)
+            .or_else(|meta_err| {
+                Self::load_launch_request_from_name(name)
+                    .map_err(|name_err| format!("{meta_err}; fallback parse failed: {name_err}"))
+            })
+            .map(|mut request| {
+                request.source_label = Some(label.to_string());
+                request
+            })
+    }
+
+    fn load_launch_request_from_meta(dir: &Path) -> Result<LaunchRequest, String> {
+        let text = std::fs::read_to_string(dir.join("meta.txt"))
+            .map_err(|err| format!("missing meta.txt: {err}"))?;
+        let mut backend = None;
+        let mut problem = None;
+        let mut shapes = None;
+        let mut input = None;
+        let mut output = None;
+
+        for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            if let Some(value) = line.strip_prefix("backend=") {
+                backend = Some(value.to_string());
+            } else if let Some(value) = line.strip_prefix("problem=") {
+                problem = Some(ProblemKind::from_str(value)?);
+            } else if let Some(value) = line.strip_prefix("shapes=") {
+                shapes = Some(
+                    value
+                        .split(',')
+                        .map(Self::parse_shape)
+                        .collect::<Result<Vec<_>, _>>()?,
+                );
+            } else if let Some(value) = line.strip_prefix("input=") {
+                let (in_dtype, out_dtype) = value
+                    .split_once(" output=")
+                    .ok_or_else(|| format!("invalid input/output line '{line}'"))?;
+                input = Some(in_dtype.to_string());
+                output = Some(out_dtype.to_string());
+            }
+        }
+
+        Ok(LaunchRequest {
+            backend: backend.ok_or_else(|| String::from("missing backend"))?,
+            problem: problem.ok_or_else(|| String::from("missing problem"))?,
+            input: input.ok_or_else(|| String::from("missing input dtype"))?,
+            output: output.ok_or_else(|| String::from("missing output dtype"))?,
+            shapes: shapes.ok_or_else(|| String::from("missing shapes"))?,
+            source_label: None,
+        })
+    }
+
+    fn load_launch_request_from_name(name: &str) -> Result<LaunchRequest, String> {
+        let parts: Vec<&str> = name.split('-').collect();
+        if parts.len() < 6 {
+            return Err(format!("run name '{name}' doesn't match archived format"));
+        }
+
+        let shapes_idx = parts.len() - 3;
+        let problem = parts[2..shapes_idx].join("-");
+        Ok(LaunchRequest {
+            backend: parts[1].to_string(),
+            problem: ProblemKind::from_str(&problem)?,
+            input: parts[parts.len() - 2].to_string(),
+            output: parts[parts.len() - 1].to_string(),
+            shapes: parts[shapes_idx]
+                .split('_')
+                .map(Self::parse_shape)
+                .collect::<Result<Vec<_>, _>>()?,
+            source_label: None,
+        })
+    }
+
+    fn parse_shape(value: &str) -> Result<Vec<usize>, String> {
+        value
+            .split('x')
+            .map(|dim| {
+                dim.parse::<usize>()
+                    .map_err(|_| format!("invalid shape component '{dim}' in '{value}'"))
+            })
+            .collect()
     }
 
     pub(super) fn cancel_run(&mut self) {
+        self.rerun_queue.clear();
         if let Some(flag) = &self.run_cancel {
             flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }
@@ -223,11 +445,17 @@ impl AutotuneObservabilityApp {
                     Some(id) => format!("Run {id} archived."),
                     None => String::from("Run finished."),
                 };
+                if self.start_next_queued_run() {
+                    ctx.request_repaint();
+                }
             }
             Some(false) => {
                 self.run_rx = None;
                 self.pending_run = None;
                 self.status = String::from("Run failed — see output panel.");
+                if self.start_next_queued_run() {
+                    ctx.request_repaint();
+                }
             }
             None => ctx.request_repaint(),
         }
