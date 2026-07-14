@@ -146,21 +146,6 @@ where
             .unwrap()
     }
 
-    /// Register all lazy computation, then run `flush_fn` on the server thread, without
-    /// blocking the calling thread.
-    ///
-    /// The device task queue executes in submission order, so this still guarantees that
-    /// operations recorded before this call are drained before `flush_fn` runs, and that
-    /// operations recorded after it execute after. Use [`sync`](Self::sync) when the
-    /// caller must observe `flush_fn`'s completion (or its return value).
-    pub fn flush(&self, flush_fn: impl FnOnce() + Send + 'static) {
-        let id = StreamId::current();
-        self.server.submit(move |server| {
-            server.drain_stream(id);
-            flush_fn();
-        });
-    }
-
     /// Flush the operations queue.
     pub fn flush_queue(&self) {
         self.server.flush_queue();

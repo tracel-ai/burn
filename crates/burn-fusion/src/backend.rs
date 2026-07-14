@@ -68,22 +68,22 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         // The inner backend's closure-bracketed toggle would arm the *calling*
         // thread's stream, but fused operations execute on the fusion server
         // thread and allocate on its stream. Arm a standing mode from that
-        // thread instead — `flush` drains previously recorded operations
-        // first, keeping them out of the persistent window. No blocking is
-        // needed: the device task queue executes in submission order, so the
-        // drain + toggle are correctly bracketed around the recording below.
+        // thread instead — `sync` drains previously recorded operations
+        // first, keeping them out of the persistent window.
+        //
+        // Note that sync here doesn't call `B::sync`.
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
         let armed = device.clone();
-        client.flush(move || B::memory_persistent(&armed, true));
+        client.sync(move || B::memory_persistent(&armed, true));
 
         // Record on this thread; the server drains the fused operations onto
         // its (armed) stream as it goes.
         let output = func(input);
 
-        // Drain the remaining recording inside the window (`flush` drains
+        // Drain the remaining recording inside the window (`sync` drains
         // before running its closure), then disarm.
         let disarmed = device.clone();
-        client.flush(move || B::memory_persistent(&disarmed, false));
+        client.sync(move || B::memory_persistent(&disarmed, false));
 
         output
     }
