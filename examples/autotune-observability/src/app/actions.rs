@@ -82,7 +82,8 @@ impl AutotuneObservabilityApp {
         self.ansi_style = Default::default();
 
         let (tx, rx) = mpsc::channel();
-        self.run_cancel = None;
+        let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
 
         if self.remote.enabled {
             self.push_line(&format!("$ remote run on {}", self.remote.host));
@@ -104,7 +105,7 @@ impl AutotuneObservabilityApp {
                 force_sync: self.force_sync,
                 disable_throughput_cache: self.disable_throughput_cache,
             };
-            thread::spawn(move || run_remote(cfg, run, tx));
+            thread::spawn(move || run_remote(cfg, run, cancel_flag, tx));
         } else {
             let mut cargo_args: Vec<String> = vec!["run".into()];
             if is_release() {
@@ -144,8 +145,6 @@ impl AutotuneObservabilityApp {
                 "Running {}… (first run of a backend compiles it)",
                 problem.label().to_lowercase()
             );
-            let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-            self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
             thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
         }
 

@@ -3,10 +3,19 @@ use std::thread;
 
 use ratatui::widgets::ListState;
 
+use crate::remote::{RemoteConfig, RemoteRun, run_remote};
 use crate::run_support::{
     BACKENDS, ProblemKind, RunMsg, RunView, is_release, now_millis, stream_command,
 };
 use crate::{DTYPE_NAMES, list_runs, load_events, run_log_path, runs_dir};
+
+/// Which remote text field the TUI is currently editing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RemoteField {
+    Host,
+    Base,
+    Password,
+}
 
 pub(crate) struct App {
     pub(crate) runs: Vec<RunView>,
@@ -26,6 +35,12 @@ pub(crate) struct App {
     pub(crate) active_dim_idx: usize,
     pub(crate) input_mode: bool,
     pub(crate) events_scroll: u16,
+
+    pub(crate) remote: RemoteConfig,
+    pub(crate) remote_edit: Option<RemoteField>,
+    pub(crate) force_sync: bool,
+    pub(crate) disable_throughput_cache: bool,
+    pub(crate) status: String,
 }
 
 impl App {
@@ -45,9 +60,23 @@ impl App {
             active_dim_idx: 0,
             input_mode: false,
             events_scroll: 0,
+            remote: RemoteConfig::load(),
+            remote_edit: None,
+            force_sync: false,
+            disable_throughput_cache: false,
+            status: String::from("Ready."),
         };
         app.rescan_runs(None);
         app
+    }
+
+    /// Mutable access to the remote text field being edited.
+    pub(crate) fn remote_field_mut(&mut self, field: RemoteField) -> &mut String {
+        match field {
+            RemoteField::Host => &mut self.remote.host,
+            RemoteField::Base => &mut self.remote.base_dir,
+            RemoteField::Password => &mut self.remote.password,
+        }
     }
 
     pub fn rescan_runs(&mut self, select: Option<&str>) {
@@ -100,13 +129,6 @@ impl App {
         let output = DTYPE_NAMES[self.out_dtype_idx];
         let problem = ProblemKind::ALL[self.problem_idx];
 
-        let mut cargo_args: Vec<String> = vec!["run".into()];
-        if is_release() {
-            cargo_args.push("--release".into());
-        }
-        cargo_args.extend(["--bin", "runner", "--features", feature].map(String::from));
-        cargo_args.push("--".into());
-
         let stamp = now_millis();
         let shape_name = self.shape_dims.join("x");
         let id = format!(
@@ -116,30 +138,63 @@ impl App {
         );
         let run_dir = runs_dir().join(&id);
 
-        cargo_args.extend([
-            "--backend".into(),
-            backend.into(),
-            "--problem".into(),
-            problem.name().into(),
-            "--input".into(),
-            input.into(),
-            "--output".into(),
-            output.into(),
-            "--shape".into(),
-            shape_name.into(),
-            "--run-dir".into(),
-            run_dir.to_string_lossy().into_owned(),
-        ]);
-
-        self.pending_run = Some(id);
+        self.pending_run = Some(id.clone());
         self.output_lines.clear();
-        self.output_lines
-            .push(format!("$ cargo {}", cargo_args.join(" ")));
 
         let (tx, rx) = mpsc::channel();
         let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
-        thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
+
+        if self.remote.enabled {
+            self.output_lines
+                .push(format!("$ remote run on {}", self.remote.host));
+            self.status = format!("Running on {}…", self.remote.host);
+            let shape: Vec<usize> =
+                self.shape_dims.iter().map(|d| d.parse().unwrap_or(0)).collect();
+            let cfg = self.remote.clone();
+            let run = RemoteRun {
+                feature: feature.to_string(),
+                backend: backend.to_string(),
+                problem,
+                input: input.to_string(),
+                output: output.to_string(),
+                shapes: vec![shape],
+                id,
+                local_run_dir: run_dir,
+                force_sync: self.force_sync,
+                disable_throughput_cache: self.disable_throughput_cache,
+            };
+            thread::spawn(move || run_remote(cfg, run, cancel_flag, tx));
+        } else {
+            let mut cargo_args: Vec<String> = vec!["run".into()];
+            if is_release() {
+                cargo_args.push("--release".into());
+            }
+            cargo_args.extend(["--bin", "runner", "--features", feature].map(String::from));
+            cargo_args.push("--".into());
+            cargo_args.extend([
+                "--backend".into(),
+                backend.into(),
+                "--problem".into(),
+                problem.name().into(),
+                "--input".into(),
+                input.into(),
+                "--output".into(),
+                output.into(),
+                "--shape".into(),
+                shape_name.into(),
+                "--run-dir".into(),
+                run_dir.to_string_lossy().into_owned(),
+            ]);
+            if self.disable_throughput_cache {
+                cargo_args.push("--no-throughput-cache".into());
+            }
+            self.output_lines
+                .push(format!("$ cargo {}", cargo_args.join(" ")));
+            self.status = String::from("Running locally…");
+            thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
+        }
+
         self.run_rx = Some(rx);
     }
 

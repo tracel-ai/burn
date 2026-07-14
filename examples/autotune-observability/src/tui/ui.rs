@@ -10,7 +10,7 @@ use crate::DTYPE_NAMES;
 use crate::ansi::{AnsiStyle, parse_ansi};
 use crate::run_support::{BACKENDS, ProblemKind};
 
-use super::app::App;
+use super::app::{App, RemoteField};
 
 fn into_ratatui_style(ansi: AnsiStyle) -> Style {
     let mut style = Style::default();
@@ -74,7 +74,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
 
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(5), Constraint::Min(10)].as_ref())
+        .constraints([Constraint::Length(7), Constraint::Min(10)].as_ref())
         .split(chunks[1]);
 
     let backend_name = BACKENDS[app.backend_idx].0;
@@ -82,7 +82,28 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     let in_dtype = DTYPE_NAMES[app.in_dtype_idx];
     let out_dtype = DTYPE_NAMES[app.out_dtype_idx];
 
-    let controls_text = if app.input_mode {
+    let controls_text = if let Some(field) = app.remote_edit {
+        let (name, value) = match field {
+            RemoteField::Host => ("Host (user@host or ssh alias)", app.remote.host.clone()),
+            RemoteField::Base => ("Base dir (blank = remote temp)", app.remote.base_dir.clone()),
+            RemoteField::Password => {
+                ("Password (blank = key)", "*".repeat(app.remote.password.len()))
+            }
+        };
+        vec![
+            Line::from(vec![
+                Span::styled(
+                    format!(" Edit {name}: "),
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(format!("[ {value}█ ]"), Style::default().fg(Color::Yellow)),
+            ]),
+            Line::from(vec![
+                Span::styled(" [Enter] Save ", Style::default().fg(Color::Green)),
+                Span::styled(" | [Esc] Cancel", Style::default().fg(Color::Red)),
+            ]),
+        ]
+    } else if app.input_mode {
         let mut shape_spans = vec![Span::styled(
             " Enter Shape (Tab/Left/Right): ",
             Style::default()
@@ -109,6 +130,40 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             ]),
         ]
     } else {
+        let remote_line = if app.remote.enabled {
+            Line::from(vec![
+                Span::styled(" [R] Remote: ", Style::default().fg(Color::Cyan)),
+                Span::styled("ON", Style::default().fg(Color::Green)),
+                Span::styled("  [h]ost: ", Style::default().fg(Color::Cyan)),
+                Span::raw(if app.remote.host.is_empty() {
+                    "<unset>"
+                } else {
+                    app.remote.host.as_str()
+                }),
+                Span::styled("  [g]base: ", Style::default().fg(Color::Cyan)),
+                Span::raw(if app.remote.base_dir.is_empty() {
+                    "<temp>"
+                } else {
+                    app.remote.base_dir.as_str()
+                }),
+                Span::styled("  [w]pass", Style::default().fg(Color::Cyan)),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(" [R] Remote: ", Style::default().fg(Color::Cyan)),
+                Span::styled("OFF (local)", Style::default().fg(Color::DarkGray)),
+            ])
+        };
+        let toggles_line = Line::from(vec![
+            Span::styled(" [f] force-sync: ", Style::default().fg(Color::Cyan)),
+            Span::raw(if app.force_sync { "ON" } else { "off" }),
+            Span::styled(" | [t] re-bench peak: ", Style::default().fg(Color::Cyan)),
+            Span::raw(if app.disable_throughput_cache {
+                "ON"
+            } else {
+                "off"
+            }),
+        ]);
         vec![
             Line::from(vec![
                 Span::styled(" [B] Backend: ", Style::default().fg(Color::Cyan)),
@@ -124,8 +179,10 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 Span::styled(" | [O] Out DType: ", Style::default().fg(Color::Cyan)),
                 Span::raw(out_dtype),
             ]),
+            remote_line,
+            toggles_line,
             Line::from(vec![
-                Span::styled(" [Enter/R] Run ", Style::default().fg(Color::Green)),
+                Span::styled(" [Enter/r] Run ", Style::default().fg(Color::Green)),
                 if app.run_rx.is_some() {
                     Span::styled(" | [C] Cancel", Style::default().fg(Color::Yellow))
                 } else {
@@ -170,7 +227,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(" Live Output "),
+                    .title(format!(" Live Output — {} ", app.status)),
             );
         f.render_widget(output_p, right_chunks[1]);
     } else {

@@ -1,13 +1,22 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 use ssh2::Session;
 
 use crate::run_support::RunMsg;
+
+/// The result of a streamed remote command.
+pub(crate) enum ExecOutcome {
+    /// The command finished with this exit status.
+    Exited(i32),
+    /// The cancel flag was set; the channel was closed and the run should stop.
+    Canceled,
+}
 
 /// Rate-limits [`RunMsg::Progress`] updates so a long operation shows liveness without flooding.
 pub(crate) struct Throttle<'a> {
@@ -105,22 +114,71 @@ impl Remote {
     }
 
     /// Run `command` and stream merged stdout+stderr as lines, returning the exit status.
-    pub fn exec_stream(&self, command: &str, tx: &Sender<RunMsg>) -> Result<i32, String> {
+    pub fn exec_stream(
+        &self,
+        command: &str,
+        cancel: &AtomicBool,
+        tx: &Sender<RunMsg>,
+    ) -> Result<ExecOutcome, String> {
         let mut channel = self.session.channel_session().map_err(|e| e.to_string())?;
         channel
             .handle_extended_data(ssh2::ExtendedData::Merge)
             .map_err(|e| e.to_string())?;
         channel.exec(command).map_err(|e| e.to_string())?;
-        {
-            let reader = BufReader::new(&mut channel);
-            for line in reader.lines().map_while(Result::ok) {
-                if tx.send(RunMsg::Line(line)).is_err() {
-                    break;
+
+        // Non-blocking reads so the cancel flag is polled between chunks even while the remote is
+        // quiet (e.g. compiling with no output).
+        self.session.set_blocking(false);
+        let canceled = self.pump(&mut channel, cancel, tx);
+        self.session.set_blocking(true);
+
+        if canceled {
+            let _ = channel.close();
+            return Ok(ExecOutcome::Canceled);
+        }
+        channel.wait_close().ok();
+        Ok(ExecOutcome::Exited(channel.exit_status().unwrap_or(-1)))
+    }
+
+    /// Drain the channel, emitting complete lines, until EOF or the cancel flag is set. Returns
+    /// `true` if it stopped because of cancellation.
+    fn pump(&self, channel: &mut ssh2::Channel, cancel: &AtomicBool, tx: &Sender<RunMsg>) -> bool {
+        let mut pending = Vec::new();
+        let mut chunk = [0u8; 4096];
+        loop {
+            if cancel.load(Ordering::Relaxed) {
+                flush_line(&mut pending, tx);
+                return true;
+            }
+            match channel.read(&mut chunk) {
+                Ok(0) => {
+                    flush_line(&mut pending, tx);
+                    return false;
+                }
+                Ok(n) => emit_lines(&mut pending, &chunk[..n], tx),
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(40));
+                }
+                Err(_) => {
+                    flush_line(&mut pending, tx);
+                    return false;
                 }
             }
         }
-        channel.wait_close().ok();
-        Ok(channel.exit_status().unwrap_or(-1))
+    }
+
+    /// Best-effort kill of the remote run whose command line contains `pattern` (the run id),
+    /// used when a remote run is canceled mid-flight. No-op on Windows.
+    pub fn kill_matching(&self, pattern: &str) {
+        if self.platform != Platform::Unix {
+            return;
+        }
+        if let Ok(mut channel) = self.session.channel_session() {
+            let _ = channel.exec(&format!("pkill -f \"{pattern}\""));
+            let mut sink = String::new();
+            let _ = channel.read_to_string(&mut sink);
+            let _ = channel.wait_close();
+        }
     }
 
     /// Wrap the OS-independent `tail` (the `cargo run …` command) with the platform's directory
@@ -307,6 +365,25 @@ fn capture_on(session: &Session, command: &str) -> String {
 
 fn normalize(path: &str) -> String {
     path.trim().replace('\\', "/")
+}
+
+/// Append `data` to `pending` and emit every complete (newline-terminated) line.
+fn emit_lines(pending: &mut Vec<u8>, data: &[u8], tx: &Sender<RunMsg>) {
+    pending.extend_from_slice(data);
+    while let Some(newline) = pending.iter().position(|&b| b == b'\n') {
+        let line: Vec<u8> = pending.drain(..=newline).collect();
+        let text = String::from_utf8_lossy(&line);
+        let _ = tx.send(RunMsg::Line(text.trim_end_matches(['\n', '\r']).to_string()));
+    }
+}
+
+/// Emit any buffered trailing bytes as a final line.
+fn flush_line(pending: &mut Vec<u8>, tx: &Sender<RunMsg>) {
+    if !pending.is_empty() {
+        let text = String::from_utf8_lossy(pending);
+        let _ = tx.send(RunMsg::Line(text.trim_end_matches(['\n', '\r']).to_string()));
+        pending.clear();
+    }
 }
 
 /// A connection target resolved from the host field and `~/.ssh/config`.

@@ -8,7 +8,7 @@ use crate::DTYPE_NAMES;
 use crate::run_support::RunMsg;
 use crate::run_support::{BACKENDS, ProblemKind};
 
-use super::app::App;
+use super::app::{App, RemoteField};
 use super::ui::ui;
 
 pub(crate) fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()>
@@ -27,7 +27,21 @@ where
 
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                if app.input_mode {
+                if let Some(field) = app.remote_edit {
+                    match key.code {
+                        KeyCode::Enter | KeyCode::Esc => {
+                            app.remote_edit = None;
+                            app.remote.save();
+                        }
+                        KeyCode::Backspace => {
+                            app.remote_field_mut(field).pop();
+                        }
+                        KeyCode::Char(c) => {
+                            app.remote_field_mut(field).push(c);
+                        }
+                        _ => {}
+                    }
+                } else if app.input_mode {
                     match key.code {
                         KeyCode::Enter | KeyCode::Esc => app.input_mode = false,
                         KeyCode::Backspace => {
@@ -94,6 +108,17 @@ where
                         }
                         KeyCode::Char('s') => app.input_mode = true,
                         KeyCode::Char('c') => app.cancel_run(),
+                        KeyCode::Char('R') => {
+                            app.remote.enabled = !app.remote.enabled;
+                            app.remote.save();
+                        }
+                        KeyCode::Char('h') => app.remote_edit = Some(RemoteField::Host),
+                        KeyCode::Char('g') => app.remote_edit = Some(RemoteField::Base),
+                        KeyCode::Char('w') => app.remote_edit = Some(RemoteField::Password),
+                        KeyCode::Char('f') => app.force_sync = !app.force_sync,
+                        KeyCode::Char('t') => {
+                            app.disable_throughput_cache = !app.disable_throughput_cache
+                        }
                         KeyCode::Enter | KeyCode::Char('r') => app.run_selected_problem(),
                         KeyCode::Char('D') => {
                             if let Some(selected) = app.run_list_state.selected() {
@@ -118,7 +143,7 @@ where
             while let Ok(msg) = rx.try_recv() {
                 match msg {
                     RunMsg::Line(l) => app.output_lines.push(l),
-                    RunMsg::Progress(_) => {}
+                    RunMsg::Progress(p) => app.status = p,
                     RunMsg::Done { ok } => done = Some(ok),
                 }
             }

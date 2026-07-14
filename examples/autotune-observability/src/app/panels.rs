@@ -206,7 +206,9 @@ impl AutotuneObservabilityApp {
 
                 let mut delete = None;
                 let mut finish_rename = None;
-                egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
                     for (i, run) in self.runs.iter_mut().enumerate() {
                         ui.horizontal(|ui| {
                             if ui.small_button("🗑").clicked() {
@@ -228,9 +230,21 @@ impl AutotuneObservabilityApp {
                                 }
                             } else {
                                 let label = run.custom_name.as_deref().unwrap_or(&run.name);
-                                ui.checkbox(&mut run.selected, label);
+                                ui.checkbox(&mut run.selected, "");
                                 if ui.small_button("✏").on_hover_text("Rename run").clicked() {
                                     self.rename_buffer = Some((i, label.to_string()));
+                                }
+                                // Truncate the (long) run name so the panel can shrink below it;
+                                // the full name is on hover, and clicking it toggles selection.
+                                let name = ui
+                                    .add(
+                                        egui::Label::new(label)
+                                            .truncate()
+                                            .sense(egui::Sense::click()),
+                                    )
+                                    .on_hover_text(label);
+                                if name.clicked() {
+                                    run.selected = !run.selected;
                                 }
                             }
                         });

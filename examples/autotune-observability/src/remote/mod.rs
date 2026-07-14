@@ -15,9 +15,11 @@ mod sync;
 pub(crate) use config::RemoteConfig;
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 
-use session::Remote;
+use session::{ExecOutcome, Remote};
 use crate::run_support::{ProblemKind, RunMsg};
 
 /// Everything a remote run needs, assembled on the UI thread and moved to the worker.
@@ -37,8 +39,13 @@ pub(crate) struct RemoteRun {
 }
 
 /// Drive a full remote run and stream progress, always ending with [`RunMsg::Done`].
-pub(crate) fn run_remote(cfg: RemoteConfig, run: RemoteRun, tx: Sender<RunMsg>) {
-    let ok = match execute(&cfg, &run, &tx) {
+pub(crate) fn run_remote(
+    cfg: RemoteConfig,
+    run: RemoteRun,
+    cancel: Arc<AtomicBool>,
+    tx: Sender<RunMsg>,
+) {
+    let ok = match execute(&cfg, &run, &cancel, &tx) {
         Ok(ok) => ok,
         Err(err) => {
             let _ = tx.send(RunMsg::Line(format!("remote error: {err}")));
@@ -46,6 +53,16 @@ pub(crate) fn run_remote(cfg: RemoteConfig, run: RemoteRun, tx: Sender<RunMsg>) 
         }
     };
     let _ = tx.send(RunMsg::Done { ok });
+}
+
+/// Report cancellation and return `true` when the cancel flag is set.
+fn stop_if_canceled(cancel: &AtomicBool, tx: &Sender<RunMsg>) -> bool {
+    if cancel.load(Ordering::Relaxed) {
+        let _ = tx.send(RunMsg::Line("[Canceled by user]".to_string()));
+        true
+    } else {
+        false
+    }
 }
 
 /// Connect, detect the remote OS, and return a one-line summary — backing the "Test connection"
@@ -60,7 +77,12 @@ pub(crate) fn test_connection(cfg: &RemoteConfig) -> Result<String, String> {
     ))
 }
 
-fn execute(cfg: &RemoteConfig, run: &RemoteRun, tx: &Sender<RunMsg>) -> Result<bool, String> {
+fn execute(
+    cfg: &RemoteConfig,
+    run: &RemoteRun,
+    cancel: &AtomicBool,
+    tx: &Sender<RunMsg>,
+) -> Result<bool, String> {
     let _ = tx.send(RunMsg::Line(format!("connecting to {}…", cfg.host)));
     let remote = Remote::connect(&cfg.host, &cfg.password)?;
     let base = base_dir(&remote, cfg);
@@ -70,13 +92,28 @@ fn execute(cfg: &RemoteConfig, run: &RemoteRun, tx: &Sender<RunMsg>) -> Result<b
     )));
 
     for repo in layout::repos_to_sync() {
+        if stop_if_canceled(cancel, tx) {
+            return Ok(false);
+        }
         let remote_root = format!("{base}/{}", repo.name);
         let _ = tx.send(RunMsg::Line(format!(
             "syncing {} → {remote_root}",
             repo.local.display()
         )));
         remote.ensure_dir(&remote_root)?;
-        sync::sync_tree(&remote, &repo.local, &remote_root, &cfg.host, run.force_sync, tx)?;
+        let completed = sync::sync_tree(
+            &remote,
+            &repo.local,
+            &remote_root,
+            &cfg.host,
+            run.force_sync,
+            cancel,
+            tx,
+        )?;
+        if !completed {
+            let _ = tx.send(RunMsg::Line("[Canceled by user]".to_string()));
+            return Ok(false);
+        }
     }
 
     let mut remote_example = format!("{base}/{}", layout::root_name());
@@ -88,12 +125,22 @@ fn execute(cfg: &RemoteConfig, run: &RemoteRun, tx: &Sender<RunMsg>) -> Result<b
     let remote_run_dir = format!("{remote_example}/runs/{}", run.id);
     remote.ensure_dir(&remote_run_dir)?;
 
+    if stop_if_canceled(cancel, tx) {
+        return Ok(false);
+    }
     let command = remote.run_command(&remote_example, &cargo_tail(run, &remote_run_dir));
     let _ = tx.send(RunMsg::Line(format!("$ {command}")));
-    let status = remote.exec_stream(&command, tx)?;
-    if status != 0 {
-        let _ = tx.send(RunMsg::Line(format!("runner exited with status {status}")));
-        return Ok(false);
+    match remote.exec_stream(&command, cancel, tx)? {
+        ExecOutcome::Canceled => {
+            remote.kill_matching(&run.id);
+            let _ = tx.send(RunMsg::Line("[Canceled by user]".to_string()));
+            return Ok(false);
+        }
+        ExecOutcome::Exited(status) if status != 0 => {
+            let _ = tx.send(RunMsg::Line(format!("runner exited with status {status}")));
+            return Ok(false);
+        }
+        ExecOutcome::Exited(_) => {}
     }
 
     std::fs::create_dir_all(&run.local_run_dir).map_err(|e| e.to_string())?;

@@ -2,6 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 
 use ignore::WalkBuilder;
@@ -37,8 +38,9 @@ pub(crate) fn sync_tree(
     remote_root: &str,
     host: &str,
     force: bool,
+    cancel: &AtomicBool,
     tx: &Sender<RunMsg>,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let cache_file = cache_path(host, remote_root);
     let cached = if force { None } else { load_cache(&cache_file) };
     let remote_stamp = remote.read_stamp(remote_root);
@@ -78,7 +80,7 @@ pub(crate) fn sync_tree(
             }
         };
         save_cache(&cache_file, &stamp, &files);
-        return Ok(());
+        return Ok(true);
     }
 
     let total = pending.len();
@@ -92,6 +94,10 @@ pub(crate) fn sync_tree(
     let mut done_bytes = 0u64;
     let mut throttle = Throttle::new(tx);
     for (index, (rel, size, mtime)) in pending.iter().enumerate() {
+        if cancel.load(Ordering::Relaxed) {
+            // Leave the stamp/cache unwritten so the next run re-checks and resumes.
+            return Ok(false);
+        }
         let remote_path = format!("{remote_root}/{rel}");
         if let Some(parent) = Path::new(&remote_path).parent() {
             let parent = parent.to_string_lossy().into_owned();
@@ -126,7 +132,7 @@ pub(crate) fn sync_tree(
         human_bytes(total_bytes),
         files.len() - total
     )));
-    Ok(())
+    Ok(true)
 }
 
 /// Collect regular files under `root` as `(path relative to root, size, mtime secs)`, honouring
