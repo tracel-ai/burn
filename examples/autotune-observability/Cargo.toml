@@ -44,5 +44,10 @@ tui = ["dep:ratatui", "dep:crossterm"]
 burn = { workspace = true, features = ["wgpu", "autotune"], optional = true }
 eframe = "0.35"
 egui = "0.35"
+# Pure-Rust SSH client (vendors libssh2) for running the workload on a remote host. Used only by
+# the UI/lib, never the burn-linked runner.
+ssh2 = "0.9.6"
+# Gitignore-aware directory walking (ripgrep's) for selecting which files to sync to the remote.
+ignore = "0.4"
 ratatui = { workspace = true, optional = true }
 crossterm = { version = "0.28", optional = true }

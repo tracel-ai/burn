@@ -35,7 +35,10 @@ impl ProblemKind {
 
 /// A message streamed from the worker thread running the `runner` subprocess.
 pub(crate) enum RunMsg {
+    /// A line appended to the console output.
     Line(String),
+    /// A transient status update shown in place (e.g. sync progress), not appended to the log.
+    Progress(String),
     Done { ok: bool },
 }
 

@@ -43,7 +43,7 @@ fn main() {
     // the crate dir as a fallback. Set before the backend first touches cubecl.
     let workdir = match &cfg.run_dir {
         Some(dir) => {
-            if let Err(err) = write_run_config(dir) {
+            if let Err(err) = write_run_config(dir, cfg.disable_throughput_cache) {
                 eprintln!("could not set up run dir {}: {err}", dir.display());
                 std::process::exit(2);
             }
@@ -113,6 +113,7 @@ struct RunConfig {
     output: FloatDType,
     output_name: String,
     run_dir: Option<PathBuf>,
+    disable_throughput_cache: bool,
 }
 
 struct MatmulShape {
@@ -136,6 +137,7 @@ impl RunConfig {
         let mut input_name = "f32".to_string();
         let mut output_name = "f32".to_string();
         let mut run_dir = None;
+        let mut disable_throughput_cache = false;
 
         let mut it = args.iter();
         while let Some(flag) = it.next() {
@@ -149,6 +151,7 @@ impl RunConfig {
                 "--input" => input_name = next(&mut it, flag)?,
                 "--output" => output_name = next(&mut it, flag)?,
                 "--run-dir" => run_dir = Some(PathBuf::from(next(&mut it, flag)?)),
+                "--no-throughput-cache" => disable_throughput_cache = true,
                 other => return Err(format!("unknown argument '{other}'")),
             }
         }
@@ -173,6 +176,7 @@ impl RunConfig {
             output,
             output_name,
             run_dir,
+            disable_throughput_cache,
         })
     }
 

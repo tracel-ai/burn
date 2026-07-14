@@ -11,13 +11,19 @@ pub fn example_dir() -> PathBuf {
 /// cubecl discovers this config (it wins over the crate's fallback `cubecl.toml`). Each run
 /// therefore gets its own empty cache — so the same config re-tunes (and re-logs) every time —
 /// and both the log and the cache are archived side by side for later reference.
-pub fn write_run_config(run_dir: &Path) -> std::io::Result<()> {
+///
+/// When `disable_throughput_cache` is set, `[throughput] disable_cache = true` is added so the
+/// peak-throughput bound is re-benchmarked every run instead of reused from cubecl's global cache.
+pub fn write_run_config(run_dir: &Path, disable_throughput_cache: bool) -> std::io::Result<()> {
     std::fs::create_dir_all(run_dir)?;
     let log = run_dir.join("autotune.log");
     let cache = run_dir.join("cache");
-    let config = format!(
+    let mut config = format!(
         "[autotune.logger]\nlevel = \"full\"\nfile = {log:?}\n\n[autotune.cache]\nfile = {cache:?}\n"
     );
+    if disable_throughput_cache {
+        config.push_str("\n[throughput]\ndisable_cache = true\n");
+    }
     std::fs::write(run_dir.join("cubecl.toml"), config)
 }
 
@@ -235,6 +241,7 @@ pub fn run_log_path(run_dir: &Path) -> PathBuf {
 
 pub mod ansi;
 
+mod remote;
 pub mod run_support;
 mod ui_components;
 

@@ -5,6 +5,7 @@ use egui::Color32;
 use egui::text::LayoutJob;
 
 use crate::ansi::AnsiStyle;
+use crate::remote::RemoteConfig;
 use crate::run_support::{MatmulShape, ProblemKind, RunMsg, RunView};
 
 mod actions;
@@ -29,6 +30,13 @@ pub struct AutotuneObservabilityApp {
     rename_buffer: Option<(usize, String)>,
     built_backends: Vec<String>,
     comparison_mode: bool,
+    remote: RemoteConfig,
+    /// Receives the one-line result of an in-flight "Test connection".
+    conn_test: Option<Receiver<String>>,
+    /// Force the next remote run to bypass the sync cache and re-check every file.
+    force_sync: bool,
+    /// Re-benchmark the peak-throughput bound each run instead of reusing cubecl's global cache.
+    disable_throughput_cache: bool,
 }
 
 impl Default for AutotuneObservabilityApp {
@@ -55,6 +63,10 @@ impl Default for AutotuneObservabilityApp {
             rename_buffer: None,
             built_backends: Vec::new(),
             comparison_mode: false,
+            remote: RemoteConfig::load(),
+            conn_test: None,
+            force_sync: false,
+            disable_throughput_cache: false,
         };
         app.rescan_backends();
         app.rescan_runs(None);
@@ -66,6 +78,22 @@ impl AutotuneObservabilityApp {
     fn running(&self) -> bool {
         self.run_rx.is_some()
     }
+
+    fn testing(&self) -> bool {
+        self.conn_test.is_some()
+    }
+
+    fn poll_connection_test(&mut self, ctx: &egui::Context) {
+        let Some(rx) = &self.conn_test else { return };
+        match rx.try_recv() {
+            Ok(result) => {
+                self.status = result;
+                self.conn_test = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => ctx.request_repaint(),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.conn_test = None,
+        }
+    }
 }
 
 impl eframe::App for AutotuneObservabilityApp {
@@ -73,6 +101,7 @@ impl eframe::App for AutotuneObservabilityApp {
         let ctx = ui.ctx().clone();
         self.text_color = ui.visuals().text_color();
         self.poll_run(&ctx);
+        self.poll_connection_test(&ctx);
 
         self.render_controls_panel(ui);
         self.render_output_panel(ui);

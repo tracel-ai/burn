@@ -7,6 +7,7 @@ use egui::text::TextFormat;
 
 use super::AutotuneObservabilityApp;
 use crate::ansi::{self};
+use crate::remote::{RemoteRun, run_remote, test_connection};
 use crate::run_support::{
     BACKENDS, RunMsg, RunView, ansi_color, is_release, now_millis, stream_command,
 };
@@ -64,13 +65,6 @@ impl AutotuneObservabilityApp {
         let output = DTYPE_NAMES[self.output_dtype];
         let problem = self.problem;
 
-        let mut cargo_args: Vec<String> = vec!["run".into()];
-        if is_release() {
-            cargo_args.push("--release".into());
-        }
-        cargo_args.extend(["--bin", "runner", "--features", feature].map(String::from));
-        cargo_args.push("--".into());
-
         let shape_names: Vec<String> = self
             .shapes
             .iter()
@@ -84,43 +78,77 @@ impl AutotuneObservabilityApp {
         );
         let run_dir = runs_dir().join(&id);
 
-        cargo_args.extend(
-            [
-                "--backend",
-                backend,
-                "--problem",
-                problem.name(),
-                "--input",
-                input,
-                "--output",
-                output,
-            ]
-            .map(String::from),
-        );
-        for shape in &self.shapes {
-            cargo_args.extend([
-                "--shape".to_string(),
-                format!("{}x{}x{}", shape.m, shape.k, shape.n),
-            ]);
-        }
-        cargo_args.extend([
-            "--run-dir".to_string(),
-            run_dir.to_string_lossy().into_owned(),
-        ]);
-
-        self.pending_run = Some(id);
-
+        self.pending_run = Some(id.clone());
         self.ansi_style = Default::default();
-        self.push_line(&format!("$ cargo {}", cargo_args.join(" ")));
-        self.status = format!(
-            "Running {}… (first run of a backend compiles it)",
-            problem.label().to_lowercase()
-        );
 
         let (tx, rx) = mpsc::channel();
-        let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
-        thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
+        self.run_cancel = None;
+
+        if self.remote.enabled {
+            self.push_line(&format!("$ remote run on {}", self.remote.host));
+            self.status = format!(
+                "Running {} on {} (syncing + building on first run)…",
+                problem.label().to_lowercase(),
+                self.remote.host
+            );
+            let cfg = self.remote.clone();
+            let run = RemoteRun {
+                feature: feature.to_string(),
+                backend: backend.to_string(),
+                problem,
+                input: input.to_string(),
+                output: output.to_string(),
+                shapes: self.shapes.iter().map(|s| (s.m, s.k, s.n)).collect(),
+                id,
+                local_run_dir: run_dir,
+                force_sync: self.force_sync,
+                disable_throughput_cache: self.disable_throughput_cache,
+            };
+            thread::spawn(move || run_remote(cfg, run, tx));
+        } else {
+            let mut cargo_args: Vec<String> = vec!["run".into()];
+            if is_release() {
+                cargo_args.push("--release".into());
+            }
+            cargo_args.extend(["--bin", "runner", "--features", feature].map(String::from));
+            cargo_args.push("--".into());
+            cargo_args.extend(
+                [
+                    "--backend",
+                    backend,
+                    "--problem",
+                    problem.name(),
+                    "--input",
+                    input,
+                    "--output",
+                    output,
+                ]
+                .map(String::from),
+            );
+            for shape in &self.shapes {
+                cargo_args.extend([
+                    "--shape".to_string(),
+                    format!("{}x{}x{}", shape.m, shape.k, shape.n),
+                ]);
+            }
+            cargo_args.extend([
+                "--run-dir".to_string(),
+                run_dir.to_string_lossy().into_owned(),
+            ]);
+            if self.disable_throughput_cache {
+                cargo_args.push("--no-throughput-cache".to_string());
+            }
+
+            self.push_line(&format!("$ cargo {}", cargo_args.join(" ")));
+            self.status = format!(
+                "Running {}… (first run of a backend compiles it)",
+                problem.label().to_lowercase()
+            );
+            let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
+            thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
+        }
+
         self.run_rx = Some(rx);
     }
 
@@ -128,6 +156,21 @@ impl AutotuneObservabilityApp {
         if let Some(flag) = &self.run_cancel {
             flag.store(true, std::sync::atomic::Ordering::Relaxed);
         }
+    }
+
+    /// Connect to the remote on a worker thread and report the outcome in the status line.
+    pub(super) fn test_remote_connection(&mut self) {
+        let cfg = self.remote.clone();
+        self.status = format!("Testing connection to {}…", self.remote.host);
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            let message = match test_connection(&cfg) {
+                Ok(message) => message,
+                Err(err) => format!("Connection failed: {err}"),
+            };
+            let _ = tx.send(message);
+        });
+        self.conn_test = Some(rx);
     }
 
     /// Append one line to the console output, colouring its ANSI spans.
@@ -150,10 +193,12 @@ impl AutotuneObservabilityApp {
     pub(super) fn poll_run(&mut self, ctx: &egui::Context) {
         let Some(rx) = &self.run_rx else { return };
         let mut lines = Vec::new();
+        let mut progress = None;
         let mut finished = None;
         loop {
             match rx.try_recv() {
                 Ok(RunMsg::Line(line)) => lines.push(line),
+                Ok(RunMsg::Progress(status)) => progress = Some(status),
                 Ok(RunMsg::Done { ok }) => finished = Some(ok),
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => {
@@ -164,6 +209,9 @@ impl AutotuneObservabilityApp {
         }
         for line in lines {
             self.push_line(&line);
+        }
+        if let Some(status) = progress {
+            self.status = status;
         }
 
         match finished {

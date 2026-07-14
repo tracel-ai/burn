@@ -58,10 +58,54 @@ impl AutotuneObservabilityApp {
             });
 
             ui.horizontal(|ui| {
+                let mut changed = ui
+                    .checkbox(&mut self.remote.enabled, "Run on remote (SSH)")
+                    .changed();
+                if self.remote.enabled {
+                    ui.label("host");
+                    changed |= ui
+                        .add(
+                            egui::TextEdit::singleline(&mut self.remote.host)
+                                .desired_width(150.0)
+                                .hint_text("user@host or ssh alias"),
+                        )
+                        .changed();
+                    ui.label("base");
+                    changed |= ui
+                        .add(
+                            egui::TextEdit::singleline(&mut self.remote.base_dir)
+                                .desired_width(130.0)
+                                .hint_text("blank = remote temp"),
+                        )
+                        .changed();
+                    ui.label("pass");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.remote.password)
+                            .password(true)
+                            .desired_width(110.0)
+                            .hint_text("blank = key"),
+                    );
+                    if ui.add_enabled(!self.testing(), egui::Button::new("Test")).clicked() {
+                        self.test_remote_connection();
+                    }
+                    if self.testing() {
+                        ui.spinner();
+                    }
+                    ui.checkbox(&mut self.force_sync, "force sync")
+                        .on_hover_text("Bypass the sync cache and re-check every file this run");
+                }
+                if changed {
+                    self.remote.save();
+                }
+            });
+
+            ui.horizontal(|ui| {
                 ui.add_enabled_ui(!self.running(), |ui| {
                     let (_, backend_name, _) = BACKENDS[self.selected];
                     let needs_build = !self.built_backends.iter().any(|b| b == backend_name);
-                    let button_text = if needs_build {
+                    let button_text = if self.remote.enabled {
+                        format!("Run {} on remote", self.problem.label().to_lowercase())
+                    } else if needs_build {
                         format!("Build & Run {}", self.problem.label().to_lowercase())
                     } else {
                         format!("Run {}", self.problem.label().to_lowercase())
@@ -76,6 +120,10 @@ impl AutotuneObservabilityApp {
                         self.cancel_run();
                     }
                 }
+                ui.checkbox(&mut self.disable_throughput_cache, "Re-benchmark peak")
+                    .on_hover_text(
+                        "Disable cubecl's throughput cache so the peak bound is measured every run",
+                    );
                 if ui.button("Rescan runs").clicked() {
                     self.rescan_backends();
                     self.rescan_runs(None);
