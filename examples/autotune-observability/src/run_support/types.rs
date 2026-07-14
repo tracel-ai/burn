@@ -5,15 +5,19 @@ use std::path::PathBuf;
 pub enum ProblemKind {
     Matmul,
     Attention,
+    FlashAttention,
+    Reduce,
 }
 
 impl ProblemKind {
-    pub const ALL: [Self; 2] = [Self::Matmul, Self::Attention];
+    pub const ALL: [Self; 4] = [Self::Matmul, Self::Attention, Self::FlashAttention, Self::Reduce];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Matmul => "Matmul",
             Self::Attention => "Attention",
+            Self::FlashAttention => "Flash Attention",
+            Self::Reduce => "Reduce",
         }
     }
 
@@ -21,6 +25,8 @@ impl ProblemKind {
         match self {
             Self::Matmul => "matmul",
             Self::Attention => "attention",
+            Self::FlashAttention => "flash_attention",
+            Self::Reduce => "reduce",
         }
     }
 
@@ -28,6 +34,8 @@ impl ProblemKind {
         match value {
             "matmul" => Ok(Self::Matmul),
             "attention" => Ok(Self::Attention),
+            "flash_attention" => Ok(Self::FlashAttention),
+            "reduce" => Ok(Self::Reduce),
             other => Err(format!("unknown problem '{other}'")),
         }
     }
@@ -35,6 +43,8 @@ impl ProblemKind {
         match self {
             Self::Matmul => &["m", "k", "n"],
             Self::Attention => &["batch", "seq", "head"],
+            Self::FlashAttention => &["batch", "seq", "head"],
+            Self::Reduce => &["batch", "dim1", "dim2"],
         }
     }
 
@@ -42,6 +52,8 @@ impl ProblemKind {
         match self {
             Self::Matmul => vec![512, 512, 512],
             Self::Attention => vec![1, 256, 256],
+            Self::FlashAttention => vec![1, 256, 256],
+            Self::Reduce => vec![32, 512, 1024],
         }
     }
 }

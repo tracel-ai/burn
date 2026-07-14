@@ -132,7 +132,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     } else {
         let remote_line = if app.remote.enabled {
             Line::from(vec![
-                Span::styled(" [R] Remote: ", Style::default().fg(Color::Cyan)),
+                Span::styled(" [m] Remote: ", Style::default().fg(Color::Cyan)),
                 Span::styled("ON", Style::default().fg(Color::Green)),
                 Span::styled("  [h]ost: ", Style::default().fg(Color::Cyan)),
                 Span::raw(if app.remote.host.is_empty() {
@@ -150,7 +150,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             ])
         } else {
             Line::from(vec![
-                Span::styled(" [R] Remote: ", Style::default().fg(Color::Cyan)),
+                Span::styled(" [m] Remote: ", Style::default().fg(Color::Cyan)),
                 Span::styled("OFF (local)", Style::default().fg(Color::DarkGray)),
             ])
         };
@@ -166,17 +166,17 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         ]);
         vec![
             Line::from(vec![
-                Span::styled(" [B] Backend: ", Style::default().fg(Color::Cyan)),
+                Span::styled(" [b] Backend: ", Style::default().fg(Color::Cyan)),
                 Span::raw(backend_name),
-                Span::styled(" | [P] Problem: ", Style::default().fg(Color::Cyan)),
+                Span::styled(" | [p] Problem: ", Style::default().fg(Color::Cyan)),
                 Span::raw(problem_name),
-                Span::styled(" | [S] Shape: ", Style::default().fg(Color::Cyan)),
+                Span::styled(" | [s] Shape: ", Style::default().fg(Color::Cyan)),
                 Span::raw(app.shape_dims.join("x")),
             ]),
             Line::from(vec![
-                Span::styled(" [I] In DType: ", Style::default().fg(Color::Cyan)),
+                Span::styled(" [i] In DType: ", Style::default().fg(Color::Cyan)),
                 Span::raw(in_dtype),
-                Span::styled(" | [O] Out DType: ", Style::default().fg(Color::Cyan)),
+                Span::styled(" | [o] Out DType: ", Style::default().fg(Color::Cyan)),
                 Span::raw(out_dtype),
             ]),
             remote_line,
@@ -184,9 +184,9 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             Line::from(vec![
                 Span::styled(" [Enter/r] Run ", Style::default().fg(Color::Green)),
                 if app.run_rx.is_some() {
-                    Span::styled(" | [C] Cancel", Style::default().fg(Color::Yellow))
+                    Span::styled(" | [c] Cancel", Style::default().fg(Color::Yellow))
                 } else {
-                    Span::styled(" | [Q/Esc] Quit", Style::default().fg(Color::Red))
+                    Span::styled(" | [q/Esc] Quit", Style::default().fg(Color::Red))
                 },
                 Span::raw(if app.run_rx.is_some() {
                     "  --> RUNNING..."
@@ -314,6 +314,40 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                             ]));
                         }
                     }
+
+                    if !event.context.is_empty() {
+                        lines.push(Line::from(vec![Span::raw(
+                            "    • Planner context (tuning groups):",
+                        )]));
+                        for line in event.context.lines() {
+                            lines.push(Line::from(vec![Span::raw("      "), Span::raw(line)]));
+                        }
+                    }
+
+                    if !event.key.is_empty() {
+                        lines.push(Line::from(vec![Span::raw("    • Key:")]));
+                        lines.push(Line::from(vec![Span::raw("      "), Span::raw(&event.key)]));
+                    }
+
+                    if !event.candidates.is_empty() {
+                        lines.push(Line::from(vec![Span::raw(format!(
+                            "    • Candidates ({}):",
+                            event.candidates.len()
+                        ))]));
+                        for candidate in &event.candidates {
+                            let color = match candidate.kind {
+                                crate::CandidateKind::Benchmarked => Color::Green,
+                                crate::CandidateKind::Skipped => Color::DarkGray,
+                                crate::CandidateKind::Invalid => Color::Red,
+                                crate::CandidateKind::Other => Color::Reset,
+                            };
+                            lines.push(Line::from(vec![
+                                Span::raw("      "),
+                                Span::styled(&candidate.text, Style::default().fg(color)),
+                            ]));
+                        }
+                    }
+
                     lines.push(Line::from(""));
                 }
                 if lines.is_empty() {

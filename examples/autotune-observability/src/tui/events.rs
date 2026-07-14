@@ -108,7 +108,7 @@ where
                         }
                         KeyCode::Char('s') => app.input_mode = true,
                         KeyCode::Char('c') => app.cancel_run(),
-                        KeyCode::Char('R') => {
+                        KeyCode::Char('m') => {
                             app.remote.enabled = !app.remote.enabled;
                             app.remote.save();
                         }

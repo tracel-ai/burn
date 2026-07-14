@@ -72,24 +72,27 @@ fn main() {
 
     for (index, shape) in cfg.shapes.iter().enumerate() {
         println!(
-            "running {} {} / {}: {}  {}x{}x{}  in={} out={}",
+            "running {} {} / {}: {}  in={} out={}",
             cfg.problem.name(),
             index + 1,
             cfg.shapes.len(),
-            shape.name(),
-            shape.m,
-            shape.k,
-            shape.n,
+            shape_name(shape),
             cfg.input_name,
             cfg.output_name
         );
 
         let result = match cfg.problem {
             ProblemKind::Matmul => {
-                run_matmul(&device, shape.m, shape.k, shape.n, cfg.input, cfg.output)
+                run_matmul(&device, shape[0], shape[1], shape[2], cfg.input, cfg.output)
             }
             ProblemKind::Attention => {
-                run_attention(&device, shape.m, shape.k, shape.n, cfg.input, cfg.output)
+                run_attention(&device, shape[0], shape[1], shape[2], cfg.input, cfg.output)
+            }
+            ProblemKind::FlashAttention => {
+                run_flash_attention(&device, shape[0], shape[1], shape[2], cfg.input, cfg.output)
+            }
+            ProblemKind::Reduce => {
+                run_reduce(&device, shape.clone(), cfg.input, cfg.output)
             }
         };
 
@@ -107,7 +110,7 @@ fn main() {
 struct RunConfig {
     backend: String,
     problem: ProblemKind,
-    shapes: Vec<MatmulShape>,
+    shapes: Vec<Vec<usize>>,
     input: FloatDType,
     input_name: String,
     output: FloatDType,
@@ -116,16 +119,8 @@ struct RunConfig {
     disable_throughput_cache: bool,
 }
 
-struct MatmulShape {
-    m: usize,
-    k: usize,
-    n: usize,
-}
-
-impl MatmulShape {
-    fn name(&self) -> String {
-        format!("{}x{}x{}", self.m, self.k, self.n)
-    }
+fn shape_name(shape: &[usize]) -> String {
+    shape.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("x")
 }
 
 impl RunConfig {
@@ -144,7 +139,7 @@ impl RunConfig {
             match flag.as_str() {
                 "--backend" => backend = next(&mut it, flag)?,
                 "--problem" => problem = ProblemKind::from_str(&next(&mut it, flag)?)?,
-                "--shape" | "--matmul" => shapes.push(parse_matmul(&next(&mut it, flag)?, flag)?),
+                "--shape" | "--matmul" => shapes.push(parse_shape(&next(&mut it, flag)?, flag)?),
                 "--m" => legacy_shape[0] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
                 "--k" => legacy_shape[1] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
                 "--n" => legacy_shape[2] = Some(parse_usize(&next(&mut it, flag)?, flag)?),
@@ -159,11 +154,11 @@ impl RunConfig {
         let input = float_dtype(&input_name)?;
         let output = float_dtype(&output_name)?;
         if shapes.is_empty() {
-            shapes.push(MatmulShape {
-                m: legacy_shape[0].unwrap_or(512),
-                k: legacy_shape[1].unwrap_or(512),
-                n: legacy_shape[2].unwrap_or(512),
-            });
+            shapes.push(vec![
+                legacy_shape[0].unwrap_or(512),
+                legacy_shape[1].unwrap_or(512),
+                legacy_shape[2].unwrap_or(512),
+            ]);
         } else if legacy_shape.iter().any(Option::is_some) {
             return Err("use --shape or legacy --m/--k/--n, not both".into());
         }
@@ -187,7 +182,7 @@ impl RunConfig {
             self.problem.name(),
             self.shapes
                 .iter()
-                .map(MatmulShape::name)
+                .map(|s| shape_name(s))
                 .collect::<Vec<_>>()
                 .join(","),
             self.input_name,
@@ -208,16 +203,8 @@ fn parse_usize(value: &str, flag: &str) -> Result<usize, String> {
         .map_err(|_| format!("{flag} expects an integer, got '{value}'"))
 }
 
-fn parse_matmul(value: &str, flag: &str) -> Result<MatmulShape, String> {
-    let dimensions: Vec<_> = value.split('x').collect();
-    if dimensions.len() != 3 {
-        return Err(format!("{flag} expects MxKxN, got '{value}'"));
-    }
-    Ok(MatmulShape {
-        m: parse_usize(dimensions[0], flag)?,
-        k: parse_usize(dimensions[1], flag)?,
-        n: parse_usize(dimensions[2], flag)?,
-    })
+fn parse_shape(value: &str, flag: &str) -> Result<Vec<usize>, String> {
+    value.split('x').map(|d| parse_usize(d, flag)).collect()
 }
 
 fn float_dtype(name: &str) -> Result<FloatDType, String> {
@@ -307,5 +294,40 @@ fn run_attention(
         .cast(input);
 
     let _out = module::attention(query, key, value, None, None, Default::default()).cast(output);
+    device.sync().map_err(|err| format!("{err:?}"))
+}
+
+fn run_flash_attention(
+    device: &Device,
+    m: usize,
+    k: usize,
+    n: usize,
+    input: FloatDType,
+    output: FloatDType,
+) -> Result<(), String> {
+    let query = Tensor::<4>::from_data(TensorData::new(fill(&[m, 1, k, n]), [m, 1, k, n]), device)
+        .cast(input);
+    let key = Tensor::<4>::from_data(TensorData::new(fill(&[m, 1, k, n]), [m, 1, k, n]), device)
+        .cast(input);
+    let value = Tensor::<4>::from_data(TensorData::new(fill(&[m, 1, k, n]), [m, 1, k, n]), device)
+        .cast(input);
+
+    let _out = module::attention(query, key, value, None, None, Default::default()).cast(output);
+    device.sync().map_err(|err| format!("{err:?}"))
+}
+
+fn run_reduce(
+    device: &Device,
+    shape: Vec<usize>,
+    input: FloatDType,
+    output: FloatDType,
+) -> Result<(), String> {
+    let tensor = Tensor::<3>::from_data(
+        TensorData::new(fill(&shape), [shape[0], shape[1], shape[2]]),
+        device,
+    )
+    .cast(input);
+
+    let _out = tensor.sum_dim(2).cast(output);
     device.sync().map_err(|err| format!("{err:?}"))
 }

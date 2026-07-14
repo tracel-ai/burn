@@ -32,6 +32,8 @@ impl AutotuneObservabilityApp {
                 let shape_label = match self.problem {
                     ProblemKind::Matmul => "Matmul shapes (m×k · k×n)",
                     ProblemKind::Attention => "Attention shapes (batch×seq×head)",
+                    ProblemKind::FlashAttention => "Flash Attention shapes (batch×seq×head)",
+                    ProblemKind::Reduce => "Reduce shapes (batch×dim1×dim2)",
                 };
                 let field_labels = self.problem.shape_labels();
                 ui.label(shape_label);
@@ -164,8 +166,11 @@ impl AutotuneObservabilityApp {
                     ProblemKind::Matmul => {
                         "Hold Shift while dragging a dimension to change m, k, and n together."
                     }
-                    ProblemKind::Attention => {
+                    ProblemKind::Attention | ProblemKind::FlashAttention => {
                         "Attention shape fields map to batch, sequence length, and head dimension."
+                    }
+                    ProblemKind::Reduce => {
+                        "Reduce shape fields map to batch, dim1, and dim2 (reducing over dim2)."
                     }
                 });
             });
