@@ -45,6 +45,7 @@ pub(crate) struct RunView {
     pub(crate) dir: PathBuf,
     pub(crate) events: Vec<crate::TuneEvent>,
     pub(crate) selected: bool,
+    pub(crate) custom_name: Option<String>,
 }
 
 #[derive(Clone, Copy)]

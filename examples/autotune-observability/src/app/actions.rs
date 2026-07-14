@@ -32,11 +32,16 @@ impl AutotuneObservabilityApp {
                     .unwrap_or_default();
                 let events = load_events(&run_log_path(&dir));
                 let selected = Some(name.as_str()) == select || shown.contains(&name);
+                let custom_name = std::fs::read_to_string(dir.join("name.txt"))
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
                 RunView {
                     name,
                     dir,
                     events,
                     selected,
+                    custom_name,
                 }
             })
             .collect();
@@ -157,6 +162,7 @@ impl AutotuneObservabilityApp {
             Some(true) => {
                 self.run_rx = None;
                 let id = self.pending_run.take();
+                self.rescan_backends();
                 self.rescan_runs(id.as_deref());
                 self.status = match id {
                     Some(id) => format!("Run {id} archived."),
@@ -176,5 +182,37 @@ impl AutotuneObservabilityApp {
         let _ = std::fs::remove_dir_all(dir);
         self.rescan_runs(None);
         self.status = String::from("Deleted run.");
+    }
+
+    pub(super) fn rename_run(&mut self, i: usize, new_name: String) {
+        if let Some(run) = self.runs.get_mut(i) {
+            let name_file = run.dir.join("name.txt");
+            if new_name.is_empty() {
+                let _ = std::fs::remove_file(name_file);
+                run.custom_name = None;
+            } else {
+                let _ = std::fs::write(name_file, &new_name);
+                run.custom_name = Some(new_name);
+            }
+        }
+    }
+
+    pub(super) fn rescan_backends(&mut self) {
+        let Ok(exe) = std::env::current_exe() else {
+            return;
+        };
+        let Some(dir) = exe.parent() else { return };
+        let runner_exe = dir.join("runner");
+        if !runner_exe.exists() {
+            self.built_backends.clear();
+            return;
+        }
+        if let Ok(output) = std::process::Command::new(runner_exe)
+            .arg("--list-backends")
+            .output()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            self.built_backends = text.lines().map(|s| s.trim().to_string()).collect();
+        }
     }
 }

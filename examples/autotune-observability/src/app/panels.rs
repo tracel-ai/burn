@@ -59,10 +59,14 @@ impl AutotuneObservabilityApp {
 
             ui.horizontal(|ui| {
                 ui.add_enabled_ui(!self.running(), |ui| {
-                    if ui
-                        .button(format!("Run {}", self.problem.label().to_lowercase()))
-                        .clicked()
-                    {
+                    let (_, backend_name, _) = BACKENDS[self.selected];
+                    let needs_build = !self.built_backends.iter().any(|b| b == backend_name);
+                    let button_text = if needs_build {
+                        format!("Build & Run {}", self.problem.label().to_lowercase())
+                    } else {
+                        format!("Run {}", self.problem.label().to_lowercase())
+                    };
+                    if ui.button(button_text).clicked() {
                         self.run_selected_problem();
                     }
                 });
@@ -70,7 +74,23 @@ impl AutotuneObservabilityApp {
                     ui.spinner();
                 }
                 if ui.button("Rescan runs").clicked() {
+                    self.rescan_backends();
                     self.rescan_runs(None);
+                }
+                let selected_runs = self.runs.iter().filter(|r| r.selected).count();
+                if selected_runs >= 2 {
+                    if ui
+                        .button(if self.comparison_mode {
+                            "Exit Comparison"
+                        } else {
+                            "Compare Selected"
+                        })
+                        .clicked()
+                    {
+                        self.comparison_mode = !self.comparison_mode;
+                    }
+                } else {
+                    self.comparison_mode = false;
                 }
                 ui.checkbox(&mut self.only_short_circuits, "Only short-circuits");
                 let (events, shorted) = self
@@ -133,16 +153,41 @@ impl AutotuneObservabilityApp {
                 ui.separator();
 
                 let mut delete = None;
+                let mut finish_rename = None;
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for (i, run) in self.runs.iter_mut().enumerate() {
                         ui.horizontal(|ui| {
                             if ui.small_button("🗑").clicked() {
                                 delete = Some(i);
                             }
-                            ui.checkbox(&mut run.selected, &run.name);
+                            let is_renaming = self
+                                .rename_buffer
+                                .as_ref()
+                                .map_or(false, |(ri, _)| *ri == i);
+                            if is_renaming {
+                                let (_, buffer) = self.rename_buffer.as_mut().unwrap();
+                                let response = ui.text_edit_singleline(buffer);
+                                if response.lost_focus()
+                                    && ui.input(|inp| inp.key_pressed(egui::Key::Enter))
+                                {
+                                    finish_rename = Some((i, buffer.clone()));
+                                } else if response.lost_focus() {
+                                    finish_rename = Some((i, buffer.clone()));
+                                }
+                            } else {
+                                let label = run.custom_name.as_deref().unwrap_or(&run.name);
+                                ui.checkbox(&mut run.selected, label);
+                                if ui.small_button("✏").on_hover_text("Rename run").clicked() {
+                                    self.rename_buffer = Some((i, label.to_string()));
+                                }
+                            }
                         });
                     }
                 });
+                if let Some((i, name)) = finish_rename {
+                    self.rename_run(i, name);
+                    self.rename_buffer = None;
+                }
                 if let Some(i) = delete {
                     let dir = self.runs[i].dir.clone();
                     self.delete_run(&dir);
@@ -154,6 +199,11 @@ impl AutotuneObservabilityApp {
         egui::CentralPanel::default().show(ui, |ui| {
             if !self.runs.iter().any(|r| r.selected) {
                 ui.label("No run selected. Run a workload, or tick a run on the left.");
+                return;
+            }
+
+            if self.comparison_mode {
+                self.render_comparison(ui);
                 return;
             }
 
@@ -190,6 +240,42 @@ impl AutotuneObservabilityApp {
                         });
                 }
             });
+        });
+    }
+
+    fn render_comparison(&mut self, ui: &mut egui::Ui) {
+        let selected: Vec<_> = self.runs.iter().filter(|r| r.selected).collect();
+        ui.heading(format!("Comparing {} runs", selected.len()));
+        ui.separator();
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            let first_run = selected.first().unwrap();
+            for event in &first_run.events {
+                ui.group(|ui| {
+                    ui.strong(format!("{} - {}", event.fastest, event.key));
+                    for run in &selected {
+                        if let Some(matching) = run.events.iter().find(|e| e.key == event.key) {
+                            ui.horizontal(|ui| {
+                                ui.label(run.custom_name.as_deref().unwrap_or(&run.name));
+                                ui.label(format!("Fastest: {}", matching.fastest));
+                                if let Some(sc) = matching.short_circuit {
+                                    ui.label(format!("Short circuit: {}%", sc));
+                                } else {
+                                    ui.label(format!(
+                                        "Tuning batches: {}",
+                                        matching.tuning_batches
+                                    ));
+                                }
+                            });
+                        } else {
+                            ui.horizontal(|ui| {
+                                ui.label(run.custom_name.as_deref().unwrap_or(&run.name));
+                                ui.weak("No matching event");
+                            });
+                        }
+                    }
+                });
+            }
         });
     }
 }

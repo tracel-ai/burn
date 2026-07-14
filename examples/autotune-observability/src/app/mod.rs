@@ -25,6 +25,9 @@ pub struct AutotuneObservabilityApp {
     run_rx: Option<Receiver<RunMsg>>,
     /// Directory name of the in-flight run, selected once it finishes successfully.
     pending_run: Option<String>,
+    rename_buffer: Option<(usize, String)>,
+    built_backends: Vec<String>,
+    comparison_mode: bool,
 }
 
 impl Default for AutotuneObservabilityApp {
@@ -47,7 +50,11 @@ impl Default for AutotuneObservabilityApp {
             text_color: Color32::GRAY,
             run_rx: None,
             pending_run: None,
+            rename_buffer: None,
+            built_backends: Vec::new(),
+            comparison_mode: false,
         };
+        app.rescan_backends();
         app.rescan_runs(None);
         app
     }
