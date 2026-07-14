@@ -14,6 +14,11 @@ workspace = true
 name = "ui"
 path = "bin/ui.rs"
 
+[[bin]]
+name = "tui"
+path = "bin/tui.rs"
+required-features = ["tui"]
+
 # The runner links burn and runs one matmul per process. It needs the `backend` feature, so it
 # is skipped by a plain `cargo build`/`--bin ui`. Build it once with:
 #   cargo build --bin runner --features backend        # wgpu only
@@ -33,6 +38,7 @@ cuda = ["backend", "burn/cuda"]
 vulkan = ["backend", "burn/vulkan"]
 metal = ["backend", "burn/metal"]
 cpu = ["backend", "burn/cpu"]
+tui = ["dep:ratatui", "dep:crossterm"]
 
 [dependencies]
 burn = { workspace = true, features = ["wgpu", "autotune"], optional = true }
