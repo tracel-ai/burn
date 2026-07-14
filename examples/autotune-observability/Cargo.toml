@@ -44,3 +44,5 @@ tui = ["dep:ratatui", "dep:crossterm"]
 burn = { workspace = true, features = ["wgpu", "autotune"], optional = true }
 eframe = "0.35"
 egui = "0.35"
+ratatui = { workspace = true, optional = true }
+crossterm = { version = "0.28", optional = true }

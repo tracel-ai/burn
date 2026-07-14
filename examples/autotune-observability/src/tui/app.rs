@@ -8,18 +8,18 @@ use crate::run_support::{
 };
 use crate::{DTYPE_NAMES, list_runs, load_events, run_log_path, runs_dir};
 
-pub struct App {
-    pub runs: Vec<RunView>,
-    pub run_list_state: ListState,
+pub(crate) struct App {
+    pub(crate) runs: Vec<RunView>,
+    pub(crate) run_list_state: ListState,
 
-    pub backend_idx: usize,
-    pub problem_idx: usize,
-    pub in_dtype_idx: usize,
-    pub out_dtype_idx: usize,
+    pub(crate) backend_idx: usize,
+    pub(crate) problem_idx: usize,
+    pub(crate) in_dtype_idx: usize,
+    pub(crate) out_dtype_idx: usize,
 
-    pub run_rx: Option<mpsc::Receiver<RunMsg>>,
-    pub pending_run: Option<String>,
-    pub output_lines: Vec<String>,
+    pub(crate) run_rx: Option<mpsc::Receiver<RunMsg>>,
+    pub(crate) pending_run: Option<String>,
+    pub(crate) output_lines: Vec<String>,
 }
 
 impl App {
