@@ -1,7 +1,10 @@
 #![allow(missing_docs)]
 
 use super::SumAutotuneKey;
-use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, tensor::CubeTensor};
+use crate::{
+    CubeAutotuneKey, CubeRuntime, CubeTuneId, kernel::reduce::bounds::create_reduce_bounds,
+    tensor::CubeTensor,
+};
 use burn_backend::cubecl::dtype_to_elem_type;
 use cubecl::{
     client::ComputeClient,
@@ -38,12 +41,15 @@ pub fn autotune_reduce<R: CubeRuntime>(
 
     static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
-    let tunables = TUNER.init(|| {
+    let bounds_client = client.clone();
+
+    let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 2;
         const PRIORITY_MIN: i8 = 1;
         const PRIORITY_SKIP: i8 = -1;
 
         let mut set = TunableSet::new(create_key::<R>, reduce_input_gen::<R>);
+        set = set.with_bounds(create_reduce_bounds(&bounds_client));
 
         let default_group =
             TuneGroup::<ReduceAutotuneKey>::new("default_reduce", |_key| PRIORITY_MAX);
