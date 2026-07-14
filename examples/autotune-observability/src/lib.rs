@@ -241,3 +241,5 @@ mod ui_components;
 mod app;
 pub use app::AutotuneObservabilityApp;
 pub use run_support::ProblemKind;
+
+pub mod tui;
