@@ -6,7 +6,7 @@ use egui::text::LayoutJob;
 
 use crate::ansi::AnsiStyle;
 use crate::remote::RemoteConfig;
-use crate::run_support::{MatmulShape, ProblemKind, RunMsg, RunView};
+use crate::run_support::{ProblemKind, RunMsg, RunView};
 
 mod actions;
 mod panels;
@@ -17,7 +17,7 @@ pub struct AutotuneObservabilityApp {
     input_dtype: usize,
     output_dtype: usize,
     problem: ProblemKind,
-    shapes: Vec<MatmulShape>,
+    shapes: Vec<Vec<usize>>,
     only_short_circuits: bool,
     status: String,
     output: LayoutJob,
@@ -47,11 +47,7 @@ impl Default for AutotuneObservabilityApp {
             input_dtype: 0,
             output_dtype: 0,
             problem: ProblemKind::Matmul,
-            shapes: vec![MatmulShape {
-                m: 512,
-                k: 512,
-                n: 512,
-            }],
+            shapes: vec![ProblemKind::Matmul.default_shape()],
             only_short_circuits: false,
             status: String::from("Ready."),
             output: LayoutJob::default(),

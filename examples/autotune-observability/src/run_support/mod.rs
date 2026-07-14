@@ -9,4 +9,4 @@ pub(crate) use process::stream_command;
 pub(crate) use style::ansi_color;
 pub(crate) use time::{is_release, now_millis};
 pub use types::ProblemKind;
-pub(crate) use types::{MatmulShape, RunMsg, RunView};
+pub(crate) use types::{RunMsg, RunView};

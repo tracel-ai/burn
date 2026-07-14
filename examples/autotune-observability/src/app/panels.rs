@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use super::AutotuneObservabilityApp;
-use crate::run_support::{BACKENDS, MatmulShape, ProblemKind};
+use crate::run_support::{BACKENDS, ProblemKind};
 use crate::ui_components::{dtype_field, event_view, problem_field, size_fields};
 
 impl AutotuneObservabilityApp {
@@ -21,17 +21,19 @@ impl AutotuneObservabilityApp {
                 dtype_field(ui, "in", "in_dtype", &mut self.input_dtype);
                 dtype_field(ui, "out", "out_dtype", &mut self.output_dtype);
                 ui.separator();
+                let old_problem = self.problem;
                 problem_field(ui, &mut self.problem);
+                if old_problem != self.problem {
+                    self.shapes = vec![self.problem.default_shape()];
+                }
             });
 
             ui.horizontal(|ui| {
-                let (shape_label, field_labels) = match self.problem {
-                    ProblemKind::Matmul => ("Matmul shapes (m×k · k×n)", ["m", "k", "n"]),
-                    ProblemKind::Attention => (
-                        "Attention shapes (batch×seq×head)",
-                        ["batch", "seq", "head"],
-                    ),
+                let shape_label = match self.problem {
+                    ProblemKind::Matmul => "Matmul shapes (m×k · k×n)",
+                    ProblemKind::Attention => "Attention shapes (batch×seq×head)",
                 };
+                let field_labels = self.problem.shape_labels();
                 ui.label(shape_label);
                 let can_remove = self.shapes.len() > 1;
                 let mut remove = None;
@@ -49,11 +51,7 @@ impl AutotuneObservabilityApp {
                     self.shapes.remove(index);
                 }
                 if ui.button("+ add").clicked() {
-                    self.shapes.push(MatmulShape {
-                        m: 512,
-                        k: 512,
-                        n: 512,
-                    });
+                    self.shapes.push(self.problem.default_shape());
                 }
             });
 
@@ -85,7 +83,10 @@ impl AutotuneObservabilityApp {
                             .desired_width(110.0)
                             .hint_text("blank = key"),
                     );
-                    if ui.add_enabled(!self.testing(), egui::Button::new("Test")).clicked() {
+                    if ui
+                        .add_enabled(!self.testing(), egui::Button::new("Test"))
+                        .clicked()
+                    {
                         self.test_remote_connection();
                     }
                     if self.testing() {

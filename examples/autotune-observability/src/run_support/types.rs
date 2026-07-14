@@ -31,6 +31,19 @@ impl ProblemKind {
             other => Err(format!("unknown problem '{other}'")),
         }
     }
+    pub fn shape_labels(&self) -> &'static [&'static str] {
+        match self {
+            Self::Matmul => &["m", "k", "n"],
+            Self::Attention => &["batch", "seq", "head"],
+        }
+    }
+
+    pub fn default_shape(&self) -> Vec<usize> {
+        match self {
+            Self::Matmul => vec![512, 512, 512],
+            Self::Attention => vec![1, 256, 256],
+        }
+    }
 }
 
 /// A message streamed from the worker thread running the `runner` subprocess.
@@ -49,11 +62,4 @@ pub(crate) struct RunView {
     pub(crate) events: Vec<crate::TuneEvent>,
     pub(crate) selected: bool,
     pub(crate) custom_name: Option<String>,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct MatmulShape {
-    pub(crate) m: usize,
-    pub(crate) k: usize,
-    pub(crate) n: usize,
 }

@@ -83,17 +83,26 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     let out_dtype = DTYPE_NAMES[app.out_dtype_idx];
 
     let controls_text = if app.input_mode {
+        let mut shape_spans = vec![Span::styled(
+            " Enter Shape (Tab/Left/Right): ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        )];
+        for (i, dim) in app.shape_dims.iter().enumerate() {
+            if i > 0 {
+                shape_spans.push(Span::raw(" x "));
+            }
+            if i == app.active_dim_idx {
+                shape_spans.push(Span::styled("[ ", Style::default().fg(Color::Yellow)));
+                shape_spans.push(Span::raw(dim));
+                shape_spans.push(Span::styled("█ ]", Style::default().fg(Color::Yellow)));
+            } else {
+                shape_spans.push(Span::raw(dim));
+            }
+        }
         vec![
-            Line::from(vec![
-                Span::styled(
-                    " Enter Shape: ",
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(ratatui::style::Modifier::BOLD),
-                ),
-                Span::raw(&app.shape_str),
-                Span::styled("█", Style::default().fg(Color::Yellow)),
-            ]),
+            Line::from(shape_spans),
             Line::from(vec![
                 Span::styled(" [Enter] Save ", Style::default().fg(Color::Green)),
                 Span::styled(" | [Esc] Cancel", Style::default().fg(Color::Red)),
@@ -107,7 +116,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 Span::styled(" | [P] Problem: ", Style::default().fg(Color::Cyan)),
                 Span::raw(problem_name),
                 Span::styled(" | [S] Shape: ", Style::default().fg(Color::Cyan)),
-                Span::raw(&app.shape_str),
+                Span::raw(app.shape_dims.join("x")),
             ]),
             Line::from(vec![
                 Span::styled(" [I] In DType: ", Style::default().fg(Color::Cyan)),
@@ -156,11 +165,13 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             })
             .collect();
 
-        let output_p = Paragraph::new(lines).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Live Output "),
-        );
+        let output_p = Paragraph::new(lines)
+            .wrap(ratatui::widgets::Wrap { trim: false })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Live Output "),
+            );
         f.render_widget(output_p, right_chunks[1]);
     } else {
         if let Some(selected_idx) = app.run_list_state.selected() {
@@ -173,28 +184,36 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
 
                     let title = if let Some(sc) = event.short_circuit {
                         Span::styled(
-                            format!("#{idx} {} ⚡ short-circuit: {:.2}%", event.fastest, sc),
+                            format!(
+                                "▶ Event #{idx} | Fastest: {} ⚡ short-circuit: {:.2}%",
+                                event.fastest, sc
+                            ),
                             Style::default()
                                 .fg(Color::Yellow)
                                 .add_modifier(ratatui::style::Modifier::BOLD),
                         )
                     } else {
                         Span::styled(
-                            format!("#{idx} {}", event.fastest),
-                            Style::default().add_modifier(ratatui::style::Modifier::BOLD),
+                            format!("▶ Event #{idx} | Fastest: {}", event.fastest),
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(ratatui::style::Modifier::BOLD),
                         )
                     };
                     lines.push(Line::from(title));
                     lines.push(Line::from(vec![
-                        Span::raw(format!("{} tuning batch(es) | ", event.tuning_batches)),
+                        Span::raw("    • "),
+                        Span::raw(format!("Batches: {} | Candidates: ", event.tuning_batches)),
                         Span::styled(
-                            format!("{} benchmarked ", benchmarked),
+                            format!("{} benchmarked", benchmarked),
                             Style::default().fg(Color::Green),
                         ),
+                        Span::raw(", "),
                         Span::styled(
-                            format!("{} skipped ", skipped),
+                            format!("{} skipped", skipped),
                             Style::default().fg(Color::DarkGray),
                         ),
+                        Span::raw(", "),
                         Span::styled(
                             format!("{} invalid", invalid),
                             Style::default().fg(Color::Red),
@@ -202,8 +221,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                     ]));
 
                     if !event.candidate_progress.is_empty() {
-                        lines.push(Line::from(""));
-                        lines.push(Line::from("Progress to limit:"));
+                        lines.push(Line::from(vec![Span::raw("    • Progress to limit:")]));
                         for (i, p) in event.candidate_progress.iter().copied().enumerate() {
                             let bar_len = ((p / 100.0) * 20.0).clamp(0.0, 20.0) as usize;
                             let bar_str = "█".repeat(bar_len) + &"░".repeat(20 - bar_len);
@@ -213,7 +231,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                                 Color::Green
                             };
                             lines.push(Line::from(vec![
-                                Span::raw(format!("  #{}: {:5.1}% [", i + 1, p)),
+                                Span::raw(format!("      Candidate #{}: {:5.1}% [", i + 1, p)),
                                 Span::styled(bar_str, Style::default().fg(color)),
                                 Span::raw("]"),
                                 if p >= 100.0 {
@@ -226,7 +244,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                     }
 
                     if !event.bounds.is_empty() {
-                        lines.push(Line::from("throughput bounds:"));
+                        lines.push(Line::from(vec![Span::raw("    • Throughput bounds:")]));
                         for bound in &event.bounds {
                             let color = if bound.starts_with("Short circuiting") {
                                 Color::Yellow
@@ -234,7 +252,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                                 Color::Reset
                             };
                             lines.push(Line::from(vec![
-                                Span::raw("  "),
+                                Span::raw("      "),
                                 Span::styled(bound, Style::default().fg(color)),
                             ]));
                         }
@@ -244,11 +262,14 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 if lines.is_empty() {
                     lines.push(Line::from("No events found in this log."));
                 }
-                let p = Paragraph::new(lines).scroll((app.events_scroll, 0)).block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title(format!(" {} Events (PgUp/PgDown to scroll) ", run.name)),
-                );
+                let p = Paragraph::new(lines)
+                    .scroll((app.events_scroll, 0))
+                    .wrap(ratatui::widgets::Wrap { trim: false })
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title(format!(" {} Events (PgUp/PgDown to scroll) ", run.name)),
+                    );
                 f.render_widget(p, right_chunks[1]);
             }
         } else {

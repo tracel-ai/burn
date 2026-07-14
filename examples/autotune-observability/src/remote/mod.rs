@@ -27,7 +27,7 @@ pub(crate) struct RemoteRun {
     pub problem: ProblemKind,
     pub input: String,
     pub output: String,
-    pub shapes: Vec<(usize, usize, usize)>,
+    pub shapes: Vec<Vec<usize>>,
     pub id: String,
     pub local_run_dir: PathBuf,
     /// Bypass the sync cache and re-check every file against the remote.
@@ -143,8 +143,9 @@ fn cargo_tail(run: &RemoteRun, remote_run_dir: &str) -> String {
         run.input,
         run.output,
     );
-    for (m, k, n) in &run.shapes {
-        command.push_str(&format!(" --shape {m}x{k}x{n}"));
+    for shape in &run.shapes {
+        let shape_str = shape.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("x");
+        command.push_str(&format!(" --shape {shape_str}"));
     }
     command.push_str(&format!(" --run-dir \"{remote_run_dir}\""));
     if run.disable_throughput_cache {

@@ -68,7 +68,7 @@ impl AutotuneObservabilityApp {
         let shape_names: Vec<String> = self
             .shapes
             .iter()
-            .map(|shape| format!("{}x{}x{}", shape.m, shape.k, shape.n))
+            .map(|shape| shape.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("x"))
             .collect();
         let stamp = now_millis();
         let id = format!(
@@ -98,7 +98,7 @@ impl AutotuneObservabilityApp {
                 problem,
                 input: input.to_string(),
                 output: output.to_string(),
-                shapes: self.shapes.iter().map(|s| (s.m, s.k, s.n)).collect(),
+                shapes: self.shapes.clone(),
                 id,
                 local_run_dir: run_dir,
                 force_sync: self.force_sync,
@@ -128,7 +128,7 @@ impl AutotuneObservabilityApp {
             for shape in &self.shapes {
                 cargo_args.extend([
                     "--shape".to_string(),
-                    format!("{}x{}x{}", shape.m, shape.k, shape.n),
+                    shape.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("x"),
                 ]);
             }
             cargo_args.extend([

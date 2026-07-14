@@ -31,9 +31,24 @@ where
                     match key.code {
                         KeyCode::Enter | KeyCode::Esc => app.input_mode = false,
                         KeyCode::Backspace => {
-                            app.shape_str.pop();
+                            app.shape_dims[app.active_dim_idx].pop();
                         }
-                        KeyCode::Char(c) => app.shape_str.push(c),
+                        KeyCode::Char(c) if c.is_ascii_digit() => {
+                            app.shape_dims[app.active_dim_idx].push(c);
+                        }
+                        KeyCode::Left => {
+                            if app.active_dim_idx > 0 {
+                                app.active_dim_idx -= 1;
+                            }
+                        }
+                        KeyCode::Right => {
+                            if app.active_dim_idx + 1 < app.shape_dims.len() {
+                                app.active_dim_idx += 1;
+                            }
+                        }
+                        KeyCode::Tab => {
+                            app.active_dim_idx = (app.active_dim_idx + 1) % app.shape_dims.len();
+                        }
                         _ => {}
                     }
                 } else {
@@ -63,7 +78,13 @@ where
                             app.backend_idx = (app.backend_idx + 1) % BACKENDS.len()
                         }
                         KeyCode::Char('p') => {
-                            app.problem_idx = (app.problem_idx + 1) % ProblemKind::ALL.len()
+                            app.problem_idx = (app.problem_idx + 1) % ProblemKind::ALL.len();
+                            app.shape_dims = ProblemKind::ALL[app.problem_idx]
+                                .default_shape()
+                                .into_iter()
+                                .map(|s| s.to_string())
+                                .collect();
+                            app.active_dim_idx = 0;
                         }
                         KeyCode::Char('i') => {
                             app.in_dtype_idx = (app.in_dtype_idx + 1) % DTYPE_NAMES.len()
@@ -97,6 +118,7 @@ where
             while let Ok(msg) = rx.try_recv() {
                 match msg {
                     RunMsg::Line(l) => app.output_lines.push(l),
+                    RunMsg::Progress(_) => {}
                     RunMsg::Done { ok } => done = Some(ok),
                 }
             }

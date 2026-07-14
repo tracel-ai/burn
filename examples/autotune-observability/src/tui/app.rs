@@ -22,7 +22,8 @@ pub(crate) struct App {
     pub(crate) pending_run: Option<String>,
     pub(crate) output_lines: Vec<String>,
 
-    pub(crate) shape_str: String,
+    pub(crate) shape_dims: Vec<String>,
+    pub(crate) active_dim_idx: usize,
     pub(crate) input_mode: bool,
     pub(crate) events_scroll: u16,
 }
@@ -40,7 +41,8 @@ impl App {
             run_cancel: None,
             pending_run: None,
             output_lines: Vec::new(),
-            shape_str: String::from("512x512x512"),
+            shape_dims: ProblemKind::Matmul.default_shape().into_iter().map(|s| s.to_string()).collect(),
+            active_dim_idx: 0,
             input_mode: false,
             events_scroll: 0,
         };
@@ -106,7 +108,7 @@ impl App {
         cargo_args.push("--".into());
 
         let stamp = now_millis();
-        let shape_name = self.shape_str.clone();
+        let shape_name = self.shape_dims.join("x");
         let id = format!(
             "{stamp}-{backend}-{}-{}-{input}-{output}",
             problem.name(),

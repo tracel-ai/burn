@@ -1,17 +1,13 @@
 use crate::DTYPE_NAMES;
-use crate::run_support::{MatmulShape, ProblemKind};
+use crate::run_support::ProblemKind;
 
-pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut MatmulShape, labels: [&str; 3]) {
-    let original = [
-        shape.m.ilog2().min(14),
-        shape.k.ilog2().min(14),
-        shape.n.ilog2().min(14),
-    ];
-    let mut exponents = original;
+pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut Vec<usize>, labels: &[&'static str]) {
+    let original: Vec<u32> = shape.iter().map(|s| s.ilog2().min(14)).collect();
+    let mut exponents = original.clone();
     let mut changed = None;
 
-    for (index, (label, exponent)) in labels.into_iter().zip(exponents.iter_mut()).enumerate() {
-        ui.label(label);
+    for (index, (label, exponent)) in labels.iter().zip(exponents.iter_mut()).enumerate() {
+        ui.label(*label);
         if ui
             .add(
                 egui::DragValue::new(exponent)
@@ -28,11 +24,11 @@ pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut MatmulShape, labels: [&
     if let Some(changed) = changed {
         let delta = exponents[changed] as isize - original[changed] as isize;
         if ui.input(|input| input.modifiers.shift) {
-            exponents = original.map(|exponent| (exponent as isize + delta).clamp(0, 14) as u32);
+            exponents = original.iter().map(|exponent| (*exponent as isize + delta).clamp(0, 14) as u32).collect();
         }
-        shape.m = 1usize << exponents[0];
-        shape.k = 1usize << exponents[1];
-        shape.n = 1usize << exponents[2];
+        for (i, exponent) in exponents.iter().enumerate() {
+            shape[i] = 1usize << exponent;
+        }
     }
 }
 
