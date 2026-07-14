@@ -8,8 +8,39 @@ use ratatui::{
 
 use crate::DTYPE_NAMES;
 use crate::run_support::{BACKENDS, ProblemKind};
+use crate::ansi::{AnsiStyle, parse_ansi};
 
 use super::app::App;
+
+fn into_ratatui_style(ansi: AnsiStyle) -> Style {
+    let mut style = Style::default();
+    if ansi.bold {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+    if let Some(c) = ansi.color {
+        let color = match (c, ansi.bright) {
+            (0, false) => Color::Black,
+            (1, false) => Color::Red,
+            (2, false) => Color::Green,
+            (3, false) => Color::Yellow,
+            (4, false) => Color::Blue,
+            (5, false) => Color::Magenta,
+            (6, false) => Color::Cyan,
+            (7, false) => Color::White,
+            (0, true) => Color::DarkGray,
+            (1, true) => Color::LightRed,
+            (2, true) => Color::LightGreen,
+            (3, true) => Color::LightYellow,
+            (4, true) => Color::LightBlue,
+            (5, true) => Color::LightMagenta,
+            (6, true) => Color::LightCyan,
+            (7, true) => Color::Gray,
+            _ => Color::Reset,
+        };
+        style = style.fg(color);
+    }
+    style
+}
 
 pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
@@ -103,16 +134,24 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(controls_p, right_chunks[0]);
 
     if app.run_rx.is_some() {
-        let text: String = app
+        let mut ansi_state = AnsiStyle::default();
+        let lines: Vec<Line> = app
             .output_lines
             .iter()
             .rev()
             .take(50)
             .rev()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n");
-        let output_p = Paragraph::new(text).block(
+            .map(|raw_line| {
+                let parsed = parse_ansi(raw_line, &mut ansi_state);
+                let spans: Vec<Span> = parsed
+                    .into_iter()
+                    .map(|(style, text)| Span::styled(text, into_ratatui_style(style)))
+                    .collect();
+                Line::from(spans)
+            })
+            .collect();
+
+        let output_p = Paragraph::new(lines).block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(" Live Output "),
