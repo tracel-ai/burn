@@ -1,7 +1,7 @@
 use eframe::egui;
 
 use super::AutotuneObservabilityApp;
-use crate::run_support::{BACKENDS, ProblemKind};
+use crate::run_support::{BACKENDS, ProblemKind, RunSpec};
 use crate::ui_components::{dtype_field, event_view, problem_field, size_fields};
 
 impl AutotuneObservabilityApp {
@@ -309,6 +309,218 @@ impl AutotuneObservabilityApp {
         }
     }
 
+    pub(super) fn render_run_book_panel(&mut self, ui: &mut egui::Ui) {
+        egui::Panel::right("run_book")
+            .resizable(true)
+            .default_size(300.0)
+            .show(ui, |ui| {
+                let running = self.running();
+                ui.add_space(4.0);
+
+                // Keep the selection valid before anything indexes with it.
+                self.selected_book = self.selected_book.min(self.run_books.books.len() - 1);
+                let book_idx = self.selected_book;
+
+                let mut save = false;
+                let mut select_book = None;
+                let mut new_book = false;
+                let mut delete_book = false;
+                let mut add_current = false;
+                let mut run_all = false;
+                let mut run_one = None;
+                let mut load = None;
+                let mut duplicate = None;
+                let mut delete = None;
+                let mut toggle_edit = None;
+
+                // --- Book selector ---
+                let book_names: Vec<String> =
+                    self.run_books.books.iter().map(|book| book.name.clone()).collect();
+                ui.horizontal(|ui| {
+                    ui.strong("Book");
+                    let selected_text = book_names
+                        .get(book_idx)
+                        .map(|name| Self::book_label(name))
+                        .unwrap_or_default();
+                    egui::ComboBox::from_id_salt("run_book_select")
+                        .selected_text(selected_text)
+                        .show_ui(ui, |ui| {
+                            for (i, name) in book_names.iter().enumerate() {
+                                if ui
+                                    .selectable_label(i == book_idx, Self::book_label(name))
+                                    .clicked()
+                                {
+                                    select_book = Some(i);
+                                }
+                            }
+                        });
+                    if ui.small_button("+").on_hover_text("New book").clicked() {
+                        new_book = true;
+                    }
+                    if ui
+                        .add_enabled(self.run_books.books.len() > 1, egui::Button::new("🗑").small())
+                        .on_hover_text("Delete this book")
+                        .clicked()
+                    {
+                        delete_book = true;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("name");
+                    let book = &mut self.run_books.books[book_idx];
+                    save |= ui
+                        .add(
+                            egui::TextEdit::singleline(&mut book.name)
+                                .desired_width(f32::INFINITY)
+                                .hint_text("book name"),
+                        )
+                        .changed();
+                });
+
+                let spec_count = self.run_books.books[book_idx].specs.len();
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("+ Add current")
+                        .on_hover_text(
+                            "Save the current backend, problem, dtypes and shapes as an entry",
+                        )
+                        .clicked()
+                    {
+                        add_current = true;
+                    }
+                    if ui
+                        .add_enabled(
+                            !running && spec_count > 0,
+                            egui::Button::new(format!("▶ Run all ({spec_count})")),
+                        )
+                        .on_hover_text("Launch every entry, one after another")
+                        .clicked()
+                    {
+                        run_all = true;
+                    }
+                });
+                ui.separator();
+
+                let editing = self.run_book_editing;
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let specs = &mut self.run_books.books[book_idx].specs;
+                        if specs.is_empty() {
+                            ui.weak(
+                                "Empty. Configure the controls above, then click \"+ Add current\".",
+                            );
+                        }
+                        for (i, spec) in specs.iter_mut().enumerate() {
+                            let is_editing = editing == Some(i);
+                            ui.group(|ui| {
+                                ui.push_id(i, |ui| {
+                                    ui.horizontal(|ui| {
+                                        save |= ui
+                                            .add(
+                                                egui::TextEdit::singleline(&mut spec.name)
+                                                    .desired_width(f32::INFINITY)
+                                                    .hint_text("name (optional)"),
+                                            )
+                                            .changed();
+                                    });
+
+                                    if is_editing {
+                                        save |= edit_spec_fields(ui, spec);
+                                    } else {
+                                        ui.label(format!(
+                                            "{} · {} · {} → {}",
+                                            spec.problem.label(),
+                                            spec.backend,
+                                            spec.input,
+                                            spec.output
+                                        ));
+                                        ui.label(
+                                            egui::RichText::new(spec.shapes_string())
+                                                .monospace()
+                                                .small(),
+                                        );
+                                    }
+
+                                    ui.horizontal(|ui| {
+                                        if ui
+                                            .add_enabled(
+                                                !running,
+                                                egui::Button::new("▶ Run").small(),
+                                            )
+                                            .clicked()
+                                        {
+                                            run_one = Some(i);
+                                        }
+                                        let edit_label = if is_editing { "✓ Done" } else { "✏ Edit" };
+                                        if ui.small_button(edit_label).clicked() {
+                                            toggle_edit = Some(i);
+                                        }
+                                        if ui
+                                            .small_button("Load")
+                                            .on_hover_text("Copy into the controls above")
+                                            .clicked()
+                                        {
+                                            load = Some(i);
+                                        }
+                                        if ui.small_button("Dup").clicked() {
+                                            duplicate = Some(i);
+                                        }
+                                        if ui.small_button("🗑").on_hover_text("Delete").clicked() {
+                                            delete = Some(i);
+                                        }
+                                    });
+                                });
+                            });
+                        }
+                    });
+
+                if save {
+                    self.save_run_books();
+                }
+                if let Some(i) = select_book {
+                    self.select_book(i);
+                }
+                if new_book {
+                    self.new_run_book();
+                }
+                if delete_book {
+                    self.delete_active_book();
+                }
+                if add_current {
+                    self.add_current_to_run_book();
+                }
+                if run_all {
+                    self.run_book_run_all();
+                }
+                if let Some(i) = run_one {
+                    self.run_book_run_one(i);
+                }
+                if let Some(i) = load {
+                    self.load_spec_into_controls(i);
+                }
+                if let Some(i) = duplicate {
+                    self.duplicate_run_book_spec(i);
+                }
+                if let Some(i) = toggle_edit {
+                    self.run_book_editing =
+                        if self.run_book_editing == Some(i) { None } else { Some(i) };
+                }
+                if let Some(i) = delete {
+                    self.delete_run_book_spec(i);
+                }
+            });
+    }
+
+    fn book_label(name: &str) -> &str {
+        if name.trim().is_empty() {
+            "(unnamed)"
+        } else {
+            name
+        }
+    }
+
     pub(super) fn render_output_panel(&mut self, ui: &mut egui::Ui) {
         egui::Panel::bottom("output")
             .resizable(true)
@@ -481,4 +693,80 @@ impl AutotuneObservabilityApp {
             }
         });
     }
+}
+
+/// Inline editors for a run book entry's problem, backend, dtypes and shapes. Returns whether any
+/// field changed, so the caller can persist the book.
+fn edit_spec_fields(ui: &mut egui::Ui, spec: &mut RunSpec) -> bool {
+    let mut changed = false;
+
+    ui.horizontal(|ui| {
+        ui.label("problem");
+        egui::ComboBox::from_id_salt("edit_problem")
+            .selected_text(spec.problem.label())
+            .show_ui(ui, |ui| {
+                for problem in ProblemKind::ALL {
+                    changed |= ui
+                        .selectable_value(&mut spec.problem, problem, problem.label())
+                        .changed();
+                }
+            });
+        ui.label("on");
+        egui::ComboBox::from_id_salt("edit_backend")
+            .selected_text(&spec.backend)
+            .show_ui(ui, |ui| {
+                for (label, backend, _) in BACKENDS.iter() {
+                    changed |= ui
+                        .selectable_value(&mut spec.backend, (*backend).to_string(), *label)
+                        .changed();
+                }
+            });
+    });
+
+    ui.horizontal(|ui| {
+        ui.label("in");
+        egui::ComboBox::from_id_salt("edit_in")
+            .selected_text(&spec.input)
+            .show_ui(ui, |ui| {
+                for dtype in crate::DTYPE_NAMES.iter() {
+                    changed |= ui
+                        .selectable_value(&mut spec.input, (*dtype).to_string(), *dtype)
+                        .changed();
+                }
+            });
+        ui.label("out");
+        egui::ComboBox::from_id_salt("edit_out")
+            .selected_text(&spec.output)
+            .show_ui(ui, |ui| {
+                for dtype in crate::DTYPE_NAMES.iter() {
+                    changed |= ui
+                        .selectable_value(&mut spec.output, (*dtype).to_string(), *dtype)
+                        .changed();
+                }
+            });
+    });
+
+    let labels = spec.problem.shape_labels();
+    let can_remove = spec.shapes.len() > 1;
+    let mut remove_shape = None;
+    for (j, shape) in spec.shapes.iter_mut().enumerate() {
+        ui.push_id(j, |ui| {
+            ui.horizontal(|ui| {
+                changed |= size_fields(ui, shape, labels);
+                if can_remove && ui.small_button("×").on_hover_text("Remove shape").clicked() {
+                    remove_shape = Some(j);
+                }
+            });
+        });
+    }
+    if let Some(j) = remove_shape {
+        spec.shapes.remove(j);
+        changed = true;
+    }
+    if ui.button("+ add shape").clicked() {
+        spec.shapes.push(spec.problem.default_shape());
+        changed = true;
+    }
+
+    changed
 }

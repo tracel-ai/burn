@@ -7,7 +7,7 @@ use egui::text::LayoutJob;
 
 use crate::ansi::AnsiStyle;
 use crate::remote::RemoteConfig;
-use crate::run_support::{ProblemKind, RunMsg, RunView};
+use crate::run_support::{ProblemKind, RunBooks, RunMsg, RunView};
 
 mod actions;
 mod panels;
@@ -52,6 +52,13 @@ pub struct AutotuneObservabilityApp {
     force_sync: bool,
     /// Re-benchmark the peak-throughput bound each run instead of reusing cubecl's global cache.
     disable_throughput_cache: bool,
+    /// Named run books (e.g. one of matmuls, one of attentions), saved to disk. Each book is a
+    /// batch of run configs launchable one-by-one or all at once.
+    run_books: RunBooks,
+    /// Index of the currently shown book in `run_books`.
+    selected_book: usize,
+    /// Index of the run book entry whose fields are expanded for inline editing, if any.
+    run_book_editing: Option<usize>,
 }
 
 impl Default for AutotuneObservabilityApp {
@@ -80,6 +87,9 @@ impl Default for AutotuneObservabilityApp {
             conn_test: None,
             force_sync: false,
             disable_throughput_cache: false,
+            run_books: RunBooks::load(),
+            selected_book: 0,
+            run_book_editing: None,
         };
         app.rescan_backends();
         app.rescan_runs(None);
@@ -119,6 +129,7 @@ impl eframe::App for AutotuneObservabilityApp {
         self.render_controls_panel(ui);
         self.render_output_panel(ui);
         self.render_runs_panel(ui);
+        self.render_run_book_panel(ui);
         self.render_events_panel(ui);
         self.render_rerun_popup(&ctx);
     }

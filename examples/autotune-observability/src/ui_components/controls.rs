@@ -1,7 +1,12 @@
 use crate::DTYPE_NAMES;
 use crate::run_support::ProblemKind;
 
-pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut Vec<usize>, labels: &[&'static str]) {
+/// Render one drag field per shape dimension. Returns whether the shape was edited.
+pub(crate) fn size_fields(
+    ui: &mut egui::Ui,
+    shape: &mut Vec<usize>,
+    labels: &[&'static str],
+) -> bool {
     let original: Vec<u32> = shape.iter().map(|s| s.ilog2().min(14)).collect();
     let mut exponents = original.clone();
     let mut changed = None;
@@ -30,6 +35,8 @@ pub(crate) fn size_fields(ui: &mut egui::Ui, shape: &mut Vec<usize>, labels: &[&
             shape[i] = 1usize << exponent;
         }
     }
+
+    changed.is_some()
 }
 
 pub(crate) fn dtype_field(ui: &mut egui::Ui, label: &str, id: &str, selected: &mut usize) {

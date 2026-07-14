@@ -10,7 +10,8 @@ use super::{AutotuneObservabilityApp, LaunchRequest};
 use crate::ansi::{self};
 use crate::remote::{RemoteRun, run_remote, test_connection};
 use crate::run_support::{
-    BACKENDS, ProblemKind, RunMsg, RunView, ansi_color, is_release, now_millis, stream_command,
+    BACKENDS, ProblemKind, RunBook, RunMsg, RunSpec, RunView, ansi_color, is_release, now_millis,
+    stream_command,
 };
 use crate::{DTYPE_NAMES, list_runs, load_events, run_log_path, runs_dir};
 
@@ -73,6 +74,154 @@ impl AutotuneObservabilityApp {
         if let Err(err) = self.start_run_request(request) {
             self.status = err;
         }
+    }
+
+    /// The index of the currently shown book, clamped into range (books are never empty).
+    fn active_book_index(&self) -> usize {
+        self.selected_book.min(self.run_books.books.len() - 1)
+    }
+
+    pub(super) fn active_book(&self) -> &RunBook {
+        &self.run_books.books[self.active_book_index()]
+    }
+
+    fn active_book_mut(&mut self) -> &mut RunBook {
+        let index = self.active_book_index();
+        &mut self.run_books.books[index]
+    }
+
+    /// Build a launch request from a saved spec, labelling it by the spec's name (or a fallback).
+    fn spec_to_request(spec: &RunSpec) -> LaunchRequest {
+        let label = if spec.name.trim().is_empty() {
+            format!("{} {}", spec.problem.label(), spec.backend)
+        } else {
+            spec.name.clone()
+        };
+        LaunchRequest {
+            backend: spec.backend.clone(),
+            problem: spec.problem,
+            input: spec.input.clone(),
+            output: spec.output.clone(),
+            shapes: spec.shapes.clone(),
+            source_label: Some(label),
+        }
+    }
+
+    /// Snapshot the current controls (backend/problem/dtypes/shapes) as a new entry in the book.
+    pub(super) fn add_current_to_run_book(&mut self) {
+        let spec = RunSpec {
+            name: String::new(),
+            backend: BACKENDS[self.selected].1.to_string(),
+            problem: self.problem,
+            input: DTYPE_NAMES[self.input_dtype].to_string(),
+            output: DTYPE_NAMES[self.output_dtype].to_string(),
+            shapes: self.shapes.clone(),
+        };
+        let book = self.active_book_mut();
+        book.specs.push(spec);
+        let book_name = book.name.clone();
+        self.run_books.save();
+        self.status = format!("Added current config to '{book_name}'.");
+    }
+
+    /// Queue every entry in the active book and launch them one after another.
+    pub(super) fn run_book_run_all(&mut self) {
+        let requests: Vec<LaunchRequest> =
+            self.active_book().specs.iter().map(Self::spec_to_request).collect();
+        if requests.is_empty() {
+            self.status = String::from("This book is empty.");
+            return;
+        }
+        self.start_rerun_requests(requests);
+    }
+
+    /// Launch a single entry from the active book.
+    pub(super) fn run_book_run_one(&mut self, index: usize) {
+        let Some(spec) = self.active_book().specs.get(index) else {
+            return;
+        };
+        let request = Self::spec_to_request(spec);
+        self.rerun_queue.clear();
+        if let Err(err) = self.start_run_request(request) {
+            self.status = err;
+        }
+    }
+
+    /// Copy a book entry back into the top controls so it can be tweaked and re-saved.
+    pub(super) fn load_spec_into_controls(&mut self, index: usize) {
+        let Some(spec) = self.active_book().specs.get(index).cloned() else {
+            return;
+        };
+        if let Some(pos) = BACKENDS.iter().position(|(_, backend, _)| *backend == spec.backend) {
+            self.selected = pos;
+        }
+        self.problem = spec.problem;
+        if let Some(pos) = DTYPE_NAMES.iter().position(|name| *name == spec.input) {
+            self.input_dtype = pos;
+        }
+        if let Some(pos) = DTYPE_NAMES.iter().position(|name| *name == spec.output) {
+            self.output_dtype = pos;
+        }
+        if !spec.shapes.is_empty() {
+            self.shapes = spec.shapes;
+        }
+        self.status = format!("Loaded '{}' into the controls.", spec.name);
+    }
+
+    pub(super) fn duplicate_run_book_spec(&mut self, index: usize) {
+        let book = self.active_book_mut();
+        if let Some(spec) = book.specs.get(index).cloned() {
+            book.specs.insert(index + 1, spec);
+            self.run_books.save();
+        }
+    }
+
+    pub(super) fn delete_run_book_spec(&mut self, index: usize) {
+        let book = self.active_book_mut();
+        if index < book.specs.len() {
+            book.specs.remove(index);
+            self.run_books.save();
+        }
+        self.run_book_editing = None;
+    }
+
+    /// Create a fresh empty book with a unique name and switch to it.
+    pub(super) fn new_run_book(&mut self) {
+        let mut n = self.run_books.books.len() + 1;
+        let name = loop {
+            let candidate = format!("Book {n}");
+            if !self.run_books.books.iter().any(|book| book.name == candidate) {
+                break candidate;
+            }
+            n += 1;
+        };
+        self.run_books.books.push(RunBook::named(name));
+        self.selected_book = self.run_books.books.len() - 1;
+        self.run_book_editing = None;
+        self.run_books.save();
+    }
+
+    /// Delete the active book, keeping at least one book around.
+    pub(super) fn delete_active_book(&mut self) {
+        let index = self.active_book_index();
+        self.run_books.books.remove(index);
+        if self.run_books.books.is_empty() {
+            self.run_books.books.push(RunBook::named("Default"));
+        }
+        self.selected_book = self.selected_book.min(self.run_books.books.len() - 1);
+        self.run_book_editing = None;
+        self.run_books.save();
+    }
+
+    pub(super) fn select_book(&mut self, index: usize) {
+        if index < self.run_books.books.len() && index != self.selected_book {
+            self.selected_book = index;
+            self.run_book_editing = None;
+        }
+    }
+
+    pub(super) fn save_run_books(&self) {
+        self.run_books.save();
     }
 
     pub(super) fn rerun_selected_runs(&mut self) {
