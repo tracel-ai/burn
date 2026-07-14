@@ -1,111 +1,68 @@
-use super::worker::{ClientRequest, ClientWorker};
-use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponseContent};
-use async_channel::Sender;
-use burn_common::id::StreamId;
-use burn_ir::TensorId;
-use std::{
-    future::Future,
-    sync::{Arc, atomic::AtomicU64},
-};
+use super::{RemoteDevice, service::RemoteService};
+use burn_backend::{DeviceHandle, backend::Device};
 
-pub use super::WsDevice;
-
-#[derive(Clone)]
-pub struct WsClient {
-    pub(crate) device: WsDevice,
-    pub(crate) sender: Arc<WsSender>,
-    pub(crate) runtime: Arc<tokio::runtime::Runtime>,
+/// A thin handle to a `RemoteService` running on its own device-runner thread.
+///
+/// Every `RouterClient` method delegates to `handle.submit` / `submit_blocking`, so all
+/// connection state, the tokio runtime, the response-demux task, and the op batch buffer
+/// live on the service side.
+pub struct RemoteClient {
+    pub(crate) device: RemoteDevice,
+    pub(crate) handle: DeviceHandle<RemoteService>,
 }
 
-impl WsClient {
-    pub fn init(device: WsDevice) -> Self {
-        ClientWorker::start(device)
+impl RemoteClient {
+    pub fn init(device: RemoteDevice) -> Self {
+        // `DeviceHandle::new` initializes the service the first time it's called for a given
+        // device id. `RemoteService::init` is deliberately cheap — it records the endpoint but
+        // does NOT connect, because cubecl holds a process-global lock across it; the actual
+        // connect + handshake happens lazily on first use (or via `ensure_connected`).
+        // Subsequent calls return a handle to the existing service.
+        let handle = DeviceHandle::<RemoteService>::new(device.to_id());
+        Self { device, handle }
     }
 
-    pub(crate) fn new(
-        device: WsDevice,
-        sender: Sender<ClientRequest>,
-        runtime: Arc<tokio::runtime::Runtime>,
-        session_id: SessionId,
-    ) -> Self {
+    /// Force the lazily-established connection to be opened now, populating the device's
+    /// settings/device-count cells. Used by the settings path (`RemoteDevice::defaults` /
+    /// `enumerate`), which needs the handshake reply before any op has flushed. Runs the
+    /// connect on the service's runner thread, so it can't sit under cubecl's global lock.
+    pub(crate) fn ensure_connected(&self) {
+        self.handle
+            .submit_blocking(|s| s.ensure_connected())
+            .expect("Service call failed");
+    }
+
+    /// Establish the session asynchronously, the way the browser requires.
+    ///
+    /// The connect + handshake cannot block the single browser thread, so it runs off the device
+    /// handle: the service hands back the connection parameters, the network round-trip happens
+    /// with `.await`, and the opened session is installed back into the service. A no-op once the
+    /// session is up.
+    #[cfg(target_family = "wasm")]
+    pub(crate) async fn connect_async(&self) {
+        use crate::client::service::wasm_connect;
+
+        let Some(plan) = self
+            .handle
+            .submit_blocking(|s| s.wasm_connect_plan())
+            .expect("Service call failed")
+        else {
+            return;
+        };
+
+        let connected = wasm_connect(plan).await;
+
+        self.handle
+            .submit_blocking(move |s| s.wasm_install(connected))
+            .expect("Service call failed");
+    }
+}
+
+impl Clone for RemoteClient {
+    fn clone(&self) -> Self {
         Self {
-            device,
-            runtime,
-            sender: Arc::new(WsSender {
-                sender,
-                position_counter: AtomicU64::new(0),
-                tensor_id_counter: AtomicU64::new(0),
-                session_id,
-            }),
+            device: self.device.clone(),
+            handle: self.handle.clone(),
         }
-    }
-}
-
-pub(crate) struct WsSender {
-    sender: Sender<ClientRequest>,
-    position_counter: AtomicU64,
-    tensor_id_counter: AtomicU64,
-    session_id: SessionId,
-}
-
-impl WsSender {
-    pub(crate) fn send(&self, task: ComputeTask) {
-        let position = self
-            .position_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let stream_id = StreamId::current();
-        let sender = self.sender.clone();
-
-        sender
-            .send_blocking(ClientRequest::WithoutCallback(Task::Compute(
-                task,
-                ConnectionId::new(position, stream_id),
-            )))
-            .unwrap();
-    }
-
-    pub(crate) fn new_tensor_id(&self) -> TensorId {
-        let val = self
-            .tensor_id_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        TensorId::new(val)
-    }
-    pub(crate) fn send_callback(
-        &self,
-        task: ComputeTask,
-    ) -> impl Future<Output = TaskResponseContent> + Send + use<> {
-        let position = self
-            .position_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let stream_id = StreamId::current();
-        let sender = self.sender.clone();
-        let (callback_sender, callback_recv) = async_channel::bounded(1);
-        sender
-            .send_blocking(ClientRequest::WithSyncCallback(
-                Task::Compute(task, ConnectionId::new(position, stream_id)),
-                callback_sender,
-            ))
-            .unwrap();
-
-        async move {
-            match callback_recv.recv().await {
-                Ok(val) => val,
-                Err(err) => panic!("{err:?}"),
-            }
-        }
-    }
-
-    pub(crate) fn close(&mut self) {
-        let sender = self.sender.clone();
-
-        let close_task = ClientRequest::WithoutCallback(Task::Close(self.session_id));
-
-        sender.send_blocking(close_task).unwrap();
-    }
-}
-
-impl Drop for WsSender {
-    fn drop(&mut self) {
-        self.close();
     }
 }

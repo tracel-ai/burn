@@ -13,11 +13,14 @@ version.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std **
 
-burn = { path = "../burn", version = "0.19.0", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", default-features = false }
+burn = { workspace = true }
+burn-flex = { workspace = true }
 
-serde = { workspace = true }
+burn-store = { workspace = true, features = ["safetensors", "burnpack"] }

@@ -1,0 +1,58 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Core backend interfaces and data structures for executing tensor operations in Burn."
+documentation = "https://docs.rs/burn-backend"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license.workspace = true
+name = "burn-backend"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std"]
+doc = ["default"]
+std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std", "dep:oneshot"]
+
+tracing = ["burn-std/tracing", "cubecl/tracing"]
+
+# For DTypeUsage de/serialization
+serde = ["enumset/serde"]
+
+cubecl = ["dep:cubecl"]
+cubecl-cuda = ["cubecl", "cubecl/cuda"]
+cubecl-hip = ["cubecl", "cubecl/hip"]
+cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
+cubecl-metal = ["cubecl", "cubecl/metal"]
+cubecl-vulkan = ["cubecl", "cubecl/vulkan"]
+cubecl-webgpu = ["cubecl", "cubecl/webgpu"]
+cubecl-cpu = ["cubecl", "cubecl/cpu"]
+
+[dependencies]
+burn-std = { workspace = true }
+cubecl = { workspace = true, optional = true, default-features = false }
+
+bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
+derive-new = { workspace = true }
+enumset = { workspace = true }
+hashbrown = { workspace = true }
+num-traits = { workspace = true }
+rand = { workspace = true, default-features = false }
+rand_distr = { workspace = true }
+serde = { workspace = true }
+oneshot = { version = "0.2.1", optional = true }
+spin = { workspace = true }
+
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true, features = ["thread_rng"] }
+paste = { workspace = true }
+serde_json = { workspace = true, features = ["alloc"] }
+serial_test = { workspace = true }

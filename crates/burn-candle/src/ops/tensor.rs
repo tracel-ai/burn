@@ -1,26 +1,28 @@
 use std::borrow::Borrow;
 
-use burn_tensor::{
-    Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+use burn_backend::{
+    DType, Distribution, ElementConversion, ExecutionError, FloatDType, Scalar, Shape, Slice,
+    TensorData, bf16, f16,
+    ops::FloatTensorOps,
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
+use burn_std::{BoolDType, IntDType};
 use candle_core::{Tensor, backend::BackendStorage, shape};
-use half::{bf16, f16};
 
 use crate::{
-    Candle, CandleTensor,
+    Candle, CandleDevice, CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
-use super::base::{expand, permute, sign};
+use super::base::{cpu_random, expand, permute, sign, unfold};
 
-impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
+impl FloatTensorOps<Self> for Candle {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
         match data.dtype {
-            burn_tensor::DType::F64 => super::base::from_data::<f64>(data, device),
-            burn_tensor::DType::F32 => super::base::from_data::<f32>(data, device),
-            burn_tensor::DType::F16 => super::base::from_data::<f16>(data, device),
-            burn_tensor::DType::BF16 => super::base::from_data::<bf16>(data, device),
+            DType::F64 => super::base::from_data::<f64>(data, device),
+            DType::F32 => super::base::from_data::<f32>(data, device),
+            DType::F16 => super::base::from_data::<f16>(data, device),
+            DType::BF16 => super::base::from_data::<bf16>(data, device),
             _ => unimplemented!("Unsupported dtype for `float_from_data`"),
         }
     }
@@ -29,61 +31,73 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        let shape = shape.dims;
+        if let CandleDevice::Cpu = device {
+            // Use our own seed since candle doesn't support it on CPU
+            return Self::float_from_data(cpu_random(shape, distribution, dtype.into()), device);
+        }
+
+        let shape = shape.to_vec();
         let device = &(device.clone()).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
-                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
+                candle_core::Tensor::rand(0f32, 1f32, shape, device)
                     .unwrap()
-                    .to_dtype(F::DTYPE)
+                    .to_dtype(dtype.into_dtype())
                     .unwrap(),
             ),
             Distribution::Bernoulli(prob) => CandleTensor::new(
-                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape.clone(), device)
+                candle_core::Tensor::rand(0f32, 1f32, shape.clone(), device)
                     .unwrap()
-                    .to_dtype(F::DTYPE)
+                    .to_dtype(dtype.into_dtype())
                     .unwrap()
-                    .lt(&super::candle_utils::fill(prob, shape, F::DTYPE, device))
+                    .lt(&super::candle_utils::fill(
+                        prob,
+                        shape,
+                        dtype.into_dtype(),
+                        device,
+                    ))
                     .unwrap()
-                    .to_dtype(F::DTYPE)
+                    .to_dtype(dtype.into_dtype())
                     .unwrap(),
             ),
             Distribution::Uniform(from, to) => CandleTensor::new(
-                candle_core::Tensor::rand(from.elem::<F>(), to.elem::<F>(), shape, device).unwrap(),
+                candle_core::Tensor::rand(from, to, shape, device)
+                    .unwrap()
+                    .to_dtype(dtype.into_dtype())
+                    .unwrap(),
             ),
             Distribution::Normal(mean, std) => CandleTensor::new(
-                candle_core::Tensor::randn(mean.elem::<F>(), std.elem::<F>(), shape, device)
+                candle_core::Tensor::randn(mean, std, shape, device)
+                    .unwrap()
+                    .to_dtype(dtype.into_dtype())
                     .unwrap(),
             ),
         }
     }
 
-    async fn float_into_data(tensor: CandleTensor) -> TensorData {
+    async fn float_into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
         super::base::into_data(tensor)
-    }
-
-    fn float_device(tensor: &CandleTensor) -> Device<Self> {
-        super::base::device(tensor)
     }
 
     fn float_to_device(tensor: CandleTensor, device: &Device<Self>) -> CandleTensor {
         super::base::to_device(tensor, device)
     }
 
-    fn float_into_int(tensor: CandleTensor) -> IntTensor<Self> {
-        CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
+    fn float_into_int(tensor: CandleTensor, out_dtype: IntDType) -> IntTensor<Self> {
+        CandleTensor::new(tensor.tensor.to_dtype(out_dtype.into_dtype()).unwrap())
     }
 
-    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        super::base::empty(shape, device, F::DTYPE)
+    fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        super::base::empty(shape, device, dtype.into_dtype())
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(lhs.tensor.broadcast_add(&rhs.tensor).unwrap())
     }
 
-    fn float_add_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
+    fn float_add_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         CandleTensor::new((lhs.tensor + rhs.elem::<f64>()).unwrap())
     }
 
@@ -91,7 +105,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(lhs.tensor.broadcast_sub(&rhs.tensor).unwrap())
     }
 
-    fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
+    fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         CandleTensor::new((lhs.tensor - rhs.elem::<f64>()).unwrap())
     }
 
@@ -99,7 +113,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(lhs.tensor.broadcast_mul(&rhs.tensor).unwrap())
     }
 
-    fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
+    fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         CandleTensor::new((lhs.tensor * rhs.elem::<f64>()).unwrap())
     }
 
@@ -107,7 +121,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(lhs.tensor.broadcast_div(&rhs.tensor).unwrap())
     }
 
-    fn float_div_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
+    fn float_div_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         CandleTensor::new((lhs.tensor / rhs.elem::<f64>()).unwrap())
     }
 
@@ -126,7 +140,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
+    fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         // In PyTorch, remainder can also be defined as torch.remainder(a, b) == a - a.div(b, rounding_mode="floor") * b
         let rhs_val = rhs.elem::<f64>();
         let division_result = (lhs.tensor.clone() / rhs_val).unwrap().floor().unwrap();
@@ -149,6 +163,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(lhs_contiguous.broadcast_matmul(&rhs_contiguous).unwrap())
     }
 
+    fn float_cross(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        super::base::cross(lhs, rhs, dim)
+    }
+
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
@@ -167,7 +189,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.gather(&indices, dim).unwrap())
     }
 
-    fn float_scatter(
+    fn float_scatter_add(
         dim: usize,
         tensor: FloatTensor<Self>,
         indices: IntTensor<Self>,
@@ -181,6 +203,19 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        super::base::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        super::base::gather_nd(data, indices)
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,
@@ -189,7 +224,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn float_select_assign(
+    fn float_select_add(
         tensor: FloatTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -203,19 +238,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_slice(
-        tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
-    ) -> FloatTensor<Self> {
-        super::base::slice(tensor, ranges)
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[Slice]) -> FloatTensor<Self> {
+        super::base::slice_with_steps(tensor, slices)
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        ranges: &[std::ops::Range<usize>],
+        slices: &[Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        super::base::slice_assign(tensor, ranges, value)
+        super::base::slice_assign(tensor, slices, value)
     }
 
     fn float_mask_where(
@@ -229,84 +261,133 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     fn float_mask_fill(
         tensor: FloatTensor<Self>,
         mask: BoolTensor<Self>,
-        value: FloatElem<Self>,
+        value: Scalar,
     ) -> FloatTensor<Self> {
+        let value = super::candle_utils::fill_like::<f32>(value.elem(), &tensor.tensor);
+        super::base::mask_where_broadcasted(tensor, mask, CandleTensor::new(value))
+    }
+
+    fn float_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.eq(&rhs_broadcast).unwrap())
+    }
+
+    fn float_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        CandleTensor::new(lhs.tensor.eq(rhs.elem::<f32>()).unwrap())
+    }
+
+    fn float_greater(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.gt(&rhs_broadcast).unwrap())
+    }
+
+    fn float_greater_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
-            mask.tensor
-                .where_cond(
-                    &super::candle_utils::fill_like::<F>(value, &tensor.tensor),
-                    &tensor.tensor,
-                )
+            lhs.tensor
+                .gt(&super::candle_utils::fill_like::<f32>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
 
-    fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.eq(&rhs.tensor).unwrap())
+    fn float_greater_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.ge(&rhs_broadcast).unwrap())
     }
 
-    fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
+    fn float_greater_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .eq(&super::candle_utils::fill_like::<F>(rhs, &lhs.tensor))
+                .ge(&super::candle_utils::fill_like::<f32>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
 
-    fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.gt(&rhs.tensor).unwrap())
+    fn float_lower(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.lt(&rhs_broadcast).unwrap())
     }
 
-    fn float_greater_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
+    fn float_lower_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .gt(&super::candle_utils::fill_like::<F>(rhs, &lhs.tensor))
+                .lt(&super::candle_utils::fill_like::<f32>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
 
-    fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.ge(&rhs.tensor).unwrap())
+    fn float_lower_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let (lhs_broadcast, rhs_broadcast) =
+            super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
+        CandleTensor::new(lhs_broadcast.le(&rhs_broadcast).unwrap())
     }
 
-    fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
+    fn float_lower_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .ge(&super::candle_utils::fill_like::<F>(rhs, &lhs.tensor))
-                .unwrap(),
-        )
-    }
-
-    fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.lt(&rhs.tensor).unwrap())
-    }
-
-    fn float_lower_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(
-            lhs.tensor
-                .lt(&super::candle_utils::fill_like::<F>(rhs, &lhs.tensor))
-                .unwrap(),
-        )
-    }
-
-    fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(lhs.tensor.le(&rhs.tensor).unwrap())
-    }
-
-    fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(
-            lhs.tensor
-                .le(&super::candle_utils::fill_like::<F>(rhs, &lhs.tensor))
+                .le(&super::candle_utils::fill_like::<f32>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        let sum = tensor.tensor.sum_all().unwrap().to_scalar::<F>().unwrap();
-        CandleTensor::from_data::<F>(
-            TensorData::new([sum].into(), [1]),
-            Self::float_device(&tensor),
-        )
+        let sum = tensor.tensor.sum_all().unwrap().reshape((1,)).unwrap();
+        CandleTensor::new(sum)
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
@@ -315,6 +396,31 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.mean_keepdim(dim).unwrap())
+    }
+
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
+    }
+
+    fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_mul(curr)
+        });
+        CandleTensor::new(result)
+    }
+
+    fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_minimum(curr)
+        });
+        CandleTensor::new(result)
+    }
+
+    fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let result = super::utils::cumulative_with_op(&tensor.tensor, dim, |prev, curr| {
+            prev.broadcast_maximum(curr)
+        });
+        CandleTensor::new(result)
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -329,8 +435,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new((tensor.tensor + 1.).unwrap().log().unwrap())
     }
 
-    fn float_powf_scalar(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
-        CandleTensor::new(tensor.tensor.powf(value.elem::<f64>()).unwrap())
+    fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: Scalar) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.powf(value.elem()).unwrap())
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -345,12 +451,82 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.cos().unwrap())
     }
 
+    fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // cosh(x) = (e^x + e^(-x)) / 2
+        let exp_x = tensor.tensor.exp().unwrap();
+        CandleTensor::new(((exp_x.clone() + exp_x.recip().unwrap()).unwrap() / 2.0).unwrap())
+    }
+
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.sin().unwrap())
     }
 
+    fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // sinh(x) = (e^x - e^(-x)) / 2
+        let exp_x = tensor.tensor.exp().unwrap();
+        CandleTensor::new(((exp_x.clone() - exp_x.recip().unwrap()).unwrap() / 2.0).unwrap())
+    }
+
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new((tensor.tensor.sin().unwrap() / tensor.tensor.cos().unwrap()).unwrap())
+    }
+
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.tanh().unwrap())
+    }
+
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // acos(x) = PI/2 - asin(x)
+        let neg_asin_x = Self::float_neg(Self::float_asin(tensor));
+        Self::float_add_scalar(neg_asin_x, core::f64::consts::FRAC_PI_2.into())
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // acosh(x) = ln(x + sqrt(x^2 - 1))
+        let x_squared = Self::float_powi_scalar(tensor.clone(), 2.into());
+        let x_sq_minus_one = Self::float_sub_scalar(x_squared, 1f64.into());
+        let sqrt_term = Self::float_sqrt(x_sq_minus_one);
+        Self::float_log(Self::float_add(tensor, sqrt_term))
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // asin(x) = atan(x / sqrt(1 - x^2))
+        let x_squared = Self::float_powi_scalar(tensor.clone(), 2.into());
+        let one_minus_x_sq = Self::float_add_scalar(Self::float_neg(x_squared), 1f64.into());
+        let sqrt_term = Self::float_sqrt(one_minus_x_sq);
+        Self::float_atan(Self::float_div(tensor, sqrt_term))
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // asinh(x) = ln(x + sqrt(x^2 + 1))
+        let x_squared = Self::float_powi_scalar(tensor.clone(), 2.into());
+        let x_sq_plus_one = Self::float_add_scalar(x_squared, 1f64.into());
+        let sqrt_term = Self::float_sqrt(x_sq_plus_one);
+        Self::float_log(Self::float_add(tensor, sqrt_term))
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // atan(x) = asin(x / sqrt(1 + x^2))
+        let x_squared = Self::float_powi_scalar(tensor.clone(), 2.into());
+        let one_plus_x_sq = Self::float_add_scalar(x_squared, 1f64.into());
+        let sqrt_term = Self::float_sqrt(one_plus_x_sq);
+        Self::float_asin(Self::float_div(tensor, sqrt_term))
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // atanh(x) = ln((1 + x) / (1 - x)) / 2
+        let num = (1.0 + tensor.tensor.clone()).unwrap();
+        let denom = (1.0 - tensor.tensor).unwrap();
+        CandleTensor::new(((num / denom).unwrap().log().unwrap() / 2.0).unwrap())
+    }
+
+    fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        // atan2(y, x) = 2 * atan(y / (sqrt(x^2 + y^2) + x))
+        let x_squared = Self::float_powi_scalar(rhs.clone(), 2.into());
+        let y_squared = Self::float_powi_scalar(lhs.clone(), 2.into());
+        let r = Self::float_sqrt(Self::float_add(x_squared, y_squared));
+        let ratio = Self::float_div(lhs, Self::float_add(r, rhs));
+        Self::float_mul_scalar(Self::float_atan(ratio), 2f64.into())
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -383,6 +559,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.ceil().unwrap())
     }
 
+    fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // truncate(x) = ⌊x⌋ if x ≥ 0, and ⌈x⌉ if x < 0
+        // This preserves the sign of zero and handles all special cases correctly
+        let is_negative = tensor.tensor.lt(0.0).unwrap();
+        let floored = tensor.tensor.floor().unwrap();
+        let ceiled = tensor.tensor.ceil().unwrap();
+        CandleTensor::new(is_negative.where_cond(&ceiled, &floored).unwrap())
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.erf().unwrap())
     }
@@ -391,42 +576,52 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::cat(tensors, dim)
     }
 
-    fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
+    fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
                 .argmax_keepdim(dim)
                 .unwrap()
-                .to_dtype(I::DTYPE)
+                .to_dtype(out_dtype.into_dtype())
                 .unwrap(),
         )
     }
 
-    fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
+    fn float_argtopk(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<Self> {
+        panic!("argtopk not implemented for candle backend")
+    }
+
+    fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
                 .argmin_keepdim(dim)
                 .unwrap()
-                .to_dtype(I::DTYPE)
+                .to_dtype(out_dtype.into_dtype())
                 .unwrap(),
         )
     }
 
-    fn float_clamp_max(tensor: FloatTensor<Self>, max: FloatElem<Self>) -> FloatTensor<Self> {
-        CandleTensor::new(tensor.tensor.minimum(max).unwrap())
+    fn float_clamp_max(tensor: FloatTensor<Self>, max: Scalar) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.minimum(max.elem::<f32>()).unwrap())
     }
 
-    fn float_clamp_min(tensor: FloatTensor<Self>, min: FloatElem<Self>) -> FloatTensor<Self> {
-        CandleTensor::new(tensor.tensor.maximum(min).unwrap())
+    fn float_clamp_min(tensor: FloatTensor<Self>, min: Scalar) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.maximum(min.elem::<f32>()).unwrap())
     }
 
-    fn float_clamp(
-        tensor: FloatTensor<Self>,
-        min: FloatElem<Self>,
-        max: FloatElem<Self>,
-    ) -> FloatTensor<Self> {
-        CandleTensor::new(tensor.tensor.clamp(min, max).unwrap())
+    fn float_clamp(tensor: FloatTensor<Self>, min: Scalar, max: Scalar) -> FloatTensor<Self> {
+        CandleTensor::new(
+            tensor
+                .tensor
+                .clamp(min.elem::<f32>(), max.elem::<f32>())
+                .unwrap(),
+        )
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -459,17 +654,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         expand(tensor, shape)
     }
 
+    fn float_unfold(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        size: usize,
+        step: usize,
+    ) -> FloatTensor<Self> {
+        unfold(tensor, dim, size, step)
+    }
+
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         sign(tensor)
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        let dtype = match dtype {
-            FloatDType::F64 => candle_core::DType::F64,
-            FloatDType::F32 => candle_core::DType::F32,
-            FloatDType::F16 => candle_core::DType::F16,
-            FloatDType::BF16 => candle_core::DType::BF16,
-        };
+        let dtype = dtype.into_dtype();
 
         if tensor.tensor.dtype() == dtype {
             tensor

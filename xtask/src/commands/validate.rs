@@ -14,6 +14,53 @@ pub fn handle_command(
     let exclude = vec![];
     let only = vec![];
 
+    if context == Context::NoStd || context == Context::All {
+        // =================
+        // no-std validation
+        // =================
+        info!("Run validation for no-std execution environment...");
+
+        #[cfg(target_os = "linux")]
+        {
+            // build
+            super::build::handle_command(
+                BurnBuildCmdArgs {
+                    target: target.clone(),
+                    exclude: exclude.clone(),
+                    only: only.clone(),
+                    ci: true,
+                    release: args.release,
+                    features: args.features.clone(),
+                    no_default_features: args.no_default_features,
+                },
+                env.clone(),
+                Context::NoStd,
+            )?;
+
+            // tests
+            super::test::handle_command(
+                BurnTestCmdArgs {
+                    target: target.clone(),
+                    exclude: exclude.clone(),
+                    only: only.clone(),
+                    threads: None,
+                    jobs: None,
+                    command: Some(TestSubCommand::All),
+                    ci: CiTestType::GithubRunner,
+                    features: None,
+                    no_default_features: false,
+                    force: false,
+                    no_capture: false,
+                    release: args.release,
+                    test: None,
+                    miri: false,
+                },
+                env.clone(),
+                Context::NoStd,
+            )?;
+        }
+    }
+
     if context == Context::Std || context == Context::All {
         // ==============
         // std validation
@@ -36,6 +83,9 @@ pub fn handle_command(
                     only: only.clone(),
                     command: Some(c.clone()),
                     ignore_audit: args.ignore_audit,
+                    features: args.features.clone(),
+                    no_default_features: args.no_default_features,
+                    ignore_typos: args.ignore_typos,
                 },
                 env.clone(),
                 context.clone(),
@@ -50,6 +100,8 @@ pub fn handle_command(
                 only: only.clone(),
                 ci: true,
                 release: args.release,
+                features: args.features.clone(),
+                no_default_features: args.no_default_features,
             },
             env.clone(),
             Context::Std,
@@ -64,6 +116,8 @@ pub fn handle_command(
                 threads: None,
                 jobs: None,
                 command: Some(TestSubCommand::All),
+                // NOTE: this will only run `CiTestType::Backends` (burn-backend-tests)
+                // for local sanity checks this is a quick approach to validating after no-std tests + cargo build
                 ci: CiTestType::GithubRunner,
                 features: None,
                 no_default_features: false,
@@ -71,6 +125,7 @@ pub fn handle_command(
                 test: None,
                 force: false,
                 no_capture: false,
+                miri: false,
             },
             env.clone(),
             Context::Std,
@@ -86,55 +141,13 @@ pub fn handle_command(
                         exclude: exclude.clone(),
                         only: only.clone(),
                         command: Some(c.clone()),
+                        features: args.features.clone(),
+                        no_default_features: args.no_default_features,
                     },
                     env.clone(),
                     context.clone(),
                 )
             })?;
-    }
-
-    if context == Context::NoStd || context == Context::All {
-        // =================
-        // no-std validation
-        // =================
-        info!("Run validation for no-std execution environment...");
-
-        #[cfg(target_os = "linux")]
-        {
-            // build
-            super::build::handle_command(
-                BurnBuildCmdArgs {
-                    target: target.clone(),
-                    exclude: exclude.clone(),
-                    only: only.clone(),
-                    ci: true,
-                    release: args.release,
-                },
-                env.clone(),
-                Context::NoStd,
-            )?;
-
-            // tests
-            super::test::handle_command(
-                BurnTestCmdArgs {
-                    target: target.clone(),
-                    exclude: exclude.clone(),
-                    only: only.clone(),
-                    threads: None,
-                    jobs: None,
-                    command: Some(TestSubCommand::All),
-                    ci: CiTestType::GithubRunner,
-                    features: None,
-                    no_default_features: false,
-                    force: false,
-                    no_capture: false,
-                    release: args.release,
-                    test: None,
-                },
-                env.clone(),
-                Context::NoStd,
-            )?;
-        }
     }
 
     Ok(())

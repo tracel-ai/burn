@@ -1,26 +1,20 @@
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
+use burn_backend::{DType, Shape, backend::DeviceOps};
 use burn_ir::TensorIr;
-use burn_tensor::{DType, Element, backend::DeviceOps};
 
-use crate::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
+use crate::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
 
 /// Type alias for `<Br as MultiBackendBridge>::TensorHandle`.
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;
 
-/// Defines the connection channel and operations for a setup with multiple backend runner clients.
-pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
+/// Defines the connection channel and operations for a setup with multiple backend router clients.
+pub trait RouterChannel: Clone + Send + Sync + 'static + Sized {
     /// Device type.
     type Device: DeviceOps;
     /// A bridge that can transfer tensors between multiple backends.
     type Bridge: MultiBackendBridge<Device = Self::Device>;
     /// Client type.
-    type Client: RunnerClient<Device = Self::Device>;
-    /// Float element type.
-    type FloatElem: Element;
-    /// Int element type.
-    type IntElem: Element;
-    /// Bool element type.
-    type BoolElem: Element;
+    type Client: RouterClient<Device = Self::Device>;
 
     /// Name of the channel.
     fn name(device: &Self::Device) -> String;
@@ -35,7 +29,7 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     fn register_tensor(
         client: &Self::Client,
         handle: TensorHandle<Self::Bridge>,
-        shape: Vec<usize>,
+        shape: Shape,
         dtype: DType,
     ) -> RouterTensor<Self::Client>;
 
@@ -50,11 +44,11 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
         let mut handle = Self::get_tensor_handle(&desc, &original_client);
 
         if desc.dtype.is_float() {
-            handle = Self::Bridge::change_backend_float(handle, desc.shape.clone().into(), device);
+            handle = Self::Bridge::change_backend_float(handle, desc.shape.clone(), device);
         } else if desc.dtype.is_int() {
-            handle = Self::Bridge::change_backend_int(handle, desc.shape.clone().into(), device);
+            handle = Self::Bridge::change_backend_int(handle, desc.shape.clone(), device);
         } else if desc.dtype.is_bool() {
-            handle = Self::Bridge::change_backend_bool(handle, desc.shape.clone().into(), device);
+            handle = Self::Bridge::change_backend_bool(handle, desc.shape.clone(), device);
         } else {
             unimplemented!()
         }

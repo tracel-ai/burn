@@ -2,15 +2,19 @@ use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::AdamConfig,
-    tensor::backend::AutodiffBackend,
+    tensor::Device,
     train::{
-        LearnerBuilder,
-        renderer::{MetricState, MetricsRenderer, TrainingProgress},
+        Learner, SupervisedTraining,
+        logger::{EvaluationProgressLogger, TrainingProgressLogger},
+        renderer::{
+            EvaluationName, MetricState, MetricsRenderer, MetricsRendererEvaluation,
+            MetricsRendererTraining,
+        },
     },
 };
 use guide::{data::MnistBatcher, model::ModelConfig};
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
     pub num_epochs: usize,
@@ -28,30 +32,74 @@ pub struct MnistTrainingConfig {
 
 struct CustomRenderer {}
 
-impl MetricsRenderer for CustomRenderer {
+impl MetricsRendererTraining for CustomRenderer {
     fn update_train(&mut self, _state: MetricState) {}
 
     fn update_valid(&mut self, _state: MetricState) {}
+}
 
-    fn render_train(&mut self, item: TrainingProgress) {
-        dbg!(item);
+impl TrainingProgressLogger for CustomRenderer {
+    fn start(&mut self, _total_epochs: usize, _starting_epoch: usize, _total_items: Option<usize>) {
     }
 
-    fn render_valid(&mut self, item: TrainingProgress) {
-        dbg!(item);
+    fn update_epoch(&mut self, _epoch: usize) {}
+
+    fn start_split(&mut self, _split: &str, _total_items: usize) {}
+
+    fn update_split(&mut self, items_processed: usize) {
+        dbg!(items_processed);
+    }
+
+    fn end_split(&mut self) {}
+
+    fn end(&mut self) {}
+
+    fn log_event_training(&mut self, event: String) {
+        dbg!(event);
     }
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+impl MetricsRenderer for CustomRenderer {
+    fn manual_close(&mut self) {
+        // Nothing to do.
+    }
+
+    fn register_metric(&mut self, _definition: burn::train::metric::MetricDefinition) {}
+}
+
+impl MetricsRendererEvaluation for CustomRenderer {
+    fn update_test(&mut self, _name: EvaluationName, _state: MetricState) {}
+}
+
+impl EvaluationProgressLogger for CustomRenderer {
+    fn start_global_progress(&mut self, _total_tests: usize) {}
+
+    fn start_test(&mut self, _name: &str, _total_items: usize) {}
+
+    fn update_test_progress(&mut self, items_processed: usize) {
+        dbg!(items_processed);
+    }
+
+    fn end_test(&mut self) {}
+
+    fn end_global_progress(&mut self) {}
+
+    fn log_event_evaluation(&mut self, event: String) {
+        dbg!(event);
+    }
+}
+
+pub fn run(device: Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    B::seed(config.seed);
+    let device = device.autodiff();
+    device.seed(config.seed);
 
     // Create the model and optimizer.
-    let model = config.model.init::<B>(&device);
+    let model = config.model.init(&device);
     let optim = config.optimizer.init();
 
     // Create the batcher.
@@ -71,15 +119,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .build(MnistDataset::test());
 
     // artifact dir does not need to be provided when log_to_file is false
-    let builder = LearnerBuilder::new("")
-        .devices(vec![device])
+    let training = SupervisedTraining::new("", dataloader_train, dataloader_test)
         .num_epochs(config.num_epochs)
         .renderer(CustomRenderer {})
         .with_application_logger(None);
     // can be used to interrupt training
-    let _interrupter = builder.interrupter();
+    let _interrupter = training.interrupter();
 
-    let learner = builder.build(model, optim, config.lr);
-
-    let _model_trained = learner.fit(dataloader_train, dataloader_test);
+    let _model_trained = training.launch(Learner::new(model, optim, config.lr));
 }

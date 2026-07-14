@@ -1,7 +1,7 @@
-use crate::{LibTorch, QuantElement, TchTensor, element::TchElement};
-use burn_tensor::ops::ActivationOps;
+use crate::{LibTorch, TchTensor};
+use burn_backend::ops::ActivationOps;
 
-impl<E: TchElement, Q: QuantElement> ActivationOps<Self> for LibTorch<E, Q> {
+impl ActivationOps<Self> for LibTorch {
     fn relu(tensor: TchTensor) -> TchTensor {
         tensor.unary_ops(|mut tensor| tensor.relu_(), |tensor| tensor.relu())
     }
@@ -32,6 +32,30 @@ impl<E: TchElement, Q: QuantElement> ActivationOps<Self> for LibTorch<E, Q> {
         let storage = tensor.storage.clone();
         let tensor = tensor.tensor.log_sigmoid();
 
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    fn softmax(tensor: TchTensor, dim: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.softmax(dim as i64, None);
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    fn log_softmax(tensor: TchTensor, dim: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.log_softmax(dim as i64, None);
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    fn softmin(tensor: TchTensor, dim: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.neg().softmax(dim as i64, None);
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    fn prelu(tensor: TchTensor, alpha: TchTensor) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.prelu(&alpha.tensor);
         TchTensor::from_existing(tensor, storage)
     }
 }

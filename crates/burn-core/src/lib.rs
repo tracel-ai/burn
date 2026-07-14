@@ -1,10 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![recursion_limit = "135"]
 
 //! The core crate of Burn.
 
+// `derive_new` provides the `#[derive(new)]` macro used across the crate; the lint mistakenly
+// reports the `#[macro_use]` as unused.
+#[allow(unused_imports)]
 #[macro_use]
 extern crate derive_new;
 
@@ -18,65 +21,61 @@ pub mod config;
 #[cfg(feature = "std")]
 pub mod data;
 
-/// Optimizer module.
-pub mod optim;
-
-/// Learning rate scheduler module.
-#[cfg(feature = "std")]
-pub mod lr_scheduler;
-
-/// Gradient clipping module.
-pub mod grad_clipping;
-
 /// Module for the neural network module.
 pub mod module;
 
-/// Neural network module.
-pub mod nn;
-
-/// Module for the recorder.
-pub mod record;
+/// Module for saving and loading module/optimizer state in the burnpack format.
+pub mod store;
 
 /// Module for the tensor.
 pub mod tensor;
+// Tensor at root: `burn::Tensor`
+pub use tensor::Tensor;
+
+#[cfg(feature = "extension")]
+/// Backend module.
+pub mod backend;
 
 extern crate alloc;
 
-/// Backend for test cases
-#[cfg(all(
-    test,
-    not(feature = "test-tch"),
-    not(feature = "test-wgpu"),
-    not(feature = "test-cuda")
-))]
-pub type TestBackend = burn_ndarray::NdArray<f32>;
-
-#[cfg(all(test, feature = "test-tch"))]
-/// Backend for test cases
-pub type TestBackend = burn_tch::LibTorch<f32>;
-
-#[cfg(all(test, feature = "test-wgpu"))]
-/// Backend for test cases
-pub type TestBackend = burn_wgpu::Wgpu;
-
-#[cfg(all(test, feature = "test-cuda"))]
-/// Backend for test cases
-pub type TestBackend = burn_cuda::Cuda;
-
-/// Backend for autodiff test cases
+// TODO: configurable device priority
 #[cfg(test)]
-pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
-
-#[cfg(all(test, feature = "test-memory-checks"))]
-mod tests {
-    burn_fusion::memory_checks!();
+#[allow(missing_docs)]
+pub fn test_device() -> burn_tensor::Device {
+    burn_tensor::Device::flex()
 }
 
-/// Type alias for the learning rate.
-///
-/// LearningRate also implements [learning rate scheduler](crate::lr_scheduler::LrScheduler) so it
-/// can be used for constant learning rate.
-pub type LearningRate = f64; // We could potentially change the type.
+#[cfg(test)]
+mod test_utils {
+    use crate as burn;
+    use crate::module::Module;
+    use crate::module::Param;
+    use burn_tensor::Device;
+    use burn_tensor::Tensor;
+
+    /// Simple linear module.
+    #[derive(Module, Debug)]
+    pub struct SimpleLinear {
+        pub weight: Param<Tensor<2>>,
+        pub bias: Option<Param<Tensor<1>>>,
+    }
+
+    impl SimpleLinear {
+        pub fn new(in_features: usize, out_features: usize, device: &Device) -> Self {
+            let weight = Tensor::random(
+                [out_features, in_features],
+                burn_tensor::Distribution::Default,
+                device,
+            );
+            let bias = Tensor::random([out_features], burn_tensor::Distribution::Default, device);
+
+            Self {
+                weight: Param::from_tensor(weight),
+                bias: Some(Param::from_tensor(bias)),
+            }
+        }
+    }
+}
 
 pub mod prelude {
     //! Structs and macros used by most projects. Add `use
@@ -85,10 +84,10 @@ pub mod prelude {
     pub use crate::{
         config::Config,
         module::Module,
-        nn,
         tensor::{
-            Bool, Device, ElementConversion, Float, Int, Shape, Tensor, TensorData,
-            backend::Backend, s,
+            Bool, Device, DeviceIndex, DeviceKind, ElementConversion, Float, Int, Shape, SliceArg,
+            Tensor, TensorData, cast::ToElement, s,
         },
     };
+    pub use burn_std::device::Device as DeviceOps;
 }

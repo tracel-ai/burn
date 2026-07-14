@@ -50,20 +50,21 @@ impl PopupState {
     pub(crate) fn is_empty(&self) -> bool {
         matches!(&self, PopupState::Empty)
     }
-    /// Handle popup events.
-    pub(crate) fn on_event(&mut self, event: &Event) {
+    /// Handle popup events. Returns `true` when the popup state changed and a
+    /// redraw is warranted, `false` for events that left the popup untouched.
+    pub(crate) fn on_event(&mut self, event: &Event) -> bool {
         let mut reset = false;
 
         match self {
             PopupState::Empty => {}
             PopupState::Full(_, callbacks) => {
                 for callback in callbacks.iter() {
-                    if let Event::Key(key) = event {
-                        if let KeyCode::Char(key) = &key.code {
-                            if &callback.trigger == key && callback.callback.call() {
-                                reset = true;
-                            }
-                        }
+                    if let Event::Key(key) = event
+                        && let KeyCode::Char(key) = &key.code
+                        && &callback.trigger == key
+                        && callback.callback.call()
+                    {
+                        reset = true;
                     }
                 }
             }
@@ -72,6 +73,7 @@ impl PopupState {
         if reset {
             *self = Self::Empty;
         }
+        reset
     }
     /// Create the popup view.
     pub(crate) fn view(&self) -> Option<PopupView<'_>> {

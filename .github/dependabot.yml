@@ -5,6 +5,8 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    ignore:
+      - dependency-name: "tracel-ai/github-actions*"
 
   - package-ecosystem: "cargo"
     directories:

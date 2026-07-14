@@ -1,64 +1,193 @@
-use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
-use burn_tensor::backend::{Backend, DeviceOps};
-use cubecl::server::ComputeServer;
-use rand::{SeedableRng, rngs::StdRng};
-use std::{marker::PhantomData, sync::Mutex};
+use crate::{CubeRuntime, tensor::CubeTensor};
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::{
+    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
+    TensorData,
+};
+use burn_std::{BoolStore, DType};
+use cubecl::{
+    features::{MmaConfig, TypeUsage},
+    server::ComputeServer,
+};
+use std::marker::PhantomData;
 
+#[cfg(not(feature = "fusion"))]
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 #[cfg(not(feature = "fusion"))]
 use burn_ir::{BackendIr, TensorHandle};
-#[cfg(not(feature = "fusion"))]
-use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 
-pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+/// Turn a cubecl graph-capture error into a backend [`ExecutionError`].
+fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
+    ExecutionError::WithContext {
+        reason: format!("{err}"),
+    }
+}
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
-pub struct CubeBackend<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> {
+pub struct CubeBackend<R: CubeRuntime> {
     _runtime: PhantomData<R>,
-    _float_elem: PhantomData<F>,
-    _int_elem: PhantomData<I>,
-    _bool_elem: PhantomData<BT>,
 }
 
-impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>
+impl<R> BackendTypes for CubeBackend<R>
 where
     R: CubeRuntime,
     R::Server: ComputeServer,
-    R::Device: burn_tensor::backend::DeviceOps,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
+    R::Device: DeviceOps,
 {
     type Device = R::Device;
-
-    type FloatElem = F;
-    type IntElem = I;
-    type BoolElem = BT;
 
     type FloatTensorPrimitive = CubeTensor<R>;
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
-    type QuantizedEncoding = u32;
 
+    type GraphPrimitive = cubecl::client::Graph<R>;
+}
+
+impl<R> Backend for CubeBackend<R>
+where
+    R: CubeRuntime,
+    R::Server: ComputeServer,
+    R::Device: DeviceOps,
+{
     fn name(device: &Self::Device) -> String {
         let client = R::client(device);
         format!("cubecl<{}>", R::name(&client))
     }
 
-    fn seed(seed: u64) {
-        let rng = StdRng::seed_from_u64(seed);
-        let mut seed = SEED.lock().unwrap();
-        *seed = Some(rng);
+    fn seed(_device: &Self::Device, seed: u64) {
+        cubek::random::seed(seed);
     }
 
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = R::client(device);
-        futures_lite::future::block_on(client.sync());
+        futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
+            reason: format!("{err}"),
+        })
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = R::client(device);
+        client.graph_prepare().map_err(graph_err)
+    }
+
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = R::client(device);
+        client.start_capture().map_err(graph_err)
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
+        let client = R::client(device);
+        client.stop_capture().map_err(graph_err)
+    }
+
+    unsafe fn graph_replay(
+        _device: &Self::Device,
+        graph: &BackendGraph<Self>,
+    ) -> Result<(), ExecutionError> {
+        // cubecl's `Graph::replay` is fire-and-forget: it enqueues the dispatch
+        // and returns immediately, so a replay failure is not reported here — it
+        // lands in the stream's error queue and surfaces on the next sync/flush.
+        //
+        // Safety: the buffer-liveness and stream-ordering obligations are the
+        // caller's, forwarded verbatim from this method's own contract.
+        unsafe { graph.replay() };
+        Ok(())
+    }
+
+    fn memory_persistent_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
+        device: &Self::Device,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        let client = R::client(device);
+        client.memory_persistent_allocation(input, func).unwrap()
+    }
+
+    fn memory_cleanup(device: &Self::Device) {
+        let client = R::client(device);
+        client.memory_cleanup();
+    }
+
+    fn staging<'a, Iter>(data: Iter, device: &Self::Device)
+    where
+        Iter: Iterator<Item = &'a mut TensorData>,
+    {
+        let client = R::client(device);
+        client.staging(data.map(|td| &mut td.bytes), false);
+    }
+
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        // Right now no cubecl backend actually works with native bool, even if
+        // the `TypeUsage` might indicate otherwise.
+        if let DType::Bool(BoolStore::Native) = dtype {
+            return false;
+        }
+
+        let client = R::client(device);
+
+        let type_usage = client.properties().type_usage(dtype_to_storage_type(dtype));
+        // Same as `TypeUsage::all_scalar()`, but we make the usage explicit here
+        type_usage.is_superset(
+            TypeUsage::Buffer
+                | TypeUsage::Conversion
+                | TypeUsage::Arithmetic
+                | TypeUsage::DotProduct,
+        )
+    }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet {
+        // Right now no cubecl backend actually works with native bool, even if
+        // the `TypeUsage` might indicate otherwise.
+        if let DType::Bool(BoolStore::Native) = dtype {
+            return DTypeUsageSet::empty();
+        }
+
+        let client = R::client(device);
+
+        let props = client.properties();
+        let storage = dtype_to_storage_type(dtype);
+        let usage = props.type_usage(storage);
+
+        let mut out = DTypeUsageSet::new();
+
+        if usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
+            out |= DTypeUsage::Storage;
+        }
+
+        if usage.contains(TypeUsage::Arithmetic) {
+            out |= DTypeUsage::Arithmetic;
+        }
+
+        let has_mma = |cfg: &MmaConfig| {
+            cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
+        };
+        if props.features.matmul.cmma.iter().any(has_mma)
+            || props.features.matmul.mma.iter().any(has_mma)
+        {
+            out |= DTypeUsage::Accelerated;
+        }
+
+        out
+    }
+
+    fn device_count(type_id: u16) -> usize {
+        let client = R::client(&Default::default());
+        client.device_count(type_id)
+    }
+
+    fn flush(device: &Self::Device) {
+        let client = R::client(device);
+        client.flush().unwrap();
     }
 
     fn memory_static_allocations<Output, Input, Func: Fn(Input) -> Output>(
@@ -79,25 +208,19 @@ where
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt::Debug
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> core::fmt::Debug for CubeBackend<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("CubeCLBackend")
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Clone
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> Clone for CubeBackend<R> {
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Default
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> Default for CubeBackend<R> {
     fn default() -> Self {
         Self::new()
     }
@@ -112,9 +235,7 @@ where
 }
 
 #[cfg(not(feature = "fusion"))]
-impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
-    for CubeBackend<R, F, I, BT>
-{
+impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
     type Handle = CubeTensor<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {

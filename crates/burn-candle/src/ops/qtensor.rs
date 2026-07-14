@@ -1,20 +1,18 @@
-use std::ops::Range;
-
-use burn_tensor::{
-    DType, Device, Shape, TensorData,
-    backend::Backend,
-    ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
+use burn_backend::{
+    Backend, DType, ExecutionError, FloatDType, Shape, TensorData,
+    ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
+    tensor::{Device, FloatTensor, QuantizedTensor},
 };
 
 use crate::{
-    Candle, CandleQTensor,
+    Candle,
     element::{FloatCandleElement, IntCandleElement},
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, I> {
+impl QTensorOps<Self> for Candle {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        unimplemented!() // no i8 support
+        unimplemented!()
     }
 
     fn quantize(
@@ -25,12 +23,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn dequantize(_tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(_tensor: QuantizedTensor<Self>, _dtype: FloatDType) -> FloatTensor<Self> {
         unimplemented!()
-    }
-
-    fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        super::base::device(&tensor.qtensor)
     }
 
     fn q_to_device(
@@ -40,14 +34,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        CandleQTensor {
-            qtensor: super::base::reshape(tensor.qtensor, shape),
-            scheme: tensor.scheme,
-        }
+    fn q_reshape(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
+        unimplemented!()
     }
 
-    async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
         unimplemented!()
     }
 
@@ -64,30 +55,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
     }
 
     fn q_flip(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_gather(
-        _dim: usize,
-        _tensor: QuantizedTensor<Self>,
-        _indices: IntTensor<Self>,
-    ) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_select(
-        _tensor: QuantizedTensor<Self>,
-        _dim: usize,
-        _indices: IntTensor<Self>,
-    ) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
-        unimplemented!()
-    }
-
-    fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 }

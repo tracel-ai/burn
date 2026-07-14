@@ -1,6 +1,6 @@
 #![recursion_limit = "256"]
 
-use burn::tensor::backend::Backend;
+use burn::tensor::{Device, DeviceConfig, Element};
 use text_classification::AgNewsDataset;
 
 #[cfg(not(feature = "f16"))]
@@ -9,8 +9,12 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
-pub fn launch<B: Backend>(device: B::Device) {
-    text_classification::inference::infer::<B, AgNewsDataset>(
+pub fn launch(mut device: Device) {
+    device
+        .configure(DeviceConfig::default().float_dtype(ElemType::dtype()))
+        .unwrap();
+
+    text_classification::inference::infer::<AgNewsDataset>(
         device,
         "/tmp/text-classification-ag-news",
         // Samples from the test dataset, but you are free to test with your own text.
@@ -32,85 +36,68 @@ pub fn launch<B: Backend>(device: B::Device) {
     );
 }
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use burn::backend::ndarray::{NdArray, NdArrayDevice};
-
-    use crate::{ElemType, launch};
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::tensor::Device;
 
     pub fn run() {
-        launch::<NdArray<ElemType>>(NdArrayDevice::Cpu);
+        crate::launch(Device::flex());
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use crate::{ElemType, launch};
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(DeviceIndex::Default);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
-        launch::<LibTorch<ElemType>>(device);
+        crate::launch(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use crate::{ElemType, launch};
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
+    use burn::tensor::Device;
 
     pub fn run() {
-        launch::<LibTorch<ElemType>>(LibTorchDevice::Cpu);
+        crate::launch(Device::libtorch());
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use crate::{ElemType, launch};
-    use burn::backend::wgpu::{Wgpu, WgpuDevice};
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        launch::<Wgpu<ElemType, i32>>(WgpuDevice::default());
+        crate::launch(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 
 #[cfg(feature = "metal")]
 mod metal {
-    use crate::{ElemType, launch};
-    use burn::backend::metal::{Metal, MetalDevice};
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        launch::<Metal<ElemType, i32>>(MetalDevice::default());
+        crate::launch(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::{ElemType, launch};
-    use burn::backend::{Cuda, cuda::CudaDevice};
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
-        launch::<Cuda<ElemType, i32>>(CudaDevice::default());
+        crate::launch(Device::cuda(DeviceIndex::Default));
     }
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

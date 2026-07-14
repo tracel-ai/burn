@@ -1,5 +1,4 @@
-use burn_tensor::Element;
-use ndarray::LinalgScalar;
+use burn_backend::Element;
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -11,14 +10,14 @@ use num_traits::Pow;
 use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
-pub trait FloatNdArrayElement: NdArrayElement + LinalgScalar + Signed
+pub trait FloatNdArrayElement: NdArrayElement + Signed + core::cmp::PartialOrd<Self>
 where
     Self: Sized,
 {
 }
 
 /// An int element for ndarray backend.
-pub trait IntNdArrayElement: NdArrayElement + Signed {}
+pub trait IntNdArrayElement: NdArrayElement + core::cmp::PartialOrd<Self> {}
 
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
@@ -26,10 +25,10 @@ pub trait NdArrayElement:
     + ndarray::LinalgScalar
     + ndarray::ScalarOperand
     + ExpElement
+    + AddAssignElement
     + num_traits::FromPrimitive
     + core::ops::AddAssign
     + core::cmp::PartialEq
-    + core::cmp::PartialOrd<Self>
     + core::ops::Rem<Output = Self>
 {
 }
@@ -50,8 +49,26 @@ pub trait ExpElement {
     fn sqrt_elem(self) -> Self;
     /// Abs
     fn abs_elem(self) -> Self;
-    /// Abs for int
-    fn int_abs_elem(self) -> Self;
+}
+
+/// The addition assignment operator implemented for ndarray elements.
+pub trait AddAssignElement<Rhs = Self> {
+    /// Performs the addition assignment operation.
+    ///
+    /// For `bool`, this corresponds to logical OR assignment.
+    fn add_assign(&mut self, rhs: Rhs);
+}
+
+impl<E: NdArrayElement> AddAssignElement for E {
+    fn add_assign(&mut self, rhs: Self) {
+        *self += rhs;
+    }
+}
+
+impl AddAssignElement for bool {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self || rhs; // logical OR for bool
+    }
 }
 
 /// A quantized element for the ndarray backend.
@@ -64,39 +81,47 @@ impl FloatNdArrayElement for f32 {}
 
 impl IntNdArrayElement for i64 {}
 impl IntNdArrayElement for i32 {}
+impl IntNdArrayElement for i16 {}
+impl IntNdArrayElement for i8 {}
 
-macro_rules! make_elem {
+impl IntNdArrayElement for u64 {}
+impl IntNdArrayElement for u32 {}
+impl IntNdArrayElement for u16 {}
+impl IntNdArrayElement for u8 {}
+
+macro_rules! make_float {
     (
-        double
-        $ty:ty
+        $ty:ty,
+        $log1p:expr
     ) => {
         impl NdArrayElement for $ty {}
 
+        #[allow(clippy::cast_abs_to_unsigned)]
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {
-                (self as f64).exp() as $ty
+                self.exp()
             }
 
             #[inline(always)]
             fn log_elem(self) -> Self {
-                (self as f64).ln() as $ty
+                self.ln()
             }
 
             #[inline(always)]
             fn log1p_elem(self) -> Self {
-                log1p(self as f64) as $ty
+                $log1p(self)
             }
 
             #[inline(always)]
             fn powf_elem(self, value: f32) -> Self {
-                (self as f64).pow(value) as $ty
+                self.pow(value)
             }
 
             #[inline(always)]
             fn powi_elem(self, value: i32) -> Self {
                 #[cfg(feature = "std")]
-                let val = f64::powi(self as f64, value) as $ty;
+                let val = self.powi(value);
 
                 #[cfg(not(feature = "std"))]
                 let val = Self::powf_elem(self, value as f32);
@@ -106,26 +131,24 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn sqrt_elem(self) -> Self {
-                (self as f64).sqrt() as $ty
+                self.sqrt()
             }
 
             #[inline(always)]
             fn abs_elem(self) -> Self {
-                (self as f64).abs() as $ty
-            }
-
-            #[inline(always)]
-            fn int_abs_elem(self) -> Self {
-                (self as i64).abs() as $ty
+                self.abs()
             }
         }
     };
+}
+macro_rules! make_int {
     (
-        single
-        $ty:ty
+        $ty:ty,
+        $abs:expr
     ) => {
         impl NdArrayElement for $ty {}
 
+        #[allow(clippy::cast_abs_to_unsigned)]
         impl ExpElement for $ty {
             #[inline(always)]
             fn exp_elem(self) -> Self {
@@ -165,25 +188,20 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn abs_elem(self) -> Self {
-                (self as f32).abs() as $ty
-            }
-
-            #[inline(always)]
-            fn int_abs_elem(self) -> Self {
-                (self as i32).unsigned_abs() as $ty
+                $abs(self)
             }
         }
     };
 }
 
-make_elem!(double f64);
-make_elem!(double i64);
+make_float!(f64, log1p);
+make_float!(f32, log1pf);
 
-make_elem!(single f32);
-make_elem!(single i32);
-make_elem!(single i16);
-make_elem!(single i8);
-make_elem!(single u64);
-make_elem!(single u32);
-make_elem!(single u16);
-make_elem!(single u8);
+make_int!(i64, i64::wrapping_abs);
+make_int!(i32, i32::wrapping_abs);
+make_int!(i16, i16::wrapping_abs);
+make_int!(i8, i8::wrapping_abs);
+make_int!(u64, |x| x);
+make_int!(u32, |x| x);
+make_int!(u16, |x| x);
+make_int!(u8, |x| x);

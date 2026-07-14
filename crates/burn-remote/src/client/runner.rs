@@ -1,174 +1,483 @@
-use burn_common::future::DynFut;
+use super::{RemoteChannel, RemoteClient, service};
+use crate::shared::{LocalTransferId, TaskResponseContent, TensorRemote, TransferCapability};
+use crate::{PeerAddr, PeerId};
+use burn_backend::{DeviceId, DeviceOps, ExecutionError, StreamId, TensorData};
 use burn_ir::TensorIr;
-use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
-use burn_tensor::{
-    DType, TensorData,
-    backend::{DeviceId, DeviceOps},
-};
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    sync::Arc,
-};
+use burn_router::{MultiBackendBridge, RouterClient, RouterTensor, get_client};
+use burn_std::DeviceSettings;
+use burn_std::{backtrace::BackTrace, future::DynFut};
+#[cfg(feature = "websocket")]
+use std::sync::Arc;
+use std::sync::Mutex;
 
-use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
+use super::runtime::Executor;
+use service::RemoteEndpoint;
 
-use super::{WsChannel, WsClient};
+// It is very important to block on any request made via the service, since ordering is
+// crucial when registering operations or creating tensors. The `DeviceHandle` queue
+// preserves submission order, so `submit` is sufficient for cheap fire-and-forget ops; we
+// only `submit_blocking` for paths that need to read the service's response.
+impl RouterClient for RemoteClient {
+    type Device = RemoteDevice;
 
-// It is very important to block on any request made with the sender, since ordering is crucial
-// when registering operation or creating tensors.
-//
-// The overhead is minimal, since we only wait for the task to be sent to the async
-// channel, but not sent to the websocket server and even less processed by the server.
-impl RunnerClient for WsClient {
-    type Device = WsDevice;
-
-    fn register(&self, op: burn_ir::OperationIr) {
-        self.sender
-            .send(ComputeTask::RegisterOperation(Box::new(op)));
+    fn register_op(&self, op: burn_ir::OperationIr) {
+        let stream_id = StreamId::current();
+        // Device ids in the op's payload are *client* remote device ids; rewrite them to
+        // server-local device indices the server can resolve to its own backend devices. Applies
+        // to every op — only ops that actually carry device ids are rewritten.
+        let op = self.resolve_devices(op);
+        self.handle.submit(move |s| s.register_op(stream_id, op));
     }
 
-    fn read_tensor(&self, tensor: burn_ir::TensorIr) -> DynFut<TensorData> {
-        // Important for ordering to call the creation of the future sync.
-        let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
+    fn read_tensor_async(
+        &self,
+        tensor: burn_ir::TensorIr,
+    ) -> DynFut<Result<TensorData, ExecutionError>> {
+        // Issue the request synchronously so ordering is preserved relative to subsequent
+        // submissions; the returned future just awaits the server's response.
+        let stream_id = StreamId::current();
+        let rx = self
+            .handle
+            .submit_blocking(move |s| s.read_tensor(stream_id, tensor))
+            .expect("Service call failed");
 
         Box::pin(async move {
-            match fut.await {
-                TaskResponseContent::ReadTensor(data) => data,
-                _ => panic!("Invalid message type"),
+            match rx.await {
+                Ok(TaskResponseContent::ReadTensor(res)) => res,
+                Ok(_) => panic!("Invalid response type for ReadTensor"),
+                Err(e) => Err(ExecutionError::Generic {
+                    reason: format!("Failed to read tensor: {e:?}"),
+                    backtrace: BackTrace::capture(),
+                }),
             }
         })
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
-        let id = self.sender.new_tensor_id();
         let shape = data.shape.clone();
         let dtype = data.dtype;
+        let id = service::new_tensor_id();
 
-        self.sender.send(ComputeTask::RegisterTensor(id, data));
-
-        RouterTensor::new(id, shape, dtype, self.clone())
-    }
-
-    fn register_empty_tensor(
-        &self,
-        shape: Vec<usize>,
-        dtype: burn_tensor::DType,
-    ) -> RouterTensor<Self> {
-        let id = self.sender.new_tensor_id();
+        // Fire-and-forget: the outgoing batch flushes itself once buffered data bytes (or the task
+        // count) cross their threshold — see `OutgoingBatch` — so no explicit flush is needed here.
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.register_tensor(stream_id, id, data));
 
         RouterTensor::new(id, shape, dtype, self.clone())
-    }
-
-    fn register_float_tensor(
-        &self,
-        shape: Vec<usize>,
-        _dtype: burn_tensor::FloatDType,
-    ) -> RouterTensor<Self> {
-        self.register_empty_tensor(shape, DType::F32)
     }
 
     fn device(&self) -> Self::Device {
         self.device.clone()
     }
 
-    fn sync(&self) {
-        // Important for ordering to call the creation of the future sync.
-        let fut = self.sender.send_callback(ComputeTask::SyncBackend);
-
-        let runtime = self.runtime.clone();
-
-        match runtime.block_on(fut) {
-            TaskResponseContent::SyncBackend => {}
-            _ => panic!("Invalid message type"),
-        };
+    fn sync(&self) -> Result<(), ExecutionError> {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit_blocking(|s| s.sync(stream_id))
+            .expect("Service call failed")
     }
 
-    fn seed(&self, _seed: u64) {
-        // TODO
+    fn seed(&self, seed: u64) {
+        self.handle.submit(move |s| s.seed(seed));
+    }
+
+    fn create_empty_handle(&self) -> burn_ir::TensorId {
+        service::new_tensor_id()
+    }
+
+    fn register_alias(&self, new_id: burn_ir::TensorId, src_id: burn_ir::TensorId) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.register_alias(stream_id, new_id, src_id));
+    }
+
+    fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
+        self.handle
+            .submit_blocking(move |s| s.dtype_usage(dtype))
+            .expect("Service call failed")
+    }
+
+    fn flush(&self) {
+        self.handle.submit_blocking(|s| s.flush()).unwrap();
+    }
+
+    fn register_and_execute_graph(
+        &self,
+        graph_id: burn_ir::GraphId,
+        relative_graph: Vec<burn_ir::OperationIr>,
+        bindings: burn_ir::GraphBindings,
+    ) {
+        let stream_id = StreamId::current();
+        self.handle.submit(move |s| {
+            s.register_and_execute_graph(stream_id, graph_id, relative_graph, bindings)
+        });
+    }
+
+    fn execute_graph(&self, graph_id: burn_ir::GraphId, bindings: burn_ir::GraphBindings) {
+        let stream_id = StreamId::current();
+        self.handle
+            .submit(move |s| s.execute_graph(stream_id, graph_id, bindings));
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
-/// The device contains the connection information of the server.
-pub struct WsDevice {
-    pub(crate) address: Arc<String>,
-    // Unique ID generated from hash of the address
+impl RemoteClient {
+    /// Rewrite the device ids carried by an op so the server can resolve them.
+    ///
+    /// This runs for every op, but only ops that carry device ids (currently the collective ops)
+    /// are affected On the client, the participating devices are identified by their *remote*
+    /// device ids (`type_id = 0`, `index_id = ` the local-registry index that encodes
+    /// `address`+device index). The server can't reverse that registry hash, so we translate each
+    /// id to the plain server-local device index (kept in `index_id`, `type_id` left 0). The
+    /// server then maps each index to its own backend device id before executing — see
+    /// `RemoteServer::resolve_devices`.
+    ///
+    /// Only same-server collectives are supported for now: every participating device must live
+    /// on the same address as the tensor's device. A cross-server group panics with a clear
+    /// message rather than silently reducing the wrong devices.
+    fn resolve_devices(&self, mut op: burn_ir::OperationIr) -> burn_ir::OperationIr {
+        use burn_ir::{DistributedOperationIr, OperationIr};
+
+        if let OperationIr::Distributed(DistributedOperationIr::AllReduce(desc)) = &mut op {
+            let local_peer = self.device.peer_id();
+            for id in desc.device_ids.iter_mut() {
+                let (endpoint, device_index) = service::endpoint_for(id.index_id as u32).expect(
+                    "an all_reduce device must be a registered remote device on this process",
+                );
+                assert_eq!(
+                    endpoint.peer_id(),
+                    local_peer,
+                    "cross-peer all_reduce is not supported yet: the tensor is on `{local_peer}` \
+                     but the collective includes a device on `{}`",
+                    endpoint.peer_id(),
+                );
+                id.type_id = 0;
+                id.index_id = device_index as u16;
+            }
+            log::trace!("All-reduce on {:?} ({local_peer}): {desc:?}", self.device);
+        }
+
+        op
+    }
+}
+
+#[derive(Clone, Debug)]
+/// A remote compute device identified by its endpoint and device index.
+///
+/// Two RemoteDevices with the same endpoint but different indices point at distinct devices on
+/// the same peer; each gets its own registry id and service connection, and transfers between
+/// them take the same-peer fast path.
+pub struct RemoteDevice {
+    pub(crate) endpoint: RemoteEndpoint,
+    /// Device index on the remote peer.
+    pub(crate) device_index: u32,
+    /// Local registry id for this device.
     pub(crate) id: u32,
 }
 
-impl WsDevice {
-    /// Create a device from an url.
-    pub fn new(url: &str) -> Self {
-        let mut address = String::new();
-
-        if !url.starts_with("ws://") {
-            address += "ws://";
-            address += url;
-        } else {
-            address += url;
+impl RemoteDevice {
+    /// Create a legacy WebSocket device from a URL.
+    #[cfg(feature = "websocket")]
+    pub fn websocket(address: &str, device_index: usize) -> Self {
+        let endpoint = RemoteEndpoint::WebSocket {
+            address: burn_communication::Address::from(address),
+            authorization: Arc::from([]),
         };
-
-        let mut hasher = DefaultHasher::new();
-        address.hash(&mut hasher);
-        let id = hasher.finish() as u32;
-
+        let device_index = device_index as u32;
+        let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
         Self {
-            address: Arc::new(address),
+            endpoint,
+            device_index,
             id,
         }
     }
-}
 
-impl Default for WsDevice {
-    fn default() -> Self {
-        let address = match std::env::var("BURN_REMOTE_ADDRESS") {
-            Ok(address) => address,
-            Err(_) => String::from("ws://127.0.0.1:3000"),
+    /// Create an Iroh remote device dialing `peer` from `endpoint`.
+    ///
+    /// The application owns the Iroh endpoint; Burn dials the compute peer from it.
+    #[cfg(feature = "iroh")]
+    pub fn iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr, device_index: usize) -> Self {
+        Self::iroh_authorized(endpoint, peer, device_index, Vec::new())
+    }
+
+    /// Like [`iroh`](Self::iroh), but carries an authorization credential the server's PeerAuthorizer will check.
+    #[cfg(feature = "iroh")]
+    pub fn iroh_authorized(
+        endpoint: &iroh::Endpoint,
+        peer: iroh::EndpointAddr,
+        device_index: usize,
+        authorization: Vec<u8>,
+    ) -> Self {
+        let node = crate::transport::iroh::node::RemoteNode::from_endpoint(endpoint.clone());
+        let endpoint = RemoteEndpoint::Iroh {
+            node,
+            peer,
+            authorization: authorization.into(),
         };
+        let device_index = device_index as u32;
+        let id = service::register_endpoint(endpoint.clone(), Executor::capture(), device_index);
+        Self {
+            endpoint,
+            device_index,
+            id,
+        }
+    }
 
-        Self::new(&address)
+    /// Forces the client connection to be established immediately using the default protocol.
+    /// This is a no-op if the connection is already up for this device.
+    pub fn connect(&self) {
+        // `get_client` initializes the (lazy) service if needed; `ensure_connected` then opens
+        // the sockets and runs the handshake on the runner thread, so the settings/device-count
+        // cells are populated by the time we return.
+        get_client::<RemoteChannel>(self).ensure_connected();
+    }
+
+    /// Establish the session asynchronously. Browser entry point: wasm cannot block to connect,
+    /// so call and await this once before using the device. No-op if already connected.
+    #[cfg(target_family = "wasm")]
+    pub async fn connect_async(&self) {
+        get_client::<RemoteChannel>(self).connect_async().await;
+    }
+
+    /// Initialize the client for this device using a custom protocol channel.
+    ///
+    /// Only creates the lazy service; the socket and handshake open on first use. Call
+    /// [`connect`](Self::connect) when the connection and device settings are needed immediately.
+    pub fn connect_with_channel<R: burn_router::RouterChannel<Device = Self>>(&self) {
+        // `get_client` forces service initialization if the client doesn't exist yet;
+        // `RemoteService::init` records the endpoint but defers the connect to first use.
+        get_client::<R>(self);
+    }
+
+    /// The stable identity of the compute peer.
+    pub fn peer_id(&self) -> PeerId {
+        self.endpoint.peer_id()
+    }
+
+    /// The peer identity plus its current dialing hints.
+    pub fn peer_addr(&self) -> PeerAddr {
+        self.endpoint.peer_addr()
+    }
+
+    /// The peer address as a string. Prefer `peer_addr` for typed access.
+    pub fn address(&self) -> String {
+        self.peer_addr().to_string()
+    }
+
+    /// The index of this device on its server.
+    pub fn device_index(&self) -> usize {
+        self.device_index as usize
+    }
+
+    /// List every device hosted by the WebSocket server at `address`.
+    ///
+    /// Connects to index 0 to read the device count from the init handshake, then returns one
+    /// RemoteDevice per index. Remaining indices connect lazily on first use, matching the
+    /// behavior of [`Device::enumerate`](burn_backend::tensor::Device) for local backends.
+    #[cfg(feature = "websocket")]
+    pub fn enumerate_websocket(address: &str) -> Vec<Self> {
+        // Device 0 always exists (a server must host at least one device); connecting to it
+        // populates the device-count cell for its registry id.
+        let device = Self::websocket(address, 0);
+        device.connect();
+
+        let count = service::device_count_for(device.id)
+            .expect("Device count populated by the init handshake during connect");
+
+        (0..count as usize)
+            .map(|index| Self::websocket(address, index))
+            .collect()
+    }
+
+    /// List every device hosted by an Iroh peer.
+    #[cfg(feature = "iroh")]
+    pub fn enumerate_iroh(endpoint: &iroh::Endpoint, peer: iroh::EndpointAddr) -> Vec<Self> {
+        let device = Self::iroh(endpoint, peer.clone(), 0);
+        device.connect();
+        let count = service::device_count_for(device.id)
+            .expect("Device count populated by the init handshake during connect");
+        (0..count as usize)
+            .map(|index| Self::iroh(endpoint, peer.clone(), index))
+            .collect()
     }
 }
 
-impl DeviceOps for WsDevice {
-    fn id(&self) -> DeviceId {
+impl PartialEq for RemoteDevice {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for RemoteDevice {}
+
+impl Default for RemoteDevice {
+    fn default() -> Self {
+        #[cfg(feature = "websocket")]
+        {
+            let address = match std::env::var("BURN_REMOTE_ADDRESS") {
+                Ok(address) => address,
+                Err(_) => String::from("ws://127.0.0.1:3000"),
+            };
+
+            Self::websocket(&address, 0)
+        }
+        #[cfg(not(feature = "websocket"))]
+        panic!(
+            "RemoteDevice::default requires the `websocket` compatibility feature; construct an Iroh device through RemoteNode::device"
+        )
+    }
+}
+
+impl burn_std::device::Device for RemoteDevice {
+    fn from_id(device_id: DeviceId) -> Self {
+        if device_id.type_id != 0 {
+            panic!("Invalid device id: {device_id} (expected type 0)");
+        }
+        let (endpoint, device_index) = service::endpoint_for(device_id.index_id as u32)
+            .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
+        Self {
+            endpoint,
+            device_index,
+            id: device_id.index_id as u32,
+        }
+    }
+
+    fn to_id(&self) -> DeviceId {
         DeviceId {
             type_id: 0,
-            index_id: self.id,
+            index_id: self.id as u16,
         }
     }
 }
 
-pub struct WsBridge;
+impl DeviceOps for RemoteDevice {
+    fn defaults(&self) -> DeviceSettings {
+        // Lazy-connect on first access. Callers like `Device::configure` or
+        // `Device::default()`-driven dispatch can hit `defaults` before the user has
+        // triggered any op, so we need to establish the session here. `connect` is
+        // idempotent — a no-op once the client has been initialized for this device.
+        if !service::has_settings(self.id) {
+            self.connect();
+        }
+        service::settings_for(self.id)
+    }
+}
+
+pub struct RemoteBridge;
 
 pub struct RemoteTensorHandle {
-    pub(crate) client: WsClient,
+    pub(crate) client: RemoteClient,
     pub(crate) tensor: TensorIr,
 }
 
+static TRANSFER_COUNTER: Mutex<Option<LocalTransferId>> = Mutex::new(None);
+
+/// Allocate the next process-unique [`LocalTransferId`] for a same-peer transfer.
+///
+/// The id keys the server's transfer rendezvous (`local_comm` / `external_comm`), so two
+/// transfers that are ever in flight at the same time MUST get distinct ids; otherwise a `take`
+/// can pick up the wrong (or an overwritten) exposed primitive and its peer hangs forever. The
+/// counter is incremented **in place** in the static; `LocalTransferId` is `Copy`, so the
+/// earlier `transfer_counter.unwrap()` copied the value out and incremented a throwaway local,
+/// leaving every transfer after the first sharing id 1 (harmless sequentially, a deadlock under
+/// concurrency).
+fn get_next_transfer_id() -> LocalTransferId {
+    let mut transfer_counter = TRANSFER_COUNTER.lock().unwrap();
+    match transfer_counter.as_mut() {
+        Some(id) => {
+            id.next();
+            *id
+        }
+        None => {
+            let id = LocalTransferId::from(0);
+            *transfer_counter = Some(id);
+            id
+        }
+    }
+}
+
 impl RemoteTensorHandle {
-    /// Changes the backend of the tensor via a WebSocket.
+    /// Move the tensor to `target_device`, picking the cheapest path.
+    ///
+    /// When the source and target live on the **same** server (same address, different device
+    /// index), the data never leaves the process — see [`change_backend_local`]. Otherwise we
+    /// fall back to the cross-server path that streams the data server-to-server without the
+    /// client ever seeing it.
+    pub(crate) fn change_backend(self, target_device: &RemoteDevice) -> Self {
+        if self.client.device.peer_id() == target_device.peer_id() {
+            self.change_backend_local(target_device)
+        } else {
+            assert_eq!(
+                self.client.device.peer_addr().is_iroh(),
+                target_device.peer_addr().is_iroh(),
+                "Moving a tensor between Iroh and legacy WebSocket compute peers is not supported"
+            );
+            self.change_backend_remote(target_device)
+        }
+    }
+
+    /// Same-host transfer: hand the device-resident primitive from the source session to the
+    /// target session on the same server, which moves it with the inner backend's `to_device`.
+    /// No host round-trip.
+    fn change_backend_local(mut self, target_device: &RemoteDevice) -> Self {
+        // The stream of the calling user thread: the source reads the tensor back on the
+        // stream that produced it, and the target registers the result on the stream that
+        // will consume it — same contract as the regular op/tensor registration paths.
+        let stream_id = StreamId::current();
+        let transfer_id = get_next_transfer_id();
+        let tensor = self.tensor.clone();
+        self.client.handle.submit(move |s| {
+            s.expose_tensor_local(stream_id, tensor, transfer_id);
+        });
+        // Force the expose (and the ops producing the tensor) onto the wire now — same reason
+        // as the cross-server path below.
+        self.client.handle.flush_queue();
+
+        let target_client = get_client::<RemoteChannel>(target_device);
+        let new_id = service::new_tensor_id();
+        target_client.handle.submit(move |s| {
+            s.register_tensor_local(stream_id, transfer_id, new_id);
+        });
+        target_client.handle.flush_queue();
+
+        self.tensor.id = new_id;
+        self.client = target_client;
+
+        self
+    }
+
+    /// Changes the backend of the tensor via a dWebSocket.
     /// We ask the original server to expose the tensor, then ask the target server to fetch
-    /// the tensor. The target server will open a new websocket connection to the original server
+    /// the tensor. The target server will open a new network connection to the original server
     /// to download the data.
     /// This way the client never sees the tensor's data, and we avoid a bottleneck.
-    pub(crate) fn change_backend(mut self, target_device: &WsDevice) -> Self {
-        self.client.sender.send(ComputeTask::ExposeTensorRemote {
-            tensor: self.tensor.clone(),
-            count: 1,
+    fn change_backend_remote(mut self, target_device: &RemoteDevice) -> Self {
+        // See `change_backend_local`: carry the calling thread's stream so the source readback
+        // and the target registration land on the client streams, not arbitrary server threads.
+        let stream_id = StreamId::current();
+        let capability = TransferCapability::random();
+        let tensor = self.tensor.clone();
+        let target = target_device.peer_id();
+        self.client.handle.submit(move |s| {
+            s.expose_tensor_remote(stream_id, tensor, 1, capability, target);
         });
+        // `submit` only enqueues the closure on the device-runner queue; the runner
+        // wouldn't drain it until 32 ops accumulated. `flush_queue` forces the runner
+        // thread to run the closure now, and `expose_tensor_remote` itself flushes the
+        // service batch onto the wire — so the source server receives the expose before
+        // the target server starts trying to download.
+        self.client.handle.flush_queue();
 
-        let target_client: WsClient = get_client::<WsChannel>(target_device);
+        let target_client = get_client::<RemoteChannel>(target_device);
 
-        let new_id = target_client.sender.new_tensor_id();
-
-        let remote_tensor = TensorRemote {
-            id: self.tensor.id,
-            address: self.client.device.address.to_string(),
-        };
-        target_client
-            .sender
-            .send(ComputeTask::RegisterTensorRemote(remote_tensor, new_id));
+        let peer = self.client.device.peer_addr();
+        let new_id = service::new_tensor_id();
+        target_client.handle.submit(move |s| {
+            s.register_tensor_remote(stream_id, TensorRemote { capability, peer }, new_id);
+        });
+        // Same as the source side: drain the closure queue so it runs now and
+        // `register_tensor_remote` flushes the registration onto the target's wire.
+        target_client.handle.flush_queue();
 
         self.tensor.id = new_id;
         self.client = target_client;
@@ -177,13 +486,13 @@ impl RemoteTensorHandle {
     }
 }
 
-impl MultiBackendBridge for WsBridge {
+impl MultiBackendBridge for RemoteBridge {
     type TensorHandle = RemoteTensorHandle;
-    type Device = WsDevice;
+    type Device = RemoteDevice;
 
     fn change_backend_float(
         tensor: Self::TensorHandle,
-        _shape: burn_tensor::Shape,
+        _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
@@ -191,7 +500,7 @@ impl MultiBackendBridge for WsBridge {
 
     fn change_backend_int(
         tensor: Self::TensorHandle,
-        _shape: burn_tensor::Shape,
+        _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
@@ -199,7 +508,7 @@ impl MultiBackendBridge for WsBridge {
 
     fn change_backend_bool(
         tensor: Self::TensorHandle,
-        _shape: burn_tensor::Shape,
+        _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)

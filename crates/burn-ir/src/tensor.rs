@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use alloc::vec::Vec;
-
-use burn_tensor::DType;
+use burn_backend::{DType, Shape};
 
 /// The tensor unique identifier.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
@@ -42,7 +40,7 @@ pub struct TensorIr {
     /// The [tensor id](TensorId).
     pub id: TensorId,
     /// The shape of the tensor.
-    pub shape: Vec<usize>,
+    pub shape: Shape,
     /// The [status](TensorStatus) of the tensor when it was used.
     pub status: TensorStatus,
     /// The [type](DType) of the tensor.
@@ -53,5 +51,22 @@ impl TensorId {
     /// Create a new tensor id.
     pub fn new(value: u64) -> Self {
         Self { value }
+    }
+
+    /// Return the underlying numeric value of this id.
+    pub fn value(&self) -> u64 {
+        self.value
+    }
+}
+
+impl TensorIr {
+    /// Create a new tensor that is not already initialized.
+    pub fn uninit(id: TensorId, shape: Shape, dtype: DType) -> Self {
+        Self {
+            id,
+            status: TensorStatus::NotInit,
+            shape,
+            dtype,
+        }
     }
 }

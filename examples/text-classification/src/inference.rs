@@ -9,16 +9,12 @@ use crate::{
     model::TextClassificationModelConfig,
     training::ExperimentConfig,
 };
-use burn::{
-    data::dataloader::batcher::Batcher,
-    prelude::*,
-    record::{CompactRecorder, Recorder},
-};
+use burn::{data::dataloader::batcher::Batcher, prelude::*, store::ModuleRecord};
 use std::sync::Arc;
 
 // Define inference function
-pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
-    device: B::Device, // Device on which to perform computation (e.g., CPU or CUDA device)
+pub fn infer<D: TextClassificationDataset + 'static>(
+    device: Device, // Device on which to perform computation (e.g., CPU or CUDA device)
     artifact_dir: &str, // Directory containing model and config files
     samples: Vec<String>, // Text samples for inference
 ) {
@@ -35,14 +31,13 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     // Initialize batcher for batching samples
     let batcher = Arc::new(TextClassificationBatcher::new(
         tokenizer.clone(),
-        config.max_seq_length,
+        config.seq_length,
     ));
 
     // Load pre-trained model weights
     println!("Loading weights ...");
-    let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
-        .expect("Trained model weights tb");
+    let record =
+        ModuleRecord::load(format!("{artifact_dir}/model")).expect("Trained model weights tb");
 
     // Create model using loaded weights
     println!("Creating model ...");
@@ -50,9 +45,9 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         config.transformer,
         n_classes,
         tokenizer.vocab_size(),
-        config.max_seq_length,
+        config.seq_length,
     )
-    .init::<B>(&device)
+    .init(&device)
     .load_record(record); // Initialize model with loaded weights
 
     // Run inference on the given text samples
@@ -65,8 +60,8 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         #[allow(clippy::single_range_in_vec_init)]
         let prediction = predictions.clone().slice([i..i + 1]); // Get prediction for current sample
         let logits = prediction.to_data(); // Convert prediction tensor to data
-        let class_index = prediction.argmax(1).squeeze::<1>(1).into_scalar(); // Get class index with the highest value
-        let class = D::class_name(class_index.elem::<i32>() as usize); // Get class name
+        let class_index: i32 = prediction.argmax(1).squeeze_dim::<1>(1).into_scalar(); // Get class index with the highest value
+        let class = D::class_name(class_index as usize); // Get class name
 
         // Print sample text, predicted logits and predicted class
         println!(

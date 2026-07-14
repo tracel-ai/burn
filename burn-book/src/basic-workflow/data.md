@@ -28,8 +28,8 @@ pub struct MnistBatcher {}
 This batcher is pretty straightforward, as it only defines a struct that will implement the
 `Batcher` trait. The trait is generic over the `Backend` trait, which includes an associated type
 for the device, as not all backends expose the same devices. As an example, the Libtorch-based
-backend exposes `Cuda(gpu_index)`, `Cpu`, `Vulkan` and `Metal` devices, while the ndarray backend
-only exposes the `Cpu` device.
+backend exposes `Cuda(gpu_index)`, `Cpu`, `Vulkan` and `Metal` devices, while the Flex backend
+only exposes a single CPU device.
 
 Next, we need to actually implement the batching logic.
 

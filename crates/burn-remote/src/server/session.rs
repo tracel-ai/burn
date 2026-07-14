@@ -1,153 +1,222 @@
-use burn_common::id::StreamId;
+use burn_backend::tensor::Device;
 use burn_ir::BackendIr;
-use burn_router::Runner;
-use burn_tensor::Device;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{
-    Mutex,
-    mpsc::{Receiver, Sender},
+use burn_router::{CustomOpRegistry, TensorInterpreter};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Once},
 };
+use tokio::sync::{Mutex, mpsc};
 
-use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponse};
+use crate::metrics::{MetricSide, logger_task};
+use crate::server::local_comm::LocalCommService;
+use crate::server::service::SessionService;
+use crate::server::spawn::spawn_detached;
+use crate::server::transfer::TensorTransfer;
+use crate::server::worker::SessionHandler;
+use crate::shared::{SessionId, Task, TaskResponse};
+use crate::telemetry::{TelemetryEvent, TelemetryProbe};
 
-use super::{stream::Stream, tensor_data_service::TensorDataService};
-
-/// A session manager control the creation of sessions.
+/// Capacity for the per-session response queue.
 ///
-/// Each session manages its own stream, spawning one thread per stream to mimic the same behavior
-/// a native backend would have.
-pub struct SessionManager<B: BackendIr> {
-    runner: Runner<B>,
-    sessions: Mutex<HashMap<SessionId, Session<B>>>,
-    server_state: Arc<TensorDataService>,
+/// Sized larger than the typical in-flight read/sync count so that request processing
+/// doesn't block on backpressure during a burst, but small enough that a stuck response
+/// writer surfaces as a backpressure stall rather than memory growth.
+const RESPONSE_CHANNEL_CAPACITY: usize = 64;
+
+/// Coordinates per-session state.
+///
+/// Each [`Session`] owns a dedicated [`SessionHandler`] that holds the session's
+/// [`TensorInterpreter`] with its own [`HandleContainer`](burn_ir::HandleContainer) — different
+/// sessions never share tensor handles, so concurrent sessions can't race on each other's backend
+/// state. Cross-session tensor transfers go through `external_comm` (cross-server) or `local_comm`
+/// (same-host), each of which has its own rendezvous.
+///
+/// Tasks run on the handler's worker threads, not the submit handler: the latter only decodes the
+/// incoming batch and forwards each [`Task`] to the session over a bounded channel. Inside the
+/// session a dispatcher routes each task to a per-stream worker thread, so per-stream ordering is
+/// preserved while independent streams — and other sessions — keep making progress even when one
+/// stream is parked on a blocking op (a same-host transfer rendezvous or an all-reduce barrier).
+pub struct SessionManager<B, T>
+where
+    B: BackendIr,
+    T: TensorTransfer<B>,
+{
+    /// All devices this server hosts, indexed by the device index the client selects at
+    /// session init. `devices[0]` is the default device (`DeviceIndex::Default`).
+    devices: Vec<Device<B>>,
+    pub(crate) transfer: Arc<T>,
+    /// Rendezvous registry for same-host tensor transfers between this server's sessions.
+    pub(crate) local_comm: Arc<LocalCommService<B>>,
+    /// Custom-op handlers shared (read-only) with every session's interpreter.
+    custom_ops: CustomOpRegistry<B>,
+    sessions: Mutex<HashMap<SessionId, Session>>,
+    probe: TelemetryProbe,
+    /// Spawns the telemetry logger once, on the first session.
+    logger: Once,
 }
 
-struct Session<B: BackendIr> {
-    runner: Runner<B>,
-    streams: HashMap<StreamId, Stream<B>>,
-    sender: Sender<Receiver<TaskResponse>>,
-    receiver: Option<Receiver<Receiver<TaskResponse>>>,
-    server_state: Arc<TensorDataService>,
+struct Session {
+    /// Inbound channel to the session's dispatcher thread; cloned once per submit connection.
+    task_sender: mpsc::Sender<Task>,
+    receiver: Option<mpsc::Receiver<TaskResponse>>,
 }
 
-impl<B: BackendIr> SessionManager<B> {
-    pub fn new(device: Device<B>, server_state: Arc<TensorDataService>) -> Self {
+impl<B, T> SessionManager<B, T>
+where
+    B: BackendIr,
+    T: TensorTransfer<B>,
+{
+    pub fn new(devices: Vec<Device<B>>, transfer: Arc<T>) -> Self {
+        assert!(
+            !devices.is_empty(),
+            "A remote server must host at least one device"
+        );
         Self {
-            runner: Runner::new(device),
-            sessions: Mutex::new(Default::default()),
-            server_state,
+            devices,
+            transfer,
+            local_comm: Arc::new(LocalCommService::new()),
+            custom_ops: CustomOpRegistry::default(),
+            sessions: Mutex::new(HashMap::new()),
+            probe: TelemetryProbe::disabled(),
+            logger: Once::new(),
         }
     }
 
-    /// Register a new responder for the session. Only one responder can exist for a session for
-    /// now.
-    pub async fn register_responder(
-        &self,
-        session_id: SessionId,
-    ) -> Receiver<Receiver<TaskResponse>> {
-        log::info!("Register responder for session {session_id}");
-        let mut sessions = self.sessions.lock().await;
-        self.register_session(&mut sessions, session_id);
-
-        let session = sessions.get_mut(&session_id).unwrap();
-        session.init_responder()
+    /// Register custom-op handlers, shared read-only with every session's interpreter.
+    pub fn with_custom_ops(mut self, custom_ops: CustomOpRegistry<B>) -> Self {
+        self.custom_ops = custom_ops;
+        self
     }
 
-    /// Get the stream for the current session and task.
-    pub async fn stream(
-        &self,
-        session_id: &mut Option<SessionId>,
-        task: Task,
-    ) -> Option<(Stream<B>, ConnectionId, ComputeTask)> {
-        let mut sessions = self.sessions.lock().await;
+    /// Emit telemetry into `probe`.
+    pub fn with_telemetry(mut self, probe: TelemetryProbe) -> Self {
+        self.probe = probe;
+        self
+    }
 
-        let session_id = match session_id {
-            Some(id) => *id,
-            None => match task {
-                Task::Init(id) => {
-                    log::info!("Init requester for session {id}");
-                    *session_id = Some(id);
-                    self.register_session(&mut sessions, id);
-                    return None;
-                }
-                _ => panic!("The first message should initialize the session"),
-            },
-        };
-
-        match sessions.get_mut(&session_id) {
-            Some(session) => {
-                let (task, connection_id) = match task {
-                    Task::Compute(task, connection_id) => (task, connection_id),
-                    _ => panic!("Only support compute tasks."),
-                };
-                let stream = session.select(connection_id.stream_id).await;
-                Some((stream, connection_id, task))
+    fn ensure_logger(&self) {
+        self.logger.call_once(|| {
+            if let Some(task) = logger_task(&self.probe, MetricSide::Server) {
+                spawn_detached(task);
             }
-            None => panic!("To be initialized"),
-        }
-    }
-
-    /// Close the session with the given id.
-    pub async fn close(&self, session_id: Option<SessionId>) {
-        if let Some(id) = session_id {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(&id) {
-                session.close().await;
-            }
-        }
-    }
-
-    fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B>>, id: SessionId) {
-        sessions.entry(id).or_insert_with(|| {
-            log::info!("Creating a new session {id}");
-
-            Session::new(self.runner.clone(), self.server_state.clone())
         });
     }
+
+    /// Resolve the device at `device_index`.
+    ///
+    /// The index is validated against the server's device count on the client init handshake, so
+    /// an out-of-range index here is a protocol/configuration error (e.g. a client enumerating
+    /// more devices than this server hosts). Fail loudly rather than silently collapsing onto
+    /// device 0 — for a collective that would reduce a device against itself and silently corrupt
+    /// the result instead of producing a clear failure.
+    pub(crate) fn device(&self, device_index: u32) -> Device<B> {
+        self.devices
+            .get(device_index as usize)
+            .cloned()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Requested device index {device_index} but server hosts only {} device(s)",
+                    self.devices.len()
+                )
+            })
+    }
+
+    async fn with_session<R>(
+        &self,
+        session_id: SessionId,
+        device_index: u32,
+        f: impl FnOnce(&mut Session) -> R,
+    ) -> R {
+        self.ensure_logger();
+        let mut sessions = self.sessions.lock().await;
+        let entry = sessions.entry(session_id).or_insert_with(|| {
+            let (sender, receiver) = mpsc::channel(RESPONSE_CHANNEL_CAPACITY);
+            // The session is pinned to its device for its whole lifetime; the first handler
+            // (request or response) to touch it fixes the device index. Spawn the handler that
+            // owns the runner — this runs inside the tokio runtime, so the handler can capture
+            // the runtime handle its worker threads need for the async parts of a task.
+            let runner = TensorInterpreter::with_custom_ops(
+                self.device(device_index),
+                self.custom_ops.clone(),
+            );
+            let task_sender = SessionHandler::spawn(
+                session_id,
+                runner,
+                sender,
+                self.transfer.clone(),
+                self.local_comm.clone(),
+                self.probe.clone(),
+            );
+            self.probe.emit(|| TelemetryEvent::SessionOpened {
+                session: session_id,
+                device: device_index,
+            });
+            Session {
+                task_sender,
+                receiver: Some(receiver),
+            }
+        });
+        f(entry)
+    }
 }
 
-impl<B: BackendIr> Session<B> {
-    fn new(runner: Runner<B>, server_state: Arc<TensorDataService>) -> Self {
-        let (sender, receiver) = tokio::sync::mpsc::channel(1);
-
-        Self {
-            runner,
-            streams: Default::default(),
-            sender,
-            receiver: Some(receiver),
-            server_state,
-        }
+impl<B, T> SessionService for SessionManager<B, T>
+where
+    B: BackendIr,
+    T: TensorTransfer<B>,
+{
+    /// Resolve the channel used to forward [`Task`]s to `session_id`'s dispatcher thread,
+    /// creating the session (and spawning its handler) on demand. The pump resolves this once and
+    /// reuses it for every task, instead of re-locking the sessions map per task.
+    async fn session_task_sender(
+        &self,
+        session_id: SessionId,
+        device_index: u32,
+    ) -> mpsc::Sender<Task> {
+        self.with_session(session_id, device_index, |s| s.task_sender.clone())
+            .await
     }
 
-    fn init_responder(&mut self) -> Receiver<Receiver<TaskResponse>> {
-        let mut receiver = None;
-        core::mem::swap(&mut receiver, &mut self.receiver);
-        receiver.expect("Only one responder per session is possible.")
+    /// Take the response receiver for `session_id`.
+    ///
+    /// Returns `Err` if a responder has already been registered for this session — the protocol
+    /// allows only one session stream per session.
+    async fn take_response_receiver(
+        &self,
+        session_id: SessionId,
+        device_index: u32,
+    ) -> Result<mpsc::Receiver<TaskResponse>, String> {
+        self.with_session(session_id, device_index, |s| {
+            s.receiver
+                .take()
+                .ok_or_else(|| format!("Response receiver already taken for session {session_id}"))
+        })
+        .await
     }
 
-    /// Select the current [stream](Stream) based on the given task.
-    async fn select(&mut self, stream_id: StreamId) -> Stream<B> {
-        // We return the stream.
-        match self.streams.get(&stream_id) {
-            Some(stream) => stream.clone(),
-            None => {
-                let stream = Stream::<B>::new(
-                    self.runner.clone(),
-                    self.sender.clone(),
-                    self.server_state.clone(),
-                )
-                .await;
-                self.streams.insert(stream_id, stream.clone());
-                stream
-            }
-        }
+    /// The device settings for `device_index`, used by the handshake before any session-specific
+    /// runner is needed.
+    fn device_settings(&self, device_index: u32) -> burn_std::DeviceSettings {
+        use burn_backend::backend::DeviceOps;
+        self.device(device_index).defaults()
     }
 
-    // Close all streams created in the session.
-    async fn close(&mut self) {
-        for (id, stream) in self.streams.drain() {
-            log::info!("Closing stream {id}");
-            stream.close().await;
+    /// The total number of devices this server hosts. Sent to the client on the init handshake so
+    /// it can enumerate every device behind the address (see [`RemoteDevice::enumerate`]).
+    fn device_count(&self) -> u32 {
+        self.devices.len() as u32
+    }
+
+    /// Drop the session, detaching its handler. Removing the map entry drops the inbound task
+    /// sender it holds; once the pump also drops its cloned task sender, the dispatcher's channel
+    /// closes, so the per-stream workers drain and exit and the handler flushes its runner,
+    /// releasing any backend state held only by this session's tensors.
+    async fn close(&self, session_id: SessionId) {
+        let mut sessions = self.sessions.lock().await;
+        if sessions.remove(&session_id).is_some() {
+            self.probe.emit(|| TelemetryEvent::SessionClosed {
+                session: session_id,
+            });
         }
     }
 }

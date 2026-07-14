@@ -1,5 +1,7 @@
-use crate::{Bool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
+use crate::{Bool, Cast, Device, Int, Shape, Tensor, TensorData, ops::BridgeTensor};
 use alloc::{vec, vec::Vec};
+use burn_backend::ops::BoolTensorOps;
+use burn_dispatch::Dispatch;
 
 use crate::try_read_sync;
 
@@ -15,38 +17,203 @@ enum TriPart {
     Diagonal,
 }
 
-impl<B, const D: usize> Tensor<B, D, Bool>
-where
-    B: Backend,
-{
+impl<const D: usize> Tensor<D, Bool> {
     /// Create a boolean tensor from data on the given device.
-    pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
-        Self::new(B::bool_from_data(data.convert::<B::BoolElem>(), device))
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor data.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
+    ///     println!("{tensor}");
+    /// }
+    /// ```
+    pub fn from_bool<A: Into<TensorData>>(data: A, device: &Device) -> Self {
+        Self::from_data(data.into(), device)
     }
 
     /// Convert the bool tensor into an int tensor.
-    pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::new(B::bool_into_int(self.primitive))
+    ///
+    /// # Returns
+    ///
+    /// An integer tensor where `true` is converted to `1` and `false` to `0`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
+    ///     let int_tensor = bool_tensor.int();
+    ///     println!("{int_tensor}"); // [1, 0, 1]
+    /// }
+    /// ```
+    pub fn int(self) -> Tensor<D, Int> {
+        let device = self.device();
+        Tensor::new(bool_to_int_impl(self.primitive, device))
     }
 
     /// Convert the bool tensor into a float tensor.
-    pub fn float(self) -> Tensor<B, D> {
-        Tensor::new(TensorPrimitive::Float(B::bool_into_float(self.primitive)))
+    ///
+    /// # Returns
+    ///
+    /// A float tensor where `true` is converted to `1.0` and `false` to `0.0`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
+    ///     let float_tensor = bool_tensor.float();
+    ///     println!("{float_tensor}"); // [1.0, 0.0, 1.0]
+    /// }
+    /// ```
+    pub fn float(self) -> Tensor<D> {
+        let device = self.device();
+        Tensor::new(bool_to_float_impl(self.primitive, device))
+    }
+
+    /// Converts a bool tensor to the specified data type.
+    ///
+    /// Supports casting to [`IntDType`](crate::IntDType) (producing an int tensor)
+    /// or [`FloatDType`](crate::FloatDType) (producing a float tensor).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool, IntDType, FloatDType};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let bool_tensor = Tensor::<1, Bool>::from_bool([true, false, true], &device);
+    ///
+    ///     // Cast to int
+    ///     let int_tensor = bool_tensor.clone().cast(IntDType::I64);
+    ///
+    ///     // Cast to float
+    ///     let float_tensor = bool_tensor.cast(FloatDType::F32);
+    /// }
+    /// ```
+    #[must_use]
+    pub fn cast<T: Cast<D, Bool>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
+        T::cast(self, dtype)
     }
 
     /// Inverses boolean values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<2, Bool>::from_bool([[true, false], [false, true]], &device);
+    ///     let inverted = tensor.bool_not();
+    ///     println!("{inverted}"); // [[false, true], [true, false]]
+    /// }
+    /// ```
     pub fn bool_not(self) -> Self {
-        Tensor::new(B::bool_not(self.primitive))
+        Tensor::new(bool_not_impl(self.primitive))
     }
 
-    /// Performs logical and (`&&`) on two boolean tensors
-    pub fn bool_and(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_and(self.primitive, rhs.primitive))
+    /// Performs logical and (`&&`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the AND operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] && rhs[i]`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
+    ///     let result = a.bool_and(b);
+    ///     println!("{result}"); // [[true, false], [false, false]]
+    /// }
+    /// ```
+    pub fn bool_and(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
+        Tensor::new(bool_and_impl(self.primitive, rhs.primitive))
     }
 
-    /// Performs logical or (`||`) on two boolean tensors
-    pub fn bool_or(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_or(self.primitive, rhs.primitive))
+    /// Performs logical or (`||`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the OR operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] || rhs[i]`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
+    ///     let result = a.bool_or(b);
+    ///     println!("{result}"); // [[true, true], [true, false]]
+    /// }
+    /// ```
+    pub fn bool_or(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
+        Tensor::new(bool_or_impl(self.primitive, rhs.primitive))
+    }
+
+    /// Performs logical xor (`^`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the XOR operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] ^ rhs[i]`.
+    /// Returns `true` when exactly one of the operands is `true`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<2, Bool>::from_bool([[true, true], [false, false]], &device);
+    ///     let b = Tensor::<2, Bool>::from_bool([[true, false], [true, false]], &device);
+    ///     let result = a.bool_xor(b);
+    ///     println!("{result}"); // [[false, true], [true, false]]
+    /// }
+    /// ```
+    pub fn bool_xor(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
+        Tensor::new(bool_xor_impl(self.primitive, rhs.primitive))
     }
 
     /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
@@ -55,7 +222,24 @@ where
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
-    pub fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<2, Bool>::from_bool(
+    ///         [[true, false, true], [false, true, false], [false, true, false]],
+    ///         &device,
+    ///     );
+    ///     let indices = tensor.nonzero();
+    ///     println!("{}", indices[0]); // [0, 0, 1, 2]
+    ///     println!("{}", indices[1]); // [0, 2, 1, 1]
+    /// }
+    /// ```
+    pub fn nonzero(self) -> Vec<Tensor<1, Int>> {
         try_read_sync(self.nonzero_async())
             .expect("Failed to read tensor data synchronously. Try using nonzero_async instead.")
     }
@@ -66,7 +250,7 @@ where
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
-    pub async fn nonzero_async(self) -> Vec<Tensor<B, 1, Int>> {
+    pub async fn nonzero_async(self) -> Vec<Tensor<1, Int>> {
         let indices = self.argwhere_async().await;
 
         if indices.shape().num_elements() == 0 {
@@ -74,7 +258,7 @@ where
             return vec![];
         }
 
-        let dims = indices.shape().dims;
+        let dims = indices.shape();
         indices
             .chunk(dims[1], 1)
             .into_iter()
@@ -88,7 +272,23 @@ where
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
-    pub fn argwhere(self) -> Tensor<B, 2, Int> {
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<2, Bool>::from_bool(
+    ///         [[true, false, true], [false, true, false], [false, true, false]],
+    ///         &device,
+    ///     );
+    ///     let indices = tensor.argwhere();
+    ///     println!("{indices}"); // [[0, 0], [0, 2], [1, 1], [2, 1]]
+    /// }
+    /// ```
+    pub fn argwhere(self) -> Tensor<2, Int> {
         try_read_sync(self.argwhere_async())
             .expect("Failed to read tensor data synchronously. Try using argwhere_async instead.")
     }
@@ -99,25 +299,22 @@ where
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
-    pub async fn argwhere_async(self) -> Tensor<B, 2, Int> {
-        Tensor::new(B::bool_argwhere(self.primitive).await)
+    pub async fn argwhere_async(self) -> Tensor<2, Int> {
+        let out_dtype = self.device().settings().int_dtype;
+        let inner = Dispatch::bool_argwhere(self.primitive.into(), out_dtype).await;
+        Tensor::new(BridgeTensor::int(inner))
     }
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to
     /// fill the specified area with a value.
-    fn tri_mask<S: Into<Shape>>(
-        shape: S,
-        tri_part: TriPart,
-        offset: i64,
-        device: &B::Device,
-    ) -> Self {
+    fn tri_mask<S: Into<Shape>>(shape: S, tri_part: TriPart, offset: i64, device: &Device) -> Self {
         let shape: Shape = shape.into();
-        let height = shape.dims[D - 2];
-        let width = shape.dims[D - 1];
+        let height = shape[D - 2];
+        let width = shape[D - 1];
 
         // Generate row and column index tensors.
-        let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height as i64, device);
-        let col_indices: Tensor<B, 1, Int> = Tensor::arange(0..width as i64, device);
+        let row_indices: Tensor<1, Int> = Tensor::arange(0..height as i64, device);
+        let col_indices: Tensor<1, Int> = Tensor::arange(0..width as i64, device);
 
         // Prepare shapes for broadcasting.
         let mut row_shape = [1; D];
@@ -126,7 +323,7 @@ where
         col_shape[D - 1] = width;
 
         // Reshape for broadcasting.
-        let row_broadcast: Tensor<B, D, Int> = row_indices.reshape(Shape::new(row_shape));
+        let row_broadcast: Tensor<D, Int> = row_indices.reshape(Shape::new(row_shape));
         let col_broadcast = col_indices.reshape(Shape::new(col_shape));
 
         // Broadcasting trick to create a matrix that facilitates comparison for mask generation.
@@ -162,18 +359,17 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example<B: Backend>() {
-    ///   let mask = Tensor::<B, 2, Bool>::triu_mask([3, 3], 0, &Default::default());
+    /// fn example() {
+    ///   let mask = Tensor::<2, Bool>::triu_mask([3, 3], 0, &Default::default());
     ///   println!("{mask}");
     ///   // [[false, false, false],
     ///   //  [true, false, false],
     ///   //  [true, true, false]]
     /// }
     /// ```
-    pub fn triu_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn triu_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Upper, offset, device)
     }
 
@@ -196,18 +392,17 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example<B: Backend>() {
-    ///   let mask = Tensor::<B, 2, Bool>::tril_mask([3, 3], 0, &Default::default());
+    /// fn example() {
+    ///   let mask = Tensor::<2, Bool>::tril_mask([3, 3], 0, &Default::default());
     ///   println!("{mask}");
     ///   // [[false, true, true],
     ///   //  [false, false, true],
     ///   //  [false, false, false]]
     /// }
     /// ```
-    pub fn tril_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn tril_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Lower, offset, device)
     }
 
@@ -230,18 +425,84 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
     ///
-    /// fn example<B: Backend>() {
-    ///   let mask = Tensor::<B, 2, Bool>::diag_mask([3, 3], 0, &Default::default());
+    /// fn example() {
+    ///   let mask = Tensor::<2, Bool>::diag_mask([3, 3], 0, &Default::default());
     ///   println!("{mask}");
     ///   // [[false, true, true],
     ///   //  [true, false, true],
     ///   //  [true, true, false]]
     /// }
     /// ```
-    pub fn diag_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn diag_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Diagonal, offset, device)
     }
+}
+
+// !tensor (bool only)
+impl<const D: usize> core::ops::Not for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn not(self) -> Self::Output {
+        self.bool_not()
+    }
+}
+
+// tensor & tensor (bool only)
+impl<const D: usize> core::ops::BitAnd for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn bitand(self, tensor: Tensor<D, Bool>) -> Self::Output {
+        self.bool_and(tensor)
+    }
+}
+
+// tensor | tensor (bool only)
+impl<const D: usize> core::ops::BitOr for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn bitor(self, tensor: Tensor<D, Bool>) -> Self::Output {
+        self.bool_or(tensor)
+    }
+}
+
+// tensor ^ tensor (bool only)
+impl<const D: usize> core::ops::BitXor for Tensor<D, Bool> {
+    type Output = Tensor<D, Bool>;
+
+    fn bitxor(self, tensor: Tensor<D, Bool>) -> Self::Output {
+        self.bool_xor(tensor)
+    }
+}
+
+// =========================================================================
+// Non-generic implementation helpers (outlined from the generic API).
+// See the crate-level docs for the rationale behind this pattern.
+// =========================================================================
+
+fn bool_to_int_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
+    let out_dtype = device.settings().int_dtype;
+    BridgeTensor::int(Dispatch::bool_into_int(p.into(), out_dtype))
+}
+
+fn bool_to_float_impl(p: BridgeTensor, device: Device) -> BridgeTensor {
+    let out_dtype = device.settings().float_dtype;
+    BridgeTensor::float(Dispatch::bool_into_float(p.into(), out_dtype))
+}
+
+fn bool_not_impl(p: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_not(p.into()))
+}
+
+fn bool_and_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_and(lhs.into(), rhs.into()))
+}
+
+fn bool_or_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_or(lhs.into(), rhs.into()))
+}
+
+fn bool_xor_impl(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
+    BridgeTensor::bool(Dispatch::bool_xor(lhs.into(), rhs.into()))
 }

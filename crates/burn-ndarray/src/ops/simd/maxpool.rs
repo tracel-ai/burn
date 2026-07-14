@@ -1,9 +1,8 @@
 use core::{marker::PhantomData, mem::transmute};
 
-use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
+use crate::{SharedArray, iter_range_par, run_par, sharing::UnsafeSharedRef};
 
-use burn_common::{iter_range_par, run_par};
-use burn_tensor::{DType, Element, TensorMetadata, quantization::QuantInputType};
+use burn_backend::{BoolStore, DType, Element, quantization::QuantValue};
 use macerator::{Simd, VOrd};
 use ndarray::{Array4, s};
 use nhwc::max_pool2d_nhwc;
@@ -32,9 +31,9 @@ macro_rules! launch_kernel {
             DType::U32 if is_accelerated::<u32>() => Ok(cast($func::<u32>(cast($x), $($arg),*))),
             DType::U16 if is_accelerated::<u16>() => Ok(cast($func::<u16>(cast($x), $($arg),*))),
             DType::U8 if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
-            DType::Bool if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
-            DType::QFloat(scheme) => match scheme.q_type {
-                QuantInputType::QInt8 if is_accelerated::<i8>() => Ok(cast($func::<i8>(cast($x), $($arg),*))),
+            DType::Bool(BoolStore::Native) if is_accelerated::<u8>() => Ok(cast($func::<u8>(cast($x), $($arg),*))),
+            DType::QFloat(scheme) => match scheme.value {
+                QuantValue::Q8F | QuantValue::Q8S if is_accelerated::<i8>() => Ok(cast($func::<i8>(cast($x), $($arg),*))),
                 _ => Err($x)
             },
             _ => Err($x),
@@ -43,25 +42,26 @@ macro_rules! launch_kernel {
 }
 
 pub(crate) fn try_max_pool2d_simd<E: Element>(
-    x: NdArrayTensor<E>,
+    x: SharedArray<E>,
     ksize: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> Result<NdArrayTensor<E>, NdArrayTensor<E>> {
-    let [_, c, _, _] = x.shape().dims();
-    if !should_use_simd(c) || x.array.strides()[1] != 1 {
+) -> Result<SharedArray<E>, SharedArray<E>> {
+    let [_, c, _, _] = x.shape().try_into().unwrap();
+    if !should_use_simd(c) || x.strides()[1] != 1 {
         return Err(x);
     }
 
     launch_kernel!(E, max_pool2d_nhwc, x, ksize, stride, padding, dilation)
 }
 
-fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
-    unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
+fn cast<T, E>(tensor: SharedArray<T>) -> SharedArray<E> {
+    unsafe { transmute::<SharedArray<T>, SharedArray<E>>(tensor) }
 }
 
 mod nhwc {
+    use burn_backend::ElementOrdered;
     use itertools::Itertools;
     use macerator::{Simd, vload_unaligned, vstore_unaligned};
     use ndarray::{ArrayView3, ArrayViewMut3, Ix4};
@@ -75,18 +75,18 @@ mod nhwc {
     // The most common config (x86-v3) has 16 registers, so use half of them for accumulators.
     const BLOCK_REGISTERS: usize = 8;
 
-    pub(crate) fn max_pool2d_nhwc<E: Element + VOrd + MinMax>(
-        x: NdArrayTensor<E>,
+    pub(crate) fn max_pool2d_nhwc<E: ElementOrdered + VOrd + MinMax>(
+        x: SharedArray<E>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> NdArrayTensor<E> {
+    ) -> SharedArray<E> {
         let [kernel_height, kernel_width] = kernel_size;
         let [pad_h, pad_w] = padding;
         let [stride_height, stride_width] = stride;
         let [dilation_height, dilation_width] = dilation;
-        let [batch_size, channels, x_height, x_width] = x.shape().dims();
+        let [batch_size, channels, x_height, x_width] = x.shape().try_into().unwrap();
         let lanes = lanes::<E>();
 
         let ch_block = lanes * BLOCK_REGISTERS;
@@ -102,7 +102,7 @@ mod nhwc {
         };
         let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
-        let x = x.array.into_dimensionality::<Ix4>().unwrap();
+        let x = x.into_dimensionality::<Ix4>().unwrap();
         let x = x.view();
         let x = x.permuted_axes([0, 2, 3, 1]);
 
@@ -151,7 +151,7 @@ mod nhwc {
 
         output = output.permuted_axes([0, 3, 1, 2]);
 
-        NdArrayTensor::new(output.into_dyn().into_shared())
+        output.into_dyn().into_shared()
     }
 
     /// Execute the blocked (unrolled) portion of the pool.
@@ -163,7 +163,7 @@ mod nhwc {
     )]
     #[inline(always)]
     #[macerator::with_simd]
-    fn loop_blocked<'a, S: Simd, E: Element + VOrd + MinMax>(
+    fn loop_blocked<'a, S: Simd, E: ElementOrdered + VOrd + MinMax>(
         x: ArrayView3<'a, E>,
         mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
@@ -277,7 +277,7 @@ mod nhwc {
     #[allow(clippy::too_many_arguments, unused_mut)]
     #[inline(always)]
     #[macerator::with_simd]
-    unsafe fn loop_unblocked<'a, S: Simd, E: Element + VOrd + MinMax>(
+    unsafe fn loop_unblocked<'a, S: Simd, E: ElementOrdered + VOrd + MinMax>(
         x: ArrayView3<'a, E>,
         mut out: ArrayViewMut3<'a, E>,
         kernel_size: [usize; 2],
@@ -350,7 +350,7 @@ mod nhwc {
         }
     }
 
-    fn loop_scalar<E: Element + MinMax>(
+    fn loop_scalar<E: ElementOrdered + MinMax>(
         x: ArrayView3<'_, E>,
         mut out: ArrayViewMut3<'_, E>,
         kernel_size: [usize; 2],

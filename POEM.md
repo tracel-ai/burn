@@ -35,6 +35,6 @@ An ode to the sparks that set the dark alight,
 To the rusty neurons, unstoppable and true,  
 A testament to the power of dreams, to breakthrough.
 
-(ChatGTP (model=gpt-4) with prompt:
+(ChatGPT (model=gpt-4) with prompt:
 Write a poem about "BURN: Burn Unstoppable Rusty Neurons" deep
 learning neural network framework)

@@ -1,22 +1,22 @@
-use burn::backend::NdArray;
-use burn::record::{FullPrecisionSettings, Recorder};
+use burn_store::{ModuleSnapshot, PytorchStore};
 
-use burn_import::pytorch::PyTorchFileRecorder;
-
-use import_model_weights::{ModelRecord, infer};
-
-type B = NdArray<f32>;
+use import_model_weights::{Model, infer};
 
 const WEIGHTS_FILE: &str = "weights/mnist.pt";
 
 pub fn main() {
     println!("Loading PyTorch model weights from file: {WEIGHTS_FILE}");
 
-    // Load PyTorch weights into a model record.
-    let record: ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-        .load(WEIGHTS_FILE.into(), &Default::default())
+    // Initialize a model with default weights
+    let device = Default::default();
+    let mut model = Model::init(&device);
+
+    // Load PyTorch weights into the model
+    let mut store = PytorchStore::from_file(WEIGHTS_FILE);
+    model
+        .load_from(&mut store)
         .expect("Failed to load PyTorch model weights");
 
-    // Infer using the loaded model record.
-    infer(record);
+    // Infer using the loaded model
+    infer(model);
 }

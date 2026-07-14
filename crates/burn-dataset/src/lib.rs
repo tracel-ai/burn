@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! # Burn Dataset
 //!
@@ -8,12 +8,12 @@
 #[macro_use]
 extern crate derive_new;
 
+extern crate alloc;
 extern crate dirs;
 
 /// Sources for datasets.
 pub mod source;
 
-/// Transformations to be used with datasets.
 pub mod transform;
 
 /// Audio datasets.
@@ -23,6 +23,16 @@ pub mod audio;
 /// Vision datasets.
 #[cfg(feature = "vision")]
 pub mod vision;
+
+/// Natural language processing datasets.
+#[cfg(feature = "nlp")]
+pub mod nlp;
+
+/// Network dataset utilities.
+#[cfg(feature = "network")]
+pub mod network {
+    pub use burn_std::network::*;
+}
 
 mod dataset;
 pub use dataset::*;

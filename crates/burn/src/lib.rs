@@ -43,21 +43,35 @@
 //! - WGPU (WebGPU): Cross-Platform GPU Backend
 //! - Candle: Backend using the Candle bindings
 //! - LibTorch: Backend using the LibTorch bindings
-//! - NdArray: Backend using the NdArray primitive as data structure
+//! - Flex: Pure-Rust CPU backend (std, no_std, WebAssembly)
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
 //! - Fusion: Backend decorator that brings kernel fusion to backends that support it
 //!
-//! # Quantization (Beta)
+//! # Quantization
 //!
-//! Quantization techniques perform computations and store tensors in lower precision data types like 8-bit integer
-//! instead of floating point precision. There are multiple approaches to quantize a deep learning model. In most cases,
-//! the model is trained in floating point precision and later converted to the lower precision data type. This is called
-//! post-training quantization (PTQ). On the other hand, quantization aware training (QAT) models the effects of quantization
-//! during training. Quantization errors are thus modeled in the forward and backward passes, which helps the model learn
-//! representations that are more robust to the reduction in precision.
+//! Quantization techniques perform computations and store tensors in lower precision data types like
+//! 8-bit integer instead of floating point precision. There are multiple approaches to quantize a deep
+//! learning model categorized as post-training quantization (PTQ) and quantization aware training (QAT).
 //!
-//! Quantization support in Burn is currently in active development. It supports the following modes on some backends:
-//! - Static per-tensor quantization to signed 8-bit integer (`i8`)
+//! In post-training quantization, the model is trained in floating point precision and later converted
+//! to the lower precision data type. There are two types of post-training quantization:
+//!
+//! 1. Static quantization: quantizes the weights and activations of the model. Quantizing the
+//!    activations statically requires data to be calibrated (i.e., recording the activation values to
+//!    compute the optimal quantization parameters with representative data).
+//! 2. Dynamic quantization: quantized the weights ahead of time (like static quantization) but the
+//!    activations are dynamically at runtime.
+//!
+//! Sometimes post-training quantization is not able to achieve acceptable task accuracy. In general,
+//! this is where quantization-aware training (QAT) can be used: during training, fake-quantization
+//! modules are inserted in the forward and backward passes to simulate quantization effects, allowing
+//! the model to learn representations that are more robust to reduced precision.
+//!
+//! Burn does not currently support QAT. Only post-training quantization (PTQ) is implemented at this
+//! time.
+//!
+//! Quantization support in Burn is currently in active development. It supports the following PTQ modes on some backends:
+//! - Per-tensor and per-block quantization to 8-bit, 4-bit and 2-bit representations
 //!
 //! ## Feature Flags
 //!
@@ -79,10 +93,13 @@
 //!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
 //!   - `vulkan`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
 //!   - `cuda`: Makes available the CUDA backend
+//!   - `metal`: Makes available the Metal backend
 //!   - `rocm`: Makes available the ROCm backend
+//!   - `cpu`: Makes available the CubeCL CPU backend
 //!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
-//!   - `ndarray`: Makes available the NdArray backend
+//!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
+//!   - `ndarray`: Makes available the NdArray backend (legacy - prefer `flex` for new projects)
 //! - Backend specifications
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
@@ -92,11 +109,12 @@
 //!   - `fusion`: Enable operation fusion in backends that support it.
 //! - Backend decorators
 //!   - `autodiff`: Makes available the Autodiff backend
+//! - Model Storage
+//!   - `store`: Enables model storage with SafeTensors format and PyTorch interoperability
 //! - Others:
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `server`: Enables the remote server.
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
-//!   - `experimental-named-tensor`: Enables named tensors (experimental)
 //!
 //! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
 
@@ -108,8 +126,66 @@ pub mod train {
     pub use burn_train::*;
 }
 
-/// Backend module.
-pub mod backend;
+/// Module for reinforcement learning.
+#[cfg(feature = "rl")]
+pub mod rl {
+    pub use burn_rl::*;
+}
 
-#[cfg(feature = "server")]
-pub use burn_remote::server;
+#[cfg(feature = "remote-server")]
+pub use burn_core::tensor::server;
+
+/// Model storage and serialization: the non-generic record system (always available), plus —
+/// with the `store` feature — the snapshot tooling and importers (SafeTensors, PyTorch, burnpack).
+pub mod store {
+    pub use burn_core::store::*;
+    #[cfg(feature = "store")]
+    pub use burn_store::*;
+}
+
+/// Neural network module.
+pub mod nn {
+    pub use burn_nn::*;
+}
+
+pub use burn_std::config::{BurnConfig, config as runtime_config};
+
+/// Optimizers module.
+#[cfg(feature = "optim")]
+pub mod optim {
+    pub use burn_optim::*;
+}
+
+// For backward compat, `burn::lr_scheduler::*`
+/// Learning rate scheduler module.
+#[cfg(all(feature = "optim", feature = "std"))]
+pub mod lr_scheduler {
+    pub use burn_optim::lr_scheduler::*;
+}
+// For backward compat, `burn::grad_clipping::*`
+/// Gradient clipping module.
+#[cfg(feature = "optim")]
+pub mod grad_clipping {
+    pub use burn_optim::grad_clipping::*;
+}
+
+/// CubeCL module re-export.
+#[cfg(feature = "cubecl")]
+pub mod cubecl {
+    pub use cubecl::*;
+}
+
+#[cfg(feature = "vision")]
+/// Vision module.
+pub mod vision {
+    pub use burn_vision::*;
+}
+
+pub mod prelude {
+    //! Structs and macros used by most projects. Add `use
+    //! burn::prelude::*` to your code to quickly get started with
+    //! Burn.
+    pub use burn_core::prelude::*;
+
+    pub use crate::nn;
+}

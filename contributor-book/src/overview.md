@@ -3,7 +3,8 @@
 Welcome to The Burn Contributor's Book 👋
 
 This book will help you get acquainted with the internals of the Burn deep learning framework and
-provide some detailed guidance on how to contribute to the project.
+provide some detailed guidance on how to contribute to the project. Before opening a PR, please read
+the [Contributing Guidelines](https://github.com/tracel-ai/burn/blob/main/CONTRIBUTING.md).
 
 We have crafted some sections for you:
 

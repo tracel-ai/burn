@@ -1,0 +1,29 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "RL crate for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license.workspace = true
+name = "burn-rl"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-rl"
+documentation = "https://docs.rs/burn-rl"
+version.workspace = true
+
+[dependencies]
+burn-core = { workspace = true, features = [
+    "dataset",
+    "std",
+] }
+
+derive-new.workspace = true
+log = { workspace = true }
+rand.workspace = true
+
+[dev-dependencies]
+# Test backend
+burn-core = { workspace = true, features = ["default", "flex"]}
+
+[lints]
+workspace = true

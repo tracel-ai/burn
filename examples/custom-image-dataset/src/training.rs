@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{path::PathBuf, time::Instant};
 
 use crate::{
     data::{ClassificationBatch, ClassificationBatcher},
@@ -10,10 +10,8 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::SgdConfig,
     prelude::*,
-    record::CompactRecorder,
-    tensor::backend::AutodiffBackend,
     train::{
-        ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
+        ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
     },
 };
@@ -21,12 +19,12 @@ use burn::{
 const NUM_CLASSES: u8 = 10;
 const ARTIFACT_DIR: &str = "/tmp/custom-image-dataset";
 
-impl<B: Backend> Cnn<B> {
+impl Cnn {
     pub fn forward_classification(
         &self,
-        images: Tensor<B, 4>,
-        targets: Tensor<B, 1, Int>,
-    ) -> ClassificationOutput<B> {
+        images: Tensor<4>,
+        targets: Tensor<1, Int>,
+    ) -> ClassificationOutput {
         let output = self.forward(images);
         let loss = CrossEntropyLossConfig::new()
             .init(&output.device())
@@ -36,21 +34,27 @@ impl<B: Backend> Cnn<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
-    fn step(&self, batch: ClassificationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+impl TrainStep for Cnn {
+    type Input = ClassificationBatch;
+    type Output = ClassificationOutput;
+
+    fn step(&self, batch: ClassificationBatch) -> TrainOutput<ClassificationOutput> {
         let item = self.forward_classification(batch.images, batch.targets);
 
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> ValidStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
-    fn step(&self, batch: ClassificationBatch<B>) -> ClassificationOutput<B> {
+impl InferenceStep for Cnn {
+    type Input = ClassificationBatch;
+    type Output = ClassificationOutput;
+
+    fn step(&self, batch: ClassificationBatch) -> ClassificationOutput {
         self.forward_classification(batch.images, batch.targets)
     }
 }
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub optimizer: SgdConfig,
     #[config(default = 30)]
@@ -66,23 +70,23 @@ pub struct TrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
+pub fn train(config: TrainingConfig, device: Device) {
     create_artifact_dir(ARTIFACT_DIR);
 
     config
         .save(format!("{ARTIFACT_DIR}/config.json"))
         .expect("Config should be saved successfully");
 
-    B::seed(config.seed);
+    device.seed(config.seed);
+    let autodiff_device = device.clone().autodiff();
 
     // Dataloaders
-    let batcher_train = ClassificationBatcher::<B>::new(device.clone());
-    let batcher_valid = ClassificationBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = ClassificationBatcher::new(&autodiff_device);
+    let batcher_valid = ClassificationBatcher::new(&device);
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
@@ -97,28 +101,30 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
         .build(ImageFolderDataset::cifar10_test());
 
     // Learner config
-    let learner = LearnerBuilder::new(ARTIFACT_DIR)
+    let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_test)
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device.clone()])
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            Cnn::new(NUM_CLASSES.into(), &device),
-            config.optimizer.init(),
-            config.learning_rate,
-        );
+        .summary();
+
+    let model = Cnn::new(NUM_CLASSES.into(), &autodiff_device);
 
     // Training
     let now = Instant::now();
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = training.launch(Learner::new(
+        model,
+        config.optimizer.init(),
+        config.learning_rate,
+    ));
     let elapsed = now.elapsed().as_secs();
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
 
-    model_trained
-        .save_file(format!("{ARTIFACT_DIR}/model"), &CompactRecorder::new())
+    result
+        .model
+        .into_record()
+        .save(format!("{ARTIFACT_DIR}/model"))
         .expect("Trained model should be saved successfully");
 }

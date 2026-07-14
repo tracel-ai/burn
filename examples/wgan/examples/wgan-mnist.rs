@@ -1,8 +1,8 @@
-use burn::{optim::RmsPropConfig, tensor::backend::AutodiffBackend};
+use burn::{optim::RmsPropConfig, tensor::Device};
 
 use wgan::{model::ModelConfig, training::TrainingConfig};
 
-pub fn launch<B: AutodiffBackend>(device: B::Device) {
+pub fn launch(device: Device) {
     let config = TrainingConfig::new(
         ModelConfig::new(),
         RmsPropConfig::new()
@@ -13,89 +13,62 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
             .with_centered(false),
     );
 
-    wgan::training::train::<B>("/tmp/wgan-mnist", config, device);
+    wgan::training::train("/tmp/wgan-mnist", config, device);
 }
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use burn::backend::{
-        Autodiff,
-        ndarray::{NdArray, NdArrayDevice},
-    };
-
-    use crate::launch;
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::tensor::Device;
 
     pub fn run() {
-        launch::<Autodiff<NdArray>>(NdArrayDevice::Cpu);
+        crate::launch(Device::flex());
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::{
-        Autodiff,
-        libtorch::{LibTorch, LibTorchDevice},
-    };
-
-    use crate::launch;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(DeviceIndex::Default);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
-        launch::<Autodiff<LibTorch>>(device);
+        crate::launch(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::{
-        Autodiff,
-        libtorch::{LibTorch, LibTorchDevice},
-    };
-
-    use crate::launch;
+    use burn::tensor::Device;
 
     pub fn run() {
-        launch::<Autodiff<LibTorch>>(LibTorchDevice::Cpu);
+        crate::launch(Device::libtorch());
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use crate::launch;
-    use burn::backend::{Autodiff, wgpu::Wgpu};
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        launch::<Autodiff<Wgpu>>(Default::default());
+        crate::launch(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::launch;
-    use burn::backend::{Autodiff, Cuda, cuda::CudaDevice};
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
-        launch::<Autodiff<Cuda>>(CudaDevice::default());
+        crate::launch(Device::cuda(DeviceIndex::Default));
     }
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

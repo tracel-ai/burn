@@ -1,10 +1,11 @@
 use burn_ir::OperationIr;
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 
 use super::{ExecutionMode, ExplorationAction, Explorer};
 use crate::search::BlockOptimization;
 use crate::stream::execution::{Action, Policy};
 use crate::stream::store::{ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
-use crate::{NumOperations, OptimizationBuilder};
+use crate::{NumOperations, OperationFuser};
 
 /// Process a [stream segment](StreamSegment) following a [policy](Policy).
 pub(crate) struct Processor<O> {
@@ -18,11 +19,13 @@ pub(crate) trait StreamSegment<O> {
     fn operations(&self) -> &[OperationIr];
     /// Execute part of the segment using the given plan id.
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<O>);
+    /// Execute the segment with a one-off optimization, without caching it in the store.
+    fn execute_unfused(&mut self, optimization: BlockOptimization<O>);
 }
 
 impl<O: NumOperations> Processor<O> {
     /// Create a new stream processor.
-    pub fn new(optimizations: Vec<Box<dyn OptimizationBuilder<O>>>) -> Self {
+    pub fn new(optimizations: Vec<Box<dyn OperationFuser<O>>>) -> Self {
         Self {
             policy: Policy::new(),
             explorer: Explorer::new(optimizations),
@@ -65,6 +68,17 @@ impl<O: NumOperations> Processor<O> {
                     };
                 }
                 Action::Execute(id) => {
+                    let mode_dbg = match mode {
+                        ExecutionMode::Lazy => "lazy",
+                        ExecutionMode::Sync => "sync",
+                    };
+                    let num_ops = segment.operations().len();
+                    log_fusion(FusionLogLevel::Full, move || {
+                        format!(
+                            "[plan] cache hit: execute plan #{id} ({mode_dbg}, segment has {num_ops} ops)"
+                        )
+                    });
+
                     if let ExecutionMode::Sync = mode {
                         store.add_trigger(id, ExecutionTrigger::OnSync);
                     }
@@ -113,7 +127,20 @@ impl<O: NumOperations> Processor<O> {
                     panic!("Can't continue exploring when sync.")
                 }
             }
+            ExplorationAction::Unfused(optim) => {
+                // Exploration is capped: run the ops unfused and don't touch the store, so a
+                // never-cacheable dynamic graph stops both re-exploring and growing the cache.
+                item.execute_unfused(optim);
+                self.reset(store, item.operations());
+            }
         }
+    }
+
+    /// Number of optimizations built so far; a cached plan that is reused does not
+    /// count. Used by tests to assert that recurring graphs stop exploring.
+    #[cfg(test)]
+    pub(crate) fn num_explorations(&self) -> usize {
+        self.explorer.num_explorations()
     }
 
     fn reset(&mut self, store: &mut ExecutionPlanStore<O>, operations: &[OperationIr]) {
@@ -138,6 +165,19 @@ impl<O: NumOperations> Processor<O> {
         let num_optimized = optimization.ordering.len();
         let relative = &operations[0..num_optimized];
 
+        {
+            let total_ops = operations.len();
+            let mode_dbg = match mode {
+                ExecutionMode::Lazy => "lazy",
+                ExecutionMode::Sync => "sync",
+            };
+            log_fusion(FusionLogLevel::Full, move || {
+                format!(
+                    "[plan] exploration completed: {mode_dbg}, {num_optimized}/{total_ops} ops optimized"
+                )
+            });
+        }
+
         match mode {
             ExecutionMode::Lazy => {
                 let next_ops = &operations[num_optimized..operations.len()];
@@ -155,11 +195,14 @@ impl<O: NumOperations> Processor<O> {
                         store.add_trigger(id, trigger);
                         id
                     }
-                    _ => store.add(ExecutionPlan {
-                        operations: relative.to_vec(),
-                        triggers: vec![trigger],
-                        optimization,
-                    }),
+                    _ => {
+                        let plan = ExecutionPlan {
+                            operations: relative.to_vec(),
+                            triggers: vec![trigger],
+                            optimization,
+                        };
+                        store.add(plan)
+                    }
                 }
             }
             ExecutionMode::Sync => match policy.action(store, relative, ExecutionMode::Sync) {
@@ -167,11 +210,14 @@ impl<O: NumOperations> Processor<O> {
                     store.add_trigger(id, ExecutionTrigger::OnSync);
                     id
                 }
-                _ => store.add(ExecutionPlan {
-                    operations: relative.to_vec(),
-                    triggers: vec![ExecutionTrigger::OnSync],
-                    optimization,
-                }),
+                _ => {
+                    let plan = ExecutionPlan {
+                        operations: relative.to_vec(),
+                        triggers: vec![ExecutionTrigger::OnSync],
+                        optimization,
+                    };
+                    store.add(plan)
+                }
             },
         }
     }

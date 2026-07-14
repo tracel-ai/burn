@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! # Burn Autodiff
 //!
@@ -16,6 +16,9 @@ extern crate alloc;
 
 /// Checkpoint module.
 pub mod checkpoint;
+#[cfg(feature = "std")]
+/// Distributed utils.
+pub mod distributed;
 /// Gradients module.
 pub mod grads;
 /// Operation module.
@@ -23,7 +26,7 @@ pub mod ops;
 
 pub(crate) mod graph;
 // Exported for backend extension
-pub use graph::NodeID;
+pub use graph::NodeId;
 pub(crate) mod tensor;
 pub(crate) mod utils;
 
@@ -32,9 +35,6 @@ mod backend;
 pub(crate) mod runtime;
 
 pub use backend::*;
-
-#[cfg(feature = "export_tests")]
-mod tests;
 
 /// A facade around for HashMap and HashSet.
 /// This avoids elaborate import wrangling having to happen in every module.

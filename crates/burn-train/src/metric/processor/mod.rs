@@ -3,38 +3,43 @@ mod base;
 mod full;
 mod metrics;
 mod minimal;
+#[cfg(feature = "rl")]
+mod rl_metrics;
+#[cfg(feature = "rl")]
+mod rl_processor;
 
 pub use base::*;
 pub(crate) use full::*;
 pub(crate) use metrics::*;
+#[cfg(feature = "rl")]
+pub(crate) use rl_metrics::*;
+#[cfg(feature = "rl")]
+pub use rl_processor::*;
 
 #[cfg(test)]
 pub(crate) use minimal::*;
 
-pub use async_wrapper::AsyncProcessor;
+pub use async_wrapper::{AsyncProcessorEvaluation, AsyncProcessorTraining};
 
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::metric::{
         Adaptor, LossInput,
-        processor::{Event, EventProcessor, LearnerItem, MinimalEventProcessor},
+        processor::{EventProcessorTraining, LearnerEvent, MinimalEventProcessor, TrainingItem},
     };
-    use burn_core::tensor::{ElementConversion, Tensor, backend::Backend};
+    use burn_core::tensor::Tensor;
 
     use super::ItemLazy;
 
     impl ItemLazy for f64 {
-        type ItemSync = f64;
-
-        fn sync(self) -> Self::ItemSync {
+        fn sync(self) -> Self {
             self
         }
     }
 
-    impl<B: Backend> Adaptor<LossInput<B>> for f64 {
-        fn adapt(&self) -> LossInput<B> {
-            let device = B::Device::default();
-            LossInput::new(Tensor::from_data([self.elem::<B::FloatElem>()], &device))
+    impl Adaptor<LossInput> for f64 {
+        fn adapt(&self) -> LossInput {
+            LossInput::new(Tensor::from_data([*self], &Default::default()))
         }
     }
 
@@ -44,24 +49,37 @@ pub(crate) mod test_utils {
         epoch: usize,
     ) {
         let dummy_progress = burn_core::data::dataloader::Progress {
-            items_processed: 1,
-            items_total: 10,
+            items_processed: epoch,
+            items_total: 3,
+            unit: Some("items".to_string()),
         };
-        let num_epochs = 3;
-        let dummy_iteration = 1;
+        let dummy_iteration = Some(1);
 
-        processor.process_train(Event::ProcessedItem(LearnerItem::new(
+        processor.process_train(LearnerEvent::ProcessedItem(TrainingItem::new(
             value,
             dummy_progress,
-            epoch,
-            num_epochs,
             dummy_iteration,
             None,
         )));
     }
 
+    pub(crate) fn start_epoch(
+        processor: &mut MinimalEventProcessor<f64, f64>,
+        epoch: usize,
+        num_items: usize,
+    ) {
+        processor.process_train(LearnerEvent::StartSplit {
+            epoch_number: epoch,
+            total_items: num_items,
+        });
+        processor.process_valid(LearnerEvent::StartSplit {
+            epoch_number: epoch,
+            total_items: num_items,
+        });
+    }
+
     pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
-        processor.process_train(Event::EndEpoch(epoch));
-        processor.process_valid(Event::EndEpoch(epoch));
+        processor.process_train(LearnerEvent::EndSplit(epoch));
+        processor.process_valid(LearnerEvent::EndSplit(epoch));
     }
 }

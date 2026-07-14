@@ -17,7 +17,7 @@ The backend supports CPU (multithreaded), [CUDA](https://pytorch.org/docs/stable
 [`tch-rs`](https://github.com/LaurentMazare/tch-rs) requires the C++ PyTorch library (LibTorch) to
 be available on your system.
 
-By default, the CPU distribution is installed for LibTorch v2.6.0 as required by `tch-rs`.
+By default, the CPU distribution is installed for LibTorch v2.9.0 as required by `tch-rs`.
 
 <details>
 <summary><strong>CUDA</strong></summary>
@@ -26,13 +26,13 @@ To install the latest compatible CUDA distribution, set the `TORCH_CUDA_VERSION`
 variable before the `tch-rs` dependency is retrieved with `cargo`.
 
 ```shell
-export TORCH_CUDA_VERSION=cu124
+export TORCH_CUDA_VERSION=cu128
 ```
 
 On Windows:
 
 ```powershell
-$Env:TORCH_CUDA_VERSION = "cu124"
+$Env:TORCH_CUDA_VERSION = "cu128"
 ```
 
 > Note: `tch` doesn't expose the downloaded libtorch directory on Windows when using the automatic
@@ -44,7 +44,7 @@ For example, running the validation sample for the first time could be done with
 commands:
 
 ```shell
-export TORCH_CUDA_VERSION=cu124
+export TORCH_CUDA_VERSION=cu128
 cargo run --bin cuda --release
 ```
 
@@ -93,7 +93,7 @@ platform.
 First, download the LibTorch CPU distribution.
 
 ```shell
-wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.6.0%2Bcpu.zip
+wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.9.0%2Bcpu.zip
 unzip libtorch.zip
 ```
 
@@ -113,7 +113,7 @@ export LD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH
 First, download the LibTorch CPU distribution.
 
 ```shell
-wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-macos-x86_64-2.6.0.zip
+wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.9.0.zip
 unzip libtorch.zip
 ```
 
@@ -133,7 +133,7 @@ export DYLD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$DYLD_LIBRARY_PATH
 First, download the LibTorch CPU distribution.
 
 ```powershell
-wget https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.6.0%2Bcpu.zip -OutFile libtorch.zip
+wget https://download.pytorch.org/libtorch/cpu/libtorch-win-shared-with-deps-2.9.0%2Bcpu.zip -OutFile libtorch.zip
 Expand-Archive libtorch.zip
 ```
 
@@ -149,9 +149,9 @@ $Env:Path += ";/absolute/path/to/libtorch/"
 
 #### CUDA
 
-LibTorch 2.6.0 currently includes binary distributions with CUDA 11.8, 12.4 or 12.6 runtimes. The
+LibTorch 2.9.0 currently includes binary distributions with CUDA 12.6, 12.8 or 13.0 runtimes. The
 manual installation instructions are detailed below for CUDA 12.6, but can be applied to the other
-CUDA versions by replacing `cu126` with the corresponding version string (e.g., `cu118` or `cu124`).
+CUDA versions by replacing `cu126` with the corresponding version string (e.g., `cu130`).
 
 <details open>
 <summary><strong>🐧 Linux</strong></summary>
@@ -159,7 +159,7 @@ CUDA versions by replacing `cu126` with the corresponding version string (e.g., 
 First, download the LibTorch CUDA 12.6 distribution.
 
 ```shell
-wget -O libtorch.zip https://download.pytorch.org/libtorch/cu126/libtorch-cxx11-abi-shared-with-deps-2.6.0%2Bcu126.zip
+wget -O libtorch.zip https://download.pytorch.org/libtorch/cu126/libtorch-shared-with-deps-2.9.0%2Bcu126.zip
 unzip libtorch.zip
 ```
 
@@ -181,7 +181,7 @@ export LD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH
 First, download the LibTorch CUDA 12.6 distribution.
 
 ```powershell
-wget https://download.pytorch.org/libtorch/cu126/libtorch-win-shared-with-deps-2.6.0%2Bcu126.zip -OutFile libtorch.zip
+wget https://download.pytorch.org/libtorch/cu126/libtorch-win-shared-with-deps-2.9.0%2Bcu126.zip -OutFile libtorch.zip
 Expand-Archive libtorch.zip
 ```
 
@@ -203,7 +203,7 @@ is to use a PyTorch installation. This requires a Python installation.
 _Note: MPS acceleration is available on MacOS 12.3+._
 
 ```shell
-pip install torch==2.6.0 numpy==1.26.4 setuptools
+pip install torch==2.9.0 numpy==1.26.4 setuptools
 export LIBTORCH_USE_PYTORCH=1
 export DYLD_LIBRARY_PATH=/path/to/pytorch/lib:$DYLD_LIBRARY_PATH
 ```

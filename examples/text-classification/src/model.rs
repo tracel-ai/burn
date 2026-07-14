@@ -7,44 +7,50 @@ use crate::data::{TextClassificationInferenceBatch, TextClassificationTrainingBa
 use burn::{
     nn::{
         Embedding, EmbeddingConfig, Linear, LinearConfig,
+        attention::SeqLengthOption,
         loss::CrossEntropyLossConfig,
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     },
     prelude::*,
-    tensor::{activation::softmax, backend::AutodiffBackend},
-    train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
+    tensor::activation::softmax,
+    train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 
 // Define the model configuration
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TextClassificationModelConfig {
     transformer: TransformerEncoderConfig,
     n_classes: usize,
     vocab_size: usize,
-    max_seq_length: usize,
+    seq_length: SeqLengthOption,
 }
 
 // Define the model structure
 #[derive(Module, Debug)]
-pub struct TextClassificationModel<B: Backend> {
-    transformer: TransformerEncoder<B>,
-    embedding_token: Embedding<B>,
-    embedding_pos: Embedding<B>,
-    output: Linear<B>,
+pub struct TextClassificationModel {
+    transformer: TransformerEncoder,
+    embedding_token: Embedding,
+    embedding_pos: Embedding,
+    output: Linear,
     n_classes: usize,
-    max_seq_length: usize,
 }
 
 // Define functions for model initialization
 impl TextClassificationModelConfig {
     /// Initializes a model with default weights
-    pub fn init<B: Backend>(&self, device: &B::Device) -> TextClassificationModel<B> {
+    pub fn init(&self, device: &Device) -> TextClassificationModel {
         let output = LinearConfig::new(self.transformer.d_model, self.n_classes).init(device);
         let transformer = self.transformer.init(device);
         let embedding_token =
             EmbeddingConfig::new(self.vocab_size, self.transformer.d_model).init(device);
+        let max_seq_length = match self.seq_length {
+            SeqLengthOption::Fixed(max) | SeqLengthOption::Max(max) => max,
+            SeqLengthOption::NoMax => panic!(
+                "Text classification requires a max sequence length because of the embedding strategy."
+            ),
+        };
         let embedding_pos =
-            EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model).init(device);
+            EmbeddingConfig::new(max_seq_length, self.transformer.d_model).init(device);
 
         TextClassificationModel {
             transformer,
@@ -52,15 +58,14 @@ impl TextClassificationModelConfig {
             embedding_pos,
             output,
             n_classes: self.n_classes,
-            max_seq_length: self.max_seq_length,
         }
     }
 }
 
 /// Define model behavior
-impl<B: Backend> TextClassificationModel<B> {
+impl TextClassificationModel {
     // Defines forward pass for training
-    pub fn forward(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
+    pub fn forward(&self, item: TextClassificationTrainingBatch) -> ClassificationOutput {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
@@ -101,7 +106,7 @@ impl<B: Backend> TextClassificationModel<B> {
     }
 
     /// Defines forward pass for inference
-    pub fn infer(&self, item: TextClassificationInferenceBatch<B>) -> Tensor<B, 2> {
+    pub fn infer(&self, item: TextClassificationInferenceBatch) -> Tensor<2> {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
@@ -129,16 +134,22 @@ impl<B: Backend> TextClassificationModel<B> {
 
         softmax(output, 1)
     }
+
+    pub fn reset_head(&mut self, num_classes: usize) {
+        self.n_classes = num_classes;
+        self.output = LinearConfig::new(self.transformer.d_model, self.n_classes)
+            .init(&self.transformer.devices()[0]);
+        self.output.weight = self.output.weight.clone().set_require_grad(true);
+        self.output.bias = self.output.bias.clone().map(|b| b.set_require_grad(true));
+    }
 }
 
 /// Define training step
-impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
-    for TextClassificationModel<B>
-{
-    fn step(
-        &self,
-        item: TextClassificationTrainingBatch<B>,
-    ) -> TrainOutput<ClassificationOutput<B>> {
+impl TrainStep for TextClassificationModel {
+    type Input = TextClassificationTrainingBatch;
+    type Output = ClassificationOutput;
+
+    fn step(&self, item: TextClassificationTrainingBatch) -> TrainOutput<ClassificationOutput> {
         // Run forward pass, calculate gradients and return them along with the output
         let item = self.forward(item);
         let grads = item.loss.backward();
@@ -148,10 +159,11 @@ impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, Classific
 }
 
 /// Define validation step
-impl<B: Backend> ValidStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
-    for TextClassificationModel<B>
-{
-    fn step(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
+impl InferenceStep for TextClassificationModel {
+    type Input = TextClassificationTrainingBatch;
+    type Output = ClassificationOutput;
+
+    fn step(&self, item: TextClassificationTrainingBatch) -> ClassificationOutput {
         // Run forward pass and return the output
         self.forward(item)
     }

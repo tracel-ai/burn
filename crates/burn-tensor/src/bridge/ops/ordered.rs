@@ -1,0 +1,643 @@
+use burn_backend::Scalar;
+
+use crate::{bridge::Numeric, ops::BridgeTensor};
+
+/// Trait that list all operations that can be applied on all numerical tensors
+/// whose elements have a well-defined ordering.
+///
+/// This includes operations such as comparisons, minimum/maximum reductions,
+/// and other order-dependent computations that are not strictly valid for all numerical
+/// types.
+///
+/// # Warnings
+///
+/// This is an internal trait, use the public API provided by the [`Tensor`](crate::Tensor) struct.
+pub(crate) trait Ordered: Numeric {
+    /// Sort the elements of the input `tensor` by value along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
+    ///
+    /// # Remarks
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// Users should prefer the [`Tensor::sort`](crate::Tensor::sort)
+    /// function, which is more high-level and designed for public use.
+    fn sort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor;
+
+    /// Sort the elements of the input `tensor` by value along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor and corresponding indices, where
+    /// the elements are sorted by value and the indices map back to the original input tensor.
+    ///
+    /// # Remarks
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For sorting the elements of a tensor, users should prefer the [`Tensor::sort_with_indices`](crate::Tensor::sort_with_indices)
+    /// function, which is more high-level and designed for public use.
+    fn sort_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        descending: bool,
+    ) -> (BridgeTensor, BridgeTensor);
+
+    /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
+    ///
+    /// # Remarks
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// Users should prefer the [`Tensor::argsort`](crate::Tensor::argsort)
+    /// function, which is more high-level and designed for public use.
+    fn argsort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor;
+
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the minimum
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the cumulative minimum of elements along a dimension, users should prefer the
+    /// [`Tensor::cummin`](crate::Tensor::cummin) function, which is more high-level and designed for public use.
+    fn cummin(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
+
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where each element is the maximum
+    /// of all elements up to and including that position along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For computing the cumulative maximum of elements along a dimension, users should prefer the
+    /// [`Tensor::cummax`](crate::Tensor::cummax) function, which is more high-level and designed for public use.
+    fn cummax(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
+
+    /// Element-wise greater than comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than the corresponding element
+    /// of the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than comparison between two tensors, users should prefer the
+    /// [`Tensor::greater`](crate::Tensor::greater) function, which is more high-level and designed for public use.
+    fn greater(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
+
+    /// Element-wise greater than comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than the right hand side
+    /// scalar, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than comparison between a tensor and a scalar, users should prefer the
+    /// [`Tensor::greater_elem`](crate::Tensor::greater_elem) function, which is more high-level and designed for public use.
+    fn greater_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+
+    /// Element-wise greater than or equal comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than or equal to the
+    /// corresponding element of the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than or equal comparison between two tensors, users should prefer the
+    /// [`Tensor::greater_equal`](crate::Tensor::greater_equal) function, which is more high-level and designed for public use.
+    fn greater_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
+
+    /// Element-wise greater than or equal comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is greater than or equal to the right
+    /// hand side scalar, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer the
+    /// [`Tensor::greater_equal_elem`](crate::Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
+    fn greater_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+
+    /// Element-wise less than comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than the corresponding element of
+    /// the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than comparison between two tensors, users should prefer the
+    /// [`Tensor::lower`](crate::Tensor::lower) function, which is more high-level and designed for public use.
+    fn lower(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
+
+    /// Element-wise less than comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than the right hand side scalar,
+    /// and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than comparison between a tensor and a scalar, users should prefer the
+    /// [`Tensor::lower_elem`](crate::Tensor::lower_elem) function, which is more high-level and designed for public use.
+    fn lower_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+
+    /// Element-wise less than or equal comparison between two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensors, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than or equal to the corresponding
+    /// element of the right hand side tensor, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than or equal comparison between two tensors, users should prefer the
+    /// [`Tensor::lower_equal`](crate::Tensor::lower_equal) function, which is more high-level and designed for public use.
+    fn lower_equal(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor;
+
+    /// Element-wise less than or equal comparison between a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the same shape as the input tensor, where each element is true if the
+    /// corresponding element of the left hand side tensor is less than or equal to the right hand
+    /// side scalar, and false otherwise.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer the
+    /// [`Tensor::lower_equal_elem`](crate::Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
+    fn lower_equal_elem(lhs: BridgeTensor, rhs: Scalar) -> BridgeTensor;
+
+    /// Gets the indices of the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the indices of the maximum elements.
+    /// * `tensor` - The tensor to get the indices of the maximum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor where the dimension `dim` has size 1 and all other dimensions
+    /// are the same as the input tensor. Each element is the index of the maximum
+    /// value.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the indices of the maximum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::argmax`](crate::Tensor::argmax) function, which is more high-level and designed for public use.
+    fn argmax(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
+
+    /// Gets the indices of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the indices of the maximum elements.
+    /// * `tensor` - The tensor to get the indices of the maximum elements from.
+    /// * `k` - k maximum elements to get
+    ///
+    /// # Returns
+    ///
+    /// A tensor where the dimension `dim` has size `k` and all other dimensions
+    /// are the same as the input tensor. Each element is the index of one of the
+    /// `k` largest values along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the indices of the k maximum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::argtopk`](crate::Tensor::argtopk) function, which is more high-level and designed for public use.
+    fn argtopk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor;
+
+    /// Gets the values of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the values of the maximum elements.
+    /// * `tensor` - The tensor to get the values of the maximum elements from.
+    /// * `k` - k maximum elements to get
+    ///
+    /// # Returns
+    ///
+    /// A tensor where the dimension `dim` has size `k` and all other dimensions
+    /// are the same as the input tensor. Each element is the value of one of the
+    /// `k` largest values along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the values of the k maximum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::topk`](crate::Tensor::topk) function, which is more high-level and designed for public use.
+    fn topk(tensor: BridgeTensor, dim: usize, k: usize) -> BridgeTensor;
+
+    /// Gets the indices of the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the indices of the minimum elements.
+    /// * `tensor` - The tensor to get the indices of the minimum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor where the dimension `dim` has size 1 and all other dimensions
+    /// are the same as the input tensor. Each element is the index of the minimum
+    /// value.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the indices of the minimum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::argmin`](crate::Tensor::argmin) function, which is more high-level and designed for public use.
+    fn argmin(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A single-element tensor containing the maximum element of the input tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::max`](crate::Tensor::max) function, which is more high-level and designed for public use.
+    fn max(tensor: BridgeTensor) -> BridgeTensor;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements from.
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same rank as the input tensor, but the given dim set to a shape of 1.
+    /// Each element is the maximum element of the corresponding input dim.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::max_dim`](crate::Tensor::max_dim) function, which is more high-level and designed for public use.
+    fn max_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements from.
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the maximum element of the input tensor, and a tensor with the same shape
+    /// as the input tensor, where each element is the index of the maximum element of the input tensor
+    /// at the corresponding index along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::max_dim_with_indices`](crate::Tensor::max_dim_with_indices) function,
+    /// which is more high-level and designed for public use.
+    fn max_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor);
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A single-element tensor containing the maximum absolute element of the input tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum absolute elements of a tensor, users should prefer the
+    /// [`Tensor::max_abs`](crate::Tensor::max_abs) function, which is more high-level and designed for public use.
+    fn max_abs(tensor: BridgeTensor) -> BridgeTensor;
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements from.
+    /// * `dim` - The axis along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same rank as the input tensor, but the given dim set to a shape of 1.
+    /// Each element is the maximum absolute element of the corresponding input dim.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the maximum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::max_abs_dim`](crate::Tensor::max_abs_dim) function, which is more high-level and designed for public use.
+    fn max_abs_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
+
+    /// Gets the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A single-element tensor containing the minimum element of the input tensor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the minimum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::min`](crate::Tensor::min) function, which is more high-level and designed for public use.
+    fn min(tensor: BridgeTensor) -> BridgeTensor;
+
+    /// Gets the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements from.
+    /// * `dim` - The axis along which to get the minimum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same rank as the input tensor, but the given dim set to a shape of 1.
+    /// Each element is the minimum element of the corresponding input dim.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the minimum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::min_dim`](crate::Tensor::min_dim) function, which is more high-level and designed for public use.
+    fn min_dim(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
+
+    /// Gets the minimum elements and indices of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor and corresponding indices, where
+    /// each element is the minimum element of the input tensor at the corresponding index
+    /// along the specified axis.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For getting the minimum elements of a tensor along an axis, users should prefer the
+    /// [`Tensor::min_dim_with_indices`](crate::Tensor::min_dim_with_indices) function, which is more high-level and designed for public use.
+    fn min_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor);
+
+    /// Clamp the tensor between the given min and max values.
+    ///
+    /// # Arguments
+    ///
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped between the given min and max values.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor between the given min and max values, users should prefer the
+    /// [`Tensor::clamp`](crate::Tensor::clamp) function, which is more high-level and designed for public use.
+    fn clamp(tensor: BridgeTensor, min: Scalar, max: Scalar) -> BridgeTensor;
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped under the given min value.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor under a minimum value, users should prefer the
+    /// [`Tensor::clamp_min`](crate::Tensor::clamp_min) function, which is more high-level and designed for public use.
+    fn clamp_min(tensor: BridgeTensor, min: Scalar) -> BridgeTensor;
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// A new tensor with the values clamped over the given max value.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users.
+    ///
+    /// For clamping a tensor over a maximum value, users should prefer the
+    /// [`Tensor::clamp_max`](crate::Tensor::clamp_max) function, which is more high-level and designed for public use.
+    fn clamp_max(tensor: BridgeTensor, max: Scalar) -> BridgeTensor;
+}

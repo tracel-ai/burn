@@ -1,60 +1,72 @@
-use core::marker::PhantomData;
+use std::sync::Arc;
 
 use super::state::{FormatOptions, NumericMetricState};
-use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
-use burn_core::tensor::{ElementConversion, Int, Tensor, activation::sigmoid, backend::Backend};
+use super::{MetricMetadata, SerializedEntry};
+use crate::metric::{
+    Metric, MetricAttributes, MetricName, Numeric, NumericAttributes, NumericEntry,
+};
+use burn_core::tensor::{Int, Tensor, activation::sigmoid};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.
-pub struct HammingScore<B: Backend> {
+#[derive(Clone)]
+pub struct HammingScore {
+    name: MetricName,
     state: NumericMetricState,
     threshold: f32,
     sigmoid: bool,
-    _b: PhantomData<B>,
 }
 
 /// The [hamming score](HammingScore) input type.
 #[derive(new)]
-pub struct HammingScoreInput<B: Backend> {
-    outputs: Tensor<B, 2>,
-    targets: Tensor<B, 2, Int>,
+pub struct HammingScoreInput {
+    outputs: Tensor<2>,
+    targets: Tensor<2, Int>,
 }
 
-impl<B: Backend> HammingScore<B> {
+impl HammingScore {
     /// Creates the metric.
     pub fn new() -> Self {
         Self::default()
     }
 
+    fn update_name(&mut self) {
+        self.name = Arc::new(format!("Hamming Score @ Threshold({})", self.threshold));
+    }
+
     /// Sets the threshold.
     pub fn with_threshold(mut self, threshold: f32) -> Self {
         self.threshold = threshold;
+        self.update_name();
         self
     }
 
     /// Sets the sigmoid activation function usage.
     pub fn with_sigmoid(mut self, sigmoid: bool) -> Self {
         self.sigmoid = sigmoid;
+        self.update_name();
         self
     }
 }
 
-impl<B: Backend> Default for HammingScore<B> {
+impl Default for HammingScore {
     /// Creates a new metric instance with default values.
     fn default() -> Self {
+        let threshold = 0.5;
+        let name = Arc::new(format!("Hamming Score @ Threshold({})", threshold));
+
         Self {
+            name,
             state: NumericMetricState::default(),
-            threshold: 0.5,
+            threshold,
             sigmoid: false,
-            _b: PhantomData,
         }
     }
 }
 
-impl<B: Backend> Metric for HammingScore<B> {
-    type Input = HammingScoreInput<B>;
+impl Metric for HammingScore {
+    type Input = HammingScoreInput;
 
-    fn update(&mut self, input: &HammingScoreInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &HammingScoreInput, _metadata: &MetricMetadata) -> SerializedEntry {
         let [batch_size, _n_classes] = input.outputs.dims();
 
         let targets = input.targets.clone();
@@ -70,8 +82,7 @@ impl<B: Backend> Metric for HammingScore<B> {
             .equal(targets.bool())
             .float()
             .mean()
-            .into_scalar()
-            .elem::<f64>();
+            .into_scalar::<f64>();
 
         self.state.update(
             100.0 * score,
@@ -84,26 +95,38 @@ impl<B: Backend> Metric for HammingScore<B> {
         self.state.reset()
     }
 
-    fn name(&self) -> String {
-        format!("Hamming Score @ Threshold({})", self.threshold)
+    fn name(&self) -> MetricName {
+        self.name.clone()
+    }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: Some("%".to_string()),
+            higher_is_better: true,
+            ..Default::default()
+        }
+        .into()
     }
 }
 
-impl<B: Backend> Numeric for HammingScore<B> {
-    fn value(&self) -> f64 {
-        self.state.value()
+impl Numeric for HammingScore {
+    fn value(&self) -> NumericEntry {
+        self.state.current_value()
+    }
+
+    fn running_value(&self) -> NumericEntry {
+        self.state.running_value()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     fn test_hamming_score() {
         let device = Default::default();
-        let mut metric = HammingScore::<TestBackend>::new();
+        let mut metric = HammingScore::new();
 
         let x = Tensor::from_data(
             [
@@ -128,7 +151,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y.clone()),
             &MetricMetadata::fake(),
         );
-        assert_eq!(100.0, metric.value());
+        assert_eq!(100.0, metric.value().current());
 
         // Invert all targets: y = (1 - y)
         let y = y.neg().add_scalar(1);
@@ -136,7 +159,7 @@ mod tests {
             &HammingScoreInput::new(x.clone(), y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(0.0, metric.value());
+        assert_eq!(0.0, metric.value().current());
 
         // Invert 5 target values -> 1 - (5/20) = 0.75
         let y = Tensor::from_data(
@@ -152,14 +175,14 @@ mod tests {
             &HammingScoreInput::new(x, y), // invert targets (1 - y)
             &MetricMetadata::fake(),
         );
-        assert_eq!(75.0, metric.value());
+        assert_eq!(75.0, metric.value().current());
     }
 
     #[test]
     fn test_parameterized_unique_name() {
-        let metric_a = HammingScore::<TestBackend>::new().with_threshold(0.5);
-        let metric_b = HammingScore::<TestBackend>::new().with_threshold(0.75);
-        let metric_c = HammingScore::<TestBackend>::new().with_threshold(0.5);
+        let metric_a = HammingScore::new().with_threshold(0.5);
+        let metric_b = HammingScore::new().with_threshold(0.75);
+        let metric_c = HammingScore::new().with_threshold(0.5);
 
         assert_ne!(metric_a.name(), metric_b.name());
         assert_eq!(metric_a.name(), metric_c.name());

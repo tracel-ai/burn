@@ -1,24 +1,53 @@
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
 
 use burn_cubecl::CubeBackend;
+use burn_cubecl::throughput::{ThroughputKey, ThroughputValue};
 pub use cubecl::cuda::CudaDevice;
 use cubecl::cuda::CudaRuntime;
 
 #[cfg(not(feature = "fusion"))]
-pub type Cuda<F = f32, I = i32> = CubeBackend<CudaRuntime, F, I, u8>;
+pub type Cuda = CubeBackend<CudaRuntime>;
 
 #[cfg(feature = "fusion")]
-pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CudaRuntime, F, I, u8>>;
+pub type Cuda = burn_fusion::Fusion<CubeBackend<CudaRuntime>>;
 
-#[cfg(test)]
+/// Measure peak throughput on a CUDA `device` for each of the given `keys`.
+pub fn device_throughput(
+    device: &CudaDevice,
+    keys: &[ThroughputKey],
+) -> alloc::vec::Vec<ThroughputValue> {
+    burn_cubecl::throughput::device_throughput::<CudaRuntime>(device, keys)
+}
+
+#[cfg(all(test, not(target_os = "macos")))]
 mod tests {
-    use burn_cubecl::CubeBackend;
+    use super::*;
+    use burn_backend::{Backend, BoolStore, DType, DeviceOps};
 
-    pub type TestRuntime = cubecl::cuda::CudaRuntime;
+    #[test]
+    fn should_support_dtypes() {
+        type B = Cuda;
+        let device = CudaDevice::default();
+        let scheme = device.defaults().quantization.scheme;
 
-    // TODO: Add tests for bf16
-    // burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
-    burn_cubecl::testgen_all!([f32], [i32], [u32]);
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(&device, DType::U16));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
+        assert!(B::supports_dtype(&device, DType::QFloat(scheme)));
+
+        // Currently not registered in supported types
+        assert!(!B::supports_dtype(&device, DType::F64));
+    }
 }

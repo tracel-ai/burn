@@ -1,34 +1,26 @@
+use burn_backend::Shape;
 use burn_ir::TensorIr;
-use burn_router::{RouterTensor, RunnerChannel, get_client};
-
-use crate::shared::{ComputeTask, TensorRemote};
+use burn_router::{RouterChannel, RouterTensor, get_client};
 
 use super::{
-    WsClient,
-    runner::{RemoteTensorHandle, WsBridge, WsDevice},
+    RemoteClient,
+    runner::{RemoteBridge, RemoteDevice, RemoteTensorHandle},
 };
 
 /// A local channel with direct connection to the backend runner clients.
-#[derive(Clone)]
-pub struct WsChannel;
+pub struct RemoteChannel;
 
-impl RunnerChannel for WsChannel {
-    type Device = WsDevice;
-    type Bridge = WsBridge;
-    type Client = WsClient;
-
-    type FloatElem = f32;
-
-    type IntElem = i32;
-
-    type BoolElem = u32;
+impl RouterChannel for RemoteChannel {
+    type Device = RemoteDevice;
+    type Bridge = RemoteBridge;
+    type Client = RemoteClient;
 
     fn name(device: &Self::Device) -> String {
         format!("remote-{device:?}")
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {
-        WsClient::init(device.clone())
+        RemoteClient::init(device.clone())
     }
 
     fn get_tensor_handle(tensor: &TensorIr, client: &Self::Client) -> RemoteTensorHandle {
@@ -39,21 +31,15 @@ impl RunnerChannel for WsChannel {
     }
 
     fn register_tensor(
-        client: &Self::Client,
-        handle: RemoteTensorHandle,
-        shape: Vec<usize>,
-        dtype: burn_tensor::DType,
+        _client: &Self::Client,
+        _handle: RemoteTensorHandle,
+        _shape: Shape,
+        _dtype: burn_backend::DType,
     ) -> RouterTensor<Self::Client> {
-        let remote_tensor = TensorRemote {
-            id: handle.tensor.id,
-            address: client.device.address.to_string(),
-        };
-        let new_id = client.sender.new_tensor_id();
-        client
-            .sender
-            .send(ComputeTask::RegisterTensorRemote(remote_tensor, new_id));
-
-        RouterTensor::new(handle.tensor.id, shape, dtype, client.clone())
+        // This function is normally only used to move a tensor from a device to another.
+        //
+        // In other words, to change the client.
+        panic!("Can't register manually a tensor on a remote channel.");
     }
 
     fn change_client_backend(
@@ -70,9 +56,15 @@ impl RunnerChannel for WsChannel {
         let id = handle.tensor.id;
 
         let target_client = get_client::<Self>(target_device);
-        let router_tensor: RouterTensor<WsClient> =
+        let router_tensor: RouterTensor<RemoteClient> =
             RouterTensor::new(id, handle.tensor.shape, handle.tensor.dtype, target_client);
 
         router_tensor
+    }
+}
+
+impl Clone for RemoteChannel {
+    fn clone(&self) -> Self {
+        RemoteChannel
     }
 }

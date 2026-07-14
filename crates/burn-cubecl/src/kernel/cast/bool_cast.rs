@@ -1,13 +1,33 @@
-use crate::{BoolElement, CubeElement, CubeRuntime, kernel::into_contiguous, tensor::CubeTensor};
-use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
+use crate::{
+    CubeRuntime,
+    kernel::utils::address_type,
+    ops::{max_vector_size, numeric::empty_device_dtype},
+    tensor::CubeTensor,
+};
+use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_std::DType;
+use cubecl::{
+    CubeDim, calculate_cube_count_elemwise,
+    num_traits::One,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 
-#[cube(launch)]
-fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tensor<T>) {
-    if input[ABSOLUTE_POS] >= B::from_int(1) {
-        output[ABSOLUTE_POS] = T::from_int(1);
-    } else {
-        output[ABSOLUTE_POS] = T::from_int(0);
+#[cube(launch_unchecked, address_type = "dynamic")]
+fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
+    input: LinearView<'_, Vector<B, N>>,
+    mut output: LinearViewMut<'_, Vector<T, N>>,
+    #[define(B, T)] _dtypes: [StorageType; 2],
+) {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
+        terminate!();
     }
+
+    output.write(
+        ABSOLUTE_POS,
+        Vector::cast_from(input.read(ABSOLUTE_POS) & Vector::one()),
+    );
 }
 
 /// Cast a bool tensor to the given element type.
@@ -16,30 +36,37 @@ fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tens
 /// where any non-zero value means true. Depending how it was created
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
-pub fn bool_cast<R: CubeRuntime, BT: BoolElement, EO: CubeElement>(
-    tensor: CubeTensor<R>,
-) -> CubeTensor<R> {
-    let tensor = into_contiguous(tensor);
-    let num_elems = tensor.shape.num_elements();
-    let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
-    let output = CubeTensor::new_contiguous(
+pub fn bool_cast<R: CubeRuntime>(tensor: CubeTensor<R>, out_dtype: DType) -> CubeTensor<R> {
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
-        tensor.shape.clone(),
-        buffer,
-        EO::dtype(),
+        tensor.shape(),
+        out_dtype,
     );
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+    let vector_size = max_vector_size(&tensor);
+    let num_elems = tensor.meta.num_elements();
+    let working_units = num_elems / vector_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
-    bool_cast_kernel::launch::<BT, EO, R>(
-        &tensor.client,
-        cube_count,
-        cube_dim,
-        tensor.as_tensor_arg::<BT>(1),
-        output.as_tensor_arg::<EO>(1),
-    );
+    let dtype = tensor.dtype;
+
+    unsafe {
+        bool_cast_kernel::launch_unchecked(
+            &output.client,
+            cube_count,
+            cube_dim,
+            address_type!(tensor, output),
+            vector_size,
+            tensor.into_linear_view(),
+            output.clone().into_linear_view(),
+            [
+                dtype_to_storage_type(dtype),
+                dtype_to_storage_type(out_dtype),
+            ],
+        )
+    };
 
     output
 }

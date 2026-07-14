@@ -1,8 +1,10 @@
 use super::Block;
-use crate::NumOperations;
+use crate::{NumOperations, search::graph::Reachability};
 
 #[derive(Debug, PartialEq)]
 /// The result of [merging](merge_blocks) [blocks](Block).
+// `Full`/`Partial` carry owned blocks by design; the size gap between variants is expected.
+#[allow(clippy::large_enum_variant)]
 pub enum MergeBlocksResult<O> {
     /// All [blocks](Block) merged into one.
     Full(Block<O>),
@@ -32,7 +34,11 @@ pub enum MergeBlocksResult<O> {
 /// 2. The second step is to reduce blocks by setting an accumulator block, then sequentially
 ///    trying to merge the remaining blocks. We try some permutations based on the result from
 ///    step1.
-pub fn merge_blocks<O: NumOperations>(blocks: &[&Block<O>], sorted: bool) -> MergeBlocksResult<O> {
+pub fn merge_blocks<O: NumOperations>(
+    blocks: &[&Block<O>],
+    sorted: bool,
+    guard: &Reachability,
+) -> MergeBlocksResult<O> {
     if blocks.is_empty() {
         return MergeBlocksResult::Fail;
     }
@@ -45,20 +51,20 @@ pub fn merge_blocks<O: NumOperations>(blocks: &[&Block<O>], sorted: bool) -> Mer
         let block0 = blocks[0];
         let block1 = blocks[1];
 
-        return match merge_two(block0, block1) {
+        return match merge_two(block0, block1, guard) {
             Some(result) => MergeBlocksResult::Full(result),
             None => MergeBlocksResult::Fail,
         };
     }
 
-    let mut step1 = merge_blocks_step1(blocks);
+    let mut step1 = merge_blocks_step1(blocks, guard);
 
     if step1.full.len() == 1 && step1.failed.is_empty() && step1.partial.is_empty() {
         MergeBlocksResult::Full(step1.full.remove(0))
     } else if step1.partial.len() == 1 && step1.failed.is_empty() && step1.full.is_empty() {
         MergeBlocksResult::Full(step1.partial.remove(0))
     } else {
-        let result = merge_blocks_step2(step1);
+        let result = merge_blocks_step2(step1, guard);
 
         if !sorted {
             return result;
@@ -96,7 +102,10 @@ impl<O> Default for MergeBlockStep1<O> {
     }
 }
 
-fn merge_blocks_step1<O: NumOperations>(blocks: &[&Block<O>]) -> MergeBlockStep1<O> {
+fn merge_blocks_step1<O: NumOperations>(
+    blocks: &[&Block<O>],
+    guard: &Reachability,
+) -> MergeBlockStep1<O> {
     let step_size = blocks.len() / 2;
     let num_steps = f32::ceil(blocks.len() as f32 / step_size as f32) as usize;
 
@@ -106,7 +115,7 @@ fn merge_blocks_step1<O: NumOperations>(blocks: &[&Block<O>]) -> MergeBlockStep1
         let start = i * step_size;
         let end = usize::min(start + step_size, blocks.len());
 
-        match merge_blocks(&blocks[start..end], false) {
+        match merge_blocks(&blocks[start..end], false, guard) {
             MergeBlocksResult::Full(block) => {
                 result.full.push(block);
             }
@@ -128,10 +137,13 @@ fn merge_blocks_step1<O: NumOperations>(blocks: &[&Block<O>]) -> MergeBlockStep1
     result
 }
 
-fn merge_blocks_step2<O: NumOperations>(mut step1: MergeBlockStep1<O>) -> MergeBlocksResult<O> {
+fn merge_blocks_step2<O: NumOperations>(
+    mut step1: MergeBlockStep1<O>,
+    guard: &Reachability,
+) -> MergeBlocksResult<O> {
     // First let's try to merge partial graphs.
     if step1.partial.len() > 1 {
-        match merge_accumulator(&step1.partial[0], &step1.partial[1..]) {
+        match merge_accumulator(&step1.partial[0], &step1.partial[1..], guard) {
             MergeBlocksResult::Full(block) => {
                 step1.partial = vec![block];
             }
@@ -146,7 +158,7 @@ fn merge_blocks_step2<O: NumOperations>(mut step1: MergeBlockStep1<O>) -> MergeB
     // Then let's try to merge partial graphs with failed merges.
     if !step1.failed.is_empty() {
         step1.partial.append(&mut step1.failed);
-        match merge_accumulator(&step1.partial[0], &step1.partial[1..]) {
+        match merge_accumulator(&step1.partial[0], &step1.partial[1..], guard) {
             MergeBlocksResult::Full(block) => {
                 step1.partial = vec![block];
             }
@@ -160,7 +172,7 @@ fn merge_blocks_step2<O: NumOperations>(mut step1: MergeBlockStep1<O>) -> MergeB
 
     // Then let's try to merge full graphs.
     if step1.full.len() > 1 {
-        match merge_accumulator(&step1.full[0], &step1.full[1..]) {
+        match merge_accumulator(&step1.full[0], &step1.full[1..], guard) {
             MergeBlocksResult::Full(block) => {
                 step1.full = vec![block];
             }
@@ -175,7 +187,7 @@ fn merge_blocks_step2<O: NumOperations>(mut step1: MergeBlockStep1<O>) -> MergeB
     // Then let's try to merge full graphs with failed graphs.
     if !step1.full.is_empty() {
         step1.full.append(&mut step1.failed);
-        match merge_accumulator(&step1.full[0], &step1.full[1..]) {
+        match merge_accumulator(&step1.full[0], &step1.full[1..], guard) {
             MergeBlocksResult::Full(block) => {
                 step1.full = vec![block];
             }
@@ -190,7 +202,7 @@ fn merge_blocks_step2<O: NumOperations>(mut step1: MergeBlockStep1<O>) -> MergeB
     // Then let's try to merge full graphs with partial graphs.
     if !step1.full.is_empty() || !step1.partial.is_empty() {
         step1.full.append(&mut step1.partial);
-        match merge_accumulator(&step1.full[0], &step1.full[1..]) {
+        match merge_accumulator(&step1.full[0], &step1.full[1..], guard) {
             MergeBlocksResult::Full(block) => {
                 step1.full = vec![block];
             }
@@ -226,20 +238,23 @@ fn merge_blocks_step2<O: NumOperations>(mut step1: MergeBlockStep1<O>) -> MergeB
 fn merge_accumulator<O: NumOperations>(
     base: &Block<O>,
     blocks: &[Block<O>],
+    guard: &Reachability,
 ) -> MergeBlocksResult<O> {
     let mut base = base.clone();
     let mut merged_failed = Vec::<Block<O>>::new();
     let mut merged_success = false;
 
     for block in blocks {
-        let mut base_current = base.clone();
-        match base_current.merge(block) {
-            false => {
-                merged_failed.push((*block).clone());
-            }
-            true => {
+        // `merge_two` checks the cycle guard and tries both merge directions — the accumulator
+        // may depend on the block, in which case only folding the accumulator *into* the block
+        // yields a valid operation order.
+        match merge_two(&base, block, guard) {
+            Some(merged) => {
                 merged_success = true;
-                base = base_current;
+                base = merged;
+            }
+            None => {
+                merged_failed.push(block.clone());
             }
         }
     }
@@ -258,19 +273,32 @@ fn merge_accumulator<O: NumOperations>(
     }
 }
 
-fn merge_two<O: NumOperations>(a: &Block<O>, b: &Block<O>) -> Option<Block<O>> {
-    let mut base = a.clone();
-
-    if base.merge(b) {
-        return Some(base);
+fn merge_two<O: NumOperations>(
+    a: &Block<O>,
+    b: &Block<O>,
+    guard: &Reachability,
+) -> Option<Block<O>> {
+    if !guard.can_contract(a.constituents(), b.constituents()) {
+        return None;
     }
 
-    let mut base = b.clone();
-
-    match base.merge(a) {
-        true => Some(base),
-        false => None,
+    // Test each direction's operation order before paying for a deep clone of the base block
+    // (operations, builders, and data-flow sets all clone).
+    if a.can_append(b) {
+        let mut base = a.clone();
+        if base.merge(b) {
+            return Some(base);
+        }
     }
+
+    if b.can_append(a) {
+        let mut base = b.clone();
+        if base.merge(a) {
+            return Some(base);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -278,13 +306,25 @@ mod tests {
     use super::*;
     pub use crate::stream::execution::tests::{TestOptimization, TestOptimizationBuilder};
     use crate::{
-        OptimizationBuilder,
+        OperationFuser,
+        search::graph::Dag,
         stream::tests::{operation_1, operation_2, operation_3},
     };
 
+    /// Seed constituents by index, build the [Reachability] guard from the blocks, and merge
+    /// (sorted).
+    fn merge(mut blocks: Vec<Block<TestOptimization>>) -> MergeBlocksResult<TestOptimization> {
+        for (i, block) in blocks.iter_mut().enumerate() {
+            block.seed_constituent(i);
+        }
+        let refs = blocks.iter().collect::<Vec<_>>();
+        let guard = Dag::new(&refs).reachability();
+        merge_blocks(&refs, true, &guard)
+    }
+
     #[test]
     fn test_merge_blocks_no_block() {
-        let actual = merge_blocks::<TestOptimization>(&[], true);
+        let actual = merge(Vec::<Block<TestOptimization>>::new());
 
         assert_eq!(actual, MergeBlocksResult::Fail);
     }
@@ -293,7 +333,7 @@ mod tests {
     fn test_merge_blocks_single() {
         let builders = builders();
         let block = Block::new(&builders);
-        let actual = merge_blocks::<TestOptimization>(&[&block], true);
+        let actual = merge(vec![block.clone()]);
 
         assert_eq!(actual, MergeBlocksResult::Full(block));
     }
@@ -308,7 +348,7 @@ mod tests {
         block2.register(&operation_1(), 2, false);
         block2.register(&operation_1(), 3, false);
 
-        let actual = merge_blocks::<TestOptimization>(&[&block1, &block2], true);
+        let actual = merge(vec![block1, block2]);
 
         let mut expected = Block::new(&builders);
         expected.register(&operation_1(), 0, false);
@@ -329,7 +369,7 @@ mod tests {
         block2.register(&operation_1(), 1, false);
         block3.register(&operation_1(), 2, false);
 
-        let actual = merge_blocks::<TestOptimization>(&[&block1, &block2, &block3], true);
+        let actual = merge(vec![block1, block2, block3]);
 
         let mut expected = Block::new(&builders);
         expected.register(&operation_1(), 0, false);
@@ -349,7 +389,7 @@ mod tests {
         block2.register(&operation_2(), 1, false);
         block3.register(&operation_1(), 2, false);
 
-        let actual = merge_blocks::<TestOptimization>(&[&block1, &block2, &block3], true);
+        let actual = merge(vec![block1, block2, block3]);
 
         let mut expected1 = Block::new(&builders);
         let mut expected2 = Block::new(&builders);
@@ -378,7 +418,7 @@ mod tests {
         block3.register(&operation_1(), 2, false);
         block4.register(&operation_3(), 3, false);
 
-        let actual = merge_blocks::<TestOptimization>(&[&block1, &block2, &block3, &block4], true);
+        let actual = merge(vec![block1, block2, block3, block4]);
 
         let mut expected1 = Block::new(&builders);
         let mut expected2 = Block::new(&builders);
@@ -411,8 +451,7 @@ mod tests {
         block4.register(&operation_3(), 3, false);
         block5.register(&operation_2(), 4, false);
 
-        let actual =
-            merge_blocks::<TestOptimization>(&[&block1, &block2, &block3, &block4, &block5], true);
+        let actual = merge(vec![block1, block2, block3, block4, block5]);
 
         let mut expected1 = Block::new(&builders);
         let mut expected2 = Block::new(&builders);
@@ -432,7 +471,44 @@ mod tests {
         );
     }
 
-    fn builders() -> Vec<Box<dyn OptimizationBuilder<TestOptimization>>> {
+    /// The accumulator may depend on a block it tries to absorb: folding that block's ops at the
+    /// end would fuse a consumer before its producer. The merge must then happen in the other
+    /// direction (the accumulator folded into the block), preserving a full merge instead of
+    /// degrading to a partial one.
+    #[test]
+    fn test_merge_blocks_accumulator_reverses_direction() {
+        use crate::search::testing::add;
+
+        let x = add(1, 2, 10);
+        let y = add(50, 3, 11); // Reads 50...
+        let z = add(4, 5, 50); // ...which this op produces.
+        let w = add(6, 7, 12); // Independent.
+
+        // The builder accepts exactly the reversed merge order [z, x, y, w].
+        let pattern = vec![z.clone(), x.clone(), y.clone(), w.clone(), x.clone()];
+        let builders: Vec<Box<dyn OperationFuser<TestOptimization>>> =
+            vec![Box::new(TestOptimizationBuilder::new(0, pattern))];
+
+        let mut block1 = Block::new(&builders);
+        block1.register(&x, 0, true);
+        block1.register(&y, 5, true);
+        let mut block2 = Block::new(&builders);
+        block2.register(&z, 3, true);
+        let mut block3 = Block::new(&builders);
+        block3.register(&w, 6, true);
+
+        let actual = merge(vec![block1, block2, block3]);
+
+        let mut expected = Block::new(&builders);
+        expected.register(&z, 3, true);
+        expected.register(&x, 0, true);
+        expected.register(&y, 5, true);
+        expected.register(&w, 6, true);
+
+        assert_eq!(actual, MergeBlocksResult::Full(expected));
+    }
+
+    fn builders() -> Vec<Box<dyn OperationFuser<TestOptimization>>> {
         let builder_1 = TestOptimizationBuilder::new(0, vec![operation_1(); 10]);
         let builder_2 = TestOptimizationBuilder::new(1, vec![operation_2(); 10]);
 

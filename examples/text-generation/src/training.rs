@@ -11,16 +11,14 @@ use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::AdamConfig,
     prelude::*,
-    record::{CompactRecorder, DefaultRecorder, Recorder},
-    tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder,
-        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric},
+        Learner, SupervisedTraining,
+        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric, PerplexityMetric},
     },
 };
 use std::sync::Arc;
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExperimentConfig {
     transformer: TransformerEncoderConfig,
     optimizer: AdamConfig,
@@ -32,8 +30,8 @@ pub struct ExperimentConfig {
     num_epochs: usize,
 }
 
-pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
-    device: B::Device,
+pub fn train<D: Dataset<TextGenerationItem> + 'static>(
+    device: Device,
     dataset_train: D,
     dataset_test: D,
     config: ExperimentConfig,
@@ -41,6 +39,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
 ) {
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
+    let device = device.autodiff();
 
     let model = TextGenerationModelConfig::new(
         config.transformer.clone(),
@@ -48,7 +47,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         tokenizer.pad_token(),
         config.max_seq_length,
     )
-    .init::<B>(&device);
+    .init(&device);
 
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
@@ -68,29 +67,28 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .init()
         .unwrap();
 
-    let learner = LearnerBuilder::new(artifact_dir)
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
         .metric_valid_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
+        .metric_train_numeric(PerplexityMetric::new().with_pad_token(tokenizer.pad_token()))
+        .metric_valid_numeric(PerplexityMetric::new().with_pad_token(tokenizer.pad_token()))
         .metric_train(LossMetric::new())
         .metric_valid(LossMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device])
+        .with_default_checkpointers()
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(model, optim, lr_scheduler);
+        .summary();
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = training.launch(Learner::new(model, optim, lr_scheduler));
 
     config.save(format!("{artifact_dir}/config.json")).unwrap();
 
-    DefaultRecorder::new()
-        .record(
-            model_trained.into_record(),
-            format!("{artifact_dir}/model").into(),
-        )
+    result
+        .model
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .unwrap();
 }

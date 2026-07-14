@@ -1,0 +1,86 @@
+use burn_core as burn;
+
+use crate::loss::reduction::Reduction;
+
+use burn::module::Module;
+use burn::tensor::Tensor;
+
+/// Calculate the mean squared error loss from the input logits and the targets.
+#[derive(Module, Debug)]
+pub struct MseLoss;
+
+impl Default for MseLoss {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MseLoss {
+    /// Create the criterion.
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Compute the criterion on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - logits: [batch_size, num_targets]
+    /// - targets: [batch_size, num_targets]
+    pub fn forward<const D: usize>(
+        &self,
+        logits: Tensor<D>,
+        targets: Tensor<D>,
+        reduction: Reduction,
+    ) -> Tensor<1> {
+        let tensor = self.forward_no_reduction(logits, targets);
+        match reduction {
+            Reduction::Mean | Reduction::Auto => tensor.mean(),
+            Reduction::Sum => tensor.sum(),
+            other => panic!("{other:?} reduction is not supported"),
+        }
+    }
+
+    /// Compute the criterion on the input tensor without reducing.
+    pub fn forward_no_reduction<const D: usize>(
+        &self,
+        logits: Tensor<D>,
+        targets: Tensor<D>,
+    ) -> Tensor<D> {
+        logits.sub(targets).square()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn::tensor::TensorData;
+
+    #[test]
+    fn test_mse_loss() {
+        let device = Default::default();
+        let logits = Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+
+        let targets = Tensor::<2>::from_data(TensorData::from([[2.0, 1.0], [3.0, 2.0]]), &device);
+
+        let mse = MseLoss::new();
+        let loss_no_reduction = mse.forward_no_reduction(logits.clone(), targets.clone());
+        let loss = mse.forward(logits.clone(), targets.clone(), Reduction::Auto);
+        let loss_sum = mse.forward(logits, targets, Reduction::Sum);
+
+        let expected = TensorData::from([[1.0, 1.0], [0.0, 4.0]]);
+        loss_no_reduction.into_data().assert_eq(&expected, false);
+
+        let expected = TensorData::from([1.5]);
+        loss.into_data().assert_eq(&expected, false);
+
+        let expected = TensorData::from([6.0]);
+        loss_sum.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn display() {
+        let loss = MseLoss::new();
+        assert_eq!(alloc::format!("{loss}"), "MseLoss");
+    }
+}

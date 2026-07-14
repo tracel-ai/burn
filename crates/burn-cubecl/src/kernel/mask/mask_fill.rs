@@ -1,54 +1,35 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout};
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::{DType, TensorMetadata};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
+};
 
 use crate::{
-    BoolElement, CubeRuntime,
-    element::CubeElement,
-    ops::{max_line_size_many, numeric::empty_device},
+    CubeRuntime,
+    kernel::utils::address_type,
+    ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 
-#[cube(launch_unchecked)]
-fn mask_fill_readonly_kernel<T: Numeric, B: Int>(
-    input: &Tensor<Line<T>>,
-    mask: &Tensor<Line<B>>,
-    output: &mut Tensor<Line<T>>,
-    value: T,
-    #[comptime] rank: u32,
+#[cube(launch_unchecked, address_type = "dynamic")]
+fn mask_fill_kernel<T: Numeric, B: Int, N: Size>(
+    input: LinearView<'_, Vector<T, N>>,
+    mask: LinearView<'_, Vector<B, N>>,
+    mut output: LinearViewMut<'_, Vector<T, N>>,
+    value: InputScalar,
+    #[define(T, B)] _dtypes: [StorageType; 2],
 ) {
-    let pos = ABSOLUTE_POS;
-
-    if pos >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    let index_input = index_offset_with_layout(input, output, pos, 0, rank, false);
-    let index_mask = index_offset_with_layout(mask, output, pos, 0, rank, false);
+    let mask = Vector::cast_from(mask.read(ABSOLUTE_POS));
+    let input = input.read(ABSOLUTE_POS);
+    let value = Vector::new(value.get::<T>());
 
-    let mask = Line::cast_from(mask[index_mask]);
-    let input = input[index_input];
-    let value = Line::new(value);
-
-    output[pos] = select_many(mask, value, input);
-}
-
-#[cube(launch_unchecked)]
-fn mask_fill_inplace_kernel<T: Numeric, B: Int>(
-    input: &mut Tensor<Line<T>>,
-    mask: &Tensor<Line<B>>,
-    value: T,
-    #[comptime] rank: u32,
-) {
-    let pos = ABSOLUTE_POS;
-
-    if pos >= input.len() {
-        terminate!();
-    }
-
-    let index_mask = index_offset_with_layout(mask, input, pos, 0, rank, false);
-    let mask = Line::cast_from(mask[index_mask]);
-    let value = Line::new(value);
-
-    input[pos] = select_many(mask, value, input[pos]);
+    output.write(ABSOLUTE_POS, select_many(mask, value, input));
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,77 +46,54 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+pub fn mask_fill<R: CubeRuntime>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
-    value: E,
+    value: InputScalar,
     strategy: MaskFillStrategy,
+    dtype_bool: DType,
 ) -> CubeTensor<R> {
-    match strategy {
-        MaskFillStrategy::Readonly => mask_fill_readonly::<R, E, BT>(input, mask, value),
-        MaskFillStrategy::Inplace => mask_fill_inplace::<R, E, BT>(input, mask, value),
-    }
-}
+    let ndims = input.meta.num_dims();
+    let output = match strategy {
+        MaskFillStrategy::Readonly => empty_device_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            input.shape(),
+            input.dtype,
+        ),
+        MaskFillStrategy::Inplace => input.clone(),
+    };
 
-fn mask_fill_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
-    input: CubeTensor<R>,
-    mask: CubeTensor<R>,
-    value: EI,
-) -> CubeTensor<R> {
-    let ndims = input.shape.num_dims();
-    let output = empty_device::<R, EI>(
-        input.client.clone(),
-        input.device.clone(),
-        input.shape.clone(),
-    );
+    let vector_size = max_vector_size_many(&[&input, &mask], ndims - 1);
+    let working_units = input.meta.num_elements() / vector_size as usize;
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
-    let cube_dim = CubeDim::default();
-    let vectorization = max_line_size_many(&[&input, &mask], ndims - 1);
-    let cube_count = calculate_cube_count_elemwise(
-        input.shape.num_elements() / vectorization as usize,
-        cube_dim,
-    );
+    let out_arg = match strategy {
+        MaskFillStrategy::Readonly => output.clone().into_linear_view(),
+        MaskFillStrategy::Inplace => output.as_linear_view_alias(0),
+    };
+
+    let at = address_type!(input, mask, output);
+    let mask = mask.into_linear_view_like(&input);
 
     unsafe {
-        mask_fill_readonly_kernel::launch_unchecked::<EI, EM, R>(
-            &input.client,
+        mask_fill_kernel::launch_unchecked(
+            &output.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg::<EI>(vectorization),
-            mask.as_tensor_arg::<EM>(vectorization),
-            output.as_tensor_arg::<EI>(vectorization),
-            ScalarArg::new(value),
-            ndims as u32,
+            at,
+            vector_size,
+            input.into_linear_view(),
+            mask,
+            out_arg,
+            value,
+            [
+                dtype_to_storage_type(output.dtype),
+                dtype_to_storage_type(dtype_bool),
+            ],
         );
     }
 
     output
-}
-
-fn mask_fill_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
-    input: CubeTensor<R>,
-    mask: CubeTensor<R>,
-    value: EI,
-) -> CubeTensor<R> {
-    let ndims = input.shape.num_dims();
-    let cube_dim = CubeDim::default();
-    let vectorization = max_line_size_many(&[&input, &mask], ndims - 1);
-    let cube_count = calculate_cube_count_elemwise(
-        input.shape.num_elements() / vectorization as usize,
-        cube_dim,
-    );
-
-    unsafe {
-        mask_fill_inplace_kernel::launch_unchecked::<EI, EM, R>(
-            &input.client,
-            cube_count,
-            cube_dim,
-            input.as_tensor_arg::<EI>(vectorization),
-            mask.as_tensor_arg::<EM>(vectorization),
-            ScalarArg::new(value),
-            ndims as u32,
-        );
-    }
-
-    input
 }

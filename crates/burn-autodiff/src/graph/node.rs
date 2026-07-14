@@ -1,9 +1,17 @@
-use alloc::{sync::Arc, vec::Vec};
+use alloc::vec::Vec;
+
+use burn_backend::distributed::DistributedParams;
 
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{AtomicU64, Ordering};
 #[cfg(not(target_has_atomic = "64"))]
 use portable_atomic::{AtomicU64, Ordering};
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
 
 use crate::checkpoint::retro_forward::RetroForward;
 use crate::runtime::AutodiffClientImpl;
@@ -31,14 +39,20 @@ unsafe impl Sync for ComputingProperty {}
 /// A node contains graph metadata and should be used wrapped in an Arc for cheap cloning.
 #[derive(new, Debug)]
 pub struct Node {
-    pub parents: Vec<NodeID>,
+    pub parents: Vec<Parent>,
     pub order: usize,
-    pub id: NodeID,
+    pub id: NodeId,
     pub requirement: Requirement,
     pub properties: ComputingProperty,
     pub client: AutodiffClientImpl,
+    pub distributed_params: Option<DistributedParams>,
 }
 pub type NodeRef = Arc<Node>;
+
+#[derive(new, Debug, Clone, PartialEq, Eq)]
+pub struct Parent {
+    pub id: NodeId,
+}
 
 impl Node {
     /// Returns the [node](Node) only if gradients are required.
@@ -51,25 +65,31 @@ impl Node {
 }
 
 /// Unique identifier generated for each node.
-#[derive(Clone, Hash, PartialEq, Eq, Debug, Copy)]
-pub struct NodeID {
+#[derive(Clone, Hash, PartialEq, Eq, Debug, Copy, Ord, PartialOrd)]
+pub struct NodeId {
     /// The integer representation of the id
     pub value: u64,
 }
 
-impl NodeID {
-    /// Create a unique [node id](NodeID).
+impl core::fmt::Display for NodeId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!("NodeId({})", self.value))
+    }
+}
+
+impl NodeId {
+    /// Create a unique [node id](NodeId).
     pub fn new() -> Self {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);
         if value == u64::MAX {
-            panic!("NodeID overflowed");
+            panic!("NodeId overflowed");
         }
         Self { value }
     }
 }
 
-impl Default for NodeID {
+impl Default for NodeId {
     fn default() -> Self {
         Self::new()
     }

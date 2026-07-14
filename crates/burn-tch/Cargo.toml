@@ -16,30 +16,22 @@ workspace = true
 
 [features]
 default = ["std"]
-std = []
+std = ["burn-backend/std"]
 doc = ["tch/doc-only"]
+tracing = [
+    "burn-backend/tracing",
+]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.19.0" }
+burn-backend = { workspace = true }
 
-half = { workspace = true, features = ["std"] }
 libc = { workspace = true }
 log = { workspace = true }
 tch = { workspace = true, features = ["download-libtorch"] }
-torch-sys = { workspace = true } # for build script lib dir detection
-
-
-[dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "0.19.0", default-features = false, features = [
-  "export_tests",
-] }
-burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false, features = [
-  "export_tests",
-] }
-rand = { workspace = true, features = ["thread_rng"] }
+torch-sys = { workspace = true }                             # for build script lib dir detection
 
 [build-dependencies]
-cc = "1.2.29"
+cc = "1.2.61"
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -1,7 +1,6 @@
-use burn_tensor::{
-    DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{QTensorPrimitive, QuantScheme},
-};
+use burn_backend::{DType, FloatDType, IntDType, Shape, quantization::QuantScheme};
+use burn_backend::{Element, TensorData, TensorMetadata};
+use burn_std::BoolStore;
 
 use crate::{CandleDevice, element::CandleElement};
 
@@ -12,6 +11,7 @@ pub struct CandleTensor {
 }
 
 impl TensorMetadata for CandleTensor {
+    type Device = CandleDevice;
     fn dtype(&self) -> DType {
         match self.tensor.dtype() {
             candle_core::DType::U8 => DType::U8,
@@ -21,11 +21,28 @@ impl TensorMetadata for CandleTensor {
             candle_core::DType::F16 => DType::F16,
             candle_core::DType::F32 => DType::F32,
             candle_core::DType::F64 => DType::F64,
+            candle_core::DType::I16 => DType::I16,
+            candle_core::DType::I32 => DType::I32,
+            other => todo!("{other:?} not yet supported"),
         }
     }
 
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.dims().to_vec())
+    }
+
+    fn rank(&self) -> usize {
+        self.tensor.dims().len()
+    }
+
+    fn device(&self) -> CandleDevice {
+        self.tensor.device().clone().into()
+    }
+
+    fn can_mut(&self) -> bool {
+        // Candle tensors share storage behind an `Arc` with no public
+        // uniqueness check, so in-place mutation can never be assumed safe.
+        false
     }
 }
 
@@ -46,7 +63,7 @@ impl CandleTensor {
     ///
     /// A new tensor.
     pub fn from_data<E: CandleElement>(data: TensorData, device: CandleDevice) -> Self {
-        let candle_shape: candle_core::Shape = data.shape.clone().into();
+        let candle_shape: candle_core::Shape = data.shape.to_vec().into();
         let tensor = candle_core::Tensor::from_slice(
             data.as_slice::<E>().unwrap(),
             candle_shape,
@@ -56,28 +73,48 @@ impl CandleTensor {
     }
 }
 
-/// A quantized tensor for the candle backend.
-#[derive(Clone, Debug)]
-pub struct CandleQTensor {
-    /// The quantized tensor.
-    // NOTE: candle  does not implement `WithDType` for i8
-    pub qtensor: CandleTensor,
-    /// The quantization scheme.
-    pub scheme: QuantScheme,
-}
+pub(crate) trait IntoDType {
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error>;
 
-impl QTensorPrimitive for CandleQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
+    fn into_dtype(self) -> candle_core::DType
+    where
+        Self: Sized,
+    {
+        self.try_into_dtype().unwrap()
     }
 }
 
-impl TensorMetadata for CandleQTensor {
-    fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
+impl IntoDType for IntDType {
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error> {
+        let dtype: DType = self.into();
+        dtype.try_into_dtype()
     }
+}
 
-    fn shape(&self) -> Shape {
-        self.qtensor.shape()
+impl IntoDType for FloatDType {
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error> {
+        let dtype: DType = self.into();
+        dtype.try_into_dtype()
+    }
+}
+
+impl IntoDType for DType {
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error> {
+        match self {
+            DType::F64 => Ok(candle_core::DType::F64),
+            DType::F32 => Ok(candle_core::DType::F32),
+            DType::Flex32 => Ok(candle_core::DType::F32),
+            DType::F16 => Ok(candle_core::DType::F16),
+            DType::BF16 => Ok(candle_core::DType::BF16),
+            DType::I64 => Ok(candle_core::DType::I64),
+            DType::U32 => Ok(candle_core::DType::U32),
+            DType::U8 => Ok(candle_core::DType::U8),
+            DType::I16 => Ok(candle_core::DType::I16),
+            DType::I32 => Ok(candle_core::DType::I32),
+            DType::Bool(BoolStore::U8) => Ok(candle_core::DType::U8),
+            _ => Err(candle_core::Error::Msg(format!(
+                "Unsupported dtype {self:?}"
+            ))),
+        }
     }
 }

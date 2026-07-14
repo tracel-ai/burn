@@ -3,9 +3,8 @@ name: Combine Dependabot PRs
 on:
   schedule:
     - cron: '0 6 * * MON' # Monday at 6:00am UTC
-  workflow_dispatch: # allows to manually trigger the workflow as well
+  workflow_dispatch:
 
-# The minimum permissions required to run this Action
 permissions:
   contents: write
   pull-requests: write
@@ -14,10 +13,9 @@ permissions:
 jobs:
   combine-prs:
     runs-on: ubuntu-latest
-
     steps:
       - name: combine-prs
         id: combine-prs
-        uses: github/combine-prs@v5.2.0 # where X.X.X is the latest version
+        uses: github/combine-prs@v5.2.0
         with:
           labels: dependencies,automated

@@ -4,20 +4,23 @@ edition.workspace = true
 license = "MIT OR Apache-2.0"
 name = "import-model-weights"
 publish = false
-version = "0.19.0"
+version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
 
-burn = { path = "../../crates/burn", features = [
-    "ndarray",
+burn = { workspace = true, features = [
+    "default",
+    "flex",
     "dataset",
     "vision",
 ] }
 
-burn-import = { path = "../../crates/burn-import", features = [
+burn-store = { workspace = true, features = [
+    "std",
     "pytorch",
     "safetensors",
-], default-features = false }
+    "burnpack",
+] }

@@ -5,7 +5,7 @@ use crate::{
     graph::{ComputingProperty, NodeRef, Requirement},
     utils::duplicate,
 };
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 
 /// Trait for all operations.
 ///

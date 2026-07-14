@@ -1,19 +1,13 @@
-use std::marker::PhantomData;
-
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     module::AutodiffModule,
     nn::loss::CrossEntropyLoss,
-    optim::{AdamConfig, GradientsParams, Optimizer},
+    optim::{AdamConfig, GradientsParams},
     prelude::*,
-    tensor::backend::AutodiffBackend,
 };
-use guide::{
-    data::{MnistBatch, MnistBatcher},
-    model::{Model, ModelConfig},
-};
+use guide::{data::MnistBatcher, model::ModelConfig};
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
     #[config(default = 10)]
     pub num_epochs: usize,
@@ -29,16 +23,17 @@ pub struct MnistTrainingConfig {
     pub optimizer: AdamConfig,
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run(device: Device) {
     // Create the configuration.
     let config_model = ModelConfig::new(10, 1024);
     let config_optimizer = AdamConfig::new();
     let config = MnistTrainingConfig::new(config_model, config_optimizer);
 
-    B::seed(config.seed);
+    let device = device.autodiff();
+    device.seed(config.seed);
 
     // Create the model and optimizer.
-    let mut model = config.model.init::<B>(&device);
+    let mut model = config.model.init(&device);
     let mut optim = config.optimizer.init();
 
     // Create the batcher.
@@ -70,7 +65,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
                 "[Train - Epoch {} - Iteration {}] Loss {:.3} | Accuracy {:.3} %",
                 epoch,
                 iteration,
-                loss.clone().into_scalar(),
+                loss.clone().into_scalar::<f32>(),
                 accuracy,
             );
 
@@ -79,7 +74,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             // Gradients linked to each parameter of the model.
             let grads = GradientsParams::from_grads(grads, &model);
             // Update the model using the optimizer.
-            model = optim.step(config.lr, model, grads);
+            model = optim.step(config.lr.into(), model, grads);
         }
 
         // Get the model without autodiff.
@@ -96,7 +91,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
                 "[Valid - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
                 epoch,
                 iteration,
-                loss.clone().into_scalar(),
+                loss.clone().into_scalar::<f32>(),
                 accuracy,
             );
         }
@@ -104,66 +99,10 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 }
 
 /// Create out own accuracy metric calculation.
-fn accuracy<B: Backend>(output: Tensor<B, 2>, targets: Tensor<B, 1, Int>) -> f32 {
-    let predictions = output.argmax(1).squeeze(1);
-    let num_predictions: usize = targets.dims().iter().product();
-    let num_corrects = predictions.equal(targets).int().sum().into_scalar();
+fn accuracy(output: Tensor<2>, targets: Tensor<1, Int>) -> f32 {
+    let predictions = output.argmax(1).squeeze_dim(1);
+    let num_predictions = targets.dims().iter().product::<usize>() as f32;
+    let num_corrects = predictions.equal(targets).int().sum().into_scalar::<i64>() as f32;
 
-    num_corrects.elem::<f32>() / num_predictions as f32 * 100.0
-}
-
-#[allow(dead_code)]
-struct Learner1<B, O>
-where
-    B: AutodiffBackend,
-{
-    model: Model<B>,
-    optim: O,
-}
-
-#[allow(dead_code)]
-struct Learner2<M, O> {
-    model: M,
-    optim: O,
-}
-
-#[allow(dead_code)]
-struct Learner3<B, M, O> {
-    model: M,
-    optim: O,
-    _b: PhantomData<B>,
-}
-
-#[allow(dead_code)]
-impl<B, O> Learner1<B, O>
-where
-    B: AutodiffBackend,
-    O: Optimizer<Model<B>, B>,
-{
-    pub fn step1(&mut self, _batch: MnistBatch<B>) {
-        //
-    }
-}
-
-#[allow(dead_code)]
-impl<B, O> Learner2<Model<B>, O>
-where
-    B: AutodiffBackend,
-    O: Optimizer<Model<B>, B>,
-{
-    pub fn step2(&mut self, _batch: MnistBatch<B>) {
-        //
-    }
-}
-
-#[allow(dead_code)]
-impl<M, O> Learner2<M, O> {
-    pub fn step3<B>(&mut self, _batch: MnistBatch<B>)
-    where
-        B: AutodiffBackend,
-        M: AutodiffModule<B>,
-        O: Optimizer<M, B>,
-    {
-        //
-    }
+    num_corrects / num_predictions * 100.0
 }

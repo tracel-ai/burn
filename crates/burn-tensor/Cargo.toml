@@ -15,40 +15,66 @@ version.workspace = true
 workspace = true
 
 [features]
-cubecl = ["dep:cubecl"]
-cubecl-cuda = ["cubecl", "cubecl/cuda"]
-cubecl-hip = ["cubecl", "cubecl/hip"]
-cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-default = ["std", "burn-common/rayon"]
+default = ["std", "burn-dispatch/default"]
 doc = ["default"]
-experimental-named-tensor = []
-export_tests = ["burn-tensor-testgen", "cubecl"]
-std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
+std = [
+    "num-traits/std",
+    "burn-std/std",
+    "burn-backend/std",
+    "burn-dispatch/std",
+    "colored",
+]
+tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-dispatch/tracing"]
+
+cubecl = ["burn-backend/cubecl", "burn-dispatch/cubecl"]
+cubecl-cuda = ["burn-backend/cubecl-cuda"]
+cubecl-hip = ["burn-backend/cubecl-hip"]
+cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
+cubecl-metal = ["burn-backend/cubecl-metal"]
+cubecl-vulkan = ["burn-backend/cubecl-vulkan"]
+cubecl-webgpu = ["burn-backend/cubecl-webgpu"]
+cubecl-cpu = ["burn-backend/cubecl-cpu"]
+
+# Backends
+cuda = ["burn-dispatch/cuda", "cubecl-cuda", "cubecl"]
+rocm = ["burn-dispatch/rocm", "cubecl-hip", "cubecl"]
+flex = ["burn-dispatch/flex"]
+ndarray = ["burn-dispatch/ndarray"]
+tch = ["burn-dispatch/tch"]
+wgpu = ["burn-dispatch/wgpu", "cubecl-wgpu", "cubecl"]
+vulkan = ["wgpu", "burn-dispatch/vulkan", "cubecl-vulkan"]
+webgpu = ["wgpu", "burn-dispatch/webgpu", "cubecl-webgpu"]
+metal = ["wgpu", "burn-dispatch/metal", "cubecl-metal"]
+cpu = ["burn-dispatch/cpu", "cubecl-cpu", "cubecl"]
+autodiff = ["burn-dispatch/autodiff"]
+# Remote compute client over Iroh.
+remote = ["std", "burn-dispatch/remote"]
+# Host a remote compute server over Iroh. Wasm-compatible.
+remote-server = ["remote", "burn-dispatch/remote-server"]
+# Add the legacy WebSocket transport.
+remote-websocket = ["remote", "burn-dispatch/remote-websocket"]
+
+# For backend extensions
+extension = []
+
+# Backend features
+autotune = ["burn-dispatch/autotune"]
+autotune-checks = ["burn-dispatch/autotune-checks"]
+fusion = ["burn-dispatch/fusion"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.19.0", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.19.0", optional = true }
-cubecl = { workspace = true, optional = true, default-features = false }
+burn-std = { workspace = true }
+burn-backend = { workspace = true }
+burn-dispatch = { workspace = true }
+burn-backend-extension = { workspace = true, optional = true }
 
-bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
-half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
-rand = { workspace = true }
-rand_distr = { workspace = true }                                  # use instead of statrs because it supports no_std
-
-# The same implementation of HashMap in std but with no_std support (only needs alloc crate)
-hashbrown = { workspace = true } # no_std compatible
 
 # Serialization
 serde = { workspace = true }
-serde_bytes = { workspace = true }
-
-[dev-dependencies]
-bincode = { workspace = true }
-rand = { workspace = true, features = ["thread_rng"] } # Default enables std
 
 [package.metadata.docs.rs]
 features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "docs/katex-header.html"]
+rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]

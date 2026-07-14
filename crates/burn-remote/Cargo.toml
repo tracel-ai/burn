@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "Backend router decorator over websocket."
+description = "Backend router decorator over the network."
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
@@ -15,42 +15,66 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["client", "server"]
+default = ["client", "server", "iroh", "websocket"]
 doc = []
-client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
-server = ["tokio-tungstenite", "async-channel", "tokio/sync", "axum", "tracing-core", "tracing-subscriber"]
+tracing = [
+    "burn-communication?/tracing",
+    "burn-ir/tracing",
+    "burn-router/tracing",
+    "burn-std/tracing",
+    "burn-backend/tracing",
+]
+
+client = ["tokio/sync"]
+# Cache recurring op-groups on the server and invoke them by id. Wraps `RemoteBackend` in `Fusion`.
+fusion = ["client", "dep:burn-fusion", "burn-router/fusion"]
+server = ["tokio/sync"]
+iroh = ["dep:iroh", "tokio/io-util"]
+websocket = [
+    "server",
+    "dep:burn-communication",
+    "burn-communication/websocket",
+    "burn-communication/data-service",
+    "dep:tokio-util",
+]
 
 
 [dependencies]
-burn-ir = { path = "../burn-ir", version = "0.19.0", default-features = true }
-burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = true }
-burn-common = { path = "../burn-common", version = "0.19.0", default-features = true }
-burn-router = { path = "../burn-router", version = "0.19.0", default-features = true }
+burn-ir = { workspace = true, features = ["default"] }
+burn-backend = { workspace = true, features = [
+    "default",
+    "serde",   # For DTypeUsageSet to be de/serialized
+] }
+burn-std = { workspace = true, features = ["default"] }
+burn-router = { workspace = true, features = ["default"] }
+burn-fusion = { workspace = true, optional = true }
+# Native WebSocket transport; optional so the Iroh client stays wasm-compatible.
+burn-communication = { workspace = true, optional = true }
 
-bytes = { version = "1.0" }
-
-# Basic dependencies
-derive-new = { workspace = true }
+bytes = { workspace = true }
 log = { workspace = true }
+rand = { workspace = true }
 
-# Shared dependencies
-tokio = { version = "1.46", features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["sync", "io-util"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }
-futures-util = { version = "0.3" }
+iroh = { workspace = true, optional = true }
 
-# Client dependencies
-async-channel = { workspace = true, optional = true }
-tokio-tungstenite = { version = "0.27", optional = true }
+tokio-util = { workspace = true, optional = true }
 
-# Server dependencies
-axum = { version = "0.8.3", features = ["ws"], optional = true }
-tracing-core = { workspace = true, optional = true }
-tracing-subscriber = { workspace = true, optional = true }
+# Native server runtime: multi-thread, timers, signals. The wasm build uses the JS event loop/timers.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "time", "signal"] }
+
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
+wasm-bindgen-futures = { workspace = true }
+gloo-timers = { version = "0.3", features = ["futures"] }
+futures-util = { workspace = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
+burn-flex = { workspace = true, features = ["default"] }
+burn-tensor = { workspace = true, features = ["default", "remote-websocket"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

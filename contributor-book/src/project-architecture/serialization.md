@@ -1,101 +1,124 @@
 # Serialization
 
-An important aspect of a deep learning framework is the ability to save and load models from disk.
-Despite appearing as a simple feature, it involves numerous constraints that require a proper
-solution.
+An important aspect of a deep learning framework is the ability to save and load training state to
+and from disk. Burn serializes its records with the **burnpack** format, a compact binary container
+implemented by the `burn-pack` crate.
 
 ## Constraints
 
-1. **Users should be able to declare the precision of the model to be saved, independent of the
-   backend in use.**
-
-   The modules should not be duplicated in RAM in another precision to support this. Conversion
-   should be done lazily during (de)serialization.
-
-2. **Users should be able to add any field to a module, even fields that are not serializable.**
+1. **Users should be able to add any field to a module, even fields that are not serializable.**
 
    This can include constants, database connections, other module references, or any other
-   information. Only parameters should be serialized since the structure of the module itself should
-   be encapsulated with module configurations (hyperparameters).
+   information. Only the parameters (tensors) should be serialized; the structure of the module
+   itself is encapsulated by its configuration (hyperparameters).
 
-3. **Users should be able to declare the format in which the module should be saved.**
+2. **Records should be decoupled from the backend in use.**
 
-   This can involve saving to a compressed JSON file or directly to bytes in memory for `no-std`
-   environments.
+   A record holds plain tensor data ([`TensorData`]), so weights saved with one backend can be
+   loaded on another. Parameter initialization is lazy, so loading a record does not require
+   eagerly materializing the module first.
 
-4. **Users should be able to create a module with its saved parameters without having to initialize
-   the module first.**
+3. **The format should be fast to load and embeddable.**
 
-   This will avoid unnecessary module initialization and tensor loading, resulting in reduced cold
-   start when dealing with inference.
+   Tensor data is stored contiguously and aligned, so it can be read back with zero-copy /
+   memory-mapped loading, and a record can be saved straight to bytes for `no-std` environments.
 
-In addition to all of these constraints, the solution should be easy to use.
+## The burnpack format
 
-## Solution
+The `burn-pack` crate is intentionally minimal and tensor-library-agnostic: it knows how to read and
+write the container format but has no notion of Burn modules. A burnpack file has three parts:
 
-In order to be able to add any field to a module without requiring it to be (de)serializable, we
-decouple the module type from its state. We create a new type for each module that only contains the
-parameters that need to be saved. To generate that type automatically, the user must either declare
-which field is a parameter or a constant, or we assume that each field implements the module trait.
+```text
+┌────────────────────────────────────────────────────────────┐
+│ Header (fixed size)                                          │
+│   magic "BURN", format version, metadata byte length         │
+├────────────────────────────────────────────────────────────┤
+│ Metadata (CBOR)                                              │
+│   tensors : map<name, descriptor>                            │
+│     dtype, shape, data_offsets, optional param_id            │
+│   scalars  : map<name, typed scalar>                         │
+│   metadata : map<string, string>  user key/value pairs       │
+├────────────────────────────────────────────────────────────┤
+│ Tensor data section                                          │
+│   each tensor's bytes start on a 256-byte boundary so the    │
+│   data can be sliced zero-copy / memory-mapped from a file   │
+└────────────────────────────────────────────────────────────┘
+```
 
-The second solution was chosen as it simplifies the code generation and reduces the size of the user
-API. This means that the `Module` trait should be implemented by
-[primitive types](https://github.com/tracel-ai/burn/blob/main/crates/burn-core/src/module/param/primitive.rs).
-The following diagrams highlight the main types and traits used in the solution.
+All multi-byte integers are little-endian. Tensor entries carry an optional `param_id` used to
+preserve a parameter's identity across save/load. Besides tensors, a pack can store named **typed
+scalars** (integers, floats, booleans), which the optimizer and learning rate scheduler records use
+to persist their non-tensor state.
 
-<div align="center">
-<h4>Module Serialization Types</h4>
-<img src="./module-serialization.png" width="700px"/>
-<div align="left">
+A pack is written with `burn_pack::Writer` and read back with `burn_pack::Reader`, both operating on
+`burn_pack::Tensor` entries plus a scalar map.
 
-The way the types interact with each other is pretty straightforward. First, a module can be
-converted into a record using `into_record()`. Note that tensors can be cloned, but it won't
-actually copy any data; it will simply create another reference to the same data.
+## The three record types
 
-Then, a `Recorder` instance can be used to serialize any record. The `Recorder` has the
-`PrecisionSettings` type as associate type, so any record will be serialized using the settings
-provided at the creation of the `Recorder` instance. Note that tensors implement record, and their
-item is just a wrapper struct that contains information about the precision in which the tensor
-should be saved or loaded. No actual copy of the tensor is made until this point. The tensor is
-converted to the `TensorData` struct and then converted into the specified precision only when
-`serialize()` or `deserialize()` are called, which makes the whole process lazy.
+Higher layers bridge their state to and from burnpack through three record types. Each one can be
+serialized to a file (`save` / `load`, appending the `.bpk` extension when the path has none) or to
+an in-memory byte buffer (`into_bytes` / `from_bytes`).
 
-To recapitulate, the `Module` trait has an associated type that implements `Record`, which only
-contains the parameters of the model. The `Record` trait has a generic associated type (GAT) that
-specifies a family of types that can be (de)serialized given any `PrecisionSettings`. Records are
-therefore decoupled from the backend in use, and the saved items can be loaded on any backend with
-any precision, since the conversion is type-safe and done when `serialize()` and `deserialize()` are
-called. All of the types are generated using simple derive macros without any conditional statements
-or complex syntax, as `Record` and `Module` are implemented for all primitive types. This makes the
-code simple and easy to maintain. In addition, you can extend the current system with your own
-`Recorder` and `PrecisionSettings` to control how your modules should be saved and loaded.
+### `ModuleRecord` (`burn-core`, `burn::store`)
 
-### Pros
+Holds a module's parameters: a flat list of `(path, ParamId, TensorData)` entries keyed by module
+path. It is produced and applied through the [`Module`] trait itself rather than a separate codegen
+type:
 
-- All constraints are respected.
-- The code is simple and easy to maintain, with very few conditional statements. It is just
-  recursive data structures, where all the complexity is handled by the framework in primitive
-  implementations.
-- The user API is simple and small, with only two derives (`Record` and `Module`) and no additional
-  attributes.
-- Users can create their own `Module` and `Record` primitive types, which gives them the flexibility
-  to control how their data is serialized without having to fork the framework.
+- `module.into_record()` walks the module with a `ModuleVisitor` (the `Collector`), recording each
+  float/int/bool parameter under its dotted path.
+- `module.load_record(record)` (or the fallible `try_load_record`) walks the module with a
+  `ModuleMapper` that looks each parameter up by path and loads the matching tensor.
 
-### Cons
+Load-time behavior is configured with builder methods on the record, ignored when saving:
 
-- There are more types, but most of them are automatically generated and single-purpose, so users
-  don't need to interact with them for common use cases. However, they can do so if necessary.
-- When instantiating a new record manually, each field must be set to something, even if the type
-  itself is `()`, which represents no value. Since the code generation step uses associative types,
-  it doesn't know that a field type is actually nothing. Creating a record manually without using
-  the generated function `into_record` or loading it from a file is only useful to load a set of
-  parameters into a module from an arbitrary source. Using the record may not be the optimal
-  solution to this problem, and another API could be created in the future.
+- `allow_partial(bool)` — tolerate module parameters absent from the record.
+- `validate(bool)` — toggle shape-mismatch / missing-tensor validation.
+- `with_dtype_policy(..)` / `cast_to_module_dtype()` — choose whether a parameter adopts the
+  record's dtype (`DTypePolicy::FromRecord`, the default) or casts the data to the module
+  parameter's current dtype (`DTypePolicy::CastToModule`).
 
-### Compatibility
+The save-side dtype is not configurable: the record stores whatever dtype the module currently
+holds. The dtype applied on load is controlled by the record's `DTypePolicy`
+(`.cast_to_module_dtype()` / `.with_dtype_policy(..)`).
 
-Record may become incompatible with previous versions of Burn, depending on the chosen format. The
-more compact format (bincode) store minimal information about the type, making it significantly
-smaller but less resilient to type changes such adding an optional field. At some point, it might be
-necessary to provide a translation script that can translate a more resilient format from a previous
-version to a more compact one.
+This module in `burn-core` is intentionally tiny — no filtering, key remapping, or adapters. The
+richer snapshot/import tooling (filtering, key remapping, PyTorch/SafeTensors cross-framework stores)
+lives in the `burn-store` crate.
+
+### `OptimizerRecord` (`burn-optim`)
+
+Holds an optimizer's per-parameter state. Unlike a module record (keyed by module path), it is keyed
+per parameter: each parameter's state is decomposed into tensors named `"{param_id}.{field}"` plus a
+few typed scalar entries kept in the burnpack scalar map (including a `__rank` scalar so the state
+can be reconstructed without inferring rank from tensor shapes).
+
+- `optimizer.to_record()` flattens each parameter's `DynState` into tensors and scalars.
+- `optimizer.load_record(record)` reconstructs the states (no device argument: tensors load on the
+  default device and migrate to each parameter's device on the next step).
+
+### `LrSchedulerRecord` (`burn-optim`)
+
+Holds a learning rate scheduler's state, which is just a handful of scalars (step counters, current
+learning rate) and no tensors. Produced/applied through the [`LrScheduler`] trait's `to_record()` /
+`load_record()`. Composed schedulers nest their children's records under an index prefix
+(`with_record` / `record`).
+
+## Checkpointing in `burn-train`
+
+During training, `burn-train` defines a `Checkpoint` trait (`save(path)` / `load(path)`) implemented
+for all three record types — `ModuleRecord`, `OptimizerRecord`, `LrSchedulerRecord` — and for `()`
+(a stateless no-op). The `Checkpointer<R: Checkpoint>` trait drives periodic saves; the
+`FileCheckpointer` writes each record to `{name}-{epoch}.bpk` under the experiment directory. This is
+how the model, optimizer, and scheduler are persisted and restored across epochs.
+
+## Notes
+
+- There is no `Recorder`, `PrecisionSettings`, `Module::Record` associated type, or `#[derive(Record)]`
+  any more. All of those were part of the previous serde-based record system, which has been removed.
+- Cross-framework import/export (PyTorch `.pt`, SafeTensors) still lives in `burn-store`
+  (`PytorchStore`, `SafetensorsStore`, `BurnpackStore`).
+
+[`TensorData`]: https://burn.dev/docs/burn/tensor/struct.TensorData.html
+[`Module`]: https://burn.dev/docs/burn/module/trait.Module.html
+[`LrScheduler`]: https://burn.dev/docs/burn/lr_scheduler/trait.LrScheduler.html

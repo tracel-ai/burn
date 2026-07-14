@@ -27,16 +27,14 @@ cargo run --example lstm-train --release --features cuda
 cargo run --example lstm-train --release --features wgpu
 
 # Tch GPU backend
-export TORCH_CUDA_VERSION=cu124 # Set the cuda version
+export TORCH_CUDA_VERSION=cu128 # Set the cuda version
 cargo run --example lstm-train --release --features tch-gpu
 
 # Tch CPU backend
 cargo run --example lstm-train --release --features tch-cpu
 
-# NdArray backend (CPU)
-cargo run --example lstm-train --release --features ndarray
-cargo run --example lstm-train --release --features ndarray-blas-openblas
-cargo run --example lstm-train --release --features ndarray-blas-netlib
+# Flex backend (CPU)
+cargo run --example lstm-train --release --features flex
 ```
 
 ### Inference

@@ -1,108 +1,98 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime,
+    kernel::utils::address_type,
+    ops::{max_vector_size, numeric::empty_device_dtype},
+    tensor::CubeTensor,
+};
+use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
-    tensor_line_size_parallel,
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
 pub(crate) trait NumericUnaryOpFamily: 'static + Send + Sync {
-    type Options<N: Numeric>: LaunchArg;
-    type Unary<N: Numeric>: NumericUnaryOp<N, Options = Self::Options<N>>;
+    type Options: LaunchArg;
+    type Unary<T: Numeric, N: Size>: NumericUnaryOp<T, N, Options = Self::Options>;
 }
 
 #[cube]
-pub(crate) trait NumericUnaryOp<N: CubePrimitive>: 'static + Send + Sync {
+pub(crate) trait NumericUnaryOp<T: Scalar, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<N>, options: &Self::Options) -> Line<N>;
+    fn execute(input: Vector<T, N>, options: &Self::Options) -> Vector<T, N>;
 }
 
-#[cube(launch_unchecked)]
-pub(crate) fn unary_numeric<N: Numeric, O: NumericUnaryOpFamily>(
-    input: &Tensor<Line<N>>,
-    output: &mut Tensor<Line<N>>,
-    options: &O::Options<N>,
-    #[comptime] rank: Option<u32>,
-    #[comptime] to_contiguous: bool,
+#[cube(launch_unchecked, address_type = "dynamic")]
+pub(crate) fn unary_numeric<T: Numeric, N: Size, O: NumericUnaryOpFamily>(
+    input: LinearView<'_, Vector<T, N>>,
+    mut output: LinearViewMut<'_, Vector<T, N>>,
+    options: &O::Options,
+    #[define(T)] _dtype: StorageType,
 ) {
-    let offset_output = ABSOLUTE_POS;
-
-    if offset_output >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    if comptime![to_contiguous] {
-        let offset_input = index_offset_with_layout::<N, N>(
-            input,
-            output,
-            offset_output,
-            0,
-            rank.unwrap_or_else(|| output.rank()),
-            rank.is_some(),
-        );
-
-        output[offset_output] = O::Unary::<N>::execute(input[offset_input], options);
-    } else {
-        output[offset_output] = O::Unary::<N>::execute(input[offset_output], options);
-    }
+    output.write(
+        ABSOLUTE_POS,
+        O::Unary::<T, N>::execute(input.read(ABSOLUTE_POS), options),
+    );
 }
 
-pub(crate) fn launch_unary_numeric<R, E, O, Args>(
-    tensor: CubeTensor<R>,
-    args: Args,
-) -> CubeTensor<R>
+pub(crate) fn launch_unary_numeric<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options<E>, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
     R: CubeRuntime,
-    E: CubeElement + Numeric,
     O: NumericUnaryOpFamily,
 {
-    let ndims = tensor.shape.num_dims();
-    let line_size = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
-        &tensor.shape.dims,
-        &tensor.strides,
-        ndims - 1,
-    );
+    let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-    let is_contiguous = tensor.is_contiguous();
+    let working_units = num_elems / vector_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+    let dtype = tensor.dtype;
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
-            unary_numeric::launch_unchecked::<E, O, R>(
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
+            unary_numeric::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg::<E>(line_size),
-                TensorArg::alias(0),
+                address_type!(tensor),
+                vector_size,
+                tensor.clone().into_linear_view(),
+                tensor.as_linear_view_alias(0),
                 args(&()),
-                None,
-                false,
+                dtype_to_storage_type(dtype),
             );
 
             tensor
         } else {
-            let output = empty_device::<R, E>(
+            let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
-                tensor.shape.clone(),
+                tensor.shape(),
+                tensor.dtype,
             );
 
-            unary_numeric::launch_unchecked::<E, O, R>(
+            unary_numeric::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
-                tensor.as_tensor_arg::<E>(line_size),
-                output.as_tensor_arg::<E>(line_size),
+                cube_dim,
+                address_type!(tensor, output),
+                vector_size,
+                tensor.into_linear_view(),
+                output.clone().into_linear_view(),
                 args(&()),
-                Some(ndims as u32),
-                !is_contiguous,
+                dtype_to_storage_type(dtype),
             );
+
             output
         }
     }

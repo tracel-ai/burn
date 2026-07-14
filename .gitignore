@@ -10,9 +10,18 @@ target
 .fleet
 .ipynb_checkpoints/
 
-# Generated IR and Burn Graph from ONNX
+# Build output directory
 out
 
 # Virtual Environment of Python
 .venv
 uv.lock
+
+# Nix direnv
+.envrc
+.direnv
+
+# tags files
+tags
+
+examples/**/Cargo.lock

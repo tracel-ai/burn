@@ -1,5 +1,6 @@
 use super::EventStore;
 use super::{Aggregate, Direction, Event, Split};
+use std::sync::Arc;
 use std::{sync::mpsc, thread::JoinHandle};
 
 /// Type that allows to communicate with an [event store](EventStore).
@@ -39,13 +40,20 @@ impl EventStoreClient {
             .expect("Can send event to event store thread.");
     }
 
+    /// Add a testing event to the [event store](EventStore).
+    pub(crate) fn add_event_test(&self, event: Event, tag: Arc<String>) {
+        self.sender
+            .send(Message::OnEventTest(event, tag))
+            .expect("Can send event to event store thread.");
+    }
+
     /// Find the epoch following the given criteria from the collected data.
     pub fn find_epoch(
         &self,
         name: &str,
         aggregate: Aggregate,
         direction: Direction,
-        split: Split,
+        split: &Split,
     ) -> Option<usize> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.sender
@@ -53,7 +61,7 @@ impl EventStoreClient {
                 name.to_string(),
                 aggregate,
                 direction,
-                split,
+                split.clone(),
                 sender,
             ))
             .expect("Can send event to event store thread.");
@@ -70,7 +78,7 @@ impl EventStoreClient {
         name: &str,
         epoch: usize,
         aggregate: Aggregate,
-        split: Split,
+        split: &Split,
     ) -> Option<f64> {
         let (sender, receiver) = mpsc::sync_channel(1);
         self.sender
@@ -78,7 +86,7 @@ impl EventStoreClient {
                 name.to_string(),
                 epoch,
                 aggregate,
-                split,
+                split.clone(),
                 sender,
             ))
             .expect("Can send event to event store thread.");
@@ -107,25 +115,29 @@ where
                     return;
                 }
                 Message::FindEpoch(name, aggregate, direction, split, callback) => {
-                    let response = self.store.find_epoch(&name, aggregate, direction, split);
+                    let response = self.store.find_epoch(&name, aggregate, direction, &split);
                     callback
                         .send(response)
                         .expect("Can send response using callback channel.");
                 }
                 Message::FindMetric(name, epoch, aggregate, split, callback) => {
-                    let response = self.store.find_metric(&name, epoch, aggregate, split);
+                    let response = self.store.find_metric(&name, epoch, aggregate, &split);
                     callback
                         .send(response)
                         .expect("Can send response using callback channel.");
                 }
                 Message::OnEventTrain(event) => self.store.add_event(event, Split::Train),
                 Message::OnEventValid(event) => self.store.add_event(event, Split::Valid),
+                Message::OnEventTest(event, tag) => {
+                    self.store.add_event(event, Split::Test(Some(tag)))
+                }
             }
         }
     }
 }
 
 enum Message {
+    OnEventTest(Event, Arc<String>),
     OnEventTrain(Event),
     OnEventValid(Event),
     End,

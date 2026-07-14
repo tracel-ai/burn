@@ -1,11 +1,13 @@
-use burn_tensor::{
+use burn_backend::{
     Shape,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
-        IntTensor, InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
-        ModuleOps, UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+        InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        UnfoldOptions, attention::attention_fallback,
     },
+    tensor::{FloatTensor, IntTensor},
 };
+use burn_std::IntDType;
 use candle_core::ToUsize2;
 
 use crate::{
@@ -14,7 +16,7 @@ use crate::{
     ops::base::reshape,
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I> {
+impl ModuleOps<Self> for Candle {
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -194,6 +196,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
@@ -203,6 +206,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
             count_include_pad,
             "Candle does not support excluding pad count in pooling"
         );
+        assert!(!ceil_mode, "Candle does not support ceil_mode in pooling");
         CandleTensor::new(
             x.tensor
                 .avg_pool2d_with_stride((kernel_size[0], kernel_size[1]), (stride[0], stride[1]))
@@ -217,6 +221,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        _ceil_mode: bool,
     ) -> FloatTensor<Self> {
         panic!("avg_pool2d_backward is not supported by Candle")
     }
@@ -227,6 +232,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
@@ -236,6 +242,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
             dilation[0] == 1 && dilation[1] == 1,
             "Candle does not support dilation in pooling"
         );
+        assert!(!ceil_mode, "Candle does not support ceil_mode in pooling");
         CandleTensor::new(
             x.tensor
                 .max_pool2d_with_stride((kernel_size[0], kernel_size[1]), (stride[0], stride[1]))
@@ -249,7 +256,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<Candle<F, I>> {
+        _ceil_mode: bool,
+        indices_dtype: IntDType,
+    ) -> MaxPool2dWithIndices<Self> {
         panic!("max_pool2d_with_indices is not supported by Candle")
     }
 
@@ -259,9 +268,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        _ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
-    ) -> MaxPool2dBackward<Candle<F, I>> {
+    ) -> MaxPool2dBackward<Self> {
         panic!("max_pool2d_with_indices_backward is not supported by Candle")
     }
 
@@ -286,11 +296,17 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
                 .tensor
                 .upsample_nearest2d(output_size[0], output_size[1])
                 .unwrap(),
+            InterpolateMode::NearestExact => {
+                panic!("nearest exact interpolation is not implemented in Candle backend")
+            }
             InterpolateMode::Bilinear => {
                 panic!("bilinear interpolation is not supported by Candle")
             }
             InterpolateMode::Bicubic => {
                 panic!("bicubic interpolation is not supported by Candle")
+            }
+            InterpolateMode::Lanczos3 => {
+                panic!("lanczos3 interpolation is not supported by Candle")
             }
         };
 
@@ -304,5 +320,33 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
         panic!("interpolate_backward is not supported by Candle")
+    }
+
+    fn attention(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<burn_backend::tensor::BoolTensor<Self>>,
+        attn_bias: Option<FloatTensor<Self>>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> FloatTensor<Self> {
+        attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
+    }
+
+    fn rfft(
+        signal: FloatTensor<Self>,
+        dim: usize,
+        _n: Option<usize>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        todo!("rfft is unsupported in Candle")
+    }
+
+    fn irfft(
+        spectrum_re: FloatTensor<Self>,
+        spectrum_im: FloatTensor<Self>,
+        dim: usize,
+        _n: Option<usize>,
+    ) -> FloatTensor<Self> {
+        todo!("irfft is unsupported in Candle")
     }
 }

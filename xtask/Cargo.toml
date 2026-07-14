@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-version = "2.2.0"
+version = "4.10.0"
 edition.workspace = true
 license = "MIT OR Apache-2.0"
 
@@ -12,7 +12,11 @@ workspace = true
 [dependencies]
 log = { workspace = true }
 strum = { workspace = true }
-tracel-xtask = { workspace = true }
+cargo_metadata = "0.23.1"
+
+tracel-xtask = "=4.15.1"
+# ### For local development. ###
+# tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
 [dev-dependencies]
 rstest = { workspace = true }

@@ -12,7 +12,7 @@ This crate demonstrates how to run an MNIST-trained model in the browser for inf
    ./build-for-web.sh {backend}
    ```
 
-   The backend can either be `ndarray` or `wgpu`. Note that `wgpu` only works for browsers with support for WebGPU.
+   The backend can either be `flex` or `wgpu`. Note that `wgpu` only works for browsers with support for WebGPU.
 
 2. Run the server
 
@@ -24,12 +24,13 @@ This crate demonstrates how to run an MNIST-trained model in the browser for inf
 
 ## Design
 
-The inference components of `burn` with the `ndarray` backend can be built with `#![no_std]`. This
+The inference components of `burn` with the `flex` backend can be built with `#![no_std]`. This
 makes it possible to build and run the model with the `wasm32-unknown-unknown` target without a
 special system library, such as [WASI](https://wasi.dev/). (See [Cargo.toml](./Cargo.toml) on how to
 include burn dependencies without `std`).
 
-For this demo, we use trained parameters (`model.bin`) and model (`model.rs`) from the
+For this demo, we use trained parameters (`model.bpk`, in the burnpack format) and model
+(`model.rs`) from the
 [`burn` MNIST example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
 
 The inference API for JavaScript is exposed with the help of
@@ -44,16 +45,18 @@ values.
 Layers:
 
 1. Input Image (28,28, 1ch)
-2. `Conv2d`(3x3, 8ch), `BatchNorm2d`, `Gelu`
-3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `Gelu`
-4. `Conv2d`(3x3, 24ch), `BatchNorm2d`, `Gelu`
-5. `Linear`(11616, 32), `Gelu`
-6. `Linear`(32, 10)
-7. Softmax Output
+2. `Conv2d`(3x3, 64ch), `BatchNorm2d`, `Gelu`, `MaxPool`(2x2)
+3. `Conv2d`(3x3, 16ch), `BatchNorm2d`, `Gelu`, `MaxPool`(2x2)
+4. `Linear`(1600, 128), `Relu`
+4. `Linear`(128, 128), `Relu`
+5. `Linear`(128, 10)
+6. Softmax Output
 
-The total number of parameters is 376,952.
+The total number of parameters is 260,810.
 
-The model is trained with 4 epochs and the final test accuracy is 98.67%.
+The model is trained with 18 epochs and the final test accuracy is 95.83%.
+
+Random transformations are used for data augmentation.
 
 The training and hyper parameter information in can be found in
 [`burn` MNIST example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).

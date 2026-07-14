@@ -1,8 +1,8 @@
-use burn_tensor::{Shape, TensorMetadata};
+use burn_backend::tensor::IndexingUpdateOp;
+use burn_backend::{Shape, TensorMetadata};
 use tch::Scalar;
 
 use crate::{LibTorchDevice, TchShape, TchTensor};
-use std::ops::Range;
 
 pub struct TchOps {
     // e: PhantomData<E>,
@@ -34,38 +34,182 @@ impl TchOps {
         TchTensor::new(tensor)
     }
 
-    pub fn slice(tensor: TchTensor, ranges: &[Range<usize>]) -> TchTensor {
+    pub fn slice_with_steps(tensor: TchTensor, slices: &[burn_backend::Slice]) -> TchTensor {
         let storage = tensor.storage.clone();
         let mut tensor = tensor.tensor.shallow_clone();
 
-        for (i, index) in ranges.iter().enumerate().take(ranges.len()) {
-            let start = index.start as i64;
-            let length = (index.end - index.start) as i64;
-            tensor = tensor.narrow(i as i64, start, length);
+        for (dim, slice) in slices.iter().enumerate() {
+            let dim_i64 = dim as i64;
+            // Convert slice to range using a dummy size (we'll use tensor dimensions)
+            let dim_size = tensor.size()[dim];
+            let range = slice.to_range(dim_size as usize);
+            let start = range.start as i64;
+            let end = range.end as i64;
+            let step = slice.step as i64;
+
+            if step > 0 {
+                // Forward stepping - use native slice
+                tensor = tensor.slice(dim_i64, Some(start), Some(end), step);
+            } else {
+                // Negative stepping - we need to handle the semantics correctly
+                // For negative steps, we iterate backwards from end-1
+                // PyTorch's negative step works differently than our semantics
+                // We need to reverse the selected range
+
+                // First get the slice with positive step
+                tensor = tensor.slice(dim_i64, Some(start), Some(end), 1);
+
+                // Then reverse it and apply the step
+                if step == -1 {
+                    // Simple reversal
+                    tensor = tensor.flip([dim_i64]);
+                } else {
+                    // Reverse and then take every nth element
+                    tensor = tensor.flip([dim_i64]);
+                    let abs_step = step.abs();
+                    tensor = tensor.slice(dim_i64, None, None, abs_step);
+                }
+            }
         }
 
         TchTensor::partial(tensor, storage)
     }
 
-    pub fn slice_assign(tensor: TchTensor, ranges: &[Range<usize>], value: TchTensor) -> TchTensor {
-        let tch_shape = TchShape::from(tensor.shape());
+    pub fn slice_assign(
+        tensor: TchTensor,
+        slices: &[burn_backend::Slice],
+        value: TchTensor,
+    ) -> TchTensor {
+        // PyTorch's narrow operation only supports contiguous slices (step=1)
+        // For non-unit steps, we use advanced indexing as a workaround
+        let all_unit_steps = slices.iter().all(|s| s.step == 1);
 
-        // Copy the input tensor if we can't mutate it.
-        let tensor_original: TchTensor = tensor.unary_ops(|tensor| tensor, |tensor| tensor.copy());
-        let tensor_original = tensor_original.tensor;
+        if all_unit_steps {
+            // Fast path: use narrow and copy_ for unit steps
+            let tch_shape = TchShape::from(tensor.shape());
 
-        let mut tensor = tensor_original.view_(tch_shape.dims);
+            // Copy the input tensor if we can't mutate it
+            let tensor_original: TchTensor =
+                tensor.unary_ops(|tensor| tensor, |tensor| tensor.copy());
+            let tensor_original = tensor_original.tensor;
 
-        for (i, index) in ranges.iter().enumerate().take(ranges.len()) {
-            let start = index.start as i64;
-            let length = (index.end - index.start) as i64;
+            let mut tensor = tensor_original.view_(tch_shape.dims);
 
-            tensor = tensor.narrow(i as i64, start, length);
+            for (i, slice) in slices.iter().enumerate().take(slices.len()) {
+                // Convert Slice to range for narrow operation
+                let dim_size = tensor.size()[i] as usize;
+                let range = slice.to_range(dim_size);
+                let start = range.start as i64;
+                let length = (range.end - range.start) as i64;
+
+                tensor = tensor.narrow(i as i64, start, length);
+            }
+
+            tensor.copy_(&value.tensor);
+            TchTensor::new(tensor_original)
+        } else {
+            // Workaround for non-unit steps: use PyTorch's index_put operation
+            // This generates explicit indices for the slice and uses advanced indexing
+            let tensor_shape = tensor.shape();
+            let dims = tensor_shape.clone();
+
+            // Copy the tensor since we'll modify it
+            let result_tensor = tensor.tensor.shallow_clone();
+
+            // Use advanced indexing to set the values
+            Self::slice_assign_with_advanced_indexing(result_tensor, slices, value.tensor, &dims)
+        }
+    }
+
+    /// Generate indices for a slice with potentially non-unit step.
+    /// For negative steps, generates indices in reverse order.
+    fn generate_slice_indices(slice: &burn_backend::Slice, dim_size: usize) -> Vec<i64> {
+        let step = slice.step;
+        let range = slice.to_range(dim_size);
+
+        let mut indices = Vec::new();
+
+        if step > 0 {
+            let mut idx = range.start as i64;
+            while idx < range.end as i64 {
+                indices.push(idx);
+                idx += step as i64;
+            }
+        } else if step < 0 {
+            // For negative steps, iterate backwards through the range
+            let mut idx = (range.end - 1) as i64;
+            while idx >= range.start as i64 {
+                indices.push(idx);
+                idx += step as i64; // step is negative, so this decreases
+            }
         }
 
-        tensor.copy_(&value.tensor);
+        indices
+    }
 
-        TchTensor::new(tensor_original)
+    /// Implementation using advanced indexing for non-unit steps.
+    /// Uses PyTorch's index_put operation to assign values at specific indices.
+    fn slice_assign_with_advanced_indexing(
+        mut tensor: tch::Tensor,
+        slices: &[burn_backend::Slice],
+        value: tch::Tensor,
+        dims: &[usize],
+    ) -> TchTensor {
+        // Generate all index combinations for the sliced regions
+        let mut index_sets: Vec<Vec<i64>> = Vec::new();
+        for (i, slice) in slices.iter().enumerate() {
+            let dim_size = if i < dims.len() { dims[i] } else { 1 };
+            let indices = Self::generate_slice_indices(slice, dim_size);
+            index_sets.push(indices);
+        }
+
+        // For unsliced dimensions, include all indices
+        for &dim_size in dims.iter().skip(slices.len()) {
+            let indices: Vec<i64> = (0..dim_size as i64).collect();
+            index_sets.push(indices);
+        }
+
+        // Convert index sets to tensors for index_put
+        let mut final_indices = Vec::new();
+        let total_elements = index_sets.iter().map(|s| s.len()).product::<usize>();
+
+        // Build flattened index arrays for each dimension using cartesian product
+        // This creates the index tensors needed for PyTorch's index_put operation
+        for dim_idx in 0..index_sets.len() {
+            let mut dim_indices = Vec::with_capacity(total_elements);
+            let repeat = index_sets[dim_idx + 1..]
+                .iter()
+                .map(|s| s.len())
+                .product::<usize>()
+                .max(1);
+            let tile = index_sets[..dim_idx]
+                .iter()
+                .map(|s| s.len())
+                .product::<usize>()
+                .max(1);
+
+            for _ in 0..tile {
+                for &idx in &index_sets[dim_idx] {
+                    for _ in 0..repeat {
+                        dim_indices.push(idx);
+                    }
+                }
+            }
+
+            let indices_tensor = tch::Tensor::from_slice(&dim_indices).to_device(tensor.device());
+            final_indices.push(indices_tensor);
+        }
+
+        // PyTorch's index_put handles assignment correctly for negative steps
+        // following NumPy semantics: values[i] goes to selected_indices[i]
+        let value_flat = value.view(-1);
+
+        // Use index_put to assign values - convert to Option<Tensor>
+        let final_indices_opt: Vec<Option<tch::Tensor>> =
+            final_indices.into_iter().map(Some).collect();
+        tensor = tensor.index_put(&final_indices_opt, &value_flat, false);
+
+        TchTensor::new(tensor)
     }
 
     pub fn gather(dim: usize, tensor: TchTensor, indices: TchTensor) -> TchTensor {
@@ -87,6 +231,95 @@ impl TchOps {
             .scatter_add(dim as i64, &indices.tensor, &value.tensor);
 
         TchTensor::from_existing(tensor, storage)
+    }
+
+    /// Flatten K-dimensional index tuples into 1D linear offsets, suitable for
+    /// use with PyTorch's scatter/gather along dim 0 of a flattened tensor.
+    ///
+    /// `indices` has shape `[num_updates, k]`.
+    /// Returns a 1D tensor of shape `[num_updates * slice_size]`.
+    fn flatten_nd_indices(
+        indices: &tch::Tensor,
+        data_shape: &[i64],
+        k: usize,
+        slice_size: i64,
+    ) -> tch::Tensor {
+        // Compute per-dimension strides for the first K dims
+        let mut strides = vec![0i64; k];
+        if k > 0 {
+            strides[k - 1] = slice_size;
+            for i in (0..k - 1).rev() {
+                strides[i] = strides[i + 1] * data_shape[i + 1];
+            }
+        }
+
+        // base_offsets: [num_updates] = sum(indices[:, j] * strides[j])
+        let strides_tensor = tch::Tensor::from_slice(&strides).to_device(indices.device());
+        let base_offsets = indices
+            .matmul(&strides_tensor.unsqueeze(-1))
+            .squeeze_dim(-1);
+
+        // Expand base_offsets to [num_updates, slice_size] and add intra-slice offsets
+        let slice_offsets = tch::Tensor::arange(slice_size, (tch::Kind::Int64, indices.device()));
+        let flat = base_offsets.unsqueeze(-1) + slice_offsets.unsqueeze(0);
+        flat.reshape([flat.size().iter().product::<i64>()])
+    }
+
+    pub fn scatter_nd(
+        tensor: TchTensor,
+        indices: TchTensor,
+        values: TchTensor,
+        reduction: IndexingUpdateOp,
+    ) -> TchTensor {
+        let data_shape: Vec<i64> = tensor.tensor.size();
+        let idx_shape: Vec<i64> = indices.tensor.size();
+        let m = idx_shape.len();
+        let k = *idx_shape.last().unwrap() as usize;
+        let num_updates: i64 = idx_shape[..m - 1].iter().product();
+        let total_elems: i64 = data_shape.iter().product();
+        let slice_size: i64 = data_shape[k..].iter().product();
+
+        // Flatten indices [I0,..,I_{M-2}, K] -> [num_updates, K]
+        let flat_indices = indices.tensor.reshape([num_updates, k as i64]);
+        let linear_idx = Self::flatten_nd_indices(&flat_indices, &data_shape, k, slice_size);
+
+        // Flatten data and values to 1D
+        let mut flat_data = tensor.tensor.reshape([total_elems]);
+        let flat_values = values.tensor.reshape([num_updates * slice_size]);
+
+        let result = match reduction {
+            IndexingUpdateOp::Assign => flat_data.scatter_(0, &linear_idx, &flat_values),
+            IndexingUpdateOp::Add => flat_data.scatter_add(0, &linear_idx, &flat_values),
+            IndexingUpdateOp::Mul => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "prod"),
+            IndexingUpdateOp::Min => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amin"),
+            IndexingUpdateOp::Max => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amax"),
+        };
+
+        let storage = tensor.storage.clone();
+        TchTensor::from_existing(result.reshape(data_shape), storage)
+    }
+
+    pub fn gather_nd(tensor: TchTensor, indices: TchTensor) -> TchTensor {
+        let data_shape: Vec<i64> = tensor.tensor.size();
+        let idx_shape: Vec<i64> = indices.tensor.size();
+        let m = idx_shape.len();
+        let k = *idx_shape.last().unwrap() as usize;
+        let num_indices: i64 = idx_shape[..m - 1].iter().product();
+        let total_elems: i64 = data_shape.iter().product();
+        let slice_size: i64 = data_shape[k..].iter().product();
+
+        let flat_indices = indices.tensor.reshape([num_indices, k as i64]);
+        let linear_idx = Self::flatten_nd_indices(&flat_indices, &data_shape, k, slice_size);
+
+        let flat_data = tensor.tensor.reshape([total_elems]);
+        let gathered = flat_data.index_select(0, &linear_idx);
+
+        // Output shape: idx_shape[..m-1] ++ data_shape[k..]
+        let mut out_shape: Vec<i64> = idx_shape[..m - 1].to_vec();
+        out_shape.extend_from_slice(&data_shape[k..]);
+
+        let storage = tensor.storage.clone();
+        TchTensor::from_existing(gathered.reshape(out_shape), storage)
     }
 
     pub fn index_select_dim(tensor: TchTensor, dim: usize, indices: TchTensor) -> TchTensor {
@@ -308,6 +541,41 @@ impl TchOps {
         )
     }
 
+    pub fn topk(tensor: TchTensor, dim: usize, k: usize) -> TchTensor {
+        let (value, _indices) = tensor.tensor.topk(k as i64, dim as i64, true, true);
+        TchTensor::from_existing(value, tensor.storage)
+    }
+
+    pub fn argtopk(tensor: TchTensor, dim: usize, k: usize) -> TchTensor {
+        let (_value, indices) = tensor.tensor.topk(k as i64, dim as i64, true, true);
+        TchTensor::from_existing(indices, tensor.storage)
+    }
+
+    pub fn cumsum(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchTensor::from_existing(
+            tensor.tensor.cumsum(dim as i64, tensor.tensor.kind()),
+            tensor.storage,
+        )
+    }
+
+    pub fn cumprod(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchTensor::from_existing(
+            tensor.tensor.cumprod(dim as i64, tensor.tensor.kind()),
+            tensor.storage,
+        )
+    }
+
+    pub fn cummin(tensor: TchTensor, dim: usize) -> TchTensor {
+        let (values, _indices) = tensor.tensor.cummin(dim as i64);
+        TchTensor::from_existing(values, tensor.storage)
+    }
+
+    pub fn cummax(tensor: TchTensor, dim: usize) -> TchTensor {
+        // cummax returns (values, indices) tuple in PyTorch, we only need values
+        let (values, _indices) = tensor.tensor.cummax(dim as i64);
+        TchTensor::from_existing(values, tensor.storage)
+    }
+
     pub fn argmax(tensor: TchTensor, dim: usize) -> TchTensor {
         let storage = tensor.storage.clone();
         let tensor = tensor.tensor.argmax(dim as i64, true);
@@ -399,7 +667,7 @@ impl TchOps {
         TchTensor::new(tensor)
     }
 
-    pub fn powf(tensor: TchTensor, exponent: TchTensor) -> TchTensor {
+    pub fn pow(tensor: TchTensor, exponent: TchTensor) -> TchTensor {
         TchTensor::binary_ops_tensor(
             tensor,
             exponent,
@@ -417,6 +685,13 @@ impl TchOps {
         let storage = tensor.storage.clone();
         let broadcasted_tensor = tensor.tensor.broadcast_to(TchShape::from(shape).dims);
         TchTensor::from_existing(broadcasted_tensor, storage)
+    }
+
+    pub fn unfold(tensor: TchTensor, dim: usize, size: usize, step: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let uf_tensor = tensor.tensor.unfold(dim as i64, size as i64, step as i64);
+
+        TchTensor::from_existing(uf_tensor, storage)
     }
 
     pub fn sort(tensor: TchTensor, dim: usize, descending: bool) -> TchTensor {
@@ -547,6 +822,16 @@ impl TchOps {
                     .f_bitwise_right_shift_tensor_scalar(scalar.clone().into())
                     .unwrap()
             },
+        )
+    }
+
+    pub fn atan2(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_atan2_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_atan2(rhs).unwrap(),
+            |lhs, rhs| lhs.f_atan2(rhs).unwrap(),
         )
     }
 }

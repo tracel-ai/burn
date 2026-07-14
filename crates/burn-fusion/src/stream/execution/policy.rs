@@ -56,7 +56,7 @@ pub enum Action {
     Execute(ExecutionPlanId),
 }
 
-impl<O> Policy<O> {
+impl<O: core::fmt::Debug> Policy<O> {
     /// Create a new policy.
     pub(crate) fn new() -> Self {
         Self {
@@ -232,10 +232,9 @@ impl<O> Policy<O> {
                     matching,
                     progress: _,
                 } = trigger
+                    && let ValidatorState::Validating = matching.state
                 {
-                    if let ValidatorState::Validating = matching.state {
-                        return Action::Defer;
-                    }
+                    return Action::Defer;
                 }
             }
         }
@@ -264,8 +263,8 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
+    use burn_backend::{DType, Shape};
     use burn_ir::{FloatOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
-    use burn_tensor::DType;
 
     use super::*;
     use crate::{
@@ -555,7 +554,7 @@ mod tests {
         fn new_empty_node(&mut self, id: u64) {
             self.tensors.push(TensorIr {
                 id: TensorId::new(id),
-                shape: vec![32, 32, 1],
+                shape: Shape::new([32, 32, 1]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             });

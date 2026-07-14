@@ -5,11 +5,11 @@ use std::env::args;
 use burn::data::dataloader::Dataset;
 use burn::data::dataset::vision::MnistDataset;
 
-use crate::model::{Model, ModelRecord};
+use crate::model::Model;
 
 const IMAGE_INX: usize = 42; // <- Change this to test a different image
 
-pub fn infer<B: Backend>(record: ModelRecord<B>) {
+pub fn infer(model: Model) {
     // Get image index argument (first) from command line
 
     let image_index = if let Some(image_index) = args().nth(1) {
@@ -24,10 +24,8 @@ pub fn infer<B: Backend>(record: ModelRecord<B>) {
 
     assert!(image_index < 10000, "Image index must be less than 10000");
 
-    let device = Default::default();
-
-    // Create a new model and load the state
-    let model: Model<B> = Model::init(&device).load_record(record);
+    // Get device from the model
+    let device = model.devices().into_iter().next().unwrap_or_default();
 
     // Load the MNIST dataset and get an item
     let dataset = MnistDataset::test();
@@ -36,7 +34,7 @@ pub fn infer<B: Backend>(record: ModelRecord<B>) {
     // Create a tensor from the image data
     let image_data = item.image.iter().copied().flatten().collect::<Vec<f32>>();
     let mut input =
-        Tensor::<B, 1>::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
+        Tensor::<1>::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
 
     // Normalize the input
     input = ((input / 255) - 0.1307) / 0.3081;
@@ -45,7 +43,7 @@ pub fn infer<B: Backend>(record: ModelRecord<B>) {
     let output = model.forward(input);
 
     // Get the index of the maximum value
-    let arg_max: u8 = output.argmax(1).into_scalar().elem();
+    let arg_max: u8 = output.argmax(1).into_scalar();
 
     // Check if the index matches the label
     assert!(arg_max == item.label);

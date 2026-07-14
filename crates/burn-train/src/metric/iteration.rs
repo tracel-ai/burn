@@ -1,29 +1,51 @@
-use super::MetricEntry;
+use std::sync::Arc;
+
 use super::MetricMetadata;
+use super::SerializedEntry;
 use super::state::FormatOptions;
 use super::state::NumericMetricState;
-use crate::metric::{Metric, Numeric};
+use crate::metric::MetricName;
+use crate::metric::Numeric;
+use crate::metric::{Metric, MetricAttributes, NumericAttributes, NumericEntry};
 
 /// The loss metric.
-#[derive(Default)]
+#[derive(Clone)]
 pub struct IterationSpeedMetric {
+    name: MetricName,
     state: NumericMetricState,
     instant: Option<std::time::Instant>,
+}
+
+impl Default for IterationSpeedMetric {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl IterationSpeedMetric {
     /// Create the metric.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            name: Arc::new("Iteration Speed".to_string()),
+            state: Default::default(),
+            instant: Default::default(),
+        }
     }
 }
 
 impl Metric for IterationSpeedMetric {
     type Input = ();
 
-    fn update(&mut self, _: &Self::Input, metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, _: &Self::Input, metadata: &MetricMetadata) -> SerializedEntry {
         let raw = match self.instant {
-            Some(val) => metadata.iteration as f64 / val.elapsed().as_secs_f64(),
+            Some(val) => {
+                // If iteration is not logged, compute the speed over the number of items processed.
+                // 1 iteration should equal 1 item when iteration is not logged.
+                metadata
+                    .iteration
+                    .unwrap_or(metadata.progress.items_processed) as f64
+                    / val.elapsed().as_secs_f64()
+            }
             None => {
                 self.instant = Some(std::time::Instant::now());
                 0.0
@@ -43,13 +65,26 @@ impl Metric for IterationSpeedMetric {
         self.instant = None;
     }
 
-    fn name(&self) -> String {
-        "Iteration Speed".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
+    }
+
+    fn attributes(&self) -> MetricAttributes {
+        NumericAttributes {
+            unit: Some("iter/sec".to_string()),
+            higher_is_better: true,
+            ..Default::default()
+        }
+        .into()
     }
 }
 
 impl Numeric for IterationSpeedMetric {
-    fn value(&self) -> f64 {
-        self.state.value()
+    fn value(&self) -> NumericEntry {
+        self.state.current_value()
+    }
+
+    fn running_value(&self) -> NumericEntry {
+        self.state.running_value()
     }
 }

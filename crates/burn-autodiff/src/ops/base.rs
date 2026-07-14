@@ -7,12 +7,15 @@ use crate::{
         strategy::CheckpointStrategy,
     },
     grads::Gradients,
-    graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, NodeId, NodeRef, Parent, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use alloc::{boxed::Box, vec::Vec};
-use burn_tensor::{Shape, TensorMetadata, backend::Backend, ops::FloatTensor};
+use alloc::boxed::Box;
+use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
+use burn_std::Shape;
 use core::marker::PhantomData;
+
+use burn_backend::distributed::DistributedParams;
 
 /// Operation in preparation.
 ///
@@ -207,7 +210,7 @@ where
     }
 
     /// Checkpoints the tensor
-    pub fn checkpoint(&mut self, tensor: &AutodiffTensor<B>) -> NodeID {
+    pub fn checkpoint(&mut self, tensor: &AutodiffTensor<B>) -> NodeId {
         self.checkpointer_builder
             .checkpoint(tensor, ActionType::Explicit);
 
@@ -257,16 +260,20 @@ where
         self.backward.backward(self.ops, grads, checkpointer);
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.ops.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.ops.node.parents.clone()
+    fn parents(&self) -> &[Parent] {
+        &self.ops.node.parents
     }
 
     fn depth(&self) -> usize {
         self.ops.node.order
+    }
+
+    fn distributed_params(&self) -> Option<DistributedParams> {
+        self.ops.node.distributed_params.clone()
     }
 }
 
@@ -280,15 +287,19 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.ops.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.ops.node.parents.clone()
+    fn parents(&self) -> &[Parent] {
+        &self.ops.node.parents
     }
     fn depth(&self) -> usize {
         self.ops.node.order
+    }
+
+    fn distributed_params(&self) -> Option<DistributedParams> {
+        self.ops.node.distributed_params.clone()
     }
 }
 
@@ -301,11 +312,11 @@ pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> F
     let ndims = shape_grad.num_dims();
 
     for i in 0..ndims {
-        if shape_grad.dims[i] != shape.dims[i] {
-            if shape.dims[i] != 1 {
+        if shape_grad[i] != shape[i] {
+            if shape[i] != 1 {
                 panic!(
                     "Invalid broadcast shapes: Next grad shape {:?}, Previous grad shape {:?}. {}",
-                    shape.dims, shape_grad.dims, "Expected the shape of the next grad to be 1."
+                    shape, shape_grad, "Expected the shape of the next grad to be 1."
                 );
             }
             grad = B::float_sum_dim(grad, i);

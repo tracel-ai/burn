@@ -1,8 +1,7 @@
 use std::borrow::Borrow;
 
-use burn_tensor::Element;
+use burn_backend::{Element, bf16, f16};
 use candle_core::{FloatDType, Tensor, WithDType};
-use half::{bf16, f16};
 
 /// Candle element
 pub trait CandleElement: Element + WithDType {}
@@ -25,7 +24,6 @@ impl FloatCandleElement for bf16 {}
 
 impl CandleElement for u8 {}
 impl IntCandleElement for u8 {}
-//maybe also a quantization type?
 
 impl CandleElement for u32 {}
 impl IntCandleElement for u32 {}

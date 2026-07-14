@@ -10,7 +10,7 @@ use crate::{
     transform::{Mapper, MapperDataset},
 };
 
-use burn_common::network::downloader::download_file_as_bytes;
+use crate::network::downloader::download_file_as_bytes;
 
 // CVDF mirror of http://yann.lecun.com/exdb/mnist/
 const URL: &str = "https://storage.googleapis.com/cvdf-datasets/mnist/";
@@ -118,10 +118,9 @@ impl MnistDataset {
     /// Download the MNIST dataset files from the web.
     /// Panics if the download cannot be completed or the content of the file cannot be written to disk.
     fn download(split: &str) -> PathBuf {
-        // Dataset files are stored un the burn-dataset cache directory
-        let cache_dir = dirs::home_dir()
-            .expect("Could not get home directory")
-            .join(".cache")
+        // Dataset files are stored in the burn-dataset cache directory
+        let cache_dir = dirs::cache_dir()
+            .expect("Could not get cache directory")
             .join("burn-dataset");
         let split_dir = cache_dir.join("mnist").join(split);
 

@@ -1,18 +1,18 @@
+use std::path::PathBuf;
+
 use crate::dataset::{
     NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
 };
-use crate::model::{LstmNetwork, LstmNetworkConfig};
+use crate::model::LstmNetworkConfig;
 use burn::{
     data::dataloader::DataLoaderBuilder,
     module::AutodiffModule,
     nn::loss::{MseLoss, Reduction::Mean},
-    optim::{AdamConfig, GradientsParams, Optimizer},
+    optim::{AdamConfig, GradientsParams},
     prelude::*,
-    record::CompactRecorder,
-    tensor::backend::AutodiffBackend,
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: LstmNetworkConfig,
     pub optimizer: AdamConfig,
@@ -29,23 +29,24 @@ pub struct TrainingConfig {
 
 // Create the directory to save the model and model config
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
     create_artifact_dir(artifact_dir);
 
     // Save training config
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
-    B::seed(RANDOM_SEED);
+
+    device.seed(RANDOM_SEED);
+    let autodiff_device = device.clone().autodiff();
 
     // Create the model and optimizer
-    let mut model = config.model.init::<B>(&device);
-    let mut optim = config.optimizer.init::<B, LstmNetwork<B>>();
+    let mut model = config.model.init(&autodiff_device);
+    let mut optim = config.optimizer.init();
 
     // Create the batcher
     let batcher = SequenceBatcher::default();
@@ -55,6 +56,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .batch_size(config.batch_size)
         .shuffle(RANDOM_SEED)
         .num_workers(config.num_workers)
+        .set_device(autodiff_device)
         .build(SequenceDataset::new(NUM_SEQUENCES, SEQ_LENGTH, NOISE_LEVEL));
 
     let dataloader_valid = DataLoaderBuilder::new(batcher)
@@ -84,14 +86,14 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         for batch in dataloader_train.iter() {
             let output = model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
-            train_loss += loss.clone().into_scalar().elem::<f32>() * batch.targets.dims()[0] as f32;
+            train_loss += loss.clone().into_scalar::<f32>() * batch.targets.dims()[0] as f32;
 
             // Gradients for the current backward pass
             let grads = loss.backward();
             // Gradients linked to each parameter of the model
             let grads = GradientsParams::from_grads(grads, &model);
             // Update the model using the optimizer
-            model = optim.step(config.lr, model, grads);
+            model = optim.step(config.lr.into(), model, grads);
         }
 
         // The averaged train loss per epoch
@@ -105,7 +107,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         for batch in dataloader_valid.iter() {
             let output = valid_model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
-            valid_loss += loss.clone().into_scalar().elem::<f32>() * batch.targets.dims()[0] as f32;
+            valid_loss += loss.clone().into_scalar::<f32>() * batch.targets.dims()[0] as f32;
         }
         // The averaged train loss per epoch
         let avg_valid_loss = valid_loss / valid_num_items as f32;
@@ -125,6 +127,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     // Save the trained model
     model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Trained model should be saved successfully");
 }

@@ -1,0 +1,617 @@
+use alloc::rc::Rc;
+use alloc::string::String;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use burn_core::module::ParamId;
+use burn_core::tensor::quantization::{QPARAM_ALIGN, QuantParam, params_shape};
+use burn_core::tensor::{Bool, DType, Int, Shape, Tensor, TensorData};
+use half::f16;
+
+/// Returns the byte size of a quantization parameter type.
+// TODO: Add `size_bytes()` method to `QuantParam` in cubecl and use it here.
+const fn quant_param_size(param: QuantParam) -> usize {
+    match param {
+        QuantParam::F32 => core::mem::size_of::<f32>(),
+        QuantParam::F16 | QuantParam::BF16 => core::mem::size_of::<f16>(),
+        QuantParam::UE8M0 | QuantParam::UE4M3 => core::mem::size_of::<u8>(),
+    }
+}
+
+/// Error type for TensorSnapshot operations
+#[derive(Debug, Clone)]
+pub enum TensorSnapshotError {
+    /// I/O error occurred while loading tensor data
+    IoError(String),
+    /// Data corruption or invalid format
+    DataError(String),
+    /// Panic occurred while loading tensor data
+    PanicError(String),
+}
+
+impl core::fmt::Display for TensorSnapshotError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::IoError(e) => write!(f, "I/O error: {}", e),
+            Self::DataError(e) => write!(f, "Data error: {}", e),
+            Self::PanicError(e) => write!(f, "Panic error: {}", e),
+        }
+    }
+}
+
+impl core::error::Error for TensorSnapshotError {}
+
+/// A lightweight snapshot of a tensor that can lazily produce TensorData.
+///
+/// TensorSnapshot stores a cloned tensor internally (which is cheap due to reference counting)
+/// and only materializes the actual data when `to_data()` is called. This allows
+/// efficient inspection of module structure without the overhead of copying all tensor data.
+///
+/// The dtype and shape are cached for efficient access without requiring data materialization,
+/// which is particularly useful for serialization formats that need metadata upfront.
+pub struct TensorSnapshot {
+    /// Function to get tensor data when needed (Rc allows cloning)
+    data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
+    /// Data type of the tensor (cached for efficient access)
+    pub dtype: DType,
+    /// Shape of the tensor (cached for efficient access)
+    pub shape: Shape,
+    /// Path stack representing the module hierarchy
+    pub path_stack: Option<Vec<String>>,
+    /// Container stack representing the container types at each level
+    pub container_stack: Option<Vec<String>>,
+    /// Unique identifier for the tensor parameter
+    pub tensor_id: Option<ParamId>,
+}
+
+impl TensorSnapshot {
+    /// Create a new tensor snapshot from a float tensor
+    pub fn from_float<const D: usize>(
+        tensor: &Tensor<D>,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
+        tensor_id: ParamId,
+    ) -> Self {
+        let dtype = tensor.dtype();
+        let shape = tensor.shape();
+        let tensor = tensor.clone(); // Clone is cheap (reference counted)
+        Self {
+            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            dtype,
+            shape,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
+        }
+    }
+
+    /// Create a new tensor snapshot from an int tensor
+    pub fn from_int<const D: usize>(
+        tensor: &Tensor<D, Int>,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
+        tensor_id: ParamId,
+    ) -> Self {
+        let dtype = tensor.dtype();
+        let shape = tensor.shape();
+        let tensor = tensor.clone(); // Clone is cheap (reference counted)
+        Self {
+            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            dtype,
+            shape,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
+        }
+    }
+
+    /// Create a new tensor snapshot from a bool tensor
+    pub fn from_bool<const D: usize>(
+        tensor: &Tensor<D, Bool>,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
+        tensor_id: ParamId,
+    ) -> Self {
+        let dtype = tensor.dtype();
+        let shape = tensor.shape();
+        let tensor = tensor.clone(); // Clone is cheap (reference counted)
+        Self {
+            data_fn: Rc::new(move || Ok(tensor.to_data())),
+            dtype,
+            shape,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
+        }
+    }
+
+    /// Convert to TensorData (this is where actual data copy happens)
+    #[cfg(feature = "std")]
+    pub fn to_data(&self) -> Result<TensorData, TensorSnapshotError> {
+        // Use AssertUnwindSafe since we're working with Rc which is not UnwindSafe
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (self.data_fn)())).unwrap_or_else(
+            |_| {
+                Err(TensorSnapshotError::PanicError(
+                    "Panic occurred while loading tensor data".to_string(),
+                ))
+            },
+        )
+    }
+
+    /// Convert to TensorData (this is where actual data copy happens)
+    #[cfg(not(feature = "std"))]
+    pub fn to_data(&self) -> Result<TensorData, TensorSnapshotError> {
+        (self.data_fn)() // Can't catch panics in no-std, do it when core::panic::AssertUnwindSafe is available
+    }
+
+    /// Get the full path by joining the path stack
+    pub fn full_path(&self) -> String {
+        self.path_stack
+            .as_ref()
+            .map(|stack| stack.join("."))
+            .unwrap_or_default()
+    }
+
+    /// Get the full container path by joining the container stack
+    pub fn container_path(&self) -> String {
+        self.container_stack
+            .as_ref()
+            .map(|stack| stack.join("."))
+            .unwrap_or_default()
+    }
+
+    /// Get the module type (last Struct/Enum in the hierarchy)
+    ///
+    /// Returns the last user-defined module type, skipping primitive containers
+    /// like "Vec", "Array". This is useful for determining which user-defined
+    /// module a tensor belongs to.
+    ///
+    /// # Examples
+    /// - `Linear.weight` → `Some("Struct:Linear")`
+    /// - `Vec<Linear>[0].weight` → `Some("Struct:Linear")`
+    /// - `Linear.bias` (Optional) → `Some("Struct:Linear")`
+    /// - `Vec<Param>[0]` (no module) → `None`
+    pub fn module_type(&self) -> Option<String> {
+        self.container_stack.as_ref().and_then(|stack| {
+            // Find the last user-defined type (Struct: or Enum:)
+            stack
+                .iter()
+                .rev()
+                .find(|ct| ct.starts_with("Struct:") || ct.starts_with("Enum:"))
+                .cloned()
+        })
+    }
+
+    /// Get the immediate container type (last in the container stack)
+    ///
+    /// Returns the last element in the container stack, which could be a
+    /// user-defined type ("Struct:", "Enum:") or a collection type ("Vec", "Array").
+    /// This is useful for understanding the full container hierarchy.
+    ///
+    /// # Examples
+    /// - `Linear.weight` → `"Struct:Linear"`
+    /// - `Vec<Linear>[0].weight` → `"Struct:Linear"` (the Linear, not the Vec)
+    /// - `Vec<Param>[0]` → `"Vec"`
+    pub fn container_type(&self) -> String {
+        self.container_stack
+            .as_ref()
+            .and_then(|stack| stack.last())
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string())
+    }
+
+    /// Create a TensorSnapshot from a closure that produces TensorData
+    /// This is used internally for lazy loading
+    pub fn from_closure(
+        data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
+        dtype: DType,
+        shape: Shape,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
+        tensor_id: ParamId,
+    ) -> Self {
+        Self {
+            data_fn,
+            dtype,
+            shape,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
+        }
+    }
+
+    /// Create a TensorSnapshot from TensorData directly
+    pub fn from_data(
+        data: TensorData,
+        path_stack: Vec<String>,
+        container_stack: Vec<String>,
+        tensor_id: ParamId,
+    ) -> Self {
+        let dtype = data.dtype;
+        let shape = data.shape.clone();
+        Self {
+            data_fn: Rc::new(move || Ok(data.clone())),
+            dtype,
+            shape,
+            path_stack: Some(path_stack),
+            container_stack: Some(container_stack),
+            tensor_id: Some(tensor_id),
+        }
+    }
+
+    /// Get the size of the tensor data in bytes without materializing it.
+    ///
+    /// For regular (non-quantized) types, this is simply `shape.product() * dtype.size()`.
+    ///
+    /// For quantized types (`QFloat`), this accounts for:
+    /// - The quantized values (packed according to the quantization scheme)
+    /// - Alignment padding (values are aligned to 4-byte boundary)
+    /// - Quantization parameters (scale values appended to the data)
+    pub fn data_len(&self) -> usize {
+        const BITS_PER_BYTE: usize = 8;
+
+        let num_elements: usize = self.shape.iter().product();
+
+        match self.dtype {
+            DType::QFloat(scheme) => {
+                // Calculate value bytes using scheme's packing information
+                let num_storage_elements = num_elements.div_ceil(scheme.num_quants());
+                let value_bytes =
+                    num_storage_elements * (scheme.size_bits_stored() / BITS_PER_BYTE);
+
+                // Calculate number of quantization parameters (scales)
+                let num_params = params_shape(&self.shape, scheme.level).num_elements();
+
+                let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
+                let scale_bytes = num_params * quant_param_size(scheme.param);
+
+                aligned_value_bytes + scale_bytes
+            }
+            _ => num_elements * self.dtype.size(),
+        }
+    }
+
+    /// Clone the data function for lazy composition
+    pub fn clone_data_fn(&self) -> Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>> {
+        self.data_fn.clone()
+    }
+}
+
+impl Clone for TensorSnapshot {
+    fn clone(&self) -> Self {
+        // Clone lazily - keep the same data function
+        Self {
+            data_fn: self.data_fn.clone(),
+            dtype: self.dtype,
+            shape: self.shape.clone(),
+            path_stack: self.path_stack.clone(),
+            container_stack: self.container_stack.clone(),
+            tensor_id: self.tensor_id,
+        }
+    }
+}
+
+impl core::fmt::Debug for TensorSnapshot {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("TensorSnapshot")
+            .field("dtype", &self.dtype)
+            .field("shape", &self.shape)
+            .field("path_stack", &self.path_stack)
+            .field("container_stack", &self.container_stack)
+            .field("tensor_id", &self.tensor_id)
+            .finish()
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    use alloc::string::ToString;
+    use burn_core::tensor::{BoolStore, Device, shape};
+
+    #[test]
+    fn tensor_view_float() {
+        let device = Default::default();
+        let tensor = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+
+        let snapshot = TensorSnapshot::from_float(
+            &tensor,
+            vec!["test".to_string(), "weight".to_string()],
+            vec!["TestModule".to_string(), "Param".to_string()],
+            ParamId::new(),
+        );
+
+        // Test metadata access without materialization
+        assert_eq!(snapshot.dtype, DType::F32);
+        assert_eq!(snapshot.shape, shape![2, 2]);
+        assert_eq!(snapshot.full_path(), "test.weight");
+        assert_eq!(snapshot.container_path(), "TestModule.Param");
+
+        // Test data materialization
+        let data = snapshot.to_data().unwrap();
+        assert_eq!(data.shape, shape![2, 2]);
+        assert_eq!(data.dtype, DType::F32);
+    }
+
+    #[test]
+    fn tensor_view_int() {
+        let device = Default::default();
+        let tensor = Tensor::<2, Int>::from_data([[1, 2], [3, 4]], &device);
+
+        let snapshot = TensorSnapshot::from_int(
+            &tensor,
+            vec!["test".to_string(), "int".to_string()],
+            vec!["TestModule".to_string(), "Param".to_string()],
+            ParamId::new(),
+        );
+
+        // Test metadata access without materialization
+        let dtype: DType = device.settings().int_dtype.into();
+        assert_eq!(snapshot.dtype, dtype);
+        assert_eq!(snapshot.shape, shape![2, 2]);
+
+        let data = snapshot.to_data().unwrap();
+        assert_eq!(data.shape, shape![2, 2]);
+        assert_eq!(data.dtype, dtype);
+    }
+
+    #[test]
+    fn tensor_view_bool() {
+        let device = Default::default();
+        let tensor = Tensor::<2, Bool>::from_data([[true, false], [false, true]], &device);
+
+        let snapshot = TensorSnapshot::from_bool(
+            &tensor,
+            vec!["test".to_string(), "bool".to_string()],
+            vec!["TestModule".to_string(), "Param".to_string()],
+            ParamId::new(),
+        );
+
+        // Test metadata access without materialization
+        assert_eq!(snapshot.dtype, DType::Bool(BoolStore::Native));
+        assert_eq!(snapshot.shape, shape![2, 2]);
+
+        let data = snapshot.to_data().unwrap();
+        assert_eq!(data.shape, shape![2, 2]);
+        assert_eq!(data.dtype, DType::Bool(BoolStore::Native));
+    }
+
+    #[test]
+    fn data_len() {
+        let device = Device::default();
+        let settings = device.settings();
+
+        // Test F32 tensor (4 bytes per element)
+        let tensor_f32 = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        let view_f32 = TensorSnapshot::from_float(
+            &tensor_f32,
+            vec!["test".to_string()],
+            vec!["Module".to_string()],
+            ParamId::new(),
+        );
+        let dtype: DType = settings.float_dtype.into();
+        assert_eq!(view_f32.data_len(), 4 * dtype.size()); // 4 elements * 4 bytes
+
+        // Test int tensor
+        let tensor_i64 = Tensor::<3, Int>::from_data([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], &device);
+        let view_i64 = TensorSnapshot::from_int(
+            &tensor_i64,
+            vec!["test".to_string()],
+            vec!["Module".to_string()],
+            ParamId::new(),
+        );
+        let dtype: DType = settings.int_dtype.into();
+        assert_eq!(view_i64.data_len(), 8 * dtype.size()); // 8 elements * 8 bytes (I64)
+
+        // Test Bool tensor (1 byte per element)
+        let tensor_bool = Tensor::<2, Bool>::from_data([[true, false], [false, true]], &device);
+        let view_bool = TensorSnapshot::from_bool(
+            &tensor_bool,
+            vec!["test".to_string()],
+            vec!["Module".to_string()],
+            ParamId::new(),
+        );
+        let dtype: DType = settings.bool_dtype.into();
+        assert_eq!(view_bool.data_len(), 4 * dtype.size()); // 4 elements * 1 byte
+    }
+
+    #[test]
+    fn from_closure() {
+        let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0]);
+        let dtype = data.dtype;
+        let shape = data.shape.clone();
+
+        let snapshot = TensorSnapshot::from_closure(
+            Rc::new(move || Ok(data.clone())),
+            dtype,
+            shape.clone(),
+            vec!["model".to_string(), "layer".to_string()],
+            vec!["Model".to_string(), "Layer".to_string()],
+            ParamId::new(),
+        );
+
+        // Test metadata access
+        assert_eq!(snapshot.dtype, DType::F32);
+        assert_eq!(snapshot.shape, shape![4]);
+        assert_eq!(snapshot.full_path(), "model.layer");
+        assert_eq!(snapshot.data_len(), 16); // 4 * 4 bytes
+
+        // Test data materialization
+        let materialized = snapshot.to_data().unwrap();
+        assert_eq!(materialized.shape, shape![4]);
+    }
+
+    #[test]
+    fn from_data() {
+        let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        let original_dtype = data.dtype;
+        let original_shape = data.shape.clone();
+
+        let snapshot = TensorSnapshot::from_data(
+            data,
+            vec!["encoder".to_string(), "weight".to_string()],
+            vec!["Struct:Encoder".to_string(), "Struct:Dense".to_string()],
+            ParamId::new(),
+        );
+
+        // Test metadata
+        assert_eq!(snapshot.dtype, original_dtype);
+        assert_eq!(snapshot.shape, original_shape);
+        assert_eq!(snapshot.full_path(), "encoder.weight");
+        assert_eq!(snapshot.container_type(), "Struct:Dense");
+        assert_eq!(snapshot.data_len(), 24); // 6 * 4 bytes
+
+        // Test data materialization
+        let materialized = snapshot.to_data().unwrap();
+        assert_eq!(materialized.shape, original_shape);
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn panic_catching_in_to_data() {
+        use alloc::rc::Rc;
+
+        // Create a TensorSnapshot with a closure that panics
+        let snapshot = TensorSnapshot {
+            data_fn: Rc::new(|| panic!("Test panic in data_fn")),
+            dtype: DType::F32,
+            shape: shape![2, 2],
+            path_stack: Some(vec!["test".to_string()]),
+            container_stack: Some(vec!["Test".to_string()]),
+            tensor_id: Some(ParamId::new()),
+        };
+
+        // When std is available, to_data should catch the panic and return an error
+        let result = snapshot.to_data();
+        assert!(result.is_err());
+
+        match result {
+            Err(TensorSnapshotError::PanicError(msg)) => {
+                assert!(msg.contains("Panic occurred"));
+            }
+            _ => panic!("Expected PanicError with panic message"),
+        }
+    }
+
+    #[test]
+    fn error_propagation_in_closure() {
+        use alloc::rc::Rc;
+
+        // Create a snapshot with a closure that returns an error
+        let snapshot = TensorSnapshot::from_closure(
+            Rc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
+            DType::F32,
+            shape![2, 2],
+            vec!["error_test".into()],
+            vec![],
+            ParamId::new(),
+        );
+
+        // Should return an error when trying to get data
+        let result = snapshot.to_data();
+        assert!(result.is_err());
+        match result {
+            Err(TensorSnapshotError::IoError(msg)) => {
+                assert!(msg.contains("Simulated IO error"));
+            }
+            _ => panic!("Expected IoError"),
+        }
+    }
+
+    #[test]
+    fn container_type_extraction() {
+        let device = Default::default();
+        let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
+
+        let snapshot = TensorSnapshot::from_float(
+            &tensor,
+            vec![
+                "model".to_string(),
+                "layer1".to_string(),
+                "weight".to_string(),
+            ],
+            vec![
+                "Struct:Model".to_string(),
+                "Struct:Conv2d".to_string(),
+                "Struct:Param".to_string(),
+            ],
+            ParamId::new(),
+        );
+
+        assert_eq!(snapshot.container_type(), "Struct:Param");
+        assert_eq!(snapshot.module_type(), Some("Struct:Param".to_string()));
+        assert_eq!(
+            snapshot.container_path(),
+            "Struct:Model.Struct:Conv2d.Struct:Param"
+        );
+        assert_eq!(snapshot.full_path(), "model.layer1.weight");
+    }
+
+    #[test]
+    fn container_type_vs_module_type() {
+        let device = Default::default();
+        let tensor = Tensor::<1>::from_data([1.0, 2.0, 3.0], &device);
+
+        // Test case 1: Tensor inside a Vec<Linear>
+        // container_stack: ["Struct:Model", "Vec", "Struct:Linear"]
+        let snapshot = TensorSnapshot::from_float(
+            &tensor,
+            vec![
+                "model".to_string(),
+                "layers".to_string(),
+                "0".to_string(),
+                "weight".to_string(),
+            ],
+            vec![
+                "Struct:Model".to_string(),
+                "Vec".to_string(),
+                "Struct:Linear".to_string(),
+            ],
+            ParamId::new(),
+        );
+
+        // container_type() returns the last element (Struct:Linear in this case)
+        assert_eq!(snapshot.container_type(), "Struct:Linear");
+        // module_type() also returns Some(Struct:Linear) (skipping Vec)
+        assert_eq!(snapshot.module_type(), Some("Struct:Linear".to_string()));
+
+        // Test case 2: Tensor that's just in a Vec
+        // container_stack: ["Vec"]
+        let snapshot2 = TensorSnapshot::from_float(
+            &tensor,
+            vec!["data".to_string(), "0".to_string()],
+            vec!["Vec".to_string()],
+            ParamId::new(),
+        );
+
+        // container_type() returns Vec
+        assert_eq!(snapshot2.container_type(), "Vec");
+        // module_type() returns None (no Struct/Enum found)
+        assert_eq!(snapshot2.module_type(), None);
+
+        // Test case 3: Nested collections
+        // container_stack: ["Struct:Model", "Vec", "Array", "Struct:Linear"]
+        let snapshot3 = TensorSnapshot::from_float(
+            &tensor,
+            vec![
+                "model".to_string(),
+                "layers".to_string(),
+                "0".to_string(),
+                "sublayers".to_string(),
+                "1".to_string(),
+                "weight".to_string(),
+            ],
+            vec![
+                "Struct:Model".to_string(),
+                "Vec".to_string(),
+                "Array".to_string(),
+                "Struct:Linear".to_string(),
+            ],
+            ParamId::new(),
+        );
+
+        // container_type() returns the immediate container
+        assert_eq!(snapshot3.container_type(), "Struct:Linear");
+        // module_type() returns the last Struct/Enum
+        assert_eq!(snapshot3.module_type(), Some("Struct:Linear".to_string()));
+    }
+}

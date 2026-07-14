@@ -8,14 +8,14 @@
 //! understanding the process of optimizing streams.
 use std::sync::Arc;
 
+use burn_backend::{DType, Shape};
 use burn_ir::{
-    BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr,
-    TensorStatus, UnaryOpIr,
+    BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarIr, ScalarOpIr, TensorId,
+    TensorIr, TensorStatus, UnaryOpIr,
 };
-use burn_tensor::DType;
 
 use crate::{
-    NumOperations, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+    FuserProperties, FuserStatus, NumOperations, OperationFuser,
     search::BlockOptimization,
     stream::store::{
         ExecutionPlan, ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy, ExecutionTrigger,
@@ -54,6 +54,9 @@ impl NumOperations for TestOptimization {
     fn len(&self) -> usize {
         self.size
     }
+    fn name(&self) -> &'static str {
+        "TestOptimization"
+    }
 }
 
 /// A fake [stream segment](StreamSegment) for testing purpose.
@@ -76,7 +79,11 @@ impl ExecutionStrategy<TestOptimization> {
     /// Only use it for testing, to easily create ordered strategies.
     pub fn optimization(opt: TestOptimization) -> Self {
         let ordering = Arc::new((0..opt.size).collect());
-        Self::Optimization { opt, ordering }
+        Self::Optimization {
+            opt,
+            ordering,
+            score: 1,
+        }
     }
 }
 
@@ -384,7 +391,9 @@ fn should_support_overlapping_optimizations() {
 
     stream.sync();
     stream.assert_number_of_operations(0);
-    stream.assert_number_of_executions(6);
+    // The sync executes a single plan covering the whole remaining segment: the
+    // fused pair composed with the un-fused trailing operation.
+    stream.assert_number_of_executions(5);
     stream.assert_plan(
         plan_id_1,
         ExecutionPlan {
@@ -392,7 +401,6 @@ fn should_support_overlapping_optimizations() {
             triggers: vec![
                 ExecutionTrigger::OnOperations(vec![operation_1(), operation_2()]),
                 ExecutionTrigger::OnOperations(vec![operation_2()]),
-                ExecutionTrigger::OnSync,
             ],
             optimization: BlockOptimization {
                 strategy: ExecutionStrategy::optimization(TestOptimization::new(builder_id_1, 2)),
@@ -403,11 +411,19 @@ fn should_support_overlapping_optimizations() {
     stream.assert_plan(
         plan_id_4,
         ExecutionPlan {
-            operations: vec![operation_1()],
+            operations: vec![operation_1(), operation_2(), operation_1()],
             triggers: vec![ExecutionTrigger::OnSync],
             optimization: BlockOptimization {
-                strategy: ExecutionStrategy::operations(1),
-                ordering: vec![0],
+                strategy: ExecutionStrategy::Composed(vec![
+                    Box::new(ExecutionStrategy::optimization(TestOptimization::new(
+                        builder_id_1,
+                        2,
+                    ))),
+                    Box::new(ExecutionStrategy::Operations {
+                        ordering: Arc::new(vec![2]),
+                    }),
+                ]),
+                ordering: vec![0, 1, 2],
             },
         },
     );
@@ -430,9 +446,73 @@ fn should_support_overlapping_optimizations() {
     stream.assert_last_executed(plan_id_5);
 }
 
+/// A plan discovered at a sync point must cover the whole segment and be reusable on
+/// the next identical pass without re-exploring.
+///
+/// This is the shape of an autoregressive inference step: the graph defers past the
+/// fusable prefix because some fuser is still open, and the step ends on a sync. The
+/// search leaves the still-open tail out of its optimization (in lazy mode the tail
+/// seeds the next round), but at a sync there is no next round: the tail is folded
+/// into the plan as un-fused operations in a composed strategy. The plan then matches
+/// the whole segment, so every subsequent identical step executes it directly instead
+/// of re-running the whole exploration.
+#[test]
+fn should_reuse_sync_plan_on_next_pass() {
+    let plan_id = 0;
+
+    let pair_builder = TestOptimizationBuilder::new(0, vec![operation_1(), operation_2()]);
+    // A builder that wants a longer sequence: it stays open past the tail op, which is
+    // what defers the whole segment until the sync.
+    let hungry_builder = TestOptimizationBuilder::new(
+        1,
+        vec![operation_1(), operation_2(), operation_3(), operation_1()],
+    );
+    let mut stream = TestStream::new(vec![Box::new(pair_builder), Box::new(hungry_builder)]);
+
+    // First pass: everything defers, the sync explores once and executes one plan
+    // covering the whole segment.
+    stream.add(operation_1());
+    stream.add(operation_2());
+    stream.add(operation_3());
+    stream.assert_number_of_executions(0);
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(1);
+    stream.assert_last_executed(plan_id);
+    stream.assert_number_of_explorations(1);
+    stream.assert_plan(
+        plan_id,
+        ExecutionPlan {
+            operations: vec![operation_1(), operation_2(), operation_3()],
+            triggers: vec![ExecutionTrigger::OnSync],
+            optimization: BlockOptimization {
+                strategy: ExecutionStrategy::Composed(vec![
+                    Box::new(ExecutionStrategy::optimization(TestOptimization::new(0, 2))),
+                    Box::new(ExecutionStrategy::Operations {
+                        ordering: Arc::new(vec![2]),
+                    }),
+                ]),
+                ordering: vec![0, 1, 2],
+            },
+        },
+    );
+
+    // Second pass: the identical stream ends at the same sync; the cached plan
+    // matches the whole segment and executes without any re-exploration.
+    stream.add(operation_1());
+    stream.add(operation_2());
+    stream.add(operation_3());
+    stream.assert_number_of_executions(1);
+    stream.sync();
+    stream.assert_number_of_operations(0);
+    stream.assert_number_of_executions(2);
+    stream.assert_last_executed(plan_id);
+    stream.assert_number_of_explorations(1);
+}
+
 impl TestStream {
     /// Create a new stream with the given optimization builders.
-    fn new(optimizations: Vec<Box<dyn OptimizationBuilder<TestOptimization>>>) -> Self {
+    fn new(optimizations: Vec<Box<dyn OperationFuser<TestOptimization>>>) -> Self {
         Self {
             processor: Processor::<TestOptimization>::new(optimizations),
             store: ExecutionPlanStore::<TestOptimization>::new(),
@@ -477,12 +557,22 @@ impl TestStream {
 
     /// Assert the number of executions since the start of the stream.
     fn assert_number_of_executions(&self, number: usize) {
-        assert_eq!(self.executed.len(), number);
+        assert_eq!(self.executed.len(), number, "Number of execution match");
     }
 
     /// Assert the number of operations queued.
     fn assert_number_of_operations(&self, number: usize) {
         assert_eq!(self.operations.len(), number);
+    }
+
+    /// Assert the number of optimizations built since the start of the stream;
+    /// reusing a cached plan does not count.
+    fn assert_number_of_explorations(&self, number: usize) {
+        assert_eq!(
+            self.processor.num_explorations(),
+            number,
+            "Number of explorations match"
+        );
     }
 }
 
@@ -497,14 +587,14 @@ impl TestOptimizationBuilder {
     }
 }
 
-impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
+impl OperationFuser<TestOptimization> for TestOptimizationBuilder {
     /// Register a new operation.
-    fn register(&mut self, operation: &OperationIr) {
+    fn fuse(&mut self, operation: &OperationIr) {
         self.actual.push(operation.clone());
     }
 
     /// Build the optimization.
-    fn build(&self) -> TestOptimization {
+    fn finish(&mut self) -> TestOptimization {
         TestOptimization::new(self.builder_id, self.len())
     }
 
@@ -514,26 +604,26 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     }
 
     /// Return the optimization status.
-    fn status(&self) -> OptimizationStatus {
+    fn status(&self) -> FuserStatus {
         if self.actual.len() < self.expected_operations.len() {
             let operations = &self.expected_operations[0..self.actual.len()];
 
             return match self.actual == operations {
                 // Still optimizing.
-                true => OptimizationStatus::Open,
+                true => FuserStatus::Open,
                 // Never gonna be possible on that stream.
-                false => OptimizationStatus::Closed,
+                false => FuserStatus::Closed,
             };
         }
 
-        OptimizationStatus::Closed
+        FuserStatus::Closed
     }
 
     /// Return the properties of this optimization.
-    fn properties(&self) -> OptimizationProperties {
+    fn properties(&self) -> FuserProperties {
         if self.actual.len() < self.expected_operations.len() {
             // Optimization not possible.
-            return OptimizationProperties {
+            return FuserProperties {
                 score: 0,
                 ready: false,
             };
@@ -544,15 +634,15 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
 
         if !stream_is_ok {
             // Optimization not possible.
-            return OptimizationProperties {
+            return FuserProperties {
                 score: 0,
                 ready: false,
             };
         }
 
         // Optimization possible.
-        OptimizationProperties {
-            score: 1,
+        FuserProperties {
+            score: self.expected_operations.len() as u64,
             ready: true,
         }
     }
@@ -561,7 +651,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     fn len(&self) -> usize {
         self.expected_operations.len()
     }
-    fn clone_dyn(&self) -> Box<dyn OptimizationBuilder<TestOptimization>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<TestOptimization>> {
         Box::new(self.clone())
     }
 }
@@ -579,6 +669,10 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
         self.execute_strategy(&execution_plan.optimization.strategy);
 
         self.executed.push(id);
+    }
+
+    fn execute_unfused(&mut self, optimization: BlockOptimization<TestOptimization>) {
+        self.execute_strategy(&optimization.strategy);
     }
 }
 
@@ -607,19 +701,19 @@ pub fn operation_1() -> OperationIr {
         NumericOperationIr::Add(BinaryOpIr {
             lhs: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
             rhs: TensorIr {
                 id: TensorId::new(1),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
             out: TensorIr {
                 id: TensorId::new(2),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },
@@ -634,14 +728,14 @@ pub fn operation_2() -> OperationIr {
         NumericOperationIr::AddScalar(ScalarOpIr {
             lhs: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
-            rhs: 5.0,
+            rhs: ScalarIr::Float(5.0),
             out: TensorIr {
                 id: TensorId::new(2),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },
@@ -656,13 +750,13 @@ pub fn operation_3() -> OperationIr {
         FloatOperationIr::Log(UnaryOpIr {
             input: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
             out: TensorIr {
                 id: TensorId::new(0),
-                shape: vec![32, 32],
+                shape: Shape::new([32, 32]),
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },

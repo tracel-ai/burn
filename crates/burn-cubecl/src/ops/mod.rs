@@ -1,10 +1,12 @@
-mod activation_ops;
-mod bool_ops;
-mod float_ops;
-mod int_ops;
-mod module_ops;
+mod activation;
+mod bool_tensor;
+mod int_tensor;
+mod module;
 mod qtensor;
+mod tensor;
 mod transaction;
+
+pub(crate) mod distributed;
 
 pub(crate) mod base;
 pub use base::*;

@@ -1,17 +1,20 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
-use burn_tensor::{DType, Shape};
-pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
-use cubecl::{
-    AutotuneKey,
-    client::ComputeClient,
-    frontend::{Atomic, CubePrimitive},
-    reduce::{
-        ReduceError,
-        instructions::{ReduceFn, ReduceFnConfig},
-        shared_sum,
-    },
+use crate::{
+    CubeRuntime,
+    ops::numeric::{empty_device_contiguous_dtype, zeros_client},
+    tensor::CubeTensor,
+};
+use burn_backend::cubecl::{dtype_to_elem_type, elem_type_to_dtype};
+use burn_backend::{DType, TensorMetadata};
+use burn_std::{BoolDType, Metadata};
+use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
+use cubek::reduce::{
+    ReduceDtypes, ReduceError, ReduceStrategy,
+    components::instructions::ReduceOperationConfig,
+    launch::{RoutineStrategy, VectorizationStrategy},
+    routines::{BlueprintStrategy, unit::UnitStrategy},
+    shared_sum,
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,35 +22,32 @@ use serde::{Deserialize, Serialize};
 /// Autotune key representative of sum versions
 pub struct SumAutotuneKey {
     /// The type of the tensor
-    pub dtype: burn_tensor::DType,
+    dtype: burn_backend::DType,
     /// The anchored length of the tensor
     #[autotune(anchor)]
-    pub length: usize,
+    length: usize,
 }
 
 /// Check if the client supports atomic add for the given element type.
-fn supports_atomic_add<R: CubeRuntime, E: CubeElement>(
-    client: &ComputeClient<R::Server, R::Channel>,
-) -> bool {
-    let atomic_elem = Atomic::<E>::as_elem_native_unchecked();
+fn supports_atomic_add<R: CubeRuntime>(client: &ComputeClient<R>, dtype: DType) -> bool {
     client
         .properties()
-        .feature_enabled(cubecl::Feature::Type(atomic_elem))
-        && client
-            .properties()
-            .feature_enabled(cubecl::Feature::AtomicFloat(cubecl::AtomicFeature::Add))
+        .atomic_type_usage(Type::atomic(dtype_to_elem_type(dtype)))
+        .contains(AtomicUsage::Add)
 }
 
 /// [Sum](sum) with fallback when `client` doesn't support atomic add for the type `E`.
-pub fn sum_fallback<R: CubeRuntime, E: CubeElement>(
+pub fn sum_fallback<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     mut strategy: SumStrategy,
 ) -> Result<CubeTensor<R>, ReduceError> {
     // Early check before creating output and fallback
-    if matches!(strategy, SumStrategy::OneShot(_)) && !supports_atomic_add::<R, E>(&tensor.client) {
+    if matches!(strategy, SumStrategy::OneShot(_))
+        && !supports_atomic_add(&tensor.client, tensor.dtype)
+    {
         strategy = SumStrategy::Chained(Default::default());
     }
-    sum::<R, E>(tensor, strategy)
+    sum(tensor, strategy)
 }
 
 /// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
@@ -56,7 +56,7 @@ pub fn sum_fallback<R: CubeRuntime, E: CubeElement>(
 /// This is expected to be faster for larger tensors than calling [reduce] with the `Sum` instruction.
 ///
 /// Return an error if the `client` doesn't support atomic add for the type `E`.
-pub fn sum<Run: CubeRuntime, E: CubeElement>(
+pub fn sum<Run: CubeRuntime>(
     tensor: CubeTensor<Run>,
     strategy: SumStrategy,
 ) -> Result<CubeTensor<Run>, ReduceError> {
@@ -65,32 +65,24 @@ pub fn sum<Run: CubeRuntime, E: CubeElement>(
 
     match strategy {
         SumStrategy::OneShot(cube_count) => {
-            let handle = client.create(E::as_bytes(&[E::from_int(0)]));
-            let output =
-                CubeTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
-            shared_sum::<Run, E>(
+            let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
+            let dtype = tensor.dtype;
+
+            shared_sum::<Run>(
                 &client,
-                tensor.as_handle_ref(),
-                output.as_handle_ref(),
+                tensor.binding(),
+                output.clone().binding(),
                 cube_count,
+                dtype_to_elem_type(dtype),
             )?;
 
             Ok(output)
         }
-        SumStrategy::Chained(strategy) => match E::dtype() {
-            DType::F16 | DType::BF16 => {
-                reduce::<Run, E, E, f32>(tensor, strategy, ReduceFnConfig::Sum)
-            }
-            DType::I8 | DType::I16 => {
-                reduce::<Run, E, E, i32>(tensor, strategy, ReduceFnConfig::Sum)
-            }
-            DType::U8 | DType::U16 => {
-                reduce::<Run, E, E, u32>(tensor, strategy, ReduceFnConfig::Sum)
-            }
-            _ => reduce::<Run, E, E, E>(tensor, strategy, ReduceFnConfig::Sum),
-        },
+        SumStrategy::Chained(strategy) => {
+            reduce::<Run>(tensor, None, strategy, ReduceOperationConfig::Sum)
+        }
         #[cfg(feature = "autotune")]
-        SumStrategy::Autotune => Ok(autotune_sum::<Run, E>(&client, tensor)),
+        SumStrategy::Autotune => Ok(autotune_sum::<Run>(&client, tensor)),
     }
 }
 
@@ -100,7 +92,7 @@ pub enum SumStrategy {
     /// The provided value is the number of elements summed per unit (up-to-rounding )
     OneShot(u32),
     /// Use multiple kernels
-    Chained(ReduceStrategy),
+    Chained(KernelReduceStrategy),
     /// Use autotune to find the best cube count given the hardware and the input.
     #[cfg(feature = "autotune")]
     Autotune,
@@ -122,21 +114,57 @@ impl Default for SumStrategy {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
+pub fn reduce<Run: CubeRuntime>(
     mut tensor: CubeTensor<Run>,
-    strategy: ReduceStrategy,
-    config: ReduceFnConfig,
-) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
+    output_dtype: Option<DType>,
+    strategy: KernelReduceStrategy,
+    config: ReduceOperationConfig,
+) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
-    let sorted_axis = argsort(&tensor.shape.dims);
+    let sorted_axis = argsort(tensor.meta.shape());
     for axis in sorted_axis {
-        tensor = reduce_dim::<Run, In, Out, Acc>(tensor, axis, strategy, config)?;
+        tensor = reduce_dim::<Run>(tensor, output_dtype, axis, strategy.clone(), config)?;
     }
     // reshape to scalar tensor
-    tensor.shape = Shape::new([1]);
-    tensor.strides = vec![1];
+    *tensor.meta = Metadata::new([1], [1]);
     Ok(tensor)
+}
+
+/// Reduce with a logical instruction ([`Any`](ReduceOperationConfig::Any) /
+/// [`All`](ReduceOperationConfig::All)) and return the result as a boolean tensor.
+///
+/// `Any` / `All` require the output dtype (like `Arg*` index outputs): the
+/// kernel writes the `0/1` flags directly into the numeric backing of the
+/// boolean storage (cubek has no bool elem), so the only step left here is the
+/// kernel-free relabel to `Bool`.
+///
+/// `dim == None` reduces the whole tensor to a scalar; `Some(dim)` reduces a
+/// single axis, keeping it with length 1.
+pub fn reduce_logical<Run: CubeRuntime>(
+    tensor: CubeTensor<Run>,
+    dim: Option<usize>,
+    config: ReduceOperationConfig,
+    out_dtype: BoolDType,
+) -> CubeTensor<Run> {
+    debug_assert!(
+        matches!(
+            config,
+            ReduceOperationConfig::Any | ReduceOperationConfig::All
+        ),
+        "reduce_logical only supports Any / All, got {config:?}"
+    );
+    let out_bool = DType::Bool(out_dtype);
+    let backing = elem_type_to_dtype(dtype_to_elem_type(out_bool));
+
+    let mut out = match dim {
+        Some(d) => reduce_dim::<Run>(tensor, Some(backing), d, Default::default(), config),
+        None => reduce::<Run>(tensor, Some(backing), Default::default(), config),
+    }
+    .expect("Any/All reduce on a valid axis cannot fail");
+
+    out.dtype = out_bool; // same storage, relabel as Bool (no kernel)
+    out
 }
 
 fn argsort(shape: &[usize]) -> Vec<usize> {
@@ -152,48 +180,70 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: CubeElement>(
+pub fn reduce_dim<Run: CubeRuntime>(
     input: CubeTensor<Run>,
+    output_dtype: Option<DType>,
     dim: usize,
-    strategy: ReduceStrategy,
-    config: ReduceFnConfig,
-) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
+    strategy: KernelReduceStrategy,
+    config: ReduceOperationConfig,
+) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
+    debug_assert!(
+        !matches!(
+            config,
+            ReduceOperationConfig::ArgMax
+                | ReduceOperationConfig::ArgMin
+                | ReduceOperationConfig::ArgTopK(_)
+                | ReduceOperationConfig::Any
+                | ReduceOperationConfig::All
+        ) || output_dtype.is_some(),
+        "The `output_dtype` has to be `Some` when the `config` is `ArgMax`, `ArgMin`, `ArgTopK`, `Any` or `All`.
+        "
+    );
+
+    let accumulator_len = match config {
+        ReduceOperationConfig::ArgTopK(k) => k,
+        ReduceOperationConfig::TopK(k) => k,
+        _ => 1,
+    };
+    let dtypes = config.precision(
+        dtype_to_elem_type(input.dtype),
+        output_dtype.map(dtype_to_elem_type),
+    );
     let client = input.client.clone();
-    let output = init_reduce_output::<Run, In, Out>(&input, dim).ok_or(
-        cubecl::reduce::ReduceError::InvalidAxis {
+    let output = init_reduce_output::<Run>(&input, dim, &dtypes, accumulator_len).ok_or(
+        cubek::reduce::ReduceError::InvalidAxis {
             axis: dim,
-            rank: input.shape.num_dims(),
+            rank: input.meta.num_dims(),
         },
     )?;
 
     let result = match strategy {
-        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
+        KernelReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
             &client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
+            input.binding(),
+            output.clone().binding(),
             dim,
-            None,
+            ReduceStrategy {
+                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                vectorization: VectorizationStrategy {
+                    parallel_output_vectorization: false,
+                },
+            },
             config,
+            dtypes,
         ),
-        ReduceStrategy::Specific(strategy) => {
-            cubecl::reduce::reduce::<Run, (In, Acc), Out, ReduceFn>(
-                &client,
-                input.as_handle_ref(),
-                output.as_handle_ref(),
-                dim,
-                Some(strategy),
-                config,
-            )
-        }
+        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce::<Run>(
+            &client,
+            input.binding(),
+            output.clone().binding(),
+            dim,
+            strategy,
+            config,
+            dtypes,
+        ),
         #[cfg(feature = "autotune")]
-        ReduceStrategy::Autotune => {
-            autotune_reduce::<Run, In, Out, Acc, ReduceFn>(
-                &client,
-                input,
-                output.clone(),
-                dim,
-                config,
-            );
+        KernelReduceStrategy::Autotune => {
+            autotune_reduce::<Run>(&client, input, output.clone(), dim, config, dtypes);
             Ok(())
         }
     };
@@ -202,31 +252,38 @@ pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Acc: Cube
 
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
 /// or return `None` if `axis` is out-of-bound.
-pub fn init_reduce_output<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
+pub fn init_reduce_output<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
     dim: usize,
+    dtypes: &ReduceDtypes,
+    accumulator_len: usize,
 ) -> Option<CubeTensor<Run>> {
-    (dim < input.shape.num_dims()).then(|| {
-        let mut shape_out = input.shape.clone();
-        shape_out.dims[dim] = 1;
-        empty_device::<Run, Out>(input.client.clone(), input.device.clone(), shape_out)
+    (dim < input.meta.num_dims()).then(|| {
+        let mut shape_out = input.shape();
+        shape_out[dim] = accumulator_len;
+        empty_device_contiguous_dtype(
+            input.client.clone(),
+            input.device.clone(),
+            shape_out,
+            elem_type_to_dtype(dtypes.output.elem_type()),
+        )
     })
 }
 
 /// Select a strategy to perform a reduction.
-#[derive(Copy, Clone, Debug)]
-pub enum ReduceStrategy {
+#[derive(Clone, Debug)]
+pub enum KernelReduceStrategy {
     /// Use a best-effort strategy based on the hardware capacity.
     /// This differs from Autotune as it doesn't try and compare many strategies to select the best.
     Unspecified,
     /// Fix the exact strategy for the reduction.
-    Specific(cubecl::reduce::ReduceStrategy),
+    Specific(cubek::reduce::launch::ReduceStrategy),
     /// Use autotune to find the best strategy given the hardware and the inputs.
     #[cfg(feature = "autotune")]
     Autotune,
 }
 
-impl Default for ReduceStrategy {
+impl Default for KernelReduceStrategy {
     fn default() -> Self {
         #[cfg(feature = "autotune")]
         return Self::Autotune;

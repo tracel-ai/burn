@@ -2,7 +2,7 @@ use super::CheckpointingStrategy;
 use crate::{
     checkpoint::CheckpointingAction,
     metric::{
-        Metric,
+        Metric, MetricName,
         store::{Aggregate, Direction, EventStoreClient, Split},
     },
 };
@@ -13,7 +13,7 @@ pub struct MetricCheckpointingStrategy {
     aggregate: Aggregate,
     direction: Direction,
     split: Split,
-    name: String,
+    name: MetricName,
 }
 
 impl MetricCheckpointingStrategy {
@@ -39,17 +39,17 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
         store: &EventStoreClient,
     ) -> Vec<CheckpointingAction> {
         let best_epoch =
-            match store.find_epoch(&self.name, self.aggregate, self.direction, self.split) {
+            match store.find_epoch(&self.name, self.aggregate, self.direction, &self.split) {
                 Some(epoch_best) => epoch_best,
                 None => epoch,
             };
 
         let mut actions = Vec::new();
 
-        if let Some(current) = self.current {
-            if current != best_epoch {
-                actions.push(CheckpointingAction::Delete(current));
-            }
+        if let Some(current) = self.current
+            && current != best_epoch
+        {
+            actions.push(CheckpointingAction::Delete(current));
         }
 
         if best_epoch == epoch {
@@ -65,16 +65,17 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
 #[cfg(test)]
 mod tests {
     use crate::{
-        TestBackend,
+        EventProcessorTraining,
         logger::InMemoryMetricLogger,
         metric::{
             LossMetric,
             processor::{
-                Metrics, MinimalEventProcessor,
+                MetricsTraining, MinimalEventProcessor,
                 test_utils::{end_epoch, process_train},
             },
             store::LogEventStore,
         },
+        test_utils::start_epoch,
     };
 
     use super::*;
@@ -82,7 +83,7 @@ mod tests {
 
     #[test]
     fn always_keep_the_best_epoch() {
-        let loss = LossMetric::<TestBackend>::new();
+        let loss = LossMetric::new();
         let mut store = LogEventStore::default();
         let mut strategy = MetricCheckpointingStrategy::new(
             &loss,
@@ -90,16 +91,21 @@ mod tests {
             Direction::Lowest,
             Split::Train,
         );
-        let mut metrics = Metrics::<f64, f64>::default();
+        let mut metrics = MetricsTraining::<f64, f64>::default();
         // Register an in memory logger.
-        store.register_logger_train(InMemoryMetricLogger::default());
+        store.register_logger(InMemoryMetricLogger::default());
         // Register the loss metric.
         metrics.register_train_metric_numeric(loss);
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
+        processor.process_train(crate::LearnerEvent::Start {
+            total_epochs: 0,
+            starting_epoch: 0,
+        });
 
         // Two points for the first epoch. Mean 0.75
         let mut epoch = 1;
+        start_epoch(&mut processor, epoch, 2);
         process_train(&mut processor, 1.0, epoch);
         process_train(&mut processor, 0.5, epoch);
         end_epoch(&mut processor, epoch);
@@ -112,6 +118,7 @@ mod tests {
 
         // Two points for the second epoch. Mean 0.4
         epoch += 1;
+        start_epoch(&mut processor, epoch, 2);
         process_train(&mut processor, 0.5, epoch);
         process_train(&mut processor, 0.3, epoch);
         end_epoch(&mut processor, epoch);
@@ -124,6 +131,7 @@ mod tests {
 
         // Two points for the last epoch. Mean 2.0
         epoch += 1;
+        start_epoch(&mut processor, epoch, 2);
         process_train(&mut processor, 1.0, epoch);
         process_train(&mut processor, 3.0, epoch);
         end_epoch(&mut processor, epoch);

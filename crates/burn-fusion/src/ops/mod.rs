@@ -1,12 +1,13 @@
 mod activation;
 mod binary;
-mod boolean;
-mod float;
-mod int;
+mod bool_tensor;
+mod distributed;
+mod int_tensor;
 mod module;
 mod qtensor;
+mod tensor;
 mod transaction;
 mod unary;
 
 mod base;
-pub(crate) use base::*;
+pub use base::NoOp;

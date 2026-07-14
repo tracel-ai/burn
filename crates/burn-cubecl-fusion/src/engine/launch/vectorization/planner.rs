@@ -1,0 +1,450 @@
+use super::{
+    super::{BlockPlan, HandleOutput, LaunchPlan},
+    Vect,
+};
+use crate::{
+    CubeFusionHandle,
+    engine::{
+        launch::{
+            HandleInput,
+            runner::{Vectorization, VectorizationHandle},
+        },
+        settings::VectorizationSetting,
+        trace::{FuseResources, TensorView, block::FuseBlock},
+    },
+};
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_fusion::stream::Context;
+use burn_ir::TensorId;
+use cubecl::{
+    Runtime,
+    client::ComputeClient,
+    ir::{ElemType, StorageType, UIntKind},
+};
+use cubecl::{
+    ir::VectorSize,
+    quant::scheme::{QuantScheme, QuantStore, QuantValue},
+};
+use std::marker::PhantomData;
+
+/// Select the best vectorization factor for each tensor handle.
+pub struct VectorizationPlanner<'a, R: Runtime> {
+    resources: &'a FuseResources,
+    blocks: &'a Vec<FuseBlock>,
+    _r: PhantomData<R>,
+}
+
+impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
+    pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
+        Self {
+            resources,
+            blocks,
+            _r: PhantomData,
+        }
+    }
+    pub fn run<Runner: Vectorization<R>>(
+        self,
+        client: &ComputeClient<R>,
+        runner: &Runner,
+        context: &Context<CubeFusionHandle<R>>,
+        plan: &mut LaunchPlan<'a, R>,
+    ) {
+        let has_multiple_read = |tensor: &TensorId| {
+            let mut read_count = 0;
+            for block in plan.blocks.iter() {
+                read_count += block.reads.get(tensor).map(|a| a.len()).unwrap_or(0);
+            }
+            read_count > 1
+        };
+        let tensors_reshaped = self.resources.views.iter().filter_map(|view| match view {
+            TensorView::Reshape {
+                reshaped, original, ..
+            } => Some((
+                context.tensors.get(reshaped).unwrap(),
+                context.tensors.get(original).unwrap(),
+                has_multiple_read(original),
+            )),
+            TensorView::SwapDims { .. } => None,
+        });
+        let tensors_swapped = self.resources.views.iter().filter_map(|view| match view {
+            TensorView::SwapDims {
+                swapped,
+                original,
+                dims,
+                ..
+            } => Some((
+                context.tensors.get(swapped).unwrap(),
+                context.tensors.get(original).unwrap(),
+                has_multiple_read(original),
+                dims,
+            )),
+            TensorView::Reshape { .. } => None,
+        });
+
+        let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
+        let mut quants_vector_sizes: Option<Vec<VectorSize>> = None;
+
+        for input in plan.handle_inputs.iter() {
+            let elem: StorageType = match input {
+                HandleInput::Normal(h) => dtype_to_storage_type(h.global_ir.dtype),
+                HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
+                    burn_std::DType::QFloat(scheme) => {
+                        vector_sizes_quants(client, &mut quants_vector_sizes, scheme);
+                        continue;
+                    }
+                    _ => panic!("Unable to retrieve the scheme for quantized values."),
+                },
+                HandleInput::QuantParams(..) => continue,
+            };
+            let elem_size = elem.size();
+
+            if ref_elem.1 >= elem_size {
+                ref_elem = (elem, elem_size);
+            }
+        }
+        for r in plan.global_outputs.iter() {
+            let elem: StorageType = dtype_to_storage_type(r.dtype);
+            let elem_size = elem.size();
+
+            if ref_elem.1 >= elem_size {
+                ref_elem = (elem, elem_size);
+            }
+        }
+
+        let filtered = plan
+            .handle_inputs
+            .iter()
+            .map(|item| {
+                item.as_normal()
+                    // Filter out indexed resources.
+                    .map(|item| !self.resources.indexed.contains_key(&item.relative_id))
+                    .unwrap_or(true)
+            })
+            .collect::<Vec<_>>();
+
+        let vector_sizes = match quants_vector_sizes {
+            // Quantization normally triggers higher vectorization than anything else, no need to
+            // compare to ref elem.
+            Some(vector_sizes) => vector_sizes,
+            None => client
+                .io_optimized_vector_sizes(ref_elem.0.size())
+                .collect::<Vec<_>>(),
+        };
+        let vectorization_axis = runner.axis(plan);
+
+        runner.vectorization(
+            context,
+            &mut plan.vectorizations,
+            plan.handle_inputs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, item)| {
+                    if filtered[i] {
+                        Some(match item {
+                            HandleInput::Normal(h) => {
+                                VectorizationHandle::NormalInput(&h.handle, &h.global_ir)
+                            }
+                            HandleInput::QuantValues(h) => {
+                                VectorizationHandle::QuantValues(&h.handle, &h.global_ir)
+                            }
+                            HandleInput::QuantParams(_) => VectorizationHandle::QuantParams,
+                        })
+                    } else {
+                        None
+                    }
+                }),
+            plan.global_outputs.iter(),
+            tensors_reshaped,
+            tensors_swapped,
+            &vector_sizes,
+            u8::MAX as usize,
+            vectorization_axis,
+        );
+
+        for tensor in self.resources.indexed.keys() {
+            let global = context.tensors.get(tensor).unwrap();
+            plan.vectorizations.insert(global.id, Vect::Aligned(1));
+        }
+
+        let mut block_vectorization = Vec::with_capacity(self.blocks.len());
+        for _ in 0..self.blocks.len() {
+            block_vectorization.push(Vec::new());
+        }
+
+        for (input_pos, handle) in plan.handle_inputs.iter_mut().enumerate() {
+            let (global_ir, relative_id) = match handle {
+                HandleInput::Normal(h) => (&h.global_ir, &h.relative_id),
+                HandleInput::QuantValues(h) => (&h.global_ir, &h.relative_id),
+                HandleInput::QuantParams(_) => continue,
+            };
+            let (vect, br) = match plan.vectorizations.get(&global_ir.id) {
+                Some(v) => (v.vector_size(), v.is_broadcast()),
+                None => panic!("No vectorization factor found for {:?}", global_ir.id),
+            };
+
+            for (block_pos, block_plan) in plan.blocks.iter().enumerate() {
+                if block_plan.reads.contains_key(relative_id) {
+                    block_vectorization[block_pos].push(BlockVectorization {
+                        action: VectorizationAction::Input(input_pos),
+                        potential: vect,
+                        broadcasted: br,
+                    });
+                }
+            }
+        }
+
+        for (output_pos, handle) in plan.handle_outputs.iter().enumerate() {
+            if let HandleOutput::Owned {
+                global_id,
+                relative_id,
+                ..
+            } = handle
+            {
+                for (block_pos, block_plan) in plan.blocks.iter().enumerate() {
+                    if block_plan.writes.contains_key(relative_id) {
+                        let vectorization =
+                            plan.vectorizations.get(global_id).unwrap().vector_size();
+                        block_vectorization[block_pos].push(BlockVectorization {
+                            action: VectorizationAction::Output(output_pos),
+                            potential: vectorization,
+                            broadcasted: false,
+                        });
+                    }
+                }
+            }
+        }
+
+        let mut previous_widths = Vec::with_capacity(block_vectorization.len());
+
+        // Unhandled inputs might not get included in any fused blocks for now.
+        //
+        // So we ensure they are vectorized by setting their vectorization before we set the
+        // vectorizations in blocks.
+        //
+        // Unhandled Outputs are correctly vectorized, so this is only necessary for inputs.
+        for input in self.resources.inputs_unhandled.iter() {
+            let pos = self
+                .resources
+                .inputs
+                .get_index(*input)
+                .unwrap_or_else(|| self.resources.inputs.get_index_quant(*input).unwrap());
+            let input_global = context.tensors.get(input).unwrap();
+
+            match plan.vectorizations.get(&input_global.id).unwrap() {
+                Vect::Aligned(vect) => {
+                    let handle = &mut plan.handle_inputs[pos];
+                    match handle {
+                        HandleInput::Normal(handle) => {
+                            handle.vector_size = *vect;
+                        }
+                        HandleInput::QuantValues(handle) => {
+                            handle.vector_size = *vect;
+                        }
+                        HandleInput::QuantParams(_) => {}
+                    }
+                }
+                Vect::Broadcasted => {}
+            }
+        }
+
+        for ((tmp, block_plan), block) in block_vectorization
+            .into_iter()
+            .zip(plan.blocks.iter_mut())
+            .zip(self.blocks)
+        {
+            match block.settings.vectorization {
+                VectorizationSetting::Activated => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        u8::MAX as usize,
+                    );
+                }
+                VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos } => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        previous_widths[block_pos],
+                    );
+                    if block_plan.width == 0 {
+                        block_plan.width = previous_widths[block_pos];
+                    }
+                }
+                VectorizationSetting::EqualThanPreviousBlock { block_pos } => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        previous_widths[block_pos],
+                    );
+                    // Enforces the width.
+                    block_plan.width = previous_widths[block_pos];
+                }
+                VectorizationSetting::Deactivated => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        1,
+                    );
+                    block_plan.width = 1;
+                }
+            }
+
+            // When only virtual inputs/outputs are present for a block, we need to set a width.
+            if block_plan.width == 0 {
+                if let Some(w) = previous_widths.last() {
+                    block_plan.width = *w;
+                } else {
+                    block_plan.width = 1;
+                }
+            }
+
+            previous_widths.push(block_plan.width);
+        }
+    }
+}
+
+#[derive(Debug)]
+enum VectorizationAction {
+    Input(usize),
+    Output(usize),
+}
+
+#[derive(Debug)]
+struct BlockVectorization {
+    action: VectorizationAction,
+    potential: VectorSize,
+    broadcasted: bool,
+}
+
+fn apply_vectorization_block<R: Runtime>(
+    block_vectorization: Vec<BlockVectorization>,
+    inputs: &mut [HandleInput<R>],
+    outputs: &mut [HandleOutput<R>],
+    block_plan: &mut BlockPlan,
+    max: VectorSize,
+) {
+    for item in block_vectorization {
+        match item.action {
+            VectorizationAction::Input(pos) => {
+                let (vect, br) = if item.potential <= max {
+                    (item.potential, item.broadcasted)
+                } else {
+                    (1, false)
+                };
+
+                match &mut inputs[pos] {
+                    HandleInput::Normal(input) => {
+                        input.vector_size = vect;
+                        input.broadcated = br;
+                    }
+                    HandleInput::QuantValues(input) => {
+                        input.vector_size = vect;
+                    }
+                    HandleInput::QuantParams(_) => {
+                        // Not vectorized
+                    }
+                }
+
+                if block_plan.width < vect {
+                    block_plan.width = vect;
+                }
+            }
+            VectorizationAction::Output(pos) => {
+                if let HandleOutput::Owned { vectorization, .. } = &mut outputs[pos] {
+                    let vect = if item.potential <= max {
+                        item.potential
+                    } else {
+                        1
+                    };
+                    *vectorization = vect;
+
+                    if block_plan.width < vect {
+                        block_plan.width = vect;
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn vector_sizes_quants<R: Runtime>(
+    client: &ComputeClient<R>,
+    quants_vector_sizes: &mut Option<Vec<VectorSize>>,
+    scheme: QuantScheme,
+) {
+    match scheme.store {
+        QuantStore::Native => match scheme.value {
+            // Type sizes are the same so just treat fp8/fp4x2 as i8
+            QuantValue::Q8F
+            | QuantValue::Q8S
+            | QuantValue::E4M3
+            | QuantValue::E5M2
+            | QuantValue::E2M1 => {
+                let vector_sizes = client
+                    .io_optimized_vector_sizes(size_of::<i8>())
+                    .collect::<Vec<_>>();
+
+                match &quants_vector_sizes {
+                    Some(sizes) => {
+                        if sizes[0] < vector_sizes[0] {
+                            *quants_vector_sizes = Some(vector_sizes);
+                        }
+                    }
+                    None => {
+                        *quants_vector_sizes = Some(vector_sizes);
+                    }
+                }
+            }
+            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                unreachable!("Can't store native sub-byte values")
+            }
+        },
+        QuantStore::PackedU32(_) => {
+            let mut vector_sizes = client
+                .io_optimized_vector_sizes(size_of::<u32>())
+                .collect::<Vec<_>>();
+
+            for val in vector_sizes.iter_mut() {
+                *val *= scheme.num_quants();
+            }
+
+            let min = *vector_sizes.last().unwrap();
+
+            // We need to put back values that are not multiple of num_quants, but may be good
+            // vectorization factor for other handles in a fused trace.
+            for val in client.io_optimized_vector_sizes(size_of::<u32>()) {
+                if val < min {
+                    vector_sizes.push(val);
+                }
+            }
+
+            match &quants_vector_sizes {
+                Some(sizes) => {
+                    if sizes[0] < vector_sizes[0] {
+                        let mut min = *vector_sizes.last().unwrap();
+
+                        while min > 1 {
+                            min /= 2;
+                            vector_sizes.push(min);
+                        }
+                        *quants_vector_sizes = Some(vector_sizes);
+                    }
+                }
+                None => {
+                    *quants_vector_sizes = Some(vector_sizes);
+                }
+            }
+        }
+        QuantStore::PackedNative(_) => {
+            panic!("Not yet supported")
+        }
+    };
+}

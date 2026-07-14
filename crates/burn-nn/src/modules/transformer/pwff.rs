@@ -1,0 +1,128 @@
+use burn_core as burn;
+
+use crate::activation::{Activation, ActivationConfig};
+use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
+use burn::config::Config;
+use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
+use burn::tensor::{Device, Tensor};
+
+/// Configuration to create a [position-wise feed-forward](PositionWiseFeedForward) layer using the [init function](PositionWiseFeedForwardConfig::init).
+#[derive(Config, Debug)]
+pub struct PositionWiseFeedForwardConfig {
+    /// The size of the input and output features.
+    pub d_model: usize,
+    /// The size of the hidden inner features.
+    pub d_ff: usize,
+    /// The dropout rate. Default: 0.1
+    #[config(default = 0.1)]
+    pub dropout: f64,
+    /// The type of function used to initialize neural network parameters
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
+    )]
+    pub initializer: Initializer,
+    /// The activation function used between the two linear layers. Default: Gelu
+    #[config(default = "ActivationConfig::Gelu")]
+    pub activation: ActivationConfig,
+}
+
+/// Applies the position-wise feed-forward network to the input tensor from the paper [Attention Is All You Need](https://arxiv.org/pdf/1706.03762v7).
+///
+/// # Params
+///
+/// - linear inner: Linear layer with `d_model` input features and `d_ff` output features.
+/// - linear outer: Linear layer with `d_ff` input features and `d_model` output features.
+///
+/// `FFN(x) = max(0, xW1 + b1)W2 + b2`
+///
+/// Should be created using [PositionWiseFeedForwardConfig]
+///
+/// # Notes
+///
+/// The `activation` field is currently marked `#[module(skip)]` for backward
+/// compatibility with records saved before this field was introduced (when
+/// the activation was always `Gelu` and had no state). This means activation
+/// state is **not persisted** when saving or loading records.
+///
+/// For stateless activations (GELU, ReLU, etc.) this has no effect.
+/// **If you are using `SwiGLU`, its learnable parameters will not be saved or
+/// loaded correctly.**
+#[derive(Module, Debug)]
+#[module(custom_display)]
+pub struct PositionWiseFeedForward {
+    /// Linear layer with `d_model` input features and `d_ff` output features.
+    pub linear_inner: Linear,
+    /// Linear layer with `d_ff` input features and `d_model` output features.
+    pub linear_outer: Linear,
+    /// Dropout layer.
+    pub dropout: Dropout,
+    /// Activation function.
+    #[module(skip)] // for backward compatibility with previous `gelu` field name
+    pub activation: Activation,
+}
+
+impl ModuleDisplay for PositionWiseFeedForward {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_model, dff] = self.linear_inner.weight.shape().dims();
+
+        content
+            .add("d_model", &d_model)
+            .add("d_ff", &dff)
+            .add("prob", &self.dropout.prob)
+            .optional()
+    }
+}
+
+impl PositionWiseFeedForwardConfig {
+    /// Initialize a new [position-wise feed-forward](PositionWiseFeedForward) module.
+    pub fn init(&self, device: &Device) -> PositionWiseFeedForward {
+        PositionWiseFeedForward {
+            linear_inner: LinearConfig::new(self.d_model, self.d_ff)
+                .with_initializer(self.initializer.clone())
+                .init(device),
+            linear_outer: LinearConfig::new(self.d_ff, self.d_model)
+                .with_initializer(self.initializer.clone())
+                .init(device),
+            dropout: DropoutConfig::new(self.dropout).init(),
+            activation: self.activation.init(device),
+        }
+    }
+}
+
+impl PositionWiseFeedForward {
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - tensor: `[batch_size, seq_length, d_model]`
+    /// - output: `[batch_size, seq_length, d_model]`
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
+        let x = self.linear_inner.forward(input);
+        let x = self.activation.forward(x);
+        let x = self.dropout.forward(x);
+
+        self.linear_outer.forward(x)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let config = PositionWiseFeedForwardConfig::new(2, 4);
+        let pwff = config.init(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{pwff}"),
+            "PositionWiseFeedForward {d_model: 2, d_ff: 4, prob: 0.1, params: 22}"
+        );
+    }
+}

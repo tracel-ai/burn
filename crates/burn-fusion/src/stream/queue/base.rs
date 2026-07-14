@@ -1,13 +1,15 @@
-use std::sync::Arc;
-
-use crate::FusionRuntime;
-use crate::stream::{OperationConverter, OperationStreams, RelativeOps, execution::Operation};
-use burn_common::id::StreamId;
+use crate::stream::{OperationConverter, RelativeOps};
+use crate::{FusionRuntime, UnfusedOp};
 use burn_ir::{OperationIr, TensorId, TensorStatus};
 
 use hashbrown::HashMap;
 
 /// A growing list of [tensor operation descriptions](OperationIr).
+///
+/// Every queue is associated with a single [`StreamId`](super::super::StreamId) — every tensor it
+/// references is local to that stream (cross-stream sharing is handled out-of-band by
+/// [`MultiStream::tag_shared_view`](super::super::MultiStream::tag_shared_view), which aliases
+/// the source handle under a fresh local tensor id before the op is enqueued).
 pub struct OperationQueue<R: FusionRuntime> {
     /// List of operation descriptions. These contain the exact tensor IDs
     /// and shapes so that kernels can be run correctly.
@@ -19,8 +21,8 @@ pub struct OperationQueue<R: FusionRuntime> {
     /// determine which operations can be fused.
     pub(crate) relative: Vec<OperationIr>,
     pub(crate) converter: OperationConverter,
-    pub(crate) operations: Vec<Arc<dyn Operation<R>>>,
-    pub(crate) variables: HashMap<TensorId, (StreamId, TensorStatus)>,
+    pub(crate) operations: Vec<UnfusedOp<R>>,
+    pub(crate) variables: HashMap<TensorId, TensorStatus>,
 }
 
 impl<R: FusionRuntime> Default for OperationQueue<R> {
@@ -46,19 +48,9 @@ impl<R: FusionRuntime> OperationQueue<R> {
     /// The new [operation intermediate representation](OperationIr) will be converted to a local
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
-    pub fn add(
-        &mut self,
-        global: OperationIr,
-        operation: Arc<dyn Operation<R>>,
-        streams: &OperationStreams,
-        current: StreamId,
-    ) {
+    pub fn add(&mut self, global: OperationIr, operation: UnfusedOp<R>) {
         for node in global.nodes() {
-            if let Some(stream_id) = streams.get(node.id) {
-                self.variables.insert(node.id, (stream_id, node.status));
-            } else {
-                self.variables.insert(node.id, (current, node.status));
-            }
+            self.variables.insert(node.id, node.status);
         }
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);
@@ -69,7 +61,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
 
 #[cfg(all(test, feature = "std"))]
 mod tests {
-    use super::*;
+    use burn_backend::StreamId;
 
     #[test]
     fn stream_id_from_different_threads() {

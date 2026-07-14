@@ -1,8 +1,7 @@
 use core::{marker::PhantomData, mem::transmute};
 
-use burn_common::{iter_range_par, run_par};
-use burn_tensor::{
-    DType, Element, TensorMetadata,
+use burn_backend::{
+    DType, Element,
     ops::{ConvOptions, conv::calculate_conv_output_size},
 };
 use bytemuck::Zeroable;
@@ -12,17 +11,17 @@ use ndarray::{
 };
 use seq_macro::seq;
 
-use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, SharedArray, UnsafeSharedRef, iter_range_par, run_par};
 
-type Args<E> = (NdArrayTensor<E>, NdArrayTensor<E>, Option<NdArrayTensor<E>>);
+type Args<E> = (SharedArray<E>, SharedArray<E>, Option<SharedArray<E>>);
 
 #[allow(clippy::result_large_err)]
 pub fn try_conv2d_simd<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E>,
-    weight: NdArrayTensor<E>,
-    bias: Option<NdArrayTensor<E>>,
+    x: SharedArray<E>,
+    weight: SharedArray<E>,
+    bias: Option<SharedArray<E>>,
     options: ConvOptions<2>,
-) -> Result<NdArrayTensor<E>, Args<E>> {
+) -> Result<SharedArray<E>, Args<E>> {
     match E::dtype() {
         DType::F64 => conv2d::<f64, _>(x, weight, bias, options, PhantomData),
         DType::F32 => conv2d::<f32, _>(x, weight, bias, options, PhantomData),
@@ -36,8 +35,8 @@ pub fn try_conv2d_simd<E: FloatNdArrayElement>(
     }
 }
 
-fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
-    unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
+fn cast<T, E>(tensor: SharedArray<T>) -> SharedArray<E> {
+    unsafe { transmute::<SharedArray<T>, SharedArray<E>>(tensor) }
 }
 
 /// Out-channel last SIMD accelerated direct convolution. Loop order and register blocking based on
@@ -46,13 +45,13 @@ fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
 /// SC '18, Article 6, pp. 1-12. arXiv:1808.05567. <https://arxiv.org/abs/1808.05567>.
 #[allow(clippy::result_large_err)]
 fn conv2d<E: VMulAdd + Element, T: Element>(
-    x: NdArrayTensor<T>,
-    weight: NdArrayTensor<T>,
-    bias: Option<NdArrayTensor<T>>,
+    x: SharedArray<T>,
+    weight: SharedArray<T>,
+    bias: Option<SharedArray<T>>,
     options: ConvOptions<2>,
     _ty: PhantomData<E>,
-) -> Result<NdArrayTensor<T>, Args<T>> {
-    let [out_channels, _, k_height, k_width] = weight.shape().dims();
+) -> Result<SharedArray<T>, Args<T>> {
+    let [out_channels, _, k_height, k_width] = weight.shape().try_into().unwrap();
     let channels_per_group = out_channels / options.groups;
 
     #[macerator::with_simd]
@@ -62,7 +61,7 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
 
     let (lanes, accelerated) = precheck::<E>(PhantomData);
 
-    if !accelerated || channels_per_group % lanes != 0 {
+    if !accelerated || !channels_per_group.is_multiple_of(lanes) {
         return Err((x, weight, bias));
     }
 
@@ -70,7 +69,7 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     let weight = cast::<_, E>(weight);
     let bias = bias.map(|bias| cast::<_, E>(bias));
 
-    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims();
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().try_into().unwrap();
     let [dilate_h, dilate_w] = options.dilation;
     let [stride_h, stride_w] = options.stride;
     let [pad_h, pad_w] = options.padding;
@@ -81,11 +80,11 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     let out_height = calculate_conv_output_size(k_height, stride_h, pad_h, dilate_h, in_height);
     let out_width = calculate_conv_output_size(k_width, stride_w, pad_w, dilate_w, in_width);
 
-    let x = x.array.into_dimensionality::<Ix4>().unwrap();
-    let weights = weight.array.into_dimensionality::<Ix4>().unwrap();
+    let x = x.into_dimensionality::<Ix4>().unwrap();
+    let weights = weight.into_dimensionality::<Ix4>().unwrap();
     let weights = weights.permuted_axes([1, 2, 3, 0]);
     let weights = weights.as_standard_layout();
-    let bias = bias.map(|bias| bias.array.into_dimensionality::<Ix1>().unwrap());
+    let bias = bias.map(|bias| bias.into_dimensionality::<Ix1>().unwrap());
     // floor division means `(oc_blocks - 1) * lanes` can never be greater than `out_channels - lanes`.
     let oc_blocks = out_channels / lanes;
 
@@ -135,7 +134,7 @@ fn conv2d<E: VMulAdd + Element, T: Element>(
     });
 
     let output = out.permuted_axes([0, 3, 1, 2]);
-    Ok(cast(NdArrayTensor::new(output.into_dyn().into_shared())))
+    Ok(cast(output.into_dyn().into_shared()))
 }
 
 /// Size of register blocks, we need to hardcode this because Rust and the `seq` macro don't support
@@ -188,9 +187,9 @@ unsafe fn conv2d_launch<
     let oc_b = channels_per_group.min(lanes);
     let ow_b = REGISTER_BLOCK;
 
-    let ow_start = pad_w;
+    let ow_start = pad_w.min(out_width);
     let ow_width = out_width.saturating_sub(2 * pad_w);
-    let oh_start = pad_h;
+    let oh_start = pad_h.min(out_height);
     let oh_end = out_height.saturating_sub(pad_h);
 
     let ow_blocks = ow_width / ow_b;
@@ -271,11 +270,12 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
     k_height: usize,
     k_width: usize,
 ) {
-    let (in_channels, in_height, in_width) = x.dim();
+    let in_channels = weights.shape()[0];
+    let (_, in_height, in_width) = x.dim();
     let (out_height, out_width, _) = out.dim();
-    let oh_start = pad_h;
+    let oh_start = pad_h.min(out_height);
     let oh_end = out_height.saturating_sub(pad_h);
-    let ow_start = pad_w;
+    let ow_start = pad_w.min(out_width);
 
     let height1 = in_height + pad_h;
     let width1 = in_width + pad_w;
@@ -308,7 +308,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
                         // compiler can't prove this. We can't use `as_slice` with fixed bounds
                         // because we want to support arbitrary input layouts. So an unchecked load
                         // is used.
-                        let i0 = unsafe { x.uget([ic, ih, iw]) }.splat::<S>();
+                        let i0 = unsafe { x.uget([ic_off + ic, ih, iw]) }.splat::<S>();
                         acc = i0.mul_add(f0, acc);
                     }
                 }
@@ -390,7 +390,7 @@ macro_rules! inner_with_register_blocking_size {
             pad_h: usize,
             pad_w: usize,
         ) {
-            let in_channels = x.shape()[0];
+            let in_channels = weights.shape()[0];
 
             seq!(N in 0..$rb {
                 let mut acc~N = bias;
@@ -451,7 +451,7 @@ macro_rules! inner_with_register_blocking_size {
             pad_h: usize,
             pad_w: usize,
         ) {
-            let in_channels = x.shape()[0];
+            let in_channels = weights.shape()[0];
 
             seq!(N in 0..$rb {
                 let mut acc~N = bias;

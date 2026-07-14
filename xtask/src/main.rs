@@ -14,7 +14,8 @@ const NO_STD_CRATES: &[&str] = &[
     "burn",
     "burn-autodiff",
     "burn-core",
-    "burn-common",
+    "burn-std",
+    "burn-backend",
     "burn-tensor",
     "burn-ndarray",
     "burn-no-std-tests",
@@ -37,13 +38,16 @@ pub enum Command {
     Books(commands::books::BooksArgs),
     /// Build Burn in different modes.
     Build(commands::build::BurnBuildCmdArgs),
+    /// Validate the remote backend end-to-end: spin up the `server` example, point
+    /// `burn-backend-tests` at it via `BURN_DEVICE=remote`, tear it down on exit.
+    Remote(commands::remote::RemoteCmdArgs),
     /// Test Burn.
     Test(commands::test::BurnTestCmdArgs),
 }
 
 fn main() -> anyhow::Result<()> {
     let start = Instant::now();
-    let args = init_xtask::<Command>(parse_args::<Command>()?)?;
+    let (args, environment) = init_xtask::<Command>(parse_args::<Command>()?)?;
 
     if args.context == Context::NoStd {
         // Install additional targets for no-std execution environments
@@ -55,18 +59,21 @@ fn main() -> anyhow::Result<()> {
     match args.command {
         Command::Books(cmd_args) => cmd_args.parse(),
         Command::Build(cmd_args) => {
-            commands::build::handle_command(cmd_args, args.environment, args.context)
+            commands::build::handle_command(cmd_args, environment, args.context)
+        }
+        Command::Remote(cmd_args) => {
+            commands::remote::handle_command(cmd_args, environment, args.context)
         }
         Command::Doc(cmd_args) => {
-            commands::doc::handle_command(cmd_args, args.environment, args.context)
+            commands::doc::handle_command(cmd_args, environment, args.context)
         }
         Command::Test(cmd_args) => {
-            commands::test::handle_command(cmd_args, args.environment, args.context)
+            commands::test::handle_command(cmd_args, environment, args.context)
         }
         Command::Validate(cmd_args) => {
-            commands::validate::handle_command(&cmd_args, args.environment, args.context)
+            commands::validate::handle_command(&cmd_args, environment, args.context)
         }
-        _ => dispatch_base_commands(args),
+        _ => dispatch_base_commands(args, environment),
     }?;
 
     let duration = start.elapsed();

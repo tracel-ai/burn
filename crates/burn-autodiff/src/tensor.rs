@@ -1,30 +1,54 @@
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
-    grads::Gradients,
-    graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
+    grads::{BackwardMode, Gradients},
+    graph::{ComputingProperty, Node, NodeId, NodeRef, Parent, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
-use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
-use burn_tensor::{TensorMetadata, backend::Backend};
+#[cfg(feature = "std")]
+use crate::{distributed::DistributedGradientRegistration, grads::GradSyncContext};
+use alloc::{boxed::Box, vec};
+use burn_backend::{Backend, BackendTypes, TensorMetadata};
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
+
+use burn_backend::distributed::{DistributedParamId, DistributedParams};
 
 #[derive(Debug, Clone)]
-pub struct AutodiffTensor<B: Backend> {
+pub struct AutodiffTensor<B: BackendTypes> {
     pub primitive: B::FloatTensorPrimitive,
     pub node: NodeRef,
     pub rc: NodeRefCount,
 }
 
-impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
-    fn dtype(&self) -> burn_tensor::DType {
+impl<B: BackendTypes> TensorMetadata for AutodiffTensor<B> {
+    type Device = B::Device;
+    fn dtype(&self) -> burn_std::DType {
         self.primitive.dtype()
     }
 
-    fn shape(&self) -> burn_tensor::Shape {
+    fn shape(&self) -> burn_std::Shape {
         self.primitive.shape()
+    }
+
+    fn rank(&self) -> usize {
+        self.primitive.rank()
+    }
+    fn device(&self) -> B::Device {
+        self.primitive.device()
+    }
+
+    fn can_mut(&self) -> bool {
+        // Precise: the inner handle's buffer refcount already accounts for any
+        // clone the autodiff graph retains (e.g. checkpointed states).
+        self.primitive.can_mut()
     }
 }
 
-pub type NodeRefCount = Arc<NodeID>;
+pub type NodeRefCount = Arc<NodeId>;
 
 #[derive(new, Debug)]
 pub(crate) struct RootStep {
@@ -36,23 +60,27 @@ impl Step for RootStep {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeID {
+    fn node(&self) -> NodeId {
         self.node.id
     }
 
-    fn parents(&self) -> Vec<NodeID> {
-        self.node.parents.clone()
+    fn parents(&self) -> &[Parent] {
+        &self.node.parents
     }
 
     fn depth(&self) -> usize {
         self.node.order
+    }
+
+    fn distributed_params(&self) -> Option<DistributedParams> {
+        self.node.distributed_params.clone()
     }
 }
 
 impl<B: Backend> AutodiffTensor<B> {
     /// Create a new leaf tensor.
     pub fn new(primitive: B::FloatTensorPrimitive) -> Self {
-        let id = NodeID::new();
+        let id = NodeId::new();
         let node: NodeRef = Node::new(
             vec![],
             0,
@@ -60,6 +88,7 @@ impl<B: Backend> AutodiffTensor<B> {
             Requirement::None,
             ComputingProperty::Ambiguous,
             AutodiffClientImpl::new(),
+            None,
         )
         .into();
 
@@ -93,6 +122,7 @@ impl<B: Backend> AutodiffTensor<B> {
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
+                    self.node.distributed_params.clone(),
                 )
                 .into();
                 let step = RootStep::new(self.node.clone());
@@ -125,13 +155,14 @@ impl<B: Backend> AutodiffTensor<B> {
             parent_nodes
                 .iter()
                 .filter_map(|node| node.clone_if_require_grad())
-                .map(|node| node.id)
+                .map(|node| Parent::new(node.id))
                 .collect(),
             order,
-            NodeID::new(),
+            NodeId::new(),
             requirement,
             computing_properties,
             client,
+            None,
         )
         .into();
 
@@ -162,5 +193,69 @@ impl<B: Backend> AutodiffTensor<B> {
 
     pub fn into_primitive(self) -> B::FloatTensorPrimitive {
         self.primitive
+    }
+
+    #[cfg(not(feature = "std"))]
+    pub fn backward(self) -> Gradients {
+        let client = self.node.client.clone();
+
+        AutodiffClient::backward::<B>(&client, self, BackwardMode::default())
+    }
+
+    pub fn grad(&self, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
+        grads.get::<B>(self)
+    }
+
+    pub fn grad_remove(&self, grads: &mut Gradients) -> Option<B::FloatTensorPrimitive> {
+        grads.remove::<B>(self)
+    }
+
+    pub fn grad_replace(&self, grads: &mut Gradients, grad: B::FloatTensorPrimitive) {
+        grads.remove::<B>(self);
+        grads.register::<B>(self.node.id, grad);
+    }
+
+    /// Mark the tensor as distributed across multiple devices.
+    /// Its gradients will be automatically aggregated from those devices after the backward pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `param_id` - The module tensor's [`DistributedParamId`].
+    pub fn grad_distributed(mut self, param_id: DistributedParamId) -> Self {
+        self.node = Node::new(
+            vec![],
+            0,
+            self.node.id,
+            self.node.requirement,
+            self.node.properties.clone(),
+            self.node.client.clone(),
+            Some(DistributedParams { param_id }),
+        )
+        .into();
+        let step = RootStep::new(self.node.clone());
+
+        self.register_step(step, CheckpointerBuilder::default())
+    }
+}
+
+#[cfg(feature = "std")]
+impl<B: Backend> AutodiffTensor<B> {
+    pub fn backward(self) -> Gradients {
+        let device = self.primitive.device();
+        let device_cloned = device.clone();
+        let client = self.node.client.clone();
+
+        let mode = BackwardMode::Distributed(Box::new(|ctx: GradSyncContext| {
+            let registration = DistributedGradientRegistration::<B>::new(
+                ctx.n_required_map,
+                ctx.distributed_params,
+                device_cloned,
+            );
+            Box::new(registration)
+        }));
+
+        let grads = AutodiffClient::backward::<B>(&client, self, mode);
+        B::submit_sync_collective(&device);
+        grads
     }
 }

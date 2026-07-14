@@ -1,0 +1,52 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science", "no-std", "embedded", "wasm"]
+description = "Optimizer building blocks for the Burn deep learning framework"
+documentation = "https://docs.rs/burn-optim"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+license.workspace = true
+name = "burn-optim"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-optim"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std", "burn-core/default"]
+doc = [
+    "std",
+    # Doc features
+    "burn-core/doc",
+]
+std = ["burn-core/std", "burn-pack/std", "num-traits/std", "serde/std", "log"]
+tracing = ["burn-core/tracing"]
+
+# collective = ["burn-collective"]
+
+[dependencies]
+
+# ** Please make sure all dependencies support no_std when std is disabled **
+burn-core = { workspace = true, features = ["autodiff", "extension"] }
+burn-derive = { workspace = true }
+burn-pack = { workspace = true, default-features = false }
+
+num-traits = { workspace = true }
+derive-new = { workspace = true }
+log = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
+
+# The same implementation of HashMap in std but with no_std support (only alloc crate is needed)
+hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
+
+[dev-dependencies]
+burn-nn = { workspace = true, features = ["default"] }
+burn-flex = { workspace = true, features = ["default"] }
+burn-autodiff = { workspace = true, features = ["default"] }
+rstest = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

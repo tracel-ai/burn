@@ -12,7 +12,7 @@ pub enum CheckpointingAction {
 }
 
 /// Define when checkpoint should be saved and deleted.
-pub trait CheckpointingStrategy {
+pub trait CheckpointingStrategy: Send {
     /// Based on the epoch, determine if the checkpoint should be saved.
     fn checkpointing(
         &mut self,

@@ -1,10 +1,8 @@
-use crate::{
-    FloatNdArrayElement, NdArray,
-    element::{IntNdArrayElement, QuantElement},
-};
-use burn_tensor::ops::TransactionOps;
+use crate::NdArray;
+use burn_backend::distributed::DistributedOps;
+use burn_backend::ops::TransactionOps;
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> TransactionOps<Self>
-    for NdArray<E, I, Q>
-{
-}
+impl TransactionOps<Self> for NdArray {}
+
+// DistributedOps has default implementations; NdArray does not support collective operations.
+impl DistributedOps<Self> for NdArray {}

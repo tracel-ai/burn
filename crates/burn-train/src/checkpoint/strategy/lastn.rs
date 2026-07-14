@@ -18,10 +18,10 @@ impl CheckpointingStrategy for KeepLastNCheckpoints {
     ) -> Vec<CheckpointingAction> {
         let mut actions = vec![CheckpointingAction::Save];
 
-        if let Some(epoch) = usize::checked_sub(epoch, self.num_keep) {
-            if epoch > 0 {
-                actions.push(CheckpointingAction::Delete(epoch));
-            }
+        if let Some(epoch) = usize::checked_sub(epoch, self.num_keep)
+            && epoch > 0
+        {
+            actions.push(CheckpointingAction::Delete(epoch));
         }
 
         actions

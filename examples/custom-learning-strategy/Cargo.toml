@@ -1,0 +1,14 @@
+[package]
+name = "custom-learning-strategy"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["autodiff", "wgpu", "vision"] }
+guide = { path = "../guide" }
+log = { workspace = true }

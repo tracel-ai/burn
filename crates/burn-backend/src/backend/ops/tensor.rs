@@ -1,0 +1,1875 @@
+use super::cat::cat_with_slice_assign;
+use super::grid_sample::float_grid_sample_2d_ref;
+use super::repeat_dim::repeat_with_slice_assign;
+use super::sort::{argsort, sort, sort_with_indices};
+use crate::ops::GridSampleOptions;
+use crate::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
+use crate::{Backend, Distribution, TensorData, get_device_settings};
+use crate::{ExecutionError, Scalar, TensorMetadata};
+use alloc::vec::Vec;
+use burn_std::reader::try_read_sync;
+use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+
+/// Operations on float tensors.
+pub trait FloatTensorOps<B: Backend> {
+    /// Creates a new tensor from the data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data structure.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given data.
+    fn float_from_data(data: TensorData, device: &Device<B>) -> FloatTensor<B>;
+
+    /// Creates a new tensor with random values.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `distribution` - The distribution to sample from.
+    /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given shape and random values.
+    fn float_random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+        dtype: FloatDType,
+    ) -> FloatTensor<B>;
+
+    /// Creates a new tensor with zeros.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given shape and zeros.
+    fn float_zeros(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
+        Self::float_from_data(TensorData::full_dtype(shape, 0., dtype.into()), device)
+    }
+
+    /// Creates a new tensor with ones.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given shape and ones.
+    fn float_ones(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
+        Self::float_from_data(TensorData::full_dtype(shape, 1., dtype.into()), device)
+    }
+
+    /// Creates a tensor filled with given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `fill_value` - The value with which to fill the tensor.
+    /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// The tensor filled with given value
+    fn float_full(
+        shape: Shape,
+        fill_value: Scalar,
+        device: &Device<B>,
+        dtype: FloatDType,
+    ) -> FloatTensor<B> {
+        Self::float_from_data(
+            TensorData::full_dtype(shape, fill_value, dtype.into()),
+            device,
+        )
+    }
+
+    /// Converts the tensor to a data structure.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The data structure with the tensor's data.
+    fn float_into_data(
+        tensor: FloatTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+
+    /// Moves the tensor to the given device.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `device` - The device to move the tensor to.
+    ///
+    /// # Returns
+    ///
+    /// The tensor on the given device.
+    fn float_to_device(tensor: FloatTensor<B>, device: &Device<B>) -> FloatTensor<B>;
+
+    /// Converts float tensor to int tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// The int tensor with the same data as the float tensor.
+    fn float_into_int(tensor: FloatTensor<B>, out_dtype: IntDType) -> IntTensor<B>;
+
+    /// Creates an empty tensor with the given shape.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the tensor.
+    /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// The empty tensor with the given shape.
+    fn float_empty(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B>;
+
+    /// Repeat the tensor along the given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension to repeat.
+    /// * `times` - The number of times to repeat the dimension.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the given dimension repeated.
+    fn float_repeat_dim(tensor: FloatTensor<B>, dim: usize, times: usize) -> FloatTensor<B> {
+        let device = tensor.device();
+        repeat_with_slice_assign::<B, _, _, _>(
+            tensor,
+            dim,
+            times,
+            device,
+            |shape, device, dtype| B::float_empty(shape, device, dtype.into()),
+            B::float_slice_assign,
+        )
+    }
+
+    /// Adds two tensors together.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of adding the two tensors together.
+    fn float_add(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Adds a scalar to a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of adding the scalar to the tensor.
+    fn float_add_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
+
+    /// Clamps a tensor under a minimum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn float_clamp_min(tensor: FloatTensor<B>, min: Scalar) -> FloatTensor<B> {
+        let dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let mask = Self::float_lower_elem(tensor.clone(), min, dtype);
+        B::float_mask_fill(tensor, mask, min)
+    }
+
+    /// Clamps a tensor over a maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn float_clamp_max(tensor: FloatTensor<B>, max: Scalar) -> FloatTensor<B> {
+        let dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let mask = Self::float_greater_elem(tensor.clone(), max, dtype);
+        B::float_mask_fill(tensor, mask, max)
+    }
+
+    /// Clamps a tensor between a minimum and maximum value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to clamp.
+    /// * `min` - The minimum value.
+    /// * `max` - The maximum value.
+    ///
+    /// # Returns
+    ///
+    /// The clamped tensor.
+    fn float_clamp(tensor: FloatTensor<B>, min: Scalar, max: Scalar) -> FloatTensor<B> {
+        // Default implementation
+        Self::float_clamp_min(Self::float_clamp_max(tensor, max), min)
+    }
+
+    /// Subtracts two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of subtracting the two tensors.
+    fn float_sub(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Subtracts a scalar from a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of subtracting the scalar from the tensor.
+    fn float_sub_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
+
+    /// Multiplies two tensors together element-wise.
+    fn float_mul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Multiplies a tensor by a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the tensor by the scalar.
+    fn float_mul_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
+
+    /// Divides two tensors element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of dividing the two tensors.
+    fn float_div(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Divides a tensor by a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of dividing the tensor by the scalar.
+    fn float_div_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
+
+    /// Computes the remainder of division between two tensors element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise remainder when dividing `lhs` by `rhs`.
+    fn float_remainder(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Computes the modulus of a tensor given a scalar.
+    ///
+    /// # Arguments
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of applying the modulus of the scalar to the tensor.
+    fn float_remainder_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
+
+    /// Multiplies two tensors together using matrix multiplication.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The result of multiplying the two tensors together using matrix multiplication.
+    fn float_matmul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Computes the cross product of two tensors along a given dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `dim` - The dimension to compute the cross product along.
+    ///
+    /// # Returns
+    ///
+    /// The cross product of the two tensors.
+    fn float_cross(lhs: FloatTensor<B>, rhs: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Negates a tensor element-wise.
+    fn float_neg(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        Self::float_mul_scalar(tensor, (-1f32).into())
+    }
+
+    /// Calculates the reciprocals element-wise
+    fn float_recip(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Transposes a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to transpose.
+    ///
+    /// # Returns
+    ///
+    /// The transposed tensor.
+    fn float_transpose(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let ndims = tensor.shape().num_dims();
+        Self::float_swap_dims(tensor, ndims - 2, ndims - 1)
+    }
+
+    /// Swaps two dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to swap the dimensions of.
+    /// * `dim1` - The first dimension to swap.
+    /// * `dim2` - The second dimension to swap.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the dimensions swapped.
+    fn float_swap_dims(tensor: FloatTensor<B>, dim1: usize, dim2: usize) -> FloatTensor<B>;
+
+    /// Permutes the dimensions of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to permute the dimensions of.
+    /// * `axes` - The new order of the dimensions.
+    /// # Returns
+    ///
+    /// The tensor with the dimensions permuted.
+    fn float_permute(tensor: FloatTensor<B>, axes: &[usize]) -> FloatTensor<B>;
+
+    /// Reverse the order of elements in a tensor along the given axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reverse.
+    /// * `axes` - The axes to reverse.
+    ///
+    /// The tensor with the elements reversed.
+    fn float_flip(tensor: FloatTensor<B>, axes: &[usize]) -> FloatTensor<B>;
+
+    /// Reshapes a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to reshape.
+    /// * `shape` - The new shape of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the new shape.
+    fn float_reshape(tensor: FloatTensor<B>, shape: Shape) -> FloatTensor<B>;
+
+    /// Gather elements from a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension to gather from.
+    /// * `tensor` - The tensor to gather from.
+    /// * `indices` - The indices to gather.
+    ///
+    /// # Returns
+    ///
+    /// The gathered elements.
+    fn float_gather(dim: usize, tensor: FloatTensor<B>, indices: IntTensor<B>) -> FloatTensor<B>;
+
+    /// Scatter elements into a tensor using sum reduction.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension to scatter into.
+    /// * `tensor` - The tensor to scatter into.
+    /// * `indices` - The indices to scatter into.
+    /// * `value` - The value to scatter.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the scattered elements.
+    fn float_scatter_add(
+        dim: usize,
+        tensor: FloatTensor<B>,
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
+
+    /// Multi-dimensional scatter: update `data` at locations specified by `indices` with `values`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor to scatter into.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `data`.
+    /// * `values` - The values to scatter.
+    /// * `reduction` - How to combine with existing values.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with scattered values.
+    fn float_scatter_nd(
+        _data: FloatTensor<B>,
+        _indices: IntTensor<B>,
+        _values: FloatTensor<B>,
+        _reduction: crate::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<B> {
+        unimplemented!("float_scatter_nd is not implemented for this backend")
+    }
+
+    /// Multi-dimensional gather: collect slices from `data` at locations specified by `indices`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor to gather from.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `data`.
+    ///
+    /// # Returns
+    ///
+    /// The gathered tensor.
+    fn float_gather_nd(_data: FloatTensor<B>, _indices: IntTensor<B>) -> FloatTensor<B> {
+        unimplemented!("float_gather_nd is not implemented for this backend")
+    }
+
+    /// Select tensor elements along the given dimension corresponding for the given indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `dim` - The dimension to select from.
+    /// * `indices` - The indices to select.
+    ///
+    /// # Returns
+    ///
+    /// The selected elements.
+    fn float_select(tensor: FloatTensor<B>, dim: usize, indices: IntTensor<B>) -> FloatTensor<B>;
+
+    /// Assign the selected elements along the given dimension corresponding for the given indices
+    /// to the given value using sum reduction.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `dim` - The dimension to select from.
+    /// * `indices` - The indices to select.
+    /// * `value` - The value to assign.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the selected elements assigned to the given value.
+    fn float_select_add(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
+
+    /// Select tensor elements corresponding to the given slices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `slices` - The slices specifying ranges and steps for each dimension.
+    ///
+    /// # Returns
+    ///
+    /// The selected elements in a new tensor.
+    ///
+    /// # Note
+    ///
+    /// Empty slices (where start >= end) are handled at the high-level tensor API and will not
+    /// be passed to this method. Backend implementations do not need to handle empty slices.
+    fn float_slice(tensor: FloatTensor<B>, slices: &[Slice]) -> FloatTensor<B>;
+
+    /// Assign the selected elements corresponding to the given slices to the given value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `ranges` - The ranges to select.
+    /// * `value` - The value to assign.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the selected elements assigned to the given value.
+    ///
+    /// # Note
+    ///
+    /// Empty slice assignments (where any slice range produces 0 elements) are handled at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty slice assignments.
+    fn float_slice_assign(
+        tensor: FloatTensor<B>,
+        slices: &[Slice],
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
+
+    /// Update the given tensor with the value tensor where the mask is true.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `mask` - The boolean mask to select with.
+    /// * `value` - The value to assign to the selected elements from the value tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the selected elements assigned to the given value.
+    fn float_mask_where(
+        tensor: FloatTensor<B>,
+        mask: BoolTensor<B>,
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
+
+    /// Update the given tensor with the value where the mask is true.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to select from.
+    /// * `mask` - The boolean mask to select with.
+    /// * `value` - The value to assign to the selected elements.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the selected elements assigned to the given value.
+    fn float_mask_fill(
+        tensor: FloatTensor<B>,
+        mask: BoolTensor<B>,
+        value: Scalar,
+    ) -> FloatTensor<B>;
+
+    /// Equal comparison of two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>, out_dtype: BoolDType)
+    -> BoolTensor<B>;
+
+    /// Element-wise non-equality comparison.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_not_equal(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        let equal_tensor = B::float_equal(lhs, rhs, out_dtype);
+        B::bool_not(equal_tensor)
+    }
+
+    /// Equal comparison of a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_equal_elem(lhs: FloatTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
+
+    /// Element-wise non-equality comparison with a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_not_equal_elem(
+        lhs: FloatTensor<B>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        let equal_tensor = B::float_equal_elem(lhs, rhs, out_dtype);
+        B::bool_not(equal_tensor)
+    }
+
+    /// Greater than comparison of two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_greater(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
+
+    /// Greater than comparison of a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_greater_elem(lhs: FloatTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
+
+    /// Greater than or equal comparison of two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_greater_equal(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
+
+    /// Greater than or equal comparison of a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_greater_equal_elem(
+        lhs: FloatTensor<B>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
+
+    /// Less than comparison of two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_lower(lhs: FloatTensor<B>, rhs: FloatTensor<B>, out_dtype: BoolDType)
+    -> BoolTensor<B>;
+
+    /// Less than comparison of a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_lower_elem(lhs: FloatTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
+
+    /// Less than or equal comparison of two tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_lower_equal(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
+
+    /// Less than or equal comparison of a tensor and a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with the result of the comparison.
+    fn float_lower_equal_elem(
+        lhs: FloatTensor<B>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
+
+    /// Detaches a tensor from the computation graph.
+    fn float_detach(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        // Should only be overridden by autodiff backends.
+        tensor
+    }
+
+    /// Sets the `require_grad` flag of a tensor.
+    fn float_set_require_grad(tensor: FloatTensor<B>, _require_grad: bool) -> FloatTensor<B> {
+        // Should only be overridden by autodiff backends.
+        tensor
+    }
+
+    /// Returns the `require_grad` flag of a tensor.
+    fn float_is_require_grad(_tensor: &FloatTensor<B>) -> bool {
+        // Should only be overridden by autodiff backends.
+        false
+    }
+
+    /// Sum of all elements in a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    ///
+    /// # Returns
+    ///
+    /// A scalar tensor with the sum of all elements in `tensor`.
+    fn float_sum(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Sum of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dim` - The dimension along which to sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the sum of all elements in `tensor` along `dim`.
+    fn float_sum_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Product of all elements in a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A scalar tensor with the product of all elements in `tensor`.
+    fn float_prod(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        // Product of all elements in a tensor
+        B::float_exp(B::float_sum(B::float_log(tensor)))
+    }
+
+    /// Product of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the product of all elements in `tensor` along `dim`.
+    fn float_prod_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        // Product of all elements in a tensor along a dimension
+        B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
+    }
+
+    /// Mean of all elements in a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to mean.
+    ///
+    /// # Returns
+    ///
+    /// A scalar tensor with the mean of all elements in `tensor`.
+    fn float_mean(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let num_elems = tensor.shape().num_elements() as f32;
+        B::float_div_scalar(B::float_sum(tensor), num_elems.into())
+    }
+
+    /// Mean of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to mean.
+    /// * `dim` - The dimension along which to mean.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the mean of all elements in `tensor` along `dim`.
+    fn float_mean_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Computes the cumulative sum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative sum of.
+    /// * `dim` - The dimension along which to compute the cumulative sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative sum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cumsum(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Computes the cumulative product of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative product of.
+    /// * `dim` - The dimension along which to compute the cumulative product.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the cumulative product
+    /// of all elements up to and including that position along the dimension.
+    fn float_cumprod(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Computes the cumulative minimum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative minimum of.
+    /// * `dim` - The dimension along which to compute the cumulative minimum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the minimum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cummin(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Computes the cumulative maximum of elements along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to compute the cumulative maximum of.
+    /// * `dim` - The dimension along which to compute the cumulative maximum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape where each element is the maximum
+    /// of all elements up to and including that position along the dimension.
+    fn float_cummax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+
+    /// Converts a tensor to another floating point data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target floating point data type.
+    fn float_cast(tensor: FloatTensor<B>, dtype: FloatDType) -> FloatTensor<B>;
+
+    /// Returns a new tensor with exponential values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to exponentiate.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with exponential values.
+    fn float_exp(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with natural logarithm values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the logarithm of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with natural logarithm values.
+    fn float_log(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with logarithm values of (1 + Xi).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the logarithm of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with logarithm values of (1 + Xi).
+    fn float_log1p(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Element-wise power with a FloatTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the power of the elements of `rhs`.
+    fn float_powf(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Element-wise power with an IntTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side floatTensor.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
+    fn float_powi(lhs: FloatTensor<B>, rhs: IntTensor<B>) -> FloatTensor<B> {
+        let dtype = lhs.dtype();
+        Self::float_powf(lhs, B::int_into_float(rhs, dtype.into()))
+    }
+
+    /// Raises a tensor to the power of an int scalar.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// A number of common exponent cases can be implemented with operations
+    /// which are much cheaper than generic exponentiation.
+    ///
+    /// This (`Backend` impl overridable) operation handles generic optimizations
+    /// for several common integer exponent cases; and then dispatches to
+    /// the (`Backend` impl overridable) [`Self::float_powi_scalar_impl`]
+    /// operation to handle the generic case.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn float_powi_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B> {
+        match rhs.elem::<i64>() {
+            0 => Self::float_ones(lhs.shape(), &lhs.device(), lhs.dtype().into()),
+            1 => lhs,
+            2 => B::float_mul(lhs.clone(), lhs),
+            -1 => Self::float_recip(lhs),
+            -2 => Self::float_recip(B::float_mul(lhs.clone(), lhs)),
+            _ => Self::float_powi_scalar_impl(lhs, rhs),
+        }
+    }
+
+    /// Raises a tensor to the power of an int scalar.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// This is the generic implementation of integer exponentiation
+    /// called by [`Self::float_powi_scalar`] in the fallback case.
+    ///
+    /// As a general rule, this should not be called directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The elements of `lhs` raised to the value of `rhs`.
+    fn float_powi_scalar_impl(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B> {
+        // Avoid a recursive loop by deferring directly to float_powf_scalar_impl.
+        Self::float_powf_scalar_impl(lhs, rhs)
+    }
+
+    /// Returns a new tensor with values raised to the power of float `value`.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// This (`Backend` impl overridable) operation dispatches integer exponentiation
+    /// to [`Self::float_powi_scalar`], and the remaining non-integer exponent cases to
+    /// the (`Backend` impl overridable) [`Self::float_powf_scalar_impl`]
+    /// operation to handle the generic case.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to exponentiate.
+    /// * `value` - The exponent.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
+    fn float_powf_scalar(tensor: FloatTensor<B>, value: Scalar) -> FloatTensor<B> {
+        if let Some(exp) = value.try_as_integer() {
+            Self::float_powi_scalar(tensor, exp)
+        } else {
+            Self::float_powf_scalar_impl(tensor, value)
+        }
+    }
+
+    /// Returns a new tensor with values raised to the power of float `value`.
+    ///
+    /// # Backend Implementors Note
+    ///
+    /// This is the generic implementation of integer exponentiation
+    /// called by [`Self::float_powf_scalar`] in the fallback case.
+    ///
+    /// This is the minimal required support a `Backend` must implement
+    /// for exponentiation.
+    ///
+    /// As a general rule, this should not be called directly.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to exponentiate.
+    /// * `value` - The exponent.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
+    fn float_powf_scalar_impl(tensor: FloatTensor<B>, value: Scalar) -> FloatTensor<B>;
+
+    /// Returns a new tensor with square root values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the square root of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with square root values.
+    fn float_sqrt(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with the Euclidean distance values.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left-hand side tensor.
+    /// * `rhs` - The right-hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `lhs` and `rhs` with hypotenuse values.
+    fn float_hypot(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B> {
+        // default implementation for any backend that can't either iterator over elements or doesn't have
+        // a native hypot implementation
+
+        // Mirrors glibc's approach: scale by max(|lhs|, |rhs|) to avoid
+        // overflow/underflow in the intermediate squaring step.
+        //
+        // hypot(x, y) = |max| * sqrt(1 + (min/max)^2)
+        //
+        // Edge cases:
+        //   - If max == 0, both inputs are 0, result is 0 (division guarded by clamp)
+        //   - If max is inf, result is inf (propagates naturally through sqrt)
+        //   - NaN propagates naturally
+        let abs_lhs = B::float_abs(lhs);
+        let abs_rhs = B::float_abs(rhs);
+
+        let diff = B::float_clamp_min(B::float_sub(abs_rhs.clone(), abs_lhs.clone()), 0.0.into());
+        let max = B::float_add(abs_lhs.clone(), diff.clone());
+        let min = B::float_sub(abs_rhs, diff);
+
+        // Clamp max to at least epsilon to avoid 0/0; result will be 0 anyway
+        // since min <= max, so (min/clamped_max)^2 won't blow up meaningfully.
+        let max_safe = B::float_clamp_min(
+            max.clone(),
+            max.dtype().finfo().unwrap().min_positive.into(),
+        );
+
+        let ratio = B::float_div(min, max_safe);
+        let ratio_sq = B::float_mul(ratio.clone(), ratio);
+
+        let inner = B::float_add_scalar(ratio_sq, 1.0.into());
+
+        B::float_mul(max, B::float_sqrt(inner))
+    }
+
+    /// Returns a new tensor with absolute values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take absolute value of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with absolute values.
+    fn float_abs(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the cosine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with cosine values.
+    fn float_cos(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the sine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with sine values.
+    fn float_sin(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the tangent of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with tangent values.
+    fn float_tan(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic cosine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic cosine values.
+    fn float_cosh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic sine of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic sine values.
+    fn float_sinh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the hyperbolic tangent of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with hyperbolic tangent values.
+    fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse cosine values.
+    fn float_acos(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse hyperbolic cosine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse hyperbolic cosine values.
+    fn float_acosh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse sine values.
+    fn float_asin(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with inverse hyperbolic sine values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with inverse hyperbolic sine values.
+    fn float_asinh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with the inverse tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with the inverse tangent values.
+    fn float_atan(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with the inverse hyperbolic tangent values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with the inverse hyperbolic tangent values.
+    fn float_atanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a tensor with the four-quadrant inverse tangent values of `y` and `x`.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The tensor with y coordinates.
+    /// * `rhs` - The tensor with x coordinates.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the four-quadrant inverse tangent values.
+    fn float_atan2(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with rounded values.
+    ///
+    /// This function should implement the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy, with halfway cases rounded to the nearest even integer value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be rounded.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with rounded values.
+    fn float_round(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with floored values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be floored.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with floored values.
+    fn float_floor(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with ceiled values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be ceiled.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with ceiled values.
+    fn float_ceil(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with truncated values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be truncated.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with truncated values.
+    fn float_trunc(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with the error function values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to take the error function of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with error function values.
+    fn float_erf(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Concatenates tensors along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensors` - The tensors to concatenate.
+    /// * `dim` - The dimension along which to concatenate.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the concatenated tensors along `dim`.
+    ///
+    /// # Note
+    ///
+    /// Empty tensors (where the concatenation dimension has size 0) are filtered out at the
+    /// high-level tensor API and will not be passed to this method. Backend implementations do
+    /// not need to handle empty tensors.
+    fn float_cat(tensors: Vec<FloatTensor<B>>, dim: usize) -> FloatTensor<B> {
+        let first_tensor = tensors.first().expect("Tensors should not be empty");
+        let device = first_tensor.device();
+
+        cat_with_slice_assign::<B, _, _, _>(
+            tensors,
+            dim,
+            device,
+            |shape, device, dtype| B::float_empty(shape, device, dtype.into()),
+            B::float_slice_assign,
+        )
+    }
+
+    /// Gets the indices of the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
+    fn float_argmax(tensor: FloatTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B>;
+
+    /// Gets the indices of the k maximum elements of a tensor along an axis.
+    /// if two elements are equals, it will be ordered by lowest indices
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of maximum elements
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
+    fn float_argtopk(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<B>;
+
+    /// Gets the values of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of maximum elements
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the values of the maximum elements of `tensor` along `dim`.
+    fn float_topk(tensor: FloatTensor<B>, dim: usize, k: usize) -> FloatTensor<B> {
+        let device = tensor.device();
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = B::int_arange(0..k as i64, &device, dtype);
+        Self::float_select(Self::float_sort(tensor, dim, true), dim, k_indices)
+    }
+
+    /// Gets the indices of the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements of.
+    /// * `dim` - The dimension along which to get the minimum elements.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the indices of the minimum elements of `tensor` along `dim`.
+    fn float_argmin(tensor: FloatTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B>;
+
+    /// Gets the maximum element of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum element of `tensor`.
+    fn float_max(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::float_max_dim(tensor, 0)
+    }
+
+    /// Gets the maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum elements of `tensor` along `dim`.
+    fn float_max_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        let dtype = get_device_settings::<B>(&tensor.device()).int_dtype;
+        let index = B::float_argmax(tensor.clone(), dim, dtype);
+
+        B::float_gather(dim, tensor, index)
+    }
+
+    /// Gets the maximum elements of a tensor along an axis and their indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `indices_dtype` - The indices tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tuple with the maximum elements of `tensor` along `dim` and their indices.
+    fn float_max_dim_with_indices(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<B>, IntTensor<B>) {
+        let index = B::float_argmax(tensor.clone(), dim, indices_dtype);
+        let values = B::float_gather(dim, tensor, index.clone());
+
+        (values, index)
+    }
+
+    /// Gets the minimum element of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the minimum element of `tensor`.
+    fn float_min(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::float_min_dim(tensor, 0)
+    }
+
+    /// Gets the minimum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements of.
+    /// * `dim` - The dimension along which to get the minimum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the minimum elements of `tensor` along `dim`.
+    fn float_min_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        let dtype = get_device_settings::<B>(&tensor.device()).int_dtype;
+        let index = B::float_argmin(tensor.clone(), dim, dtype);
+
+        B::float_gather(dim, tensor, index)
+    }
+
+    /// Gets the minimum elements of a tensor along an axis and their indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the minimum elements of.
+    /// * `dim` - The dimension along which to get the minimum elements.
+    /// * `indices_dtype` - The indices tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tuple with the minimum elements of `tensor` along `dim` and their indices.
+    fn float_min_dim_with_indices(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<B>, IntTensor<B>) {
+        let index = B::float_argmin(tensor.clone(), dim, indices_dtype);
+        let values = B::float_gather(dim, tensor, index.clone());
+
+        (values, index)
+    }
+
+    /// Gets the maximum absolute element of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum element of `tensor`.
+    fn float_max_abs(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let shape = tensor.shape();
+        let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
+
+        B::float_max_abs_dim(tensor, 0)
+    }
+
+    /// Gets the maximum absolute elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the maximum elements of `tensor` along `dim`.
+    fn float_max_abs_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        B::float_max_dim(B::float_abs(tensor), dim)
+    }
+
+    /// Tests if any element in the float `tensor` evaluates to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
+    fn float_any(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum(B::bool_into_float(bool_tensor, float_dtype.into()));
+        B::float_greater_elem(sum, 0f32.into(), out_dtype)
+    }
+
+    /// Tests if any element in the float `tensor` evaluates to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
+    /// input evaluates to True, False otherwise.
+    fn float_any_dim(tensor: FloatTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor, float_dtype.into()), dim);
+        B::float_greater_elem(sum, 0f32.into(), out_dtype)
+    }
+
+    /// Tests if all elements in the float `tensor` evaluate to True.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
+    /// evaluate to True, False otherwise.
+    fn float_all(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
+        let num_elems = tensor.shape().num_elements() as f32;
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum(B::bool_into_float(bool_tensor, float_dtype.into()));
+        B::float_equal_elem(sum, num_elems.into(), out_dtype)
+    }
+
+    /// Tests if all elements in the float `tensor` evaluate to True along a given dimension `dim`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to test.
+    /// * `dim` - The axis along which to test.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
+    /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
+    /// evaluates to True, False otherwise.
+    fn float_all_dim(tensor: FloatTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
+        let num_elems = tensor.shape()[dim] as f32;
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
+        let bool_tensor = B::bool_not(bool_tensor);
+        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor, float_dtype.into()), dim);
+        B::float_equal_elem(sum, num_elems.into(), out_dtype)
+    }
+
+    /// Returns the signs of the float `tensor`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to extract the signs from.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
+    fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let device = tensor.device();
+        let bool_dtype = get_device_settings::<B>(&tensor.device()).bool_dtype;
+        let zeros = B::float_zeros(tensor.shape(), &device, tensor.dtype().into());
+        let less_than_zero = B::float_lower_elem(tensor.clone(), 0f32.into(), bool_dtype);
+        let greater_than_zero = B::float_greater_elem(tensor, 0f32.into(), bool_dtype);
+
+        let mut result = B::float_mask_fill(zeros, less_than_zero, (-1f32).into());
+        result = B::float_mask_fill(result, greater_than_zero, 1f32.into());
+        result
+    }
+
+    /// Broadcasts the float `tensor` to the given `shape`.
+    fn float_expand(tensor: FloatTensor<B>, shape: Shape) -> FloatTensor<B>;
+
+    /// Sort the elements of the input `tensor` by value in along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
+    fn float_sort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> FloatTensor<B> {
+        let device = tensor.device();
+        sort::<B, _, _, _>(
+            tensor,
+            dim,
+            descending,
+            device,
+            |tensor| {
+                let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+                try_read_sync(B::float_into_data(tensor))
+                    .expect(msg)
+                    .expect(msg)
+            },
+            |data, device, _dtype| B::float_from_data(data, device),
+        )
+    }
+
+    /// Sort the elements of the input `tensor` by value in along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    /// * `indices_dtype` - The indices tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor and corresponding indices, where
+    /// the elements are sorted by value and the indices map back to the original input tensor.
+    fn float_sort_with_indices(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        descending: bool,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<B>, IntTensor<B>) {
+        let device = tensor.device();
+        sort_with_indices::<B, _, _, _>(
+            tensor,
+            dim,
+            descending,
+            indices_dtype,
+            device,
+            |tensor| {
+                let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+                try_read_sync(B::float_into_data(tensor))
+                    .expect(msg)
+                    .expect(msg)
+            },
+            |data, device, _dtype| B::float_from_data(data, device),
+        )
+    }
+
+    /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
+    ///
+    /// This sort is unstable (i.e., may reorder equal elements).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor.
+    /// * `dim` - The axis along which to sort.
+    /// * `descending` - The sorting order.
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
+    fn float_argsort(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        descending: bool,
+        out_dtype: IntDType,
+    ) -> IntTensor<B> {
+        let device = tensor.device();
+        argsort::<B, _, _>(tensor, dim, descending, out_dtype, device, |tensor| {
+            let msg = "Failed to synchronously read tensor data. This operation is not supported until this backend has a GPU sorting implementation.";
+            try_read_sync(B::float_into_data(tensor))
+                .expect(msg)
+                .expect(msg)
+        })
+    }
+
+    /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
+    /// using the given locations in [-1, 1].
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, H_in, W_in)
+    /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
+    ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
+    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
+    ///
+    /// # Returns
+    ///
+    /// A tensor with shape (N, C, H_out, W_out)
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<B>,
+        grid: FloatTensor<B>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<B> {
+        // TODO: default impl should get int default dtype
+        float_grid_sample_2d_ref::<B>(tensor, grid, options)
+    }
+
+    /// Unfold windows along a dimension.
+    ///
+    /// Returns a view of the tensor with all complete windows of size `size` in dimension `dim`;
+    /// where windows are advanced by `step` at each index.
+    ///
+    /// The number of windows is `max(0, (shape[dim] - size).ceil_div(step))`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The input tensor to unfold; of shape ``[pre=..., dim shape, post=...]``
+    /// * `dim` - the selected dim.
+    /// * `size` - the size of each unfolded window.
+    /// * `step` - the step between each window.
+    ///
+    /// # Returns
+    ///
+    /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
+    fn float_unfold(tensor: FloatTensor<B>, dim: usize, size: usize, step: usize)
+    -> FloatTensor<B>;
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    fn float_is_nan(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        B::float_not_equal(tensor.clone(), tensor, out_dtype)
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates that the value is infinite
+    fn float_is_inf(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.into(), out_dtype)
+    }
+}

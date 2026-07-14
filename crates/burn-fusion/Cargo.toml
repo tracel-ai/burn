@@ -15,22 +15,33 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
-std = ["serde/std"]
+default = ["std", "tracing"]
+std = ["serde/std", "tracing?/std"]
 doc = ["default"]
 memory-checks = ["std"]
 
+tracing = [
+    "dep:tracing",
+    "burn-backend/tracing",
+    "burn-ir/tracing",
+]
+
+# Exposes the fusion spy API for tests that need to assert on fusion decisions.
+# Not intended for production use.
+test-util = ["std"]
+
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.19.0" }
-burn-common = { path = "../burn-common", version = "0.19.0" }
-burn-ir = { path = "../burn-ir", version = "0.19.0" }
+burn-backend = { workspace = true, features = ["default"] }
+burn-std = { workspace = true, features = ["default"] }
+burn-ir = { workspace = true, features = ["default"] }
+tracing = { workspace = true, optional = true, features = ["attributes"] }
+smallvec = { workspace = true }
 
 hashbrown = { workspace = true }
 derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
-half = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

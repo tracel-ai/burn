@@ -5,7 +5,7 @@ use alloc::{
     vec::Vec,
 };
 use core::any;
-use core::fmt::{Display, Write};
+use core::fmt::{Debug, Display, Write};
 
 /// Default display settings for a module.
 pub trait ModuleDisplayDefault {
@@ -431,6 +431,30 @@ impl Content {
         self
     }
 
+    /// Adds an attribute using its `Debug` representation.
+    ///
+    /// This is intended for fields that do not implement [`ModuleDisplay`].
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - Name of the attribute.
+    /// * `value` - Value of the attribute.
+    ///
+    /// # Returns
+    ///
+    /// Updated `Content` instance with the new attribute added.
+    pub fn add_debug_attribute<T: Debug>(mut self, name: &str, value: &T) -> Self {
+        if self.single_item.is_some() {
+            panic!("Cannot add multiple attributes when single item is set.");
+        }
+        self.attributes.push(Attribute {
+            name: name.to_owned(),
+            value: DisplayAdapter(value).format(self.display_settings.clone()),
+            ty: any::type_name::<T>().to_string(),
+        });
+        self
+    }
+
     /// Adds a single item.
     ///
     /// # Arguments
@@ -497,6 +521,17 @@ impl Content {
         self
     }
 }
+
+/// Minimal display adapter for non-module types.
+struct DisplayAdapter<'a, T: Debug>(&'a T);
+
+impl<'a, T: Debug> ModuleDisplayDefault for DisplayAdapter<'a, T> {
+    fn content(&self, content: Content) -> Option<Content> {
+        content.add_single(&format!("{:?}", self.0)).optional()
+    }
+}
+
+impl<'a, T: Debug> ModuleDisplay for DisplayAdapter<'a, T> {}
 
 /// Attribute to print in the display method.
 #[derive(Clone, Debug)]

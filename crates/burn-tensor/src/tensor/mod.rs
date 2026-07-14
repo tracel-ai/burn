@@ -1,35 +1,29 @@
 pub(crate) mod stats;
 
 mod api;
-mod bytes;
-mod data;
-mod distribution;
-mod element;
-mod shape;
 
 pub use api::*;
-pub use bytes::*;
-pub use data::*;
-pub use distribution::*;
-pub use element::*;
-pub use shape::*;
+
+// Re-exported types
+pub use burn_std::{
+    BoolDType, BoolStore, DType, DataError, FloatDType, IndexingUpdateOp, IntDType, TensorData,
+    Tolerance, distribution::*, element::*, indexing::*, s, shape::*, slice::*,
+};
+
+/// The tensor kind module.
+pub mod kind;
+pub use kind::{Bool, Float, Int};
 
 /// The activation module.
 pub mod activation;
 
-/// The backend module.
-pub mod backend;
-
 /// The container module.
-pub mod container;
+pub mod container {
+    pub use burn_std::tensor::container::TensorContainer;
+}
 
 /// The grid module.
 pub mod grid;
-
-/// The indexing module.
-pub mod indexing;
-
-pub use indexing::AsIndex;
 
 /// The linalg module.
 pub mod linalg;
@@ -37,25 +31,26 @@ pub mod linalg;
 /// The loss module.
 pub mod loss;
 
-/// The burn module.
+/// The neural network module.
 pub mod module;
 
+/// The signal processing module.
+pub mod signal;
+
 /// Operations on tensors module.
-pub mod ops;
+pub mod ops {
+    pub(crate) use crate::bridge::*;
+    pub use burn_std::ops::*;
+}
 
 /// Tensor quantization module.
 pub mod quantization;
+
+#[cfg(feature = "std")]
+pub mod distributed;
 
 #[cfg(feature = "std")]
 pub use report::*;
 
 #[cfg(feature = "std")]
 mod report;
-
-#[cfg(feature = "experimental-named-tensor")]
-mod named;
-
-#[cfg(feature = "experimental-named-tensor")]
-pub use named::*;
-
-pub use ops::Device; // Re-export device so that it's available from `burn_tensor::Device`.

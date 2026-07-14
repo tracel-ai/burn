@@ -1,15 +1,16 @@
+use std::path::PathBuf;
+
 use crate::dataset::{HousingBatcher, HousingDataset};
 use crate::model::RegressionModelConfig;
 use burn::optim::AdamConfig;
+use burn::train::{Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     prelude::*,
-    record::{CompactRecorder, NoStdTrainingRecorder},
-    tensor::backend::AutodiffBackend,
-    train::{LearnerBuilder, metric::LossMetric},
+    train::metric::LossMetric,
 };
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct ExpConfig {
     #[config(default = 100)]
     pub num_epochs: usize,
@@ -27,19 +28,22 @@ pub struct ExpConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
+pub fn run(artifact_dir: &str, device: impl Into<Device>) {
     create_artifact_dir(artifact_dir);
 
     // Config
     let optimizer = AdamConfig::new();
     let config = ExpConfig::new(optimizer);
-    let model = RegressionModelConfig::new().init(&device);
-    B::seed(config.seed);
+
+    let device = device.into();
+    device.seed(config.seed);
+    let autodiff_device = device.clone().autodiff();
+
+    let model = RegressionModelConfig::new().init(&autodiff_device);
 
     // Define train/valid datasets and dataloaders
     let train_dataset = HousingDataset::train();
@@ -48,9 +52,8 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
     println!("Train Dataset Size: {}", train_dataset.len());
     println!("Valid Dataset Size: {}", valid_dataset.len());
 
-    let batcher_train = HousingBatcher::<B>::new(device.clone());
-
-    let batcher_test = HousingBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = HousingBatcher::new(&autodiff_device);
+    let batcher_test = HousingBatcher::new(&device);
 
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
@@ -65,25 +68,22 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .build(valid_dataset);
 
     // Model
-    let learner = LearnerBuilder::new(artifact_dir)
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .devices(vec![device.clone()])
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(model, config.optimizer.init(), 1e-3);
+        .summary();
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = training.launch(Learner::new(model, config.optimizer.init(), 1e-3));
 
     config
         .save(format!("{artifact_dir}/config.json").as_str())
         .unwrap();
 
-    model_trained
-        .save_file(
-            format!("{artifact_dir}/model"),
-            &NoStdTrainingRecorder::new(),
-        )
+    result
+        .model
+        .into_record()
+        .save(format!("{artifact_dir}/model"))
         .expect("Failed to save trained model");
 }

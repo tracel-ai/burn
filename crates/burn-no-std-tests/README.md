@@ -1,4 +1,4 @@
-The `burn-no-std-tests` contains integration tests aimed to check `no_std` compatibility of `burn`, `burn-core`, `burn-tensor` and `burn-ndarray` packages.
+The `burn-no-std-tests` contains integration tests aimed to check `no_std` compatibility of `burn`, `burn-core`, `burn-tensor` and `burn-flex` packages.
 
 Currently there is only a minimal test that checks if mnist model can be built with `no_std`. More tests should be added to check completeness.
 

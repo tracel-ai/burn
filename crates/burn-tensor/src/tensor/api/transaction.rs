@@ -1,12 +1,9 @@
-use super::{BasicOps, Tensor, TensorPrimitive};
-use crate::{
-    TensorData,
-    backend::Backend,
-    ops::{BoolTensor, IntTensor, TransactionPrimitive},
-};
+use super::Tensor;
+use crate::{ExecutionError, TensorData};
 use alloc::vec::Vec;
+use burn_backend::ops::TransactionPrimitive;
+use burn_dispatch::Dispatch;
 
-#[derive(Default)]
 /// A transaction can [read](Self::register) multiple tensors at once with a single operation improving
 /// compute utilization with optimized laziness.
 ///
@@ -21,72 +18,69 @@ use alloc::vec::Vec;
 ///    .try_into()
 ///    .expect("Correct amount of tensor data");
 /// ```
-pub struct Transaction<B: Backend> {
-    op: TransactionPrimitive<B>,
-    orders: Vec<Order>,
+pub struct Transaction {
+    opaque: transaction_opaque::Opaque,
 }
 
-enum Order {
-    Float(usize),
-    QFloat(usize),
-    Int(usize),
-    Bool(usize),
+burn_std::obfuscate!(
+    type: TransactionPrimitive<Dispatch>,
+    module: transaction_opaque,
+    derives: [Send, Sync],
+);
+
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::from_op(TransactionPrimitive::<Dispatch>::default())
+    }
 }
 
-impl<B: Backend> Transaction<B> {
+impl Transaction {
+    /// Crate-internal constructor wrapping a dispatch-level transaction.
+    pub(crate) fn from_op(op: TransactionPrimitive<Dispatch>) -> Self {
+        Self {
+            opaque: transaction_opaque::Opaque::new(op),
+        }
+    }
+
+    /// Crate-internal mutable borrow of the underlying transaction primitive.
+    pub(crate) fn as_op_mut(&mut self) -> &mut TransactionPrimitive<Dispatch> {
+        self.opaque.as_mut()
+    }
+
+    /// Crate-internal owning extraction of the underlying transaction primitive.
+    pub(crate) fn into_op(self) -> TransactionPrimitive<Dispatch> {
+        self.opaque.into_inner()
+    }
+
     /// Add a [tensor](Tensor) to the transaction to be read.
-    pub fn register<const D: usize, K: BasicOps<B>>(mut self, tensor: Tensor<B, D, K>) -> Self {
-        K::register_transaction(&mut self, tensor.into_primitive());
+    pub fn register<const D: usize, K: crate::kind::Transaction>(
+        mut self,
+        tensor: Tensor<D, K>,
+    ) -> Self {
+        K::register_transaction(self.as_op_mut(), tensor.primitive);
         self
     }
 
     /// Executes the transaction synchronously and returns the [data](TensorData) in the same order
     /// in which they were [registered](Self::register).
     pub fn execute(self) -> Vec<TensorData> {
-        burn_common::future::block_on(self.execute_async())
+        burn_std::future::block_on(self.execute_async())
+            .expect("Error while reading data: use `try_execute` to handle error at runtime")
+    }
+
+    /// Executes the transaction synchronously and returns the [data](TensorData) in the same
+    /// order in which they were [registered](Self::register).
+    ///
+    /// # Returns
+    ///
+    /// Any error that might have occurred since the last time the device was synchronized.
+    pub fn try_execute(self) -> Result<Vec<TensorData>, ExecutionError> {
+        burn_std::future::block_on(self.execute_async())
     }
 
     /// Executes the transaction asynchronously and returns the [data](TensorData) in the same order
     /// in which they were [registered](Self::register).
-    pub async fn execute_async(self) -> Vec<TensorData> {
-        let result = B::tr_execute(self.op).await;
-
-        let mut floats: Vec<_> = result.read_floats.into_iter().map(Some).collect();
-        let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(Some).collect();
-        let mut ints: Vec<_> = result.read_ints.into_iter().map(Some).collect();
-        let mut bools: Vec<_> = result.read_bools.into_iter().map(Some).collect();
-
-        self.orders
-            .into_iter()
-            .map(|order| match order {
-                Order::Float(index) => floats.get_mut(index).unwrap().take().unwrap(),
-                Order::QFloat(index) => qfloats.get_mut(index).unwrap().take().unwrap(),
-                Order::Int(index) => ints.get_mut(index).unwrap().take().unwrap(),
-                Order::Bool(index) => bools.get_mut(index).unwrap().take().unwrap(),
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub(crate) fn register_float(&mut self, tensor: TensorPrimitive<B>) {
-        match tensor {
-            TensorPrimitive::Float(tensor) => {
-                self.orders.push(Order::Float(self.op.read_floats.len()));
-                self.op.read_floats.push(tensor);
-            }
-            TensorPrimitive::QFloat(tensor) => {
-                self.orders.push(Order::QFloat(self.op.read_qfloats.len()));
-                self.op.read_qfloats.push(tensor);
-            }
-        }
-    }
-
-    pub(crate) fn register_int(&mut self, tensor: IntTensor<B>) {
-        self.orders.push(Order::Int(self.op.read_ints.len()));
-        self.op.read_ints.push(tensor);
-    }
-
-    pub(crate) fn register_bool(&mut self, tensor: BoolTensor<B>) {
-        self.orders.push(Order::Bool(self.op.read_bools.len()));
-        self.op.read_bools.push(tensor);
+    pub async fn execute_async(self) -> Result<Vec<TensorData>, ExecutionError> {
+        self.into_op().execute_async().await
     }
 }

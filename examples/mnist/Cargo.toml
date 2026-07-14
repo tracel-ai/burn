@@ -10,26 +10,25 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/tui"]
-ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
-ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+default = ["burn/default", "burn/tui"]
+flex = ["burn/flex"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-wgpu = ["burn/wgpu", "burn/fusion"]
-metal = ["burn/metal", "burn/fusion"]
-remote = ["burn/remote"]
+wgpu = ["burn/wgpu"]
+metal = ["burn/metal"]
+cuda = ["burn/cuda"]
+vulkan = ["burn/vulkan"]
+rocm = ["burn/rocm"]
+remote = ["burn/remote-websocket"]
 
 [dependencies]
-# Disable autotune default for now (convolutions not optimized)
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "train",
     "vision",
     "metrics",
-    "std"
-], default-features = false }
+    "fusion",
+    "flex",
+] }
 
-# Serialization
 log = { workspace = true }
-serde = { workspace = true, features = ["std", "derive"] }
+rand.workspace = true

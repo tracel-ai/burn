@@ -1,14 +1,14 @@
 use std::num::NonZeroUsize;
 
 /// Necessary data for classification metrics.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ClassificationMetricConfig {
     pub decision_rule: DecisionRule,
     pub class_reduction: ClassReduction,
 }
 
 /// The prediction decision rule for classification metrics.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DecisionRule {
     /// Consider a class predicted if its probability exceeds the threshold.
     Threshold(f64),

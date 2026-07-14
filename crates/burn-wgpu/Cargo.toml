@@ -15,41 +15,36 @@ version.workspace = true
 workspace = true
 
 [features]
-autotune = ["burn-cubecl/autotune"]
-autotune-checks = ["burn-cubecl/autotune-checks"]
 default = ["std", "autotune", "fusion", "burn-cubecl/default", "cubecl/default"]
 doc = ["burn-cubecl/doc"]
-exclusive-memory-only = ["cubecl/exclusive-memory-only"]
-fusion = ["burn-fusion", "burn-cubecl/fusion"]
 std = ["burn-cubecl/std", "cubecl/std"]
+
+tracing = [
+    "cubecl/tracing",
+    "burn-backend/tracing",
+    "burn-fusion?/tracing",
+    "burn-cubecl/tracing",
+]
+
+fusion = ["burn-fusion", "burn-cubecl/fusion"]
+autotune = ["burn-cubecl/autotune"]
+autotune-checks = ["burn-cubecl/autotune-checks"]
+
+exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 template = ["burn-cubecl/template", "cubecl/template"]
 
 # Backends
-metal = ["cubecl-msl"]
-vulkan = ["cubecl-spirv"]
-webgpu = ["cubecl-wgsl"]
-
-# Compilers
-cubecl-msl = ["cubecl/wgpu-msl"]
-cubecl-spirv = ["cubecl/wgpu-spirv"]
-cubecl-wgsl = []
+metal = ["cubecl/metal", "burn-backend/cubecl-metal"]
+vulkan = ["cubecl/vulkan", "burn-backend/cubecl-vulkan"]
+webgpu = ["cubecl/webgpu", "burn-backend/cubecl-webgpu"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
 
-burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", default-features = false }
-burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
-burn-tensor = { path = "../burn-tensor", version = "0.19.0", default-features = false, features = [
-    "cubecl-wgpu",
-] }
+burn-cubecl = { workspace = true }
+burn-fusion = { workspace = true, optional = true, features = ["default"] }
+burn-backend = { workspace = true }
 
-
-[dev-dependencies]
-burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", default-features = false, features = [
-    "export_tests",
-] }
-half = { workspace = true }
-paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["default"]

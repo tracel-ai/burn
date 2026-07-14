@@ -1,37 +1,40 @@
-use cubecl::{calculate_cube_count_elemwise, convolution::ConvLaunchError, prelude::*};
-
 use crate::{
     CubeRuntime,
-    element::CubeElement,
-    kernel::into_contiguous,
-    ops::{
-        numeric::{empty_device, zeros_device},
-        reshape,
-    },
+    kernel::utils::{address_type, decompose_linear, shape_divmod},
+    ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, ops::ConvTransposeOptions};
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::{Shape, ops::ConvTransposeOptions};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{FastDivmod, tensor::layout::linear::LinearViewMut},
+};
+use cubek::convolution::components::ConvSetupError;
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
-    conv_stride_0: u32,
-    conv_stride_1: u32,
-    dilation_0: u32,
-    dilation_1: u32,
-    padding_0: u32,
-    padding_1: u32,
-    groups: u32,
+    conv_stride_0: usize,
+    conv_stride_1: usize,
+    dilation_0: usize,
+    dilation_1: usize,
+    padding_0: usize,
+    padding_1: usize,
+    groups: usize,
 }
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &Tensor<E>,
-    output: &mut Tensor<E>,
+    bias: ComptimeOption<&[E]>,
+    mut output: LinearViewMut<'_, E>,
+    out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
+    #[define(E)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if ABSOLUTE_POS >= output.shape() {
         terminate!();
     }
 
@@ -40,10 +43,10 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     let kernel_h = weight.shape(2);
     let kernel_w = weight.shape(3);
 
-    let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
-    let oc_out = ABSOLUTE_POS / output.stride(1) % output.shape(1);
-    let out_y = ABSOLUTE_POS / output.stride(2) % output.shape(2);
-    let out_x = ABSOLUTE_POS / output.stride(3) % output.shape(3);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS, &out_shape);
+    let [batch, oc_out, out_y, out_x] = *pos else {
+        unreachable!()
+    };
 
     let k = oc_out / out_c_per_group;
     let group = k % args.groups;
@@ -61,15 +64,16 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     let y_start = ((out_y + args.padding_0) as i32 - kms_h) / stride_0_i;
     let x_start = ((out_x + args.padding_1) as i32 - kms_w) / stride_1_i;
 
-    let y_end = Min::min(Max::max(kms_h + y_start + 1, 0) as u32, input.shape(2));
-    let x_end = Min::min(Max::max(kms_w + x_start + 1, 0) as u32, input.shape(3));
-    let y_start = Max::max(y_start, 0) as u32;
-    let x_start = Max::max(x_start, 0) as u32;
+    let y_end = clamp(kms_h + y_start + 1, 0, input.shape(2) as i32) as usize;
+    let x_end = clamp(kms_w + x_start + 1, 0, input.shape(3) as i32) as usize;
+    let y_start = clamp_min(y_start, 0) as usize;
+    let x_start = clamp_min(x_start, 0) as usize;
 
     let idx_input_batch = batch * input.stride(0);
     let idx_weight_oc = out_c * weight.stride(1);
 
-    let mut sum = bias[oc_out];
+    let bias: ComptimeOption<E> = bias.as_ref().map(|bias| bias[oc_out]);
+    let mut sum = bias.unwrap_or_default();
 
     let numerator_h_base = out_y + args.padding_0;
     let numerator_w_base = out_x + args.padding_1;
@@ -82,7 +86,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
             let numerator_tmp = in_y * args.conv_stride_0;
             let numerator_h = numerator_h_base - numerator_tmp;
 
-            if numerator_h_base >= numerator_tmp && numerator_h % args.dilation_0 == 0 {
+            if numerator_h_base >= numerator_tmp && numerator_h.is_multiple_of(args.dilation_0) {
                 let kernel_y = numerator_h / args.dilation_0;
                 let idx_input_y = in_y * input.stride(2);
                 let idx_weight_ky = kernel_y * weight.stride(2);
@@ -91,7 +95,9 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
                     let numerator_tmp = in_x * args.conv_stride_1;
                     let numerator_w = numerator_w_base - numerator_tmp;
 
-                    if numerator_w_base >= numerator_tmp && numerator_w % args.dilation_1 == 0 {
+                    if numerator_w_base >= numerator_tmp
+                        && numerator_w.is_multiple_of(args.dilation_1)
+                    {
                         let kernel_x = numerator_w / args.dilation_1;
                         let idx_input_x = in_x * input.stride(3);
                         let idx_weight_kx = kernel_x * weight.stride(3);
@@ -111,7 +117,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
         }
     }
 
-    output[ABSOLUTE_POS] = sum;
+    output.write(ABSOLUTE_POS, sum);
 }
 
 /// Perform a 2D convolution transposition using the direct algorithm.
@@ -121,16 +127,14 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
+pub fn conv_transpose2d_direct<R: CubeRuntime>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> Result<CubeTensor<R>, ConvLaunchError> {
-    let input = into_contiguous(input);
-    let weight = into_contiguous(weight);
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [_, out_channels, kernel_0, kernel_1] = weight.shape.dims();
+) -> Result<CubeTensor<R>, ConvSetupError> {
+    let [batch_size, _, in_height, in_width] = input.meta.shape().dims();
+    let [_, out_channels, kernel_0, kernel_1] = weight.meta.shape().dims();
 
     let out_0 = (in_height - 1) * options.stride[0]
         + options.dilation[0] * (kernel_0 - 1)
@@ -145,43 +149,38 @@ pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
 
     let shape_out = Shape::new([batch_size, out_channels * options.groups, out_0, out_1]);
 
-    let output = empty_device::<R, E>(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
+        input.dtype,
     );
 
-    let bias = match bias {
-        Some(bias) => {
-            let shape = Shape::from([bias.shape.dims[0], 1, 1, 1]);
-            reshape(bias, shape)
-        }
-        None => {
-            let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
-            zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
-        }
-    };
+    let num_elems = output.meta.num_elements();
+    let cube_dim = CubeDim::new(&input.client, num_elems);
+    let cube_count = calculate_cube_count_elemwise(&input.client, num_elems, cube_dim);
+    let dtype = input.dtype;
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
-
-    conv_transpose2d_direct_kernel::launch::<E, R>(
-        &input.client,
+    conv_transpose2d_direct_kernel::launch(
+        &output.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<E>(1),
-        weight.as_tensor_arg::<E>(1),
-        bias.as_tensor_arg::<E>(1),
-        output.as_tensor_arg::<E>(1),
+        address_type!(input, weight, bias, output),
+        input.into_tensor_arg(),
+        weight.into_tensor_arg(),
+        bias.map(|bias| bias.into_buffer_arg()).into(),
+        output.clone().into_linear_view(),
+        shape_divmod(&output),
         ConvArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.padding[0] as u32),
-            ScalarArg::new(options.padding[1] as u32),
-            ScalarArg::new(options.groups as u32),
+            options.stride[0],
+            options.stride[1],
+            options.dilation[0],
+            options.dilation[1],
+            options.padding[0],
+            options.padding[1],
+            options.groups,
         ),
+        dtype_to_storage_type(dtype),
     );
 
     Ok(output)

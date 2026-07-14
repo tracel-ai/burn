@@ -6,7 +6,7 @@ This crate provides examples for importing model weights from different formats 
 
 ### PyTorch
 
-Imports weights from a PyTorch `.pt` file using `burn-import`.
+Imports weights from a PyTorch `.pt` file using `burn-store`.
 
 ```bash
 cargo run --bin pytorch -- <image_index>
@@ -27,7 +27,7 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 
 ### Safetensors
 
-Imports weights from a Safetensors file.
+Imports weights from a Safetensors file using `burn-store`.
 
 ```bash
 cargo run --bin safetensors -- <image_index>
@@ -48,7 +48,7 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=42
 
 ### Convert
 
-Converts between different weight formats (PyTorch or Safetensors) to Burn's native MessagePack format.
+Converts between different weight formats (PyTorch or Safetensors) to Burn's native Burnpack format.
 
 ```bash
 cargo run --bin convert -- <format> <output_directory>
@@ -63,8 +63,8 @@ Example with PyTorch:
 cargo run --bin convert -- pytorch /tmp/burn-convert
 
 Loading PyTorch weights from 'weights/mnist.pt'...
-Saving model record to '/tmp/burn-convert/mnist.mpk'...
-Model record successfully saved to '/tmp/burn-convert/mnist.mpk'.
+Saving model to '/tmp/burn-convert/mnist.bpk'...
+Model successfully saved to '/tmp/burn-convert/mnist.bpk'.
 ```
 
 Example with Safetensors:
@@ -72,16 +72,16 @@ Example with Safetensors:
 cargo run --bin convert -- safetensors /tmp/burn-convert
 
 Loading Safetensors weights from 'weights/mnist.safetensors'...
-Saving model record to '/tmp/burn-convert/mnist.mpk'...
-Model record successfully saved to '/tmp/burn-convert/mnist.mpk'.
+Saving model to '/tmp/burn-convert/mnist.bpk'...
+Model successfully saved to '/tmp/burn-convert/mnist.bpk'.
 ```
 
-### Named MessagePack
+### Burnpack
 
-Demonstrates loading and using a model from Burn's native named MessagePack format.
+Demonstrates loading and using a model from Burn's native Burnpack format.
 
 ```bash
-cargo run --bin namedmpk -- <image_index> <model_path>
+cargo run --bin burnpack -- <image_index> <model_path>
 ```
 
 Where:
@@ -90,9 +90,9 @@ Where:
 
 Example:
 ```bash
-cargo run --bin namedmpk -- 35 /tmp/burn-convert/mnist
+cargo run --bin burnpack -- 35 /tmp/burn-convert/mnist
 
-Loading model weights from file: /tmp/burn-convert/mnist.mpk
+Loading model weights from file: /tmp/burn-convert/mnist.bpk
 Image index: 35
 Success!
 Predicted: 2
@@ -106,5 +106,5 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=35
 A typical workflow using these examples:
 
 1. Start with pre-trained weights in either PyTorch or Safetensors format
-2. Use the `convert` example to convert to Burn's native format
-3. Load and use the converted model with the `namedmpk` example
+2. Use the `convert` example to convert to Burn's native Burnpack format
+3. Load and use the converted model with the `burnpack` example

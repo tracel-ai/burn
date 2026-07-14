@@ -1,106 +1,99 @@
-use crate::{CubeRuntime, element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor};
+use crate::{
+    CubeRuntime,
+    kernel::utils::address_type,
+    ops::{max_vector_size, numeric::empty_device_dtype},
+    tensor::CubeTensor,
+};
+use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
-    tensor_line_size_parallel,
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
 pub(crate) trait FloatUnaryOpFamily: 'static + Send + Sync {
-    type Options<F: Float>: LaunchArg;
-    type Unary<F: Float>: FloatUnaryOp<F, Options = Self::Options<F>>;
+    type Options: LaunchArg;
+    type Unary<F: Float, N: Size>: FloatUnaryOp<F, N, Options = Self::Options>;
 }
 
 #[cube]
-pub(crate) trait FloatUnaryOp<F: Float>: 'static + Send + Sync {
+pub(crate) trait FloatUnaryOp<F: Float, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<F>, options: &Self::Options) -> Line<F>;
+    fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N>;
 }
 
-#[cube(launch_unchecked)]
-pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
-    input: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
-    options: &O::Options<F>,
-    #[comptime] rank: Option<u32>,
-    #[comptime] to_contiguous: bool,
+#[cube(launch_unchecked, address_type = "dynamic")]
+pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
+    input: LinearView<'_, Vector<F, N>>,
+    mut output: LinearViewMut<'_, Vector<F, N>>,
+    options: &O::Options,
+    #[define(F)] _dtype: StorageType,
 ) {
-    let offset_output = ABSOLUTE_POS;
-
-    if offset_output >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    if comptime![to_contiguous] {
-        let offset_input = index_offset_with_layout::<F, F>(
-            input,
-            output,
-            offset_output,
-            0,
-            rank.unwrap_or_else(|| output.rank()),
-            rank.is_some(),
-        );
-
-        output[offset_output] = O::Unary::<F>::execute(input[offset_input], options);
-    } else {
-        output[offset_output] = O::Unary::<F>::execute(input[offset_output], options);
-    }
+    output.write(
+        ABSOLUTE_POS,
+        O::Unary::<F, N>::execute(input.read(ABSOLUTE_POS), options),
+    );
 }
 
-pub(crate) fn launch_unary_float<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+pub(crate) fn launch_unary_float<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options<E>, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
     R: CubeRuntime,
-    E: CubeElement + Float,
     O: FloatUnaryOpFamily,
 {
-    let ndims = tensor.shape.num_dims();
-    let line_size = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
-        &tensor.shape.dims,
-        &tensor.strides,
-        ndims - 1,
-    );
+    let vector_size = max_vector_size(&tensor);
 
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
-    let is_contiguous = tensor.is_contiguous();
+    let working_units = num_elems / vector_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+    let dtype = tensor.dtype;
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
-            unary_float::launch_unchecked::<E, O, R>(
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
+            unary_float::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg::<E>(line_size),
-                TensorArg::alias(0),
+                address_type!(tensor),
+                vector_size,
+                tensor.clone().into_linear_view(),
+                tensor.as_linear_view_alias(0),
                 args(&()),
-                None,
-                false,
+                dtype_to_storage_type(dtype),
             );
 
             tensor
         } else {
-            let output = empty_device::<R, E>(
+            let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
-                tensor.shape.clone(),
+                tensor.shape(),
+                tensor.dtype,
             );
 
-            unary_float::launch_unchecked::<E, O, R>(
+            unary_float::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
-                tensor.as_tensor_arg::<E>(line_size),
-                output.as_tensor_arg::<E>(line_size),
+                cube_dim,
+                address_type!(tensor, output),
+                vector_size,
+                tensor.into_linear_view(),
+                output.clone().into_linear_view(),
                 args(&()),
-                Some(ndims as u32),
-                !is_contiguous,
+                dtype_to_storage_type(dtype),
             );
+
             output
         }
     }
@@ -109,22 +102,18 @@ where
 /// Use comptime enum to implement all unary operations that don't have any input argument in the
 /// kernel definition.
 pub(crate) mod unary_basic {
-    use crate::execute_with_dtype;
+    use cubecl::num_traits::{One, Zero};
 
     use super::*;
 
     pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
     where
         R: CubeRuntime,
-        for<'a> Args: FnOnce(&'a ()) -> &'a BasicFloatUnaryKind,
+        for<'a> Args: FnOnce(&'a ()) -> BasicFloatUnaryKind,
     {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, BasicFloatUnary, _>(tensor, |input| {
-                BasicFloatUnaryOptionsLaunch::new(args(input))
-            })
-        )
+        launch_unary_float::<R, BasicFloatUnary, _>(tensor, |input| {
+            BasicFloatUnaryOptionsLaunch::new(args(input))
+        })
     }
 
     #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -134,12 +123,23 @@ pub(crate) mod unary_basic {
         Log1p,
         Sqrt,
         Abs,
+        Sign,
+        ArcCos,
+        ArcCosh,
+        ArcSin,
+        ArcSinh,
+        ArcTan,
+        ArcTanh,
         Cos,
+        Cosh,
         Sin,
+        Sinh,
+        Tan,
         Tanh,
         Round,
         Floor,
         Ceil,
+        Trunc,
         Erf,
         Recip,
     }
@@ -152,30 +152,51 @@ pub(crate) mod unary_basic {
     struct BasicFloatUnary;
 
     #[cube]
-    impl<F: Float> FloatUnaryOp<F> for BasicFloatUnary {
+    impl<F: Float, N: Size> FloatUnaryOp<F, N> for BasicFloatUnary {
         type Options = BasicFloatUnaryOptions;
 
-        fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
+        fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
             match comptime![options.kind] {
-                BasicFloatUnaryKind::Exp => Line::exp(input),
-                BasicFloatUnaryKind::Log => Line::log(input),
-                BasicFloatUnaryKind::Log1p => Line::log1p(input),
-                BasicFloatUnaryKind::Sqrt => Line::sqrt(input),
-                BasicFloatUnaryKind::Abs => Line::abs(input),
-                BasicFloatUnaryKind::Cos => Line::cos(input),
-                BasicFloatUnaryKind::Sin => Line::sin(input),
-                BasicFloatUnaryKind::Tanh => Line::tanh(input),
-                BasicFloatUnaryKind::Round => Line::round(input),
-                BasicFloatUnaryKind::Floor => Line::floor(input),
-                BasicFloatUnaryKind::Ceil => Line::ceil(input),
-                BasicFloatUnaryKind::Erf => Line::erf(input),
-                BasicFloatUnaryKind::Recip => Line::recip(input),
+                BasicFloatUnaryKind::Exp => Vector::exp(input),
+                BasicFloatUnaryKind::Log => Vector::ln(input),
+                BasicFloatUnaryKind::Log1p => Vector::log1p(input),
+                BasicFloatUnaryKind::Sqrt => Vector::sqrt(input),
+                BasicFloatUnaryKind::Abs => Vector::abs(input),
+                BasicFloatUnaryKind::Sign => {
+                    let zero = Vector::zero();
+                    let one = Vector::one();
+                    let minus_one = Vector::new(F::new(-1.0_f32));
+
+                    let is_positive = input.greater_than(&zero);
+                    let is_negative = input.less_than(&zero);
+                    let sign = select_many(is_negative, minus_one, zero);
+
+                    select_many(is_positive, one, sign)
+                }
+                BasicFloatUnaryKind::Cos => Vector::cos(input),
+                BasicFloatUnaryKind::Sin => Vector::sin(input),
+                BasicFloatUnaryKind::Tan => Vector::tan(input),
+                BasicFloatUnaryKind::Cosh => Vector::cosh(input),
+                BasicFloatUnaryKind::Sinh => Vector::sinh(input),
+                BasicFloatUnaryKind::Tanh => Vector::tanh(input),
+                BasicFloatUnaryKind::Round => Vector::round(input),
+                BasicFloatUnaryKind::Floor => Vector::floor(input),
+                BasicFloatUnaryKind::Ceil => Vector::ceil(input),
+                BasicFloatUnaryKind::Trunc => Vector::trunc(input),
+                BasicFloatUnaryKind::Erf => Vector::erf(input),
+                BasicFloatUnaryKind::Recip => Vector::recip(input),
+                BasicFloatUnaryKind::ArcCos => Vector::acos(input),
+                BasicFloatUnaryKind::ArcCosh => Vector::acosh(input),
+                BasicFloatUnaryKind::ArcSin => Vector::asin(input),
+                BasicFloatUnaryKind::ArcSinh => Vector::asinh(input),
+                BasicFloatUnaryKind::ArcTan => Vector::atan(input),
+                BasicFloatUnaryKind::ArcTanh => Vector::atanh(input),
             }
         }
     }
 
     impl FloatUnaryOpFamily for BasicFloatUnary {
-        type Options<F: Float> = BasicFloatUnaryOptions;
-        type Unary<F: Float> = Self;
+        type Options = BasicFloatUnaryOptions;
+        type Unary<F: Float, N: Size> = Self;
     }
 }

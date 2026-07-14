@@ -4,12 +4,18 @@ categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
 documentation = "https://docs.rs/burn"
 edition.workspace = true
-keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
+keywords = [
+    "deep-learning",
+    "machine-learning",
+    "tensor",
+    "pytorch",
+    "autodiff",
+]
 license.workspace = true
 name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
-rust-version = "1.85"
+rust-version = "1.95"
 version.workspace = true
 
 [lints]
@@ -17,52 +23,46 @@ workspace = true
 
 [features]
 default = [
+    "rl",
+    "std",
+    "optim",
     "burn-core/default",
     "burn-train?/default",
-    "std",
-    # Backends
-    "burn-candle?/default",
-    "burn-ndarray?/default",
-    "burn-tch?/default",
-    "burn-wgpu?/default",
-    "burn-router?/default",
-    "burn-remote?/default",
-    "burn-cuda?/default",
+    "burn-nn/default",
+    "burn-optim?/default",
     "burn-autodiff?/default",
-    "burn-rocm?/default",
+    "burn-vision?/default",
 ]
 doc = [
     "default",
     "train",
     "burn-core/doc",
     "burn-train/doc",
-    # Backends
-    "burn-candle/doc",
-    "burn-ndarray/doc",
-    "burn-tch/doc",
-    "burn-wgpu/doc",
-    "burn-router/doc",
-    "burn-cuda/doc",
+    "burn-store?/std",
+    "burn-nn/doc",
+    "burn-optim?/doc",
     "burn-autodiff?/std",
-    "burn-rocm/doc",
-
 ]
 std = [
     "burn-core/std",
-    # Backends
-    "burn-candle?/std",
-    "burn-ndarray?/std",
-    "burn-wgpu?/std",
-    "burn-router?/std",
-    "burn-cuda?/std",
+    "burn-store?/std",
+    "burn-nn/std",
+    "burn-optim?/std",
     "burn-autodiff?/std",
-    "burn-rocm?/std",
 ]
+tracing = [
+    "cubecl?/tracing",
+    "burn-core/tracing",
+    "burn-vision?/tracing",
+    "burn-nn/tracing",
+    "burn-optim?/tracing",
+]
+
 
 network = ["burn-core/network"]
 
 # Training with full features
-train = ["burn-train", "autodiff", "dataset"]
+train = ["burn-train", "optim", "dataset"]
 
 ## Includes the Text UI (progress bars, metric plots)
 tui = ["burn-train?/tui"]
@@ -76,69 +76,91 @@ dataset = ["burn-core/dataset"]
 sqlite = ["burn-core/sqlite"]
 sqlite-bundled = ["burn-core/sqlite-bundled"]
 
-# Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
-record-item-custom-serde = ["burn-core/record-item-custom-serde"]
-# Serialization formats
-experimental-named-tensor = ["burn-core/experimental-named-tensor"]
+# Model storage and serialization (SafeTensors, PyTorch interop)
+store = ["burn-store"]
 
+# Enable safetensors in burn-store.
+safetensors = ["store", "burn-store?/safetensors"]
+# Enable pytorch in burn-store.
+pytorch = ["store", "burn-store?/pytorch"]
+
+# CubeCL re-export
+cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
-vision = ["burn-core/vision"]
+vision = ["burn-core/vision", "burn-vision"]
+rl = ["dep:burn-rl", "burn-train?/rl"]
+
+# Optimizer
+optim = ["burn-optim", "autodiff"]
 
 # Backend
 ir = ["burn-ir"]
-autodiff = ["burn-autodiff"]
-fusion = ["ir", "burn-wgpu?/fusion", "burn-cuda?/fusion", "burn-rocm?/fusion"]
+autodiff = ["burn-core/autodiff", "burn-autodiff"]
+fusion = ["ir", "burn-core/fusion", "burn-vision?/fusion"]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
-autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-rocm?/autotune"]
-autotune-checks = [
-    "burn-wgpu?/autotune-checks",
-    "burn-cuda?/autotune-checks",
-    "burn-rocm?/autotune-checks",
-]
+autotune = ["burn-core/autotune"]
+autotune-checks = ["burn-core/autotune-checks"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
-remote = ["burn-remote/client", "ir"]
-router = ["burn-router", "ir"]
-server = ["burn-remote/server"]
-simd = ["burn-ndarray?/simd"]
+simd = ["burn-ndarray?/simd", "burn-flex?/simd"]
+
+# burn-flex opt-in CPU codegen paths.
+x86-v4 = ["burn-flex?/x86-v4"]
+apple-amx = ["burn-flex?/apple-amx"]
+
 template = ["burn-wgpu?/template"]
+router = ["burn-router", "ir"]
+remote = ["burn-core/remote"]
+remote-server = ["burn-core/remote-server"]
+remote-websocket = ["burn-core/remote-websocket"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda"]
-rocm = ["burn-rocm"]
-ndarray = ["burn-ndarray"]
-tch = ["burn-tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan"]
-webgpu = ["wgpu", "burn-wgpu/webgpu"]
-metal = ["wgpu", "burn-wgpu/metal"]
-wgpu = ["burn-wgpu"]
+cuda = ["burn-cuda", "burn-core/cuda", "burn-vision?/cuda"]
+rocm = ["burn-rocm", "burn-core/rocm", "burn-vision?/rocm"]
+flex = ["burn-flex", "burn-core/flex", "burn-vision?/flex"]
+ndarray = ["burn-ndarray", "burn-core/ndarray"]
+tch = ["burn-tch", "burn-core/tch", "burn-vision?/tch"]
+vulkan = ["wgpu", "burn-core/vulkan", "burn-vision?/vulkan"]
+webgpu = ["wgpu", "burn-core/webgpu", "burn-vision?/webgpu"]
+metal = ["wgpu", "burn-core/metal", "burn-vision?/metal"]
+wgpu = ["burn-wgpu", "burn-core/wgpu", "burn-vision?/wgpu"]
+cpu = ["burn-cpu", "burn-core/cpu", "burn-vision?/cpu"]
 
-compilation-cache = [
-    "burn-cuda?/compilation-cache",
-    "burn-rocm?/compilation-cache",
-]
+# Backend extensions
+extension = ["burn-core/extension"]
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "0.19.0", default-features = false }
-burn-train = { path = "../burn-train", version = "0.19.0", optional = true, default-features = false }
+burn-core = { workspace = true }
+burn-train = { workspace = true, optional = true }
+burn-store = { workspace = true, optional = true }
+burn-nn = { workspace = true }
+burn-optim = { workspace = true, optional = true }
+burn-rl = { workspace = true, optional = true }
+burn-vision = { workspace = true, optional = true }
+burn-std = { workspace = true }
 
 # Backends
-burn-autodiff = { path = "../burn-autodiff", version = "0.19.0", optional = true, default-features = false }
-burn-candle = { path = "../burn-candle", version = "0.19.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "0.19.0", optional = true, default-features = false }
-burn-rocm = { path = "../burn-rocm", version = "0.19.0", optional = true, default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true, default-features = false }
-burn-remote = { path = "../burn-remote", version = "0.19.0", default-features = false, optional = true }
-burn-router = { path = "../burn-router", version = "0.19.0", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", optional = true, default-features = false }
-burn-ir = { path = "../burn-ir", version = "0.19.0", optional = true, default-features = false }
+# TODO: clean up from root; backends should be exposed from the extension
+burn-candle = { workspace = true, optional = true, features = ["default"] }
+burn-cuda = { workspace = true, optional = true }
+burn-cpu = { workspace = true, optional = true }
+burn-rocm = { workspace = true, optional = true }
+burn-flex = { workspace = true, optional = true }
+burn-ndarray = { workspace = true, optional = true }
+burn-router = { workspace = true, optional = true }
+burn-tch = { workspace = true, optional = true }
+burn-wgpu = { workspace = true, optional = true }
+burn-ir = { workspace = true, optional = true }
+burn-autodiff = { workspace = true, optional = true }
+burn-dispatch = { workspace = true, optional = true }
+
+cubecl = { workspace = true, optional = true }

@@ -1,14 +1,16 @@
-use std::marker::PhantomData;
-
-use burn_tensor::{
-    Device,
-    backend::{Backend, DeviceId, DeviceOps},
-    quantization::QTensorPrimitive,
+use burn_backend::{
+    BackTrace, Backend, BackendTypes, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError,
+    tensor::Device,
+};
+use burn_std::{
+    BoolStore, DeviceSettings,
+    rand::{SeedableRng, StdRng},
+    stub::Mutex,
 };
 use candle_core::{DeviceLocation, backend::BackendDevice};
 
 use crate::{
-    CandleQTensor, CandleTensor,
+    CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
@@ -17,13 +19,19 @@ use crate::{
 /// It is compatible with a wide range of hardware configurations, including CPUs and GPUs
 /// that support CUDA or Metal. Additionally, the backend can be compiled to `wasm` when using the CPU.
 #[derive(Clone, Default, Debug)]
-pub struct Candle<F = f32, I = i64>
-where
-    F: FloatCandleElement,
-    I: IntCandleElement,
-{
-    _float: PhantomData<F>,
-    _int: PhantomData<I>,
+pub struct Candle {}
+
+// Seed for CPU device
+pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
+
+pub(crate) fn get_seeded_rng() -> StdRng {
+    let mut seed = SEED.lock().unwrap();
+    seed.take().unwrap_or_else(burn_std::rand::get_seeded_rng)
+}
+
+pub(crate) fn set_seeded_rng(rng_seeded: StdRng) {
+    let mut seed = SEED.lock().unwrap();
+    *seed = Some(rng_seeded);
 }
 
 /// The device type for the candle backend.
@@ -39,8 +47,10 @@ where
 /// // Create a Metal device from its index
 /// let device = CandleDevice::metal(0);
 /// ```
+#[derive(Default)]
 pub enum CandleDevice {
     /// CPU device.
+    #[default]
     Cpu,
 
     /// Cuda device with the given index. The index is the index of the Cuda device in the list of
@@ -69,6 +79,19 @@ impl CandleDevice {
             device: candle_core::MetalDevice::new(index).unwrap(),
             index,
         })
+    }
+
+    pub(crate) fn set_seed(&self, seed: u64) {
+        match self {
+            CandleDevice::Cpu => {
+                // candle_core::cpu_backend::CpuDevice.set_seed(seed).unwrap();
+                // Candle does not support seeding the CPU rng so we use a global seed
+                let rng = StdRng::seed_from_u64(seed);
+                set_seeded_rng(rng);
+            }
+            CandleDevice::Cuda(cuda_device) => cuda_device.device.set_seed(seed).unwrap(),
+            CandleDevice::Metal(metal_device) => metal_device.device.set_seed(seed).unwrap(),
+        }
     }
 }
 
@@ -142,38 +165,50 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
-impl DeviceOps for CandleDevice {
-    fn id(&self) -> burn_tensor::backend::DeviceId {
+impl burn_backend::Device for CandleDevice {
+    fn to_id(&self) -> burn_backend::DeviceId {
         match self {
-            CandleDevice::Cpu => DeviceId::new(0, 0),
-            CandleDevice::Cuda(device) => DeviceId::new(1, device.index as u32),
-            CandleDevice::Metal(device) => DeviceId::new(2, device.index as u32),
+            CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u16),
+            CandleDevice::Metal(device) => DeviceId::new(1, device.index as u16),
+            CandleDevice::Cpu => DeviceId::new(2, 0),
+        }
+    }
+
+    fn from_id(device_id: DeviceId) -> Self {
+        match device_id.type_id {
+            0 => CandleDevice::cuda(device_id.index_id as usize),
+            1 => CandleDevice::metal(device_id.index_id as usize),
+            _ => CandleDevice::Cpu,
         }
     }
 }
-
-impl Default for CandleDevice {
-    fn default() -> Self {
-        Self::Cpu
+impl DeviceOps for CandleDevice {
+    fn defaults(&self) -> DeviceSettings {
+        DeviceSettings::new(
+            DType::F32,
+            DType::I64,
+            DType::Bool(BoolStore::U8),
+            Default::default(),
+        )
     }
 }
 
-impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
+impl BackendTypes for Candle {
     type Device = CandleDevice;
 
     type FloatTensorPrimitive = CandleTensor;
-    type FloatElem = F;
 
     type IntTensorPrimitive = CandleTensor;
-    type IntElem = I;
 
     type BoolTensorPrimitive = CandleTensor;
-    type BoolElem = u8;
 
-    type QuantizedTensorPrimitive = CandleQTensor;
-    type QuantizedEncoding = u8;
+    type QuantizedTensorPrimitive = CandleTensor;
 
-    fn ad_enabled() -> bool {
+    type GraphPrimitive = burn_backend::GraphUnsupported;
+}
+
+impl Backend for Candle {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 
@@ -186,25 +221,84 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         .to_string()
     }
 
-    fn seed(seed: u64) {
-        // TODO submit an issue at Candle
-        panic!("Manual seed not supported by Candle. ")
+    fn seed(device: &CandleDevice, seed: u64) {
+        device.set_seed(seed);
     }
 
-    fn sync(device: &Device<Self>) {
+    fn sync(device: &Device<Self>) -> Result<(), ExecutionError> {
         let device: candle_core::Device = (device.clone()).into();
 
         match device {
             candle_core::Device::Cpu => (),
             candle_core::Device::Cuda(device) => {
                 #[cfg(feature = "cuda")]
-                device.synchronize().unwrap();
+                device
+                    .synchronize()
+                    .map_err(|err| ExecutionError::Generic {
+                        reason: format!("Can't sync the cuda device: {err}"),
+                        backtrace: BackTrace::capture(),
+                    })?;
             }
             candle_core::Device::Metal(device) => {
                 // For some reason, device.wait_until_completed() does not seem to work,
                 // and neither does writing and reading a value with into_data
-                panic!("Device synchronization unavailable with Metal device on Candle backend")
+                return Err(ExecutionError::Generic {
+                    reason:
+                        "Device synchronization unavailable with Metal device on Candle backend"
+                            .into(),
+                    backtrace: BackTrace::capture(),
+                });
             }
         }
+
+        Ok(())
+    }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
+        if dtype.try_into_dtype().is_ok() {
+            burn_backend::DTypeUsage::general()
+        } else {
+            burn_backend::DTypeUsageSet::empty()
+        }
+    }
+
+    fn device_count(_: u16) -> usize {
+        1
+    }
+
+    fn flush(_device: &Self::Device) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use burn_std::{BoolStore, QuantScheme};
+
+    use super::*;
+
+    #[test]
+    fn should_support_dtypes() {
+        type B = Candle;
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::U8)));
+
+        assert!(!B::supports_dtype(&device, DType::U64));
+        assert!(!B::supports_dtype(&device, DType::U16));
+        assert!(!B::supports_dtype(&device, DType::I8));
+        assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(QuantScheme::default())
+        ));
     }
 }

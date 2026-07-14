@@ -1,17 +1,15 @@
 #![recursion_limit = "131"]
-use burn::{backend::WebGpu, data::dataset::Dataset};
+use burn::{data::dataset::Dataset, prelude::*};
 use guide::inference;
 
 fn main() {
-    type MyBackend = WebGpu<f32, i32>;
-
-    let device = burn::backend::wgpu::WgpuDevice::default();
+    let device = Device::wgpu(DeviceKind::DefaultDevice);
 
     // All the training artifacts are saved in this directory
     let artifact_dir = "/tmp/guide";
 
     // Infer the model
-    inference::infer::<MyBackend>(
+    inference::infer(
         artifact_dir,
         device,
         burn::data::dataset::vision::MnistDataset::test()

@@ -1,0 +1,246 @@
+use crate::engine::codegen::{
+    io::{ref_buffer_len, ref_len, ref_shape, ref_stride, ref_vector_size},
+    ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand},
+    kernel::{fuse_on_read, fuse_on_write, init_locals},
+};
+use cubecl::prelude::*;
+use cubek::reduce::components::args::{ReduceArgs, ReduceDType};
+
+#[derive(Clone)]
+pub struct FusedReduceArgs;
+
+#[derive(CubeType, CubeLaunch)]
+pub struct FusedReduceInput {
+    pub global: GlobalArgs,
+    #[cube(comptime)]
+    pub config: FuseBlockConfig,
+    #[cube(comptime)]
+    pub arg: FuseArg,
+}
+
+#[derive(CubeType, CubeLaunch)]
+pub struct FusedReduceOutput {
+    pub global: GlobalArgs,
+    #[cube(comptime)]
+    pub config: FuseBlockConfig,
+    #[cube(comptime)]
+    pub arg: FuseArg,
+}
+
+#[derive(Clone)]
+pub struct FusedReduceState {
+    inputs: GlobalArgs,
+    outputs: GlobalArgs,
+    locals_on_read: LocalArgs,
+    locals_on_write: LocalArgs,
+    config_on_read: FuseBlockConfig,
+    config_on_write: FuseBlockConfig,
+    // TODO: Should be a list when multiple blocks are there.
+    input: FuseArg,
+    out: FuseArg,
+}
+
+#[derive(Clone)]
+pub struct FusedReduceStateExpand {
+    inputs: GlobalArgsExpand,
+    outputs: GlobalArgsExpand,
+    locals_on_read: LocalArgsExpand,
+    locals_on_write: LocalArgsExpand,
+    config_on_read: FuseBlockConfig,
+    config_on_write: FuseBlockConfig,
+    input: FuseArg,
+    out: FuseArg,
+}
+
+#[cube]
+impl ReduceArgs for FusedReduceArgs {
+    type Input<E: Numeric, S: Size> = FusedReduceInput;
+    type Output<E: Numeric, S: Size> = FusedReduceOutput;
+    type State<P: ReduceDType> = FusedReduceState;
+
+    fn init_state<P: ReduceDType>(
+        input: &Self::Input<P::In, P::SizeIn>,
+        output: &mut Self::Output<P::Out, P::SizeOut>,
+    ) -> Self::State<P> {
+        let mut locals_read = init_locals(&input.global, &mut output.global, &input.config);
+        let mut locals_write = init_locals(&input.global, &mut output.global, &output.config);
+        // TODO Add stuff from previous blocks to the local of each block.
+        FusedReduceState::new(input, output, &mut locals_read, &mut locals_write)
+    }
+
+    fn read_input<P: ReduceDType>(
+        state: &Self::State<P>,
+        index: usize,
+    ) -> Vector<P::In, P::SizeIn> {
+        let mut state = state.clone();
+        let value = fuse_on_read::<P::In, P::SizeIn>(
+            &state.inputs,
+            &mut state.outputs,
+            &mut state.locals_on_read,
+            index,
+            comptime! {
+                let mut sequence = Sequence::new();
+                // TODO: Register local arguments from previous blocks.
+                sequence.push(state.input.clone());
+                sequence
+            },
+            &state.config_on_read,
+        );
+        value[0]
+    }
+
+    fn read_output<P: ReduceDType>(
+        _state: &Self::State<P>,
+        _index: usize,
+    ) -> Vector<P::Out, P::SizeOut> {
+        Vector::empty()
+    }
+
+    fn write_output<P: ReduceDType>(
+        state: &mut Self::State<P>,
+        index: usize,
+        value: Vector<P::Out, P::SizeOut>,
+    ) {
+        let mut values = Registry::<FuseArg, Vector<P::Out, P::SizeOut>>::new();
+        let mut args = comptime![Vec::<FuseArg>::new()];
+
+        values.insert(comptime![state.out.clone()], value);
+        comptime![args.push(state.out.clone())];
+        fuse_on_write(
+            &state.inputs,
+            &mut state.outputs,
+            &mut state.locals_on_write,
+            index,
+            values,
+            args,
+            &state.config_on_write,
+        );
+    }
+
+    fn len_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
+        ref_len(
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_read,
+            &state.config_on_read,
+        )
+    }
+
+    fn len_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
+        ref_len(
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_write,
+            &state.config_on_write,
+        )
+    }
+
+    fn buffer_len_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
+        ref_buffer_len(
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_read,
+            &state.config_on_read,
+        )
+    }
+
+    fn buffer_len_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
+        ref_buffer_len(
+            &state.inputs,
+            &state.outputs,
+            &state.locals_on_write,
+            &state.config_on_write,
+        )
+    }
+
+    fn rank_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
+        state.config_on_read.rank.runtime()
+    }
+
+    fn rank_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
+        state.config_on_write.rank.runtime()
+    }
+
+    fn shape_input<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
+        ref_shape(&state.locals_on_read, dim)
+    }
+
+    fn shape_output<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
+        ref_shape(&state.locals_on_write, dim)
+    }
+
+    fn stride_input<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
+        ref_stride(&state.locals_on_read, dim)
+    }
+
+    fn stride_output<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
+        ref_stride(&state.locals_on_write, dim)
+    }
+
+    fn vector_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
+        ref_vector_size(&state.locals_on_read)
+    }
+
+    fn vector_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
+        ref_vector_size(&state.locals_on_write)
+    }
+}
+
+#[cube]
+impl FusedReduceState {
+    pub fn new(
+        inputs: &FusedReduceInput,
+        outputs: &mut FusedReduceOutput,
+        locals_on_read: &mut LocalArgs,
+        locals_on_write: &mut LocalArgs,
+    ) -> FusedReduceState {
+        FusedReduceState {
+            inputs: inputs.global.clone(),
+            outputs: outputs.global.clone(),
+            locals_on_read: locals_on_read.clone(),
+            locals_on_write: locals_on_write.clone(),
+            config_on_read: comptime![inputs.config.clone()],
+            config_on_write: comptime![outputs.config.clone()],
+            input: comptime![inputs.arg.clone()],
+            out: comptime![outputs.arg.clone()],
+        }
+    }
+}
+
+impl CubeType for FusedReduceState {
+    type ExpandType = FusedReduceStateExpand;
+}
+
+impl IntoExpand for FusedReduceStateExpand {
+    type Expand = Self;
+
+    fn into_expand(self, _: &Scope) -> Self::Expand {
+        self
+    }
+}
+
+impl ExpandTypeClone for FusedReduceStateExpand {
+    fn clone_unchecked(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl AsRefExpand for FusedReduceStateExpand {
+    fn __expand_ref_method(&self, _: &Scope) -> &Self {
+        self
+    }
+}
+
+impl AsMutExpand for FusedReduceStateExpand {
+    fn __expand_ref_mut_method(&mut self, _: &Scope) -> &mut Self {
+        self
+    }
+}
+
+impl IntoMut for FusedReduceStateExpand {
+    fn into_mut(self, _context: &Scope) -> Self {
+        self
+    }
+}
+
+impl CubeDebug for FusedReduceStateExpand {}

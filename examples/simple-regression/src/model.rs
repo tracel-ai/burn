@@ -5,25 +5,24 @@ use burn::{
         loss::{MseLoss, Reduction::Mean},
     },
     prelude::*,
-    tensor::backend::AutodiffBackend,
-    train::{RegressionOutput, TrainOutput, TrainStep, ValidStep},
+    train::{InferenceStep, RegressionOutput, TrainOutput, TrainStep},
 };
 
 #[derive(Module, Debug)]
-pub struct RegressionModel<B: Backend> {
-    input_layer: Linear<B>,
-    output_layer: Linear<B>,
+pub struct RegressionModel {
+    input_layer: Linear,
+    output_layer: Linear,
     activation: Relu,
 }
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct RegressionModelConfig {
     #[config(default = 64)]
     pub hidden_size: usize,
 }
 
 impl RegressionModelConfig {
-    pub fn init<B: Backend>(&self, device: &B::Device) -> RegressionModel<B> {
+    pub fn init(&self, device: &Device) -> RegressionModel {
         let input_layer = LinearConfig::new(NUM_FEATURES, self.hidden_size)
             .with_bias(true)
             .init(device);
@@ -39,16 +38,16 @@ impl RegressionModelConfig {
     }
 }
 
-impl<B: Backend> RegressionModel<B> {
-    pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+impl RegressionModel {
+    pub fn forward(&self, input: Tensor<2>) -> Tensor<2> {
         let x = self.input_layer.forward(input);
         let x = self.activation.forward(x);
         self.output_layer.forward(x)
     }
 
-    pub fn forward_step(&self, item: HousingBatch<B>) -> RegressionOutput<B> {
-        let targets: Tensor<B, 2> = item.targets.unsqueeze_dim(1);
-        let output: Tensor<B, 2> = self.forward(item.inputs);
+    pub fn forward_step(&self, item: HousingBatch) -> RegressionOutput {
+        let targets: Tensor<2> = item.targets.unsqueeze_dim(1);
+        let output: Tensor<2> = self.forward(item.inputs);
 
         let loss = MseLoss::new().forward(output.clone(), targets.clone(), Mean);
 
@@ -60,16 +59,22 @@ impl<B: Backend> RegressionModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<HousingBatch<B>, RegressionOutput<B>> for RegressionModel<B> {
-    fn step(&self, item: HousingBatch<B>) -> TrainOutput<RegressionOutput<B>> {
+impl TrainStep for RegressionModel {
+    type Input = HousingBatch;
+    type Output = RegressionOutput;
+
+    fn step(&self, item: HousingBatch) -> TrainOutput<RegressionOutput> {
         let item = self.forward_step(item);
 
         TrainOutput::new(self, item.loss.backward(), item)
     }
 }
 
-impl<B: Backend> ValidStep<HousingBatch<B>, RegressionOutput<B>> for RegressionModel<B> {
-    fn step(&self, item: HousingBatch<B>) -> RegressionOutput<B> {
+impl InferenceStep for RegressionModel {
+    type Input = HousingBatch;
+    type Output = RegressionOutput;
+
+    fn step(&self, item: HousingBatch) -> RegressionOutput {
         self.forward_step(item)
     }
 }

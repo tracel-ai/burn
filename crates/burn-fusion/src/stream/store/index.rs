@@ -120,8 +120,10 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
-    use burn_ir::{BinaryOpIr, NumericOperationIr, ScalarOpIr, TensorId, TensorIr, TensorStatus};
-    use burn_tensor::DType;
+    use burn_backend::{DType, Shape};
+    use burn_ir::{
+        BinaryOpIr, NumericOperationIr, ScalarIr, ScalarOpIr, TensorId, TensorIr, TensorStatus,
+    };
 
     use super::*;
 
@@ -196,11 +198,14 @@ mod tests {
         let stream_1_key = index.operation_key(&stream_1[0]);
         let stream_2_key = index.operation_key(&stream_2[0]);
 
-        assert_eq!(
+        assert_ne!(
             stream_1_key, stream_2_key,
-            "Ops 1 and Ops 3 have the same hash"
+            "Ops 1 and Ops 3 should not have the same hash"
+        ); // ops 1 and 3 have different variants, so the hash differs
+        assert_ne!(
+            stream_1[0], stream_2[0],
+            "Ops 1 and Ops 3 should be different."
         );
-        assert_ne!(stream_1[0], stream_2[0], "Ops 1 and Ops 3 are different.");
 
         index.insert(InsertQuery::NewPlan {
             operations: &stream_1,
@@ -222,19 +227,19 @@ mod tests {
             NumericOperationIr::Add(BinaryOpIr {
                 lhs: TensorIr {
                     id: TensorId::new(0),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 rhs: TensorIr {
                     id: TensorId::new(1),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 out: TensorIr {
                     id: TensorId::new(2),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },
@@ -248,14 +253,14 @@ mod tests {
             NumericOperationIr::AddScalar(ScalarOpIr {
                 lhs: TensorIr {
                     id: TensorId::new(0),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
-                rhs: 5.0,
+                rhs: ScalarIr::Float(5.0),
                 out: TensorIr {
                     id: TensorId::new(2),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },
@@ -269,19 +274,19 @@ mod tests {
             NumericOperationIr::Sub(BinaryOpIr {
                 lhs: TensorIr {
                     id: TensorId::new(0),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 rhs: TensorIr {
                     id: TensorId::new(1),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 out: TensorIr {
                     id: TensorId::new(2),
-                    shape: vec![32, 32],
+                    shape: Shape::new([32, 32]),
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },

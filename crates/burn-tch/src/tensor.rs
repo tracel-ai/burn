@@ -1,11 +1,5 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_tensor::{
-    DType, Shape, TensorData, TensorMetadata,
-    quantization::{
-        QTensorPrimitive, QuantInputType, QuantLevel, QuantMode, QuantScheme, QuantizationStrategy,
-        SymmetricQuantization,
-    },
-};
+use burn_backend::{BoolStore, DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -71,6 +65,7 @@ pub struct TchTensor {
 }
 
 impl TensorMetadata for TchTensor {
+    type Device = LibTorchDevice;
     fn dtype(&self) -> DType {
         match self.tensor.kind() {
             tch::Kind::Uint8 => DType::U8,
@@ -81,8 +76,7 @@ impl TensorMetadata for TchTensor {
             tch::Kind::Half => DType::F16,
             tch::Kind::Float => DType::F32,
             tch::Kind::Double => DType::F64,
-            tch::Kind::Bool => DType::Bool,
-            tch::Kind::QUInt8 => DType::U8,
+            tch::Kind::Bool => DType::Bool(BoolStore::Native),
             tch::Kind::BFloat16 => DType::BF16,
             // Complex and quantization types are not valid/implemented.
             _ => unimplemented!(),
@@ -91,6 +85,68 @@ impl TensorMetadata for TchTensor {
 
     fn shape(&self) -> Shape {
         Shape::from(self.tensor.size())
+    }
+
+    fn rank(&self) -> usize {
+        self.tensor.dim()
+    }
+    fn device(&self) -> Self::Device {
+        self.tensor.device().into()
+    }
+
+    fn can_mut(&self) -> bool {
+        // The inherent method: unique storage and no broadcast stride.
+        TchTensor::can_mut(self)
+    }
+}
+
+impl core::fmt::Display for TchTensor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.tensor)
+    }
+}
+
+pub(crate) trait IntoKind {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError>;
+    fn into_kind(self) -> tch::Kind
+    where
+        Self: Sized,
+    {
+        self.try_into_kind().unwrap()
+    }
+}
+
+impl IntoKind for IntDType {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
+        let dtype: DType = self.into();
+        dtype.try_into_kind()
+    }
+}
+
+impl IntoKind for FloatDType {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
+        let dtype: DType = self.into();
+        dtype.try_into_kind()
+    }
+}
+
+impl IntoKind for DType {
+    fn try_into_kind(self) -> Result<tch::Kind, tch::TchError> {
+        match self {
+            DType::F64 => Ok(tch::Kind::Double),
+            DType::F32 => Ok(tch::Kind::Float),
+            DType::Flex32 => Ok(tch::Kind::Float),
+            DType::F16 => Ok(tch::Kind::Half),
+            DType::BF16 => Ok(tch::Kind::BFloat16),
+            DType::I64 => Ok(tch::Kind::Int64),
+            // LibTorch backend currently forces I64 int dtype
+            // DType::I32 => Ok(tch::Kind::Int),
+            // DType::I16 => Ok(tch::Kind::Int16),
+            // DType::I8 => Ok(tch::Kind::Int8),
+            // DType::U8 => Ok(tch::Kind::Uint8),
+            DType::Bool(BoolStore::Native) => Ok(tch::Kind::Bool),
+            other => Err(tch::TchError::Kind(format!("Unsupported dtype {other:?}"))),
+        }
     }
 }
 
@@ -221,23 +277,23 @@ impl TchTensor {
         let mut out_shape = Shape::from(vec![1usize; d_out]);
 
         for i in 0..d_out {
-            out_shape.dims[i] = usize::max(lhs_shape.dims[i], rhs_shape.dims[i]);
+            out_shape[i] = usize::max(lhs_shape[i], rhs_shape[i]);
         }
 
         let num_elements_out = out_shape.num_elements();
 
         // Attempt to mutate lhs tensor
-        if lhs_shape.num_elements() == num_elements_out {
-            if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
-                return output;
-            }
+        if lhs_shape.num_elements() == num_elements_out
+            && let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor))
+        {
+            return output;
         }
 
         // Attempt to mutate rhs tensor
-        if rhs_shape.num_elements() == num_elements_out {
-            if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
-                return output;
-            }
+        if rhs_shape.num_elements() == num_elements_out
+            && let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs))
+        {
+            return output;
         }
 
         let storage = lhs.storage;
@@ -266,7 +322,7 @@ pub struct TchShape {
 impl From<Shape> for TchShape {
     fn from(shape: Shape) -> Self {
         TchShape {
-            dims: shape.dims.into_iter().map(|d| d as i64).collect(),
+            dims: shape.iter().map(|d| *d as i64).collect(),
         }
     }
 }
@@ -292,8 +348,8 @@ impl TchTensor {
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
-        let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
-        let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
+        let tensor =
+            tch::Tensor::from_data_size(&data.bytes, &shape_tch.dims, E::kind()).to(device);
 
         Self::new(tensor)
     }
@@ -310,145 +366,139 @@ impl TchTensor {
     /// # Returns
     ///
     /// A new empty tensor.
-    pub fn empty<E: tch::kind::Element>(shape: Shape, device: LibTorchDevice) -> Self {
+    pub fn empty(shape: Shape, device: LibTorchDevice, dtype: DType) -> Self {
         let shape_tch = TchShape::from(shape);
-        let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));
+        let tensor = tch::Tensor::empty(shape_tch.dims, (dtype.into_kind(), device.into()));
 
         Self::new(tensor)
     }
 }
 
-/// A quantized tensor for the tch backend.
-#[derive(Clone, Debug)]
-pub struct TchQTensor {
-    /// The quantized tensor.
-    pub qtensor: TchTensor,
-    /// The quantization scheme.
-    pub scheme: QuantScheme,
-}
-
-impl TchQTensor {
-    /// Returns the quantization strategy, including quantization parameters, for the given tensor.
-    pub fn strategy(&self) -> QuantizationStrategy {
-        match &self.scheme {
-            QuantScheme {
-                level: QuantLevel::Tensor,
-                mode: QuantMode::Symmetric,
-                q_type: QuantInputType::QInt8,
-                ..
-            } => {
-                let scale = self.qtensor.tensor.q_scale();
-                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    scale as f32,
-                ))
-            }
+// Adapted from `tch` to use patched `T::kind()` instead of `T::KIND` which is incorrect for bf16.
+// TODO: remove when fixed in `tch` release (https://github.com/LaurentMazare/tch-rs/pull/996).
+impl<T: TchElement + Copy> TryFrom<&TchTensor> for Vec<T> {
+    type Error = tch::TchError;
+    fn try_from(tensor: &TchTensor) -> Result<Self, Self::Error> {
+        let tensor = &tensor.tensor;
+        let size = tensor.size();
+        if size.len() != 1 {
+            Err(tch::TchError::Convert(format!(
+                "Attempting to convert a Tensor with {} dimensions to flat vector",
+                size.len()
+            )))?;
         }
+        let numel = size[0] as usize;
+        let mut vec = vec![T::ZERO; numel];
+        // Adapted to use patched `T::kind()` instead
+        // TODO: tensor.f_to_kind(T::KIND)?.f_copy_data(&mut vec, numel)?;
+        f_copy_data(&mut tensor.f_to_kind(T::kind())?, &mut vec, numel)?;
+        Ok(vec)
     }
 }
 
-impl TensorMetadata for TchQTensor {
-    fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
-    }
-
-    fn shape(&self) -> Shape {
-        self.qtensor.shape()
+unsafe fn ptr_to_string(ptr: *mut libc::c_char) -> Option<String> {
+    if !ptr.is_null() {
+        unsafe {
+            let str = std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned();
+            libc::free(ptr as *mut libc::c_void);
+            Some(str)
+        }
+    } else {
+        None
     }
 }
 
-impl QTensorPrimitive for TchQTensor {
-    fn scheme(&self) -> &QuantScheme {
-        &self.scheme
+/// Copies `numel` elements from `self` to `dst`.
+fn f_copy_data<T: TchElement>(
+    tensor: &mut tch::Tensor,
+    dst: &mut [T],
+    numel: usize,
+) -> Result<(), tch::TchError> {
+    if T::kind() != tensor.f_kind()? {
+        return Err(tch::TchError::Kind(format!(
+            "incoherent elt kind, {:?} != {:?}",
+            tensor.f_kind(),
+            T::kind()
+        )));
+    }
+    if dst.len() < numel {
+        return Err(tch::TchError::Shape(format!("slice len < {numel}")));
+    }
+
+    unsafe {
+        torch_sys::at_copy_data(
+            tensor.as_mut_ptr(),
+            dst.as_mut_ptr() as *const c_void,
+            numel,
+            T::kind().elt_size_in_bytes(),
+        );
+        match ptr_to_string(torch_sys::get_and_reset_last_err()) {
+            None => Ok(()),
+            Some(c_error) => Err(tch::TchError::Torch(c_error)),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::LibTorch;
-
     use super::*;
-    use burn_tensor::ops::QTensorOps;
-    use burn_tensor::quantization::QuantizationParametersPrimitive;
-    use burn_tensor::{Distribution, Tensor, TensorPrimitive};
-    use rand::SeedableRng;
-    use rand::prelude::StdRng;
+    use burn_backend::ops::FloatTensorOps;
+    use burn_backend::{Backend, quantization::QuantScheme, read_sync};
+
+    type B = crate::LibTorch;
 
     #[test]
-    fn should_support_into_and_from_data_1d() {
-        let data_expected = TensorData::random::<f32, _, _>(
-            Shape::new([3]),
-            Distribution::Default,
-            &mut StdRng::from_os_rng(),
-        );
-        let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
+    fn should_have_bf16_kind() {
+        let data = TensorData::from([4.0, 4.0]);
+        let tensor_1: TchTensor = B::float_from_data(data, &Default::default());
+        let tensor_2 = B::float_cast(tensor_1, DType::BF16.into());
 
-        let data_actual =
-            Tensor::<LibTorch<f32>, 1>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
+        assert_eq!(tensor_2.tensor.kind(), tch::Kind::BFloat16);
 
-        assert_eq!(data_expected, data_actual);
+        let out = read_sync(B::float_into_data(tensor_2)).unwrap();
+
+        out.assert_eq(&TensorData::from([4.0, 4.0]), false);
     }
 
     #[test]
-    fn should_support_into_and_from_data_2d() {
-        let data_expected = TensorData::random::<f32, _, _>(
-            Shape::new([2, 3]),
-            Distribution::Default,
-            &mut StdRng::from_os_rng(),
-        );
-        let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
+    fn should_support_dtypes() {
+        let device = Default::default();
 
-        let data_actual =
-            Tensor::<LibTorch<f32>, 2>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
 
-        assert_eq!(data_expected, data_actual);
+        assert!(!B::supports_dtype(&device, DType::U64));
+        assert!(!B::supports_dtype(&device, DType::U32));
+        assert!(!B::supports_dtype(&device, DType::U16));
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(QuantScheme::default())
+        ));
     }
 
     #[test]
-    fn should_not_update_inplace_after_reshape() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.clone();
+    fn should_support_from_bf16() {
+        let data = TensorData::from([[1.0], [1.]]).convert_dtype(DType::BF16);
+        let tensor_1: TchTensor = B::float_from_data(data, &Default::default());
+        let data = TensorData::from([[2.0], [2.]]).convert_dtype(DType::BF16);
+        let tensor_2 = B::float_from_data(data, &Default::default());
 
-        let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
+        let tensor_3 = B::float_add(tensor_1, tensor_2);
 
-        assert_ne!(
-            tensor_3.to_data().as_slice::<f32>().unwrap(),
-            tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
+        assert_eq!(tensor_3.tensor.kind(), tch::Kind::BFloat16);
 
-    #[test]
-    fn should_not_update_inplace_after_slice() {
-        let tensor_1 = Tensor::<LibTorch<f32>, 1>::from_floats([4.0, 4.0], &Default::default());
-        let tensor_2 = tensor_1.clone();
+        let out = read_sync(B::float_into_data(tensor_3)).unwrap();
 
-        let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);
-
-        assert_ne!(
-            tensor_3.to_data().as_slice::<f32>().unwrap(),
-            tensor_1.to_data().as_slice::<f32>().unwrap()
-        );
-    }
-
-    #[test]
-    fn should_support_qtensor_strategy() {
-        let tensor =
-            TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme = QuantScheme::default();
-        let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
-            scales: TchTensor::from_data::<f32>(
-                TensorData::from([0.009_019_608]),
-                tch::Device::Cpu,
-            ),
-        };
-        let qtensor: TchQTensor = LibTorch::quantize(tensor, &scheme, qparams);
-
-        assert_eq!(qtensor.scheme(), &scheme);
-        assert_eq!(
-            qtensor.strategy(),
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                0.009_019_608
-            ))
-        );
+        out.assert_eq(&TensorData::from([[3.0], [3.0]]), false);
     }
 }
 

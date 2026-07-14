@@ -1,80 +1,62 @@
-use burn::tensor::backend::Backend;
+use burn::tensor::Device;
 
-pub fn launch<B: Backend>(device: B::Device) {
-    wgan::infer::generate::<B>("/tmp/wgan-mnist", device);
+pub fn launch(device: Device) {
+    wgan::infer::generate("/tmp/wgan-mnist", device);
 }
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use burn::backend::ndarray::{NdArray, NdArrayDevice};
-
-    use crate::launch;
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::tensor::Device;
 
     pub fn run() {
-        launch::<NdArray>(NdArrayDevice::Cpu);
+        crate::launch(Device::flex());
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-
-    use crate::launch;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
-        let device = LibTorchDevice::Cuda(0);
+        let device = Device::libtorch_cuda(DeviceIndex::Default);
         #[cfg(target_os = "macos")]
-        let device = LibTorchDevice::Mps;
+        let device = Device::libtorch_mps();
 
-        launch::<LibTorch>(device);
+        crate::launch(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-
-    use crate::launch;
+    use burn::tensor::Device;
 
     pub fn run() {
-        launch::<LibTorch>(LibTorchDevice::Cpu);
+        crate::launch(Device::libtorch());
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use crate::launch;
-    use burn::backend::wgpu::Wgpu;
+    use burn::tensor::{Device, DeviceKind};
 
     pub fn run() {
-        launch::<Wgpu>(Default::default());
+        crate::launch(Device::wgpu(DeviceKind::DefaultDevice));
     }
 }
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::launch;
-    use burn::backend::Cuda;
+    use burn::tensor::{Device, DeviceIndex};
 
     pub fn run() {
-        launch::<Cuda>(Default::default());
+        crate::launch(Device::cuda(DeviceIndex::Default));
     }
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

@@ -7,17 +7,17 @@ use burn::{
 pub struct MnistBatcher {}
 
 #[derive(Clone, Debug)]
-pub struct MnistBatch<B: Backend> {
-    pub images: Tensor<B, 3>,
-    pub targets: Tensor<B, 1, Int>,
+pub struct MnistBatch {
+    pub images: Tensor<3>,
+    pub targets: Tensor<1, Int>,
 }
 
-impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
-    fn batch(&self, items: Vec<MnistItem>, device: &B::Device) -> MnistBatch<B> {
+impl Batcher<MnistItem, MnistBatch> for MnistBatcher {
+    fn batch(&self, items: Vec<MnistItem>, device: &Device) -> MnistBatch {
         let images = items
             .iter()
-            .map(|item| TensorData::from(item.image).convert::<B::FloatElem>())
-            .map(|data| Tensor::<B, 2>::from_data(data, device))
+            .map(|item| TensorData::from(item.image))
+            .map(|data| Tensor::<2>::from_data(data, device))
             .map(|tensor| tensor.reshape([1, 28, 28]))
             // Normalize: scale between [0,1] and make the mean=0 and std=1
             // values mean=0.1307,std=0.3081 are from the PyTorch MNIST example
@@ -27,9 +27,7 @@ impl<B: Backend> Batcher<B, MnistItem, MnistBatch<B>> for MnistBatcher {
 
         let targets = items
             .iter()
-            .map(|item| {
-                Tensor::<B, 1, Int>::from_data([(item.label as i64).elem::<B::IntElem>()], device)
-            })
+            .map(|item| Tensor::<1, Int>::from_data([item.label as i64], device))
             .collect();
 
         let images = Tensor::cat(images, 0);

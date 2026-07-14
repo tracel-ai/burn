@@ -1,106 +1,56 @@
-use alloc::{format, string::ToString};
-use core::{fmt::Display, marker::PhantomData};
+use alloc::format;
+use burn_tensor::kind::{Autodiff, Basic};
+use core::fmt::Display;
 
-use crate::{
-    self as burn,
-    module::{
-        AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault,
-        ModuleMapper, ModuleVisitor,
-    },
-    record::Record,
+use crate as burn;
+use crate::module::{
+    AutodiffModule, Content, Devices, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor,
 };
-use burn::record::PrecisionSettings;
-use burn_tensor::{
-    BasicAutodiffOps, BasicOps, Tensor,
-    backend::{AutodiffBackend, Backend},
-    ops::Device,
-};
+use burn_tensor::{Device, Tensor};
 
-/// Record used for constant type implementing the [module](crate::module::Module) trait.
-#[derive(Debug, Clone, Copy, new, Default)]
-pub struct ConstantRecord;
-
-impl serde::Serialize for ConstantRecord {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        // nothing to serialize
-        S::serialize_none(serializer)
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for ConstantRecord {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_option(serde::de::IgnoredAny).ok();
-        Ok(ConstantRecord::new())
-    }
-}
-
-impl<B: Backend> Record<B> for ConstantRecord {
-    type Item<S: PrecisionSettings> = ConstantRecord;
-
-    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        self
-    }
-
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
-        item
-    }
-}
 /// Constant macro.
 #[macro_export]
-macro_rules! constant {
+macro_rules! empty {
     (module) => {
-        type Record = burn::module::ConstantRecord;
-
-        fn visit<V: burn::module::ModuleVisitor<B>>(&self, _visitor: &mut V) {
+        fn visit<V: burn::module::ModuleVisitor>(&self, _visitor: &mut V) {
             // Nothing to do
         }
 
-        fn map<M: burn::module::ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
+        fn map<M: burn::module::ModuleMapper>(self, _mapper: &mut M) -> Self {
             self
         }
 
-        fn load_record(self, _record: Self::Record) -> Self {
+        fn to_device(self, _: &burn::tensor::Device) -> Self {
             self
         }
 
-        fn into_record(self) -> Self::Record {
-            burn::module::ConstantRecord::new()
-        }
-
-        fn to_device(self, _: &B::Device) -> Self {
+        fn fork(self, _: &burn::tensor::Device) -> Self {
             self
         }
 
-        fn fork(self, _: &B::Device) -> Self {
-            self
-        }
-
-        fn collect_devices(&self, devices: burn::module::Devices<B>) -> burn::module::Devices<B> {
+        fn collect_devices(&self, devices: burn::module::Devices) -> burn::module::Devices {
             devices
         }
     };
 
     (ad_module, $type:ty) => {
-        type InnerModule = $type;
-
-        fn valid(&self) -> Self::InnerModule {
+        fn valid(&self) -> Self {
             self.clone()
+        }
+
+        fn from_inner(module: Self) -> Self {
+            module
         }
     };
 
     ($type:ty) => {
-        impl<B: burn::tensor::backend::Backend> burn::module::Module<B> for $type {
-            constant!(module);
+        impl burn::module::Module for $type {
+            empty!(module);
         }
 
-        impl<B: burn::tensor::backend::AutodiffBackend> burn::module::AutodiffModule<B> for $type {
-            constant!(ad_module, $type);
+        impl burn::module::AutodiffModule for $type {
+            empty!(ad_module, $type);
         }
 
         impl burn::module::ModuleDisplayDefault for $type {
@@ -114,29 +64,31 @@ macro_rules! constant {
     };
 }
 
+// TODO: breaking change for these constant types (currently empty record, non-persistent)?
+
 // General Types
-constant!(alloc::string::String);
-constant!(bool);
+empty!(alloc::string::String);
+empty!(bool);
 
 // Float Types
-constant!(f64);
-constant!(f32);
-constant!(half::bf16);
-constant!(half::f16);
+empty!(f64);
+empty!(f32);
+empty!(half::bf16);
+empty!(half::f16);
 
 // Unsigned Integer Types
-constant!(usize);
-constant!(u64);
-constant!(u32);
-constant!(u16);
-constant!(u8);
+empty!(usize);
+empty!(u64);
+empty!(u32);
+empty!(u16);
+empty!(u8);
 
 // Signed Integer Types
-constant!(isize);
-constant!(i64);
-constant!(i32);
-constant!(i16);
-constant!(i8);
+empty!(isize);
+empty!(i64);
+empty!(i32);
+empty!(i16);
+empty!(i8);
 
 impl burn::module::ModuleDisplay for str {}
 impl burn::module::ModuleDisplayDefault for str {
@@ -145,32 +97,23 @@ impl burn::module::ModuleDisplayDefault for str {
     }
 }
 
-impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
-    type Record = ConstantRecord;
+// TODO: tensor record should persist
+impl<const D: usize, K: Basic> Module for Tensor<D, K> {
+    fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {}
 
-    fn visit<V: ModuleVisitor<B>>(&self, _visitor: &mut V) {}
-
-    fn map<M: ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
         self
     }
 
-    fn into_record(self) -> Self::Record {
-        ConstantRecord
-    }
-
-    fn load_record(self, _record: Self::Record) -> Self {
-        self
-    }
-
-    fn to_device(self, device: &B::Device) -> Self {
+    fn to_device(self, device: &Device) -> Self {
         self.to_device(device)
     }
 
-    fn fork(self, device: &B::Device) -> Self {
+    fn fork(self, device: &Device) -> Self {
         self.to_device(device)
     }
 
-    fn collect_devices(&self, mut devices: Devices<B>) -> Devices<B> {
+    fn collect_devices(&self, mut devices: Devices) -> Devices {
         let device = self.device();
 
         if !devices.contains(&device) {
@@ -181,113 +124,111 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
     }
 }
 
-impl<const D: usize, B: Backend, K: BasicOps<B>> ModuleDisplayDefault for Tensor<B, D, K> {
+impl<const D: usize, K: Basic> ModuleDisplayDefault for Tensor<D, K> {
     fn content(&self, content: Content) -> Option<Content> {
-        let string = format!("Tensor {{rank: {D}, shape: {:?}}}", self.shape().dims);
+        let string = format!("Tensor {{rank: {D}, shape: {:?}}}", self.shape().as_slice());
         content.add_single(&string).optional()
     }
 }
 
-impl<const D: usize, B: Backend, K: BasicOps<B>> ModuleDisplay for Tensor<B, D, K> {}
+impl<const D: usize, K: Basic> ModuleDisplay for Tensor<D, K> {}
 
-impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> AutodiffModule<B>
-    for Tensor<B, D, K>
-{
-    type InnerModule = Tensor<B::InnerBackend, D, K::InnerKind>;
-
-    fn valid(&self) -> Self::InnerModule {
+impl<const D: usize, K: Autodiff> AutodiffModule for Tensor<D, K> {
+    fn valid(&self) -> Self {
         self.clone().inner()
     }
-}
 
-impl<B: Backend> Module<B> for PhantomData<B> {
-    type Record = ConstantRecord;
-
-    fn visit<V: ModuleVisitor<B>>(&self, _visitor: &mut V) {
-        // Nothing to do
-    }
-
-    fn map<M: ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
-        self
-    }
-
-    fn load_record(self, _record: Self::Record) -> Self {
-        self
-    }
-
-    fn into_record(self) -> Self::Record {
-        ConstantRecord::new()
-    }
-
-    fn to_device(self, _: &Device<B>) -> Self {
-        self
-    }
-
-    fn fork(self, _: &Device<B>) -> Self {
-        self
-    }
-
-    fn collect_devices(&self, devices: Devices<B>) -> Devices<B> {
-        devices
+    fn from_inner(tensor: Self) -> Self {
+        Tensor::from_inner(tensor)
     }
 }
 
-impl<B: Backend> ModuleDisplayDefault for PhantomData<B> {
-    fn content(&self, content: Content) -> Option<Content> {
-        content.add_single(&"PhantomData".to_string()).optional()
-    }
-}
+// TODO: no longer necessary?
+// impl<T> Module for PhantomData<T> {
+//     type Record = EmptyRecord;
 
-impl<B: Backend> ModuleDisplay for PhantomData<B> {}
+//     fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {
+//         // Nothing to do
+//     }
 
-impl<B: AutodiffBackend> AutodiffModule<B> for PhantomData<B> {
-    type InnerModule = PhantomData<B::InnerBackend>;
+//     fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
+//         self
+//     }
 
-    fn valid(&self) -> Self::InnerModule {
-        PhantomData
-    }
-}
+//     fn load_record(self, _record: Self::Record) -> Self {
+//         self
+//     }
+
+//     fn into_record(self) -> Self::Record {
+//         EmptyRecord::new()
+//     }
+
+//     fn to_device(self, _: &Device) -> Self {
+//         self
+//     }
+
+//     fn fork(self, _: &Device) -> Self {
+//         self
+//     }
+
+//     fn collect_devices(&self, devices: Devices) -> Devices {
+//         devices
+//     }
+// }
+
+// impl<T> ModuleDisplayDefault for PhantomData<T> {
+//     fn content(&self, content: Content) -> Option<Content> {
+//         content.add_single(&"PhantomData".to_string()).optional()
+//     }
+// }
+
+// impl<T> ModuleDisplay for PhantomData<T> {}
+
+// impl<T> AutodiffModule for PhantomData<T> {
+//     fn valid(&self) -> Self {
+//         PhantomData
+//     }
+
+//     fn from_inner(_module: Self) -> Self {
+//         Self
+//     }
+// }
 
 /// Container to satisfy the Module trait for types that are not modules.
 #[derive(Clone, Debug)]
+#[deprecated(
+    since = "0.21.0",
+    note = "Ignored<T> is deprecated. Use #[module(skip)] for non-persistent fields (same behavior)."
+)]
 pub struct Ignored<T>(pub T);
 
-impl<B, T> Module<B> for Ignored<T>
+#[allow(deprecated)]
+impl<T> Module for Ignored<T>
 where
-    B: Backend,
     T: Sync + Send + core::fmt::Debug + Clone,
 {
-    type Record = ConstantRecord;
-
-    fn visit<V: ModuleVisitor<B>>(&self, _visitor: &mut V) {
+    fn visit<V: ModuleVisitor>(&self, _visitor: &mut V) {
         // Nothing to do
     }
 
-    fn map<M: ModuleMapper<B>>(self, _mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, _mapper: &mut M) -> Self {
         self
     }
 
-    fn load_record(self, _record: Self::Record) -> Self {
+    fn to_device(self, _: &Device) -> Self {
         self
     }
 
-    fn into_record(self) -> Self::Record {
-        ConstantRecord::new()
-    }
-
-    fn to_device(self, _: &Device<B>) -> Self {
+    fn fork(self, _: &Device) -> Self {
         self
     }
 
-    fn fork(self, _: &Device<B>) -> Self {
-        self
-    }
-
-    fn collect_devices(&self, devices: Devices<B>) -> Devices<B> {
+    fn collect_devices(&self, devices: Devices) -> Devices {
         devices
     }
 }
 
+#[allow(deprecated)]
 impl<T> ModuleDisplayDefault for Ignored<T>
 where
     T: Sync + Send + core::fmt::Debug + Clone,
@@ -298,8 +239,10 @@ where
     }
 }
 
+#[allow(deprecated)]
 impl<T> ModuleDisplay for Ignored<T> where T: Sync + Send + core::fmt::Debug + Clone {}
 
+#[allow(deprecated)]
 impl<T> Display for Ignored<T>
 where
     T: Sync + Send + core::fmt::Debug + Clone,
@@ -309,18 +252,21 @@ where
     }
 }
 
-impl<B: AutodiffBackend, T> AutodiffModule<B> for Ignored<T>
+#[allow(deprecated)]
+impl<T> AutodiffModule for Ignored<T>
 where
-    B: AutodiffBackend,
     T: Sync + Send + core::fmt::Debug + Clone,
 {
-    type InnerModule = Ignored<T>;
-
-    fn valid(&self) -> Self::InnerModule {
+    fn valid(&self) -> Self {
         self.clone()
+    }
+
+    fn from_inner(module: Self) -> Self {
+        module
     }
 }
 
+#[allow(deprecated)]
 // Implement deref for Ignored
 impl<T> core::ops::Deref for Ignored<T> {
     type Target = T;
@@ -334,60 +280,20 @@ impl<T> core::ops::Deref for Ignored<T> {
 mod tests {
     use core::marker::PhantomData;
 
-    use burn_tensor::backend::Backend;
-    use burn_tensor::{Device, Tensor};
-
-    use crate::TestBackend;
-    use crate::{
-        TestAutodiffBackend,
-        record::{BinBytesRecorder, FullPrecisionSettings, Recorder},
-    };
     use burn::module::Module;
 
     use crate as burn;
 
     #[test]
-    fn tensor_load_record_setting() {
-        let device: &Device<TestAutodiffBackend> = &Default::default();
-        let tensor = Tensor::<TestAutodiffBackend, 2>::ones([3, 3], device);
-
-        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
-        let bytes = Recorder::<TestAutodiffBackend>::record(
-            &byte_recorder,
-            tensor.clone().into_record(),
-            (),
-        )
-        .unwrap();
-
-        let no_grad_is_require_grad = tensor
-            .clone()
-            .no_grad()
-            .load_record(
-                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), device)
-                    .unwrap(),
-            )
-            .is_require_grad();
-
-        let with_default_is_require_grad = tensor
-            .load_record(
-                Recorder::<TestAutodiffBackend>::load(&byte_recorder, bytes.clone(), device)
-                    .unwrap(),
-            )
-            .is_require_grad();
-
-        assert!(!no_grad_is_require_grad);
-        assert!(!with_default_is_require_grad);
-    }
-
-    #[test]
     fn empty_module_with_phantom() {
         #[derive(Module, Debug, new)]
-        struct EmptyModule<B: Backend> {
-            _phantom: PhantomData<B>,
+        struct EmptyModule<T: core::fmt::Debug + Clone + Send> {
+            #[module(skip)]
+            _phantom: PhantomData<T>,
         }
 
-        let _module = EmptyModule::<TestBackend>::new();
+        let _module = EmptyModule::<bool>::new();
 
-        assert_eq!(core::mem::size_of::<EmptyModule<TestBackend>>(), 0);
+        assert_eq!(core::mem::size_of::<EmptyModule<bool>>(), 0);
     }
 }

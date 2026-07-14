@@ -1,4 +1,4 @@
-use burn_tensor::ops::{ActivationOps, FloatTensor};
+use burn_backend::{ops::ActivationOps, tensor::FloatTensor};
 
 use crate::{
     Candle, CandleTensor,
@@ -6,7 +6,7 @@ use crate::{
     tensor,
 };
 
-impl<F: FloatCandleElement, I: IntCandleElement> ActivationOps<Self> for Candle<F, I> {
+impl ActivationOps<Self> for Candle {
     fn gelu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.gelu().unwrap())
     }

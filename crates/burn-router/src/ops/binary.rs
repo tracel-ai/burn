@@ -20,7 +20,7 @@ macro_rules! binary_float_cmp_ops {
     ) => {{
         let lhs = $handles.get_float_tensor::<B>(&$desc.lhs);
         let rhs = $handles.get_float_tensor::<B>(&$desc.rhs);
-        let output = $ops(lhs, rhs);
+        let output = $ops(lhs, rhs, $desc.out.dtype.into());
 
         $handles.register_bool_tensor::<B>(&$desc.out.id, output);
     }};
@@ -48,7 +48,7 @@ macro_rules! binary_int_cmp_ops {
     ) => {{
         let lhs = $handles.get_int_tensor::<B>(&$desc.lhs);
         let rhs = $handles.get_int_tensor::<B>(&$desc.rhs);
-        let output = $ops(lhs, rhs);
+        let output = $ops(lhs, rhs, $desc.out.dtype.into());
 
         $handles.register_bool_tensor::<B>(&$desc.out.id, output);
     }};

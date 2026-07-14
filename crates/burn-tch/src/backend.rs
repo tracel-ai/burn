@@ -1,10 +1,9 @@
-use crate::{QuantElement, TchQTensor};
+use crate::IntoKind;
 
 use super::TchTensor;
-use super::element::TchElement;
-use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
-use burn_tensor::ops::IntTensorOps;
-use burn_tensor::{Int, Tensor};
+use burn_backend::backend::{Backend, BackendTypes, DeviceId, DeviceOps, ExecutionError};
+use burn_backend::ops::IntTensorOps;
+use burn_backend::{BoolStore, DType, DeviceSettings};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `tch` backend.
@@ -22,8 +21,10 @@ use burn_tensor::{Int, Tensor};
 /// let device_mps = LibTorchDevice::Mps; // Metal Performance Shaders
 /// let device_vulkan = LibTorchDevice::Vulkan; // Vulkan
 /// ```
+#[derive(Default)]
 pub enum LibTorchDevice {
     /// CPU device.
+    #[default]
     Cpu,
 
     /// Cuda device with the given index. The index is the index of the Cuda device in the list of
@@ -66,20 +67,35 @@ impl From<tch::Device> for LibTorchDevice {
     }
 }
 
-impl DeviceOps for LibTorchDevice {
-    fn id(&self) -> burn_tensor::backend::DeviceId {
+impl burn_backend::Device for LibTorchDevice {
+    fn from_id(device_id: DeviceId) -> Self {
+        match device_id.type_id {
+            0 => Self::Cuda(device_id.index_id as usize),
+            1 => Self::Mps,
+            2 => Self::Cpu,
+            3 => Self::Vulkan,
+            _ => LibTorchDevice::Cpu,
+        }
+    }
+
+    fn to_id(&self) -> DeviceId {
         match self {
-            LibTorchDevice::Cpu => DeviceId::new(0, 0),
-            LibTorchDevice::Cuda(index) => DeviceId::new(1, *index as u32),
-            LibTorchDevice::Mps => DeviceId::new(2, 0),
+            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u16),
+            LibTorchDevice::Mps => DeviceId::new(1, 0),
+            LibTorchDevice::Cpu => DeviceId::new(2, 0),
             LibTorchDevice::Vulkan => DeviceId::new(3, 0),
         }
     }
 }
 
-impl Default for LibTorchDevice {
-    fn default() -> Self {
-        Self::Cpu
+impl DeviceOps for LibTorchDevice {
+    fn defaults(&self) -> DeviceSettings {
+        DeviceSettings::new(
+            DType::F32,
+            DType::I64,
+            DType::Bool(BoolStore::Native),
+            Default::default(),
+        )
     }
 }
 
@@ -93,31 +109,25 @@ impl Default for LibTorchDevice {
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E = f32, Q = i8> {
-    _e: E,
-    _q: Q,
-}
+pub struct LibTorch;
 
-impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
+impl BackendTypes for LibTorch {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
-    type FloatElem = E;
-
     type IntTensorPrimitive = TchTensor;
-    type IntElem = i64;
-
     type BoolTensorPrimitive = TchTensor;
-    type BoolElem = bool;
+    type QuantizedTensorPrimitive = TchTensor;
 
-    type QuantizedTensorPrimitive = TchQTensor;
-    type QuantizedEncoding = Q;
+    type GraphPrimitive = burn_backend::GraphUnsupported;
+}
 
-    fn seed(seed: u64) {
+impl Backend for LibTorch {
+    fn seed(_device: &Self::Device, seed: u64) {
         tch::manual_seed(seed as i64);
     }
 
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 
@@ -131,20 +141,44 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
         .to_string()
     }
 
-    fn sync(device: &Self::Device) {
+    fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         match device {
             LibTorchDevice::Cpu => (),
             LibTorchDevice::Cuda(index) => {
                 tch::Cuda::synchronize(*index as i64);
             }
             _ => {
+                let int_dtype = device.defaults().int_dtype;
                 // When there is no explicit way to synchronize, we write and read one value to sync
-                Tensor::<Self, 1, Int>::from_primitive(<Self as IntTensorOps<Self>>::int_zeros(
+                burn_backend::read_sync(Self::int_into_data(Self::int_zeros(
                     [1].into(),
                     device,
-                ))
-                .into_data();
+                    int_dtype,
+                )))
+                .unwrap();
             }
+        };
+
+        Ok(())
+    }
+
+    fn dtype_usage(
+        _device: &Self::Device,
+        dtype: burn_backend::DType,
+    ) -> burn_backend::DTypeUsageSet {
+        if dtype.try_into_kind().is_ok() {
+            burn_backend::DTypeUsage::general()
+        } else {
+            burn_backend::DTypeUsageSet::empty()
         }
     }
+
+    fn device_count(type_id: u16) -> usize {
+        match type_id {
+            0 => tch::Cuda::device_count() as usize,
+            _ => 1,
+        }
+    }
+
+    fn flush(_device: &Self::Device) {}
 }

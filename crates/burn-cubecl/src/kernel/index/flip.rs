@@ -1,77 +1,102 @@
 use crate::{
-    BoolElement, CubeRuntime, element::CubeElement, kernel::into_contiguous,
-    ops::numeric::empty_device, tensor::CubeTensor,
+    CubeRuntime,
+    kernel::utils::{address_type, shape_divmod},
+    ops::numeric::empty_device_dtype,
+    tensor::CubeTensor,
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use burn_backend::cubecl::dtype_to_storage_type;
+use burn_backend::{DType, TensorMetadata};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{FastDivmod, tensor::layout::linear::LinearViewMut},
+};
 
-#[cube(launch_unchecked)]
-fn flip_kernel<E: CubePrimitive, Bool: Int>(
+#[cube(launch_unchecked, address_type = "dynamic")]
+fn flip_kernel<E: Numeric, Bool: Int>(
     input: &Tensor<E>,
-    output: &mut Tensor<E>,
-    indices: Sequence<Bool>,
-    #[comptime] rank: u32,
+    mut output: LinearViewMut<'_, E>,
+    in_shape: Sequence<FastDivmod<usize>>,
+    indices: Sequence<InputScalar>,
+    #[define(E, Bool)] _dtypes: [StorageType; 2],
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
+    let rank = in_shape.len().comptime();
+
+    let mut offset = ABSOLUTE_POS;
     let mut offset_input = 0;
 
     #[unroll]
     for i in 0..rank {
-        let stride = input.stride(i);
-        let shape = output.shape(i);
-        let flip = *indices.index(i) == Bool::from_int(1);
-        let mut offset_local = ABSOLUTE_POS / stride % shape;
+        let dim = rank - i - 1;
+        let shape = input.shape(dim);
 
-        if flip {
-            offset_local = shape - offset_local - 1;
-        }
+        let (rem, offset_local) = in_shape[dim].div_mod(offset);
+        offset = rem;
 
-        offset_input += offset_local * stride;
+        let flip = indices.index(dim).get::<Bool>() == Bool::from_int(1);
+        let offset_local = select(flip, shape - offset_local - 1, offset_local);
+
+        offset_input += offset_local * input.stride(dim);
     }
 
-    output[ABSOLUTE_POS] = input[offset_input];
+    output.write(ABSOLUTE_POS, input[offset_input]);
 }
 
-pub(crate) fn flip<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+pub(crate) fn flip<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     indices: &[usize],
+    dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let output = empty_device::<R, E>(
+    let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
-        tensor.shape.clone(),
+        tensor.shape(),
+        tensor.dtype,
     );
-    flip_on_output::<R, E, BT>(tensor, output, indices)
+    flip_on_output(tensor, output, indices, dtype_bool)
 }
 
-pub(crate) fn flip_on_output<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+pub(crate) fn flip_on_output<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     output: CubeTensor<R>,
     indices: &[usize],
+    dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let tensor = into_contiguous(tensor);
-    let ndims = tensor.shape.num_dims();
-    let mut indices_sequence = SequenceArg::<'_, R, BT>::new();
+    let dtype_input = tensor.dtype;
+    let ndims = tensor.meta.num_dims();
+    let mut indices_sequence = SequenceArg::<R, InputScalar>::new();
 
     for i in 0..ndims {
-        indices_sequence.push(ScalarArg::new(BT::new_bool(indices.contains(&i))));
+        indices_sequence.push({
+            let val = indices.contains(&i) as u8;
+            InputScalar::new(val, dtype_to_storage_type(dtype_bool))
+        });
     }
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let num_elements = output.meta.num_elements();
+    let cube_dim = CubeDim::new(&tensor.client, num_elements);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, num_elements, cube_dim);
 
+    let shape = shape_divmod(&tensor);
     unsafe {
-        flip_kernel::launch_unchecked::<E, BT, R>(
-            &tensor.client,
+        flip_kernel::launch_unchecked(
+            &output.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
+            address_type!(tensor, output),
+            tensor.into_tensor_arg(),
+            output.clone().into_linear_view(),
+            shape,
             indices_sequence,
-            ndims as u32,
-        );
+            [
+                dtype_to_storage_type(dtype_input),
+                dtype_to_storage_type(dtype_bool),
+            ],
+        )
     }
 
     output

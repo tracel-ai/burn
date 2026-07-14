@@ -19,45 +19,57 @@ workspace = true
 
 
 [features]
-candle = ["burn-candle"]
-cubecl-backend = ["cubecl", "burn-cubecl"]
-default = ["ndarray", "cubecl-backend", "fusion", "std", "export-tests"]
-export-tests = ["burn-tensor-testgen", "image"]
-fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
-ndarray = ["burn-ndarray"]
-std = []
-tch = ["burn-tch"]
+default = ["burn-core/default", "flex", "cubecl-backend", "fusion", "std"]
+std = ["aligned-vec/std", "burn-core/std", "burn-store?/std"]
+tracing = [
+    "burn-cubecl?/tracing",
+    "burn-fusion?/tracing",
+    "burn-ir/tracing",
+    "burn-core/tracing",
+    "cubecl/tracing",
+]
 
-# Test features
-test-cpu = ["export-tests"]
-test-cuda = ["cubecl-backend", "export-tests"]
-test-wgpu = ["cubecl-backend", "export-tests"]
-test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
-test-metal = ["burn-wgpu/metal", "test-wgpu"]
+cubecl-backend = ["cubecl", "burn-cubecl"]
+fusion = ["burn-fusion", "burn-core/fusion"]
+
+cuda = ["cubecl-backend", "burn-core/cuda"]
+rocm = ["cubecl-backend", "burn-core/rocm"]
+wgpu = ["cubecl-backend", "burn-core/wgpu"]
+vulkan = ["cubecl-backend", "burn-core/vulkan"]
+webgpu = ["cubecl-backend", "burn-core/webgpu"]
+metal = ["cubecl-backend", "burn-core/metal"]
+cpu = ["cubecl-backend", "burn-core/cpu"]
+flex = ["burn-core/flex"]
+tch = ["burn-core/tch"]
+
+# TODO: move somewhere else
+loss = ["std", "burn-store/pytorch", "burn-core/network", "dirs"]
 
 [dependencies]
+burn-cubecl = { workspace = true, optional = true, features = ["default"]}
+burn-fusion = { workspace = true, optional = true, features = ["default"]}
+burn-ir = { workspace = true, features = ["default"]}
+burn-core = { workspace = true, features = [
+    "extension",
+] }
+
+# TODO: requires burn-backend. The `extension` feature should expose this from `burn-core`.
+
+aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
-burn-candle = { path = "../burn-candle", version = "0.19.0", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", optional = true }
-burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
-burn-ir = { path = "../burn-ir", version = "0.19.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0", optional = true }
-burn-tch = { path = "../burn-tch", version = "0.19.0", optional = true }
-burn-tensor = { path = "../burn-tensor", version = "0.19.0" }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.19.0", optional = true }
+
+# For loss functions requiring pretrained models (e.g., Gram Matrix Loss)
+burn-store = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
+
 bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }
-image = { version = "0.25", optional = true }
+image = { version = "0.25" }
 macerator = { workspace = true }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 paste = { workspace = true }
 serde = { workspace = true }
 
-[dev-dependencies]
-burn-cuda = { path = "../burn-cuda", version = "0.19.0", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.19.0" }
-burn-wgpu = { path = "../burn-wgpu", version = "0.19.0", default-features = false }
-cubecl = { workspace = true }

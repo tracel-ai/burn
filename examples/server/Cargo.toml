@@ -11,12 +11,11 @@ workspace = true
 
 [features]
 default = ["webgpu"]
-cuda = ["burn/cuda", "cubecl/compilation-cache"]
+cuda = ["burn/cuda"]
 webgpu = ["burn/webgpu"]
 vulkan = ["burn/vulkan"]
-ndarray = ["burn/ndarray"]
+rocm = ["burn/rocm"]
+flex = ["burn/flex"]
 
 [dependencies]
-cfg-if = { workspace = true }
-burn = { path = "../../crates/burn", version = "0.19.0", features = ["server"] }
-cubecl = { workspace = true }
+burn = { workspace = true, features = ["default", "remote-server", "remote-websocket"] }

@@ -22,8 +22,8 @@ edition = "2024"
 
 [dependencies]
 # Disable autotune default for convolutions
-burn = { version = "~0.19", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
-# burn = { version = "~0.19", features = ["train", "vision", "wgpu"] }
+burn = { version = "~0.21", features = ["std", "tui", "train", "vision", "wgpu", "fusion"], default-features = false }
+# burn = { version = "~0.21", features = ["train", "vision", "wgpu"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -143,9 +143,8 @@ There are two major things going on in this code sample.
 
    ```rust, ignore
    // Choose from any of the supported backends.
-   // type Backend = Candle<f32, i64>;
-   // type Backend = LibTorch<f32>;
-   // type Backend = NdArray<f32>;
+   // type Backend = Cuda;
+   // type Backend = Flex;
    type Backend = Wgpu;
 
    // Creation of two tensors.
@@ -243,8 +242,8 @@ Output:
 
 ```rust , ignore
 Model {
-  conv1: Conv2d {stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 80}
-  conv2: Conv2d {stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 1168}
+  conv1: Conv2d {ch_in: 1, ch_out: 8, stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 80}
+  conv2: Conv2d {ch_in: 8, ch_out: 16, stride: [1, 1], kernel_size: [3, 3], dilation: [1, 1], groups: 1, padding: Valid, params: 1168}
   pool: AdaptiveAvgPool2d {output_size: [8, 8]}
   dropout: Dropout {prob: 0.5}
   linear1: Linear {d_input: 1024, d_output: 512, bias: true, params: 524800}

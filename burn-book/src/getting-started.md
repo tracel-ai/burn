@@ -149,7 +149,7 @@ default. For more details on the `Tensor` struct, take a look at
 
 Most of the time when generics are involved, the compiler can infer the generic parameters
 automatically. In this case, the compiler needs a little help. This can usually be done in one of
-two ways: providing a type annotation or binding the gereneric parameter via the _turbofish_ `::<>`
+two ways: providing a type annotation or binding the generic parameter via the _turbofish_ `::<>`
 syntax. In the example above we used the so-called _turbofish_ syntax, but we could have used type
 annotations instead like this:
 

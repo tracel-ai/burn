@@ -1,20 +1,25 @@
+use std::sync::Arc;
+
 use super::MetricMetadata;
-use crate::metric::{Metric, MetricEntry};
+use crate::metric::{Metric, MetricName, SerializedEntry};
 use nvml_wrapper::Nvml;
 
 /// Track basic cuda infos.
+#[derive(Clone)]
 pub struct CudaMetric {
-    nvml: Option<Nvml>,
+    name: MetricName,
+    nvml: Arc<Option<Nvml>>,
 }
 
 impl CudaMetric {
     /// Creates a new metric for CUDA.
     pub fn new() -> Self {
         Self {
-            nvml: Nvml::init().map(Some).unwrap_or_else(|err| {
+            name: Arc::new("Cuda".to_string()),
+            nvml: Arc::new(Nvml::init().map(Some).unwrap_or_else(|err| {
                 log::warn!("Unable to initialize CUDA Metric: {err}");
                 None
-            }),
+            })),
         }
     }
 }
@@ -28,14 +33,9 @@ impl Default for CudaMetric {
 impl Metric for CudaMetric {
     type Input = ();
 
-    fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> MetricEntry {
-        let not_available = || {
-            MetricEntry::new(
-                self.name(),
-                "Unavailable".to_string(),
-                "Unavailable".to_string(),
-            )
-        };
+    fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> SerializedEntry {
+        let not_available =
+            || SerializedEntry::new("Unavailable".to_string(), "Unavailable".to_string());
 
         let available = |nvml: &Nvml| {
             let mut formatted = String::new();
@@ -83,12 +83,18 @@ impl Metric for CudaMetric {
                 };
                 let utilization_rate_formatted = format!("{}%", utilization_rates.gpu);
                 formatted = format!("{formatted} - Usage {utilization_rate_formatted}");
+
+                // Power is the currency for perf/W. NVML reports milliwatts.
+                if let Ok(power_mw) = device.power_usage() {
+                    let power_w = power_mw as f64 / 1000.0;
+                    formatted = format!("{formatted} - Power {power_w:.1} W");
+                }
             }
 
-            MetricEntry::new(self.name(), formatted, raw_running)
+            SerializedEntry::new(formatted, raw_running)
         };
 
-        match &self.nvml {
+        match self.nvml.as_ref() {
             Some(nvml) => available(nvml),
             None => not_available(),
         }
@@ -96,7 +102,7 @@ impl Metric for CudaMetric {
 
     fn clear(&mut self) {}
 
-    fn name(&self) -> String {
-        "CUDA Stats".to_string()
+    fn name(&self) -> MetricName {
+        self.name.clone()
     }
 }

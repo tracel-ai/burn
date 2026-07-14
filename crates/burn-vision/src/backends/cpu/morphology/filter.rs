@@ -1,7 +1,7 @@
 use core::slice;
 use std::{marker::PhantomData, ptr::null};
 
-use burn_tensor::Element;
+use burn_core::tensor::Element;
 use macerator::{
     Scalar, Simd, VOrd, Vector, vload, vload_low, vload_unaligned, vstore, vstore_low,
     vstore_unaligned,
@@ -449,12 +449,14 @@ impl<T: Scalar, Op: MorphOperator<T>, VecOp: VecColumn<T>> MorphColumnFilter<T, 
         let width = width as isize;
 
         let mut d = 0;
-        let mut x = x0;
+        let mut x;
         let mut y = 0;
 
         let slice = |row: *const T| unsafe { slice::from_raw_parts(row, width as usize) };
 
         while ksize > 1 && count > 1 {
+            x = x0;
+
             while x as isize <= width - 4 {
                 let row = slice(src[y + 1]);
                 let mut s0 = row[x];

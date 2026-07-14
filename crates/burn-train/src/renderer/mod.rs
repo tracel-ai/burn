@@ -4,12 +4,14 @@ use std::io::IsTerminal;
 mod base;
 pub use base::*;
 
-mod cli;
+pub(crate) mod cli;
+
+pub use cli::*;
 
 /// The tui renderer
 #[cfg(feature = "tui")]
 pub mod tui;
-use crate::TrainingInterrupter;
+use crate::Interrupter;
 
 /// Return the default metrics renderer.
 ///
@@ -20,13 +22,13 @@ use crate::TrainingInterrupter;
 ///     is not a terminal.
 #[allow(unused_variables)]
 pub(crate) fn default_renderer(
-    interuptor: TrainingInterrupter,
+    interuptor: Interrupter,
     checkpoint: Option<usize>,
 ) -> Box<dyn MetricsRenderer> {
     #[cfg(feature = "tui")]
     if std::io::stdout().is_terminal() {
-        return Box::new(tui::TuiMetricsRenderer::new(interuptor, checkpoint));
+        return Box::new(tui::TuiMetricsRendererWrapper::new(interuptor, checkpoint));
     }
 
-    Box::new(cli::CliMetricsRenderer::new())
+    Box::new(CliMetricsRenderer::new())
 }

@@ -1,20 +1,25 @@
-use crate::{CubeRuntime, IntElement, ops::numeric::empty_device, tensor::CubeTensor};
-use burn_tensor::Shape;
+use crate::{
+    CubeRuntime,
+    kernel::utils::{address_type, broadcast_shape},
+    ops::{max_vector_size, numeric::empty_device_dtype},
+    tensor::CubeTensor,
+};
+use burn_backend::TensorMetadata;
+use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
-    calculate_cube_count_elemwise, prelude::*, std::tensor::index_offset_with_layout,
-    tensor_line_size_parallel,
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::tensor::layout::linear::{LinearView, LinearViewMut},
 };
 
-use super::into_contiguous;
-
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
-    type BinaryOp<C: Int>: BinaryOpInt<C>;
+    type BinaryOp<C: Int, N: Size>: BinaryOpInt<C, N>;
 }
 
 #[cube]
-pub(crate) trait BinaryOpInt<C: Int>: 'static + Send + Sync {
+pub(crate) trait BinaryOpInt<C: Int, N: Size>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
+    fn execute(lhs: Vector<C, N>, rhs: Vector<C, N>) -> Vector<C, N>;
 }
 
 pub(crate) struct BitwiseAndOp;
@@ -24,197 +29,155 @@ pub(crate) struct BitwiseShrOp;
 pub(crate) struct BitwiseShlOp;
 
 impl BinaryOpIntFamily for BitwiseAndOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseOrOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseXorOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseShrOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseShlOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseAndOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseAndOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs & rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseOrOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseOrOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs | rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseXorOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseXorOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs ^ rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseShrOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShrOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs >> rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseShlOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs << rhs
     }
 }
 
-#[cube(launch_unchecked)]
-pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
-    input: &Tensor<Line<C>>,
-    scalar: C,
-    output: &mut Tensor<Line<C>>,
+#[cube(launch_unchecked, address_type = "dynamic")]
+pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
+    input: LinearView<'_, Vector<C, N>>,
+    scalar: InputScalar,
+    mut output: LinearViewMut<'_, Vector<C, N>>,
+    #[define(C)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar));
+    output.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(input.read(ABSOLUTE_POS), Vector::new(scalar.get::<C>())),
+    );
 }
 
-#[cube(launch_unchecked)]
-pub(crate) fn kernel_binop_int<C: Int, O: BinaryOpIntFamily>(
-    lhs: &Tensor<Line<C>>,
-    rhs: &Tensor<Line<C>>,
-    out: &mut Tensor<Line<C>>,
-    #[comptime] rank: Option<u32>,
-    #[comptime] to_contiguous_lhs: bool,
-    #[comptime] to_contiguous_rhs: bool,
+#[cube(launch_unchecked, address_type = "dynamic")]
+pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
+    lhs: LinearView<'_, Vector<C, N>>,
+    rhs: LinearView<'_, Vector<C, N>>,
+    mut out: LinearViewMut<'_, Vector<C, N>>,
+    #[define(C)] _dtype: StorageType,
 ) {
-    let offset_out = ABSOLUTE_POS;
-    let mut offset_lhs = ABSOLUTE_POS;
-    let mut offset_rhs = ABSOLUTE_POS;
-
-    if offset_out >= out.len() {
+    if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    if to_contiguous_lhs {
-        offset_lhs = index_offset_with_layout::<C, C>(
-            lhs,
-            out,
-            offset_out,
-            0,
-            rank.unwrap_or_else(|| out.rank()),
-            rank.is_some(),
-        );
-    }
-
-    if to_contiguous_rhs {
-        offset_rhs = index_offset_with_layout::<C, C>(
-            rhs,
-            out,
-            offset_out,
-            0,
-            rank.unwrap_or_else(|| out.rank()),
-            rank.is_some(),
-        );
-    }
-
-    out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
+    out.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(lhs.read(ABSOLUTE_POS), rhs.read(ABSOLUTE_POS)),
+    );
 }
 
-pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
+pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let ndims = lhs.shape.num_dims();
-    let line_size_lhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
-        &lhs.shape.dims,
-        &lhs.strides,
-        ndims - 1,
-    );
-    let line_size_rhs = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
-        &rhs.shape.dims,
-        &rhs.strides,
-        ndims - 1,
-    );
-    let line_size = Ord::min(line_size_lhs, line_size_rhs);
+    let vector_size_lhs = max_vector_size(&lhs);
+    let vector_size_rhs = max_vector_size(&rhs);
+    let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
 
-    let mut shape_out = vec![0; ndims];
-    lhs.shape
-        .dims
-        .iter()
-        .zip(rhs.shape.dims.iter())
-        .enumerate()
-        .for_each(|(index, (dim_lhs, dim_rhs))| {
-            shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
-        });
+    let shape_out = broadcast_shape(&[&lhs, &rhs]);
 
-    let shape_out = Shape::from(shape_out);
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / vector_size as usize;
+    let cube_dim = CubeDim::new(&lhs.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
+    let dtype = lhs.dtype;
 
     unsafe {
-        // Only re-used lhs/rhs if contiguous for now, strided indices are not correctly accounted for
-        // and optimizations in fusion do not have this issue anyway
-        if lhs.can_mut_broadcast(&rhs) && lhs.is_contiguous() {
-            kernel_binop_int::launch_unchecked::<E, O, R>(
+        if lhs.can_mut_broadcast(&rhs) {
+            kernel_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                lhs.as_tensor_arg::<E>(line_size),
-                rhs.as_tensor_arg::<E>(line_size),
-                TensorArg::alias(0),
-                None,
-                false,
-                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+                address_type!(lhs, rhs),
+                vector_size,
+                lhs.clone().into_linear_view(),
+                rhs.into_linear_view_like(&lhs),
+                lhs.as_linear_view_alias(0),
+                dtype_to_storage_type(dtype),
             );
 
             lhs
-        } else if rhs.can_mut_broadcast(&lhs) && rhs.is_contiguous() {
-            kernel_binop_int::launch_unchecked::<E, O, R>(
+        } else if rhs.can_mut_broadcast(&lhs) {
+            kernel_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                lhs.as_tensor_arg::<E>(line_size),
-                rhs.as_tensor_arg::<E>(line_size),
-                TensorArg::alias(1),
-                None,
-                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
-                false,
+                address_type!(lhs, rhs),
+                vector_size,
+                lhs.into_linear_view_like(&rhs),
+                rhs.clone().into_linear_view(),
+                rhs.as_linear_view_alias(1),
+                dtype_to_storage_type(dtype),
             );
 
             rhs
         } else {
-            let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
-            let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
-            let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
+            let output =
+                empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, lhs.dtype);
 
-            kernel_binop_int::launch_unchecked::<E, O, R>(
+            kernel_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                lhs.as_tensor_arg::<E>(line_size),
-                rhs.as_tensor_arg::<E>(line_size),
-                output.as_tensor_arg::<E>(line_size),
-                None,
-                to_contiguous_lhs,
-                to_contiguous_rhs,
+                address_type!(lhs, rhs, output),
+                vector_size,
+                lhs.into_linear_view_like(&output),
+                rhs.into_linear_view_like(&output),
+                output.clone().into_linear_view(),
+                dtype_to_storage_type(dtype),
             );
 
             output
@@ -222,54 +185,51 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFami
     }
 }
 
-pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
-    mut tensor: CubeTensor<R>,
-    scalar: E,
+pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
+    tensor: CubeTensor<R>,
+    scalar: InputScalar,
 ) -> CubeTensor<R> {
-    if !tensor.is_contiguous_buffer() {
-        tensor = into_contiguous(tensor);
-    }
-
-    // Vectorization is only enabled when the last dimension is contiguous.
-    let ndims = tensor.shape.num_dims();
-    let line_size = tensor_line_size_parallel(
-        R::line_size_elem(&E::as_elem_native_unchecked()),
-        &tensor.shape.dims,
-        &tensor.strides,
-        ndims - 1,
-    );
+    let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.shape.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / vector_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
-        if tensor.can_mut() {
-            kernel_scalar_binop_int::launch_unchecked::<E, O, R>(
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
+            kernel_scalar_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg::<E>(line_size),
-                ScalarArg::new(scalar),
-                TensorArg::alias(0),
+                address_type!(tensor),
+                vector_size,
+                tensor.clone().into_linear_view(),
+                scalar,
+                tensor.as_linear_view_alias(0),
+                dtype_to_storage_type(tensor.dtype),
             );
 
             tensor
         } else {
-            let output = empty_device::<R, E>(
+            let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
-                tensor.shape.clone(),
+                tensor.shape(),
+                tensor.dtype,
             );
 
-            kernel_scalar_binop_int::launch_unchecked::<E, O, R>(
+            kernel_scalar_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
-                tensor.as_tensor_arg::<E>(line_size),
-                ScalarArg::new(scalar),
-                output.as_tensor_arg::<E>(line_size),
+                cube_dim,
+                address_type!(tensor, output),
+                vector_size,
+                tensor.into_linear_view(),
+                scalar,
+                output.clone().into_linear_view(),
+                dtype_to_storage_type(output.dtype),
             );
 
             output

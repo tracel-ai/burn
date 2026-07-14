@@ -1,34 +1,55 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use alloc::format;
 use alloc::{sync::Arc, vec::Vec};
 
-use super::RunnerClient;
+use super::RouterClient;
+use burn_backend::{DType, Shape, TensorData, TensorMetadata, backend::ExecutionError};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
-pub struct RouterTensor<C: RunnerClient> {
+pub struct RouterTensor<C: RouterClient> {
     pub(crate) id: TensorId,
-    pub(crate) shape: Vec<usize>,
+    pub(crate) shape: Shape,
     pub(crate) dtype: DType,
     /// The client that has this tensor
     pub client: C,
     pub(crate) count: Arc<AtomicU32>,
 }
 
-impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
+impl<C: RouterClient> TensorMetadata for RouterTensor<C> {
+    type Device = C::Device;
     fn dtype(&self) -> DType {
         self.dtype
     }
 
     fn shape(&self) -> Shape {
-        Shape::from(self.shape.clone())
+        self.shape.clone()
+    }
+
+    fn rank(&self) -> usize {
+        self.shape.num_dims()
+    }
+
+    fn device(&self) -> Self::Device {
+        self.client.device()
+    }
+
+    fn can_mut(&self) -> bool {
+        // Same sharing rule as `into_ir`: a handle cloned on its stream
+        // (count > 1) is read-only for the runner, a unique one is read-write.
+        self.count.load(Ordering::Acquire) <= 1
     }
 }
 
-impl<C: RunnerClient> RouterTensor<C> {
+impl<C: RouterClient> RouterTensor<C> {
+    /// The id identifying this tensor on its [client](RouterClient).
+    pub fn id(&self) -> TensorId {
+        self.id
+    }
+
     /// Create a new router tensor.
-    pub fn new(id: TensorId, shape: Vec<usize>, dtype: DType, client: C) -> Self {
+    pub fn new(id: TensorId, shape: Shape, dtype: DType, client: C) -> Self {
         Self {
             id,
             shape,
@@ -38,15 +59,15 @@ impl<C: RunnerClient> RouterTensor<C> {
         }
     }
 
-    pub(crate) async fn into_data(self) -> TensorData {
-        self.client.clone().read_tensor(self.into_ir()).await
+    pub(crate) async fn into_data(self) -> Result<TensorData, ExecutionError> {
+        self.client.clone().read_tensor_async(self.into_ir()).await
     }
 
     /// Get the ir for this tensor
     pub fn into_ir(mut self) -> TensorIr {
         let count = self.count.load(Ordering::Relaxed);
         let status = self.status(count);
-        let mut shape_out = Vec::new();
+        let mut shape_out = Shape::from(Vec::<usize>::new());
         core::mem::swap(&mut self.shape, &mut shape_out);
 
         if let TensorStatus::ReadWrite = status {
@@ -83,7 +104,7 @@ impl<C: RunnerClient> RouterTensor<C> {
     }
 }
 
-impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
+impl<C: RouterClient> core::fmt::Debug for RouterTensor<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(
             format!(
@@ -91,14 +112,14 @@ impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
                 self.id,
                 self.shape,
                 self.dtype,
-                self.client.device().clone(),
+                self.client.device(),
             )
             .as_str(),
         )
     }
 }
 
-impl<C: RunnerClient> Clone for RouterTensor<C> {
+impl<C: RouterClient> Clone for RouterTensor<C> {
     fn clone(&self) -> Self {
         self.count.fetch_add(1, Ordering::Relaxed);
 
@@ -112,14 +133,14 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
     }
 }
 
-impl<C: RunnerClient> Drop for RouterTensor<C> {
+impl<C: RouterClient> Drop for RouterTensor<C> {
     fn drop(&mut self) {
         let count = self.count.fetch_sub(1, Ordering::Relaxed);
 
         match self.status(count) {
             TensorStatus::ReadWrite => {
                 let id = self.id;
-                let mut shape = Vec::new();
+                let mut shape = Shape::from(Vec::<usize>::new());
                 core::mem::swap(&mut shape, &mut self.shape);
 
                 let ir = TensorIr {
@@ -128,7 +149,7 @@ impl<C: RunnerClient> Drop for RouterTensor<C> {
                     status: TensorStatus::ReadWrite,
                     dtype: self.dtype,
                 };
-                self.client.register(burn_ir::OperationIr::Drop(ir));
+                self.client.register_op(burn_ir::OperationIr::Drop(ir));
             }
             TensorStatus::ReadOnly => {}
             TensorStatus::NotInit => {}

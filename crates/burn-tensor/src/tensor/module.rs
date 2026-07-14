@@ -1,364 +1,429 @@
+use burn_backend::ops::ModuleOps;
+use burn_dispatch::Dispatch;
+use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
+
 use crate::{
-    Int, Tensor, TensorPrimitive,
-    backend::Backend,
-    check,
+    Bool, DType, Int, Tensor, check,
     check::TensorCheck,
-    ops::{ConvOptions, ConvTransposeOptions, InterpolateOptions, UnfoldOptions},
+    ops::{
+        AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
+        InterpolateOptions, PadMode, PaddedConvOptions, UnfoldOptions,
+    },
 };
 
-use super::ops::DeformConvOptions;
-
-/// Applies the [embedding module](crate::ops::ModuleOps::embedding).
-pub fn embedding<B>(weights: Tensor<B, 2>, indices: Tensor<B, 2, Int>) -> Tensor<B, 3>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::embedding(
-        weights.primitive.tensor(),
-        indices.primitive,
+/// Computes the [CTC loss](burn_backend::ops::ModuleOps::ctc_loss).
+///
+/// # Arguments
+///
+/// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+/// * `targets` - Target label indices of shape `[N, S]`
+/// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+/// * `target_lengths` - Actual target lengths per batch element `[N]`
+/// * `blank` - Index of the blank label
+///
+/// # Returns
+///
+/// Per-sample loss of shape `[N]`
+pub fn ctc_loss(
+    log_probs: Tensor<3>,
+    targets: Tensor<2, Int>,
+    input_lengths: Tensor<1, Int>,
+    target_lengths: Tensor<1, Int>,
+    blank: usize,
+) -> Tensor<1> {
+    Tensor::new(BridgeTensor::float(Dispatch::ctc_loss(
+        log_probs.primitive.into_float(),
+        targets.primitive.into(),
+        input_lengths.primitive.into(),
+        target_lengths.primitive.into(),
+        blank,
     )))
 }
 
-/// Applies a [1D convolution](crate::ops::ModuleOps::conv2d).
-pub fn conv1d<B>(
-    x: Tensor<B, 3>,
-    weight: Tensor<B, 3>,
-    bias: Option<Tensor<B, 1>>,
-    options: ConvOptions<1>,
-) -> Tensor<B, 3>
-where
-    B: Backend,
-{
+/// Applies the [embedding module](burn_backend::ops::ModuleOps::embedding).
+pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
+    Tensor::new(BridgeTensor::float(Dispatch::embedding(
+        weights.primitive.into_float(),
+        indices.primitive.into(),
+    )))
+}
+
+/// Applies a [1D convolution](burn_backend::ops::ModuleOps::conv1d).
+///
+/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
+/// asymmetric padding. When asymmetric padding is specified, an explicit pad
+/// operation is applied before the convolution backend op.
+pub fn conv1d(
+    x: Tensor<3>,
+    weight: Tensor<3>,
+    bias: Option<Tensor<1>>,
+    options: impl Into<PaddedConvOptions<1>>,
+) -> Tensor<3> {
+    let padded_options = options.into();
     check!(TensorCheck::conv(
         "conv1d",
         x.dims(),
         weight.dims(),
-        options.groups,
+        padded_options.options.groups,
     ));
-    Tensor::new(TensorPrimitive::Float(B::conv1d(
-        x.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
-        options,
-    )))
+
+    if let Some(padding_end) = padded_options.padding_end {
+        let left = padded_options.options.padding[0];
+        let right = padding_end[0];
+        // For 1D (NCL format), pad the length dimension
+        let padded = x.pad((left, right, 0, 0), PadMode::Constant(0.0));
+        let zero_options = ConvOptions::new(
+            padded_options.options.stride,
+            [0],
+            padded_options.options.dilation,
+            padded_options.options.groups,
+        );
+        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
+            padded.primitive.into_float(),
+            weight.primitive.into_float(),
+            bias.map(|b| b.primitive.into_float()),
+            zero_options,
+        )))
+    } else {
+        Tensor::new(BridgeTensor::float(Dispatch::conv1d(
+            x.primitive.into_float(),
+            weight.primitive.into_float(),
+            bias.map(|b| b.primitive.into_float()),
+            padded_options.options,
+        )))
+    }
 }
 
-/// Applies a [2D convolution](crate::ops::ModuleOps::conv2d).
-pub fn conv2d<B>(
-    x: Tensor<B, 4>,
-    weight: Tensor<B, 4>,
-    bias: Option<Tensor<B, 1>>,
-    options: ConvOptions<2>,
-) -> Tensor<B, 4>
-where
-    B: Backend,
-{
+/// Applies a [2D convolution](burn_backend::ops::ModuleOps::conv2d).
+///
+/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
+/// asymmetric padding. When asymmetric padding is specified, an explicit pad
+/// operation is applied before the convolution backend op.
+pub fn conv2d(
+    x: Tensor<4>,
+    weight: Tensor<4>,
+    bias: Option<Tensor<1>>,
+    options: impl Into<PaddedConvOptions<2>>,
+) -> Tensor<4> {
+    let padded_options = options.into();
     check!(TensorCheck::conv(
         "conv2d",
         x.dims(),
         weight.dims(),
-        options.groups,
+        padded_options.options.groups,
     ));
-    Tensor::new(TensorPrimitive::Float(B::conv2d(
-        x.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
-        options,
-    )))
+
+    if let Some(padding_end) = padded_options.padding_end {
+        let top = padded_options.options.padding[0];
+        let left = padded_options.options.padding[1];
+        let bottom = padding_end[0];
+        let right = padding_end[1];
+        // For 2D (NCHW format), pad height and width
+        let padded = x.pad((left, right, top, bottom), PadMode::Constant(0.0));
+        let zero_options = ConvOptions::new(
+            padded_options.options.stride,
+            [0, 0],
+            padded_options.options.dilation,
+            padded_options.options.groups,
+        );
+        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
+            padded.primitive.into_float(),
+            weight.primitive.into_float(),
+            bias.map(|b| b.primitive.into_float()),
+            zero_options,
+        )))
+    } else {
+        Tensor::new(BridgeTensor::float(Dispatch::conv2d(
+            x.primitive.into_float(),
+            weight.primitive.into_float(),
+            bias.map(|b| b.primitive.into_float()),
+            padded_options.options,
+        )))
+    }
 }
 
-/// Applies a [3D convolution](crate::ops::ModuleOps::conv3d).
-pub fn conv3d<B>(
-    x: Tensor<B, 5>,
-    weight: Tensor<B, 5>,
-    bias: Option<Tensor<B, 1>>,
-    options: ConvOptions<3>,
-) -> Tensor<B, 5>
-where
-    B: Backend,
-{
+/// Applies a [3D convolution](burn_backend::ops::ModuleOps::conv3d).
+///
+/// Accepts [`ConvOptions`] for symmetric padding, or [`PaddedConvOptions`] for
+/// asymmetric padding. Asymmetric 3D padding is not yet supported.
+pub fn conv3d(
+    x: Tensor<5>,
+    weight: Tensor<5>,
+    bias: Option<Tensor<1>>,
+    options: impl Into<PaddedConvOptions<3>>,
+) -> Tensor<5> {
+    let padded_options = options.into();
     check!(TensorCheck::conv(
         "conv3d",
         x.dims(),
         weight.dims(),
-        options.groups,
+        padded_options.options.groups,
     ));
-    Tensor::new(TensorPrimitive::Float(B::conv3d(
-        x.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
-        options,
+
+    if padded_options.is_asymmetric() {
+        panic!("Asymmetric padding is not yet supported for conv3d");
+    }
+
+    Tensor::new(BridgeTensor::float(Dispatch::conv3d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
+        padded_options.options,
     )))
 }
 
-/// Applies a [Deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d).
-pub fn deform_conv2d<B>(
-    x: Tensor<B, 4>,
-    offset: Tensor<B, 4>,
-    weight: Tensor<B, 4>,
-    mask: Option<Tensor<B, 4>>,
-    bias: Option<Tensor<B, 1>>,
+/// Applies a [Deformable 2D convolution](burn_backend::ops::ModuleOps::deform_conv2d).
+pub fn deform_conv2d(
+    x: Tensor<4>,
+    offset: Tensor<4>,
+    weight: Tensor<4>,
+    mask: Option<Tensor<4>>,
+    bias: Option<Tensor<1>>,
     options: DeformConvOptions<2>,
-) -> Tensor<B, 4>
-where
-    B: Backend,
-{
+) -> Tensor<4> {
     check!(TensorCheck::conv(
         "deform_conv2d",
         x.dims(),
         weight.dims(),
         options.weight_groups,
     ));
-    Tensor::new(TensorPrimitive::Float(B::deform_conv2d(
-        x.primitive.tensor(),
-        offset.primitive.tensor(),
-        weight.primitive.tensor(),
-        mask.map(|m| m.primitive.tensor()),
-        bias.map(|b| b.primitive.tensor()),
+    Tensor::new(BridgeTensor::float(Dispatch::deform_conv2d(
+        x.primitive.into_float(),
+        offset.primitive.into_float(),
+        weight.primitive.into_float(),
+        mask.map(|m| m.primitive.into_float()),
+        bias.map(|b| b.primitive.into_float()),
         options,
     )))
 }
 
-/// Applies a [1D transposed convolution](crate::ops::ModuleOps::conv_transpose1d).
-pub fn conv_transpose1d<B>(
-    x: Tensor<B, 3>,
-    weight: Tensor<B, 3>,
-    bias: Option<Tensor<B, 1>>,
+/// Applies a [1D transposed convolution](burn_backend::ops::ModuleOps::conv_transpose1d).
+pub fn conv_transpose1d(
+    x: Tensor<3>,
+    weight: Tensor<3>,
+    bias: Option<Tensor<1>>,
     options: ConvTransposeOptions<1>,
-) -> Tensor<B, 3>
-where
-    B: Backend,
-{
+) -> Tensor<3> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose1d",
         x.dims(),
         weight.dims(),
     ));
-    Tensor::new(TensorPrimitive::Float(B::conv_transpose1d(
-        x.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
+    Tensor::new(BridgeTensor::float(Dispatch::conv_transpose1d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
         options,
     )))
 }
 
-/// Applies a [2D transposed convolution](crate::ops::ModuleOps::conv_transpose2d).
-pub fn conv_transpose2d<B>(
-    x: Tensor<B, 4>,
-    weight: Tensor<B, 4>,
-    bias: Option<Tensor<B, 1>>,
+/// Applies a [2D transposed convolution](burn_backend::ops::ModuleOps::conv_transpose2d).
+pub fn conv_transpose2d(
+    x: Tensor<4>,
+    weight: Tensor<4>,
+    bias: Option<Tensor<1>>,
     options: ConvTransposeOptions<2>,
-) -> Tensor<B, 4>
-where
-    B: Backend,
-{
+) -> Tensor<4> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose2d",
         x.dims(),
         weight.dims(),
     ));
-    Tensor::new(TensorPrimitive::Float(B::conv_transpose2d(
-        x.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
+    Tensor::new(BridgeTensor::float(Dispatch::conv_transpose2d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
         options,
     )))
 }
 
-/// Applies a 3D transposed convolution](crate::ops::ModuleOps::conv_transpose3d).
-pub fn conv_transpose3d<B>(
-    x: Tensor<B, 5>,
-    weight: Tensor<B, 5>,
-    bias: Option<Tensor<B, 1>>,
+/// Applies a 3D transposed convolution](burn_backend::ops::ModuleOps::conv_transpose3d).
+pub fn conv_transpose3d(
+    x: Tensor<5>,
+    weight: Tensor<5>,
+    bias: Option<Tensor<1>>,
     options: ConvTransposeOptions<3>,
-) -> Tensor<B, 5>
-where
-    B: Backend,
-{
+) -> Tensor<5> {
     check!(TensorCheck::conv_transpose(
         "conv_transpose3d",
         x.dims(),
         weight.dims(),
     ));
-    Tensor::new(TensorPrimitive::Float(B::conv_transpose3d(
-        x.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
+    Tensor::new(BridgeTensor::float(Dispatch::conv_transpose3d(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        bias.map(|b| b.primitive.into_float()),
         options,
     )))
 }
 
-/// Applies a [4D to 3D unfold](crate::ops::ModuleOps::unfold4d).
-pub fn unfold4d<B>(x: Tensor<B, 4>, kernel_size: [usize; 2], options: UnfoldOptions) -> Tensor<B, 3>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::unfold4d(
-        x.primitive.tensor(),
+/// Applies a [4D to 3D unfold](burn_backend::ops::ModuleOps::unfold4d).
+pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -> Tensor<3> {
+    Tensor::new(BridgeTensor::float(Dispatch::unfold4d(
+        x.primitive.into_float(),
         kernel_size,
         options,
     )))
 }
 
-/// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
-pub fn max_pool1d<B>(
-    x: Tensor<B, 3>,
+/// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
+pub fn max_pool1d(
+    x: Tensor<3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
-) -> Tensor<B, 3>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::max_pool1d(
-        x.primitive.tensor(),
+    ceil_mode: bool,
+) -> Tensor<3> {
+    Tensor::new(BridgeTensor::float(Dispatch::max_pool1d(
+        x.primitive.into_float(),
         kernel_size,
         stride,
         padding,
         dilation,
+        ceil_mode,
     )))
 }
 
-/// Applies a [2D max pooling](crate::ops::ModuleOps::max_pool2d).
-pub fn max_pool2d<B>(
-    x: Tensor<B, 4>,
+/// Applies a [2D max pooling](burn_backend::ops::ModuleOps::max_pool2d).
+pub fn max_pool2d(
+    x: Tensor<4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> Tensor<B, 4>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::max_pool2d(
-        x.primitive.tensor(),
+    ceil_mode: bool,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::max_pool2d(
+        x.primitive.into_float(),
         kernel_size,
         stride,
         padding,
         dilation,
+        ceil_mode,
     )))
 }
 
-/// Applies a [2D avg pooling](crate::ops::ModuleOps::avg_pool2d).
-pub fn avg_pool2d<B>(
-    x: Tensor<B, 4>,
+/// Applies a [2D avg pooling](burn_backend::ops::ModuleOps::avg_pool2d).
+pub fn avg_pool2d(
+    x: Tensor<4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> Tensor<B, 4>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::avg_pool2d(
-        x.primitive.tensor(),
+    ceil_mode: bool,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool2d(
+        x.primitive.into_float(),
         kernel_size,
         stride,
         padding,
         count_include_pad,
+        ceil_mode,
     )))
 }
 
-/// Applies a [1D avg pooling](crate::ops::ModuleOps::avg_pool1d).
-pub fn avg_pool1d<B>(
-    x: Tensor<B, 3>,
+/// Applies a [1D avg pooling](burn_backend::ops::ModuleOps::avg_pool1d).
+pub fn avg_pool1d(
+    x: Tensor<3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     count_include_pad: bool,
-) -> Tensor<B, 3>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::avg_pool1d(
-        x.primitive.tensor(),
+    ceil_mode: bool,
+) -> Tensor<3> {
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool1d(
+        x.primitive.into_float(),
         kernel_size,
         stride,
         padding,
         count_include_pad,
+        ceil_mode,
     )))
 }
 
-/// Applies a [1D max pooling](crate::ops::ModuleOps::max_pool1d).
-pub fn max_pool1d_with_indices<B>(
-    x: Tensor<B, 3>,
+/// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
+pub fn max_pool1d_with_indices(
+    x: Tensor<3>,
     kernel_size: usize,
     stride: usize,
     padding: usize,
     dilation: usize,
-) -> (Tensor<B, 3>, Tensor<B, 3, Int>)
-where
-    B: Backend,
-{
-    let output =
-        B::max_pool1d_with_indices(x.primitive.tensor(), kernel_size, stride, padding, dilation);
+    ceil_mode: bool,
+) -> (Tensor<3>, Tensor<3, Int>) {
+    let indices_dtype = x.device().settings().int_dtype;
+    let output = Dispatch::max_pool1d_with_indices(
+        x.primitive.into_float(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+        indices_dtype,
+    );
 
     (
-        Tensor::new(TensorPrimitive::Float(output.output)),
-        Tensor::new(output.indices),
+        Tensor::new(BridgeTensor::float(output.output)),
+        Tensor::new(BridgeTensor::int(output.indices)),
     )
 }
 
-/// Applies a [2D max pooling with indices](crate::ops::ModuleOps::max_pool2d_with_indices).
-pub fn max_pool2d_with_indices<B>(
-    x: Tensor<B, 4>,
+/// Applies a [2D max pooling with indices](burn_backend::ops::ModuleOps::max_pool2d_with_indices).
+pub fn max_pool2d_with_indices(
+    x: Tensor<4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (Tensor<B, 4>, Tensor<B, 4, Int>)
-where
-    B: Backend,
-{
-    let output =
-        B::max_pool2d_with_indices(x.primitive.tensor(), kernel_size, stride, padding, dilation);
+    ceil_mode: bool,
+) -> (Tensor<4>, Tensor<4, Int>) {
+    let indices_dtype = x.device().settings().int_dtype;
+    let output = Dispatch::max_pool2d_with_indices(
+        x.primitive.into_float(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+        indices_dtype,
+    );
 
     (
-        Tensor::new(TensorPrimitive::Float(output.output)),
-        Tensor::new(output.indices),
+        Tensor::new(BridgeTensor::float(output.output)),
+        Tensor::new(BridgeTensor::int(output.indices)),
     )
 }
 
-/// Applies a [2D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool2d).
-pub fn adaptive_avg_pool2d<B>(x: Tensor<B, 4>, output_size: [usize; 2]) -> Tensor<B, 4>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::adaptive_avg_pool2d(
-        x.primitive.tensor(),
+/// Applies a [2D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
+pub fn adaptive_avg_pool2d(x: Tensor<4>, output_size: [usize; 2]) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool2d(
+        x.primitive.into_float(),
         output_size,
     )))
 }
 
-/// Applies a [1D adaptive avg pooling](crate::ops::ModuleOps::adaptive_avg_pool1d).
-pub fn adaptive_avg_pool1d<B>(x: Tensor<B, 3>, output_size: usize) -> Tensor<B, 3>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::adaptive_avg_pool1d(
-        x.primitive.tensor(),
+/// Applies a [1D adaptive avg pooling](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
+pub fn adaptive_avg_pool1d(x: Tensor<3>, output_size: usize) -> Tensor<3> {
+    Tensor::new(BridgeTensor::float(Dispatch::adaptive_avg_pool1d(
+        x.primitive.into_float(),
         output_size,
     )))
 }
 
-/// Applies a [2D interpolation](crate::ops::ModuleOps::interpolate).
-pub fn interpolate<B>(
-    x: Tensor<B, 4>,
+/// Applies a [2D interpolation](burn_backend::ops::ModuleOps::interpolate).
+pub fn interpolate(
+    x: Tensor<4>,
     output_size: [usize; 2],
     options: InterpolateOptions,
-) -> Tensor<B, 4>
-where
-    B: Backend,
-{
-    Tensor::new(TensorPrimitive::Float(B::interpolate(
-        x.primitive.tensor(),
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::interpolate(
+        x.primitive.into_float(),
         output_size,
         options,
     )))
 }
 
-/// Applies a [linear transformation](crate::ops::ModuleOps::linear) to the input tensor using the given weight and bias.
+/// Applies a linear transformation to the input tensor using the given weight and bias.
 ///
 /// ```math
 /// y = x @ weight + [bias]
@@ -383,14 +448,224 @@ where
 /// ```math
 /// y = x @ weight^T + [bias]
 /// ```
-pub fn linear<B: Backend, const D: usize>(
-    input: Tensor<B, D>,
-    weight: Tensor<B, 2>,
-    bias: Option<Tensor<B, 1>>,
-) -> Tensor<B, D> {
-    Tensor::new(TensorPrimitive::Float(B::linear(
-        input.primitive.tensor(),
-        weight.primitive.tensor(),
-        bias.map(|b| b.primitive.tensor()),
+pub fn linear<const D: usize>(
+    input: Tensor<D>,
+    weight: Tensor<2>,
+    bias: Option<Tensor<1>>,
+) -> Tensor<D> {
+    if D == 1 {
+        // Insert and remove an extra batch dimension for the batch matmul to work.
+        let input = input.unsqueeze::<2>();
+        let output = linear(input, weight, bias);
+        return output.squeeze_dim(0);
+    }
+
+    // A quantized weight must stay quantized: `linear_impl` converts its
+    // operands to float, which would dequantize (materialize) the whole weight
+    // matrix on every forward. Route through the quantized matmul instead, which
+    // streams the packed weight directly — but reuse the same batch-fold policy
+    // the float `linear` applies, so a decode-shaped call folds its batches into
+    // the rows for one `[rows, d_in] @ [d_in, d_out]` matmul rather than a
+    // broadcast batched matmul that re-reads the packed weight per batch.
+    if let DType::QFloat(_) = weight.dtype() {
+        let dims = input.dims();
+        let analysis = MatmulTransformAnalysis::from_shapes(&input.shape(), &weight.shape());
+
+        let output = match MatmulTransformPolicy::default().action(&analysis) {
+            MatmulTransformAction::MergeBatches { rows } => {
+                let d_in = dims[D - 1];
+                let d_out = weight.dims()[1];
+
+                let folded = input.reshape([rows, d_in]).matmul(weight);
+
+                let mut out_dims = dims;
+                out_dims[D - 1] = d_out;
+                folded.reshape(out_dims)
+            }
+            MatmulTransformAction::Keep => input.matmul(weight.unsqueeze::<D>()),
+        };
+
+        return match bias {
+            Some(bias) => output + bias.unsqueeze(),
+            None => output,
+        };
+    }
+
+    Tensor::new(linear_impl(
+        input.primitive,
+        weight.primitive,
+        bias.map(|b| b.primitive),
+    ))
+}
+
+fn linear_impl(
+    input: BridgeTensor,
+    weight: BridgeTensor,
+    bias: Option<BridgeTensor>,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::linear(
+        input.into_float(),
+        weight.into_float(),
+        bias.map(|b| b.into_float()),
+    ))
+}
+
+/// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
+/// where scale defaults to 1/sqrt(head_dim) (configurable via `options.scale`).
+/// Optionally applies masking, additive bias, causal masking, and softcap.
+///
+/// # Arguments
+/// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
+/// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
+/// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
+/// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
+///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
+/// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
+///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+/// - `options`: Additional attention options (custom scale, softcap, causal masking).
+///
+/// # Returns
+/// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
+/// representing the attended context per head.
+///
+/// # Note
+/// This implementation does not support dropout and is intended for inference or
+/// use cases where dropout is not needed.
+pub fn attention(
+    query: Tensor<4>,
+    key: Tensor<4>,
+    value: Tensor<4>,
+    mask: Option<Tensor<4, Bool>>,
+    attn_bias: Option<Tensor<4>>,
+    options: AttentionModuleOptions,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::attention(
+        query.primitive.into_float(),
+        key.primitive.into_float(),
+        value.primitive.into_float(),
+        mask.map(|mask| mask.primitive.into()),
+        attn_bias.map(|bias| bias.primitive.into_float()),
+        options,
     )))
+}
+
+/// Exports attention fallback to test backend's attention against.
+pub fn attention_fallback(
+    query: Tensor<4>,
+    key: Tensor<4>,
+    value: Tensor<4>,
+    mask: Option<Tensor<4, Bool>>,
+    attn_bias: Option<Tensor<4>>,
+    options: AttentionModuleOptions,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(
+        burn_backend::ops::attention::attention_fallback::<Dispatch>(
+            query.primitive.into_float(),
+            key.primitive.into_float(),
+            value.primitive.into_float(),
+            mask.map(|mask| mask.primitive.into()),
+            attn_bias.map(|bias| bias.primitive.into_float()),
+            options,
+        ),
+    ))
+}
+
+/// Calculate the [2D convolution](burn_backend::ops::ModuleOps::conv2d) backward pass, returning the gradient for `weight`.
+pub fn conv2d_weight_backward(
+    x: Tensor<4>,
+    weight: Tensor<4>,
+    output_grad: Tensor<4>,
+    options: ConvOptions<2>,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::conv2d_weight_backward(
+        x.primitive.into_float(),
+        weight.primitive.into_float(),
+        output_grad.primitive.into_float(),
+        options,
+    )))
+}
+
+/// Backward pass for the [avg pooling 2d](ModuleOps::avg_pool2d) operation.
+pub fn avg_pool2d_backward(
+    x: Tensor<4>,
+    grad: Tensor<4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+    count_include_pad: bool,
+    ceil_mode: bool,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(Dispatch::avg_pool2d_backward(
+        x.primitive.into_float(),
+        grad.primitive.into_float(),
+        kernel_size,
+        stride,
+        padding,
+        count_include_pad,
+        ceil_mode,
+    )))
+}
+
+/// Backward pass for the [max pooling 2d](ModuleOps::max_pool2d_with_indices) operation.
+#[allow(clippy::too_many_arguments)]
+pub fn max_pool2d_with_indices_backward(
+    x: Tensor<4>,
+    kernel_size: [usize; 2],
+    stride: [usize; 2],
+    padding: [usize; 2],
+    dilation: [usize; 2],
+    ceil_mode: bool,
+    output_grad: Tensor<4>,
+    indices: Tensor<4, Int>,
+) -> Tensor<4> {
+    Tensor::new(BridgeTensor::float(
+        Dispatch::max_pool2d_with_indices_backward(
+            x.primitive.into_float(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            output_grad.primitive.into_float(),
+            indices.primitive.into(),
+        )
+        .x_grad,
+    ))
+}
+
+/// Applies Layer Normalization over the last dimension of the input tensor.
+///
+/// Computes `(x - mean) / sqrt(var + epsilon) * gamma + beta`, where `mean` and
+/// (biased) `var` are reduced over the last axis.
+///
+/// # Shapes
+///
+/// - input: `[..., any, d_model]`
+/// - output: `[..., any, d_model]`
+pub fn layer_norm<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Option<Tensor<1>>,
+    epsilon: f64,
+) -> Tensor<D> {
+    Tensor::new(layer_norm_impl(
+        input.primitive,
+        gamma.primitive,
+        beta.map(|b| b.primitive),
+        epsilon,
+    ))
+}
+
+fn layer_norm_impl(
+    input: BridgeTensor,
+    gamma: BridgeTensor,
+    beta: Option<BridgeTensor>,
+    epsilon: f64,
+) -> BridgeTensor {
+    BridgeTensor::float(Dispatch::layer_norm(
+        input.into_float(),
+        gamma.into_float(),
+        beta.map(|b| b.into_float()),
+        epsilon,
+    ))
 }
