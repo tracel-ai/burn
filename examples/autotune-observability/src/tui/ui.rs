@@ -7,8 +7,8 @@ use ratatui::{
 };
 
 use crate::DTYPE_NAMES;
-use crate::run_support::{BACKENDS, ProblemKind};
 use crate::ansi::{AnsiStyle, parse_ansi};
+use crate::run_support::{BACKENDS, ProblemKind};
 
 use super::app::App;
 
@@ -85,7 +85,12 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     let controls_text = if app.input_mode {
         vec![
             Line::from(vec![
-                Span::styled(" Enter Shape: ", Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD)),
+                Span::styled(
+                    " Enter Shape: ",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                ),
                 Span::raw(&app.shape_str),
                 Span::styled("█", Style::default().fg(Color::Yellow)),
             ]),
@@ -167,23 +172,71 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                     let invalid = event.count(crate::CandidateKind::Invalid);
 
                     let title = if let Some(sc) = event.short_circuit {
-                        Span::styled(format!("#{idx} {} ⚡ short-circuit: {:.2}%", event.fastest, sc), Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD))
+                        Span::styled(
+                            format!("#{idx} {} ⚡ short-circuit: {:.2}%", event.fastest, sc),
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(ratatui::style::Modifier::BOLD),
+                        )
                     } else {
-                        Span::styled(format!("#{idx} {}", event.fastest), Style::default().add_modifier(ratatui::style::Modifier::BOLD))
+                        Span::styled(
+                            format!("#{idx} {}", event.fastest),
+                            Style::default().add_modifier(ratatui::style::Modifier::BOLD),
+                        )
                     };
                     lines.push(Line::from(title));
                     lines.push(Line::from(vec![
                         Span::raw(format!("{} tuning batch(es) | ", event.tuning_batches)),
-                        Span::styled(format!("{} benchmarked ", benchmarked), Style::default().fg(Color::Green)),
-                        Span::styled(format!("{} skipped ", skipped), Style::default().fg(Color::DarkGray)),
-                        Span::styled(format!("{} invalid", invalid), Style::default().fg(Color::Red)),
+                        Span::styled(
+                            format!("{} benchmarked ", benchmarked),
+                            Style::default().fg(Color::Green),
+                        ),
+                        Span::styled(
+                            format!("{} skipped ", skipped),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                        Span::styled(
+                            format!("{} invalid", invalid),
+                            Style::default().fg(Color::Red),
+                        ),
                     ]));
+
+                    if !event.candidate_progress.is_empty() {
+                        lines.push(Line::from(""));
+                        lines.push(Line::from("Progress to limit:"));
+                        for (i, p) in event.candidate_progress.iter().copied().enumerate() {
+                            let bar_len = ((p / 100.0) * 20.0).clamp(0.0, 20.0) as usize;
+                            let bar_str = "█".repeat(bar_len) + &"░".repeat(20 - bar_len);
+                            let color = if p >= 100.0 {
+                                Color::Yellow
+                            } else {
+                                Color::Green
+                            };
+                            lines.push(Line::from(vec![
+                                Span::raw(format!("  #{}: {:5.1}% [", i + 1, p)),
+                                Span::styled(bar_str, Style::default().fg(color)),
+                                Span::raw("]"),
+                                if p >= 100.0 {
+                                    Span::styled(" ⚡", Style::default().fg(Color::Yellow))
+                                } else {
+                                    Span::raw("")
+                                },
+                            ]));
+                        }
+                    }
 
                     if !event.bounds.is_empty() {
                         lines.push(Line::from("throughput bounds:"));
                         for bound in &event.bounds {
-                            let color = if bound.starts_with("Short circuiting") { Color::Yellow } else { Color::Reset };
-                            lines.push(Line::from(vec![Span::raw("  "), Span::styled(bound, Style::default().fg(color))]));
+                            let color = if bound.starts_with("Short circuiting") {
+                                Color::Yellow
+                            } else {
+                                Color::Reset
+                            };
+                            lines.push(Line::from(vec![
+                                Span::raw("  "),
+                                Span::styled(bound, Style::default().fg(color)),
+                            ]));
                         }
                     }
                     lines.push(Line::from(""));
@@ -191,9 +244,11 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 if lines.is_empty() {
                     lines.push(Line::from("No events found in this log."));
                 }
-                let p = Paragraph::new(lines)
-                    .scroll((app.events_scroll, 0))
-                    .block(Block::default().borders(Borders::ALL).title(format!(" {} Events (PgUp/PgDown to scroll) ", run.name)));
+                let p = Paragraph::new(lines).scroll((app.events_scroll, 0)).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(format!(" {} Events (PgUp/PgDown to scroll) ", run.name)),
+                );
                 f.render_widget(p, right_chunks[1]);
             }
         } else {
