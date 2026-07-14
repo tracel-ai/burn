@@ -52,17 +52,20 @@ tracing = [
     "burn-wgpu?/tracing",
 ]
 
+# Enables cubecl-facing APIs (e.g. throughput measurement) on cubecl-backed devices.
+cubecl = ["burn-backend/cubecl"]
+
 # Backends
-cuda = ["burn-cuda"]
+cuda = ["burn-cuda", "cubecl"]
 flex = [] # default
-rocm = ["burn-rocm"]
+rocm = ["burn-rocm", "cubecl"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
-wgpu = ["burn-wgpu"]
-cpu = ["burn-cpu"]
+wgpu = ["burn-wgpu", "cubecl"]
+cpu = ["burn-cpu", "cubecl"]
 autodiff = ["burn-autodiff"]
 # Remote compute client over Iroh.
 remote = ["std", "burn-remote", "burn-remote/iroh"]

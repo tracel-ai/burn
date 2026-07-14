@@ -1,5 +1,10 @@
-use super::{Param, ParamId, Quantizer};
-use alloc::{string::String, vec::Vec};
+use crate::module::{LoraConfig, ParamGroup};
+
+use super::{LoraMapper, Param, ParamId, QLoraMapper, Quantizer};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 pub use burn_derive::Module;
 use burn_tensor::{Bool, Device, Int, Tensor};
 
@@ -21,6 +26,37 @@ macro_rules! module {
             }
         }
         let mut mapper = Mapper;
+        $module.map(&mut mapper)
+    }};
+    (map=$module:ident, ops=$item:expr, group=$group:ident) => {{
+        struct Mapper {
+            pub path: Vec<String>,
+            pub group: ParamGroup,
+        }
+        impl ModuleMapper for Mapper {
+            fn enter_module(&mut self, name: &str, _container_type: &str) {
+                self.path.push(name.to_string());
+            }
+
+            fn exit_module(&mut self, _name: &str, _container_type: &str) {
+                self.path.pop();
+            }
+
+            fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
+                let (id, tensor, mapper) = param.consume();
+                let path = self.path.join(".");
+                if self.group.matches(&id, Some(&path)) {
+                    let func = $item;
+                    let tensor = func(tensor);
+                    return Param::from_mapped_value(id, tensor, mapper);
+                }
+                Param::from_mapped_value(id, tensor, mapper)
+            }
+        }
+        let mut mapper = Mapper {
+            path: alloc::vec![],
+            group: $group,
+        };
         $module.map(&mut mapper)
     }};
     (visit_float=$module:ident, ops=$item:expr, state=$state_ty:ty, init=$init:expr) => {{
@@ -107,6 +143,37 @@ pub trait Module: Clone + Send + core::fmt::Debug {
         )
     }
 
+    /// Set `require_grad` to `false` for every parameter in the given group, leaving the rest
+    /// of the module untouched.
+    ///
+    /// This is the group-scoped counterpart to [no_grad](Module::no_grad): where `no_grad` freezes
+    /// the whole module tree, `freeze_group` freezes only the parameters matched by `group`.  
+    ///
+    /// # Warnings
+    ///
+    /// Like [no_grad](Module::no_grad), this should not be used for inference; use
+    /// [valid](AutodiffModule::valid) with AD modules instead.
+    fn freeze_group(self, group: ParamGroup) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(false),
+            group = group
+        )
+    }
+
+    /// Set `require_grad` to `true` for every parameter in the given group, leaving the rest
+    /// of the module untouched.
+    ///
+    /// The inverse of [freeze_group](Module::freeze_group): it re-enables gradient tracking for the
+    /// parameters matched by `group`, e.g. to unfreeze a previously frozen module.
+    fn unfreeze_group(self, group: ParamGroup) -> Self {
+        module!(
+            map = self,
+            ops = |tensor: Tensor<D>| tensor.set_require_grad(true),
+            group = group
+        )
+    }
+
     /// Move the module and all of its sub-modules to the autodiff backend.
     ///
     /// # Notes
@@ -118,7 +185,6 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     where
         Self: AutodiffModule,
     {
-        // <Self as HasAutodiffModule>::TrainModule::from_inner(self)
         AutodiffModule::from_inner(self)
     }
 
@@ -142,6 +208,34 @@ pub trait Module: Clone + Send + core::fmt::Debug {
     /// Quantize the weights of the module.
     fn quantize_weights(self, quantizer: &mut Quantizer) -> Self {
         self.map(quantizer)
+    }
+
+    /// Quantize the weights of the given parameter group.
+    fn quantize_weights_group(self, quantizer: &mut Quantizer, group: ParamGroup) -> Self {
+        quantizer.set_param_group(group);
+        self.map(quantizer)
+    }
+
+    /// Attach LoRA adapters to the module's 2-D weights, freezing the base weights.
+    ///
+    /// The same module keeps working without any code changes; adapted weights now produce
+    /// `base + scale * (a @ b)`, and only the adapter factors are trainable.
+    fn apply_lora(self, config: LoraConfig) -> Self
+    where
+        Self: Sized,
+    {
+        let mut mapper = LoraMapper::new(config);
+        self.map(&mut mapper)
+    }
+
+    /// Apply QLoRA to the module: quantize the (frozen) base weights and attach trainable LoRA
+    /// adapters to 2-D weights.
+    fn apply_qlora(self, config: LoraConfig, quantizer: Quantizer) -> Self
+    where
+        Self: Sized,
+    {
+        let mut mapper = QLoraMapper::new(config, quantizer);
+        self.map(&mut mapper)
     }
 
     /// Collect this module's parameters into a [`ModuleRecord`](crate::store::ModuleRecord).
@@ -424,6 +518,7 @@ pub trait AutodiffModule: Module + Send + core::fmt::Debug {
 mod tests {
     use super::*;
 
+    use crate::module::ParamGroup;
     use crate::{test_device, test_utils::SimpleLinear};
 
     #[test]
@@ -455,5 +550,40 @@ mod tests {
         let module = module.train();
         assert!(!module.weight.is_require_grad());
         assert!(!module.weight.require_grad); // stateful
+    }
+
+    #[test]
+    fn freeze_group_freezes_only_selected_params() {
+        let device = test_device().autodiff();
+        let module = SimpleLinear::new(4, 4, &device);
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.bias.as_ref().unwrap().is_require_grad());
+
+        let module = module.freeze_group(ParamGroup::from_path("weight"));
+
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.require_grad);
+
+        let bias = module.bias.as_ref().unwrap();
+        assert!(bias.is_require_grad());
+        assert!(bias.require_grad);
+    }
+
+    #[test]
+    fn unfreeze_group_only_thaws_selected_params() {
+        let device = test_device().autodiff();
+        let module = SimpleLinear::new(4, 4, &device);
+
+        let module = module.no_grad();
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.bias.as_ref().unwrap().is_require_grad());
+
+        let module = module.unfreeze_group(ParamGroup::from_path("weight"));
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.weight.require_grad);
+        assert!(!module.bias.as_ref().unwrap().is_require_grad());
+        assert!(!module.bias.as_ref().unwrap().require_grad);
     }
 }

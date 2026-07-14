@@ -2,6 +2,8 @@ pub use burn_std::{
     DeviceError, DeviceSettings, ExecutionError, backtrace::BackTrace, device::DeviceId,
 };
 
+#[cfg(feature = "cubecl")]
+pub use burn_backend::cubecl::{ThroughputKey, ThroughputValue};
 use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
@@ -779,6 +781,47 @@ impl Device {
         }
 
         Devices(devices)
+    }
+
+    /// Measure peak compute and memory throughput for this device.
+    ///
+    /// Runs cubecl-std's throughput benchmarks for each [`ThroughputKey`],
+    /// returning one [`ThroughputStat`] per key (in the same order). Only
+    /// cubecl-backed devices (cuda, wgpu, ...) report measurements; other
+    /// backends return an empty vector.
+    #[cfg(feature = "cubecl")]
+    pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputStat> {
+        self.as_dispatch()
+            .performance_stats(keys)
+            .into_iter()
+            .zip(keys.iter().copied())
+            .map(|(value, key)| ThroughputStat { key, value })
+            .collect()
+    }
+}
+
+/// A single peak-throughput measurement produced by [`Device::performance_stats`].
+#[cfg(feature = "cubecl")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ThroughputStat {
+    /// The measurement key (mode + dtype) that was benchmarked.
+    pub key: ThroughputKey,
+    /// The measured throughput for that key.
+    pub value: ThroughputValue,
+}
+
+#[cfg(feature = "cubecl")]
+impl core::fmt::Display for ThroughputStat {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Width/alignment flags are ignored on `ThroughputMode`/`ElemType` directly
+        // (their fmt impls don't call `f.pad`), so render them to `String`s first —
+        // `str`'s `Display` honors padding. The value is "<number> <unit>"; split it
+        // so the numeric column can be right-aligned.
+        let mode = alloc::format!("{:?}", self.key.mode);
+        let dtype = alloc::format!("{}", self.key.dtype);
+        let value = self.value.format(&self.key);
+
+        write!(f, "{mode:<14} {dtype:<5} {value}")
     }
 }
 

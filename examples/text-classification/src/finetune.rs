@@ -1,53 +1,29 @@
-// This module trains a text classification model using the provided training and testing datasets,
-// as well as the provided configuration. It first initializes a tokenizer and batchers for the datasets,
-// then initializes the model and data loaders for the datasets. The function then initializes
-// an optimizer and a learning rate scheduler, and uses them along with the model and datasets
-// to build a learner, which is used to train the model. The trained model and the configuration are
-// then saved to the specified directory.
+use std::sync::Arc;
+
+use burn::data::dataloader::DataLoaderBuilder;
+use burn::data::dataset::transform::SamplerDataset;
+use burn::module::LoraConfig;
+use burn::prelude::*;
+use burn::train::metric::{
+    AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
+};
+use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
 
 use crate::{
-    data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
+    TextClassificationDataset,
+    data::{BertCasedTokenizer, TextClassificationBatcher, Tokenizer},
     model::TextClassificationModelConfig,
+    training::{ExperimentConfig, create_artifact_dir},
 };
 
-use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
-use burn::{
-    data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
-    lr_scheduler::noam::NoamLrSchedulerConfig,
-    nn::{attention::SeqLengthOption, transformer::TransformerEncoderConfig},
-    optim::AdamConfig,
-    prelude::*,
-    train::metric::{
-        AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
-    },
-};
-use std::{path::PathBuf, sync::Arc};
-
-// Define configuration struct for the experiment
-#[derive(Config, Debug)]
-pub struct ExperimentConfig {
-    pub transformer: TransformerEncoderConfig,
-    pub optimizer: AdamConfig,
-    #[config(default = "SeqLengthOption::Fixed(256)")]
-    pub seq_length: SeqLengthOption,
-    #[config(default = 32)]
-    pub batch_size: usize,
-    #[config(default = 5)]
-    pub num_epochs: usize,
-}
-
-pub(crate) fn create_artifact_dir(artifact_dir: &str) {
-    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
-    std::fs::create_dir_all(artifact_dir).ok();
-}
-
-// Define train function
-pub fn train<D: TextClassificationDataset + 'static>(
+// Finetune pre-trained weights using LoRA.
+pub fn lora_finetuning<D: TextClassificationDataset + 'static>(
     strategy: ExecutionStrategy,
     dataset_train: D,         // Training dataset
     dataset_test: D,          // Testing dataset
     config: ExperimentConfig, // Experiment configuration
     artifact_dir: &str,       // Directory to save model and config files
+    num_class_before: usize,  // The number of class of the pretrained model
 ) {
     create_artifact_dir(artifact_dir);
 
@@ -60,11 +36,20 @@ pub fn train<D: TextClassificationDataset + 'static>(
     // Initialize model
     let model = TextClassificationModelConfig::new(
         config.transformer.clone(),
-        D::num_classes(),
+        num_class_before,
         tokenizer.vocab_size(),
         config.seq_length,
     )
     .init(&strategy.main_device().clone().autodiff());
+
+    // Load pre-trained weights.
+    let model = model.load_file("model.bpk");
+
+    // Apply LoRA to the attention module's query, value, output and feed-forward weights.
+    let r = 8.0;
+    let mut model = model.apply_lora(LoraConfig::new(r as usize, 2.0 * r));
+    // Reset the classification head with the current dataset's number of classes.
+    model.reset_head(D::num_classes());
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
@@ -80,11 +65,7 @@ pub fn train<D: TextClassificationDataset + 'static>(
     let optim = config.optimizer.init();
 
     // Initialize learning rate scheduler
-    let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
-        .with_warmup_steps(1000)
-        .with_model_size(config.transformer.d_model)
-        .init()
-        .unwrap();
+    let lr_scheduler = 1e-3;
 
     // Initialize learner
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
