@@ -27,7 +27,25 @@ where
 
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                if let Some(field) = app.remote_edit {
+                if app.show_help {
+                    // Any key dismisses the help overlay.
+                    app.show_help = false;
+                } else if app.editing_book_name {
+                    let idx = app.active_book_index();
+                    match key.code {
+                        KeyCode::Enter | KeyCode::Esc => {
+                            app.editing_book_name = false;
+                            app.run_books.save();
+                        }
+                        KeyCode::Backspace => {
+                            app.run_books.books[idx].name.pop();
+                        }
+                        KeyCode::Char(c) => {
+                            app.run_books.books[idx].name.push(c);
+                        }
+                        _ => {}
+                    }
+                } else if let Some(field) = app.remote_edit {
                     match key.code {
                         KeyCode::Enter | KeyCode::Esc => {
                             app.remote_edit = None;
@@ -67,6 +85,7 @@ where
                     }
                 } else {
                     match key.code {
+                        KeyCode::Char('?') => app.show_help = true,
                         KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
                         KeyCode::PageDown => {
                             app.events_scroll = app.events_scroll.saturating_add(10)
@@ -132,6 +151,20 @@ where
                                 }
                             }
                         }
+                        // --- Run books ---
+                        KeyCode::Char('[') => app.select_prev_book(),
+                        KeyCode::Char(']') => app.select_next_book(),
+                        KeyCode::Char('N') => app.new_book(),
+                        KeyCode::Char('X') => app.delete_book(),
+                        KeyCode::Char('e') => app.editing_book_name = true,
+                        KeyCode::Char('B') => app.cycle_book_backend(),
+                        KeyCode::Char('a') => app.book_add_current(),
+                        KeyCode::Char('J') => app.book_entry_next(),
+                        KeyCode::Char('K') => app.book_entry_prev(),
+                        KeyCode::Char('x') => app.book_delete_selected_entry(),
+                        KeyCode::Char('V') => app.cycle_selected_entry_backend(),
+                        KeyCode::Char('R') => app.book_run_selected_entry(),
+                        KeyCode::Char('A') => app.book_run_all(),
                         _ => {}
                     }
                 }
@@ -157,6 +190,7 @@ where
                     let id = app.pending_run.take();
                     app.rescan_runs(id.as_deref());
                 }
+                app.start_next_queued();
             }
         }
     }

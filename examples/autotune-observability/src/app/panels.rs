@@ -378,6 +378,27 @@ impl AutotuneObservabilityApp {
                         .changed();
                 });
 
+                ui.horizontal(|ui| {
+                    ui.label("backend");
+                    let book = &mut self.run_books.books[book_idx];
+                    egui::ComboBox::from_id_salt("run_book_backend")
+                        .selected_text(book.backend.clone())
+                        .show_ui(ui, |ui| {
+                            for (label, backend, _) in BACKENDS.iter() {
+                                save |= ui
+                                    .selectable_value(
+                                        &mut book.backend,
+                                        (*backend).to_string(),
+                                        *label,
+                                    )
+                                    .changed();
+                            }
+                        })
+                        .response
+                        .on_hover_text("Default backend for every entry in this book");
+                });
+
+                let book_backend = self.run_books.books[book_idx].backend.clone();
                 let spec_count = self.run_books.books[book_idx].specs.len();
                 ui.horizontal(|ui| {
                     if ui
@@ -427,12 +448,16 @@ impl AutotuneObservabilityApp {
                                     });
 
                                     if is_editing {
-                                        save |= edit_spec_fields(ui, spec);
+                                        save |= edit_spec_fields(ui, spec, &book_backend);
                                     } else {
+                                        let backend = match &spec.backend {
+                                            Some(backend) => format!("{backend}*"),
+                                            None => book_backend.clone(),
+                                        };
                                         ui.label(format!(
                                             "{} · {} · {} → {}",
                                             spec.problem.label(),
-                                            spec.backend,
+                                            backend,
                                             spec.input,
                                             spec.output
                                         ));
@@ -695,9 +720,9 @@ impl AutotuneObservabilityApp {
     }
 }
 
-/// Inline editors for a run book entry's problem, backend, dtypes and shapes. Returns whether any
-/// field changed, so the caller can persist the book.
-fn edit_spec_fields(ui: &mut egui::Ui, spec: &mut RunSpec) -> bool {
+/// Inline editors for a run book entry's problem, backend override, dtypes and shapes. Returns
+/// whether any field changed, so the caller can persist the book.
+fn edit_spec_fields(ui: &mut egui::Ui, spec: &mut RunSpec, book_backend: &str) -> bool {
     let mut changed = false;
 
     ui.horizontal(|ui| {
@@ -712,13 +737,29 @@ fn edit_spec_fields(ui: &mut egui::Ui, spec: &mut RunSpec) -> bool {
                 }
             });
         ui.label("on");
+        let backend_text = match &spec.backend {
+            Some(backend) => backend.clone(),
+            None => format!("book ({book_backend})"),
+        };
         egui::ComboBox::from_id_salt("edit_backend")
-            .selected_text(&spec.backend)
+            .selected_text(backend_text)
             .show_ui(ui, |ui| {
+                changed |= ui
+                    .selectable_label(spec.backend.is_none(), format!("book ({book_backend})"))
+                    .clicked()
+                    .then(|| spec.backend = None)
+                    .is_some();
                 for (label, backend, _) in BACKENDS.iter() {
-                    changed |= ui
-                        .selectable_value(&mut spec.backend, (*backend).to_string(), *label)
-                        .changed();
+                    if ui
+                        .selectable_label(
+                            spec.backend.as_deref() == Some(*backend),
+                            *label,
+                        )
+                        .clicked()
+                    {
+                        spec.backend = Some((*backend).to_string());
+                        changed = true;
+                    }
                 }
             });
     });

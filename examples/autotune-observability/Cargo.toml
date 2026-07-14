@@ -49,5 +49,8 @@ egui = "0.35"
 ssh2 = "0.9.6"
 # Gitignore-aware directory walking (ripgrep's) for selecting which files to sync to the remote.
 ignore = "0.4"
+# Persisting the run books as TOML.
+serde = { workspace = true }
+toml = "0.9"
 ratatui = { workspace = true, optional = true }
 crossterm = { version = "0.28", optional = true }

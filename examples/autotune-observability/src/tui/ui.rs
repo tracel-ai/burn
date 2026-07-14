@@ -1,9 +1,9 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
 use crate::DTYPE_NAMES;
@@ -42,6 +42,65 @@ fn into_ratatui_style(ansi: AnsiStyle) -> Style {
     style
 }
 
+fn render_book(f: &mut Frame, app: &mut App, area: Rect) {
+    let idx = app.active_book_index();
+    let total = app.run_books.books.len();
+    let (name, backend, items): (String, String, Vec<ListItem>) = {
+        let book = &app.run_books.books[idx];
+        let items = book
+            .specs
+            .iter()
+            .map(|spec| {
+                let label = if spec.name.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("{}: ", spec.name)
+                };
+                let override_backend = match &spec.backend {
+                    Some(backend) => format!("  [{backend}]"),
+                    None => String::new(),
+                };
+                ListItem::new(format!(
+                    "{label}{} {}→{} {}{override_backend}",
+                    spec.problem.name(),
+                    spec.input,
+                    spec.output,
+                    spec.shapes_string(),
+                ))
+            })
+            .collect();
+        (book.name.clone(), book.backend.clone(), items)
+    };
+
+    let display_name = if name.trim().is_empty() { "(unnamed)" } else { name.as_str() };
+    let title = if app.editing_book_name {
+        format!(" Rename book: {name}█ (Enter/Esc) ")
+    } else {
+        format!(" Book {}/{}: {display_name} [{backend}] ", idx + 1, total)
+    };
+
+    let book_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(3), Constraint::Length(1)].as_ref())
+        .split(area);
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+    f.render_stateful_widget(list, book_chunks[0], &mut app.book_entry_state);
+
+    let hint = Paragraph::new(Line::from(vec![Span::styled(
+        " a:add R:run A:run-all x:del J/K:move V:ovr · N/X/e/B book · [/]:switch",
+        Style::default().fg(Color::DarkGray),
+    )]));
+    f.render_widget(hint, book_chunks[1]);
+}
+
 pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -70,7 +129,13 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
         )
         .highlight_symbol(">> ");
 
-    f.render_stateful_widget(runs_list, chunks[0], &mut app.run_list_state);
+    let left_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)].as_ref())
+        .split(chunks[0]);
+
+    f.render_stateful_widget(runs_list, left_chunks[0], &mut app.run_list_state);
+    render_book(f, app, left_chunks[1]);
 
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -205,6 +270,7 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
                 } else {
                     Span::styled(" | [q/Esc] Quit", Style::default().fg(Color::Red))
                 },
+                Span::styled(" | [?] Help", Style::default().fg(Color::Cyan)),
                 Span::raw(if app.run_rx.is_some() {
                     "  --> RUNNING..."
                 } else {
@@ -386,4 +452,114 @@ pub(crate) fn ui(f: &mut Frame, app: &mut App) {
             f.render_widget(p, right_chunks[1]);
         }
     }
+
+    if app.show_help {
+        render_help(f);
+    }
+}
+
+/// A centered rectangle `percent_x` × `percent_y` of `area`, for overlay popups.
+fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(area);
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(vertical[1])[1]
+}
+
+fn render_help(f: &mut Frame) {
+    let key = Style::default()
+        .fg(Color::Yellow)
+        .add_modifier(Modifier::BOLD);
+    let heading = Style::default()
+        .fg(Color::Cyan)
+        .add_modifier(Modifier::BOLD);
+
+    let mut lines: Vec<Line> = Vec::new();
+    let section = |lines: &mut Vec<Line>, title: &str, rows: &[(&str, &str)]| {
+        lines.push(Line::from(Span::styled(title.to_string(), heading)));
+        for (k, desc) in rows {
+            lines.push(Line::from(vec![
+                Span::styled(format!("  {k:<10}"), key),
+                Span::raw(desc.to_string()),
+            ]));
+        }
+        lines.push(Line::from(""));
+    };
+
+    section(
+        &mut lines,
+        "Configuration",
+        &[
+            ("b", "cycle backend"),
+            ("p", "cycle problem (matmul/attention/flash/reduce)"),
+            ("i / o", "cycle input / output dtype"),
+            ("s", "edit shape"),
+            ("t", "toggle re-benchmark peak throughput"),
+        ],
+    );
+    section(
+        &mut lines,
+        "Remote (SSH)",
+        &[
+            ("m", "toggle running on remote"),
+            ("h / g / w", "edit host / base dir / password"),
+            ("f", "toggle force-sync (remote only)"),
+        ],
+    );
+    section(
+        &mut lines,
+        "Run & archived runs",
+        &[
+            ("Enter / r", "run the current configuration"),
+            ("c", "cancel the running job"),
+            ("↑/k ↓/j", "select an archived run"),
+            ("D", "delete the selected run"),
+            ("PgUp/PgDn", "scroll events (Home/End: top/bottom)"),
+        ],
+    );
+    section(
+        &mut lines,
+        "Run books",
+        &[
+            ("[ / ]", "previous / next book"),
+            ("N / X", "new / delete book"),
+            ("e", "rename book"),
+            ("B", "cycle book default backend"),
+            ("a", "add current config as an entry"),
+            ("J / K", "move entry selection down / up"),
+            ("x", "delete selected entry"),
+            ("V", "cycle selected entry's backend override"),
+            ("R", "run selected entry"),
+            ("A", "run all entries in the book"),
+        ],
+    );
+    section(
+        &mut lines,
+        "General",
+        &[("?", "toggle this help"), ("q / Esc", "quit")],
+    );
+
+    let area = centered_rect(70, 90, f.area());
+    let popup = Paragraph::new(lines)
+        .wrap(ratatui::widgets::Wrap { trim: false })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan))
+                .title(" Keybindings — press any key to close "),
+        );
+    f.render_widget(Clear, area);
+    f.render_widget(popup, area);
 }

@@ -90,15 +90,16 @@ impl AutotuneObservabilityApp {
         &mut self.run_books.books[index]
     }
 
-    /// Build a launch request from a saved spec, labelling it by the spec's name (or a fallback).
-    fn spec_to_request(spec: &RunSpec) -> LaunchRequest {
+    /// Build a launch request from a saved spec, resolving its backend against the book default and
+    /// labelling it by the spec's name (or a fallback).
+    fn spec_to_request(spec: &RunSpec, backend: String) -> LaunchRequest {
         let label = if spec.name.trim().is_empty() {
-            format!("{} {}", spec.problem.label(), spec.backend)
+            format!("{} {}", spec.problem.label(), backend)
         } else {
             spec.name.clone()
         };
         LaunchRequest {
-            backend: spec.backend.clone(),
+            backend,
             problem: spec.problem,
             input: spec.input.clone(),
             output: spec.output.clone(),
@@ -107,11 +108,14 @@ impl AutotuneObservabilityApp {
         }
     }
 
-    /// Snapshot the current controls (backend/problem/dtypes/shapes) as a new entry in the book.
+    /// Snapshot the current controls (problem/dtypes/shapes) as a new entry in the book. The
+    /// current backend becomes a per-entry override only when it differs from the book default.
     pub(super) fn add_current_to_run_book(&mut self) {
+        let current_backend = BACKENDS[self.selected].1.to_string();
+        let backend = (current_backend != self.active_book().backend).then_some(current_backend);
         let spec = RunSpec {
             name: String::new(),
-            backend: BACKENDS[self.selected].1.to_string(),
+            backend,
             problem: self.problem,
             input: DTYPE_NAMES[self.input_dtype].to_string(),
             output: DTYPE_NAMES[self.output_dtype].to_string(),
@@ -126,8 +130,12 @@ impl AutotuneObservabilityApp {
 
     /// Queue every entry in the active book and launch them one after another.
     pub(super) fn run_book_run_all(&mut self) {
-        let requests: Vec<LaunchRequest> =
-            self.active_book().specs.iter().map(Self::spec_to_request).collect();
+        let book = self.active_book();
+        let requests: Vec<LaunchRequest> = book
+            .specs
+            .iter()
+            .map(|spec| Self::spec_to_request(spec, book.effective_backend(spec)))
+            .collect();
         if requests.is_empty() {
             self.status = String::from("This book is empty.");
             return;
@@ -137,10 +145,11 @@ impl AutotuneObservabilityApp {
 
     /// Launch a single entry from the active book.
     pub(super) fn run_book_run_one(&mut self, index: usize) {
-        let Some(spec) = self.active_book().specs.get(index) else {
+        let book = self.active_book();
+        let Some(spec) = book.specs.get(index) else {
             return;
         };
-        let request = Self::spec_to_request(spec);
+        let request = Self::spec_to_request(spec, book.effective_backend(spec));
         self.rerun_queue.clear();
         if let Err(err) = self.start_run_request(request) {
             self.status = err;
@@ -149,10 +158,12 @@ impl AutotuneObservabilityApp {
 
     /// Copy a book entry back into the top controls so it can be tweaked and re-saved.
     pub(super) fn load_spec_into_controls(&mut self, index: usize) {
-        let Some(spec) = self.active_book().specs.get(index).cloned() else {
+        let book = self.active_book();
+        let Some(spec) = book.specs.get(index).cloned() else {
             return;
         };
-        if let Some(pos) = BACKENDS.iter().position(|(_, backend, _)| *backend == spec.backend) {
+        let backend = book.effective_backend(&spec);
+        if let Some(pos) = BACKENDS.iter().position(|(_, name, _)| *name == backend) {
             self.selected = pos;
         }
         self.problem = spec.problem;
@@ -195,7 +206,8 @@ impl AutotuneObservabilityApp {
             }
             n += 1;
         };
-        self.run_books.books.push(RunBook::named(name));
+        let backend = BACKENDS[self.selected].1.to_string();
+        self.run_books.books.push(RunBook::new(name, backend));
         self.selected_book = self.run_books.books.len() - 1;
         self.run_book_editing = None;
         self.run_books.save();
@@ -206,7 +218,7 @@ impl AutotuneObservabilityApp {
         let index = self.active_book_index();
         self.run_books.books.remove(index);
         if self.run_books.books.is_empty() {
-            self.run_books.books.push(RunBook::named("Default"));
+            self.run_books.books.push(RunBook::new("Default", BACKENDS[0].1.to_string()));
         }
         self.selected_book = self.selected_book.min(self.run_books.books.len() - 1);
         self.run_book_editing = None;
