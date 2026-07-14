@@ -118,8 +118,16 @@ impl AutotuneObservabilityApp {
         );
 
         let (tx, rx) = mpsc::channel();
-        thread::spawn(move || stream_command(cargo_args, tx));
+        let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
+        thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
         self.run_rx = Some(rx);
+    }
+
+    pub(super) fn cancel_run(&mut self) {
+        if let Some(flag) = &self.run_cancel {
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     /// Append one line to the console output, colouring its ANSI spans.

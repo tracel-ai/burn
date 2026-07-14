@@ -4,10 +4,13 @@ use std::sync::mpsc::Sender;
 use std::thread;
 
 use super::RunMsg;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 /// Run `cargo <args>` in the example dir, streaming interleaved stdout+stderr as [`RunMsg::Line`]
 /// and finishing with [`RunMsg::Done`].
-pub(crate) fn stream_command(args: Vec<String>, tx: Sender<RunMsg>) {
+pub(crate) fn stream_command(args: Vec<String>, tx: Sender<RunMsg>, cancel_flag: Arc<AtomicBool>) {
     let mut child = match Command::new("cargo")
         .current_dir(crate::example_dir())
         .env("CARGO_TERM_COLOR", "always")
@@ -31,7 +34,19 @@ pub(crate) fn stream_command(args: Vec<String>, tx: Sender<RunMsg>) {
     let out_reader = thread::spawn(move || pipe_lines(stdout, &tx_out));
     let err_reader = thread::spawn(move || pipe_lines(stderr, &tx_err));
 
-    let ok = child.wait().map(|s| s.success()).unwrap_or(false);
+    let ok = loop {
+        if cancel_flag.load(Ordering::Relaxed) {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = tx.send(RunMsg::Line(String::from("\n[Canceled by user]")));
+            break false;
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) => thread::sleep(Duration::from_millis(50)),
+            Err(_) => break false,
+        }
+    };
     let _ = out_reader.join();
     let _ = err_reader.join();
     let _ = tx.send(RunMsg::Done { ok });

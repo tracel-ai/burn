@@ -11,7 +11,7 @@ use crate::run_support::{BACKENDS, ProblemKind};
 
 use super::app::App;
 
-pub fn ui(f: &mut Frame, app: &mut App) {
+pub(crate) fn ui(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
@@ -51,29 +51,49 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     let in_dtype = DTYPE_NAMES[app.in_dtype_idx];
     let out_dtype = DTYPE_NAMES[app.out_dtype_idx];
 
-    let controls_text = vec![
-        Line::from(vec![
-            Span::styled(" [B] Backend: ", Style::default().fg(Color::Cyan)),
-            Span::raw(backend_name),
-            Span::styled(" | [P] Problem: ", Style::default().fg(Color::Cyan)),
-            Span::raw(problem_name),
-        ]),
-        Line::from(vec![
-            Span::styled(" [I] In DType: ", Style::default().fg(Color::Cyan)),
-            Span::raw(in_dtype),
-            Span::styled(" | [O] Out DType: ", Style::default().fg(Color::Cyan)),
-            Span::raw(out_dtype),
-        ]),
-        Line::from(vec![
-            Span::styled(" [Enter/R] Run ", Style::default().fg(Color::Green)),
-            Span::styled(" | [Q/Esc] Quit", Style::default().fg(Color::Red)),
-            Span::raw(if app.run_rx.is_some() {
-                "  --> RUNNING..."
-            } else {
-                ""
-            }),
-        ]),
-    ];
+    let controls_text = if app.input_mode {
+        vec![
+            Line::from(vec![
+                Span::styled(" Enter Shape: ", Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD)),
+                Span::raw(&app.shape_str),
+                Span::styled("█", Style::default().fg(Color::Yellow)),
+            ]),
+            Line::from(vec![
+                Span::styled(" [Enter] Save ", Style::default().fg(Color::Green)),
+                Span::styled(" | [Esc] Cancel", Style::default().fg(Color::Red)),
+            ]),
+        ]
+    } else {
+        vec![
+            Line::from(vec![
+                Span::styled(" [B] Backend: ", Style::default().fg(Color::Cyan)),
+                Span::raw(backend_name),
+                Span::styled(" | [P] Problem: ", Style::default().fg(Color::Cyan)),
+                Span::raw(problem_name),
+                Span::styled(" | [S] Shape: ", Style::default().fg(Color::Cyan)),
+                Span::raw(&app.shape_str),
+            ]),
+            Line::from(vec![
+                Span::styled(" [I] In DType: ", Style::default().fg(Color::Cyan)),
+                Span::raw(in_dtype),
+                Span::styled(" | [O] Out DType: ", Style::default().fg(Color::Cyan)),
+                Span::raw(out_dtype),
+            ]),
+            Line::from(vec![
+                Span::styled(" [Enter/R] Run ", Style::default().fg(Color::Green)),
+                if app.run_rx.is_some() {
+                    Span::styled(" | [C] Cancel", Style::default().fg(Color::Yellow))
+                } else {
+                    Span::styled(" | [Q/Esc] Quit", Style::default().fg(Color::Red))
+                },
+                Span::raw(if app.run_rx.is_some() {
+                    "  --> RUNNING..."
+                } else {
+                    ""
+                }),
+            ]),
+        ]
+    };
 
     let controls_p = Paragraph::new(controls_text).block(
         Block::default()
@@ -102,31 +122,39 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         if let Some(selected_idx) = app.run_list_state.selected() {
             if let Some(run) = app.runs.get(selected_idx) {
                 let mut lines = Vec::new();
-                for event in &run.events {
-                    lines.push(Line::from(vec![Span::styled(
-                        format!("Fastest: {} - {}", event.fastest, event.key),
-                        Style::default()
-                            .fg(Color::Yellow)
-                            .add_modifier(Modifier::BOLD),
-                    )]));
-                    if let Some(sc) = event.short_circuit {
-                        lines.push(Line::from(format!("Short-circuit: {}%", sc)));
+                for (idx, event) in run.events.iter().enumerate() {
+                    let benchmarked = event.count(crate::CandidateKind::Benchmarked);
+                    let skipped = event.count(crate::CandidateKind::Skipped);
+                    let invalid = event.count(crate::CandidateKind::Invalid);
+
+                    let title = if let Some(sc) = event.short_circuit {
+                        Span::styled(format!("#{idx} {} ⚡ short-circuit: {:.2}%", event.fastest, sc), Style::default().fg(Color::Yellow).add_modifier(ratatui::style::Modifier::BOLD))
                     } else {
-                        lines.push(Line::from(format!(
-                            "Tuning batches: {}",
-                            event.tuning_batches
-                        )));
+                        Span::styled(format!("#{idx} {}", event.fastest), Style::default().add_modifier(ratatui::style::Modifier::BOLD))
+                    };
+                    lines.push(Line::from(title));
+                    lines.push(Line::from(vec![
+                        Span::raw(format!("{} tuning batch(es) | ", event.tuning_batches)),
+                        Span::styled(format!("{} benchmarked ", benchmarked), Style::default().fg(Color::Green)),
+                        Span::styled(format!("{} skipped ", skipped), Style::default().fg(Color::DarkGray)),
+                        Span::styled(format!("{} invalid", invalid), Style::default().fg(Color::Red)),
+                    ]));
+
+                    if !event.bounds.is_empty() {
+                        lines.push(Line::from("throughput bounds:"));
+                        for bound in &event.bounds {
+                            let color = if bound.starts_with("Short circuiting") { Color::Yellow } else { Color::Reset };
+                            lines.push(Line::from(vec![Span::raw("  "), Span::styled(bound, Style::default().fg(color))]));
+                        }
                     }
                     lines.push(Line::from(""));
                 }
                 if lines.is_empty() {
                     lines.push(Line::from("No events found in this log."));
                 }
-                let p = Paragraph::new(lines).block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title(format!(" {} Events ", run.name)),
-                );
+                let p = Paragraph::new(lines)
+                    .scroll((app.events_scroll, 0))
+                    .block(Block::default().borders(Borders::ALL).title(format!(" {} Events (PgUp/PgDown to scroll) ", run.name)));
                 f.render_widget(p, right_chunks[1]);
             }
         } else {

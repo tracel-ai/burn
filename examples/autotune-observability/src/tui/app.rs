@@ -18,8 +18,13 @@ pub(crate) struct App {
     pub(crate) out_dtype_idx: usize,
 
     pub(crate) run_rx: Option<mpsc::Receiver<RunMsg>>,
+    pub(crate) run_cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     pub(crate) pending_run: Option<String>,
     pub(crate) output_lines: Vec<String>,
+
+    pub(crate) shape_str: String,
+    pub(crate) input_mode: bool,
+    pub(crate) events_scroll: u16,
 }
 
 impl App {
@@ -32,8 +37,12 @@ impl App {
             in_dtype_idx: 0,
             out_dtype_idx: 0,
             run_rx: None,
+            run_cancel: None,
             pending_run: None,
             output_lines: Vec::new(),
+            shape_str: String::from("512x512x512"),
+            input_mode: false,
+            events_scroll: 0,
         };
         app.rescan_runs(None);
         app
@@ -97,7 +106,7 @@ impl App {
         cargo_args.push("--".into());
 
         let stamp = now_millis();
-        let shape_name = "512x512x512";
+        let shape_name = self.shape_str.clone();
         let id = format!(
             "{stamp}-{backend}-{}-{}-{input}-{output}",
             problem.name(),
@@ -126,7 +135,15 @@ impl App {
             .push(format!("$ cargo {}", cargo_args.join(" ")));
 
         let (tx, rx) = mpsc::channel();
-        thread::spawn(move || stream_command(cargo_args, tx));
+        let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        self.run_cancel = Some(std::sync::Arc::clone(&cancel_flag));
+        thread::spawn(move || stream_command(cargo_args, tx, cancel_flag));
         self.run_rx = Some(rx);
+    }
+
+    pub fn cancel_run(&mut self) {
+        if let Some(flag) = &self.run_cancel {
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 }

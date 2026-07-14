@@ -242,4 +242,5 @@ mod app;
 pub use app::AutotuneObservabilityApp;
 pub use run_support::ProblemKind;
 
+#[cfg(feature = "tui")]
 pub mod tui;

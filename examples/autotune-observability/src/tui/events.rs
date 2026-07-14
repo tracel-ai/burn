@@ -11,7 +11,7 @@ use crate::run_support::{BACKENDS, ProblemKind};
 use super::app::App;
 use super::ui::ui;
 
-pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()>
+pub(crate) fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()>
 where
     io::Error: From<<B as Backend>::Error>,
 {
@@ -27,42 +27,63 @@ where
 
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        if let Some(selected) = app.run_list_state.selected() {
-                            if selected < app.runs.len().saturating_sub(1) {
-                                app.run_list_state.select(Some(selected + 1));
+                if app.input_mode {
+                    match key.code {
+                        KeyCode::Enter | KeyCode::Esc => app.input_mode = false,
+                        KeyCode::Backspace => {
+                            app.shape_str.pop();
+                        }
+                        KeyCode::Char(c) => app.shape_str.push(c),
+                        _ => {}
+                    }
+                } else {
+                    match key.code {
+                        KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                        KeyCode::PageDown => {
+                            app.events_scroll = app.events_scroll.saturating_add(1)
+                        }
+                        KeyCode::PageUp => app.events_scroll = app.events_scroll.saturating_sub(1),
+                        KeyCode::Down | KeyCode::Char('j') => {
+                            if let Some(selected) = app.run_list_state.selected() {
+                                if selected < app.runs.len().saturating_sub(1) {
+                                    app.run_list_state.select(Some(selected + 1));
+                                    app.events_scroll = 0;
+                                }
                             }
                         }
-                    }
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        if let Some(selected) = app.run_list_state.selected() {
-                            if selected > 0 {
-                                app.run_list_state.select(Some(selected - 1));
+                        KeyCode::Up | KeyCode::Char('k') => {
+                            if let Some(selected) = app.run_list_state.selected() {
+                                if selected > 0 {
+                                    app.run_list_state.select(Some(selected - 1));
+                                    app.events_scroll = 0;
+                                }
                             }
                         }
-                    }
-                    KeyCode::Char('b') => app.backend_idx = (app.backend_idx + 1) % BACKENDS.len(),
-                    KeyCode::Char('p') => {
-                        app.problem_idx = (app.problem_idx + 1) % ProblemKind::ALL.len()
-                    }
-                    KeyCode::Char('i') => {
-                        app.in_dtype_idx = (app.in_dtype_idx + 1) % DTYPE_NAMES.len()
-                    }
-                    KeyCode::Char('o') => {
-                        app.out_dtype_idx = (app.out_dtype_idx + 1) % DTYPE_NAMES.len()
-                    }
-                    KeyCode::Enter | KeyCode::Char('r') => app.run_selected_problem(),
-                    KeyCode::Char('D') => {
-                        if let Some(selected) = app.run_list_state.selected() {
-                            if let Some(run) = app.runs.get(selected) {
-                                let _ = std::fs::remove_dir_all(&run.dir);
-                                app.rescan_runs(None);
+                        KeyCode::Char('b') => {
+                            app.backend_idx = (app.backend_idx + 1) % BACKENDS.len()
+                        }
+                        KeyCode::Char('p') => {
+                            app.problem_idx = (app.problem_idx + 1) % ProblemKind::ALL.len()
+                        }
+                        KeyCode::Char('i') => {
+                            app.in_dtype_idx = (app.in_dtype_idx + 1) % DTYPE_NAMES.len()
+                        }
+                        KeyCode::Char('o') => {
+                            app.out_dtype_idx = (app.out_dtype_idx + 1) % DTYPE_NAMES.len()
+                        }
+                        KeyCode::Char('s') => app.input_mode = true,
+                        KeyCode::Char('c') => app.cancel_run(),
+                        KeyCode::Enter | KeyCode::Char('r') => app.run_selected_problem(),
+                        KeyCode::Char('D') => {
+                            if let Some(selected) = app.run_list_state.selected() {
+                                if let Some(run) = app.runs.get(selected) {
+                                    let _ = std::fs::remove_dir_all(&run.dir);
+                                    app.rescan_runs(None);
+                                }
                             }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }

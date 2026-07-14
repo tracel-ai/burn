@@ -23,6 +23,7 @@ pub struct AutotuneObservabilityApp {
     ansi_style: AnsiStyle,
     text_color: Color32,
     run_rx: Option<Receiver<RunMsg>>,
+    run_cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// Directory name of the in-flight run, selected once it finishes successfully.
     pending_run: Option<String>,
     rename_buffer: Option<(usize, String)>,
@@ -49,6 +50,7 @@ impl Default for AutotuneObservabilityApp {
             ansi_style: AnsiStyle::default(),
             text_color: Color32::GRAY,
             run_rx: None,
+            run_cancel: None,
             pending_run: None,
             rename_buffer: None,
             built_backends: Vec::new(),

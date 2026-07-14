@@ -72,6 +72,9 @@ impl AutotuneObservabilityApp {
                 });
                 if self.running() {
                     ui.spinner();
+                    if ui.button("Cancel").clicked() {
+                        self.cancel_run();
+                    }
                 }
                 if ui.button("Rescan runs").clicked() {
                     self.rescan_backends();
