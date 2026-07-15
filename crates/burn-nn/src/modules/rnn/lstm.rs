@@ -8,6 +8,7 @@ use burn::tensor::Device;
 use burn::tensor::Tensor;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
+#[derive(Debug, Clone)]
 pub struct LstmState<const D: usize> {
     /// The cell state.
     pub cell: Tensor<D>,
@@ -19,6 +20,49 @@ impl<const D: usize> LstmState<D> {
     /// Initialize a new [LSTM State](LstmState).
     pub fn new(cell: Tensor<D>, hidden: Tensor<D>) -> Self {
         Self { cell, hidden }
+    }
+
+    /// Allocate an initial state.
+    pub fn initial<S)(shape: S, device: &Device) -> Self
+        where S: ReshapeArgs<D>
+    {
+        let shape = shape.into_shape();
+        let cell = Tensor::zeros(shape, device);
+        let hidden = cell.clone();
+        Self { cell, hidden }
+    }
+
+    /// Unpack the state to (cell, hidden).
+    pub fn unpack(self) -> (Tensor<D>, Tensor<D>) -> Self {
+        (self.cell, self.hidden)
+    }
+
+    /// Slice the state.
+    pub fn slice<const D2: usize, S>(self, slice: S) -> Self
+        where S: SliceArg {
+            Self {
+                cell: self.cell.slice(s),
+                hidden: self.hidden.slice(s),
+            }
+    }
+
+    pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> LstmState<D2> {
+            Self {
+                cell: self.cell.squeeze_dim(dim),
+                hidden: self.hidden.squeeze_dim(dim),
+            }
+
+    }
+
+}
+
+impl<const D: usize> Option<LstmState<D>> {
+    /// Unwrap the optional state, or allocate initial state.
+    pub fn unwrap_or_initial<S: ReshapeArgs<D>>(self, shape: S, device: &Device) -> LstmState<D> {
+        match self {
+            Some(state) => state,
+            None => LstmState::initial(shape, device)
+        }
     }
 }
 
@@ -224,13 +268,9 @@ impl Lstm {
         let mut batched_hidden_state =
             Tensor::empty([batch_size, seq_length, self.d_hidden], device);
 
-        let (mut cell_state, mut hidden_state) = match state {
-            Some(state) => (state.cell, state.hidden),
-            None => (
-                Tensor::zeros([batch_size, self.d_hidden], device),
-                Tensor::zeros([batch_size, self.d_hidden], device),
-            ),
-        };
+        let (mut cell_state, mut hidden_state) = state
+            .unwrap_or_initial([batch_size, self.d_hidden], device)
+            .unpack();
 
         for (input_t, t) in input_timestep_iter {
             let input_t = input_t.squeeze_dim(1);
