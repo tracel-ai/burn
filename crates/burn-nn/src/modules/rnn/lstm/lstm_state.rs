@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use alloc::vec::Vec;
 use burn::Tensor;
 use burn::prelude::SliceArg;
 use burn::prelude::{Device, Shape};
@@ -126,7 +127,7 @@ pub trait OptionalInitialLstmState<const D: usize> {
     /// * `device` - the device to allocate the state on.
     ///
     /// # Returns
-    /// Either self unwrapped, or allocate using [`LstmState::initial_state`].
+    /// Either self unwrapped, or allocate using [`LstmState::initial`].
     fn unwrap_or_initial<S>(self, shape: S, device: &Device) -> LstmState<D>
     where
         S: Into<Shape>;
@@ -144,6 +145,7 @@ impl<const D: usize> OptionalInitialLstmState<D> for Option<LstmState<D>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use burn::tensor::{Distribution, TensorData, s};
 
     fn random_state<const D: usize, S>(shape: S, device: &Device) -> LstmState<D>

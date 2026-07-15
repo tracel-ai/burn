@@ -2,6 +2,7 @@ use burn_core as burn;
 
 use crate::activation::{Activation, ActivationConfig};
 use crate::{GateController, LstmState, OptionalInitialLstmState};
+use alloc::boxed::Box;
 use burn::Tensor;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};

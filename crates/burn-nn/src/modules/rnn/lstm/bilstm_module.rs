@@ -2,6 +2,7 @@ use burn_core as burn;
 
 use crate::activation::ActivationConfig;
 use crate::{Lstm, LstmConfig, LstmState};
+use alloc::vec;
 use burn::Tensor;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
