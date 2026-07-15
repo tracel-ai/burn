@@ -6,6 +6,8 @@ use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::Device;
 use burn::tensor::Tensor;
+use burn_core::prelude::{SliceArg, s};
+use burn_core::tensor::Shape;
 
 /// A LstmState is used to store cell state and hidden state in LSTM.
 #[derive(Debug, Clone)]
@@ -23,46 +25,78 @@ impl<const D: usize> LstmState<D> {
     }
 
     /// Allocate an initial state.
-    pub fn initial<S)(shape: S, device: &Device) -> Self
-        where S: ReshapeArgs<D>
+    pub fn initial<S>(shape: S, device: &Device) -> Self
+    where
+        S: Into<Shape>,
     {
-        let shape = shape.into_shape();
         let cell = Tensor::zeros(shape, device);
         let hidden = cell.clone();
         Self { cell, hidden }
     }
 
+    /// Get the shape of the state.
+    pub fn shape(&self) -> Shape {
+        self.cell.shape()
+    }
+
     /// Unpack the state to (cell, hidden).
-    pub fn unpack(self) -> (Tensor<D>, Tensor<D>) -> Self {
+    pub fn unpack(self) -> (Tensor<D>, Tensor<D>) {
         (self.cell, self.hidden)
     }
 
     /// Slice the state.
-    pub fn slice<const D2: usize, S>(self, slice: S) -> Self
-        where S: SliceArg {
-            Self {
-                cell: self.cell.slice(s),
-                hidden: self.hidden.slice(s),
-            }
+    pub fn slice<S>(self, slices: S) -> Self
+    where
+        S: SliceArg,
+    {
+        let slices = slices.into_slices(&self.shape());
+        Self {
+            cell: self.cell.slice(&slices),
+            hidden: self.hidden.slice(&slices),
+        }
     }
 
+    /// Squeeze a dimension from the state.
     pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> LstmState<D2> {
-            Self {
-                cell: self.cell.squeeze_dim(dim),
-                hidden: self.hidden.squeeze_dim(dim),
-            }
-
+        LstmState {
+            cell: self.cell.squeeze_dim(dim),
+            hidden: self.hidden.squeeze_dim(dim),
+        }
     }
 
+    /// Unsqueeze a dimension in the state.
+    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> LstmState<D2> {
+        LstmState {
+            cell: self.cell.unsqueeze_dim(dim),
+            hidden: self.hidden.unsqueeze_dim(dim),
+        }
+    }
+
+    /// Stack the states along the given dimension.
+    pub fn stack<const D2: usize>(states: Vec<LstmState<D>>, dim: usize) -> LstmState<D2> {
+        let (c_it, h_it): (Vec<_>, Vec<_>) = states.into_iter().map(|s| s.unpack()).unzip();
+        LstmState {
+            cell: Tensor::stack(c_it, dim),
+            hidden: Tensor::stack(h_it, dim),
+        }
+    }
 }
 
-impl<const D: usize> Option<LstmState<D>> {
+/// Extension trait for attaching an initializer to an [`Option<LstmState>`].
+pub trait OptionalInitialLstmState<const D: usize> {
     /// Unwrap the optional state, or allocate initial state.
-    pub fn unwrap_or_initial<S: ReshapeArgs<D>>(self, shape: S, device: &Device) -> LstmState<D> {
-        match self {
-            Some(state) => state,
-            None => LstmState::initial(shape, device)
-        }
+    fn unwrap_or_initial<S>(self, shape: S, device: &Device) -> LstmState<D>
+    where
+        S: Into<Shape>;
+}
+
+impl<const D: usize> OptionalInitialLstmState<D> for Option<LstmState<D>> {
+    /// Unwrap the optional state, or allocate initial state.
+    fn unwrap_or_initial<S>(self, shape: S, device: &Device) -> LstmState<D>
+    where
+        S: Into<Shape>,
+    {
+        self.unwrap_or_else(|| LstmState::initial(shape, device))
     }
 }
 
@@ -229,23 +263,14 @@ impl Lstm {
         let [batch_size, seq_length, _] = batched_input.dims();
 
         // Process sequence in forward or reverse order based on config
-        let (output, state) = if self.reverse {
-            self.forward_iter(
-                batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
-                state,
-                batch_size,
-                seq_length,
-                &device,
-            )
+        let it = batched_input.iter_dim(1).enumerate();
+        let it: Box<dyn Iterator<Item = (usize, Tensor<3>)>> = if self.reverse {
+            Box::new(it.rev())
         } else {
-            self.forward_iter(
-                batched_input.iter_dim(1).zip(0..seq_length),
-                state,
-                batch_size,
-                seq_length,
-                &device,
-            )
+            Box::new(it)
         };
+
+        let (output, state) = self.forward_iter(it, state, batch_size, seq_length, &device);
 
         // Convert output back to seq-first layout if needed
         let output = if self.batch_first {
@@ -257,7 +282,7 @@ impl Lstm {
         (output, state)
     }
 
-    fn forward_iter<I: Iterator<Item = (Tensor<3>, usize)>>(
+    fn forward_iter<I: Iterator<Item = (usize, Tensor<3>)>>(
         &self,
         input_timestep_iter: I,
         state: Option<LstmState<2>>,
@@ -272,7 +297,7 @@ impl Lstm {
             .unwrap_or_initial([batch_size, self.d_hidden], device)
             .unpack();
 
-        for (input_t, t) in input_timestep_iter {
+        for (t, input_t) in input_timestep_iter {
             let input_t = input_t.squeeze_dim(1);
 
             // i(nput)g(ate) tensors
@@ -301,10 +326,10 @@ impl Lstm {
             // c(ell)g(ate) tensors
             let biased_cg_input_sum = self
                 .cell_gate
-                .gate_product(input_t.clone(), hidden_state.clone());
+                .gate_product(input_t, hidden_state.clone());
             let candidate_cell_values = self.cell_activation.forward(biased_cg_input_sum);
 
-            cell_state = forget_values * cell_state.clone() + input_values * candidate_cell_values;
+            cell_state = forget_values * cell_state + input_values * candidate_cell_values;
 
             // Apply cell state clipping if configured
             if let Some(clip) = self.clip {
@@ -313,13 +338,9 @@ impl Lstm {
 
             hidden_state = output_values * self.hidden_activation.forward(cell_state.clone());
 
-            let unsqueezed_hidden_state = hidden_state.clone().unsqueeze_dim(1);
-
             // store the hidden state for this timestep
-            batched_hidden_state = batched_hidden_state.slice_assign(
-                [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                unsqueezed_hidden_state.clone(),
-            );
+            batched_hidden_state = batched_hidden_state
+                .slice_assign(s![.., t, ..], hidden_state.clone().unsqueeze_dim(1));
         }
 
         (
@@ -460,53 +481,23 @@ impl BiLstm {
         let device = batched_input.clone().device();
         let [batch_size, seq_length, _] = batched_input.shape().dims();
 
-        let [init_state_forward, init_state_reverse] = match state {
-            Some(state) => {
-                let cell_state_forward = state
-                    .cell
-                    .clone()
-                    .slice([0..1, 0..batch_size, 0..self.d_hidden])
-                    .squeeze_dim(0);
-                let hidden_state_forward = state
-                    .hidden
-                    .clone()
-                    .slice([0..1, 0..batch_size, 0..self.d_hidden])
-                    .squeeze_dim(0);
-                let cell_state_reverse = state
-                    .cell
-                    .slice([1..2, 0..batch_size, 0..self.d_hidden])
-                    .squeeze_dim(0);
-                let hidden_state_reverse = state
-                    .hidden
-                    .slice([1..2, 0..batch_size, 0..self.d_hidden])
-                    .squeeze_dim(0);
-
-                [
-                    Some(LstmState::new(cell_state_forward, hidden_state_forward)),
-                    Some(LstmState::new(cell_state_reverse, hidden_state_reverse)),
-                ]
-            }
-            None => [None, None],
-        };
+        let state_forward = state.clone().map(|st| st.slice(s![0]).squeeze_dim(0));
+        let state_reverse = state.map(|st| st.slice(s![1]).squeeze_dim(0));
 
         // forward direction
-        let (batched_hidden_state_forward, final_state_forward) = self
-            .forward
-            .forward(batched_input.clone(), init_state_forward);
+        let (hidden_forward, state_forward) =
+            self.forward.forward(batched_input.clone(), state_forward);
 
         // reverse direction
-        let (batched_hidden_state_reverse, final_state_reverse) = self.reverse.forward_iter(
-            batched_input.iter_dim(1).rev().zip((0..seq_length).rev()),
-            init_state_reverse,
+        let (hidden_reverse, state_reverse) = self.reverse.forward_iter(
+            batched_input.iter_dim(1).enumerate().rev(),
+            state_reverse,
             batch_size,
             seq_length,
             &device,
         );
 
-        let output = Tensor::cat(
-            [batched_hidden_state_forward, batched_hidden_state_reverse].to_vec(),
-            2,
-        );
+        let output = Tensor::cat([hidden_forward, hidden_reverse].to_vec(), 2);
 
         // Convert output back to seq-first layout if needed
         let output = if self.batch_first {
@@ -515,16 +506,7 @@ impl BiLstm {
             output.swap_dims(0, 1)
         };
 
-        let state = LstmState::new(
-            Tensor::stack(
-                [final_state_forward.cell, final_state_reverse.cell].to_vec(),
-                0,
-            ),
-            Tensor::stack(
-                [final_state_forward.hidden, final_state_reverse.hidden].to_vec(),
-                0,
-            ),
-        );
+        let state = LstmState::stack(vec![state_forward, state_reverse], 0);
 
         (output, state)
     }
