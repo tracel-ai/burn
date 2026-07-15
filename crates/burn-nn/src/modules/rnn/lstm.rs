@@ -1,5 +1,6 @@
 use burn_core as burn;
 
+use alloc::box::Box;
 use crate::GateController;
 use crate::activation::{Activation, ActivationConfig};
 use burn::config::Config;
