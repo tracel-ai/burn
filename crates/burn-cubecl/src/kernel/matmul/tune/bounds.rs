@@ -5,19 +5,15 @@ use cubecl::{
     client::ComputeClient,
     ir::StorageType,
     std::throughput::{measure_launch_overhead, measure_peak_throughput},
-    throughput::{ThroughputKey, ThroughputMode},
-    tune::{AutotuneBound, Bounds, BoundsGenerator},
+    throughput::{ThroughputKey, ThroughputMode, compute_throughput_key, select_cmma_tile},
+    tune::{AutotuneBound, Bounds, BoundsGenerator, calculate_bounds},
 };
 use cubek::matmul::{
     definition::{MatmulElems, MatmulGlobalElems},
     strategy::MatmulAutotuneKey,
 };
 
-use crate::{
-    CubeRuntime,
-    kernel::matmul::tune::base::Inputs,
-    throughput::{calculate_bounds, compute_throughput_key, select_cmma_tile},
-};
+use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
 
 type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
 

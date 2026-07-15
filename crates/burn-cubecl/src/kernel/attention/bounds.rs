@@ -4,16 +4,12 @@ use cubecl::{
     client::ComputeClient,
     ir::{ElemType, FloatKind, StorageType},
     std::throughput::{measure_launch_overhead, measure_peak_throughput},
-    throughput::{ThroughputKey, ThroughputMode},
-    tune::{AutotuneBound, Bounds, BoundsGenerator},
+    throughput::{ThroughputKey, ThroughputMode, compute_throughput_key, select_cmma_tile},
+    tune::{AutotuneBound, Bounds, BoundsGenerator, calculate_bounds},
 };
 use cubek::attention::forward::launch::AttentionAutotuneKey;
 
-use crate::{
-    CubeRuntime,
-    tensor::CubeTensor,
-    throughput::{calculate_bounds, compute_throughput_key, select_cmma_tile},
-};
+use crate::{CubeRuntime, tensor::CubeTensor};
 
 type Inputs<R> = (
     CubeTensor<R>,
@@ -59,10 +55,10 @@ fn autotune_bounds<R: CubeRuntime>(
     // Estimate compute bounds with Q@K.T and S@V matmuls, using f32 accumulators.
     let acc_type = StorageType::Scalar(ElemType::Float(FloatKind::F32));
 
-    let cmma_tile_1 = select_cmma_tile(client, elem_q, elem_k, acc_type, (seq_q, seq_kv, head_dim));
+    let cmma_tile = select_cmma_tile(client, elem_q, elem_k, acc_type, (seq_q, seq_kv, head_dim));
 
     let compute_key = compute_throughput_key(
-        cmma_tile_1,
+        cmma_tile,
         dtype_to_elem_type(query.dtype),
         ElemType::Float(FloatKind::F32),
     );

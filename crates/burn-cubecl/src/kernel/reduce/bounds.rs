@@ -4,14 +4,14 @@ use cubecl::{
     client::ComputeClient,
     std::throughput::{measure_launch_overhead, measure_peak_throughput},
     throughput::{ThroughputKey, ThroughputMode},
-    tune::{AutotuneBound, Bounds, BoundsGenerator},
+    tune::{AutotuneBound, Bounds, BoundsGenerator, calculate_bounds},
 };
 use cubek::reduce::{
     ReduceDtypes, components::instructions::ReduceOperationConfig,
     launch::tune_key::ReduceAutotuneKey,
 };
 
-use crate::{CubeRuntime, tensor::CubeTensor, throughput::calculate_bounds};
+use crate::{CubeRuntime, tensor::CubeTensor};
 
 type Inputs<R> = (
     CubeTensor<R>,
