@@ -588,17 +588,6 @@ fn test_attention_bias_broadcast_heads_only() {
 /// all batches and heads (the ONNX `test_attention_4d_attn_mask_bool` pattern).
 #[test]
 fn test_attention_bool_mask_broadcast_batch_and_heads() {
-    // Skip on cubecl backends with f16: the main attention path diverges from
-    // attention_fallback starting at batch 0 head 1, the fingerprint of a broadcast
-    // mask being applied only to head 0. The equivalent full-shape mask case
-    // (test_attention_all_options) passes on the same backends, so this is a latent
-    // cubecl flash-attention broadcast issue (tracked in #4778, under the umbrella
-    // of #4325), not a burn-flex or fallback bug. Enable once #4778 is fixed.
-    #[cfg(feature = "cube")]
-    if core::any::TypeId::of::<FloatElem>() == core::any::TypeId::of::<burn_tensor::f16>() {
-        return;
-    }
-
     let [num_batches, num_heads, seq_len, head_dim] = [2, 3, 16, 32];
 
     let query = TestTensor::<4>::random(
