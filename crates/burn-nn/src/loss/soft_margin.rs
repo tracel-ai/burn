@@ -8,7 +8,8 @@ use burn::tensor::activation::softplus;
 
 /// Calculate the soft margin loss between the input logits and the target tensor.
 ///
-/// The target values are expected to be `-1` or `1`. The loss for each element is
+/// This criterion is for a two-class (binary) classification task, which is why the
+/// target values are expected to be `-1` or `1`. The loss for each element is
 /// `log(1 + exp(-target * logit))`, matching `torch.nn.SoftMarginLoss`.
 #[derive(Module, Debug)]
 pub struct SoftMarginLoss;
@@ -67,8 +68,7 @@ mod tests {
     fn test_soft_margin_loss() {
         let device = Default::default();
         let logits = Tensor::<2>::from_data(TensorData::from([[0.5, -1.0], [2.0, -0.5]]), &device);
-        let targets =
-            Tensor::<2>::from_data(TensorData::from([[1.0, -1.0], [-1.0, 1.0]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[1.0, -1.0], [-1.0, 1.0]]), &device);
 
         let loss = SoftMarginLoss::new();
         let no_reduction = loss.forward_no_reduction(logits.clone(), targets.clone());
