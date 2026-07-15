@@ -103,8 +103,10 @@ mod tests {
         let device = Default::default();
         let model = RReluConfig::new().with_lower(0.1).with_upper(0.3).init();
 
-        let input =
-            Tensor::<2>::from_data(TensorData::from([[-2.0, -1.0, 0.0], [0.5, 1.0, 2.0]]), &device);
+        let input = Tensor::<2>::from_data(
+            TensorData::from([[-2.0, -1.0, 0.0], [0.5, 1.0, 2.0]]),
+            &device,
+        );
         let output = model.forward(input);
 
         // midpoint slope = (0.1 + 0.3) / 2 = 0.2
