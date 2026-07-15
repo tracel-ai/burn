@@ -493,7 +493,10 @@ pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor
 /// (which fixes `value = 0`): returns `x` where `x > threshold`, and `value`
 /// otherwise.
 ///
-#[cfg_attr(not(doc), doc = "`f(x) =`\n- `x if x > threshold`\n- `value otherwise`")]
+#[cfg_attr(
+    not(doc),
+    doc = "`f(x) =`\n- `x if x > threshold`\n- `value otherwise`"
+)]
 ///
 /// # Arguments
 /// - `threshold`: the value to threshold at.
