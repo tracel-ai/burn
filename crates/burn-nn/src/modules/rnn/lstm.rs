@@ -324,9 +324,7 @@ impl Lstm {
             let output_values = self.gate_activation.forward(biased_og_input_sum);
 
             // c(ell)g(ate) tensors
-            let biased_cg_input_sum = self
-                .cell_gate
-                .gate_product(input_t, hidden_state.clone());
+            let biased_cg_input_sum = self.cell_gate.gate_product(input_t, hidden_state.clone());
             let candidate_cell_values = self.cell_activation.forward(biased_cg_input_sum);
 
             cell_state = forget_values * cell_state + input_values * candidate_cell_values;
