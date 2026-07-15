@@ -1,8 +1,10 @@
 use burn_core as burn;
 
-use alloc::box::Box;
 use crate::GateController;
 use crate::activation::{Activation, ActivationConfig};
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::Device;
