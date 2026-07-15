@@ -52,23 +52,31 @@ fn autotune_bounds<R: CubeRuntime>(
 
     let compute =
         matmul_compute_throughput_selection(client, elem_lhs, elem_rhs, elem_out, (m, n, k));
-    let compute_mode = match compute.cmma_tile {
-        Some((tile_m, tile_n, tile_k)) => ThroughputMode::ComputeCmma(ComputeCmmaConfig {
-            accumulator_type: compute.acc.elem_type(),
-            cmma_dims: CmmaDims {
-                m: tile_m as usize,
-                n: tile_n as usize,
-                k: tile_k as usize,
-            },
-        }),
-        None => ThroughputMode::ComputeDirect,
+    // The probe interprets `ThroughputKey::dtype` as the type it computes
+    // with — the A/B fragment type on the cmma path. It must be the input
+    // register type the availability check selected, not the accumulator:
+    // an f16×f16→f32 cmma probed at the accumulator type builds f32 A/B
+    // fragments, which HIP's WMMA cannot even compile.
+    let (compute_mode, compute_dtype) = match compute.cmma_tile {
+        Some((tile_m, tile_n, tile_k)) => (
+            ThroughputMode::ComputeCmma(ComputeCmmaConfig {
+                accumulator_type: compute.acc.elem_type(),
+                cmma_dims: CmmaDims {
+                    m: tile_m as usize,
+                    n: tile_n as usize,
+                    k: tile_k as usize,
+                },
+            }),
+            compute.input.elem_type(),
+        ),
+        None => (ThroughputMode::ComputeDirect, compute.acc.elem_type()),
     };
 
     let compute_throughput = measure_peak_throughput(
         client,
         ThroughputKey {
             mode: compute_mode,
-            dtype: compute.acc.elem_type(),
+            dtype: compute_dtype,
         },
     );
 
@@ -105,7 +113,10 @@ fn autotune_bounds<R: CubeRuntime>(
 /// kernel reaches.
 #[derive(Debug, Clone, Copy)]
 pub struct MatmulComputeThroughputSelection {
-    /// Accumulator register type: the element type the throughput probe should measure.
+    /// Input (lhs) register type: the A/B fragment type a cmma probe must
+    /// compute with.
+    pub input: StorageType,
+    /// Accumulator register type.
     pub acc: StorageType,
     /// The accelerated (cmma) tile `(m, n, k)` to measure, or `None` when the matmul will
     /// fall back to a non-accelerated (direct) kernel for this problem.
@@ -136,6 +147,7 @@ pub fn matmul_compute_throughput_selection<R: CubeRuntime>(
         .map(|tile| (tile.m(), tile.n(), tile.k()));
 
     MatmulComputeThroughputSelection {
+        input: elems.lhs_register,
         acc: elems.acc_register,
         cmma_tile,
     }
