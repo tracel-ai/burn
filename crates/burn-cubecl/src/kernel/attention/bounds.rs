@@ -23,7 +23,7 @@ type Inputs<R> = (
 type BoundsGen<R> =
     dyn BoundsGenerator<AttentionAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
 
-const THRESHOLD: f32 = 0.85;
+const THRESHOLD: f32 = 1.0;
 
 /// Creates a closure that calculates performance bounds for attention autotuning.
 pub(super) fn create_attention_bounds<R: CubeRuntime>(
