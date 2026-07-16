@@ -230,6 +230,11 @@ fn try_accelerated_gemm<R: CubeRuntime>(
     if rhs_shape[rank - 2] != k || out_shape[rank - 2] != m || out_shape[rank - 1] != n {
         return None;
     }
+    // The native primitive intentionally has no zero-fill side path for a
+    // nonempty zero-K result. CubeK retains the complete tensor semantics.
+    if k == 0 && m != 0 && n != 0 {
+        return None;
+    }
 
     let batch_shape = &out_shape[..rank - 2];
     let batch_count = batch_shape.iter().product::<usize>();
