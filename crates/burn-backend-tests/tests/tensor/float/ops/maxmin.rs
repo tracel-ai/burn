@@ -268,16 +268,8 @@ fn test_max_abs_dim_2d_dim_1() {
     output.into_data().assert_eq(&expected, false);
 }
 
-// NaN-propagation tests below. Only run when the `flex` backend feature
-// is active, because flex is the only burn backend that currently
-// propagates NaN from min/max (matching PyTorch/NumPy/JAX/TF). ndarray
-// and the cubecl backends follow IEEE 754 min/max and drop NaN. The
-// positive-gate form (rather than excluding specific backends) is used
-// because the default-feature CI build selects a backend transitively
-// without setting any of its identifying feature flags on
-// burn-backend-tests, so a negative gate would still run the test on a
-// NaN-dropping backend. See issue #4814.
-#[cfg(feature = "flex")]
+// NaN-propagation tests. All burn backends should propagate NaN from
+// min/max (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
 #[test]
 fn test_max_dim_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
@@ -286,7 +278,6 @@ fn test_max_dim_nan_propagation() {
     assert!(values[0].is_nan());
 }
 
-#[cfg(feature = "flex")]
 #[test]
 fn test_min_dim_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
@@ -295,7 +286,6 @@ fn test_min_dim_nan_propagation() {
     assert!(values[0].is_nan());
 }
 
-#[cfg(feature = "flex")]
 #[test]
 fn test_max_dim_with_indices_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
