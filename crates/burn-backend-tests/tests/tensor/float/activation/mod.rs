@@ -13,6 +13,7 @@ mod mish;
 mod prelu;
 mod quiet_softmax;
 mod relu;
+mod relu6;
 mod selu;
 mod sigmoid;
 mod silu;
