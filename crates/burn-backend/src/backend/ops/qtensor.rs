@@ -991,6 +991,38 @@ pub trait QTensorOps<B: Backend> {
         dequant_op_quant!(float_op | tensor | B::float_topk(tensor, dim, k), tensor)
     }
 
+    /// Gets the values of the k maximum elements of a tensor along an axis, and their indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the k maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of k maximums to keep
+    /// * `out_dtype` - The indices tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tuple with the values of the `k` maximum elements of `tensor` along `dim`, and their
+    /// indices.
+    /// The default sorts once and keeps the first `k` of each half, mirroring
+    /// [`crate::ops::FloatTensorOps::float_topk_with_indices`].
+    fn q_topk_with_indices(
+        tensor: QuantizedTensor<B>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> (QuantizedTensor<B>, IntTensor<B>) {
+        let device = tensor.device();
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = B::int_arange(0..k as i64, &device, dtype);
+        let (values, indices) = Self::q_sort_with_indices(tensor, dim, true, out_dtype);
+
+        (
+            Self::q_select(values, dim, k_indices.clone()),
+            B::int_select(indices, dim, k_indices),
+        )
+    }
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments

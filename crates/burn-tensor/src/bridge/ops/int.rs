@@ -431,6 +431,15 @@ impl Ordered for Int {
         BridgeTensor::int(Dispatch::int_topk(tensor.into(), dim, k))
     }
 
+    fn topk_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        k: usize,
+    ) -> (BridgeTensor, BridgeTensor) {
+        let (values, indices) = Dispatch::int_topk_with_indices(tensor.into(), dim, k);
+        (BridgeTensor::int(values), BridgeTensor::int(indices))
+    }
+
     fn argmin(tensor: BridgeTensor, dim: usize) -> BridgeTensor {
         BridgeTensor::int(Dispatch::int_argmin(tensor.into(), dim))
     }
