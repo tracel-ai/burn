@@ -656,6 +656,11 @@ pub enum NumericOperationIr {
     TopK(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
+    /// Float => [topk with indices](burn_backend::ops::FloatTensorOps::float_topk_with_indices).
+    /// Int => [topk with indices](burn_backend::ops::IntTensorOps::int_topk_with_indices).
+    TopKWithIndices(TopKWithIndicesOpIr),
+    /// Operation corresponding to:
+    ///
     /// Float => [argmin](burn_backend::ops::FloatTensorOps::float_argmin).
     /// Int => [argmin](burn_backend::ops::IntTensorOps::int_argmin).
     ArgMin(ReduceDimOpIr),
@@ -1184,6 +1189,18 @@ impl From<DeviceIdIr> for burn_backend::DeviceId {
 pub struct ReduceDimWithIndicesOpIr {
     pub tensor: TensorIr,
     pub dim: usize,
+    pub out: TensorIr,
+    pub out_indices: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+/// Like [`ReduceDimWithIndicesOpIr`], but for a top-k: the reduced axis keeps `k` entries
+/// instead of collapsing to 1, so `k` has to be carried explicitly.
+pub struct TopKWithIndicesOpIr {
+    pub tensor: TensorIr,
+    pub dim: usize,
+    pub k: usize,
     pub out: TensorIr,
     pub out_indices: TensorIr,
 }
@@ -2584,6 +2601,7 @@ impl NumericOperationIr {
             NumericOperationIr::ProdDim(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::Max(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::MaxDimWithIndices(repr) => Box::new([&repr.tensor].into_iter()),
+            NumericOperationIr::TopKWithIndices(repr) => Box::new([&repr.tensor].into_iter()),
             NumericOperationIr::MinDimWithIndices(repr) => Box::new([&repr.tensor].into_iter()),
             NumericOperationIr::Min(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::MaxDim(repr) => Box::new([&repr.input].into_iter()),
@@ -2642,6 +2660,9 @@ impl NumericOperationIr {
             NumericOperationIr::ProdDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Max(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::MaxDimWithIndices(repr) => {
+                Box::new([&repr.out, &repr.out_indices].into_iter())
+            }
+            NumericOperationIr::TopKWithIndices(repr) => {
                 Box::new([&repr.out, &repr.out_indices].into_iter())
             }
             NumericOperationIr::MinDimWithIndices(repr) => {
@@ -2778,6 +2799,9 @@ impl NumericOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::MaxDimWithIndices(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::TopKWithIndices(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::MinDimWithIndices(repr) => {
@@ -2995,6 +3019,11 @@ impl NumericOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             NumericOperationIr::MaxDimWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            NumericOperationIr::TopKWithIndices(repr) => {
                 v.visit_tensor_mut(&mut repr.tensor);
                 v.visit_tensor_mut(&mut repr.out);
                 v.visit_tensor_mut(&mut repr.out_indices);
