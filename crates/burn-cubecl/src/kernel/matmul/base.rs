@@ -3,6 +3,7 @@ use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{DType, TensorMetadata};
 use burn_std::{MatmulTransformAnalysis, MatmulTransformPolicy, QuantLevel};
+use cubecl::server::{GemmDescriptor, GemmMatrix};
 use cubek::{
     matmul::{
         definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
@@ -55,6 +56,13 @@ pub fn matmul<R: CubeRuntime>(
         let action = MatmulTransformPolicy::default().action(&analysis);
         action.apply(&mut lhs.meta);
         action.apply(&mut out_launch.meta);
+    }
+
+    if lhs.qparams.is_none()
+        && rhs.qparams.is_none()
+        && try_accelerated_gemm(&lhs, &rhs, &out_launch).is_some()
+    {
+        return Ok(out);
     }
 
     match strategy {
@@ -186,4 +194,124 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
     )?;
 
     Ok(())
+}
+
+fn try_accelerated_gemm<R: CubeRuntime>(
+    lhs: &CubeTensor<R>,
+    rhs: &CubeTensor<R>,
+    out: &CubeTensor<R>,
+) -> Option<()> {
+    if lhs.dtype != rhs.dtype || lhs.dtype != out.dtype {
+        return None;
+    }
+    let elem = dtype_to_storage_type(lhs.dtype).elem_type();
+    if !out
+        .client
+        .properties()
+        .features
+        .matmul
+        .accelerated_gemm
+        .contains(&elem)
+    {
+        return None;
+    }
+
+    let lhs_shape = lhs.meta.shape();
+    let rhs_shape = rhs.meta.shape();
+    let out_shape = out.meta.shape();
+    let rank = lhs_shape.rank();
+    if rank < 2 || rhs_shape.rank() != rank || out_shape.rank() != rank {
+        return None;
+    }
+
+    let m = lhs_shape[rank - 2];
+    let k = lhs_shape[rank - 1];
+    let n = rhs_shape[rank - 1];
+    if rhs_shape[rank - 2] != k || out_shape[rank - 2] != m || out_shape[rank - 1] != n {
+        return None;
+    }
+
+    let batch_shape = &out_shape[..rank - 2];
+    let batch_count = batch_shape.iter().product::<usize>();
+    let mut lhs_desc = matrix_descriptor(lhs, m, k, batch_shape)?;
+    let rhs_desc = matrix_descriptor(rhs, k, n, batch_shape)?;
+    let mut out_desc = matrix_descriptor(out, m, n, batch_shape)?;
+    if out_desc.transposed {
+        return None;
+    }
+
+    let mut launch_m = m;
+    let mut launch_batches = batch_count;
+    if batch_count > 1
+        && rhs_desc.batch_stride == 0
+        && !lhs_desc.transposed
+        && lhs_desc.batch_stride == m.checked_mul(lhs_desc.leading_dimension as usize)? as u64
+        && out_desc.batch_stride == m.checked_mul(out_desc.leading_dimension as usize)? as u64
+    {
+        launch_m = m.checked_mul(batch_count)?;
+        launch_batches = 1;
+        lhs_desc.batch_stride = 0;
+        out_desc.batch_stride = 0;
+    }
+
+    let descriptor = GemmDescriptor::new(
+        lhs_desc,
+        rhs_desc,
+        out_desc,
+        launch_m.try_into().ok()?,
+        n.try_into().ok()?,
+        k.try_into().ok()?,
+        launch_batches.try_into().ok()?,
+        elem,
+    );
+
+    out.client.gemm(descriptor);
+    Some(())
+}
+
+fn matrix_descriptor<R: CubeRuntime>(
+    tensor: &CubeTensor<R>,
+    rows: usize,
+    cols: usize,
+    batch_shape: &[usize],
+) -> Option<GemmMatrix> {
+    let rank = tensor.meta.rank();
+    let shape = tensor.meta.shape();
+    let strides = tensor.meta.strides();
+    let row_stride = strides[rank - 2];
+    let col_stride = strides[rank - 1];
+    let (leading_dimension, transposed) = if col_stride == 1 && row_stride >= cols {
+        (row_stride, false)
+    } else if row_stride == 1 && col_stride >= rows {
+        (col_stride, true)
+    } else {
+        return None;
+    };
+
+    let batch_stride = if batch_shape.is_empty() {
+        0
+    } else if shape[..rank - 2].iter().all(|dim| *dim == 1) {
+        0
+    } else {
+        if shape[..rank - 2] != *batch_shape {
+            return None;
+        }
+        for dim in 0..rank.saturating_sub(3) {
+            if strides[dim]
+                != shape[dim + 1]
+                    .checked_mul(strides[dim + 1])
+                    .unwrap_or(usize::MAX)
+            {
+                return None;
+            }
+        }
+        strides[rank - 3] as u64
+    };
+
+    Some(GemmMatrix::new(
+        tensor.handle.clone().binding(),
+        leading_dimension.try_into().ok()?,
+        batch_stride,
+        transposed,
+    ))
 }
