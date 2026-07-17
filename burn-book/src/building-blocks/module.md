@@ -334,6 +334,7 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `CrossEntropyLoss`       | `nn.CrossEntropyLoss`    |
 | `CTCLoss`                | `nn.CTCLoss`             |
 | `GramMatrixLoss`         | _No direct equivalent_   |
+| `GaussianNLLLoss`        | `nn.GaussianNLLLoss`     |
 | `HuberLoss`              | `nn.HuberLoss`           |
 | `KLDivLoss`              | `nn.KLDivLoss`           |
 | `LpLoss`                 | _No direct equivalent_   |
