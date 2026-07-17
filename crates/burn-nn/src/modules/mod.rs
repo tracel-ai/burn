@@ -19,6 +19,7 @@ pub mod interpolate;
 
 mod dropout;
 mod embedding;
+mod fold;
 mod linear;
 mod noise;
 mod pos_encoding;
@@ -32,6 +33,7 @@ pub use norm::{batch::*, group::*, instance::*, layer::*, local_response::*, rms
 
 pub use dropout::*;
 pub use embedding::*;
+pub use fold::*;
 pub use identity::*;
 pub use linear::*;
 pub use noise::*;

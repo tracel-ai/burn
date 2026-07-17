@@ -3,7 +3,7 @@ use burn_dispatch::Dispatch;
 use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
 use crate::{
-    Bool, DType, Int, Tensor, check,
+    Bool, DType, Device, Int, Tensor, TensorData, check,
     check::TensorCheck,
     ops::{
         AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
@@ -264,6 +264,125 @@ pub fn unfold4d(x: Tensor<4>, kernel_size: [usize; 2], options: UnfoldOptions) -
         kernel_size,
         options,
     )))
+}
+
+/// Applies a 3D to 4D fold, the inverse of [unfold4d].
+///
+/// Combines an array of sliding local blocks into a large containing tensor, summing the
+/// values of blocks that overlap. This is the operation performed by
+/// [`torch.nn.Fold`](https://pytorch.org/docs/stable/generated/torch.nn.Fold.html), and is the
+/// adjoint of [unfold4d]: it reuses the same one-hot kernel through a [conv_transpose2d].
+///
+/// # Arguments
+///
+/// * `x` - Input columns of shape
+///   `[batch_size, channels * kernel_size_0 * kernel_size_1, number_of_blocks]`.
+/// * `output_size` - The spatial size `[height, width]` of the folded output tensor.
+/// * `kernel_size` - The size of the sliding blocks.
+/// * `options` - The stride, padding and dilation of the matching unfold.
+///
+/// # Returns
+///
+/// A tensor of shape `[batch_size, channels, output_size_0, output_size_1]`.
+pub fn fold4d(
+    x: Tensor<3>,
+    output_size: [usize; 2],
+    kernel_size: [usize; 2],
+    options: UnfoldOptions,
+) -> Tensor<4> {
+    let [batch_size, channels_col, num_blocks] = x.dims();
+    let [kernel_height, kernel_width] = kernel_size;
+    let [output_height, output_width] = output_size;
+    let [stride_height, stride_width] = options.stride;
+    let [padding_height, padding_width] = options.padding;
+    let [dilation_height, dilation_width] = options.dilation;
+
+    let kernel_elems = kernel_height * kernel_width;
+    assert_eq!(
+        channels_col % kernel_elems,
+        0,
+        "fold4d: input channels ({channels_col}) must be divisible by the kernel size product ({kernel_elems})"
+    );
+    let channels = channels_col / kernel_elems;
+
+    // Number of sliding blocks along each spatial dimension (the unfold output grid).
+    let blocks_height =
+        (output_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
+            / stride_height
+            + 1;
+    let blocks_width = (output_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1)
+        / stride_width
+        + 1;
+    assert_eq!(
+        num_blocks,
+        blocks_height * blocks_width,
+        "fold4d: number of blocks ({num_blocks}) does not match the expected grid ({blocks_height} x {blocks_width}) for the given output size and options"
+    );
+
+    let device = x.device();
+    let dtype = x.dtype();
+
+    // The one-hot kernel `unfold4d` builds for its `conv2d`; folding is its adjoint.
+    let weight = create_fold_weight(channels, kernel_size, &device, dtype);
+
+    // Reshape the columns into a spatial grid of blocks, then scatter-add them back.
+    let x = x.reshape([batch_size, channels_col, blocks_height, blocks_width]);
+
+    // `padding_out` recovers the exact requested output size (always `< stride`).
+    let padding_out = [
+        (output_height + 2 * padding_height - dilation_height * (kernel_height - 1) - 1)
+            % stride_height,
+        (output_width + 2 * padding_width - dilation_width * (kernel_width - 1) - 1) % stride_width,
+    ];
+
+    conv_transpose2d(
+        x,
+        weight,
+        None,
+        ConvTransposeOptions::new(
+            options.stride,
+            options.padding,
+            padding_out,
+            options.dilation,
+            1,
+        ),
+    )
+}
+
+/// Builds the one-hot weight that makes [conv_transpose2d] behave as a fold (`col2im`).
+///
+/// It is identical to the weight [unfold4d] builds for its `conv2d`, so `fold4d` is its adjoint.
+fn create_fold_weight(
+    channels: usize,
+    kernel_size: [usize; 2],
+    device: &Device,
+    dtype: DType,
+) -> Tensor<4> {
+    let [kernel_height, kernel_width] = kernel_size;
+    let channels_col = channels * kernel_height * kernel_width;
+
+    let stride_0 = channels * kernel_height * kernel_width;
+    let stride_1 = kernel_height * kernel_width;
+    let stride_2 = kernel_width;
+
+    let mut weight = alloc::vec![0f32; channels_col * channels * kernel_height * kernel_width];
+    for c in 0..channels {
+        for i in 0..kernel_height {
+            for j in 0..kernel_width {
+                let out_channel = c * kernel_height * kernel_width + i * kernel_width + j;
+                let index = out_channel * stride_0 + c * stride_1 + i * stride_2 + j;
+                weight[index] = 1.0;
+            }
+        }
+    }
+
+    Tensor::from_data(
+        TensorData::new(
+            weight,
+            [channels_col, channels, kernel_height, kernel_width],
+        ),
+        (device, dtype),
+    )
 }
 
 /// Applies a [1D max pooling](burn_backend::ops::ModuleOps::max_pool1d).
