@@ -392,6 +392,7 @@ strategies.
 | `activation::hard_shrink(tensor, lambda)`        | `nn.functional.hardshrink(tensor, lambd)`          |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
+| `activation::hardtanh(tensor, min_val, max_val)` | `nn.functional.hardtanh(tensor, min_val, max_val)` |
 | `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
 | `activation::log_sigmoid(tensor)`                | `nn.functional.log_sigmoid(tensor)`                |
 | `activation::log_softmax(tensor, dim)`           | `nn.functional.log_softmax(tensor, dim)`           |
@@ -410,6 +411,7 @@ strategies.
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
 | `activation::softsign(tensor)`                   | `nn.functional.softsign(tensor)`                   |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
+| `activation::tanhshrink(tensor)`                 | `nn.functional.tanhshrink(tensor)`                 |
 | `activation::thresholded_relu(tensor, alpha)`    | `nn.functional.threshold(tensor, alpha, 0)`        |
 
 ## Grid Functions
