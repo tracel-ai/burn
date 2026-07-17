@@ -126,9 +126,13 @@ mod tests {
 
         let loss = MarginRankingLossConfig::new().with_margin(0.5).init();
 
-        let no_reduction =
-            loss.forward_no_reduction(first.clone(), second.clone(), target.clone());
-        let mean = loss.forward(first.clone(), second.clone(), target.clone(), Reduction::Mean);
+        let no_reduction = loss.forward_no_reduction(first.clone(), second.clone(), target.clone());
+        let mean = loss.forward(
+            first.clone(),
+            second.clone(),
+            target.clone(),
+            Reduction::Mean,
+        );
         let sum = loss.forward(first, second, target, Reduction::Sum);
 
         let expected = TensorData::from([1.5, 1.5, 0.0]);
@@ -150,9 +154,6 @@ mod tests {
         let config = MarginRankingLossConfig::new().with_margin(0.5);
         let loss = config.init();
 
-        assert_eq!(
-            alloc::format!("{loss}"),
-            "MarginRankingLoss {margin: 0.5}"
-        );
+        assert_eq!(alloc::format!("{loss}"), "MarginRankingLoss {margin: 0.5}");
     }
 }
