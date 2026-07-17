@@ -246,6 +246,8 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `LocalResponseNorm` | `nn.LocalResponseNorm`                      |
 | `LeakyRelu`       | `nn.LeakyReLU`                                |
 | `Linear`          | `nn.Linear`                                   |
+| `PixelShuffle`    | `nn.PixelShuffle`                             |
+| `PixelUnshuffle`  | `nn.PixelUnshuffle`                           |
 | `Prelu`           | `nn.PReLu`                                    |
 | `Relu`            | `nn.ReLU`                                     |
 | `Selu`            | `nn.SELU`                                     |
