@@ -7,7 +7,7 @@ use burn::tensor::Tensor;
 use super::Reduction;
 
 /// Constant `0.5 * ln(2 * pi)`, added when `full` is enabled. Hardcoded to keep this `no_std`.
-const HALF_LN_TWO_PI: f64 = 0.918_938_533_204_672_74;
+const HALF_LN_TWO_PI: f64 = 0.918_938_533_204_672_8;
 
 /// Configuration to create a [Gaussian NLL loss](GaussianNLLLoss) using the
 /// [init function](GaussianNLLLossConfig::init).
