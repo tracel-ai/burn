@@ -34,17 +34,16 @@ pub fn attention_autotune<R: CubeRuntime>(
             // The fallback materializes the full (total_batches, seq_q, seq_kv)
             // score matrix, which the flash kernels never allocate — and even
             // *benchmarking* it pays that allocation. Let it compete only while
-            // the matrix is trivially small (decode-like shapes); past that it
-            // is strictly a last resort for shapes no flash kernel can run,
-            // since an O(seq_q · seq_kv) spike can exceed a memory budget sized
-            // for flash attention.
-            const MAX_SCORE_BYTES: usize = 32 * 1024 * 1024;
-            let score_bytes = key
-                .total_batches
-                .saturating_mul(key.seq_q)
-                .saturating_mul(key.seq_kv)
-                .saturating_mul(4);
-            if score_bytes > MAX_SCORE_BYTES {
+            // that matrix is no bigger than an activation the model already
+            // produces — `[batch, seq_kv, d_model]`, a full-head K/V-sized
+            // tensor — so it fits a memory budget sized for the model's own
+            // activations. With `total_batches = batch · heads` and
+            // `d_model = heads · head_dim`, the bound reduces to
+            // `seq_q <= head_dim`: decode-like and short-chunk shapes qualify,
+            // long-prefill shapes never do; for those it is strictly a last
+            // resort for shapes no flash kernel can run, since an
+            // O(seq_q · seq_kv) spike can exceed a flash-sized memory budget.
+            if key.seq_q > key.head_dim {
                 PRIORITY_MIN
             } else {
                 PRIORITY_MAX
