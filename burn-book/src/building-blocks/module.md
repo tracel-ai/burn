@@ -335,9 +335,11 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `CTCLoss`                | `nn.CTCLoss`             |
 | `GramMatrixLoss`         | _No direct equivalent_   |
 | `GaussianNLLLoss`        | `nn.GaussianNLLLoss`     |
+| `HingeEmbeddingLoss`     | `nn.HingeEmbeddingLoss`  |
 | `HuberLoss`              | `nn.HuberLoss`           |
 | `KLDivLoss`              | `nn.KLDivLoss`           |
 | `LpLoss`                 | _No direct equivalent_   |
+| `MarginRankingLoss`     | `nn.MarginRankingLoss`   |
 | `MseLoss`                | `nn.MSELoss`             |
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |

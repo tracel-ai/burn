@@ -38,6 +38,28 @@ where
             .register(stream, repr, operation, &mut self.handles)
     }
 
+    /// Register a `Drop` that originates from a thread other than the tensor's home stream.
+    ///
+    /// A same-thread drop is naturally ordered after that thread's last use of the id, so the
+    /// fusion lifetime analysis frees it safely. A *foreign* drop is enqueued onto the home
+    /// stream at a nondeterministic point relative to the home thread's own registrations. If it
+    /// lands inside the home stream's still-building fused segment, the block DAG (#5135) can
+    /// reorder the free ahead of a pending read and let the buffer be reused in place while an
+    /// in-flight kernel still reads it.
+    ///
+    /// Draining the home stream first flushes its pending ops as their own segment, so the drop
+    /// lands in a fresh segment and cannot reorder against the ops that preceded it.
+    pub fn register_foreign_drop(
+        &mut self,
+        stream: StreamId,
+        ir: TensorIr,
+        operation: UnfusedOp<R>,
+    ) {
+        self.streams.drain(&mut self.handles, stream);
+        self.streams
+            .register(stream, OperationIr::Drop(ir), operation, &mut self.handles);
+    }
+
     pub fn tag_shared_view(&mut self, src_stream: StreamId, src: TensorId, dst: TensorId) {
         self.streams
             .tag_shared_view(src_stream, src, dst, &mut self.handles)
