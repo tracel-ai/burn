@@ -223,10 +223,10 @@ burn-vision = { path = "crates/burn-vision", version = "0.22.0-pre.1", default-f
 burn-wgpu = { path = "crates/burn-wgpu", version = "0.22.0-pre.1", default-features = false }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0a62060a2c7a66c94f717d7cac0be0dc259bb607" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0a62060a2c7a66c94f717d7cac0be0dc259bb607" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0a62060a2c7a66c94f717d7cac0be0dc259bb607" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "4f92ba0669b79aff3ea3f444f7b71e0b913b8c7c" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "46caaacf6ed19767dde590df1c9a4ac6eccb11da" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "46caaacf6ed19767dde590df1c9a4ac6eccb11da" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "46caaacf6ed19767dde590df1c9a4ac6eccb11da" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "6a3a5065c767fce21bb2f2e972dc12beaeccf211" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -237,14 +237,6 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubecl-common = { version = "0.10.0", default-features = false }
 # cubecl-zspace = { version = "0.10.0", default-features = false }
 # cubek = { version = "0.2.0", default-features = false }
-
-[patch."https://github.com/tracel-ai/cubecl"]
-cubecl = { path = "../cubecl/crates/cubecl" }
-cubecl-common = { path = "../cubecl/crates/cubecl-common" }
-cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace" }
-
-[patch."https://github.com/tracel-ai/cubek"]
-cubek = { path = "../cubek/crates/cubek" }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
