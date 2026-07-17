@@ -1,4 +1,5 @@
 mod base;
+#[cfg(feature = "autotune")]
 mod tune;
 
 /// Contains utilities for matmul operation
