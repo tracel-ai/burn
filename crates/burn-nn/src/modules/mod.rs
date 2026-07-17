@@ -17,6 +17,7 @@ mod identity;
 /// Interpolate module
 pub mod interpolate;
 
+mod cosine_similarity;
 mod dropout;
 mod embedding;
 mod linear;
@@ -30,6 +31,7 @@ pub mod norm;
 
 pub use norm::{batch::*, group::*, instance::*, layer::*, local_response::*, rms::*};
 
+pub use cosine_similarity::*;
 pub use dropout::*;
 pub use embedding::*;
 pub use identity::*;
