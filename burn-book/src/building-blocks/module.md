@@ -245,11 +245,14 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `LayerNorm`       | `nn.LayerNorm`                                |
 | `LocalResponseNorm` | `nn.LocalResponseNorm`                      |
 | `LeakyRelu`       | `nn.LeakyReLU`                                |
+| `LogSigmoid`      | `nn.LogSigmoid`                               |
+| `Mish`            | `nn.Mish`                                     |
 | `Linear`          | `nn.Linear`                                   |
 | `Prelu`           | `nn.PReLu`                                    |
 | `Relu`            | `nn.ReLU`                                     |
 | `Selu`            | `nn.SELU`                                     |
 | `Sigmoid`         | `nn.Sigmoid`                                  |
+| `SiLU`            | `nn.SiLU`                                     |
 | `Softplus`        | `nn.Softplus`                                 |
 | `SoftShrink`      | `nn.Softshrink`                               |
 | `Softsign`        | `nn.Softsign`                                 |
