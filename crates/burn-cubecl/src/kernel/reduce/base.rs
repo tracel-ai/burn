@@ -228,6 +228,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
                 vectorization: VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
+                autotune_level: Default::default(),
             },
             config,
             dtypes,
