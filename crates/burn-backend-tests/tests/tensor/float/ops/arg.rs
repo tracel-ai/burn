@@ -128,16 +128,8 @@ fn test_argmax_permuted_correctness() {
         .assert_eq(&TensorData::from([[[1], [1], [1]], [[1], [1], [1]]]), false);
 }
 
-// NaN-propagation tests below. Only run when the `flex` backend feature
-// is active, because flex is the only burn backend that currently
-// propagates NaN from argmax/argmin (matching PyTorch/NumPy/JAX/TF).
-// ndarray and the cubecl backends follow IEEE 754 min/max and drop NaN.
-// The positive-gate form (rather than excluding specific backends) is
-// used because the default-feature CI build selects a backend
-// transitively without setting any of its identifying feature flags on
-// burn-backend-tests, so a negative gate would still run the test on a
-// NaN-dropping backend. See issue #4814.
-#[cfg(feature = "flex")]
+// NaN-propagation tests. All burn backends should propagate NaN from
+// argmax/argmin (matching PyTorch/NumPy/JAX/TF semantics). See issue #4814.
 #[test]
 fn test_argmax_nan_propagation() {
     let tensor = TestTensor::<2>::from([[1.0, f32::NAN, 3.0]]);
@@ -150,7 +142,6 @@ fn test_argmax_nan_propagation() {
 
 // First-NaN wins: when row[0] is NaN AND a later element is also NaN,
 // argmax must return 0 (the earlier NaN index), not the later one.
-#[cfg(feature = "flex")]
 #[test]
 fn test_argmax_nan_leading_with_trailing_nan() {
     let tensor = TestTensor::<2>::from([[f32::NAN, f32::NAN, 3.0]]);
@@ -160,7 +151,6 @@ fn test_argmax_nan_leading_with_trailing_nan() {
         .assert_eq(&TensorData::from([[0]]), false);
 }
 
-#[cfg(feature = "flex")]
 #[test]
 fn test_argmin_nan_leading_with_trailing_nan() {
     let tensor = TestTensor::<2>::from([[f32::NAN, f32::NAN, 3.0]]);
@@ -171,7 +161,6 @@ fn test_argmin_nan_leading_with_trailing_nan() {
 }
 
 // All-NaN row: argmax should return 0 (first NaN).
-#[cfg(feature = "flex")]
 #[test]
 fn test_argmax_all_nan_row() {
     let tensor = TestTensor::<2>::from([[f32::NAN, f32::NAN, f32::NAN]]);
@@ -183,7 +172,6 @@ fn test_argmax_all_nan_row() {
 
 // NaN propagation must also hold for non-last-dim argmax, which routes
 // through a different kernel than the last-dim fast path.
-#[cfg(feature = "flex")]
 #[test]
 fn test_argmax_nan_leading_non_last_dim() {
     // Column 0: [NaN, NaN, 3.0] -> argmax along dim 0 = 0.
@@ -198,7 +186,6 @@ fn test_argmax_nan_leading_non_last_dim() {
 // max_dim_with_indices on a leading-NaN row should return (NaN, 0).
 // Complements test_max_dim_with_indices_nan_propagation in maxmin.rs,
 // which uses a single NaN in the middle of the row.
-#[cfg(feature = "flex")]
 #[test]
 fn test_max_dim_with_indices_nan_leading() {
     let tensor = TestTensor::<2>::from([[f32::NAN, f32::NAN, 3.0]]);
