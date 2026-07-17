@@ -343,6 +343,7 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `LpLoss`                 | _No direct equivalent_   |
 | `MarginRankingLoss`     | `nn.MarginRankingLoss`   |
 | `MseLoss`                | `nn.MSELoss`             |
+| `MultiMarginLoss`        | `nn.MultiMarginLoss`     |
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
 | `SmoothL1Loss`           | `nn.SmoothL1Loss`        |
