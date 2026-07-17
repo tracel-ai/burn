@@ -2162,58 +2162,76 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 let (input, dim) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    // zero-safe cumprod gradient (#3864).
+                    // grad_input[i] = sum_{j>=i}(grad[j] * prod_{k<=j, k!=i} input[k])
                     //
-                    // grad_input[i] = left[i] * tail[i] where
-                    //   left[i] = prod(input[0..i])                        (exclusive prefix product)
-                    //   tail[i] = sum_{j>=i}(grad[j] * prod(input[i+1..=j]))
+                    // Where input[i] != 0 this reduces to the classic
+                    //   reverse_cumsum(grad * output) / input
+                    // but the division makes it NaN at zeros (#3864). Split each lane
+                    // along `dim` at its FIRST zero (the approach PyTorch's
+                    // cumprod_backward takes):
                     //
-                    // no division by input[i], so it stays finite when the input has zeros -
-                    // the old `reverse_cumsum(grad * output) / input` gave NaN there.
+                    // * before the first zero: every input in the formula is nonzero,
+                    //   so the classic division form is exact;
+                    // * at the first zero: the omitted products keep every other
+                    //   factor, i.e. reverse_cumsum(grad * cumprod(input with that
+                    //   zero replaced by one)) evaluated at that position;
+                    // * after the first zero: every omitted product still contains
+                    //   that zero, so the gradient is exactly zero.
                     //
-                    // tail via the reverse recurrence
-                    //   tail[n-1] = grad[n-1]
-                    //   tail[i]   = grad[i] + input[i+1] * tail[i+1]   (i < n-1)
-                    // evaluated sequentially along `dim`.
+                    // All three regions are computed with cumsum/cumprod and
+                    // elementwise masks, so the whole gradient stays a fixed number
+                    // of parallel kernels, with no data-dependent branching.
 
-                    let shape = input.shape();
-                    let ndims = shape.num_dims();
-                    let n = shape[dim];
-                    let device = grad.device();
+                    let ndims = input.shape().num_dims();
                     let dtype = grad.dtype();
+                    let bool_dtype = get_device_settings::<B>(&grad.device()).bool_dtype;
 
-                    // Slice a single index `i` along `dim`, keeping the dimension.
-                    let slice_at = |tensor: FloatTensor<B>, i: usize| {
+                    let reverse = |tensor: FloatTensor<B>| {
                         let mut slices = vec![Slice::full(); ndims];
-                        slices[dim] = Slice::new(i as isize, Some(i as isize + 1), 1);
+                        slices[dim] = Slice::with_step(0, None, -1);
                         B::float_slice(tensor, &slices)
                     };
+                    let reverse_cumsum =
+                        |tensor: FloatTensor<B>| reverse(B::float_cumsum(reverse(tensor), dim));
 
-                    // left[i] = prod(input[0..i]); left[0] = 1.
-                    // prepend a 1 along `dim`, drop the last element, then inclusive cumprod.
-                    let mut ones_dims: Vec<usize> = (0..ndims).map(|d| shape[d]).collect();
-                    ones_dims[dim] = 1;
-                    let ones = B::float_ones(Shape::from(ones_dims), &device, dtype.into());
-                    let mut head_slices = vec![Slice::full(); ndims];
-                    head_slices[dim] = Slice::new(0, Some(n as isize - 1), 1);
-                    let input_head = B::float_slice(input.clone(), &head_slices);
-                    let shifted = B::float_cat(vec![ones, input_head], dim);
-                    let left = B::float_cumprod(shifted, dim);
+                    // zeros_seen[i] counts zeros in input[0..=i]; comparing against
+                    // 0.5/1.5 sidesteps exact float equality on the running count.
+                    let zero_mask = B::bool_into_float(
+                        B::float_equal_elem(input.clone(), 0.into(), bool_dtype),
+                        dtype.into(),
+                    );
+                    let zeros_seen = B::float_cumsum(zero_mask.clone(), dim);
+                    let before_first = B::bool_into_float(
+                        B::float_lower_elem(zeros_seen.clone(), 0.5.into(), bool_dtype),
+                        dtype.into(),
+                    );
+                    let at_first = B::float_mul(
+                        zero_mask.clone(),
+                        B::bool_into_float(
+                            B::float_lower_elem(zeros_seen, 1.5.into(), bool_dtype),
+                            dtype.into(),
+                        ),
+                    );
 
-                    // tail[i] via the reverse recurrence, collected front-to-back.
-                    let mut tail_parts: Vec<FloatTensor<B>> = Vec::with_capacity(n);
-                    let mut acc = slice_at(grad.clone(), n - 1);
-                    tail_parts.push(acc.clone());
-                    for i in (0..n - 1).rev() {
-                        let grad_i = slice_at(grad.clone(), i);
-                        let input_next = slice_at(input.clone(), i + 1);
-                        acc = B::float_add(grad_i, B::float_mul(input_next, acc));
-                        tail_parts.push(acc.clone());
-                    }
-                    tail_parts.reverse();
-                    let tail = B::float_cat(tail_parts, dim);
+                    // Classic form, with the divisor bumped to one at zero positions
+                    // (adding the mask only changes lanes the region mask discards).
+                    let output = B::float_cumprod(input.clone(), dim);
+                    let input_safe = B::float_add(input.clone(), zero_mask);
+                    let classic = B::float_div(
+                        reverse_cumsum(B::float_mul(grad.clone(), output)),
+                        input_safe,
+                    );
 
-                    B::float_mul(left, tail)
+                    // First-zero positions: input is zero there, so adding the mask
+                    // replaces exactly that zero with one before the cumprod.
+                    let input_one = B::float_add(input, at_first.clone());
+                    let omitted =
+                        reverse_cumsum(B::float_mul(grad, B::float_cumprod(input_one, dim)));
+
+                    B::float_add(
+                        B::float_mul(classic, before_first),
+                        B::float_mul(omitted, at_first),
+                    )
                 });
             }
         }
