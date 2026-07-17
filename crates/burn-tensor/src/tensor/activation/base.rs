@@ -513,6 +513,23 @@ pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor
     tensor.mask_fill(mask, 0)
 }
 
+/// Applies the Threshold function element-wise, generalising `thresholded_relu`
+/// (which fixes `value = 0`): returns `x` where `x > threshold`, and `value`
+/// otherwise.
+///
+#[cfg_attr(
+    not(doc),
+    doc = "`f(x) =`\n- `x if x > threshold`\n- `value otherwise`"
+)]
+///
+/// # Arguments
+/// - `threshold`: the value to threshold at.
+/// - `value`: the value to replace with where `x <= threshold`.
+pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) -> Tensor<D> {
+    let mask = tensor.clone().lower_equal_elem(threshold);
+    tensor.mask_fill(mask, value)
+}
+
 /// Applies the gated linear unit function.
 ///
 /// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
