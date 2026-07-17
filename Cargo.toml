@@ -97,7 +97,7 @@ serde_bytes = { version = "0.11.18", default-features = false, features = [
 ] } # alloc for no_std
 serde_rusqlite = "0.40.0"
 serial_test = "3.2.0"
-spin = { version = "0.10.0", features = [
+spin = { version = "0.10.1", features = [
     "mutex",
     "spin_mutex",
     "portable-atomic",
