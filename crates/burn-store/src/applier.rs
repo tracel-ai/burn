@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 use hashbrown::{HashMap, HashSet};
 
-use burn_core::module::{ModuleMapper, Param};
+use burn_core::module::{ModuleMapper, Param, ParamId};
 use burn_core::tensor::{Bool, Device, Int, Shape, Tensor};
 
 use crate::apply_result::{ApplyError, ApplyResult};
@@ -147,13 +147,13 @@ impl Applier {
         }
     }
 
-    /// Apply a tensor snapshot with shape validation and optional adapter transformation
-    /// Returns None if snapshot not found, filtered, or validation fails
+    /// Apply a tensor snapshot with shape validation and optional adapter transformation.
+    /// Returns the loaded tensor and the persisted [`ParamId`] from the snapshot (if available).
     fn apply_tensor<const D: usize, K>(
         &mut self,
         target_device: &Device,
         target_shape: Shape,
-    ) -> Option<Tensor<D, K>>
+    ) -> Option<(Tensor<D, K>, ParamId)>
     where
         K: burn_core::tensor::kind::Basic,
     {
@@ -187,6 +187,7 @@ impl Applier {
         }
 
         let mut snapshot = snapshot?;
+        let tensor_id = snapshot.tensor_id;
 
         // Apply adapter transformation using current container_stack context (for data transformation like transpose)
         if let Some(ref adapter) = self.adapter {
@@ -233,7 +234,10 @@ impl Applier {
         }
 
         self.applied.push(path);
-        Some(Tensor::from_data(data, (target_device, snapshot.dtype)))
+        Some((
+            Tensor::from_data(data, (target_device, snapshot.dtype)),
+            tensor_id.unwrap_or_default(),
+        ))
     }
 }
 
@@ -259,15 +263,15 @@ impl ModuleMapper for Applier {
     }
 
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
-        let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
-            Some(tensor) => {
-                // We have a tensor to apply - load it
-                param.transform_for_load(tensor, param_id)
+            Some((tensor, snapshot_id)) => {
+                // Use the persisted ParamId from the snapshot so optimizer state
+                // (keyed by ParamId) survives save/load cycles.
+                param.transform_for_load(tensor, snapshot_id)
             }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
@@ -277,15 +281,13 @@ impl ModuleMapper for Applier {
     }
 
     fn map_int<const D: usize>(&mut self, param: Param<Tensor<D, Int>>) -> Param<Tensor<D, Int>> {
-        let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
-            Some(tensor) => {
-                // We have a tensor to apply - load it
-                param.transform_for_load(tensor, param_id)
+            Some((tensor, snapshot_id)) => {
+                param.transform_for_load(tensor, snapshot_id)
             }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
@@ -298,15 +300,13 @@ impl ModuleMapper for Applier {
         &mut self,
         param: Param<Tensor<D, Bool>>,
     ) -> Param<Tensor<D, Bool>> {
-        let param_id = param.id;
         let target_device = param.lazy_device();
         let target_shape = param.lazy_shape();
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
-            Some(tensor) => {
-                // We have a tensor to apply - load it
-                param.transform_for_load(tensor, param_id)
+            Some((tensor, snapshot_id)) => {
+                param.transform_for_load(tensor, snapshot_id)
             }
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
@@ -319,6 +319,7 @@ impl ModuleMapper for Applier {
 #[cfg(all(test, feature = "std", target_has_atomic = "ptr"))]
 mod tests {
     use super::*;
+    use crate::PyTorchToBurnAdapter;
     use burn_core::module::{ModuleMapper, Param, ParamId};
     use burn_core::tensor::{DType, Tensor, TensorData};
 
@@ -580,6 +581,131 @@ mod tests {
         assert_eq!(
             retrieved_values, bf16_values,
             "BF16 values should be preserved"
+        );
+    }
+
+    /// Regression test for issue #5159:
+    /// Verifies normalization parameter renaming (gamma <-> weight)
+    /// works through the full Applier flow with PyTorchToBurnAdapter.
+    #[test]
+    fn normalization_renaming_with_adapter() {
+        let device = Default::default();
+
+        // Create snapshot with PyTorch naming: "norm.weight"
+        let data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0], [5]);
+        let snapshot = crate::TensorSnapshot::from_data(
+            data,
+            vec!["norm".to_string(), "weight".to_string()],
+            vec!["Struct:RmsNorm".to_string()],
+            ParamId::new(),
+        );
+
+        // Applier with PyTorchToBurnAdapter
+        let mut applier = Applier::new(
+            vec![snapshot],
+            None,
+            Some(Box::new(PyTorchToBurnAdapter)),
+            false,
+        );
+
+        // Simulate module traversal: enter "norm" (Struct:RmsNorm) then "gamma" (Struct:RmsNorm)
+        applier.enter_module("norm", "Struct:RmsNorm");
+        applier.enter_module("gamma", "Struct:RmsNorm");
+
+        let target = Param::initialized(
+            ParamId::new(),
+            Tensor::<1>::zeros([5], &device),
+        );
+        let _loaded = applier.map_float(target);
+        applier.exit_module("gamma", "Struct:RmsNorm");
+        applier.exit_module("norm", "Struct:RmsNorm");
+
+        let result = applier.into_result();
+        assert_eq!(result.applied.len(), 1, "gamma should be applied via alt name 'weight'");
+        assert_eq!(result.errors.len(), 0);
+        // The snapshot "norm.weight" was found via alt lookup — 'norm.gamma' is visited,
+        // and 'norm.weight' is NOT in visited_paths (by design). Both should not be "missing" or "unused"
+        // if the applied count is 1.
+        assert!(
+            result.missing.is_empty(),
+            "no paths should be missing: {:?}",
+            result.missing
+        );
+    }
+
+    /// Same as above but for a nested module path to ensure the alternative
+    /// path lookup handles multi-level paths correctly.
+    #[test]
+    fn normalization_renaming_nested_path() {
+        let device = Default::default();
+
+        // Snapshot with PyTorch naming: "encoder.norm.weight"
+        let data = TensorData::new(vec![1.0f32, 2.0, 3.0], [3]);
+        let snapshot = crate::TensorSnapshot::from_data(
+            data,
+            vec![
+                "encoder".to_string(),
+                "norm".to_string(),
+                "weight".to_string(),
+            ],
+            vec!["Struct:RmsNorm".to_string()],
+            ParamId::new(),
+        );
+
+        let mut applier = Applier::new(
+            vec![snapshot],
+            None,
+            Some(Box::new(PyTorchToBurnAdapter)),
+            false,
+        );
+
+        applier.enter_module("encoder", "Struct:Encoder");
+        applier.enter_module("norm", "Struct:RmsNorm");
+        applier.enter_module("gamma", "Struct:RmsNorm");
+
+        let target = Param::initialized(
+            ParamId::new(),
+            Tensor::<1>::zeros([3], &device),
+        );
+        let _loaded = applier.map_float(target);
+        applier.exit_module("gamma", "Struct:RmsNorm");
+        applier.exit_module("norm", "Struct:RmsNorm");
+        applier.exit_module("encoder", "Struct:Encoder");
+
+        let result = applier.into_result();
+        assert_eq!(result.applied.len(), 1);
+        assert_eq!(result.errors.len(), 0);
+    }
+
+    /// Verify that the Applier restores the persisted ParamId from the snapshot
+    /// instead of keeping the target param's fresh id (regression for #5130).
+    #[test]
+    fn applier_preserves_param_id() {
+        let device = Default::default();
+
+        let persisted_id = ParamId::from(42u64);
+        let snapshot = crate::TensorSnapshot::from_data(
+            TensorData::new(vec![1.0f32, 2.0], [2]),
+            vec!["weight".to_string()],
+            vec!["Struct:Linear".to_string()],
+            persisted_id,
+        );
+
+        let mut applier = Applier::new(vec![snapshot], None, None, false);
+
+        applier.enter_module("weight", "Struct:Linear");
+        let target = Param::initialized(
+            ParamId::new(), // fresh id, different from persisted_id
+            Tensor::<1>::zeros([2], &device),
+        );
+
+        let loaded = applier.map_float(target);
+        applier.exit_module("weight", "Struct:Linear");
+
+        // The loaded param should have the persisted ParamId, not the fresh one.
+        assert_eq!(
+            loaded.id, persisted_id,
+            "Applier should restore persisted ParamId from snapshot"
         );
     }
 }
