@@ -286,9 +286,7 @@ impl ModuleMapper for Applier {
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
-            Some((tensor, snapshot_id)) => {
-                param.transform_for_load(tensor, snapshot_id)
-            }
+            Some((tensor, snapshot_id)) => param.transform_for_load(tensor, snapshot_id),
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
                 param
@@ -305,9 +303,7 @@ impl ModuleMapper for Applier {
 
         // Try to apply snapshot with shape validation
         match self.apply_tensor(&target_device, target_shape) {
-            Some((tensor, snapshot_id)) => {
-                param.transform_for_load(tensor, snapshot_id)
-            }
+            Some((tensor, snapshot_id)) => param.transform_for_load(tensor, snapshot_id),
             None => {
                 // No snapshot, filtered, or validation failed - return param unchanged
                 param
@@ -612,16 +608,17 @@ mod tests {
         applier.enter_module("norm", "Struct:RmsNorm");
         applier.enter_module("gamma", "Struct:RmsNorm");
 
-        let target = Param::initialized(
-            ParamId::new(),
-            Tensor::<1>::zeros([5], &device),
-        );
+        let target = Param::initialized(ParamId::new(), Tensor::<1>::zeros([5], &device));
         let _loaded = applier.map_float(target);
         applier.exit_module("gamma", "Struct:RmsNorm");
         applier.exit_module("norm", "Struct:RmsNorm");
 
         let result = applier.into_result();
-        assert_eq!(result.applied.len(), 1, "gamma should be applied via alt name 'weight'");
+        assert_eq!(
+            result.applied.len(),
+            1,
+            "gamma should be applied via alt name 'weight'"
+        );
         assert_eq!(result.errors.len(), 0);
         // The snapshot "norm.weight" was found via alt lookup — 'norm.gamma' is visited,
         // and 'norm.weight' is NOT in visited_paths (by design). Both should not be "missing" or "unused"
@@ -663,10 +660,7 @@ mod tests {
         applier.enter_module("norm", "Struct:RmsNorm");
         applier.enter_module("gamma", "Struct:RmsNorm");
 
-        let target = Param::initialized(
-            ParamId::new(),
-            Tensor::<1>::zeros([3], &device),
-        );
+        let target = Param::initialized(ParamId::new(), Tensor::<1>::zeros([3], &device));
         let _loaded = applier.map_float(target);
         applier.exit_module("gamma", "Struct:RmsNorm");
         applier.exit_module("norm", "Struct:RmsNorm");
