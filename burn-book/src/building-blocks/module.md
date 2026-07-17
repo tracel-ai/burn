@@ -249,6 +249,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `LogSigmoid`      | `nn.LogSigmoid`                               |
 | `Mish`            | `nn.Mish`                                     |
 | `Linear`          | `nn.Linear`                                   |
+| `PairwiseDistance` | `nn.PairwiseDistance`                         |
 | `Prelu`           | `nn.PReLu`                                    |
 | `Relu`            | `nn.ReLU`                                     |
 | `Selu`            | `nn.SELU`                                     |
