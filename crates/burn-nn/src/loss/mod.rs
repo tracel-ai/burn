@@ -12,11 +12,8 @@ mod poisson;
 mod reduction;
 mod rnnt;
 mod smooth_l1;
-<<<<<<< loss/triplet-margin
 mod triplet_margin;
-=======
 mod soft_margin;
->>>>>>> main
 
 pub use binary_cross_entropy::*;
 pub use cosine_embedding::*;
@@ -32,8 +29,5 @@ pub use poisson::*;
 pub use reduction::*;
 pub use rnnt::*;
 pub use smooth_l1::*;
-<<<<<<< loss/triplet-margin
 pub use triplet_margin::*;
-=======
 pub use soft_margin::*;
->>>>>>> main
