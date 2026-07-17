@@ -2,7 +2,7 @@ use alloc::sync::Arc;
 use burn_backend::cubecl::dtype_to_elem_type;
 use cubecl::{
     client::ComputeClient,
-    std::throughput::{measure_launch_overhead, measure_peak_throughput},
+    std::throughput::measure_peak_throughput,
     throughput::{ThroughputKey, ThroughputMode},
     tune::{AutotuneBound, Bounds, BoundsGenerator, calculate_bounds},
 };
@@ -21,7 +21,7 @@ type Inputs<R> = (
     ReduceDtypes,
 );
 
-type BoundsGen<R> = dyn BoundsGenerator<ReduceAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
+type BoundsGen<R> = dyn BoundsGenerator<ReduceAutotuneKey, Inputs<R>> + Send + Sync;
 
 const THRESHOLD: f32 = 1.0;
 
@@ -31,7 +31,13 @@ pub(super) fn create_reduce_bounds<R: CubeRuntime>(client: &ComputeClient<R>) ->
 
     Arc::new(move |_key: &ReduceAutotuneKey, inputs: &Inputs<R>| Bounds {
         bounds: autotune_bounds(&owned_client, inputs),
-        launch_overhead: measure_launch_overhead(&owned_client),
+        launch_overhead: measure_peak_throughput(
+            &owned_client,
+            ThroughputKey {
+                mode: ThroughputMode::Launch,
+            },
+        )
+        .duration,
     })
 }
 
@@ -46,14 +52,12 @@ fn autotune_bounds<R: CubeRuntime>(
     let compute_throughput = measure_peak_throughput(
         client,
         ThroughputKey {
-            mode: ThroughputMode::ComputeDirect,
-            dtype: elem_acc,
+            mode: ThroughputMode::ComputeDirect { dtype: elem_acc },
         },
     );
 
     let memory_key = ThroughputKey {
         mode: ThroughputMode::Memory,
-        dtype: elem_output,
     };
 
     let memory_throughput = measure_peak_throughput(client, memory_key);
@@ -71,7 +75,6 @@ fn autotune_bounds<R: CubeRuntime>(
         compute_ops,
         THRESHOLD,
         &memory_throughput,
-        &memory_key,
         input_bytes + output_bytes,
         THRESHOLD,
     )

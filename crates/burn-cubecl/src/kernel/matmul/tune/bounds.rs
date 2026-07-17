@@ -4,7 +4,7 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     client::ComputeClient,
     ir::StorageType,
-    std::throughput::{measure_launch_overhead, measure_peak_throughput},
+    std::throughput::measure_peak_throughput,
     throughput::{ThroughputKey, ThroughputMode, compute_throughput_key, select_cmma_tile},
     tune::{AutotuneBound, Bounds, BoundsGenerator, calculate_bounds},
 };
@@ -15,7 +15,7 @@ use cubek::matmul::{
 
 use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
 
-type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
+type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>> + Send + Sync;
 
 const THRESHOLD: f32 = 1.0;
 
@@ -26,7 +26,13 @@ pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) ->
     Arc::new(
         move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| Bounds {
             bounds: autotune_bounds(&owned_client, tensors),
-            launch_overhead: measure_launch_overhead(&owned_client),
+            launch_overhead: measure_peak_throughput(
+                &owned_client,
+                ThroughputKey {
+                    mode: ThroughputMode::Launch,
+                },
+            )
+            .duration,
         },
     )
 }
@@ -62,7 +68,6 @@ fn autotune_bounds<R: CubeRuntime>(
 
     let memory_key = ThroughputKey {
         mode: ThroughputMode::Memory,
-        dtype: elem_out.elem_type(),
     };
 
     let memory_throughput = measure_peak_throughput(client, memory_key);
@@ -76,7 +81,6 @@ fn autotune_bounds<R: CubeRuntime>(
         batches * m * n * (2 * k - 1),
         THRESHOLD,
         &memory_throughput,
-        &memory_key,
         lhs_bytes + rhs_bytes + out_bytes,
         THRESHOLD,
     )

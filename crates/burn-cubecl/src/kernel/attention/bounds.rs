@@ -3,7 +3,7 @@ use burn_backend::cubecl::{dtype_to_elem_type, dtype_to_storage_type};
 use cubecl::{
     client::ComputeClient,
     ir::{ElemType, FloatKind, StorageType},
-    std::throughput::{measure_launch_overhead, measure_peak_throughput},
+    std::throughput::measure_peak_throughput,
     throughput::{ThroughputKey, ThroughputMode, compute_throughput_key, select_cmma_tile},
     tune::{AutotuneBound, Bounds, BoundsGenerator, calculate_bounds},
 };
@@ -20,8 +20,7 @@ type Inputs<R> = (
     burn_backend::ops::AttentionModuleOptions,
 );
 
-type BoundsGen<R> =
-    dyn BoundsGenerator<AttentionAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
+type BoundsGen<R> = dyn BoundsGenerator<AttentionAutotuneKey, Inputs<R>> + Send + Sync;
 
 const THRESHOLD: f32 = 1.0;
 
@@ -34,7 +33,13 @@ pub(super) fn create_attention_bounds<R: CubeRuntime>(
     Arc::new(
         move |_key: &AttentionAutotuneKey, inputs: &Inputs<R>| Bounds {
             bounds: autotune_bounds(&owned_client, inputs),
-            launch_overhead: measure_launch_overhead(&owned_client),
+            launch_overhead: measure_peak_throughput(
+                &owned_client,
+                ThroughputKey {
+                    mode: ThroughputMode::Launch,
+                },
+            )
+            .duration,
         },
     )
 }
@@ -68,7 +73,6 @@ fn autotune_bounds<R: CubeRuntime>(
     // Memory throughput bounds
     let memory_key = ThroughputKey {
         mode: ThroughputMode::Memory,
-        dtype: dtype_to_elem_type(query.dtype),
     };
 
     let memory_throughput = measure_peak_throughput(client, memory_key);
@@ -89,7 +93,6 @@ fn autotune_bounds<R: CubeRuntime>(
         total_ops,
         THRESHOLD,
         &memory_throughput,
-        &memory_key,
         total_bytes,
         THRESHOLD,
     )
