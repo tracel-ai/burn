@@ -823,7 +823,7 @@ impl core::fmt::Display for ThroughputStat {
             ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
                 alloc::format!("{:?}", dtype)
             }
-            ThroughputMode::Memory | ThroughputMode::Launch => "".to_string(),
+            ThroughputMode::Memory | ThroughputMode::Launch => alloc::string::String::new(),
         };
 
         let value = self.value.format(&self.key);
