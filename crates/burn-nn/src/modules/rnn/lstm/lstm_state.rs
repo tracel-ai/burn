@@ -116,6 +116,22 @@ impl<const D: usize> LstmState<D> {
             hidden: Tensor::stack(h_it, dim),
         }
     }
+
+    /// Chunk the state into `n` states along the given dimension.
+    ///
+    /// This is the inverse of stacking — useful for splitting
+    /// multi-layer states back into per-layer states.
+    ///
+    /// See: [`Tensor::chunk`].
+    pub fn chunk(self, n: usize, dim: usize) -> Vec<LstmState<D>> {
+        let cells = self.cell.chunk(n, dim);
+        let hiddens = self.hidden.chunk(n, dim);
+        cells
+            .into_iter()
+            .zip(hiddens)
+            .map(|(cell, hidden)| LstmState { cell, hidden })
+            .collect()
+    }
 }
 
 /// Extension trait for attaching an initializer to an [`Option<LstmState>`].
@@ -316,6 +332,44 @@ mod tests {
         assert_eq!(stacked.shape(), Shape::from([2, 2, 3]));
         stacked.cell.to_data().assert_eq(&expected_cell, true);
         stacked.hidden.to_data().assert_eq(&expected_hidden, true);
+    }
+
+    #[test]
+    fn test_chunk() {
+        let device = Device::default();
+
+        let a: LstmState<2> = random_state([2, 3], &device);
+        let b: LstmState<2> = random_state([2, 3], &device);
+        let c: LstmState<2> = random_state([2, 3], &device);
+
+        let stacked: LstmState<3> = LstmState::stack(vec![a, b, c], 0);
+
+        assert_eq!(stacked.shape(), Shape::from([3, 2, 3]));
+
+        let chunks = stacked.chunk(3, 0);
+
+        assert_eq!(chunks.len(), 3);
+        for chunk in chunks {
+            assert_eq!(chunk.shape(), Shape::from([1, 2, 3]));
+        }
+    }
+
+    #[test]
+    fn test_stack_chunk_roundtrip() {
+        let device = Device::default();
+        let a: LstmState<2> = random_state([2, 3], &device);
+        let b: LstmState<2> = random_state([2, 3], &device);
+
+        let a_cell_data = a.cell.clone().to_data();
+        let a_hidden_data = a.hidden.clone().to_data();
+
+        let stacked: LstmState<3> = LstmState::stack(vec![a, b], 0);
+        let mut chunks = stacked.chunk(2, 0);
+
+        let first: LstmState<2> = chunks.remove(0).squeeze_dim(0);
+
+        first.cell.to_data().assert_eq(&a_cell_data, true);
+        first.hidden.to_data().assert_eq(&a_hidden_data, true);
     }
 
     #[test]
