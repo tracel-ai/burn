@@ -280,9 +280,30 @@ fn matrix_descriptor<R: CubeRuntime>(
     cols: usize,
     batch_shape: &[usize],
 ) -> Option<GemmMatrix> {
-    let rank = tensor.meta.rank();
     let shape = tensor.meta.shape();
     let strides = tensor.meta.strides();
+    let (leading_dimension, batch_stride, transposed) =
+        matrix_layout(shape, strides, rows, cols, batch_shape)?;
+
+    Some(GemmMatrix::new(
+        tensor.handle.clone().binding(),
+        leading_dimension,
+        batch_stride,
+        transposed,
+    ))
+}
+
+fn matrix_layout(
+    shape: &[usize],
+    strides: &[usize],
+    rows: usize,
+    cols: usize,
+    batch_shape: &[usize],
+) -> Option<(u32, u64, bool)> {
+    let rank = shape.len();
+    if rank < 2 || strides.len() != rank || batch_shape.len() != rank - 2 {
+        return None;
+    }
     let row_stride = strides[rank - 2];
     let col_stride = strides[rank - 1];
     let (leading_dimension, transposed) = if col_stride == 1 && row_stride >= cols {
@@ -313,10 +334,36 @@ fn matrix_descriptor<R: CubeRuntime>(
         strides[rank - 3] as u64
     };
 
-    Some(GemmMatrix::new(
-        tensor.handle.clone().binding(),
-        leading_dimension.try_into().ok()?,
-        batch_stride,
-        transposed,
-    ))
+    Some((leading_dimension.try_into().ok()?, batch_stride, transposed))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::matrix_layout;
+
+    #[test]
+    fn accelerated_gemm_layouts_cover_transpose_batch_and_broadcast() {
+        assert_eq!(
+            matrix_layout(&[2, 3, 4], &[12, 4, 1], 3, 4, &[2]),
+            Some((4, 12, false))
+        );
+        assert_eq!(
+            matrix_layout(&[2, 4, 3], &[12, 1, 4], 4, 3, &[2]),
+            Some((4, 12, true))
+        );
+        assert_eq!(
+            matrix_layout(&[1, 3, 4], &[12, 4, 1], 3, 4, &[2]),
+            Some((4, 0, false))
+        );
+    }
+
+    #[test]
+    fn accelerated_gemm_rejects_noncontiguous_or_mismatched_batches() {
+        assert_eq!(matrix_layout(&[2, 3, 4], &[12, 4, 1], 3, 4, &[3]), None);
+        assert_eq!(
+            matrix_layout(&[2, 3, 4, 5], &[64, 20, 5, 1], 4, 5, &[2, 3]),
+            None
+        );
+        assert_eq!(matrix_layout(&[3, 4], &[1, 2], 3, 4, &[]), None);
+    }
 }
