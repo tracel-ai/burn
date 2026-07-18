@@ -81,7 +81,7 @@ impl LrScheduler for CosineAnnealingLrScheduler {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
         // first call. We could've used i64 with an initial value -1, but keeping it in usize saves
         // us from some type casting here.
-        self.current_iter = self.current_iter.wrapping_add(1) % (self.num_iters + 1);
+        self.current_iter = self.current_iter.wrapping_add(1);
         self.min_lr
             + 0.5
                 * (self.max_lr - self.min_lr)
@@ -188,7 +188,8 @@ mod tests {
             INITIAL_LR,                  // cos(0)
             (INITIAL_LR + MIN_LR) * 0.5, // cos(PI/2)
             MIN_LR,                      // cos(PI)
-            INITIAL_LR,                  // restart
+            (INITIAL_LR + MIN_LR) * 0.5, // cos(3PI/2)
+            INITIAL_LR,                  // cos(2PI)
         ];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
