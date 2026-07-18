@@ -8,6 +8,7 @@ mod cast;
 mod complex;
 mod float;
 mod fmod;
+mod graph;
 mod int;
 mod numeric;
 mod options;
@@ -25,6 +26,7 @@ pub use base::*;
 pub use cartesian_grid::cartesian_grid;
 pub use cast::*;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
+pub use graph::{Graph, capture};
 pub use options::*;
 pub use transaction::*;
 

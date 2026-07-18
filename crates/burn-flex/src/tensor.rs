@@ -480,6 +480,10 @@ impl TensorMetadata for FlexTensor {
     fn device(&self) -> Self::Device {
         FlexDevice
     }
+
+    fn can_mut(&self) -> bool {
+        self.is_unique()
+    }
 }
 
 /// Max rank we're willing to handle without falling back to the

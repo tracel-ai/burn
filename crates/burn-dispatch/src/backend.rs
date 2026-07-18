@@ -12,7 +12,108 @@ use alloc::vec;
 
 #[cfg(feature = "autodiff")]
 use burn_backend::distributed::{DistributedParamId, DistributedParams};
-use burn_backend::{AutodiffBackend, Backend, BackendTypes, DType, ExecutionError};
+use burn_backend::{AutodiffBackend, Backend, BackendGraph, BackendTypes, DType, ExecutionError};
+
+/// A captured graph from one of the dispatched backends (see
+/// [`BackendTypes::GraphPrimitive`]).
+///
+/// Like [`DispatchTensorKind`], one variant per enabled backend: the graph is
+/// captured by, and can only replay on, the backend it was recorded on.
+#[derive(Debug, Clone)]
+pub enum DispatchGraph {
+    /// A graph captured on the [CPU backend](Cpu).
+    #[cfg(feature = "cpu")]
+    Cpu(BackendGraph<Cpu>),
+
+    /// A graph captured on the [CUDA backend](Cuda).
+    #[cfg(feature = "cuda")]
+    Cuda(BackendGraph<Cuda>),
+
+    /// A graph captured on the [Metal backend](Metal).
+    #[cfg(feature = "metal")]
+    Metal(BackendGraph<Metal>),
+
+    /// A graph captured on the [ROCm backend](Rocm).
+    #[cfg(feature = "rocm")]
+    Rocm(BackendGraph<Rocm>),
+
+    /// A graph captured on the [Vulkan backend](Vulkan).
+    #[cfg(feature = "vulkan")]
+    Vulkan(BackendGraph<Vulkan>),
+
+    /// A graph captured on the [Wgpu backend](Wgpu).
+    #[cfg(feature = "wgpu")]
+    Wgpu(BackendGraph<Wgpu>),
+
+    /// A graph captured on the [WebGPU backend](WebGpu).
+    #[cfg(feature = "webgpu")]
+    WebGpu(BackendGraph<WebGpu>),
+
+    /// A graph captured on the [Flex backend](Flex).
+    #[cfg(any(feature = "flex", default_backend))]
+    Flex(BackendGraph<Flex>),
+
+    /// A graph captured on the [NdArray backend](NdArray).
+    #[cfg(feature = "ndarray")]
+    NdArray(BackendGraph<NdArray>),
+
+    /// A graph captured on the [LibTorch backend](LibTorch).
+    #[cfg(feature = "tch")]
+    LibTorch(BackendGraph<LibTorch>),
+
+    /// A graph captured on the [Remote backend](Remote).
+    #[cfg(feature = "remote")]
+    Remote(BackendGraph<Remote>),
+}
+
+/// The error returned when a graph operation cannot be dispatched.
+fn graph_dispatch_err(reason: alloc::string::String) -> ExecutionError {
+    ExecutionError::WithContext { reason }
+}
+
+/// Match arm generator for [`Backend::graph_stop_capture`] on [`Dispatch`]:
+/// each backend's captured graph is wrapped in its [`DispatchGraph`] variant.
+macro_rules! graph_stop_capture_arms {
+    ($device:expr; $([$Backend:ident, $cfg:meta]),*) => {
+        match $device {
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchDevice::$Backend(device) => {
+                    <$crate::backends::$Backend as Backend>::graph_stop_capture(device)
+                        .map(DispatchGraph::$Backend)
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => Err(graph_dispatch_err(format!(
+                "Graph capture is not supported for device {other:?}"
+            ))),
+        }
+    };
+}
+
+/// Match arm generator for [`Backend::graph_replay`] on [`Dispatch`]: the graph
+/// variant must match the device's backend, since a graph only replays on the
+/// backend that captured it.
+macro_rules! graph_replay_arms {
+    ($device:expr, $graph:expr; $([$Backend:ident, $cfg:meta]),*) => {
+        match ($device, $graph) {
+            $(
+                #[cfg($cfg)]
+                ($crate::DispatchDevice::$Backend(device), DispatchGraph::$Backend(graph)) => {
+                    // Safety: forwarded verbatim from `Dispatch::graph_replay`'s
+                    // own contract.
+                    unsafe {
+                        <$crate::backends::$Backend as Backend>::graph_replay(device, graph)
+                    }
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            (device, _) => Err(graph_dispatch_err(format!(
+                "The graph was not captured on the backend of device {device:?}"
+            ))),
+        }
+    };
+}
 
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
@@ -29,7 +130,7 @@ use crate::{DispatchDevice, DispatchTensor};
 /// The main execution backend in Burn.
 ///
 /// [`Dispatch`] acts as a global backend that can manage multiple underlying
-/// backends (e.g., `Cpu`, `Cuda`, `Wgpu`, `Metal`, etc.).  
+/// backends (e.g., `Cpu`, `Cuda`, `Wgpu`, `Metal`, etc.).
 /// It is responsible for:
 /// - Dispatching tensor operations to the appropriate backend.
 /// - Managing cross-backend tensor transfers.
@@ -60,6 +161,8 @@ impl BackendTypes for Dispatch {
     type IntTensorPrimitive = DispatchTensor;
     type BoolTensorPrimitive = DispatchTensor;
     type QuantizedTensorPrimitive = DispatchTensor;
+
+    type GraphPrimitive = DispatchGraph;
     type ComplexTensorPrimitive = DispatchTensor;
 }
 
@@ -75,6 +178,29 @@ impl Backend for Dispatch {
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         dispatch_device!(device, |device| B::sync(device))
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_prepare(device))
+    }
+
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        dispatch_device!(device, |device| B::graph_start_capture(device))
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<DispatchGraph, ExecutionError> {
+        backend_list!(graph_stop_capture_arms, device)
+    }
+
+    unsafe fn graph_replay(
+        device: &Self::Device,
+        graph: &DispatchGraph,
+    ) -> Result<(), ExecutionError> {
+        backend_list!(graph_replay_arms, device, graph)
+    }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
+        dispatch_device!(device, |device| B::dtype_usage(device, dtype))
     }
 
     fn ad_enabled(device: &Self::Device) -> bool {
@@ -131,9 +257,7 @@ impl Backend for Dispatch {
             _ => unreachable!("No backend feature enabled."),
         }
     }
-    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
-        dispatch_device!(device, |device| B::dtype_usage(device, dtype))
-    }
+    
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }
@@ -792,7 +916,7 @@ impl Dispatch {
                 .collect(),
             #[cfg(feature = "remote")]
             // Remote devices are keyed by a network address, which the type-id-only
-            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote`] to list the devices
+            // `enumerate` can't carry. Use [`Dispatch::enumerate_remote_websocket`] to list the devices
             // behind a given address.
             DispatchDeviceId::Remote => Vec::new(),
             _ => unreachable!("No backend feature enabled."),
@@ -804,10 +928,12 @@ impl Dispatch {
     /// Unlike [`enumerate`](Self::enumerate), remote devices are identified by a network
     /// address rather than enumerable local hardware, so they need a dedicated entry point.
     /// Connecting to the server (required to learn its device count) happens here; see
-    /// [`RemoteDevice::enumerate`].
-    #[cfg(feature = "remote")]
-    pub fn enumerate_remote(address: &str) -> Vec<DispatchDevice> {
-        RemoteDevice::enumerate(address)
+    /// [`RemoteDevice::enumerate_websocket`].
+    ///
+    /// Websocket-only: Iroh peers are addressed by endpoint identity, not a URL string.
+    #[cfg(feature = "remote-websocket")]
+    pub fn enumerate_remote_websocket(address: &str) -> Vec<DispatchDevice> {
+        RemoteDevice::enumerate_websocket(address)
             .into_iter()
             .map(DispatchDevice::Remote)
             .collect()

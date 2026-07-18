@@ -21,7 +21,7 @@ use burn::{
         AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
     },
 };
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 // Define configuration struct for the experiment
 #[derive(Config, Debug)]
@@ -36,9 +36,8 @@ pub struct ExperimentConfig {
     pub num_epochs: usize,
 }
 
-fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+pub(crate) fn create_artifact_dir(artifact_dir: &str) {
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 

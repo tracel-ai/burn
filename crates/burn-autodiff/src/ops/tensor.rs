@@ -2020,6 +2020,95 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Prod;
+
+        impl<B: Backend> Backward<B, 1> for Prod {
+            // Saves the input and the output product so backward can compute
+            // `grad * prod(x) / x` without recomputing the reduction.
+            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, output) = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // d/dx_i prod(x) = prod(x) / x_i, so grad_input = grad * output / input,
+                    // broadcast over the input shape (output is a single-element tensor).
+                    //
+                    // This divides by the input, so it produces NaN gradients when the
+                    // input contains zeros. A zero-safe version requires the product of
+                    // all other elements via exclusive cumulative products, same as the
+                    // cumprod limitation tracked in https://github.com/tracel-ai/burn/issues/3864.
+                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
+                    let grad = B::float_mul(grad, output);
+                    let grad = unsqueeze_like::<B>(grad, ones.shape());
+                    let grad = B::float_mul(ones, grad);
+
+                    B::float_div(grad, input)
+                });
+            }
+        }
+
+        match Prod.prepare::<C>([tensor.node]).compute_bound().stateful() {
+            OpsKind::Tracked(prep) => {
+                let output = B::float_prod(tensor.primitive.clone());
+                prep.finish((tensor.primitive, output.clone()), output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_prod(tensor.primitive)),
+        }
+    }
+
+    fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct ProdDim;
+
+        impl<B: Backend> Backward<B, 1> for ProdDim {
+            // Saves the input and the reduced product (size 1 along `dim`).
+            type State = (B::FloatTensorPrimitive, B::FloatTensorPrimitive);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (input, output) = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    // grad_input = grad * prod_dim(x) / x. The grad and output both keep
+                    // a size-1 reduced dim and broadcast back over the input along `dim`.
+                    //
+                    // Like `float_prod`, this divides by the input and produces NaN
+                    // gradients when the input contains zeros (see
+                    // https://github.com/tracel-ai/burn/issues/3864).
+                    let ones = B::float_ones(input.shape(), &input.device(), input.dtype().into());
+                    let grad = B::float_mul(grad, output);
+                    let grad = B::float_mul(ones, grad);
+
+                    B::float_div(grad, input)
+                });
+            }
+        }
+
+        match ProdDim
+            .prepare::<C>([tensor.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => {
+                let output = B::float_prod_dim(tensor.primitive.clone(), dim);
+                prep.finish((tensor.primitive, output.clone()), output)
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_prod_dim(tensor.primitive, dim)),
+        }
+    }
+
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct CumSum;
@@ -3845,9 +3934,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::UnTracked(prep) => prep.finish(B::float_cast(tensor.primitive, dtype)),
         }
     }
-
-    // TODO: Implement float_prod and float_sum
-    // https://github.com/tracel-ai/burn/issues/1458
 
     fn float_unfold(
         tensor: FloatTensor<Self>,

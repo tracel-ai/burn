@@ -1,7 +1,8 @@
 use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
-    Backend, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData,
+    Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
+    TensorData,
     UnimplementedTensorPrimitive,
 };
 use burn_std::{BoolStore, DType};
@@ -15,6 +16,13 @@ use std::marker::PhantomData;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 #[cfg(not(feature = "fusion"))]
 use burn_ir::{BackendIr, TensorHandle};
+
+/// Turn a cubecl graph-capture error into a backend [`ExecutionError`].
+fn graph_err(err: impl core::fmt::Display) -> ExecutionError {
+    ExecutionError::WithContext {
+        reason: format!("{err}"),
+    }
+}
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
@@ -35,6 +43,8 @@ where
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
     type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CubeTensor<R>, R::Device>;
+
+    type GraphPrimitive = cubecl::client::Graph<R>;
 }
 
 impl<R> Backend for CubeBackend<R>
@@ -61,6 +71,35 @@ where
         futures_lite::future::block_on(client.sync()).map_err(|err| ExecutionError::WithContext {
             reason: format!("{err}"),
         })
+    }
+
+    fn graph_prepare(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = R::client(device);
+        client.graph_prepare().map_err(graph_err)
+    }
+
+    fn graph_start_capture(device: &Self::Device) -> Result<(), ExecutionError> {
+        let client = R::client(device);
+        client.start_capture().map_err(graph_err)
+    }
+
+    fn graph_stop_capture(device: &Self::Device) -> Result<BackendGraph<Self>, ExecutionError> {
+        let client = R::client(device);
+        client.stop_capture().map_err(graph_err)
+    }
+
+    unsafe fn graph_replay(
+        _device: &Self::Device,
+        graph: &BackendGraph<Self>,
+    ) -> Result<(), ExecutionError> {
+        // cubecl's `Graph::replay` is fire-and-forget: it enqueues the dispatch
+        // and returns immediately, so a replay failure is not reported here — it
+        // lands in the stream's error queue and surfaces on the next sync/flush.
+        //
+        // Safety: the buffer-liveness and stream-ordering obligations are the
+        // caller's, forwarded verbatim from this method's own contract.
+        unsafe { graph.replay() };
+        Ok(())
     }
 
     fn memory_persistent_allocations<

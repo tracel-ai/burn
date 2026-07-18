@@ -39,6 +39,10 @@ impl<E: Clone + Send + Sync + 'static, D: DeviceOps> TensorMetadata
     fn shape(&self) -> Shape {
         unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
     }
+    
+    fn can_mut(&self) -> bool {
+        unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
+    }
 }
 
 impl<E: Clone + Send + Sync + 'static, D> core::fmt::Debug for UnimplementedTensorPrimitive<E, D> {
@@ -101,6 +105,13 @@ impl<B: BackendTypes> TensorMetadata for TensorPrimitive<B> {
             TensorPrimitive::QFloat(tensor) => tensor.device(),
         }
     }
+
+    fn can_mut(&self) -> bool {
+        match self {
+            TensorPrimitive::Float(tensor) => tensor.can_mut(),
+            TensorPrimitive::QFloat(tensor) => tensor.can_mut(),
+        }
+    }
 }
 
 /// Tensor metadata trait for tensor primitive.
@@ -118,6 +129,15 @@ pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
     }
     /// Get the device associated with the tensor.
     fn device(&self) -> Self::Device;
+
+    /// Whether the tensor's buffer can be mutated in place — i.e. this handle
+    /// uniquely owns it, so an in-place op (`slice_assign`, an inplace kernel)
+    /// writes the existing allocation instead of copying it first.
+    ///
+    /// Backends that track buffer ownership (cubecl, fusion, tch) answer
+    /// precisely; a backend that can't must return a conservative `false` —
+    /// the buffer may be aliased, so an in-place write can't be assumed safe.
+    fn can_mut(&self) -> bool;
 
     /// Get the [quantization scheme](QuantScheme) for a quantized float tensor.
     ///

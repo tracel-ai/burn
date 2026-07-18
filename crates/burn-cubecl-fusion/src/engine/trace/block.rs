@@ -284,7 +284,13 @@ impl FuseBlockBuilder {
                     }
                 }
             }
-            None => resources.inputs.insert(precision, tensor.clone()),
+            // First appearance of the original: fusing a single-use view isn't worth it. The
+            // reshape/slice/swap_dims executes eagerly as a cheap shape/stride update and the result
+            // is then read with a clean, vectorizable layout. Fusing would instead recompute the view
+            // index on every read and can break vectorization. We only fuse a view when the original
+            // is already used elsewhere (the `Some` arm), i.e. when we genuinely need it in multiple
+            // layouts.
+            None => return None,
         };
 
         let out = self.output(output, resources)?;
@@ -348,7 +354,13 @@ impl FuseBlockBuilder {
                     }
                 }
             }
-            None => resources.inputs.insert(precision, tensor.clone()),
+            // First appearance of the original: fusing a single-use view isn't worth it. The
+            // reshape/slice/swap_dims executes eagerly as a cheap shape/stride update and the result
+            // is then read with a clean, vectorizable layout. Fusing would instead recompute the view
+            // index on every read and can break vectorization. We only fuse a view when the original
+            // is already used elsewhere (the `Some` arm), i.e. when we genuinely need it in multiple
+            // layouts.
+            None => return None,
         };
 
         let out = self.output(output, resources)?;

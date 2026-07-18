@@ -31,6 +31,11 @@ use syn::{
 /// - Each method dispatches to the corresponding implementation for the listed backends.
 /// - If `Autodiff` is specified, autodiff variants are also handled automatically.
 /// - All other backends are left as `unimplemented!()`.
+///
+/// Supported tensor argument/return types: `FloatTensor<Self>`, `IntTensor<Self>`,
+/// `BoolTensor<Self>`, and `QuantizedTensor<Self>` (a QFloat tensor passed to the
+/// backend still quantized — the op reads the packed values/scales directly instead
+/// of going through a dequantize).
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the backend list
@@ -64,6 +69,7 @@ enum BackendKind {
     Flex,
     NdArray,
     LibTorch,
+    Remote,
 }
 
 impl BackendKind {
@@ -79,6 +85,7 @@ impl BackendKind {
             "Flex" => Ok(BackendKind::Flex),
             "NdArray" => Ok(BackendKind::NdArray),
             "LibTorch" => Ok(BackendKind::LibTorch),
+            "Remote" => Ok(BackendKind::Remote),
             other => Err(syn::Error::new_spanned(
                 ident,
                 format!("Unsupported backend `{}`", other),
@@ -143,6 +150,7 @@ enum TensorKind {
     Float,
     Int,
     Bool,
+    Quantized,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -196,6 +204,7 @@ impl TensorKind {
                     "FloatTensorPrimitive" => Some(Self::Float),
                     "IntTensorPrimitive" => Some(Self::Int),
                     "BoolTensorPrimitive" => Some(Self::Bool),
+                    "QuantizedTensorPrimitive" => Some(Self::Quantized),
                     _ => None,
                 }
             }
@@ -208,16 +217,19 @@ impl TensorKind {
                     "Float" => Some(Self::Float),
                     "Int" => Some(Self::Int),
                     "Bool" => Some(Self::Bool),
+                    "Quantized" => Some(Self::Quantized),
 
                     // Full tensor types
                     "FloatTensor" => Some(Self::Float),
                     "IntTensor" => Some(Self::Int),
                     "BoolTensor" => Some(Self::Bool),
+                    "QuantizedTensor" => Some(Self::Quantized),
 
                     // Associated primitive types
                     "FloatTensorPrimitive" => Some(Self::Float),
                     "IntTensorPrimitive" => Some(Self::Int),
                     "BoolTensorPrimitive" => Some(Self::Bool),
+                    "QuantizedTensorPrimitive" => Some(Self::Quantized),
 
                     _ => None,
                 }
@@ -239,6 +251,7 @@ impl TensorKind {
             Self::Float => quote! { burn::backend::tensor::FloatTensor<Self> },
             Self::Int => quote! { burn::backend::tensor::IntTensor<Self> },
             Self::Bool => quote! { burn::backend::tensor::BoolTensor<Self> },
+            Self::Quantized => quote! { burn::backend::tensor::QuantizedTensor<Self> },
         }
     }
 
@@ -247,6 +260,7 @@ impl TensorKind {
             Self::Float => format_ident!("Float"),
             Self::Int => format_ident!("Int"),
             Self::Bool => format_ident!("Bool"),
+            Self::Quantized => format_ident!("Quantized"),
         }
     }
 
@@ -452,19 +466,49 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         quote! { let checkpointing = None; }
     };
 
-    let concrete_arms = ir
-        .backends
-        .concrete
-        .iter()
-        .map(|b| gen_backend_arm(ir, op, b));
-    let ad_arm = if has_ad {
-        Some(gen_autodiff_arm(ir, op))
+    let body = if tensor_inputs.is_empty() {
+        // No tensor input to select the backend from (e.g. `fn load_data(i: usize) -> FloatTensor`).
+        // There is nothing to match on, so this is only well-defined for a single backend — the
+        // remote backend is the motivating case (`#[backend_extension(Remote)]`), where the op is
+        // shipped to the server. Dispatch directly to that backend; reject the ambiguous cases.
+        if has_ad {
+            quote! { compile_error!("A backend extension operation with no tensor inputs can't be combined with `Autodiff` — there is no input tensor to carry the autodiff graph.") }
+        } else if ir.backends.concrete.len() == 1 {
+            let backend = &ir.backends.concrete[0];
+            let call = gen_backend_call(ir, op, backend);
+            match &backend.cfg {
+                // Ungated backend: dispatch straight to it.
+                None => quote! { #ckp_logic #call },
+                // The single backend is `cfg`-gated. Mirror the match path: gate the call on the
+                // backend's cfg and fall back to `unimplemented!` when it's compiled out, so the
+                // method still has a valid body (instead of referencing a backend that doesn't
+                // exist). `ckp_logic` lives inside the gated arm so its `checkpointing` binding
+                // isn't left dangling (and untypeable) when the backend is compiled out.
+                Some(meta) => quote! {
+                    match () {
+                        #[#meta]
+                        () => { #ckp_logic #call }
+                        #[allow(unreachable_patterns)]
+                        _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
+                    }
+                },
+            }
+        } else {
+            quote! { compile_error!("A backend extension operation with no tensor inputs must list exactly one backend (e.g. `#[backend_extension(Remote)]`), since there is no input tensor to select the backend from.") }
+        }
     } else {
-        None
-    };
+        let concrete_arms = ir
+            .backends
+            .concrete
+            .iter()
+            .map(|b| gen_backend_arm(ir, op, b));
+        let ad_arm = if has_ad {
+            Some(gen_autodiff_arm(ir, op))
+        } else {
+            None
+        };
 
-    quote! {
-        #maybe_async fn #name(#(#sig_args),*) -> #ret_ty {
+        quote! {
             #ckp_logic
             match #match_inputs {
                 #( #concrete_arms )*
@@ -473,13 +517,17 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
                 _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
             }
         }
+    };
+
+    quote! {
+        #maybe_async fn #name(#(#sig_args),*) -> #ret_ty {
+            #body
+        }
     }
 }
 
 fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenStream2 {
     let b_ident = backend_to_ident(backend);
-    let trait_name = &ir.trait_name;
-    let fn_name = &op.name;
 
     // If any cfg(..) was specified to gate the backend
     let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
@@ -506,13 +554,32 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
         quote! { (#(#pats),*) }
     };
 
-    // Unwrap inner kind: lhs.float(), rhs.int(), etc.
-    let unwraps = tensor_args.iter().map(|(name, kind)| {
-        let method = kind.unwrap_method();
-        quote! { let #name = #name.#method(); }
+    let call = gen_backend_call(ir, op, backend);
+
+    quote! {
+        #cfg_attr
+        #pattern => { #call }
+    }
+}
+
+/// Generate the body that unwraps the dispatch tensors, calls the backend's trait impl and wraps the
+/// result back into a [`DispatchTensor`]. Shared by [`gen_backend_arm`] (inside a match) and the
+/// no-tensor-input dispatch path (direct call).
+fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenStream2 {
+    let b_ident = backend_to_ident(backend);
+    let trait_name = &ir.trait_name;
+    let fn_name = &op.name;
+
+    // Unwrap inner kind: lhs.float(), rhs.int(), etc. (no-op when there are no tensor inputs).
+    let unwraps = op.inputs.iter().filter_map(|a| match &a.kind {
+        ArgKind::Tensor(kind) => {
+            let name = &a.name;
+            let method = kind.unwrap_method();
+            Some(quote! { let #name = #name.#method(); })
+        }
+        _ => None,
     });
 
-    // Call the method and wrap the result
     let call_args = op.inputs.iter().map(|a| &a.name);
     let maybe_await = if op.asyncness {
         quote! { .await }
@@ -552,12 +619,9 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
     };
 
     quote! {
-        #cfg_attr
-        #pattern => {
-            #(#unwraps)*
-            let _out = <#b_ident as #trait_name>::#fn_name(#(#call_args),*)#maybe_await;
-            #wrap_out
-        }
+        #(#unwraps)*
+        let _out = <#b_ident as #trait_name>::#fn_name(#(#call_args),*)#maybe_await;
+        #wrap_out
     }
 }
 

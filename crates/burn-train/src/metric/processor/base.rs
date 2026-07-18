@@ -1,5 +1,5 @@
 use burn_core::data::dataloader::Progress;
-use burn_optim::LearningRate;
+use burn_optim::lr_scheduler::module_lr_scheduler::ModuleLearningRate;
 
 use crate::{
     LearnerSummary,
@@ -12,11 +12,18 @@ pub enum LearnerEvent<T> {
     Start {
         /// The total number of training epochs.
         total_epochs: usize,
+        /// The starting epoch.
+        starting_epoch: usize,
     },
     /// Signal that an item have been processed.
     ProcessedItem(TrainingItem<T>),
-    /// Signal the start of a split, carrying the total number of items in that split.
-    StartSplit(usize),
+    /// Signal the start of a split.
+    StartSplit {
+        /// The epoch number.
+        epoch_number: usize,
+        /// The total number of items to be processed during this split.
+        total_items: usize,
+    },
     /// Signal the end of a split, carrying the current epoch number.
     EndSplit(usize),
     /// Signal the end of a full epoch.
@@ -84,8 +91,8 @@ pub struct TrainingItem<T> {
     /// The iteration, if it it different from the items processed.
     pub iteration: Option<usize>,
 
-    /// The learning rate.
-    pub lr: Option<LearningRate>,
+    /// The learning rate for a module's parameters.
+    pub lr: Option<ModuleLearningRate>,
 }
 
 impl<T: ItemLazy> ItemLazy for TrainingItem<T> {

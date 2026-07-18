@@ -227,7 +227,7 @@ impl CheckpointerBuilder {
                         .iter()
                         .position(|action| action.id() == node_id);
                     self.backup_actions.remove(pos.unwrap_or_else(|| {
-                        panic!("Node {:?} is needed but never checkpointed", &node_id)
+                        panic!("Node {:?} is needed but never checkpointed", node_id)
                     }))
                 }
             };

@@ -120,6 +120,8 @@ impl BackendTypes for LibTorch {
     type BoolTensorPrimitive = TchTensor;
     type QuantizedTensorPrimitive = TchTensor;
     type ComplexTensorPrimitive = UnimplementedTensorPrimitive<TchTensor, LibTorchDevice>;
+
+    type GraphPrimitive = burn_backend::GraphUnsupported;
 }
 
 impl Backend for LibTorch {

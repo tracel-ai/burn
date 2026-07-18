@@ -114,9 +114,9 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
                 if let Some(logger) = &mut self.training_progress_logger {
-                    logger.start(0, Some(total_items));
+                    logger.start(0, 0, Some(total_items));
                 }
-                self.renderer.start(0, Some(total_items));
+                self.renderer.start(0, 0, Some(total_items));
             }
             RLEvent::TrainStep(item) => {
                 let item = item.sync();

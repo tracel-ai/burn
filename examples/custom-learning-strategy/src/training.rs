@@ -1,8 +1,7 @@
 use crate::model::ModelConfig;
 use burn::train::{
-    EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
-    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
-    TrainingModel, ValidLoader,
+    EventProcessorTraining, Learner, LearnerModel, SupervisedLearningStrategy, SupervisedTraining,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, ValidLoader,
 };
 use burn::{
     data::{
@@ -13,7 +12,6 @@ use burn::{
         composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
         linear::LinearLrSchedulerConfig,
     },
-    module::AutodiffModule,
     optim::AdamConfig,
     prelude::*,
     tensor::Device,
@@ -26,6 +24,7 @@ use burn::{
     },
 };
 use guide::data::MnistBatcher;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-custom-train-strategy";
@@ -47,8 +46,7 @@ pub struct MnistTrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -126,15 +124,15 @@ impl MyCustomLearningStrategy {
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLearningStrategy {
+impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy {
     fn fit(
         &self,
-        training_components: TrainingComponents<LC>,
-        mut learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
+        training_components: TrainingComponents<M>,
+        mut learner: Learner<M>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: ValidLoader<M>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (M, SupervisedTrainingEventProcessor<M>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let train_total_items = dataloader_train.num_items();
         let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
@@ -150,7 +148,10 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
             log::info!("Executing training step for epoch {}", epoch,);
 
             // Single device / dataloader
-            event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
+            event_processor.process_train(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: train_total_items,
+            });
             let mut iterator = dataloader_train.iter();
             let mut iteration = 0;
 
@@ -184,7 +185,10 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
 
             let model_valid = learner.model().valid();
 
-            event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
+            event_processor.process_valid(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: valid_total_items,
+            });
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
 
@@ -192,7 +196,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 let progress = iterator.progress();
                 iteration += 1;
 
-                let item = model_valid.step(item);
+                let item = InferenceStep::step(&model_valid, item);
                 let item = TrainingItem::new(item, progress, Some(iteration), None);
 
                 event_processor.process_valid(LearnerEvent::ProcessedItem(item));

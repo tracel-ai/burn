@@ -28,7 +28,7 @@ pub trait IrVisitorMut {
     fn visit_range_mut(&mut self, _range: &mut Slice) {}
 }
 
-/// Custom operation in fusion stream, declaring its inputs and outputs.
+/// Custom operation in fusion stream, declaring its inputs, outputs and scalar arguments.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct CustomOpIr {
     /// Unique identifier of the operation.
@@ -37,15 +37,38 @@ pub struct CustomOpIr {
     pub inputs: Vec<TensorIr>,
     /// Output tensors used in the custom operation.
     pub outputs: Vec<TensorIr>,
+    /// Non-tensor scalar arguments, in declaration order.
+    ///
+    /// Carried through fusion's relativization like any other scalar (see the
+    /// `RelativeOps for CustomOpIr` impl), so a cached graph replays with fresh scalar values. The
+    /// remote backend relies on these to ship a custom op's scalar arguments to the server, where
+    /// the registered handler reads them back with [`ScalarIr::elem`].
+    pub scalars: Vec<ScalarIr>,
 }
 
 impl CustomOpIr {
-    /// Create a new custom operation intermediate representation.
+    /// Create a new custom operation intermediate representation (without scalar arguments).
     pub fn new(id: &'static str, inputs: &[TensorIr], outputs: &[TensorIr]) -> Self {
         Self {
             id: id.to_owned(),
             inputs: inputs.to_vec(),
             outputs: outputs.to_vec(),
+            scalars: Vec::new(),
+        }
+    }
+
+    /// Create a new custom operation intermediate representation with scalar arguments.
+    pub fn with_scalars(
+        id: &'static str,
+        inputs: &[TensorIr],
+        outputs: &[TensorIr],
+        scalars: Vec<ScalarIr>,
+    ) -> Self {
+        Self {
+            id: id.to_owned(),
+            inputs: inputs.to_vec(),
+            outputs: outputs.to_vec(),
+            scalars,
         }
     }
 
@@ -77,6 +100,9 @@ impl CustomOpIr {
         }
         for t in self.outputs.iter_mut() {
             v.visit_tensor_mut(t);
+        }
+        for s in self.scalars.iter_mut() {
+            v.visit_scalar_mut(s);
         }
     }
 }

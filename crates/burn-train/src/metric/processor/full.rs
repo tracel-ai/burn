@@ -168,7 +168,10 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
 {
     fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
-            LearnerEvent::Start { total_epochs } => {
+            LearnerEvent::Start {
+                total_epochs,
+                starting_epoch,
+            } => {
                 self.total_epochs = total_epochs;
                 self.current_epoch = 1;
                 let definitions = self.metrics.metric_definitions();
@@ -180,14 +183,19 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start(total_epochs, None);
+                    logger.start(total_epochs, starting_epoch, None);
                 }
-                self.renderer.start(total_epochs, None);
+                self.renderer.start(total_epochs, starting_epoch, None);
             }
-            LearnerEvent::StartSplit(total_items) => {
-                self.renderer.start_split("train", total_items);
+            LearnerEvent::StartSplit {
+                epoch_number,
+                total_items,
+            } => {
+                self.store
+                    .add_event_train(crate::metric::store::Event::StartSplit(epoch_number));
+                self.renderer.start_split(Split::Train.into(), total_items);
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("train", total_items);
+                    logger.start_split(Split::Train.into(), total_items);
                 }
             }
             LearnerEvent::ProcessedItem(item) => {
@@ -195,7 +203,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     iteration: item.iteration,
-                    lr: item.lr,
+                    lr: item.lr.clone(),
                 };
 
                 let update = self.metrics.update_train(&item, &metadata);
@@ -257,18 +265,23 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
     fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
             LearnerEvent::Start { .. } => {} // no-op: valid has no separate start event
-            LearnerEvent::StartSplit(total_items) => {
+            LearnerEvent::StartSplit {
+                epoch_number,
+                total_items,
+            } => {
+                self.store
+                    .add_event_valid(crate::metric::store::Event::StartSplit(epoch_number));
                 if let Some(logger) = &mut self.progress_logger {
-                    logger.start_split("valid", total_items);
+                    logger.start_split(Split::Valid.into(), total_items);
                 }
-                self.renderer.start_split("valid", total_items);
+                self.renderer.start_split(Split::Valid.into(), total_items);
             }
             LearnerEvent::ProcessedItem(item) => {
                 let item = item.sync();
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     iteration: item.iteration,
-                    lr: item.lr,
+                    lr: item.lr.clone(),
                 };
 
                 let update = self.metrics.update_valid(&item, &metadata);
