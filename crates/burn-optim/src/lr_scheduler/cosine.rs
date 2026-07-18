@@ -6,12 +6,17 @@ use crate::RecordState;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
 
-/// The configuration for creating a [Cosine Annealing learning rate scheduler with warm
-/// restarts](CosineAnnealingLrScheduler).
+/// The configuration for creating a [Cosine Annealing learning rate
+/// scheduler](CosineAnnealingLrScheduler).
 ///
-/// This scheduler returns the learning rate `initial_lr` at the first step, then changes it by
-/// following a cosine function. After `num_iters` iterations, the learning rate is reset to
-/// `initial_lr`.
+/// This scheduler uses a cosine annealing schedule without warm restarts,
+/// where the learning rate follows a cosine curve from `initial_lr` down to
+/// `min_lr` over `num_iters` steps. After `num_iters` steps, the learning rate
+/// continues along the cosine curve without restarting.
+///
+/// This corresponds to PyTorch's `CosineAnnealingLR` and is based on the
+/// closed-form schedule proposed in [SGDR: Stochastic Gradient Descent with Warm
+/// Restarts](https://arxiv.org/abs/1608.03983).
 #[derive(Config, Debug)]
 pub struct CosineAnnealingLrSchedulerConfig {
     // The initial learning rate.
@@ -19,8 +24,7 @@ pub struct CosineAnnealingLrSchedulerConfig {
     // The final learning rate.
     #[config(default = 0.0)]
     min_lr: LearningRate,
-    // The number of iterations between two restarts. The two restart iterations themselves are not
-    // included.
+    // The number of iterations for the learning rate to reach `min_lr` along the cosine curve.
     num_iters: usize,
 }
 
