@@ -67,11 +67,15 @@ impl CosineAnnealingLrSchedulerConfig {
     }
 }
 
-/// A Cosine Annealing learning rate scheduler.
+/// A Cosine Annealing learning rate scheduler without warm restarts.
 ///
-/// This scheduler is described in [SGDR: Stochastic Gradient Descent with Warm
-/// Restarts](https://arxiv.org/abs/1608.03983). See [CosineAnnealingLrSchedulerConfig] for more
-/// information.
+/// The learning rate follows the closed-form schedule proposed in
+/// [SGDR: Stochastic Gradient Descent with Warm
+/// Restarts](https://arxiv.org/abs/1608.03983), but without the periodic
+/// restarts. The iteration counter increases monotonically, so the learning
+/// rate continues along the cosine curve past `num_iters` without resetting.
+///
+/// See [CosineAnnealingLrSchedulerConfig] for configuration options.
 #[derive(Clone, Copy, Debug)]
 pub struct CosineAnnealingLrScheduler {
     min_lr: LearningRate,
