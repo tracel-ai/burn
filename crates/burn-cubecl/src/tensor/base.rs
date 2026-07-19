@@ -115,6 +115,10 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     fn device(&self) -> Self::Device {
         self.device.clone()
     }
+
+    fn can_mut(&self) -> bool {
+        self.handle.can_mut()
+    }
 }
 
 impl<R> CubeTensor<R>

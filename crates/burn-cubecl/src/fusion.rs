@@ -165,6 +165,19 @@ impl<R: CubeRuntime> FusionBackend for CubeBackend<R> {
     fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle {
         kernel::cast(tensor, dtype).into()
     }
+
+    fn memory_persistent(device: &Self::Device, enabled: bool) {
+        use cubecl::MemoryAllocationMode;
+
+        let client = R::client(device);
+        let mode = match enabled {
+            true => MemoryAllocationMode::Persistent,
+            false => MemoryAllocationMode::Auto,
+        };
+        // Safety: called from the fusion execution thread, whose stream is the
+        // one every fused operation allocates on.
+        unsafe { client.allocation_mode(mode) };
+    }
 }
 
 fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> CubeTensor<R> {

@@ -40,6 +40,12 @@ impl<B: BackendTypes> TensorMetadata for AutodiffTensor<B> {
     fn device(&self) -> B::Device {
         self.primitive.device()
     }
+
+    fn can_mut(&self) -> bool {
+        // Precise: the inner handle's buffer refcount already accounts for any
+        // clone the autodiff graph retains (e.g. checkpointed states).
+        self.primitive.can_mut()
+    }
 }
 
 pub type NodeRefCount = Arc<NodeId>;

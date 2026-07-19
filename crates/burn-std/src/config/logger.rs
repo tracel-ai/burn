@@ -93,17 +93,17 @@ impl Logger {
 
     /// Writes `msg` to all configured fusion sinks.
     pub fn log_fusion<S: Display>(&mut self, msg: &S) {
-        self.sinks.log(&self.fusion_index, msg);
+        self.sinks.log(&self.fusion_index, "burn::fusion", msg);
     }
 
     /// Writes `msg` to all configured autodiff sinks.
     pub fn log_autodiff<S: Display>(&mut self, msg: &S) {
-        self.sinks.log(&self.autodiff_index, msg);
+        self.sinks.log(&self.autodiff_index, "burn::autodiff", msg);
     }
 
     /// Writes `msg` to all configured remote-backend sinks.
     pub fn log_remote<S: Display>(&mut self, msg: &S) {
-        self.sinks.log(&self.remote_index, msg);
+        self.sinks.log(&self.remote_index, "burn::remote", msg);
     }
 
     /// Returns the current fusion log level.

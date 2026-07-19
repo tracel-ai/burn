@@ -33,13 +33,15 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 RegisterTensor::Normal(tensor_relative, precision) => {
                     let mut tensor_global =
                         context.tensors.get(&tensor_relative.id).unwrap().clone();
+                    // Fetching with the real status pops consumed (`ReadWrite`) tensors
+                    // out of the container so that `can_mut()` sees the true reference
+                    // count (memory pool + this handle). Fetching `ReadOnly` and keeping
+                    // a clone in the container during planning made `can_mut()` always
+                    // false, disabling every in-place alias. On execution failure the
+                    // handle is restored by [FuseTraceLauncher::rollback](super::base).
                     let handle = context
                         .handles
-                        .get_handle(&tensor_global.id, &TensorStatus::ReadOnly);
-
-                    if let TensorStatus::ReadWrite = tensor_relative.status {
-                        plan.cleared.push(tensor_global.id);
-                    }
+                        .get_handle(&tensor_global.id, &tensor_relative.status);
 
                     let mut new_strides = handle.strides.clone();
 
@@ -169,6 +171,9 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
             let block_plan = &mut plan.blocks[idx];
             if tensor_relative.status == TensorStatus::ReadWrite {
+                // TODO: Autotune trials run on forked contexts whose extra handle clone
+                // makes `can_mut()` false, so trials never alias: the tuner measures the
+                // non-aliased kernel while the winner then executes the aliased one.
                 if self.blocks[idx].settings.inplace && handle.handle.can_mut() {
                     block_plan.potential_inplaces.push(PotentialInplace {
                         input_pos: pos,

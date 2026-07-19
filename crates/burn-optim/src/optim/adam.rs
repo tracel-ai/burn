@@ -92,7 +92,7 @@ impl Optimizer for Adam {
 
 impl AdamConfig {
     /// Build an [`Adam`] from the config.
-    pub fn build(&self) -> Adam {
+    pub(crate) fn build(&self) -> Adam {
         Adam {
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
@@ -244,7 +244,7 @@ mod tests {
         let mut optimizer = create_adam();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let _linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let bytes = optimizer.into_bytes().unwrap();
         assert!(!bytes.is_empty());
@@ -277,7 +277,7 @@ mod tests {
                 .require_grad();
             let grads = linear.forward(x).backward();
             let grads = GradientsParams::from_grads(grads, &linear);
-            linear = optimizer.step(LEARNING_RATE, linear, grads);
+            linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
         }
 
         // Round-trip the optimizer state through the burnpack format. No device is needed on load:
@@ -297,8 +297,8 @@ mod tests {
             GradientsParams::from_grads(linear.forward(x.clone()).backward(), &linear);
         let grads_reloaded = GradientsParams::from_grads(linear.forward(x).backward(), &linear);
 
-        let from_original = optimizer.step(LEARNING_RATE, linear.clone(), grads_original);
-        let from_reloaded = reloaded.step(LEARNING_RATE, linear, grads_reloaded);
+        let from_original = optimizer.step(LEARNING_RATE.into(), linear.clone(), grads_original);
+        let from_reloaded = reloaded.step(LEARNING_RATE.into(), linear, grads_reloaded);
 
         let weight_original = from_original.weight.to_data();
         let weight_reloaded = from_reloaded.weight.to_data();
@@ -336,7 +336,7 @@ mod tests {
 
             let grads = linear.forward(x).backward();
             let grads = GradientsParams::from_grads(grads, &linear);
-            linear = optimizer.step(LEARNING_RATE, linear, grads);
+            linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
         }
 
         let state_updated = linear;
@@ -447,11 +447,11 @@ mod tests {
 
         let grads = linear.forward(x_1).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x_2).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let state_updated = linear;
         let weights_expected = TensorData::from([
@@ -518,11 +518,11 @@ mod tests {
 
         let grads = linear.forward(x.clone()).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(LEARNING_RATE, linear, grads);
+        let linear = optimizer.step(LEARNING_RATE.into(), linear, grads);
 
         let state_updated = linear;
         assert!(!state_updated.weight.to_data().as_slice::<f32>().unwrap()[0].is_nan());

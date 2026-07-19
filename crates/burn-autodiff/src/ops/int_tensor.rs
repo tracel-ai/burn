@@ -6,7 +6,7 @@ use burn_backend::{
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-use burn_std::{BoolDType, FloatDType, IntDType, Shape};
+use burn_std::{BoolDType, FloatDType, IndexingUpdateOp, IntDType, Shape};
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<B> {
@@ -221,6 +221,15 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         value: IntTensor<B>,
     ) -> IntTensor<B> {
         B::int_scatter_add(dim, tensor, indices, value)
+    }
+
+    fn int_scatter_nd(
+        data: IntTensor<B>,
+        indices: IntTensor<B>,
+        values: IntTensor<B>,
+        reduction: IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        B::int_scatter_nd(data, indices, values, reduction)
     }
 
     fn int_select(tensor: IntTensor<B>, dim: usize, indices: IntTensor<B>) -> IntTensor<B> {

@@ -1584,6 +1584,9 @@ fn arg<E: NdArrayElement + PartialOrd, I: NdArrayElement + PartialOrd>(
 }
 
 /// View-based argmax/argmin - zero-copy for borrowed storage.
+///
+/// NaN propagation: if the current element is NaN, it is always selected (NaN
+/// propagates, matching PyTorch / NumPy / JAX / TensorFlow semantics).
 fn arg_view<E: NdArrayElement + PartialOrd, I: NdArrayElement + PartialOrd>(
     view: ArrayView<'_, E, IxDyn>,
     dim: usize,
@@ -1594,11 +1597,22 @@ fn arg_view<E: NdArrayElement + PartialOrd, I: NdArrayElement + PartialOrd>(
 
     let output = view.map_axis(Axis(dim), |arr| {
         // Find the min/max value in the array, and return its index.
+        // NaN propagation: NaN is always selected over non-NaN values,
+        // and the first NaN encountered wins (stable).
         let (_e, idx) = arr.indexed_iter().fold((arr[0], 0usize), |acc, (idx, e)| {
-            let cmp = match cmp {
-                CmpType::Min => e < &acc.0,
-                CmpType::Max => e > &acc.0,
-            };
+            // Use partial_cmp to detect NaN: partial_cmp returns None iff either
+            // operand is NaN (for IEEE 754 float types).
+            let is_acc_nan = acc.0.partial_cmp(&acc.0).is_none();
+            let is_e_nan = e.partial_cmp(e).is_none();
+
+            // Select e when:
+            // - acc is not NaN AND (e is NaN OR normal comparison holds)
+            let cmp = !is_acc_nan
+                && (is_e_nan
+                    || match cmp {
+                        CmpType::Min => e < &acc.0,
+                        CmpType::Max => e > &acc.0,
+                    });
 
             if cmp { (*e, idx) } else { acc }
         });

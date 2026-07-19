@@ -145,19 +145,12 @@ impl QuantizedBytes {
         let i8s: Vec<i8> = bytemuck::allocation::cast_vec(value);
         let mut bytes = Bytes::from_elems(i8s);
 
-        match scheme.level {
-            QuantLevel::Tensor => {
-                let scale_bytes = bytemuck::bytes_of(&scales[0]);
-                bytes.extend_from_byte_slice_aligned(scale_bytes, QPARAM_ALIGN);
-            }
-            QuantLevel::Block(_block_size) => {
-                let mut scale_bytes = Vec::with_capacity(size_of_val(scales));
-                for scale in scales {
-                    scale_bytes.extend_from_slice(bytemuck::bytes_of(scale));
-                }
-                bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
-            }
-        }
+        let scales = match scheme.level {
+            QuantLevel::Tensor => &scales[..1],
+            QuantLevel::Block(_block_size) => scales,
+        };
+        let scale_bytes = encode_scales(scales, scheme.param);
+        bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
 
         Self {
             bytes,
@@ -168,62 +161,39 @@ impl QuantizedBytes {
 
     /// Returns the int8 quantized values with the quantization parameters.
     pub fn into_vec_i8(self) -> (Vec<i8>, QParams<Vec<f32>>) {
+        let param = self.scheme.param;
         let (values, (qparams, num_params)) = self.split_values_off();
 
         // Quantization parameters are added at the end of the tensor data.
-        // As such, the last bytes always correspond to the scale parameter(s).
-        // For example, per-block quantization can have multiple parameters for a single tensor:
+        // As such, the last bytes always correspond to the scale parameter(s),
+        // stored at the scheme's param dtype. For example, per-block
+        // quantization can have multiple parameters for a single tensor:
         // [scale, scale, scale, ...]
-        let scale_size = core::mem::size_of::<f32>(); // scale is stored as f32
-        let qparams_bytes: &[u8] = bytemuck::cast_slice(&qparams);
-        let total_bytes = qparams_bytes.len();
-
-        let scales_size = scale_size * num_params;
-
-        let scales = bytemuck::cast_slice(&qparams_bytes[total_bytes - scales_size..]).to_vec();
+        let scales_size = scale_size(param) * num_params;
+        let scales = decode_scales(&qparams[qparams.len() - scales_size..], param);
 
         (values, QParams { scales })
     }
 
-    fn split_i8_values(self, num_params: usize) -> (Vec<i8>, Vec<u32>) {
+    fn split_i8_values(self, scale_bytes: usize) -> (Vec<i8>, Vec<u8>) {
         let mut values = read_bytes_to_i8(self.bytes);
 
-        let scale_size = num_params * size_of::<f32>();
-        let values_end = values.len() - scale_size;
-
+        let values_end = values.len() - scale_bytes;
         let qparams = values.split_off(values_end);
 
-        let qparams = if (qparams.as_ptr() as usize).is_multiple_of(4) {
-            let mut qparams = core::mem::ManuallyDrop::new(qparams);
-            unsafe {
-                Vec::<u32>::from_raw_parts(
-                    qparams.as_mut_ptr() as _,
-                    qparams.len() / 4,
-                    qparams.capacity() / 4,
-                )
-            }
-        } else {
-            #[cfg(target_endian = "little")]
-            {
-                // SAFETY: quantized bytes representation is created from packed u32 values in little endian
-                bytemuck::cast_vec(qparams)
-            }
-            #[cfg(target_endian = "big")]
-            {
-                crate::quantization::pack_i8s_to_u32s(bytemuck::cast_vec(qparams))
-            }
-        };
-        (values, qparams)
+        (values, bytemuck::cast_vec(qparams))
     }
 
     /// Splits the quantized values of the tensor from the quantization parameters.
     ///
-    /// Returns the values in i8 and a newly allocated vector containing the quantization parameters.
-    fn split_values_off(self) -> (Vec<i8>, (Vec<u32>, usize)) {
+    /// Returns the values in i8 and a newly allocated vector containing the
+    /// quantization parameter bytes.
+    fn split_values_off(self) -> (Vec<i8>, (Vec<u8>, usize)) {
         let num_params = match self.scheme.level {
             QuantLevel::Tensor => 1,
             QuantLevel::Block(block_size) => self.num_elements / block_size.num_elements(),
         };
+        let scale_bytes = scale_size(self.scheme.param) * num_params;
 
         if let QuantStore::PackedU32(packed_dim) = self.scheme.store {
             assert_eq!(
@@ -233,17 +203,15 @@ impl QuantizedBytes {
         }
 
         let (values, qparams) = match self.scheme.store {
-            QuantStore::Native => self.split_i8_values(num_params),
+            QuantStore::Native => self.split_i8_values(scale_bytes),
             QuantStore::PackedU32(_) => match self.scheme.value {
-                QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(num_params),
+                QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(scale_bytes),
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
-                    let mut values = bytemuck::cast_slice::<_, u32>(&self.bytes).to_vec();
-                    let scale_size = num_params; // size of f32 same as u32
-                    let values_end = values.len() - scale_size;
-
-                    let qparams = values.split_off(values_end);
+                    let split_at = self.bytes.len() - scale_bytes;
+                    let qparams = self.bytes[split_at..].to_vec();
+                    let values = bytemuck::cast_slice::<_, u32>(&self.bytes[..split_at]);
                     // Sub-byte values are unpacked as i8s for value equality tests
-                    let values = unpack_q_to_i8s(&values, self.num_elements, &self.scheme.value);
+                    let values = unpack_q_to_i8s(values, self.num_elements, &self.scheme.value);
                     (values, qparams)
                 }
                 QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
@@ -254,6 +222,50 @@ impl QuantizedBytes {
         };
 
         (values, (qparams, num_params))
+    }
+}
+
+/// Bytes per stored scale entry for the given param dtype.
+fn scale_size(param: QuantParam) -> usize {
+    match param {
+        QuantParam::F32 => 4,
+        QuantParam::F16 | QuantParam::BF16 => 2,
+        QuantParam::UE8M0 | QuantParam::UE4M3 => 1,
+    }
+}
+
+/// Decode stored scale entries into f32.
+fn decode_scales(bytes: &[u8], param: QuantParam) -> Vec<f32> {
+    match param {
+        QuantParam::F32 => bytes
+            .chunks_exact(4)
+            .map(|c| f32::from_ne_bytes([c[0], c[1], c[2], c[3]]))
+            .collect(),
+        QuantParam::F16 => bytes
+            .chunks_exact(2)
+            .map(|c| crate::f16::from_ne_bytes([c[0], c[1]]).to_f32())
+            .collect(),
+        QuantParam::BF16 => bytes
+            .chunks_exact(2)
+            .map(|c| crate::bf16::from_ne_bytes([c[0], c[1]]).to_f32())
+            .collect(),
+        QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
+    }
+}
+
+/// Encode f32 scales at the param dtype for serialization.
+fn encode_scales(scales: &[f32], param: QuantParam) -> Vec<u8> {
+    match param {
+        QuantParam::F32 => scales.iter().flat_map(|s| s.to_ne_bytes()).collect(),
+        QuantParam::F16 => scales
+            .iter()
+            .flat_map(|s| crate::f16::from_f32(*s).to_ne_bytes())
+            .collect(),
+        QuantParam::BF16 => scales
+            .iter()
+            .flat_map(|s| crate::bf16::from_f32(*s).to_ne_bytes())
+            .collect(),
+        QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
     }
 }
 

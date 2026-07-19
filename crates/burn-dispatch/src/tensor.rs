@@ -163,6 +163,17 @@ impl<B: BackendTypes> TensorMetadata for BackendTensor<B> {
             BackendTensor::Autodiff(tensor) => tensor.shape(),
         }
     }
+
+    fn can_mut(&self) -> bool {
+        match self {
+            BackendTensor::Float(tensor) => tensor.can_mut(),
+            BackendTensor::Int(tensor) => tensor.can_mut(),
+            BackendTensor::Bool(tensor) => tensor.can_mut(),
+            BackendTensor::Quantized(tensor) => tensor.can_mut(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(tensor) => tensor.can_mut(),
+        }
+    }
 }
 
 /// A tensor that can dispatch operations to any enabled backend at runtime.
@@ -331,6 +342,35 @@ impl TensorMetadata for DispatchTensorKind {
             DispatchTensorKind::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
     }
+
+    fn can_mut(&self) -> bool {
+        match self {
+            #[cfg(feature = "cpu")]
+            Self::Cpu(tensor) => tensor.can_mut(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(tensor) => tensor.can_mut(),
+            #[cfg(feature = "metal")]
+            Self::Metal(tensor) => tensor.can_mut(),
+            #[cfg(feature = "rocm")]
+            Self::Rocm(tensor) => tensor.can_mut(),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(tensor) => tensor.can_mut(),
+            #[cfg(feature = "wgpu")]
+            Self::Wgpu(tensor) => tensor.can_mut(),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(tensor) => tensor.can_mut(),
+            #[cfg(any(feature = "flex", default_backend))]
+            Self::Flex(tensor) => tensor.can_mut(),
+            #[cfg(feature = "ndarray")]
+            Self::NdArray(tensor) => tensor.can_mut(),
+            #[cfg(feature = "tch")]
+            Self::LibTorch(tensor) => tensor.can_mut(),
+            #[cfg(feature = "remote")]
+            Self::Remote(tensor) => tensor.can_mut(),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(tensor) => tensor.can_mut(),
+        }
+    }
 }
 
 impl TensorMetadata for DispatchTensor {
@@ -340,6 +380,10 @@ impl TensorMetadata for DispatchTensor {
 
     fn shape(&self) -> Shape {
         self.kind.shape()
+    }
+
+    fn can_mut(&self) -> bool {
+        self.kind.can_mut()
     }
 
     type Device = DispatchDevice;

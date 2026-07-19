@@ -142,7 +142,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
             // Gradients linked to each parameter of the discriminator
             let grads = GradientsParams::from_grads(grads, &discriminator);
             // Update the discriminator using the optimizer
-            discriminator = optimizer_d.step(config.lr, discriminator, grads);
+            discriminator = optimizer_d.step(config.lr.into(), discriminator, grads);
             // Clip parameters (weights) of discriminator
             discriminator = discriminator.map(&mut clip);
 
@@ -161,7 +161,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
 
                 let grads = loss_g.backward();
                 let grads = GradientsParams::from_grads(grads, &generator);
-                generator = optimizer_g.step(config.lr, generator, grads);
+                generator = optimizer_g.step(config.lr.into(), generator, grads);
 
                 // Print the progression
                 let batch_num = (dataloader_train.num_items() as f32 / config.batch_size as f32)

@@ -4,9 +4,8 @@ use std::sync::{Arc, Mutex};
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, Learner, LearningComponentsTypes,
-    SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
-    TrainingModel, ValidLoader,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearnerModel, SupervisedLearningStrategy,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::tensor::Device;
@@ -50,18 +49,15 @@ impl DdpTrainingStrategy {
     }
 }
 
-impl<LC> SupervisedLearningStrategy<LC> for DdpTrainingStrategy
-where
-    LC: LearningComponentsTypes + Send + 'static,
-{
+impl<M: LearnerModel> SupervisedLearningStrategy<M> for DdpTrainingStrategy {
     fn fit(
         &self,
-        training_components: TrainingComponents<LC>,
-        learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
+        training_components: TrainingComponents<M>,
+        learner: Learner<M>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: ValidLoader<M>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (M, SupervisedTrainingEventProcessor<M>) {
         // The reference model is always on the first device provided.
         let main_device = self.devices.first().unwrap();
         let train_total_items = dataloader_train.num_items();
@@ -89,7 +85,7 @@ where
 
         // Start worker for main device
         // First training dataloader corresponds to main device
-        let main_handle = DdpWorker::<LC>::start(
+        let main_handle = DdpWorker::<M>::start(
             main_device.clone(),
             learner.clone(),
             event_processor.clone(),
@@ -105,7 +101,7 @@ where
         // Spawn other workers for the other devices, starting with peer id 1
         let mut secondary_workers = vec![];
         for device in &self.devices[1..] {
-            let handle = DdpWorker::<LC>::start(
+            let handle = DdpWorker::<M>::start(
                 device.clone(),
                 learner.clone(),
                 event_processor.clone(),

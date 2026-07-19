@@ -1,9 +1,9 @@
-use super::{Param, ParamId, Parameter};
+use super::{LoraAdapter, Param, ParamId, Parameter};
 use crate::module::{
     AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
     ModuleVisitor,
 };
-use alloc::{format, string::ToString, vec::Vec};
+use alloc::{boxed::Box, format, string::ToString, vec::Vec};
 use burn_tensor::{Bool, Device, Float, Int, Tensor, TensorData};
 
 impl<const D: usize> super::sealed::Sealed for Tensor<D, Float> {}
@@ -33,6 +33,13 @@ impl<const D: usize> Parameter for Tensor<D, Float> {
         } else {
             self
         }
+    }
+
+    fn compose_lora(self, adapter: &LoraAdapter) -> Self {
+        // `delta` has shape `[d_in, d_out]` (rank 2); the base weight is rank `D == 2` when an
+        // adapter is attached, so the reshape is an identity that only adjusts the static rank.
+        let delta = adapter.delta().reshape(Tensor::shape(&self));
+        self.add(delta)
     }
 }
 
@@ -117,21 +124,74 @@ impl<const D: usize> Param<Tensor<D>> {
     }
 }
 
+/// Visit the trainable factors of a LoRA [adapter](LoraAdapter) as nested parameters, so the
+/// record/optimizer traversal sees them at stable paths (e.g. `weight.lora.a`, `weight.lora.b`).
+fn visit_adapter<V: ModuleVisitor>(adapter: &LoraAdapter, visitor: &mut V) {
+    visitor.enter_module("lora", "Struct:LoraAdapter");
+    visitor.enter_module("a", "Struct:LoraAdapter");
+    Module::visit(&adapter.a, visitor);
+    visitor.exit_module("a", "Struct:LoraAdapter");
+    visitor.enter_module("b", "Struct:LoraAdapter");
+    Module::visit(&adapter.b, visitor);
+    visitor.exit_module("b", "Struct:LoraAdapter");
+    visitor.exit_module("lora", "Struct:LoraAdapter");
+}
+
+/// Map the trainable factors of a LoRA [adapter](LoraAdapter), mirroring [`visit_adapter`] so the
+/// optimizer/record mapper resolves the same paths.
+fn map_adapter<M: ModuleMapper>(adapter: LoraAdapter, mapper: &mut M) -> LoraAdapter {
+    let LoraAdapter { a, b, scale } = adapter;
+    mapper.enter_module("lora", "Struct:LoraAdapter");
+    mapper.enter_module("a", "Struct:LoraAdapter");
+    let a = Module::map(a, mapper);
+    mapper.exit_module("a", "Struct:LoraAdapter");
+    mapper.enter_module("b", "Struct:LoraAdapter");
+    let b = Module::map(b, mapper);
+    mapper.exit_module("b", "Struct:LoraAdapter");
+    mapper.exit_module("lora", "Struct:LoraAdapter");
+    LoraAdapter { a, b, scale }
+}
+
 impl<const D: usize> Module for Param<Tensor<D>> {
     fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
-        visitor.visit_float(self)
+        match self.adapter() {
+            None => visitor.visit_float(self),
+            Some(adapter) => {
+                // Visit the frozen base, then the trainable adapter factors as separate leaves.
+                visitor.visit_float(&self.without_adapter());
+                visit_adapter(adapter, visitor);
+            }
+        }
     }
 
-    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
-        mapper.map_float(self)
+    fn map<M: ModuleMapper>(mut self, mapper: &mut M) -> Self {
+        match self.adapter.take() {
+            None => mapper.map_float(self),
+            Some(adapter) => {
+                // `self` no longer carries the adapter, so the mapper operates on the raw base.
+                let base = mapper.map_float(self);
+                let adapter = map_adapter(*adapter, mapper);
+                base.with_adapter(Some(Box::new(adapter)))
+            }
+        }
     }
 
-    fn to_device(self, device: &Device) -> Self {
-        self.map(|tensor| tensor.to_device(device))
+    fn to_device(mut self, device: &Device) -> Self {
+        let adapter = self.adapter.take();
+        let base = self.map(|tensor| tensor.to_device(device));
+        match adapter {
+            None => base,
+            Some(adapter) => base.with_adapter(Some(Box::new(LoraAdapter {
+                a: Module::to_device(adapter.a, device),
+                b: Module::to_device(adapter.b, device),
+                scale: adapter.scale,
+            }))),
+        }
     }
 
-    fn fork(self, device: &Device) -> Self {
-        self.map(|tensor| {
+    fn fork(mut self, device: &Device) -> Self {
+        let adapter = self.adapter.take();
+        let base = self.map(|tensor| {
             let is_require_grad = tensor.is_require_grad();
             let mut tensor = tensor.to_device(device).detach();
 
@@ -140,14 +200,27 @@ impl<const D: usize> Module for Param<Tensor<D>> {
             }
 
             tensor
-        })
+        });
+        match adapter {
+            None => base,
+            Some(adapter) => base.with_adapter(Some(Box::new(LoraAdapter {
+                a: Module::fork(adapter.a, device),
+                b: Module::fork(adapter.b, device),
+                scale: adapter.scale,
+            }))),
+        }
     }
 
     fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
-        let device = self.val().device();
+        let device = self.base().device();
 
         if !devices.contains(&device) {
             devices.push(device)
+        }
+
+        if let Some(adapter) = self.adapter() {
+            devices = Module::collect_devices(&adapter.a, devices);
+            devices = Module::collect_devices(&adapter.b, devices);
         }
 
         devices
@@ -262,17 +335,30 @@ impl<const D: usize> ModuleDisplay for Param<Tensor<D, Bool>> {}
 
 impl<const D: usize> AutodiffModule for Param<Tensor<D>> {
     fn valid(&self) -> Self {
-        // Preserve initialized param `require_grad` state, but reset the inner value's
+        // Preserve initialized param `require_grad` state, but reset the inner value's.
+        // When a LoRA adapter is attached, `val()` folds it into the base for inference, so the
+        // resulting inference parameter is a plain (adapter-free) composed weight.
         let require_grad = self.require_grad;
         let mut param = Param::initialized(self.id, self.val().inner().set_require_grad(false));
         param.require_grad = require_grad;
         param
     }
 
-    fn from_inner(module: Self) -> Self {
+    fn from_inner(mut module: Self) -> Self {
+        // Keep the adapter structure (and its trainable factors) when moving onto the autodiff
+        // backend, so the adapter remains trainable after `train()`.
+        let adapter = module.adapter.take();
         // Reinstate the param's `require_grad` state
         let tensor = Tensor::from_inner(module.val()).set_require_grad(module.require_grad);
-        Param::initialized(module.id, tensor)
+        let base = Param::initialized(module.id, tensor);
+        match adapter {
+            None => base,
+            Some(adapter) => base.with_adapter(Some(Box::new(LoraAdapter {
+                a: AutodiffModule::from_inner(adapter.a),
+                b: AutodiffModule::from_inner(adapter.b),
+                scale: adapter.scale,
+            }))),
+        }
     }
 }
 

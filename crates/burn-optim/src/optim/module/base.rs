@@ -45,7 +45,7 @@ pub trait Optimizer: Send + Sync + Clone + 'static {
 /// when the state is later interpreted by the originating [`Optimizer`] (during a step, a device
 /// transfer or serialization).
 #[derive(Clone)]
-pub(crate) struct DynState {
+pub struct DynState {
     state: Arc<dyn Any + Send + Sync>,
     rank: usize,
 }
@@ -130,7 +130,7 @@ macro_rules! dispatch_rank {
 
 /// Object-safe view over an [`Optimizer`], allowing [`ModuleOptimizer`](crate::optim::ModuleOptimizer)
 /// to stay non-generic. Rank-generic operations are dispatched on a runtime rank.
-pub(crate) trait DynOptimizer: Send + Sync {
+pub trait DynOptimizer: Send + Sync {
     /// Perform an optimizer step for a single parameter of the given `rank`.
     fn step_dyn(
         &self,

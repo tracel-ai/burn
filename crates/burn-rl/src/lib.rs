@@ -108,14 +108,14 @@ pub(crate) mod tests {
 
     #[derive(Clone)]
     pub(crate) struct MockRecord {
-        item: usize,
+        _item: usize,
     }
 
     impl PolicyState for MockPolicyState {
         type Record = MockRecord;
 
         fn into_record(self) -> Self::Record {
-            MockRecord { item: 0 }
+            MockRecord { _item: 0 }
         }
 
         fn load_record(&self, _record: Self::Record) -> Self {

@@ -14,6 +14,30 @@ pub fn relu<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
     tensor.relu()
 }
 
+/// Applies the HardTanh function element-wise, clamping each element to the
+/// range `[min_val, max_val]` (a cheap, piecewise-linear approximation of tanh).
+///
+#[cfg_attr(not(doc), doc = "`HardTanh(x) = max(min_val, min(max_val, x))`")]
+pub fn hardtanh<const D: usize>(tensor: Tensor<D>, min_val: f64, max_val: f64) -> Tensor<D> {
+    tensor.clamp(min_val, max_val)
+}
+
+/// Applies the Tanhshrink function element-wise, `x - tanh(x)`.
+///
+#[cfg_attr(not(doc), doc = "`Tanhshrink(x) = x - tanh(x)`")]
+pub fn tanhshrink<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
+    tensor.clone().sub(tensor.tanh())
+}
+
+/// Applies the ReLU6 function element-wise, the rectified linear unit clamped to
+/// the range `[0, 6]` (as used in [MobileNetV2](https://arxiv.org/abs/1801.04381)).
+///
+#[cfg_attr(doc, doc = "$$\\text{ReLU6}\\(x\\) = \\min\\(\\max\\(0, x\\), 6\\)$$")]
+#[cfg_attr(not(doc), doc = "`ReLU6(x) = min(max(0, x), 6)`")]
+pub fn relu6<const D: usize>(tensor: Tensor<D>) -> Tensor<D> {
+    tensor.clamp(0.0, 6.0)
+}
+
 /// Applies the leaky rectified linear unit function element-wise.
 ///
 #[cfg_attr(
@@ -487,6 +511,23 @@ $$
 pub fn thresholded_relu<const D: usize>(tensor: Tensor<D>, alpha: f64) -> Tensor<D> {
     let mask = tensor.clone().lower_equal_elem(alpha);
     tensor.mask_fill(mask, 0)
+}
+
+/// Applies the Threshold function element-wise, generalising `thresholded_relu`
+/// (which fixes `value = 0`): returns `x` where `x > threshold`, and `value`
+/// otherwise.
+///
+#[cfg_attr(
+    not(doc),
+    doc = "`f(x) =`\n- `x if x > threshold`\n- `value otherwise`"
+)]
+///
+/// # Arguments
+/// - `threshold`: the value to threshold at.
+/// - `value`: the value to replace with where `x <= threshold`.
+pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) -> Tensor<D> {
+    let mask = tensor.clone().lower_equal_elem(threshold);
+    tensor.mask_fill(mask, value)
 }
 
 /// Applies the gated linear unit function.

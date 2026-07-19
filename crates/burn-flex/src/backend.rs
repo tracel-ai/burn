@@ -116,6 +116,8 @@ impl BackendTypes for Flex {
     type IntTensorPrimitive = FlexTensor;
     type BoolTensorPrimitive = FlexTensor;
     type QuantizedTensorPrimitive = FlexQTensor;
+
+    type GraphPrimitive = burn_backend::GraphUnsupported;
 }
 
 impl Backend for Flex {

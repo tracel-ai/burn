@@ -1435,7 +1435,16 @@ pub trait FloatTensorOps<B: Backend> {
         dim: usize,
         k: usize,
         out_dtype: IntDType,
-    ) -> IntTensor<B>;
+    ) -> IntTensor<B> {
+        let device = tensor.device();
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = B::int_arange(0..k as i64, &device, dtype);
+        B::int_select(
+            Self::float_argsort(tensor, dim, true, out_dtype),
+            dim,
+            k_indices,
+        )
+    }
 
     /// Gets the values of the k maximum elements of a tensor along an axis.
     ///

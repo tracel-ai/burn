@@ -165,7 +165,7 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Sign => {
                     let zero = Vector::zero();
                     let one = Vector::one();
-                    let minus_one = Vector::new(F::new(-1.0));
+                    let minus_one = Vector::new(F::new(-1.0_f32));
 
                     let is_positive = input.greater_than(&zero);
                     let is_negative = input.less_than(&zero);

@@ -203,6 +203,8 @@ impl BackendTypes for Candle {
     type BoolTensorPrimitive = CandleTensor;
 
     type QuantizedTensorPrimitive = CandleTensor;
+
+    type GraphPrimitive = burn_backend::GraphUnsupported;
 }
 
 impl Backend for Candle {

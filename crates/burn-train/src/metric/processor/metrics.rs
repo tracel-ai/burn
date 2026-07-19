@@ -229,7 +229,7 @@ impl<T> From<&TrainingItem<T>> for MetricMetadata {
         Self {
             progress: item.progress.clone(),
             iteration: item.iteration,
-            lr: item.lr,
+            lr: item.lr.clone(),
         }
     }
 }

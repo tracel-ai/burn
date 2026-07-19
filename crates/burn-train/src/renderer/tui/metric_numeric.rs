@@ -115,7 +115,7 @@ impl NumericMetricsState {
 
         // If num_samples_train is None, keep the default max_samples for validation.
         if let Some(num_sample_train) = self.num_samples_train {
-            for (_, (_recent, full)) in self.data.iter_mut() {
+            for (_recent, full) in self.data.values_mut() {
                 let ratio = progress.split.items_total as f64 / num_sample_train as f64;
                 full.update_max_sample(TuiSplit::Valid, ratio);
             }
@@ -132,7 +132,7 @@ impl NumericMetricsState {
         }
 
         if let Some(num_sample_train) = self.num_samples_train {
-            for (_, (_recent, full)) in self.data.iter_mut() {
+            for (_recent, full) in self.data.values_mut() {
                 let ratio = progress.split.items_total as f64 / num_sample_train as f64;
                 full.update_max_sample(TuiSplit::Test, ratio);
             }

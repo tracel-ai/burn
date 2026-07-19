@@ -1,8 +1,17 @@
+use std::fmt::Debug;
+
 use alloc::collections::BTreeMap;
 pub(super) use alloc::string::String;
 use alloc::vec::Vec;
 use burn_core as burn;
+use burn_core::config::Config;
 
+use crate::lr_scheduler::composed::ComposedLrSchedulerConfig;
+use crate::lr_scheduler::cosine::CosineAnnealingLrSchedulerConfig;
+use crate::lr_scheduler::exponential::ExponentialLrSchedulerConfig;
+use crate::lr_scheduler::linear::LinearLrSchedulerConfig;
+use crate::lr_scheduler::noam::NoamLrSchedulerConfig;
+use crate::lr_scheduler::step::StepLrSchedulerConfig;
 use crate::{RecordState, StateSink, StateSource, join_path};
 use burn::store::RecordError;
 use burn::tensor::{Bytes, Device};
@@ -10,8 +19,20 @@ use burn_pack::{Reader, Scalar, Writer};
 
 use crate::LearningRate;
 
+macro_rules! impl_from_for_scheduler {
+    ($($variant:ident($config:ident)),* $(,)?) => {
+        $(
+            impl From<$config> for LrSchedulerConfig {
+                fn from(config: $config) -> Self {
+                    LrSchedulerConfig::$variant(config)
+                }
+            }
+        )*
+    };
+}
+
 /// Learning rate scheduler defines how the learning rate will evolve during training.
-pub trait LrScheduler: Clone + Send + Sync {
+pub trait LrScheduler: LrSchedulerClone + Send + Sync {
     /// Perform the scheduler step, potentially updating its state, and returning the effective
     /// learning rate.
     fn step(&mut self) -> LearningRate;
@@ -20,7 +41,64 @@ pub trait LrScheduler: Clone + Send + Sync {
     fn to_record(&self) -> LrSchedulerRecord;
 
     /// Load the state of the scheduler from a [record](LrSchedulerRecord).
-    fn load_record(self, record: LrSchedulerRecord) -> Self;
+    fn load_record(&mut self, record: LrSchedulerRecord);
+}
+
+/// Implements the clone of a boxed [`LrScheduler`].
+pub trait LrSchedulerClone {
+    /// Clones a boxed [`LrScheduler`].
+    fn clone_box(&self) -> Box<dyn LrScheduler>;
+}
+
+impl<T> LrSchedulerClone for T
+where
+    T: 'static + LrScheduler + Clone,
+{
+    fn clone_box(&self) -> Box<dyn LrScheduler> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn LrScheduler> {
+    fn clone(&self) -> Box<dyn LrScheduler> {
+        self.as_ref().clone_box()
+    }
+}
+
+/// A wrapper over a dynamic [`LrScheduler`].
+#[derive(Clone)]
+pub struct DynLrScheduler {
+    scheduler: Box<dyn LrScheduler>,
+}
+
+impl DynLrScheduler {
+    /// Perform the scheduler step, potentially updating its state, and returning the effective
+    /// learning rate.
+    pub fn step(&mut self) -> LearningRate {
+        self.scheduler.step()
+    }
+
+    /// Get the current state of the scheduler as a [record](LrSchedulerRecord).
+    pub fn to_record(&self) -> LrSchedulerRecord {
+        self.scheduler.to_record()
+    }
+
+    /// Load the state of the scheduler from a [record](LrSchedulerRecord).
+    pub fn load_record(mut self, record: LrSchedulerRecord) -> Self {
+        self.scheduler.load_record(record);
+        self
+    }
+}
+
+impl<S> From<S> for DynLrScheduler
+where
+    S: LrScheduler + 'static,
+{
+    fn from(scheduler: S) -> Self {
+        Self {
+            scheduler: Box::new(scheduler),
+        }
+    }
 }
 
 /// The serialized state of a [learning rate scheduler](LrScheduler), stored in the
@@ -143,6 +221,35 @@ impl LrSchedulerRecord {
     }
 }
 
+/// An enum for possible learning rate scheduler configs.
+#[derive(Config, Debug)]
+pub enum LrSchedulerConfig {
+    /// A constant learning rate.
+    Constant(LearningRate),
+    /// A [`LinearLrSchedulerConfig`]
+    Linear(LinearLrSchedulerConfig),
+    /// A [`CosineAnnealingLrSchedulerConfig`]
+    Cosine(CosineAnnealingLrSchedulerConfig),
+    /// A [`ExponentialLrSchedulerConfig`]
+    Exponential(ExponentialLrSchedulerConfig),
+    /// A [`NoamLrSchedulerConfig`]
+    Noam(NoamLrSchedulerConfig),
+    /// A [`StepLrSchedulerConfig`]
+    Step(StepLrSchedulerConfig),
+    /// A [`ComposedLrSchedulerConfig`]
+    Composed(ComposedLrSchedulerConfig),
+}
+
+impl_from_for_scheduler!(
+    Constant(LearningRate),
+    Linear(LinearLrSchedulerConfig),
+    Cosine(CosineAnnealingLrSchedulerConfig),
+    Exponential(ExponentialLrSchedulerConfig),
+    Noam(NoamLrSchedulerConfig),
+    Step(StepLrSchedulerConfig),
+    Composed(ComposedLrSchedulerConfig),
+);
+
 #[cfg(test)]
 pub(super) mod test_utils {
     use super::*;
@@ -183,7 +290,7 @@ pub(super) mod test_utils {
             scheduler.step();
         });
         let rec = scheduler.to_record();
-        scheduler = scheduler.load_record(rec);
+        scheduler.load_record(rec);
 
         // Validate that the scheduler resumes from where it left off.
         compare_steps(&mut scheduler, &mut truth, save_at_step);

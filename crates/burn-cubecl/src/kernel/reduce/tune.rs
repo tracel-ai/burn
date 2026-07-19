@@ -14,6 +14,17 @@ use cubek::reduce::{
     routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
 };
 
+/// The configured autotune level, read once — [`ReduceStrategy`] carries it
+/// so the kernel blueprints know whether raw shapes are their own keys.
+fn autotune_level() -> cubecl::config::autotune::AutotuneLevel {
+    use cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
+    static LEVEL: std::sync::OnceLock<cubecl::config::autotune::AutotuneLevel> =
+        std::sync::OnceLock::new();
+    LEVEL
+        .get_or_init(|| CubeClRuntimeConfig::get().autotune.level.clone())
+        .clone()
+}
+
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<R: CubeRuntime>(
     client: &ComputeClient<R>,
@@ -101,6 +112,11 @@ pub fn autotune_reduce<R: CubeRuntime>(
                         let strategy = ReduceStrategy {
                             routine: routine.clone(),
                             vectorization,
+                            // Routes the configured level into the blueprint:
+                            // unchecked comptime fast paths are only stable
+                            // (and only taken) when every raw shape is its
+                            // own key.
+                            autotune_level: autotune_level(),
                         };
                         cubek::reduce::reduce::<R>(
                             &output.client,

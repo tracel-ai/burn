@@ -5,6 +5,13 @@ use crate::backends::*;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
 
+// Throughput types come from `burn-backend` (which re-exports them from cubecl),
+// so `burn-dispatch` needs no direct `cubecl` dependency.
+#[cfg(feature = "cubecl")]
+use alloc::vec::Vec;
+#[cfg(feature = "cubecl")]
+use burn_backend::cubecl::{ThroughputKey, ThroughputValue};
+
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
 /// Each variant corresponds to a backend that the [`Dispatch`](crate::Dispatch) can dispatch operations to.
@@ -69,6 +76,32 @@ pub enum DispatchDevice {
     /// The [autodiff enabled backend](Autodiff) device.
     #[cfg(feature = "autodiff")]
     Autodiff(AutodiffDevice),
+}
+
+#[cfg(feature = "cubecl")]
+impl DispatchDevice {
+    /// Measure peak throughput for this device against the given `keys`.
+    ///
+    /// Only cubecl-backed devices can measure throughput; other backends
+    /// (ndarray, libtorch, remote, ...) return an empty vector. Each returned
+    /// [`ThroughputValue`](burn_backend::cubecl::ThroughputValue) corresponds
+    /// positionally to the key at the same index.
+    pub fn performance_stats(&self, keys: &[ThroughputKey]) -> Vec<ThroughputValue> {
+        match self {
+            #[cfg(feature = "cuda")]
+            DispatchDevice::Cuda(device) => burn_cuda::device_throughput(device, keys),
+            #[cfg(feature = "wgpu")]
+            DispatchDevice::Wgpu(device) => burn_wgpu::device_throughput(device, keys),
+            #[cfg(feature = "vulkan")]
+            DispatchDevice::Vulkan(device) => burn_wgpu::device_throughput(device, keys),
+            #[cfg(feature = "metal")]
+            DispatchDevice::Metal(device) => burn_wgpu::device_throughput(device, keys),
+            #[cfg(feature = "webgpu")]
+            DispatchDevice::WebGpu(device) => burn_wgpu::device_throughput(device, keys),
+            #[allow(unreachable_patterns)]
+            _ => Vec::new(),
+        }
+    }
 }
 
 #[cfg(feature = "autodiff")]

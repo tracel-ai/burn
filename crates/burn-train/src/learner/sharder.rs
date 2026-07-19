@@ -1,9 +1,9 @@
 use burn_core::{
     Tensor,
-    module::{Module, ModuleMapper, Param},
+    module::{ModuleMapper, Param},
 };
 
-use crate::{Learner, LearningComponentsTypes};
+use crate::{Learner, LearnerModel};
 
 /// Describes how the module is distributed across multiple devices.
 pub struct ModuleSharder;
@@ -16,7 +16,7 @@ impl ModuleMapper for ModuleSharder {
     }
 }
 
-impl<LC: LearningComponentsTypes> Learner<LC> {
+impl<M: LearnerModel> Learner<M> {
     /// Mark the model as sharded across multiple devices.
     pub fn grad_sharded(&mut self) {
         self.model = self.model.clone().map(&mut ModuleSharder);

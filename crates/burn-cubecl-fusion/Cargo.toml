@@ -20,6 +20,7 @@ default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 autotune = []
 autotune-checks = ["cubecl/autotune-checks", "half"]
 doc = ["default"]
+test-util = []
 std = ["cubecl/std", "burn-backend/std", "burn-fusion/std"]
 tracing = [
     "cubecl/tracing",

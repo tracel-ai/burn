@@ -392,6 +392,7 @@ strategies.
 | `activation::hard_shrink(tensor, lambda)`        | `nn.functional.hardshrink(tensor, lambd)`          |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
+| `activation::hardtanh(tensor, min_val, max_val)` | `nn.functional.hardtanh(tensor, min_val, max_val)` |
 | `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
 | `activation::log_sigmoid(tensor)`                | `nn.functional.log_sigmoid(tensor)`                |
 | `activation::log_softmax(tensor, dim)`           | `nn.functional.log_softmax(tensor, dim)`           |
@@ -399,6 +400,7 @@ strategies.
 | `activation::prelu(tensor,alpha)`                | `nn.functional.prelu(tensor,weight)`               |
 | `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
 | `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
+| `activation::relu6(tensor)`                      | `nn.functional.relu6(tensor)`                      |
 | `activation::shrink(tensor, lambda, bias)`       | _No direct equivalent_                             |
 | `activation::soft_shrink(tensor, lambda)`        | `nn.functional.softshrink(tensor, lambd)`          |
 | `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
@@ -409,6 +411,8 @@ strategies.
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
 | `activation::softsign(tensor)`                   | `nn.functional.softsign(tensor)`                   |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
+| `activation::tanhshrink(tensor)`                 | `nn.functional.tanhshrink(tensor)`                 |
+| `activation::threshold(tensor, threshold, value)`| `nn.functional.threshold(tensor, threshold, value)`|
 | `activation::thresholded_relu(tensor, alpha)`    | `nn.functional.threshold(tensor, alpha, 0)`        |
 
 ## Grid Functions

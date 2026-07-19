@@ -40,5 +40,5 @@ pub fn infer(artifact_dir: &str, device: Device) {
         "expected" => &expected.to_vec::<f32>().unwrap(),
     ]
     .unwrap();
-    println!("{}", &results.head(Some(10)));
+    println!("{}", results.head(Some(10)));
 }

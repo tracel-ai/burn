@@ -413,6 +413,13 @@ impl TensorMetadata for NdArrayTensor {
     fn device(&self) -> NdArrayDevice {
         NdArrayDevice::Cpu
     }
+
+    fn can_mut(&self) -> bool {
+        // NdArray storage is copy-on-write (`ArcArray`) without a public
+        // uniqueness check at this level; in-place ops resolve sharing
+        // themselves, so conservatively report the buffer as shared.
+        false
+    }
 }
 
 pub(crate) trait ShapeOps {
@@ -764,6 +771,10 @@ impl TensorMetadata for NdArrayQTensor {
 
     fn device(&self) -> Self::Device {
         NdArrayDevice::Cpu
+    }
+
+    fn can_mut(&self) -> bool {
+        self.qtensor.can_mut()
     }
 }
 

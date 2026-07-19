@@ -17,10 +17,12 @@ mod identity;
 /// Interpolate module
 pub mod interpolate;
 
+mod cosine_similarity;
 mod dropout;
 mod embedding;
 mod linear;
 mod noise;
+mod pairwise_distance;
 mod pos_encoding;
 mod rnn;
 mod rope_encoding;
@@ -30,11 +32,13 @@ pub mod norm;
 
 pub use norm::{batch::*, group::*, instance::*, layer::*, local_response::*, rms::*};
 
+pub use cosine_similarity::*;
 pub use dropout::*;
 pub use embedding::*;
 pub use identity::*;
 pub use linear::*;
 pub use noise::*;
+pub use pairwise_distance::*;
 pub use pos_encoding::*;
 pub use rnn::*;
 pub use rope_encoding::*;

@@ -304,6 +304,11 @@ fn fuse(
             } => select_indices::<E, N>(
                 inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
+            FuseOp::Cat {
+                inputs: tensors,
+                output,
+                dim,
+            } => concat::<E, N>(inputs, outputs, locals, pos, dim, tensors, output, config),
             FuseOp::Dequantize {
                 values,
                 params,
@@ -748,6 +753,177 @@ fn select_indices<C: Numeric, N: Size>(
     }
 
     write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+#[cube]
+fn concat<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: usize,
+    #[comptime] dim: usize,
+    #[comptime] tensors: Vec<FuseArg>,
+    #[comptime] output: FuseArg,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let (vector_size_ref, stride_dim_ref, shape_dim_ref) = (
+        locals.ref_vector_size,
+        locals.ref_strides[dim],
+        locals.ref_shape[dim],
+    );
+
+    let mut result = Vector::<C, N>::empty();
+    let write_pos_elem = write_pos * vector_size_ref;
+
+    if comptime![dim != config.rank - 1] {
+        // The concatenation axis isn't the vectorization axis, therefore the whole vector is
+        // contained in a single input tensor.
+        let coordinate_dim = write_pos_elem / stride_dim_ref % shape_dim_ref;
+
+        let mut offset_dim_start = 0;
+
+        #[unroll]
+        for t in 0..tensors.len() {
+            let tensor = comptime![tensors.get(t).unwrap().clone()];
+            let pos_tensor = comptime![concat_input_pos(&tensor)];
+
+            let shape_tensor_dim = global_shape(inputs, dim, pos_tensor);
+            let offset_dim_end = offset_dim_start + shape_tensor_dim;
+
+            if coordinate_dim >= offset_dim_start && coordinate_dim < offset_dim_end {
+                let index = concat_input_offset(
+                    inputs,
+                    &*outputs,
+                    &*locals,
+                    write_pos,
+                    coordinate_dim - offset_dim_start,
+                    tensor,
+                    pos_tensor,
+                    dim,
+                    config,
+                );
+
+                let stride_tensor_vector =
+                    global_stride(inputs, comptime![config.rank - 1], pos_tensor);
+
+                #[unroll]
+                for i in 0..vector_size_ref {
+                    let input = read_input::<C, Const<1>>(
+                        inputs,
+                        &*locals,
+                        pos_tensor,
+                        index + i * stride_tensor_vector,
+                        LayoutInfo::IsRef,
+                        config,
+                        None,
+                    );
+                    result.insert(i, input.extract(0));
+                }
+            }
+
+            offset_dim_start = offset_dim_end;
+        }
+    } else {
+        // The concatenation happens along the vectorization axis, therefore each element of the
+        // vector may come from a different input tensor.
+        #[unroll]
+        for i in 0..vector_size_ref {
+            let coordinate_dim = (write_pos_elem + i) / stride_dim_ref % shape_dim_ref;
+            let mut offset_dim_start = 0;
+
+            #[unroll]
+            for t in 0..tensors.len() {
+                let tensor = comptime![tensors.get(t).unwrap().clone()];
+                let pos_tensor = comptime![concat_input_pos(&tensor)];
+
+                let shape_tensor_dim = global_shape(inputs, dim, pos_tensor);
+                let offset_dim_end = offset_dim_start + shape_tensor_dim;
+
+                if coordinate_dim >= offset_dim_start && coordinate_dim < offset_dim_end {
+                    let index = concat_input_offset(
+                        inputs,
+                        &*outputs,
+                        &*locals,
+                        write_pos,
+                        coordinate_dim - offset_dim_start,
+                        tensor,
+                        pos_tensor,
+                        dim,
+                        config,
+                    );
+
+                    let input = read_input::<C, Const<1>>(
+                        inputs,
+                        &*locals,
+                        pos_tensor,
+                        index,
+                        LayoutInfo::IsRef,
+                        config,
+                        None,
+                    );
+                    result.insert(i, input.extract(0));
+                }
+
+                offset_dim_start = offset_dim_end;
+            }
+        }
+    }
+
+    write::<C, N>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+fn concat_input_pos(arg: &FuseArg) -> usize {
+    match arg {
+        FuseArg::Input(pos, ..) => *pos,
+        _ => panic!("Cat input isn't a global input"),
+    }
+}
+
+#[cube]
+/// Element index inside a cat input for the vector at `write_pos`, where
+/// `coordinate_dim_tensor` is the coordinate along the concat axis relative to the start of
+/// this input's segment.
+fn concat_input_offset(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    locals: &LocalArgs,
+    write_pos: usize,
+    coordinate_dim_tensor: usize,
+    #[comptime] tensor: FuseArg,
+    #[comptime] pos_tensor: usize,
+    #[comptime] dim: usize,
+    #[comptime] config: &FuseBlockConfig,
+) -> usize {
+    let stride_tensor_dim = global_stride(inputs, dim, pos_tensor);
+    let mut index = coordinate_dim_tensor * stride_tensor_dim;
+
+    if comptime![dim > 0] {
+        let index_before = global_offset(
+            inputs,
+            outputs,
+            locals,
+            write_pos,
+            tensor.clone(),
+            comptime![Some((0, dim))],
+            config,
+        );
+        index += index_before;
+    }
+
+    if comptime![dim + 1 < config.rank] {
+        let index_after = global_offset(
+            inputs,
+            outputs,
+            locals,
+            write_pos,
+            tensor,
+            comptime![Some((dim + 1, config.rank))],
+            config,
+        );
+        index += index_after;
+    }
+
+    index
 }
 
 #[cube]

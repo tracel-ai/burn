@@ -63,7 +63,7 @@ impl ModuleDisplay for CosineEmbeddingLoss {
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
             .add("margin", &self.margin)
-            .add("reduction", format!("{:?}", &self.reduction).as_str())
+            .add("reduction", format!("{:?}", self.reduction).as_str())
             .optional()
     }
 }

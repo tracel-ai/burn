@@ -40,7 +40,7 @@ pub struct SgdState<const D: usize> {
 
 impl SgdConfig {
     /// Build a [`Sgd`] from the config.
-    pub fn build(&self) -> Sgd {
+    pub(crate) fn build(&self) -> Sgd {
         Sgd {
             momentum: self.momentum.as_ref().map(Momentum::new),
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
@@ -112,7 +112,7 @@ mod tests {
         let loss = layer.forward(random_tensor(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(LEARNING_RATE, layer, grads);
+        let _layer = optim.step(LEARNING_RATE.into(), layer, grads);
 
         let record = optim.to_record();
 
@@ -140,7 +140,7 @@ mod tests {
         let loss = layer.forward(random_tensor(&device));
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &layer);
-        let _layer = optim.step(LEARNING_RATE, layer, grads);
+        let _layer = optim.step(LEARNING_RATE.into(), layer, grads);
 
         let record = optim.to_record();
         let bytes = optim.into_bytes().unwrap();
@@ -151,6 +151,65 @@ mod tests {
 
         assert_ne!(record.len(), record_new.len());
         assert_eq!(record.len(), state_restored.len());
+    }
+
+    #[test]
+    fn lora_finetune_trains_adapter_and_freezes_base() {
+        use burn::module::{LoraConfig, Module};
+        use burn::tensor::Tolerance;
+
+        let device = Device::default().autodiff();
+        let linear = LinearConfig::new(8, 8).init(&device);
+
+        // Snapshot the base weight before applying LoRA / training.
+        let base_before = linear.weight.val();
+
+        // Apply LoRA transparently — no change to `Linear` or its forward code.
+        let mut model = linear.apply_lora(LoraConfig::new(4, 8.0));
+        assert!(model.weight.adapter().is_some());
+        let b_before = model.weight.adapter().unwrap().b.val();
+
+        let x = Tensor::<2>::random(Shape::new([16, 8]), Distribution::Default, &device);
+        let target = Tensor::<2>::random(Shape::new([16, 8]), Distribution::Default, &device);
+
+        let mut optim = SgdConfig::new().init();
+
+        let mut first_loss = None;
+        let mut last_loss = 0.0f32;
+        for _ in 0..30 {
+            let output = model.forward(x.clone());
+            let loss = (output - target.clone()).powf_scalar(2.0).mean();
+            last_loss = loss.clone().into_scalar::<f32>();
+            first_loss.get_or_insert(last_loss);
+
+            let grads = loss.backward();
+            let grads = GradientsParams::from_grads(grads, &model);
+            model = optim.step(0.5.into(), model, grads);
+        }
+
+        // Training reduced the loss...
+        assert!(
+            last_loss < first_loss.unwrap(),
+            "expected loss to decrease ({} -> {})",
+            first_loss.unwrap(),
+            last_loss
+        );
+
+        // ...the adapter is still attached and its B factor moved away from the zero init...
+        assert!(model.weight.adapter().is_some());
+        let b_after = model.weight.adapter().unwrap().b.val();
+        let b_change = (b_after - b_before).abs().sum().into_scalar::<f32>();
+        assert!(
+            b_change > 0.0,
+            "adapter factor B should be updated by training"
+        );
+
+        // ...while the frozen base weight is left untouched.
+        model
+            .weight
+            .base()
+            .into_data()
+            .assert_approx_eq::<f32>(&base_before.into_data(), Tolerance::default());
     }
 
     fn random_tensor(device: &Device) -> Tensor<2> {

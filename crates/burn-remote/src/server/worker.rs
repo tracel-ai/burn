@@ -35,13 +35,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[cfg(not(target_family = "wasm"))]
-use burn_backend::ExecutionError;
 use burn_ir::{BackendIr, GraphBindings, GraphId};
 use burn_router::{Graph, TensorInterpreter};
 use burn_std::id::StreamId;
-#[cfg(not(target_family = "wasm"))]
-use burn_std::{AllocationProperty, Reader};
 #[cfg(not(target_family = "wasm"))]
 use tokio::runtime::Handle;
 use tokio::sync::mpsc;
@@ -385,30 +381,10 @@ where
                 let fut = stream_id.executes(|| self.runner.read_tensor_async(tensor));
                 let sender = self.response_sender.clone();
                 spawn_detached(async move {
+                    // Under an async runtime the backend reads eagerly (see `RuntimeKind::Async`),
+                    // so `data` is already host-resident here — the fetch handler only serializes
+                    // resident bytes and no blocking device→host copy runs on the shared runtime.
                     let data = fut.await;
-                    // `read_tensor_async` may hand back *lazy* device-backed bytes whose GPU→host
-                    // copy is deferred to first access. Left lazy, that copy runs inside
-                    // `rmp_serde::to_vec` on the fetch handler — an async task on the shared
-                    // runtime — where a synchronous read pins a runtime worker for the whole copy
-                    // and starves op delivery under concurrent reads. Force the copy here on the
-                    // blocking pool instead, so the fetch handler only serializes resident host
-                    // bytes and the shared runtime's workers stay free. A no-op for backends whose
-                    // read is already host-resident (the property check skips the copy). Native
-                    // only: the wasm server is single-threaded, so there is no worker to starve.
-                    #[cfg(not(target_family = "wasm"))]
-                    let data = match data {
-                        Ok(data) => tokio::task::spawn_blocking(move || {
-                            if data.bytes.property() == AllocationProperty::Device {
-                                let _ = data.bytes.read(Reader::new());
-                            }
-                            data
-                        })
-                        .await
-                        .map_err(|err| ExecutionError::WithContext {
-                            reason: format!("readback materialization task failed: {err}"),
-                        }),
-                        Err(err) => Err(err),
-                    };
                     if sender
                         .send(TaskResponse {
                             content: TaskResponseContent::ReadTensor(data),

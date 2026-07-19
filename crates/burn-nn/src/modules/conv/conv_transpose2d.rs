@@ -81,13 +81,13 @@ impl ModuleDisplay for ConvTranspose2d {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
-            .add("channels", &format!("{:?}", &self.channels))
-            .add("stride", &format!("{:?}", &self.stride))
-            .add("kernel_size", &format!("{:?}", &self.kernel_size))
-            .add("dilation", &format!("{:?}", &self.dilation))
+            .add("channels", &format!("{:?}", self.channels))
+            .add("stride", &format!("{:?}", self.stride))
+            .add("kernel_size", &format!("{:?}", self.kernel_size))
+            .add("dilation", &format!("{:?}", self.dilation))
             .add("groups", &self.groups)
-            .add("padding", &format!("{:?}", &self.padding))
-            .add("padding_out", &format!("{:?}", &self.padding_out))
+            .add("padding", &format!("{:?}", self.padding))
+            .add("padding_out", &format!("{:?}", self.padding_out))
             .optional()
     }
 }

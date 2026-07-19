@@ -203,7 +203,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     iteration: item.iteration,
-                    lr: item.lr,
+                    lr: item.lr.clone(),
                 };
 
                 let update = self.metrics.update_train(&item, &metadata);
@@ -281,7 +281,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                 let metadata = MetricMetadata {
                     progress: item.progress.clone(),
                     iteration: item.iteration,
-                    lr: item.lr,
+                    lr: item.lr.clone(),
                 };
 
                 let update = self.metrics.update_valid(&item, &metadata);

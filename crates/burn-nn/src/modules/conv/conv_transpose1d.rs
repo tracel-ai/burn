@@ -81,7 +81,7 @@ impl ModuleDisplay for ConvTranspose1d {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
-            .add("channels", &format!("{:?}", &self.channels))
+            .add("channels", &format!("{:?}", self.channels))
             .add("stride", &self.stride)
             .add("kernel_size", &self.kernel_size)
             .add("dilation", &self.dilation)

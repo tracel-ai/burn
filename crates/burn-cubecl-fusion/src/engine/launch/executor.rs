@@ -73,6 +73,19 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut inputs = GlobalArgsLaunch::default();
         let mut outputs = GlobalArgsLaunch::default();
 
+        // An aliased output reuses the input's buffer variable in the compiled kernel
+        // (`builder.inplace`), so it must be declared with the exact type the input was
+        // launched with — including its vector size.
+        let input_vector_sizes: Vec<usize> = plan
+            .handle_inputs
+            .iter()
+            .map(|hi| match hi {
+                HandleInput::Normal(hi) => hi.vector_size,
+                HandleInput::QuantValues(hi) => hi.vector_size,
+                HandleInput::QuantParams(_) => 1,
+            })
+            .collect();
+
         register_inputs(plan.handle_inputs.clone(), &mut inputs);
         register_scalars(
             self.resources.scalars.iter(),
@@ -80,7 +93,12 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             context,
             &mut inputs,
         );
-        register_outputs::<R>(plan.handle_outputs.clone(), &mut outputs, &mut tune_output);
+        register_outputs::<R>(
+            plan.handle_outputs.clone(),
+            &input_vector_sizes,
+            &mut outputs,
+            &mut tune_output,
+        );
 
         for layout in plan.runtime_layouts {
             for s in layout.shape.iter() {
@@ -201,6 +219,7 @@ fn register_inputs<R: Runtime>(
 
 fn register_outputs<R: Runtime>(
     handle_outputs: Vec<HandleOutput<R>>,
+    input_vector_sizes: &[usize],
     outputs: &mut GlobalArgsLaunch<R>,
     #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
 ) {
@@ -220,7 +239,11 @@ fn register_outputs<R: Runtime>(
                         strides,
                         shape: global_shape,
                     },
-                    precision.into_type(1),
+                    // Must match the aliased input's launched type: the compiled kernel
+                    // reuses the input's buffer variable, so declaring another vector
+                    // size here would make the comptime type disagree with the actual
+                    // variable and produce invalid casts on the write path.
+                    precision.into_type(input_vector_sizes[input_pos]),
                     false,
                     AddressType::default(),
                 ));
