@@ -32,19 +32,15 @@ fn scatter_nd_should_work_with_leading_batch_dim_one() {
         TestTensor::<4>::from_data(TensorData::new(values_vec.clone(), [1, 2, 4, 1]), &device);
 
     let data_ref = TestTensor::<4>::from_data(data.to_data(), &ref_device);
-    let indices_ref = TestTensorInt::<5>::from_data(
-        TensorData::new(indices_vec, [1, 2, 4, 1, 4]),
-        &ref_device,
-    );
+    let indices_ref =
+        TestTensorInt::<5>::from_data(TensorData::new(indices_vec, [1, 2, 4, 1, 4]), &ref_device);
     let values_ref =
         TestTensor::<4>::from_data(TensorData::new(values_vec, [1, 2, 4, 1]), &ref_device);
 
     let actual = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
     let expected = data_ref.scatter_nd(indices_ref, values_ref, IndexingUpdateOp::Assign);
 
-    expected
-        .into_data()
-        .assert_eq(&actual.into_data(), false);
+    expected.into_data().assert_eq(&actual.into_data(), false);
 }
 
 #[test]
@@ -84,10 +80,8 @@ fn scatter_nd_should_work_with_non_contiguous_values() {
         .slice_dim(2, s![0..8; 2]);
 
     let data_ref = TestTensor::<4>::from_data(data.to_data(), &ref_device);
-    let indices_ref = TestTensorInt::<5>::from_data(
-        TensorData::new(indices_vec, [1, 2, 4, 1, 4]),
-        &ref_device,
-    );
+    let indices_ref =
+        TestTensorInt::<5>::from_data(TensorData::new(indices_vec, [1, 2, 4, 1, 4]), &ref_device);
     // NdArray scatter_nd requires contiguous values; same logical content as the stepped view.
     let values_ref =
         TestTensor::<4>::from_data(TensorData::new(values_vec, [1, 2, 4, 1]), &ref_device);
@@ -95,7 +89,5 @@ fn scatter_nd_should_work_with_non_contiguous_values() {
     let actual = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
     let expected = data_ref.scatter_nd(indices_ref, values_ref, IndexingUpdateOp::Assign);
 
-    expected
-        .into_data()
-        .assert_eq(&actual.into_data(), false);
+    expected.into_data().assert_eq(&actual.into_data(), false);
 }

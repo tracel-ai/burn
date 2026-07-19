@@ -70,7 +70,7 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
         if dim == 0 {
             let shape0 = values.shape(0);
             let coord = remainder_u % shape0;
-            remainder_u = remainder_u / shape0;
+            remainder_u /= shape0;
             val_offset += coord * values.stride(0);
         } else {
             let (rem, coord) = values_shape[dim - 1].div_mod(remainder_u);
