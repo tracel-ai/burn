@@ -54,16 +54,38 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
         data_slice_offset += coord * data.stride(k + dim);
     }
 
-    // Decompose slice_offset over values' dims (1..n_v), with update_idx for dim 0
+    // values_shape covers values dims 1..rank.
+    // Decompose update_idx over batch dims (right-to-left), then slice_offset over
+    // trailing slice dims. Never use `update_idx * values.stride(0)` alone — when
+    // shape[0] == 1 that stride is the full volume and OOB-reads values.
     let val_rank = values_shape.len().comptime();
-    let mut val_offset = update_idx * values.stride(0);
+    let values_rank = val_rank + 1;
+    let batch_rank = values_rank - slice_rank;
+
+    let mut val_offset = 0usize;
+    let mut remainder_u = update_idx;
+    #[unroll]
+    for i in 0..batch_rank {
+        let dim = batch_rank - i - 1;
+        if dim == 0 {
+            let shape0 = values.shape(0);
+            let coord = remainder_u % shape0;
+            remainder_u = remainder_u / shape0;
+            val_offset += coord * values.stride(0);
+        } else {
+            let (rem, coord) = values_shape[dim - 1].div_mod(remainder_u);
+            remainder_u = rem;
+            val_offset += coord * values.stride(dim);
+        }
+    }
+
     let mut remainder_v = slice_offset;
     #[unroll]
-    for i in 0..val_rank {
-        let dim = val_rank - i - 1;
-        let (rem, coord) = values_shape[dim].div_mod(remainder_v);
+    for i in 0..slice_rank {
+        let dim = values_rank - i - 1;
+        let (rem, coord) = values_shape[dim - 1].div_mod(remainder_v);
         remainder_v = rem;
-        val_offset += coord * values.stride(1 + dim);
+        val_offset += coord * values.stride(dim);
     }
 
     let data_idx = base_offset + data_slice_offset;
@@ -111,7 +133,7 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
     };
 
     let data_slice_shape = shape_divmod_range(&tensor, k..data_shape.num_dims());
-    // values dims 1.. (skip the num_updates leading dim)
+    // values dims 1.. (dim 0 is read from values.shape(0) in the kernel)
     let values_slice_shape = shape_divmod_range(&values, 1..values.meta.shape.num_dims());
 
     unsafe {
