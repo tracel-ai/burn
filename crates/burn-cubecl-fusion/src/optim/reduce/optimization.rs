@@ -358,6 +358,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             vectorization_mode,
             vector_size_input: config_read.width,
             vector_size_output: config_write.width,
+            // Fused-reduce selection is cached per anchored key, so the
+            // unchecked comptime fast paths are never stable here.
+            unchecked_fast_paths: false,
         };
         let problem = ReduceProblem {
             reduce_len: shape[self.reduce.axis],

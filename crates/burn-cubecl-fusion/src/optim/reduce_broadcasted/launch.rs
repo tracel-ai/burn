@@ -88,6 +88,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     vectorization_mode: VectorizationMode::Parallel,
                     vector_size_input: first_config.width,
                     vector_size_output: 1,
+                    // Fused-reduce selection is cached per anchored key, so
+                    // the unchecked comptime fast paths are never stable here.
+                    unchecked_fast_paths: false,
                 },
                 BlueprintStrategy::Inferred(UnitStrategy),
             )
