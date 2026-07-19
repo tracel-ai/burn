@@ -1,7 +1,7 @@
 use crate::{
     Fusion, FusionBackend,
     client::GlobalFusionClient,
-    get_client, reduce_bool_ops, reduce_bool_whole_ops,
+    get_client, reduce_ops,
     stream::{StreamId, execution::Operation},
 };
 use burn_backend::{
@@ -196,7 +196,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_any_dim(tensor: BoolTensor<Self>, dim: usize) -> BoolTensor<Self> {
-        reduce_bool_ops!(BoolAnyDimOps, |tensor, axis| B::bool_any_dim(tensor, axis));
+        reduce_ops!(BoolAnyDimOps, bool, |tensor, axis| B::bool_any_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -219,7 +221,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_all_dim(tensor: BoolTensor<Self>, dim: usize) -> BoolTensor<Self> {
-        reduce_bool_ops!(BoolAllDimOps, |tensor, axis| B::bool_all_dim(tensor, axis));
+        reduce_ops!(BoolAllDimOps, bool, |tensor, axis| B::bool_all_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -239,7 +243,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        reduce_bool_whole_ops!(BoolAnyOps, |tensor| B::bool_any(tensor));
+        reduce_ops!(BoolAnyOps, bool, whole, |tensor| B::bool_any(tensor));
 
         let streams = StreamId::current();
 
@@ -261,7 +265,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_all(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        reduce_bool_whole_ops!(BoolAllOps, |tensor| B::bool_all(tensor));
+        reduce_ops!(BoolAllOps, bool, whole, |tensor| B::bool_all(tensor));
 
         let streams = StreamId::current();
 

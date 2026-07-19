@@ -2,8 +2,7 @@ use super::NoOp;
 use crate::{
     Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
     client::GlobalFusionClient,
-    get_client, reduce_int_ops, reduce_int2bool_ops, reduce_int2bool_whole_ops, scalar_int_cmp_ops,
-    scalar_int_ops,
+    get_client, reduce_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{StreamId, execution::Operation},
     unary_int_ops,
 };
@@ -1121,7 +1120,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, axis: usize) -> IntTensor<Self> {
-        reduce_int_ops!(SumDimOps, |tensor, axis, _| B::int_sum_dim(tensor, axis));
+        reduce_ops!(SumDimOps, int, |tensor, axis, _| B::int_sum_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1139,7 +1140,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_any(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce_int2bool_whole_ops!(IntAnyOps, |tensor, dtype| B::int_any(tensor, dtype));
+        reduce_ops!(IntAnyOps, int => bool, whole, |tensor, dtype| B::int_any(tensor, dtype));
 
         let streams = StreamId::current();
 
@@ -1160,9 +1161,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_any_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce_int2bool_ops!(IntAnyDimOps, |tensor, axis, dtype| B::int_any_dim(
-            tensor, axis, dtype
-        ));
+        reduce_ops!(IntAnyDimOps, int => bool, |tensor, axis, dtype| B::int_any_dim(tensor, axis, dtype));
 
         let streams = StreamId::current();
 
@@ -1181,7 +1180,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_all(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce_int2bool_whole_ops!(IntAllOps, |tensor, dtype| B::int_all(tensor, dtype));
+        reduce_ops!(IntAllOps, int => bool, whole, |tensor, dtype| B::int_all(tensor, dtype));
 
         let streams = StreamId::current();
 
@@ -1200,9 +1199,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_all_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
-        reduce_int2bool_ops!(IntAllDimOps, |tensor, axis, dtype| B::int_all_dim(
-            tensor, axis, dtype
-        ));
+        reduce_ops!(IntAllDimOps, int => bool, |tensor, axis, dtype| B::int_all_dim(tensor, axis, dtype));
 
         let streams = StreamId::current();
 
@@ -1238,7 +1235,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ProdDimOps, |tensor, axis, _| B::int_prod_dim(tensor, axis));
+        reduce_ops!(ProdDimOps, int, |tensor, axis, _| B::int_prod_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1272,7 +1271,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MeanDimOps, |tensor, axis, _| B::int_mean_dim(tensor, axis));
+        reduce_ops!(MeanDimOps, int, |tensor, axis, _| B::int_mean_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1432,7 +1433,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ArgMaxOps, |tensor, axis, _| B::int_argmax(tensor, axis));
+        reduce_ops!(ArgMaxOps, int, |tensor, axis, _| B::int_argmax(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1449,7 +1452,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_argtopk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ArgTopKOps, B::int_argtopk);
+        reduce_ops!(ArgTopKOps, int, B::int_argtopk);
 
         let streams = StreamId::current();
 
@@ -1466,7 +1469,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
-        reduce_int_ops!(TopKOps, B::int_topk);
+        reduce_ops!(TopKOps, int, B::int_topk);
 
         let streams = StreamId::current();
 
@@ -1483,7 +1486,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(ArgMinOps, |tensor, axis, _| B::int_argmin(tensor, axis));
+        reduce_ops!(ArgMinOps, int, |tensor, axis, _| B::int_argmin(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1627,7 +1632,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MaxDimOps, |tensor, axis, _| B::int_max_dim(tensor, axis));
+        reduce_ops!(MaxDimOps, int, |tensor, axis, _| B::int_max_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 
@@ -1716,7 +1723,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MaxAbsDimOps, |tensor, axis, _| B::int_max_abs_dim(
+        reduce_ops!(MaxAbsDimOps, int, |tensor, axis, _| B::int_max_abs_dim(
             tensor, axis
         ));
 
@@ -1738,7 +1745,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MinDimOps, |tensor, axis, _| B::int_min_dim(tensor, axis));
+        reduce_ops!(MinDimOps, int, |tensor, axis, _| B::int_min_dim(
+            tensor, axis
+        ));
 
         let streams = StreamId::current();
 

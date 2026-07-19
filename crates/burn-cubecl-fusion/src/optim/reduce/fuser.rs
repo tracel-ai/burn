@@ -257,20 +257,21 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
                         self.on_elemwise_read(operation);
                     }
                 };
-            } else if let OperationIr::BaseBool(BaseOperationIr::AnyDim(op))
-            | OperationIr::BaseFloat(BaseOperationIr::AnyDim(op))
-            | OperationIr::BaseInt(BaseOperationIr::AnyDim(op)) = operation
+            } else if let OperationIr::BaseBool(op)
+            | OperationIr::BaseFloat(op)
+            | OperationIr::BaseInt(op) = operation
             {
-                // `any`/`all` are bool-output `BaseOperationIr` reductions (not
-                // `NumericOperationIr::*Dim`), so they need their own arms to be
-                // recognized as fusible reductions and routed to cubek's dedicated
-                // Any (max-of-flags) / All (min-of-flags) instruction.
-                self.on_reduce(op, ReduceInstruction::Any);
-            } else if let OperationIr::BaseBool(BaseOperationIr::AllDim(op))
-            | OperationIr::BaseFloat(BaseOperationIr::AllDim(op))
-            | OperationIr::BaseInt(BaseOperationIr::AllDim(op)) = operation
-            {
-                self.on_reduce(op, ReduceInstruction::All);
+                match op {
+                    BaseOperationIr::AnyDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::Any);
+                    }
+                    BaseOperationIr::AllDim(op) => {
+                        self.on_reduce(op, ReduceInstruction::All);
+                    }
+                    _ => {
+                        self.on_elemwise_read(operation);
+                    }
+                }
             } else {
                 self.on_elemwise_read(operation);
             }

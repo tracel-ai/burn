@@ -12,11 +12,17 @@ const ROWS: usize = 4;
 // Wide reduced dim so the reduction spans several plane/cube blocks that must merge.
 const COLS: usize = 257;
 
-/// Deterministic mask: `(r + c) % stride == 0`. With `stride == 3` every row has a
-/// mix of set/unset flags; `stride == ROWS * COLS + 1` makes the whole tensor all-false.
-fn mask(rows: usize, cols: usize, stride: usize) -> Vec<bool> {
+/// Deterministic mask with all-false, all-true, and mixed rows.
+fn mask(rows: usize, cols: usize) -> Vec<bool> {
     (0..rows * cols)
-        .map(|i| (i / cols + i % cols) % stride == 0)
+        .map(|i| {
+            let (r, c) = (i / cols, i % cols);
+            match r % 3 {
+                0 => false,
+                1 => true,
+                _ => c % 3 == 0,
+            }
+        })
         .collect()
 }
 
@@ -66,7 +72,7 @@ fn expect_all_dim(m: &[bool], rows: usize, cols: usize) -> TensorData {
 #[test]
 fn bool_any_dim_fused() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensorBool::<2>::from_data(TensorData::new(m.clone(), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
@@ -77,7 +83,7 @@ fn bool_any_dim_fused() {
 #[test]
 fn bool_all_dim_fused() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensorBool::<2>::from_data(TensorData::new(m.clone(), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
@@ -88,7 +94,7 @@ fn bool_all_dim_fused() {
 #[test]
 fn float_any_dim_fused() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensor::<2>::from_data(TensorData::new(floats(&m), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
@@ -99,7 +105,7 @@ fn float_any_dim_fused() {
 #[test]
 fn float_all_dim_fused() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensor::<2>::from_data(TensorData::new(floats(&m), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
@@ -110,7 +116,7 @@ fn float_all_dim_fused() {
 #[test]
 fn int_any_dim_fused() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensorInt::<2>::from_data(TensorData::new(ints(&m), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
@@ -121,7 +127,7 @@ fn int_any_dim_fused() {
 #[test]
 fn int_all_dim_fused() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensorInt::<2>::from_data(TensorData::new(ints(&m), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
@@ -129,12 +135,46 @@ fn int_all_dim_fused() {
     expect_all_dim(&m, ROWS, COLS).assert_eq(&actual, false);
 }
 
+#[test]
+fn bool_any_all_dim_broadcasted() {
+    let device = Default::default();
+    let m = mask(ROWS, COLS);
+    let tensor = TestTensorBool::<2>::from_data(TensorData::new(m.clone(), [ROWS, COLS]), &device);
+    device.sync().unwrap();
+
+    let actual_any = tensor
+        .clone()
+        .any_dim(1)
+        .bool_or(tensor.clone())
+        .into_data();
+    let actual_all = tensor.clone().all_dim(1).bool_and(tensor).into_data();
+    let any_rows: Vec<bool> = (0..ROWS)
+        .map(|r| (0..COLS).any(|c| m[r * COLS + c]))
+        .collect();
+    let all_rows: Vec<bool> = (0..ROWS)
+        .map(|r| (0..COLS).all(|c| m[r * COLS + c]))
+        .collect();
+    let expected_any: Vec<bool> = m
+        .iter()
+        .enumerate()
+        .map(|(i, &value)| any_rows[i / COLS] || value)
+        .collect();
+    let expected_all: Vec<bool> = m
+        .iter()
+        .enumerate()
+        .map(|(i, &value)| all_rows[i / COLS] && value)
+        .collect();
+
+    TensorData::new(expected_any, [ROWS, COLS]).assert_eq(&actual_any, false);
+    TensorData::new(expected_all, [ROWS, COLS]).assert_eq(&actual_all, false);
+}
+
 // ---- whole-tensor reductions (flatten -> any_dim(0)) -------------------------
 
 #[test]
 fn bool_any_all_whole() {
     let device = Default::default();
-    let mixed = mask(ROWS, COLS, 3); // at least one set and one unset flag
+    let mixed = mask(ROWS, COLS);
     let all_false = vec![false; ROWS * COLS];
     let all_true = vec![true; ROWS * COLS];
 
@@ -152,7 +192,7 @@ fn bool_any_all_whole() {
 #[test]
 fn float_int_whole() {
     let device = Default::default();
-    let mixed = mask(ROWS, COLS, 3);
+    let mixed = mask(ROWS, COLS);
     let tf = TestTensor::<2>::from_data(TensorData::new(floats(&mixed), [ROWS, COLS]), &device);
     let ti = TestTensorInt::<2>::from_data(TensorData::new(ints(&mixed), [ROWS, COLS]), &device);
     device.sync().unwrap();
@@ -166,7 +206,7 @@ fn float_int_whole() {
 #[test]
 fn bool_reshape_then_any_dim() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensorBool::<2>::from_data(TensorData::new(m.clone(), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
@@ -185,7 +225,7 @@ fn bool_reshape_then_any_dim() {
 #[test]
 fn float_elemwise_then_any_dim() {
     let device = Default::default();
-    let m = mask(ROWS, COLS, 3);
+    let m = mask(ROWS, COLS);
     let tensor = TestTensor::<2>::from_data(TensorData::new(floats(&m), [ROWS, COLS]), &device);
     device.sync().unwrap();
 
