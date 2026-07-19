@@ -194,6 +194,11 @@ pub enum FuseOp {
         output: FuseArg,
         dim: usize,
     },
+    Cat {
+        inputs: Vec<FuseArg>,
+        output: FuseArg,
+        dim: usize,
+    },
     Dequantize {
         values: FuseArg,
         params: FuseArg,
@@ -273,6 +278,20 @@ impl Display for FuseOp {
                 "{} = select(input={}, indices={}, dim={})",
                 output, input, indices, dim
             ),
+            FuseOp::Cat {
+                inputs,
+                output,
+                dim,
+            } => {
+                write!(f, "{output} = cat(inputs=[")?;
+                for (i, input) in inputs.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{input}")?;
+                }
+                write!(f, "], dim={dim})")
+            }
             FuseOp::Dequantize {
                 values,
                 params,
@@ -329,6 +348,7 @@ impl FuseOp {
             FuseOp::ConditionalAssign { out, .. } => out.precision().into_elem(),
             FuseOp::Gather { output, .. } => output.precision().into_elem(),
             FuseOp::Select { output, .. } => output.precision().into_elem(),
+            FuseOp::Cat { output, .. } => output.precision().into_elem(),
             FuseOp::Dequantize { output, .. } => output.precision().into_elem(),
             FuseOp::Rem(op) => op.out.precision().into_elem(),
             FuseOp::Clamp { out, .. } => out.precision().into_elem(),
@@ -464,7 +484,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
     pub fn shape(&self, arg: &FuseArg) -> Shape {
         match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.shape.clone(),
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            TensorArg::Alias { shape, .. } => shape.clone(),
         }
     }
 
@@ -504,7 +524,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
     pub fn strides(&self, arg: &FuseArg) -> Strides {
         match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.strides.clone(),
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+            TensorArg::Alias { strides, .. } => strides.clone(),
         }
     }
 
@@ -760,6 +780,16 @@ impl FuseOp {
                 indices.multi_block_variable(registers);
                 output.multi_block_variable(registers);
             }
+            FuseOp::Cat {
+                inputs,
+                output,
+                dim: _,
+            } => {
+                for input in inputs {
+                    input.multi_block_variable(registers);
+                }
+                output.multi_block_variable(registers);
+            }
             FuseOp::Dequantize {
                 values,
                 params,
@@ -863,7 +893,7 @@ impl From<ElemType> for FuseType {
                 UIntKind::U16 => Self::U16,
                 UIntKind::U8 => Self::U8,
             },
-            ElemType::Bool => panic!("Bool should be encoded as u8 or u32"),
+            ElemType::Bool => Self::U32,
         }
     }
 }
@@ -920,7 +950,7 @@ impl From<DType> for FuseType {
             DType::U32 => Self::U32,
             DType::U16 => Self::U16,
             DType::U8 => Self::U8,
-            DType::Bool(BoolStore::Native) => unimplemented!("Bool should be U8 or U32"),
+            DType::Bool(BoolStore::Native) => Self::U32,
             DType::Bool(BoolStore::U8) => Self::U8,
             DType::Bool(BoolStore::U32) => Self::U32,
             DType::F64 => Self::F64,

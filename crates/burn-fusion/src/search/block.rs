@@ -1,5 +1,9 @@
-use crate::{FuserStatus, NumOperations, OperationFuser, stream::store::ExecutionStrategy};
-use burn_ir::{OperationIr, TensorId, TensorIr};
+use crate::{
+    FuserStatus, NumOperations, OperationFuser,
+    search::graph::{GraphNode, SubGraph, is_valid_execution_order},
+    stream::store::ExecutionStrategy,
+};
+use burn_ir::{OperationIr, TensorId, TensorIr, TensorStatus};
 use std::{collections::HashSet, sync::Arc};
 
 /// A block represents a list of operations, not necessarily in the same order as the execution
@@ -11,6 +15,19 @@ pub struct Block<O> {
     builders: Vec<Box<dyn OperationFuser<O>>>,
     operations: Vec<OperationIr>,
     ids: HashSet<TensorId>,
+    /// Tensor ids produced (as an output) by an operation of this block.
+    produced: HashSet<TensorId>,
+    /// Tensor ids consumed by this block but produced elsewhere (external inputs).
+    read: HashSet<TensorId>,
+    /// Tensor ids this block reads with [ReadWrite](TensorStatus::ReadWrite) status — i.e. it is
+    /// the last use and frees/reuses the buffer in place.
+    freed: HashSet<TensorId>,
+    /// The original blocks this block subsumes.
+    ///
+    /// Seeded to a single node by the optimizer before a merge pass and unioned on
+    /// [merge](Self::merge), so the [Reachability](crate::search::graph::Reachability) guard can
+    /// reason about the original dependency graph through the recursive merging.
+    constituents: SubGraph,
     ordering: Vec<usize>,
     /// The start position in the relative execution stream.
     pub start_pos: usize,
@@ -37,6 +54,79 @@ pub struct BlockOptimization<O> {
     pub ordering: Vec<usize>,
 }
 
+impl<O> Block<O> {
+    /// The original blocks this block subsumes.
+    pub fn constituents(&self) -> &SubGraph {
+        &self.constituents
+    }
+
+    /// Seed this block's [constituents](Self::constituents) to a single original block index.
+    pub fn seed_constituent(&mut self, index: usize) {
+        self.constituents = SubGraph::single(index);
+    }
+}
+
+/// A single operation at its stream position, viewed as a [GraphNode].
+pub struct OperationNode<'a> {
+    /// The operation.
+    pub operation: &'a OperationIr,
+    /// The stream position of the operation.
+    pub position: usize,
+}
+
+impl GraphNode for OperationNode<'_> {
+    type Resource = TensorId;
+
+    fn produced(&self) -> impl Iterator<Item = TensorId> {
+        self.operation.outputs().map(|tensor| tensor.id)
+    }
+
+    fn read(&self) -> impl Iterator<Item = TensorId> {
+        self.operation.inputs().map(|tensor| tensor.id)
+    }
+
+    fn freed(&self) -> impl Iterator<Item = TensorId> {
+        self.operation
+            .inputs()
+            .filter(|tensor| matches!(tensor.status, TensorStatus::ReadWrite))
+            .map(|tensor| tensor.id)
+    }
+
+    fn position(&self) -> usize {
+        self.position
+    }
+}
+
+/// The dependency edges between blocks are derived from what each block reads, produces, and
+/// frees — see [GraphNode].
+impl<O> GraphNode for Block<O> {
+    type Resource = TensorId;
+
+    fn produced(&self) -> impl Iterator<Item = TensorId> {
+        self.produced.iter().copied()
+    }
+
+    fn read(&self) -> impl Iterator<Item = TensorId> {
+        self.read.iter().copied()
+    }
+
+    fn freed(&self) -> impl Iterator<Item = TensorId> {
+        self.freed.iter().copied()
+    }
+
+    fn produces(&self, resource: TensorId) -> bool {
+        self.produced.contains(&resource)
+    }
+
+    fn reads(&self, resource: TensorId) -> bool {
+        self.read.contains(&resource)
+    }
+
+    fn position(&self) -> usize {
+        self.start_pos
+    }
+}
+
 impl<O: NumOperations> Block<O> {
     /// Create a new block that will be optimized with the provided [optimization builders](OptimizationBuilder).
     pub fn new(builders: &[Box<dyn OperationFuser<O>>]) -> Self {
@@ -44,6 +134,10 @@ impl<O: NumOperations> Block<O> {
             builders: builders.iter().map(|o| o.clone_dyn()).collect(),
             operations: Vec::new(),
             ids: HashSet::new(),
+            produced: HashSet::new(),
+            read: HashSet::new(),
+            freed: HashSet::new(),
+            constituents: SubGraph::empty(),
             ordering: Vec::new(),
             start_pos: usize::MAX,
             end_pos: usize::MIN,
@@ -98,8 +192,20 @@ impl<O: NumOperations> Block<O> {
     ///
     /// This will modify the current block even if the other block isn't correctly merged.
     pub fn merge(&mut self, other: &Block<O>) -> bool {
+        // A block executes as one contiguous unit in registration order (fused kernels replay
+        // the fusion order). Appending the other block's operations can place a consumer before
+        // its producer — or a free before a read — when the blocks depend on each other. Reject
+        // such merges before mutating anything; the caller can retry in the other direction.
+        if !self.can_append(other) {
+            return false;
+        }
+
         let self_ready = self.has_ready_optimization();
         let other_ready = other.has_ready_optimization();
+
+        // Absorb the other block's provenance so the merge guard sees the combined set on any
+        // subsequent `can_contract` check.
+        self.constituents.union_with(&other.constituents);
 
         for (op, pos) in other.operations.iter().zip(&other.ordering) {
             self.register(op, *pos, true);
@@ -120,6 +226,27 @@ impl<O: NumOperations> Block<O> {
 
     fn has_ready_optimization(&self) -> bool {
         self.builders.iter().any(|b| b.properties().ready)
+    }
+
+    /// Whether appending the other block's operations after this block's — the registration
+    /// order a [merge](Self::merge) in this direction produces — respects every tensor lifetime
+    /// (no read before the producing operation, no read after the freeing operation).
+    ///
+    /// This is the validity check `merge` performs, exposed so callers can test a merge
+    /// direction *before* paying for a deep clone of the base block.
+    pub fn can_append<'a>(&'a self, other: &'a Block<O>) -> bool {
+        is_valid_execution_order(self.operation_nodes().chain(other.operation_nodes()))
+    }
+
+    /// The block's operations in registration order, viewed as [graph nodes](OperationNode).
+    fn operation_nodes(&self) -> impl Iterator<Item = OperationNode<'_>> + Clone {
+        self.operations
+            .iter()
+            .zip(&self.ordering)
+            .map(|(operation, &position)| OperationNode {
+                operation,
+                position,
+            })
     }
 
     /// Register an [operation](OperationIr) in the current block.
@@ -189,6 +316,23 @@ impl<O: NumOperations> Block<O> {
         for node in operation.nodes() {
             self.ids.insert(node.id);
         }
+
+        // Maintain the produced / external-read sets incrementally. A consumed id counts as an
+        // external read only while nothing in the block has produced it; producing an id makes
+        // it internal (and clears any earlier external record). This is order-independent, so it
+        // stays correct when `merge` folds ops in a non-causal order.
+        for node in operation.inputs() {
+            if !self.produced.contains(&node.id) {
+                self.read.insert(node.id);
+            }
+            if let TensorStatus::ReadWrite = node.status {
+                self.freed.insert(node.id);
+            }
+        }
+        for node in operation.outputs() {
+            self.produced.insert(node.id);
+            self.read.remove(&node.id);
+        }
     }
 }
 
@@ -199,6 +343,55 @@ impl<O> BlockOptimization<O> {
             *i = mapping[*i];
         }
         self.strategy.map_ordering(mapping);
+    }
+
+    /// Extend the optimization to cover all `num_operations` of its segment: the
+    /// positions the search left uncovered (the drained tail of a block whose best
+    /// fusion stopped early) are appended as un-fused
+    /// [operations](ExecutionStrategy::Operations) in a
+    /// [composed](ExecutionStrategy::Composed) strategy.
+    ///
+    /// Leaving the tail out is right in lazy mode — it seeds the next exploration
+    /// round, where more incoming operations may fuse with it. At a sync the segment
+    /// is final: no later round can pick the tail up, and a plan covering only part
+    /// of the segment can never be matched again (plan lookup at a sync compares the
+    /// whole remaining segment). Covering the full segment makes the cached plan
+    /// reusable on every subsequent identical sync.
+    ///
+    /// The uncovered positions are always a trailing run of the segment (interior
+    /// holes are re-optimized by the stream optimizer before this is called — enforced
+    /// by a debug assertion), so appending them last preserves the hazard-respecting
+    /// execution order.
+    pub fn include_trailing(&mut self, num_operations: usize) {
+        if self.ordering.len() >= num_operations {
+            return;
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            let mut resolved = vec![false; num_operations];
+            for &position in &self.ordering {
+                resolved[position] = true;
+            }
+            debug_assert!(
+                resolved[..self.ordering.len()].iter().all(|&r| r),
+                "uncovered positions must be a trailing run of the segment"
+            );
+        }
+        let trailing: Vec<usize> = (self.ordering.len()..num_operations).collect();
+
+        let tail = ExecutionStrategy::Operations {
+            ordering: Arc::new(trailing.clone()),
+        };
+        let strategy = core::mem::replace(&mut self.strategy, ExecutionStrategy::Composed(vec![]));
+        self.strategy = match strategy {
+            ExecutionStrategy::Composed(mut items) => {
+                items.push(Box::new(tail));
+                ExecutionStrategy::Composed(items)
+            }
+            single => ExecutionStrategy::Composed(vec![Box::new(single), Box::new(tail)]),
+        };
+        self.ordering.extend(trailing);
     }
 }
 
@@ -289,9 +482,158 @@ impl<O> Clone for Block<O> {
             builders: self.builders.iter().map(|b| b.clone_dyn()).collect(),
             operations: self.operations.clone(),
             ids: self.ids.clone(),
+            produced: self.produced.clone(),
+            read: self.read.clone(),
+            freed: self.freed.clone(),
+            constituents: self.constituents.clone(),
             ordering: self.ordering.clone(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
         }
+    }
+}
+
+/// Integration of [Block] with the [graph](crate::search::graph) algorithms: dependency edges
+/// between blocks are derived from the tensors they read, produce, and free.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::graph::Dag;
+    use crate::search::testing::{add, add_rw};
+    use crate::stream::execution::tests::TestOptimization;
+
+    /// A block owning the given `(operation, position)` pairs. No builders needed — the
+    /// dependency analysis only reads the data-flow sets and `start_pos`.
+    fn block(ops: &[(OperationIr, usize)]) -> Block<TestOptimization> {
+        let builders: Vec<Box<dyn OperationFuser<TestOptimization>>> = Vec::new();
+        let mut block = Block::new(&builders);
+        for (op, pos) in ops {
+            block.register(op, *pos, true);
+        }
+        block
+    }
+
+    #[test]
+    fn dependency_beats_start_pos_in_topological_order() {
+        // Block 0 (start_pos 0) consumes tensor 50, which block 1 (start_pos 5) produces.
+        let blocks = vec![
+            block(&[(add(50, 1, 2), 0)]), // Consumes 50 -> depends on block 1.
+            block(&[(add(9, 8, 50), 5)]), // Produces 50.
+        ];
+
+        assert_eq!(Dag::new(&blocks).topological_order(), Some(vec![1, 0]));
+    }
+
+    #[test]
+    fn mutual_dependency_between_blocks_is_a_cycle() {
+        // Block 0 produces 100 (consumed by block 1) and consumes 200 (produced by block 1).
+        let blocks = vec![
+            block(&[(add(1, 2, 100), 0), (add(200, 3, 101), 1)]),
+            block(&[(add(100, 4, 200), 2)]),
+        ];
+
+        assert!(!Dag::new(&blocks).is_acyclic());
+    }
+
+    #[test]
+    fn freeing_block_runs_after_reading_block() {
+        // Both blocks read tensor 100 (produced elsewhere): block 0 read-only, block 1 frees it
+        // (ReadWrite). The freer must run after the reader.
+        let blocks = vec![
+            block(&[(add(100, 1, 2), 0)]),    // Reads 100 read-only.
+            block(&[(add_rw(100, 3, 4), 1)]), // Frees 100.
+        ];
+
+        assert_eq!(Dag::new(&blocks).topological_order(), Some(vec![0, 1]));
+    }
+
+    #[test]
+    fn merge_guard_blocks_contraction_around_intermediate_block() {
+        // A(0) -> C(1) -> B(2): C sits between A and B, so merging A and B would create a cycle.
+        let mut blocks = vec![
+            block(&[(add(1, 2, 100), 0)]),   // A: produces 100.
+            block(&[(add(100, 3, 200), 1)]), // C: consumes 100, produces 200.
+            block(&[(add(200, 4, 300), 2)]), // B: consumes 200.
+        ];
+        for (i, block) in blocks.iter_mut().enumerate() {
+            block.seed_constituent(i);
+        }
+        let guard = Dag::new(&blocks).reachability();
+
+        // A and B cannot merge (C is between them)...
+        assert!(!guard.can_contract(blocks[0].constituents(), blocks[2].constituents()));
+        // ...but each direct edge is fine.
+        assert!(guard.can_contract(blocks[0].constituents(), blocks[1].constituents()));
+        assert!(guard.can_contract(blocks[1].constituents(), blocks[2].constituents()));
+    }
+
+    #[test]
+    fn merge_guard_refuses_unseeded_blocks() {
+        let blocks = vec![block(&[(add(1, 2, 3), 0)]), block(&[(add(4, 5, 6), 1)])];
+        let guard = Dag::new(&blocks).reachability();
+
+        assert!(!guard.can_contract(blocks[0].constituents(), blocks[1].constituents()));
+    }
+
+    /// A block with a builder open to any prefix of `pattern`, owning the given ops.
+    ///
+    /// The builder keeps the block `still_optimizing` as long as the registered ops follow the
+    /// pattern, so merge acceptance is driven by the pattern and the tests below can isolate the
+    /// internal-order validation.
+    fn block_with_pattern(
+        pattern: &[OperationIr],
+        ops: &[(OperationIr, usize)],
+    ) -> Block<TestOptimization> {
+        use crate::stream::execution::tests::TestOptimizationBuilder;
+
+        let builders: Vec<Box<dyn OperationFuser<TestOptimization>>> =
+            vec![Box::new(TestOptimizationBuilder::new(0, pattern.to_vec()))];
+        let mut block = Block::new(&builders);
+        for (op, pos) in ops {
+            block.register(op, *pos, true);
+        }
+        block
+    }
+
+    #[test]
+    fn merge_rejects_consumer_fused_before_producer() {
+        let x = add(1, 2, 10);
+        let y = add(50, 3, 11); // Reads 50...
+        let z = add(4, 5, 50); // ...which this op produces.
+
+        // The pattern accepts the forward merge order [x, y, z], so only the internal-order
+        // validation can reject it: y would be fused before the op producing its input.
+        let pattern = [x.clone(), y.clone(), z.clone(), x.clone()];
+        let mut base = block_with_pattern(&pattern, &[(x, 0), (y, 1)]);
+        let producer = block_with_pattern(&pattern, &[(z, 2)]);
+
+        assert!(!base.merge(&producer));
+    }
+
+    #[test]
+    fn merge_accepts_producer_fused_before_consumer() {
+        let x = add(1, 2, 10);
+        let y = add(50, 3, 11);
+        let z = add(4, 5, 50);
+
+        // Same blocks as above, merged in the other direction: [z, x, y] is causal.
+        let pattern = [z.clone(), x.clone(), y.clone(), x.clone()];
+        let consumers = block_with_pattern(&pattern, &[(x, 0), (y, 1)]);
+        let mut base = block_with_pattern(&pattern, &[(z, 2)]);
+
+        assert!(base.merge(&consumers));
+    }
+
+    #[test]
+    fn merge_rejects_free_fused_before_read() {
+        let reader = add(100, 1, 2); // Reads 100.
+        let freer = add_rw(100, 3, 4); // Frees 100.
+
+        // Fusing the free before the read would release the tensor under the reader.
+        let pattern = [freer.clone(), reader.clone(), reader.clone()];
+        let mut base = block_with_pattern(&pattern, &[(freer, 1)]);
+        let other = block_with_pattern(&pattern, &[(reader, 0)]);
+
+        assert!(!base.merge(&other));
     }
 }

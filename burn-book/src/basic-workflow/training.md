@@ -148,6 +148,8 @@ Book.
 Let us move on to establishing the practical training configuration.
 
 ```rust , ignore
+# use std::path::PathBuf;
+#
 # use crate::{
 #     data::{MnistBatch, MnistBatcher},
 #     model::{Model, ModelConfig},
@@ -215,8 +217,7 @@ pub struct TrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 

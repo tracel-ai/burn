@@ -29,6 +29,7 @@ doc = [
     "burn-std/doc",
     "burn-dataset/doc",
     "burn-tensor/doc",
+    "dep:regex"
 ]
 tracing = ["burn-std/tracing", "burn-tensor/tracing", "burn-dataset?/tracing"]
 
@@ -53,7 +54,8 @@ audio = ["burn-dataset?/audio"]
 
 # Backends
 remote = ["burn-tensor/remote"]
-server = ["burn-tensor/server"]
+remote-server = ["burn-tensor/remote-server"]
+remote-websocket = ["burn-tensor/remote-websocket"]
 cuda = ["burn-tensor/cuda"]
 rocm = ["burn-tensor/rocm"]
 flex = ["burn-tensor/flex"]
@@ -107,6 +109,11 @@ half = { workspace = true }
 num-traits = { workspace = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 spin = { workspace = true }                             # Using in place of use std::sync::Mutex when std is disabled
+thiserror = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
+
+[target.'cfg(target_has_atomic = "ptr")'.dependencies]
+regex = { workspace = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }

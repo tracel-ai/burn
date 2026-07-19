@@ -34,9 +34,20 @@ impl<C: RouterClient> TensorMetadata for RouterTensor<C> {
     fn device(&self) -> Self::Device {
         self.client.device()
     }
+
+    fn can_mut(&self) -> bool {
+        // Same sharing rule as `into_ir`: a handle cloned on its stream
+        // (count > 1) is read-only for the runner, a unique one is read-write.
+        self.count.load(Ordering::Acquire) <= 1
+    }
 }
 
 impl<C: RouterClient> RouterTensor<C> {
+    /// The id identifying this tensor on its [client](RouterClient).
+    pub fn id(&self) -> TensorId {
+        self.id
+    }
+
     /// Create a new router tensor.
     pub fn new(id: TensorId, shape: Shape, dtype: DType, client: C) -> Self {
         Self {

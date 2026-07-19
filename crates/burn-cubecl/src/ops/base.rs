@@ -13,6 +13,13 @@ use cubecl::{ir::VectorSize, server::CopyDescriptor};
 use cubecl::{quant::scheme::BlockSize, tensor_vector_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
+    // `TensorData` may contain lazily materialized device-backed bytes produced
+    // by `into_data()`. These unnecessary round-trips should be avoided, but
+    // materializing before re-uploading avoids recursive runtime submission.
+    if data.bytes.property() == burn_std::AllocationProperty::Device {
+        let _ = data.bytes.read(burn_std::Reader::new());
+    }
+
     let client = R::client(device);
     let alloc = client.create_tensor(data.bytes, data.shape.clone(), data.dtype.size());
     let shape: Shape = (&data.shape).into();
@@ -34,13 +41,17 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
-    let bytes = tensor
-        .client
-        .read_lazy_async(binding)
-        .await
-        .map_err(|err| ExecutionError::WithContext {
-            reason: format!("{err}"),
-        })?;
+    // Under an async runtime (e.g. a remote server), a lazy read defers the device→host
+    // copy to first access, where a blocking read would run on — and starve — an executor
+    // worker. Read eagerly there so the copy happens inside this awaited future. On a
+    // sync/threaded runtime the lazy read keeps the streaming optimization.
+    let read = match burn_std::runtime_kind() {
+        burn_std::RuntimeKind::Async => tensor.client.read_one_tensor_async(binding).await,
+        _ => tensor.client.read_lazy_async(binding).await,
+    };
+    let bytes = read.map_err(|err| ExecutionError::WithContext {
+        reason: format!("{err}"),
+    })?;
 
     Ok(TensorData::from_bytes(
         bytes,

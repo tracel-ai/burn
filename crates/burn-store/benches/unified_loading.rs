@@ -23,7 +23,7 @@ use burn_core as burn;
 
 use burn_core::module::Module;
 use burn_core::prelude::*;
-use burn_core::record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder};
+use burn_core::store::ModuleRecord;
 // use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 // use burn_import::safetensors::SafetensorsFileRecorder;
 use burn_nn as nn;
@@ -83,9 +83,8 @@ fn generate_burn_formats(st_path: &Path, bp_path: &Path, mpk_path: &Path) {
     // Save as NamedMpk
     if !mpk_path.exists() {
         println!("  Creating NamedMpk file...");
-        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
         model
-            .save_file(mpk_path, &recorder)
+            .save_file(mpk_path)
             .expect("Failed to save as NamedMpk");
     }
 }
@@ -219,11 +218,8 @@ macro_rules! bench_backend {
                     .counter(divan::counter::BytesCount::new(file_size))
                     .bench(|| {
                         let device = $device;
-                        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
-                        let record = recorder
-                            .load(mpk_path.clone().into(), &device)
-                            .expect("Failed to load");
-                        let _model = LargeModel::new(&device).load_record(record);
+                        let model = LargeModel::new(&device);
+                        model.load_record(ModuleRecord::load(&mpk_path).expect("Failed to load"));
                     });
             }
 

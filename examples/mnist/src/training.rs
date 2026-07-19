@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use crate::{
     data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
@@ -50,8 +50,7 @@ pub struct MnistTrainingConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -97,7 +96,7 @@ pub fn run(device: Device) {
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
-        .with_checkpointer()
+        .with_default_checkpointers()
         .early_stopping(MetricEarlyStoppingStrategy::new(
             &LossMetric::new(),
             Aggregate::Mean,

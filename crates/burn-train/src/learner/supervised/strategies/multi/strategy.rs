@@ -1,6 +1,6 @@
 use crate::{
-    Learner, LearnerEvent, LearningComponentsTypes, MultiDeviceOptim, SupervisedLearningStrategy,
-    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, TrainingModel, ValidLoader,
+    Learner, LearnerEvent, LearnerModel, MultiDeviceOptim, SupervisedLearningStrategy,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, ValidLoader,
     metric::processor::EventProcessorTraining,
     multi::epoch::MultiDeviceTrainEpoch,
     single::{TrainingLoop, epoch::SingleDeviceValidEpoch},
@@ -17,15 +17,15 @@ impl MultiDeviceLearningStrategy {
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MultiDeviceLearningStrategy {
+impl<M: LearnerModel> SupervisedLearningStrategy<M> for MultiDeviceLearningStrategy {
     fn fit(
         &self,
-        training_components: TrainingComponents<LC>,
-        mut learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
+        training_components: TrainingComponents<M>,
+        mut learner: Learner<M>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: ValidLoader<M>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (M, SupervisedTrainingEventProcessor<M>) {
         let main_device = self.devices.first().unwrap();
 
         // `MultiDevicesTrainStep` has one worker per device, so we use a fixed device strategy
@@ -41,17 +41,20 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MultiDevice
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
 
-        let epoch_train = MultiDeviceTrainEpoch::<LC>::new(
+        let epoch_train = MultiDeviceTrainEpoch::<M>::new(
             dataloader_train.clone(),
             training_components.grad_accumulation,
         );
-        let epoch_valid: SingleDeviceValidEpoch<LC> =
+        let epoch_valid: SingleDeviceValidEpoch<M> =
             SingleDeviceValidEpoch::new(dataloader_valid.clone());
 
         for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
             let epoch = training_progress.items_processed;
 
-            event_processor.process_train(LearnerEvent::StartSplit(train_total_items));
+            event_processor.process_train(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: train_total_items,
+            });
             epoch_train.run(
                 &mut learner,
                 &training_progress,
@@ -77,7 +80,10 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MultiDevice
                 learner.fork(main_device);
             }
 
-            event_processor.process_valid(LearnerEvent::StartSplit(valid_total_items));
+            event_processor.process_valid(LearnerEvent::StartSplit {
+                epoch_number: epoch,
+                total_items: valid_total_items,
+            });
             epoch_valid.run(
                 &learner,
                 &training_progress,

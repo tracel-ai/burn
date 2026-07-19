@@ -1,25 +1,23 @@
 #![recursion_limit = "256"]
 
-//! Benchmark comparing zero-copy vs copy loading modes for BurnpackStore.
+//! Benchmark comparing different loading modes for BurnpackStore.
 //!
 //! This benchmark measures the performance difference between:
-//! - `zero_copy(false)` - Default mode, copies tensor data into new allocations
-//! - `zero_copy(true)` - Zero-copy mode, slices tensor data without copying
+//! - `from_file()` - File-based loading (reader handles lazy/mmap internally)
+//! - `from_static()` - Zero-copy mode from static bytes (stays in .rodata)
+//! - `from_bytes()` - Loading from owned bytes
+//! - `from_bytes()` with shared `Bytes` - Loading from shared/arc bytes
 //!
 //! ## Understanding the Results
 //!
-//! **IMPORTANT**: For the Flex backend, you'll see similar allocation numbers
-//! because Flex currently copies incoming bytes into its own `Bytes` storage
-//! on load rather than borrowing from the underlying buffer.
+//! The key difference is how tensor data reaches the backend:
+//! - **from_file**: File → reader (lazy/mmap) → backend
+//! - **from_bytes**: Owned bytes → copy to backend
+//! - **from_static**: Static .rodata → zero-copy slice → backend
+//! - **shared bytes**: Arc'd bytes → zero-copy clone → backend
 //!
-//! The zero-copy benefit is:
-//! - **Without zero-copy**: File → Copy to heap (Bytes) → Copy to Vec (backend)
-//! - **With zero-copy**: File → Zero-copy slice → Copy to Vec (backend)
-//!
-//! So zero-copy saves ONE memory copy at the store level. The `store_only_*` benchmarks
-//! show the raw store performance without backend allocation overhead.
-//!
-//! GPU backends that can consume `Bytes` directly will show larger benefits.
+//! GPU backends that can consume `Bytes` directly will show larger benefits
+//! from zero-copy paths.
 //!
 //! ## Running the benchmark
 //!
@@ -146,13 +144,13 @@ fn main() {
     println!("  Path: {}", bp_path.display());
     println!("  Size: {:.1} MB", file_size);
     println!();
-    println!("🚀 Running zero-copy loading benchmarks...");
+    println!("🚀 Running loading mode benchmarks...");
     println!();
     println!("Comparing loading modes:");
-    println!("  1. file_copy        - from_file().zero_copy(false) - copies tensor data");
-    println!("  2. file_zero_copy   - from_file().zero_copy(true)  - zero-copy via mmap");
-    println!("  3. static_copy      - from_bytes() with Vec copy   - copies from static");
-    println!("  4. static_zero_copy - from_static()                - zero-copy from static");
+    println!("  1. file             - from_file() - lazy/mmap file loading");
+    println!("  2. static_bytes     - from_bytes() with Vec copy from static");
+    println!("  3. static_zero_copy - from_static() - zero-copy from static");
+    println!("  4. memory_shared    - from_bytes() with shared Bytes (cheap Arc clone)");
     println!();
     println!("Available backends:");
     println!("  - Flex (CPU)");
@@ -179,9 +177,9 @@ macro_rules! bench_backend {
         mod $mod_name {
             use super::*;
 
-            /// File-based loading with copy mode (default)
+            /// File-based loading (reader handles lazy/mmap internally)
             #[divan::bench]
-            fn file_copy(bencher: Bencher) {
+            fn file(bencher: Bencher) {
                 let bp_path = get_burnpack_path();
                 let file_size = fs::metadata(&bp_path).unwrap().len();
 
@@ -190,30 +188,14 @@ macro_rules! bench_backend {
                     .bench(|| {
                         let device = $device;
                         let mut model = LargeModel::new(&device);
-                        let mut store = BurnpackStore::from_file(&bp_path).zero_copy(false);
+                        let mut store = BurnpackStore::from_file(&bp_path);
                         model.load_from(&mut store).expect("Failed to load");
                     });
             }
 
-            /// File-based loading with zero-copy mode (mmap + bytes::Bytes)
+            /// Static bytes with copy (simulating old behavior: copy to Vec first)
             #[divan::bench]
-            fn file_zero_copy(bencher: Bencher) {
-                let bp_path = get_burnpack_path();
-                let file_size = fs::metadata(&bp_path).unwrap().len();
-
-                bencher
-                    .counter(divan::counter::BytesCount::new(file_size))
-                    .bench(|| {
-                        let device = $device;
-                        let mut model = LargeModel::new(&device);
-                        let mut store = BurnpackStore::from_file(&bp_path).zero_copy(true);
-                        model.load_from(&mut store).expect("Failed to load");
-                    });
-            }
-
-            /// Static bytes with copy mode (simulating old behavior)
-            #[divan::bench]
-            fn static_copy(bencher: Bencher) {
+            fn static_bytes(bencher: Bencher) {
                 let static_bytes = get_static_model_bytes();
                 let file_size = static_bytes.len() as u64;
 
@@ -223,14 +205,13 @@ macro_rules! bench_backend {
                         let device = $device;
                         let mut model = LargeModel::new(&device);
 
-                        // Simulate old behavior: copy static bytes to Vec, then load
                         let bytes = Bytes::from_bytes_vec(static_bytes.to_vec());
-                        let mut store = BurnpackStore::from_bytes(Some(bytes)).zero_copy(false);
+                        let mut store = BurnpackStore::from_bytes(Some(bytes));
                         model.load_from(&mut store).expect("Failed to load");
                     });
             }
 
-            /// Static bytes with zero-copy mode (new from_static)
+            /// Static bytes with zero-copy (from_static keeps data in .rodata)
             #[divan::bench]
             fn static_zero_copy(bencher: Bencher) {
                 let static_bytes = get_static_model_bytes();
@@ -242,15 +223,14 @@ macro_rules! bench_backend {
                         let device = $device;
                         let mut model = LargeModel::new(&device);
 
-                        // Zero-copy: use from_static which keeps data in .rodata
                         let mut store = BurnpackStore::from_static(static_bytes);
                         model.load_from(&mut store).expect("Failed to load");
                     });
             }
 
-            /// In-memory shared bytes with zero-copy
+            /// In-memory shared bytes (cheap Arc clone, zero-copy)
             #[divan::bench]
-            fn memory_shared_zero_copy(bencher: Bencher) {
+            fn memory_shared(bencher: Bencher) {
                 let static_bytes = get_static_model_bytes();
                 let file_size = static_bytes.len() as u64;
 
@@ -263,9 +243,8 @@ macro_rules! bench_backend {
                         let device = $device;
                         let mut model = LargeModel::new(&device);
 
-                        // Create Bytes from shared (cheap clone of Arc)
                         let bytes = Bytes::from_shared(shared.clone(), AllocationProperty::Other);
-                        let mut store = BurnpackStore::from_bytes(Some(bytes)).zero_copy(true);
+                        let mut store = BurnpackStore::from_bytes(Some(bytes));
                         model.load_from(&mut store).expect("Failed to load");
                     });
             }
@@ -352,23 +331,23 @@ mod verification {
         println!("   - Matmul result sum: {:.4}", matmul_sum);
     }
 
-    /// Compare zero-copy vs copy: verify both produce identical results
+    /// Compare from_static vs from_bytes: verify both produce identical results
     #[divan::bench]
-    fn verify_copy_vs_zero_copy_equality() {
+    fn verify_static_vs_bytes_equality() {
         let static_bytes = get_static_model_bytes();
         let device = Device::flex();
 
-        // Load with zero-copy
+        // Load with from_static (zero-copy)
         let mut model_zc = LargeModel::new(&device);
         let mut store_zc = BurnpackStore::from_static(static_bytes);
         model_zc
             .load_from(&mut store_zc)
             .expect("Failed to load zero-copy");
 
-        // Load with copy (simulate old behavior)
+        // Load with from_bytes (copy)
         let mut model_copy = LargeModel::new(&device);
         let bytes = Bytes::from_bytes_vec(static_bytes.to_vec());
-        let mut store_copy = BurnpackStore::from_bytes(Some(bytes)).zero_copy(false);
+        let mut store_copy = BurnpackStore::from_bytes(Some(bytes));
         model_copy
             .load_from(&mut store_copy)
             .expect("Failed to load copy");
@@ -419,18 +398,16 @@ mod verification {
 mod store_only {
     use super::*;
 
-    /// File-based store with copy mode - measures store overhead only
+    /// File-based store - measures store overhead only
     #[divan::bench]
-    fn file_copy(bencher: Bencher) {
+    fn file(bencher: Bencher) {
         let bp_path = get_burnpack_path();
         let file_size = fs::metadata(&bp_path).unwrap().len();
 
         bencher
             .counter(divan::counter::BytesCount::new(file_size))
             .bench(|| {
-                let mut store = BurnpackStore::from_file(&bp_path).zero_copy(false);
-                // Just iterate through all tensor snapshots, calling to_data() on each
-                // This forces the store to read and materialize all tensor data
+                let mut store = BurnpackStore::from_file(&bp_path);
                 let snapshots = store.get_all_snapshots().expect("Failed to get snapshots");
                 for snapshot in snapshots.values() {
                     let _data = snapshot.to_data().expect("Failed to get tensor data");
@@ -438,35 +415,17 @@ mod store_only {
             });
     }
 
-    /// File-based store with zero-copy mode - measures store overhead only
+    /// Static bytes with copy - measures store overhead only
     #[divan::bench]
-    fn file_zero_copy(bencher: Bencher) {
-        let bp_path = get_burnpack_path();
-        let file_size = fs::metadata(&bp_path).unwrap().len();
-
-        bencher
-            .counter(divan::counter::BytesCount::new(file_size))
-            .bench(|| {
-                let mut store = BurnpackStore::from_file(&bp_path).zero_copy(true);
-                let snapshots = store.get_all_snapshots().expect("Failed to get snapshots");
-                for snapshot in snapshots.values() {
-                    let _data = snapshot.to_data().expect("Failed to get tensor data");
-                }
-            });
-    }
-
-    /// Static bytes with copy mode - measures store overhead only
-    #[divan::bench]
-    fn static_copy(bencher: Bencher) {
+    fn static_bytes(bencher: Bencher) {
         let static_bytes = get_static_model_bytes();
         let file_size = static_bytes.len() as u64;
 
         bencher
             .counter(divan::counter::BytesCount::new(file_size))
             .bench(|| {
-                // Simulate old behavior: copy static bytes to Vec
                 let bytes = Bytes::from_bytes_vec(static_bytes.to_vec());
-                let mut store = BurnpackStore::from_bytes(Some(bytes)).zero_copy(false);
+                let mut store = BurnpackStore::from_bytes(Some(bytes));
                 let snapshots = store.get_all_snapshots().expect("Failed to get snapshots");
                 for snapshot in snapshots.values() {
                     let _data = snapshot.to_data().expect("Failed to get tensor data");
@@ -474,7 +433,7 @@ mod store_only {
             });
     }
 
-    /// Static bytes with zero-copy mode - measures store overhead only
+    /// Static bytes with zero-copy - measures store overhead only
     #[divan::bench]
     fn static_zero_copy(bencher: Bencher) {
         let static_bytes = get_static_model_bytes();

@@ -132,7 +132,7 @@ pub mod rl {
     pub use burn_rl::*;
 }
 
-#[cfg(feature = "server")]
+#[cfg(feature = "remote-server")]
 pub use burn_core::tensor::server;
 
 /// Model storage and serialization: the non-generic record system (always available), plus —

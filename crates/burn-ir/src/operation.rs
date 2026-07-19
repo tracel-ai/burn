@@ -18,7 +18,17 @@ use burn_backend::{
 
 use crate::{ScalarIr, TensorId, TensorIr, TensorStatus};
 
-/// Custom operation in fusion stream, declaring its inputs and outputs.
+/// Visitor for mutating the components of an [`OperationIr`] in place.
+pub trait IrVisitorMut {
+    /// Visit a [`TensorIr`] mutably.
+    fn visit_tensor_mut(&mut self, _tensor: &mut TensorIr) {}
+    /// Visit a [`ScalarIr`] mutably.
+    fn visit_scalar_mut(&mut self, _scalar: &mut ScalarIr) {}
+    /// Visit a slice range mutably.
+    fn visit_range_mut(&mut self, _range: &mut Slice) {}
+}
+
+/// Custom operation in fusion stream, declaring its inputs, outputs and scalar arguments.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct CustomOpIr {
     /// Unique identifier of the operation.
@@ -27,15 +37,38 @@ pub struct CustomOpIr {
     pub inputs: Vec<TensorIr>,
     /// Output tensors used in the custom operation.
     pub outputs: Vec<TensorIr>,
+    /// Non-tensor scalar arguments, in declaration order.
+    ///
+    /// Carried through fusion's relativization like any other scalar (see the
+    /// `RelativeOps for CustomOpIr` impl), so a cached graph replays with fresh scalar values. The
+    /// remote backend relies on these to ship a custom op's scalar arguments to the server, where
+    /// the registered handler reads them back with [`ScalarIr::elem`].
+    pub scalars: Vec<ScalarIr>,
 }
 
 impl CustomOpIr {
-    /// Create a new custom operation intermediate representation.
+    /// Create a new custom operation intermediate representation (without scalar arguments).
     pub fn new(id: &'static str, inputs: &[TensorIr], outputs: &[TensorIr]) -> Self {
         Self {
             id: id.to_owned(),
             inputs: inputs.to_vec(),
             outputs: outputs.to_vec(),
+            scalars: Vec::new(),
+        }
+    }
+
+    /// Create a new custom operation intermediate representation with scalar arguments.
+    pub fn with_scalars(
+        id: &'static str,
+        inputs: &[TensorIr],
+        outputs: &[TensorIr],
+        scalars: Vec<ScalarIr>,
+    ) -> Self {
+        Self {
+            id: id.to_owned(),
+            inputs: inputs.to_vec(),
+            outputs: outputs.to_vec(),
+            scalars,
         }
     }
 
@@ -59,6 +92,18 @@ impl CustomOpIr {
 
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         Box::new(self.outputs.iter())
+    }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        for t in self.inputs.iter_mut() {
+            v.visit_tensor_mut(t);
+        }
+        for t in self.outputs.iter_mut() {
+            v.visit_tensor_mut(t);
+        }
+        for s in self.scalars.iter_mut() {
+            v.visit_scalar_mut(s);
+        }
     }
 }
 
@@ -2140,6 +2185,31 @@ impl OperationIr {
             OperationIr::Activation(repr) => repr.mark_read_only(nodes),
         }
     }
+
+    /// Visit every mutable component of this operation in place.
+    ///
+    /// For each variant, visits its [tensors](TensorIr) (in the same order as
+    /// [`inputs`](Self::inputs) then [`outputs`](Self::outputs) combined), then its
+    /// [scalars](ScalarIr), then its slice ranges. Only `Slice`/`SliceAssign` (under the `Base*`
+    /// variants) carry ranges; every other category visits no ranges.
+    pub fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            OperationIr::BaseFloat(repr) => repr.visit_mut(v),
+            OperationIr::BaseInt(repr) => repr.visit_mut(v),
+            OperationIr::BaseBool(repr) => repr.visit_mut(v),
+            OperationIr::NumericFloat(_dtype, repr) => repr.visit_mut(v),
+            OperationIr::NumericInt(_dtype, repr) => repr.visit_mut(v),
+            OperationIr::Bool(repr) => repr.visit_mut(v),
+            OperationIr::Int(repr) => repr.visit_mut(v),
+            OperationIr::Float(_dtype, repr) => repr.visit_mut(v),
+            OperationIr::Module(repr) => repr.visit_mut(v),
+            OperationIr::Init(repr) => repr.visit_mut(v),
+            OperationIr::Custom(repr) => repr.visit_mut(v),
+            OperationIr::Drop(repr) => v.visit_tensor_mut(repr),
+            OperationIr::Distributed(repr) => repr.visit_mut(v),
+            OperationIr::Activation(repr) => repr.visit_mut(v),
+        }
+    }
 }
 
 impl BaseOperationIr {
@@ -2331,6 +2401,150 @@ impl BaseOperationIr {
         };
 
         output
+    }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            BaseOperationIr::Reshape(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::SwapDims(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Permute(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Expand(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Flip(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Slice(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+                repr.ranges.iter_mut().for_each(|r| v.visit_range_mut(r));
+            }
+            BaseOperationIr::SliceAssign(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+                repr.ranges.iter_mut().for_each(|r| v.visit_range_mut(r));
+            }
+            BaseOperationIr::Gather(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Scatter(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::ScatterNd(repr) => {
+                v.visit_tensor_mut(&mut repr.data);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.values);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::GatherNd(repr) => {
+                v.visit_tensor_mut(&mut repr.data);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Select(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::SelectAssign(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::MaskWhere(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.mask);
+                v.visit_tensor_mut(&mut repr.value);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::MaskFill(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.mask);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.value);
+            }
+            BaseOperationIr::Equal(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::EqualElem(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            BaseOperationIr::RepeatDim(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Cat(repr) => {
+                for t in repr.tensors.iter_mut() {
+                    v.visit_tensor_mut(t);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Cast(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Unfold(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Empty(repr) => {
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Ones(repr) => {
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Zeros(repr) => {
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::NotEqual(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::NotEqualElem(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            BaseOperationIr::All(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::Any(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::AllDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BaseOperationIr::AnyDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+        }
     }
 }
 
@@ -2629,6 +2843,249 @@ impl NumericOperationIr {
 
         output
     }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            NumericOperationIr::Add(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::AddScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::Sub(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::SubScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::Mul(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::MulScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::Div(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::DivScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::Rem(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::RemScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::GreaterElem(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::GreaterEqualElem(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::LowerElem(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::LowerEqualElem(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::Greater(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::GreaterEqual(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Lower(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::LowerEqual(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::ArgMax(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::ArgTopK(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::TopK(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::ArgMin(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Clamp(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.min);
+                v.visit_scalar_mut(&mut repr.max);
+            }
+            NumericOperationIr::Abs(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Full(repr) => {
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.value);
+            }
+            NumericOperationIr::MeanDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Mean(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Sum(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::SumDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Prod(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::ProdDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Max(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::MaxDimWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            NumericOperationIr::MinDimWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            NumericOperationIr::Min(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::MaxDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::MinDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::MaxAbs(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::MaxAbsDim(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::IntRandom(repr) => {
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Powi(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::PowiScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::CumMin(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::CumMax(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::CumProd(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::CumSum(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Neg(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::Sign(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::ClampMin(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::ClampMax(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            NumericOperationIr::Sort(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            NumericOperationIr::SortWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            NumericOperationIr::ArgSort(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+        }
+    }
 }
 
 impl FloatOperationIr {
@@ -2815,6 +3272,158 @@ impl FloatOperationIr {
 
         output
     }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            FloatOperationIr::Matmul(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Cross(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Random(repr) => {
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Exp(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Log(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Log1p(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Erf(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Recip(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::PowfScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            FloatOperationIr::Sqrt(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Cos(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Sin(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Tanh(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Round(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Floor(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Ceil(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Trunc(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::IntoInt(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Quantize(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.qparams.scales);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Dequantize(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::IsNan(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::IsInf(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::GridSample2d(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.grid);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Tan(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Cosh(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Sinh(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::ArcCos(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::ArcCosh(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::ArcSin(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::ArcSinh(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::ArcTan(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::ArcTanh(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::ArcTan2(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Powf(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            FloatOperationIr::Hypot(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+        }
+    }
 }
 
 impl IntOperationIr {
@@ -2907,6 +3516,74 @@ impl IntOperationIr {
 
         output
     }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            IntOperationIr::Matmul(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::IntoFloat(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::BitwiseAnd(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::BitwiseAndScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            IntOperationIr::BitwiseOr(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::BitwiseOrScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            IntOperationIr::BitwiseXor(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::BitwiseXorScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            IntOperationIr::BitwiseNot(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::BitwiseLeftShift(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::BitwiseLeftShiftScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            IntOperationIr::BitwiseRightShift(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            IntOperationIr::BitwiseRightShiftScalar(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+        }
+    }
 }
 
 impl BoolOperationIr {
@@ -2958,6 +3635,38 @@ impl BoolOperationIr {
         };
 
         output
+    }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            BoolOperationIr::IntoFloat(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BoolOperationIr::IntoInt(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BoolOperationIr::Not(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BoolOperationIr::And(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BoolOperationIr::Or(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            BoolOperationIr::Xor(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+        }
     }
 }
 
@@ -3578,6 +4287,346 @@ impl ModuleOperationIr {
 
         output
     }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            ModuleOperationIr::Embedding(repr) => {
+                v.visit_tensor_mut(&mut repr.weights);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::EmbeddingBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.weights);
+                v.visit_tensor_mut(&mut repr.out_grad);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Linear(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::LinearXBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::LinearWeightBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::LinearBiasBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1dXBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1dWeightBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv1dBiasBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.bias);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2dXBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2dWeightBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv2dBiasBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.bias);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3dXBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3dWeightBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Conv3dBiasBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.bias);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::DeformableConv2d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.offset);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(mask) = &mut repr.mask {
+                    v.visit_tensor_mut(mask);
+                }
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::DeformableConv2dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.offset);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.out_grad);
+                if let Some(mask) = &mut repr.mask {
+                    v.visit_tensor_mut(mask);
+                }
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.input_grad);
+                v.visit_tensor_mut(&mut repr.offset_grad);
+                v.visit_tensor_mut(&mut repr.weight_grad);
+                if let Some(mask_grad) = &mut repr.mask_grad {
+                    v.visit_tensor_mut(mask_grad);
+                }
+                if let Some(bias_grad) = &mut repr.bias_grad {
+                    v.visit_tensor_mut(bias_grad);
+                }
+            }
+            ModuleOperationIr::ConvTranspose1d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose2d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose3d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                if let Some(bias) = &mut repr.bias {
+                    v.visit_tensor_mut(bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool1d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool2d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool1dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AvgPool2dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool1d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool2d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool1dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool1d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool1dWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            ModuleOperationIr::MaxPool1dWithIndicesBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool2d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::MaxPool2dWithIndices(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_tensor_mut(&mut repr.out_indices);
+            }
+            ModuleOperationIr::MaxPool2dWithIndicesBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.indices);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Interpolate(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::InterpolateBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::Rfft(repr) => {
+                v.visit_tensor_mut(&mut repr.signal);
+                v.visit_tensor_mut(&mut repr.out_re);
+                v.visit_tensor_mut(&mut repr.out_im);
+            }
+            ModuleOperationIr::IRfft(repr) => {
+                v.visit_tensor_mut(&mut repr.input_re);
+                v.visit_tensor_mut(&mut repr.input_im);
+                v.visit_tensor_mut(&mut repr.out_signal);
+            }
+            ModuleOperationIr::Attention(repr) => {
+                v.visit_tensor_mut(&mut repr.query);
+                v.visit_tensor_mut(&mut repr.key);
+                v.visit_tensor_mut(&mut repr.value);
+                if let Some(mask) = &mut repr.mask {
+                    v.visit_tensor_mut(mask);
+                }
+                if let Some(attn_bias) = &mut repr.attn_bias {
+                    v.visit_tensor_mut(attn_bias);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+                if let Some(scale) = &mut repr.options.scale {
+                    v.visit_scalar_mut(scale);
+                }
+                if let Some(softcap) = &mut repr.options.softcap {
+                    v.visit_scalar_mut(softcap);
+                }
+            }
+            ModuleOperationIr::CtcLoss(repr) => {
+                v.visit_tensor_mut(&mut repr.log_probs);
+                v.visit_tensor_mut(&mut repr.targets);
+                v.visit_tensor_mut(&mut repr.input_lengths);
+                v.visit_tensor_mut(&mut repr.target_lengths);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::CtcLossBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.log_probs);
+                v.visit_tensor_mut(&mut repr.targets);
+                v.visit_tensor_mut(&mut repr.input_lengths);
+                v.visit_tensor_mut(&mut repr.target_lengths);
+                v.visit_tensor_mut(&mut repr.grad_loss);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::LayerNorm(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.gamma);
+                if let Some(beta) = &mut repr.beta {
+                    v.visit_tensor_mut(beta);
+                }
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.epsilon);
+            }
+            ModuleOperationIr::Unfold4d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose1dWeightBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose1dBiasBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.bias);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose2dWeightBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose2dBiasBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.bias);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose3dWeightBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.weight);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::ConvTranspose3dBiasBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.bias);
+                v.visit_tensor_mut(&mut repr.output_grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+        }
+    }
 }
 
 impl DistributedOperationIr {
@@ -3607,6 +4656,16 @@ impl DistributedOperationIr {
 
         output
     }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            DistributedOperationIr::AllReduce(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            DistributedOperationIr::SyncCollective => {}
+        }
+    }
 }
 
 impl InitOperationIr {
@@ -3615,6 +4674,10 @@ impl InitOperationIr {
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
         Box::new([&self.out].into_iter())
+    }
+
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        v.visit_tensor_mut(&mut self.out);
     }
 }
 
@@ -3900,6 +4963,77 @@ macro_rules! activation_ir_tensor_access {
     };
 }
 
+impl ActivationOperationIr {
+    fn visit_mut(&mut self, v: &mut impl IrVisitorMut) {
+        match self {
+            ActivationOperationIr::Relu(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::ReluBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::LeakyRelu(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.rhs);
+            }
+            ActivationOperationIr::PRelu(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::Gelu(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::GeluBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::Sigmoid(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::SigmoidBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::HardSigmoid(repr) => {
+                v.visit_tensor_mut(&mut repr.tensor);
+                v.visit_tensor_mut(&mut repr.out);
+                v.visit_scalar_mut(&mut repr.alpha);
+                v.visit_scalar_mut(&mut repr.beta);
+            }
+            ActivationOperationIr::LogSigmoid(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::LogSigmoidBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.lhs);
+                v.visit_tensor_mut(&mut repr.rhs);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::Softmax(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::LogSoftmax(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ActivationOperationIr::Softmin(repr) => {
+                v.visit_tensor_mut(&mut repr.input);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+        }
+    }
+}
+
 activation_ir_tensor_access! {
     Relu => [input],
     ReluBackward => [lhs, rhs],
@@ -3915,4 +5049,84 @@ activation_ir_tensor_access! {
     Softmax => [input],
     LogSoftmax => [input],
     Softmin => [input],
+}
+
+#[cfg(test)]
+mod visit_mut_tests {
+    use super::*;
+    use burn_backend::{DType, Shape};
+
+    fn tensor(id: u64) -> TensorIr {
+        TensorIr::uninit(TensorId::new(id), Shape::from([2, 2]), DType::F32)
+    }
+
+    /// Bumps every visited tensor id by 100 and collects (and rewrites) every visited scalar.
+    #[derive(Default)]
+    struct CollectVisitor {
+        scalars: Vec<ScalarIr>,
+        rewrite_scalar: Option<ScalarIr>,
+    }
+
+    impl IrVisitorMut for CollectVisitor {
+        fn visit_tensor_mut(&mut self, tensor: &mut TensorIr) {
+            tensor.id = TensorId::new(tensor.id.value() + 100);
+        }
+
+        fn visit_scalar_mut(&mut self, scalar: &mut ScalarIr) {
+            self.scalars.push(*scalar);
+            if let Some(value) = self.rewrite_scalar {
+                *scalar = value;
+            }
+        }
+    }
+
+    #[test]
+    fn visit_mut_visits_all_tensors_and_scalars() {
+        // NumericFloat MulScalar (a ScalarOpIr with a scalar `rhs`).
+        let mut mul = OperationIr::NumericFloat(
+            DType::F32,
+            NumericOperationIr::MulScalar(ScalarOpIr {
+                lhs: tensor(1),
+                rhs: ScalarIr::Float(2.0),
+                out: tensor(2),
+            }),
+        );
+
+        // Bump every tensor id by 100 and rewrite the scalar to 9.0.
+        let mut visitor = CollectVisitor {
+            rewrite_scalar: Some(ScalarIr::Float(9.0)),
+            ..Default::default()
+        };
+        mul.visit_mut(&mut visitor);
+
+        let ids: Vec<u64> = mul
+            .inputs()
+            .chain(mul.outputs())
+            .map(|t| t.id.value())
+            .collect();
+        assert_eq!(ids, vec![101, 102]);
+        // The scalar must have been visited (and was rewritable).
+        assert_eq!(visitor.scalars, vec![ScalarIr::Float(2.0)]);
+
+        // Visiting again observes the rewritten scalar.
+        let mut after = CollectVisitor::default();
+        mul.visit_mut(&mut after);
+        assert_eq!(after.scalars, vec![ScalarIr::Float(9.0)]);
+
+        // BaseFloat Reshape (a ShapeOpIr, input + out, no scalars).
+        let mut reshape = OperationIr::BaseFloat(BaseOperationIr::Reshape(ShapeOpIr {
+            input: tensor(10),
+            out: tensor(11),
+        }));
+
+        let mut visitor = CollectVisitor::default();
+        reshape.visit_mut(&mut visitor);
+        let ids: Vec<u64> = reshape
+            .inputs()
+            .chain(reshape.outputs())
+            .map(|t| t.id.value())
+            .collect();
+        assert_eq!(ids, vec![110, 111]);
+        assert_eq!(visitor.scalars.len(), 0);
+    }
 }

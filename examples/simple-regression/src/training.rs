@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::dataset::{HousingBatcher, HousingDataset};
 use crate::model::RegressionModelConfig;
 use burn::optim::AdamConfig;
@@ -26,8 +28,7 @@ pub struct ExpConfig {
 }
 
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_file(PathBuf::from(artifact_dir).join("experiment.log")).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
@@ -70,7 +71,7 @@ pub fn run(artifact_dir: &str, device: impl Into<Device>) {
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
-        .with_checkpointer()
+        .with_default_checkpointers()
         .num_epochs(config.num_epochs)
         .summary();
 

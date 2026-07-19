@@ -161,7 +161,7 @@ pub struct MuonConfig {
 
 impl MuonConfig {
     /// Build a [`Muon`] from the config.
-    pub fn build(&self) -> Muon {
+    pub(crate) fn build(&self) -> Muon {
         let momentum = Momentum::new(&self.momentum);
         let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
 
@@ -504,7 +504,7 @@ mod tests {
         let mut optimizer = MuonConfig::new().init();
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let _linear = optimizer.step(0.01, linear, grads);
+        let _linear = optimizer.step(0.01.into(), linear, grads);
 
         let state_before = optimizer.to_record();
         let bytes = optimizer.into_bytes().unwrap();
@@ -535,7 +535,7 @@ mod tests {
 
         let grads = linear.forward(x).backward();
         let grads = GradientsParams::from_grads(grads, &linear);
-        let linear = optimizer.step(0.01, linear, grads);
+        let linear = optimizer.step(0.01.into(), linear, grads);
 
         let state = linear;
         let weight = state.weight.to_data();

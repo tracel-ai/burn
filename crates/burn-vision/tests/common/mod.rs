@@ -6,22 +6,18 @@ use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use burn_core::tensor::{Bool, Int};
 
 #[allow(unused)]
-#[cfg(all(
-    test,
-    feature = "flex",
-    not(any(
-        feature = "wgpu",
-        feature = "vulkan",
-        feature = "metal",
-        feature = "webgpu",
-        feature = "cuda",
-        feature = "rocm",
-        feature = "cpu",
-        feature = "tch"
-    ))
-))]
-pub type TestDevice = burn_core::backend::FlexDevice;
+#[cfg(all(test, feature = "cuda"))]
+pub type TestDevice = burn_core::backend::CudaDevice;
 
+#[allow(unused)]
+#[cfg(all(test, feature = "rocm", not(feature = "cuda")))]
+pub type TestDevice = burn_core::backend::RocmDevice;
+
+#[allow(unused)]
+#[cfg(all(test, feature = "tch", not(any(feature = "cuda", feature = "rocm"))))]
+pub type TestDevice = burn_core::backend::LibTorchDevice;
+
+#[allow(unused)]
 #[cfg(all(
     test,
     any(
@@ -29,21 +25,43 @@ pub type TestDevice = burn_core::backend::FlexDevice;
         feature = "vulkan",
         feature = "metal",
         feature = "webgpu"
-    )
+    ),
+    not(any(feature = "cuda", feature = "rocm", feature = "tch"))
 ))]
 pub type TestDevice = burn_core::backend::WgpuDevice;
 
-#[cfg(all(test, feature = "cuda"))]
-pub type TestDevice = burn_core::backend::CudaDevice;
-
-#[cfg(all(test, feature = "cpu"))]
+#[allow(unused)]
+#[cfg(all(
+    test,
+    feature = "cpu",
+    not(any(
+        feature = "cuda",
+        feature = "rocm",
+        feature = "tch",
+        feature = "wgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "webgpu"
+    ))
+))]
 pub type TestDevice = burn_core::backend::CpuDevice;
 
-#[cfg(all(test, feature = "rocm"))]
-pub type TestDevice = burn_core::backend::RocmDevice;
-
-#[cfg(all(test, feature = "tch"))]
-pub type TestDevice = burn_core::backend::LibTorchDevice;
+#[allow(unused)]
+#[cfg(all(
+    test,
+    feature = "flex",
+    not(any(
+        feature = "cuda",
+        feature = "rocm",
+        feature = "tch",
+        feature = "wgpu",
+        feature = "vulkan",
+        feature = "metal",
+        feature = "webgpu",
+        feature = "cpu"
+    ))
+))]
+pub type TestDevice = burn_core::backend::FlexDevice;
 
 pub use burn_core::tensor::Tensor;
 pub type TestTensorInt<const D: usize> = Tensor<D, Int>;
