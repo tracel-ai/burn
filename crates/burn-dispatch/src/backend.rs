@@ -257,7 +257,7 @@ impl Backend for Dispatch {
             _ => unreachable!("No backend feature enabled."),
         }
     }
-    
+
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         dispatch_device!(device, |device| B::supports_dtype(device, dtype))
     }

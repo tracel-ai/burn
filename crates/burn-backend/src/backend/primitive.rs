@@ -39,7 +39,7 @@ impl<E: Clone + Send + Sync + 'static, D: DeviceOps> TensorMetadata
     fn shape(&self) -> Shape {
         unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
     }
-    
+
     fn can_mut(&self) -> bool {
         unimplemented!("{:?} not yet supported", core::any::type_name::<E>())
     }

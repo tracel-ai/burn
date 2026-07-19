@@ -4,7 +4,8 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError, UnimplementedTensorPrimitive,
+    Backend, BackendGraph, BackendTypes, DType, DeviceOps, ExecutionError,
+    UnimplementedTensorPrimitive,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, HandleContainer, OperationIr, TensorHandle, TensorIr};

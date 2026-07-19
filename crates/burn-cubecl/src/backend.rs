@@ -2,8 +2,7 @@ use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
-    TensorData,
-    UnimplementedTensorPrimitive,
+    TensorData, UnimplementedTensorPrimitive,
 };
 use burn_std::{BoolStore, DType};
 use cubecl::{
