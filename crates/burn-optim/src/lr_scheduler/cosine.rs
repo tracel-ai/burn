@@ -6,12 +6,12 @@ use crate::RecordState;
 use crate::lr_scheduler::module_lr_scheduler::ModuleLrScheduler;
 use burn::config::Config;
 
-/// The configuration for creating a [Cosine Annealing learning rate scheduler with warm
-/// restarts](CosineAnnealingLrScheduler).
+/// The configuration for creating a [Cosine Annealing learning rate
+/// scheduler](CosineAnnealingLrScheduler).
 ///
 /// This scheduler returns the learning rate `initial_lr` at the first step, then changes it by
-/// following a cosine function. After `num_iters` iterations, the learning rate is reset to
-/// `initial_lr`.
+/// following a cosine function. After `num_iters` iterations, the learning rate remains at
+/// `min_lr`.
 #[derive(Config, Debug)]
 pub struct CosineAnnealingLrSchedulerConfig {
     // The initial learning rate.
@@ -19,8 +19,7 @@ pub struct CosineAnnealingLrSchedulerConfig {
     // The final learning rate.
     #[config(default = 0.0)]
     min_lr: LearningRate,
-    // The number of iterations between two restarts. The two restart iterations themselves are not
-    // included.
+    // The number of iterations to reach the minimum learning rate.
     num_iters: usize,
 }
 
@@ -63,11 +62,11 @@ impl CosineAnnealingLrSchedulerConfig {
     }
 }
 
-/// A Cosine Annealing learning rate scheduler.
+/// A Cosine Annealing learning rate scheduler without restarts.
 ///
-/// This scheduler is described in [SGDR: Stochastic Gradient Descent with Warm
-/// Restarts](https://arxiv.org/abs/1608.03983). See [CosineAnnealingLrSchedulerConfig] for more
-/// information.
+/// This scheduler follows the cosine annealing schedule from [SGDR: Stochastic Gradient Descent
+/// with Warm Restarts](https://arxiv.org/abs/1608.03983) without implementing its restart
+/// mechanism. See [CosineAnnealingLrSchedulerConfig] for more information.
 #[derive(Clone, Copy, Debug)]
 pub struct CosineAnnealingLrScheduler {
     min_lr: LearningRate,
@@ -81,7 +80,7 @@ impl LrScheduler for CosineAnnealingLrScheduler {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
         // first call. We could've used i64 with an initial value -1, but keeping it in usize saves
         // us from some type casting here.
-        self.current_iter = self.current_iter.wrapping_add(1) % (self.num_iters + 1);
+        self.current_iter = self.current_iter.wrapping_add(1).min(self.num_iters);
         self.min_lr
             + 0.5
                 * (self.max_lr - self.min_lr)
@@ -188,7 +187,7 @@ mod tests {
             INITIAL_LR,                  // cos(0)
             (INITIAL_LR + MIN_LR) * 0.5, // cos(PI/2)
             MIN_LR,                      // cos(PI)
-            INITIAL_LR,                  // restart
+            MIN_LR,                      // remain at minimum
         ];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
