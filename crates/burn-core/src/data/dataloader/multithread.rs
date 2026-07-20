@@ -40,6 +40,20 @@ pub enum Message<O> {
 
     /// The thread is done.
     Done,
+
+    /// The worker hit an unrecoverable error (e.g. `Dataset::get` failed) and stopped early.
+    Error(usize, String),
+}
+
+/// Extracts a human-readable message from a caught panic payload.
+fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic in dataloader worker".to_string()
+    }
 }
 
 struct MultiThreadsDataloaderIterator<O> {
@@ -194,13 +208,29 @@ where
                     .spawn(move || {
                         while let Ok(sender) = command_receiver.recv() {
                             let mut iterator = dataloader.iter();
-                            while let Some(item) = iterator.next() {
-                                let progress = iterator.progress();
+                            loop {
+                                let next =
+                                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                        iterator.next()
+                                    }));
 
-                                // Consumer dropped the receiver: abandon this pass,
-                                // don't terminate the worker.
-                                if sender.send(Message::Batch(index, item, progress)).is_err() {
-                                    break;
+                                match next {
+                                    Ok(Some(item)) => {
+                                        let progress = iterator.progress();
+
+                                        if sender
+                                            .send(Message::Batch(index, item, progress))
+                                            .is_err()
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    Ok(None) => break,
+                                    Err(payload) => {
+                                        let msg = panic_message(payload.as_ref());
+                                        sender.send(Message::Error(index, msg)).ok();
+                                        break;
+                                    }
                                 }
                             }
                             sender.send(Message::Done).ok();
@@ -333,7 +363,9 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
                         return None;
                     }
                 }
-                // Every worker dropped its sender (the pool is shutting down).
+                Ok(Message::Error(index, msg)) => {
+                    panic!("dataloader worker {index} failed: {msg}");
+                }
                 Err(_) => return None,
             }
         }
@@ -346,8 +378,35 @@ mod tests {
     use crate::data::dataloader::FixBatchStrategy;
     use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataset::FakeDataset;
+    use burn_dataset::DatasetError;
     use burn_dataset::InMemDataset;
     use std::collections::HashSet;
+    use std::panic::AssertUnwindSafe;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    /// A dataset that returns a real error (not an out-of-bounds panic) at one index,
+    /// to exercise the worker-error-propagation path below.
+    struct FlakyDataset {
+        len: usize,
+        fail_at: usize,
+    }
+
+    impl Dataset<usize> for FlakyDataset {
+        fn get(&self, index: usize) -> Result<usize, DatasetError> {
+            assert!(index < self.len, "index out of bounds");
+            if index == self.fail_at {
+                return Err(DatasetError::new(std::io::Error::other(
+                    "simulated dataset failure",
+                )));
+            }
+            Ok(index)
+        }
+
+        fn len(&self) -> usize {
+            self.len
+        }
+    }
 
     #[test]
     fn test_multi_thread_batch_dataloader() {
@@ -549,5 +608,38 @@ mod tests {
             }
         }
         assert_eq!(items, expected);
+    }
+
+    #[test]
+    fn test_multi_thread_batch_dataloader_propagates_worker_error_instead_of_hanging() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FlakyDataset {
+            len: 40,
+            fail_at: 20,
+        });
+        let dataloader = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(1)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        let (done_tx, done_rx) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let result =
+                std::panic::catch_unwind(AssertUnwindSafe(|| for _batch in dataloader.iter() {}));
+            done_tx.send(result.is_err()).ok();
+        });
+
+        let panicked = done_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("dataloader hung instead of reporting the worker error");
+        assert!(
+            panicked,
+            "expected the dataloader to panic on a worker error"
+        );
+        let _ = handle.join();
     }
 }

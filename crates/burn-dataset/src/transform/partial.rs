@@ -122,11 +122,11 @@ mod tests {
             .map(Result::unwrap)
             .enumerate()
             .for_each(|(i, item)| {
-            match i >= 10 {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
-            };
-        });
+                match i >= 10 {
+                    true => items_original_2.insert(item),
+                    false => items_original_1.insert(item),
+                };
+            });
 
         let dataset_partial = PartialDataset::new(dataset_original, 0, 10);
 
@@ -153,11 +153,11 @@ mod tests {
             .map(Result::unwrap)
             .enumerate()
             .for_each(|(i, item)| {
-            match !(10..20).contains(&i) {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
-            };
-        });
+                match !(10..20).contains(&i) {
+                    true => items_original_2.insert(item),
+                    false => items_original_1.insert(item),
+                };
+            });
 
         let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
         for item in dataset_partial.iter().map(Result::unwrap) {

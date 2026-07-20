@@ -220,7 +220,10 @@ mod tests {
     }
 
     fn get_label_range(dataset: &ImageFolderDataset) -> (usize, usize) {
-        let labels: Vec<_> = dataset.iter().map(|item| item.unwrap().annotation).collect();
+        let labels: Vec<_> = dataset
+            .iter()
+            .map(|item| item.unwrap().annotation)
+            .collect();
         let mut min = 128;
         let mut max = 0;
         for label in labels {
