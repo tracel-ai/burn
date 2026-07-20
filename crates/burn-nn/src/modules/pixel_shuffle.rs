@@ -58,6 +58,10 @@ impl PixelShuffle {
         let [batch_size, channels, height, width] = input.dims();
         let factor = self.upscale_factor;
 
+        assert!(
+            factor > 0,
+            "PixelShuffle: upscale_factor must be greater than 0"
+        );
         assert_eq!(
             channels % (factor * factor),
             0,
@@ -127,6 +131,10 @@ impl PixelUnshuffle {
         let [batch_size, channels, height, width] = input.dims();
         let factor = self.downscale_factor;
 
+        assert!(
+            factor > 0,
+            "PixelUnshuffle: downscale_factor must be greater than 0"
+        );
         assert_eq!(
             height % factor,
             0,
@@ -195,6 +203,46 @@ mod tests {
 
         let shuffled = PixelShuffleConfig::new(2).init().forward(input.clone());
         let restored = PixelUnshuffleConfig::new(2).init().forward(shuffled);
+
+        restored
+            .to_data()
+            .assert_approx_eq::<FT>(&input.to_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn pixel_shuffle_inverts_pixel_unshuffle() {
+        let device = Default::default();
+        let input = Tensor::<4>::from_data(sample_input(), &device);
+
+        let unshuffled = PixelUnshuffleConfig::new(2).init().forward(input.clone());
+        let restored = PixelShuffleConfig::new(2).init().forward(unshuffled);
+
+        restored
+            .to_data()
+            .assert_approx_eq::<FT>(&input.to_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn pixel_shuffle_round_trip_factor_3() {
+        let device = Default::default();
+        // (1, 9, 1, 1): C * r^2 = 1 * 9 channels, r = 3.
+        let input = Tensor::<4>::from_data(
+            TensorData::from([[
+                [[0.0]],
+                [[1.0]],
+                [[2.0]],
+                [[3.0]],
+                [[4.0]],
+                [[5.0]],
+                [[6.0]],
+                [[7.0]],
+                [[8.0]],
+            ]]),
+            &device,
+        );
+
+        let shuffled = PixelShuffleConfig::new(3).init().forward(input.clone());
+        let restored = PixelUnshuffleConfig::new(3).init().forward(shuffled);
 
         restored
             .to_data()
