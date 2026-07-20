@@ -64,6 +64,7 @@ impl<I, O> BatchDataLoader<I, O> {
 /// A data loader iterator that can be used to iterate over a data loader.
 struct BatchDataloaderIterator<I, O> {
     current_index: usize,
+    len: usize,
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<I, O>>,
@@ -147,8 +148,11 @@ impl<I, O> BatchDataloaderIterator<I, O> {
         batcher: Arc<dyn Batcher<I, O>>,
         device: Device,
     ) -> Self {
+        let len = dataset.len();
+
         BatchDataloaderIterator {
             current_index: 0,
+            len,
             strategy,
             dataset,
             batcher,
@@ -161,8 +165,13 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
-        while let Some(item) = self.dataset.get(self.current_index) {
+        while self.current_index < self.len {
+            let index = self.current_index;
             self.current_index += 1;
+
+            let Some(item) = self.dataset.get(index) else {
+                continue;
+            };
             self.strategy.add(item);
 
             if let Some(items) = self.strategy.batch(false) {
@@ -182,7 +191,7 @@ impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
     fn progress(&self) -> Progress {
         let unit: Option<String> = Some("items".to_string());
 
-        Progress::new(self.current_index, self.dataset.len(), unit)
+        Progress::new(self.current_index, self.len, unit)
     }
 }
 

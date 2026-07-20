@@ -59,6 +59,7 @@ pub struct WindowsIterator<'a, I> {
     /// The size of the windows.
     pub size: NonZeroUsize,
     current: usize,
+    len: usize,
     dataset: &'a dyn Dataset<I>,
 }
 
@@ -71,8 +72,11 @@ impl<'a, I> WindowsIterator<'a, I> {
     /// - `dataset`: The dataset over which windows will be created.
     /// - `size`: The size of the windows.
     pub fn new(dataset: &'a dyn Dataset<I>, size: NonZeroUsize) -> Self {
+        let len = max(dataset.len() as isize - size.get() as isize + 1, 0) as usize;
+
         WindowsIterator {
             current: 0,
+            len,
             dataset,
             size,
         }
@@ -83,8 +87,16 @@ impl<I> Iterator for WindowsIterator<'_, I> {
     type Item = Vec<I>;
 
     fn next(&mut self) -> Option<Vec<I>> {
-        self.current += 1;
-        self.dataset.window(self.current - 1, self.size)
+        while self.current < self.len {
+            let position = self.current;
+            self.current += 1;
+
+            if let Some(window) = self.dataset.window(position, self.size) {
+                return Some(window);
+            }
+        }
+
+        None
     }
 }
 
@@ -94,6 +106,7 @@ impl<I> Clone for WindowsIterator<'_, I> {
             size: self.size,
             dataset: self.dataset,
             current: self.current,
+            len: self.len,
         }
     }
 }

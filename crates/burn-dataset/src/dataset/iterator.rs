@@ -5,6 +5,7 @@ use std::iter::Iterator;
 pub struct DatasetIterator<'a, I> {
     current: usize,
     dataset: &'a dyn Dataset<I>,
+    len: usize,
 }
 
 impl<'a, I> DatasetIterator<'a, I> {
@@ -16,6 +17,7 @@ impl<'a, I> DatasetIterator<'a, I> {
         DatasetIterator {
             current: 0,
             dataset,
+            len: dataset.len(),
         }
     }
 }
@@ -24,8 +26,14 @@ impl<I> Iterator for DatasetIterator<'_, I> {
     type Item = I;
 
     fn next(&mut self) -> Option<I> {
-        let item = self.dataset.get(self.current);
-        self.current += 1;
-        item
+        while self.current < self.len {
+            let index = self.current;
+            self.current += 1;
+
+            if let Some(item) = self.dataset.get(index) {
+                return Some(item);
+            }
+        }
+        None
     }
 }
