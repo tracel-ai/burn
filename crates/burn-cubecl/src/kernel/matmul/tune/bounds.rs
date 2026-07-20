@@ -81,6 +81,7 @@ fn autotune_bounds<R: CubeRuntime>(
         batches * m * n * (2 * k - 1),
         THRESHOLD,
         &memory_throughput,
+        &memory_key,
         lhs_bytes + rhs_bytes + out_bytes,
         THRESHOLD,
     )

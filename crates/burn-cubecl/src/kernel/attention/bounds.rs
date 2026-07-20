@@ -93,6 +93,7 @@ fn autotune_bounds<R: CubeRuntime>(
         total_ops,
         THRESHOLD,
         &memory_throughput,
+        &memory_key,
         total_bytes,
         THRESHOLD,
     )
