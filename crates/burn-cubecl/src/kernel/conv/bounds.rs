@@ -15,7 +15,6 @@ pub(crate) fn conv_autotune_bounds<R: CubeRuntime>(
     key: &ConvAutotuneKey,
     input_num_elements: usize,
     weight_num_elements: usize,
-    output_num_elements: usize,
     has_bias: bool,
 ) -> Vec<AutotuneBound> {
     let elem_input = dtype_to_storage_type(key.dtype);
@@ -31,6 +30,9 @@ pub(crate) fn conv_autotune_bounds<R: CubeRuntime>(
         out_shape_prod *= out_dim;
     }
 
+    // The total FLOPs (2·M·N·K per group) are invariant between forward, dgrad,
+    // and wgrad because each is the adjoint of the others, so the same number of
+    // FMAs is performed regardless of which pass is executing.
     let m = key.batch_size * out_shape_prod;
     let k = (key.in_channels / key.groups) * key.kernel_size.iter().product::<usize>();
     let n = key.out_channels / key.groups;
@@ -47,6 +49,8 @@ pub(crate) fn conv_autotune_bounds<R: CubeRuntime>(
     };
     let memory_throughput = measure_peak_throughput(client, memory_key);
 
+    let output_num_elements = key.batch_size * key.out_channels * out_shape_prod;
+
     let input_bytes = input_num_elements * elem_input.elem_type().size();
     let weight_bytes = weight_num_elements * elem_weight.elem_type().size();
     let out_bytes = output_num_elements * elem_out.elem_type().size();
@@ -58,7 +62,8 @@ pub(crate) fn conv_autotune_bounds<R: CubeRuntime>(
 
     let total_bytes = input_bytes + weight_bytes + out_bytes + bias_bytes;
 
-    let total_ops = key.groups * m * n * (2 * k - 1);
+    // Standard 2·M·N·K FMA count per group.
+    let total_ops = key.groups * 2 * m * n * k;
 
     calculate_bounds(
         &compute_throughput,

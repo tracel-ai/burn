@@ -83,8 +83,9 @@ fn autotune_bounds<R: CubeRuntime>(
     // Output size: [total_batches, seq_q, val_dim]
     let out_bytes = total_batches * seq_q * val_dim * dtype_to_elem_type(query.dtype).size();
 
-    let total_ops = total_batches * seq_q * seq_kv * (2 * head_dim - 1)
-        + total_batches * seq_q * val_dim * (2 * seq_kv - 1);
+    // Standard 2*M*N*K FMA counts
+    let total_ops = total_batches * seq_q * seq_kv * (2 * head_dim)
+        + total_batches * seq_q * val_dim * (2 * seq_kv);
     // Note: attn_bias is excluded as fast paths (flash attention) don't read it.
     let total_bytes = bytes(query) + bytes(key) + bytes(value) + mask_bytes + out_bytes;
 

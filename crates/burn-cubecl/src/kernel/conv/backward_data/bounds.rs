@@ -29,7 +29,6 @@ pub(super) fn create_bounds<R: CubeRuntime, const N: usize>(
                     conv_key,
                     input_shape.num_elements(),
                     weight.meta.num_elements(),
-                    out_grad.meta.num_elements(),
                     false,
                 ),
                 launch_overhead: cubecl::std::throughput::measure_peak_throughput(
