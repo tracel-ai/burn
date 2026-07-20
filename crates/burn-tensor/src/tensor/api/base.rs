@@ -13,6 +13,7 @@ use alloc::vec;
 
 use burn_std::ExecutionError;
 use burn_std::{SliceOps, stub::RwLock};
+use core::iter::ExactSizeIterator;
 use core::iter::repeat;
 use core::marker::PhantomData;
 use core::{fmt::Debug, ops::Range};
@@ -2765,6 +2766,12 @@ impl<const D: usize, K: Basic> Iterator for DimIter<D, K> {
         self.start += 1;
 
         Some(slice)
+    }
+}
+
+impl<const D: usize, K: Basic> ExactSizeIterator for DimIter<D, K> {
+    fn len(&self) -> usize {
+        self.end - self.start
     }
 }
 

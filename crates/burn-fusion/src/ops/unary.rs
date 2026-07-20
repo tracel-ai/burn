@@ -44,76 +44,55 @@ macro_rules! scalar_float_ops {
 
 #[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
-macro_rules! reduce_float_ops {
-    (
-        $name:ident,
-        $ops:expr
-    ) => {
-        #[derive(new, Debug)]
-        struct $name<B: FusionBackend> {
-            desc: ReduceDimOpIr,
-            _b: PhantomData<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let input = handles.get_float_tensor::<B>(&self.desc.input);
-                let output = $ops(input, self.desc.axis, self.desc.accumulator_len);
-
-                handles.register_float_tensor::<B>(&self.desc.out.id, output);
-            }
-        }
+macro_rules! reduce_ops {
+    ($name:ident, float, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceDimOpIr, get_float_tensor, register_float_tensor, |input, desc| $ops(input, desc.axis, desc.accumulator_len));
     };
-}
-
-#[allow(missing_docs)]
-#[macro_export(local_inner_macros)]
-macro_rules! reduce_float2int_ops {
-    (
-        $name:ident,
-        $ops:expr
-    ) => {
-        #[derive(new, Debug)]
-        struct $name<B: FusionBackend> {
-            desc: ReduceDimOpIr,
-            _b: PhantomData<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
-            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let input = handles.get_float_tensor::<B>(&self.desc.input);
-                let output = $ops(
-                    input,
-                    self.desc.axis,
-                    self.desc.accumulator_len,
-                    self.desc.out.dtype.into(),
-                );
-
-                handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-        }
+    ($name:ident, float => int, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceDimOpIr, get_float_tensor, register_int_tensor, |input, desc| $ops(input, desc.axis, desc.accumulator_len, desc.out.dtype.into()));
     };
-}
-
-#[allow(missing_docs)]
-#[macro_export(local_inner_macros)]
-macro_rules! reduce_int_ops {
+    ($name:ident, int, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceDimOpIr, get_int_tensor, register_int_tensor, |input, desc| $ops(input, desc.axis, desc.accumulator_len));
+    };
+    ($name:ident, bool, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceDimOpIr, get_bool_tensor, register_bool_tensor, |input, desc| $ops(input, desc.axis));
+    };
+    ($name:ident, float => bool, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceDimOpIr, get_float_tensor, register_bool_tensor, |input, desc| $ops(input, desc.axis, desc.out.dtype.into()));
+    };
+    ($name:ident, int => bool, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceDimOpIr, get_int_tensor, register_bool_tensor, |input, desc| $ops(input, desc.axis, desc.out.dtype.into()));
+    };
+    ($name:ident, bool, whole, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceOpIr, get_bool_tensor, register_bool_tensor, |input, _desc| $ops(input));
+    };
+    ($name:ident, float => bool, whole, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceOpIr, get_float_tensor, register_bool_tensor, |input, desc| $ops(input, desc.out.dtype.into()));
+    };
+    ($name:ident, int => bool, whole, $ops:expr) => {
+        $crate::reduce_ops!(@impl $name, ReduceOpIr, get_int_tensor, register_bool_tensor, |input, desc| $ops(input, desc.out.dtype.into()));
+    };
     (
+        @impl
         $name:ident,
-        $ops:expr
+        $desc:ty,
+        $get:ident,
+        $register:ident,
+        |$input:ident, $ir:ident| $ops:expr
     ) => {
         #[derive(new, Debug)]
         struct $name<B: FusionBackend> {
-            desc: ReduceDimOpIr,
+            desc: $desc,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let input = handles.get_int_tensor::<B>(&self.desc.input);
-                let output = $ops(input, self.desc.axis, self.desc.accumulator_len);
+                let $input = handles.$get::<B>(&self.desc.input);
+                let $ir = &self.desc;
+                let output = $ops;
 
-                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+                handles.$register::<B>(&self.desc.out.id, output);
             }
         }
     };
