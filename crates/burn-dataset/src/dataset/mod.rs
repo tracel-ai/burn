@@ -1,8 +1,10 @@
 mod base;
+mod error;
 mod in_memory;
 mod iterator;
 
 pub use base::*;
+pub use error::*;
 pub use in_memory::*;
 pub use iterator::*;
 

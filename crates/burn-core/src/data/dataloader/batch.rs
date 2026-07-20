@@ -169,9 +169,7 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
             let index = self.current_index;
             self.current_index += 1;
 
-            let Some(item) = self.dataset.get(index) else {
-                continue;
-            };
+            let item = self.dataset.get(index).unwrap();
             self.strategy.add(item);
 
             if let Some(items) = self.strategy.batch(false) {
@@ -219,7 +217,7 @@ mod tests {
         let mut items_dataset = HashSet::new();
         let mut items_dataloader = HashSet::new();
 
-        for item in dataset.iter() {
+        for item in dataset.iter().map(Result::unwrap) {
             items_dataset.insert(item);
         }
 

@@ -13,10 +13,7 @@ use gix_tempfile::{
     handle::{Writable, persist},
 };
 use r2d2::{Pool, PooledConnection};
-use r2d2_sqlite::{
-    SqliteConnectionManager,
-    rusqlite::{OpenFlags, OptionalExtension},
-};
+use r2d2_sqlite::{SqliteConnectionManager, rusqlite::OpenFlags};
 use sanitize_filename::sanitize;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_rusqlite::{columns_from_statement, from_row_with_columns};
@@ -38,6 +35,14 @@ pub enum SqliteDatasetError {
     /// Serde related error.
     #[error("Serde error: {0}")]
     Serde(#[from] rmp_serde::encode::Error),
+
+    /// Deserialization error when reading a row.
+    #[error("Deserialize error: {0}")]
+    Deserialize(#[from] rmp_serde::decode::Error),
+
+    /// Row deserialization error.
+    #[error("Row error: {0}")]
+    Row(#[from] serde_rusqlite::Error),
 
     /// The database file already exists error.
     #[error("Overwrite flag is set to false and the database file already exists: {0}")]
@@ -192,40 +197,44 @@ impl<I> SqliteDataset<I> {
     }
 }
 
-impl<I> Dataset<I> for SqliteDataset<I>
+impl<I> Dataset<I, SqliteDatasetError> for SqliteDataset<I>
 where
     I: Clone + Send + Sync + DeserializeOwned,
 {
     /// Get an item from the dataset.
-    fn get(&self, index: usize) -> Option<I> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index >= len()`.
+    fn get(&self, index: usize) -> Result<I> {
+        if index >= self.len {
+            panic!(
+                "Index out of bounds for SqliteDataset: {index} >= {}",
+                self.len
+            );
+        }
+
         // Row ids start with 1 (one) and index starts with 0 (zero)
         let row_id = index + 1;
 
         // Get a connection from the pool
-        let connection = self.conn_pool.get().unwrap();
-        let mut statement = connection.prepare(self.select_statement.as_str()).unwrap();
+        let connection = self.conn_pool.get()?;
+        let mut statement = connection.prepare(self.select_statement.as_str())?;
 
         if self.row_serialized {
             // Fetch with a single column `item` and deserialize it with MessagePack
-            statement
-                .query_row([row_id], |row| {
-                    // Deserialize item (blob) with MessagePack (rmp-serde)
-                    Ok(
-                        rmp_serde::from_slice::<I>(row.get_ref(0).unwrap().as_blob().unwrap())
-                            .unwrap(),
-                    )
-                })
-                .optional() //Converts Error (not found) to None
-                .unwrap()
+            let blob: Vec<u8> = statement.query_row([row_id], |row| {
+                // Fetch item (blob) to be deserialized with MessagePack
+                Ok(row.get_ref(0)?.as_blob()?.to_vec())
+            })?;
+            Ok(rmp_serde::from_slice::<I>(&blob)?)
         } else {
-            // Fetch a row with multiple columns and deserialize it serde_rusqlite
-            statement
-                .query_row([row_id], |row| {
-                    // Deserialize the row with serde_rusqlite
-                    Ok(from_row_with_columns::<I>(row, &self.columns).unwrap())
-                })
-                .optional() //Converts Error (not found) to None
-                .unwrap()
+            // Fetch a row with multiple columns and deserialize it with serde_rusqlite
+            let mut rows = statement.query([row_id])?;
+            let row = rows
+                .next()?
+                .ok_or(SqliteDatasetError::Other("row not found for valid index"))?;
+            Ok(from_row_with_columns::<I>(row, &self.columns)?)
         }
     }
 
@@ -670,24 +679,23 @@ mod tests {
     }
 
     #[rstest]
+    #[should_panic(expected = "Index out of bounds")]
     pub fn get_none(train_dataset: SqlDs) {
-        assert_eq!(train_dataset.get(10), None);
+        train_dataset.get(10).unwrap();
     }
 
     #[rstest]
     pub fn multi_thread(train_dataset: SqlDs) {
+        let dataset_len = train_dataset.len();
         let indices: Vec<usize> = vec![0, 1, 1, 3, 4, 5, 6, 0, 8, 1];
-        let results: Vec<Option<Sample>> =
-            indices.par_iter().map(|&i| train_dataset.get(i)).collect();
+        let valid_indices: Vec<usize> = indices.into_iter().filter(|&i| i < dataset_len).collect();
 
-        let mut match_count = 0;
-        for (_index, result) in indices.iter().zip(results.iter()) {
-            if let Some(_val) = result {
-                match_count += 1
-            }
-        }
+        let results: Vec<Sample> = valid_indices
+            .par_iter()
+            .map(|&i| train_dataset.get(i).unwrap())
+            .collect();
 
-        assert_eq!(match_count, 5);
+        assert_eq!(results.len(), 5);
     }
 
     #[test]

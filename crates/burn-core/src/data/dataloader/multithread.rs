@@ -497,7 +497,7 @@ mod tests {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
 
-        let expected: HashSet<_> = dataset.iter().collect();
+        let expected: HashSet<_> = dataset.iter().map(Result::unwrap).collect();
 
         let dataloader = MultiThreadDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
@@ -525,7 +525,7 @@ mod tests {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
 
-        let expected: HashSet<_> = dataset.iter().collect();
+        let expected: HashSet<_> = dataset.iter().map(Result::unwrap).collect();
 
         let dataloader = MultiThreadDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),

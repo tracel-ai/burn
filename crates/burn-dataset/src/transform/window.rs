@@ -1,6 +1,6 @@
 use std::{cmp::max, marker::PhantomData, num::NonZeroUsize};
 
-use crate::Dataset;
+use crate::{Dataset, DatasetError};
 
 /// Functionality to create a window.
 pub trait Window<I> {
@@ -8,15 +8,18 @@ pub trait Window<I> {
     ///
     /// # Returns
     ///
-    /// A `Vec<I>` representing the window.
+    /// A `Vec<I>` representing the window, or `None` if the window doesn't fit within the
+    /// collection.
     fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>>;
 }
 
 impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
     fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>> {
-        (current..current + size.get())
-            .map(|x| self.get(x))
-            .collect()
+        let end = current + size.get();
+        if end > self.len() {
+            return None;
+        }
+        Some((current..end).map(|x| self.get(x).unwrap()).collect())
     }
 }
 
@@ -157,8 +160,14 @@ where
     /// # Returns
     ///
     /// A vector representing the window.
-    fn get(&self, index: usize) -> Option<Vec<I>> {
-        self.dataset.window(index, self.size)
+    fn get(&self, index: usize) -> Result<Vec<I>, DatasetError> {
+        match self.dataset.window(index, self.size) {
+            Some(window) => Ok(window),
+            None => panic!(
+                "Index out of bounds for WindowsDataset: {index} >= {}",
+                self.len()
+            ),
+        }
     }
 
     /// Retrieves the number of windows in the dataset.
@@ -206,6 +215,7 @@ mod tests {
 
         let result = WindowsDataset::new(dataset, 3)
             .iter()
+            .map(Result::unwrap)
             .collect::<Vec<Vec<i32>>>();
 
         assert_eq!(result, expected);
@@ -285,19 +295,18 @@ mod tests {
     #[rstest]
     pub fn window_dataset_get_should_be_equal() {
         let dataset = InMemDataset::new([1, 2, 3, 4].to_vec());
-        let expected = Some([1, 2, 3].to_vec());
+        let expected = [1, 2, 3].to_vec();
 
-        let result = WindowsDataset::new(dataset, 3).get(0);
+        let result = WindowsDataset::new(dataset, 3).get(0).unwrap();
 
         assert_eq!(result, expected);
     }
 
     #[rstest]
+    #[should_panic(expected = "Index out of bounds for WindowsDataset")]
     pub fn window_dataset_get_should_be_none() {
         let dataset = InMemDataset::new([1, 2].to_vec());
 
-        let result = WindowsDataset::new(dataset, 4).get(0);
-
-        assert_eq!(result, None);
+        WindowsDataset::new(dataset, 4).get(0).unwrap();
     }
 }
