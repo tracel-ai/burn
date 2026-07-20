@@ -20,10 +20,11 @@ pub fn attention_autotune<R: CubeRuntime>(
     options: AttentionModuleOptions,
 ) -> CubeTensor<R> {
     let client = query.client.clone();
+    let bounds_client = client.clone();
 
     static TUNER: LocalTuner<AttentionAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_MIN: i8 = 0;
 
@@ -51,6 +52,9 @@ pub fn attention_autotune<R: CubeRuntime>(
         });
 
         let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
+        set = set
+            .with_bounds(super::bounds::create_attention_bounds(&bounds_client))
+            .with_short_circuit(false);
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(

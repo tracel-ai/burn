@@ -3,9 +3,11 @@
 extern crate alloc;
 
 use burn_cubecl::CubeBackend;
-use burn_cubecl::throughput::{ThroughputKey, ThroughputValue};
 pub use cubecl::cuda::CudaDevice;
-use cubecl::cuda::CudaRuntime;
+use cubecl::{
+    cuda::CudaRuntime,
+    throughput::{ThroughputKey, ThroughputValue},
+};
 
 #[cfg(not(feature = "fusion"))]
 pub type Cuda = CubeBackend<CudaRuntime>;
@@ -18,7 +20,7 @@ pub fn device_throughput(
     device: &CudaDevice,
     keys: &[ThroughputKey],
 ) -> alloc::vec::Vec<ThroughputValue> {
-    burn_cubecl::throughput::device_throughput::<CudaRuntime>(device, keys)
+    cubecl::std::throughput::device_throughput::<CudaRuntime>(device, keys)
 }
 
 #[cfg(all(test, not(target_os = "macos")))]

@@ -3,7 +3,7 @@ pub use burn_std::{
 };
 
 #[cfg(feature = "cubecl")]
-pub use burn_backend::cubecl::{ThroughputKey, ThroughputValue};
+pub use burn_backend::cubecl::{ThroughputKey, ThroughputMode, ThroughputValue};
 use burn_backend::{Backend, DeviceOps};
 #[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
@@ -818,7 +818,14 @@ impl core::fmt::Display for ThroughputStat {
         // `str`'s `Display` honors padding. The value is "<number> <unit>"; split it
         // so the numeric column can be right-aligned.
         let mode = alloc::format!("{:?}", self.key.mode);
-        let dtype = alloc::format!("{}", self.key.dtype);
+
+        let dtype = match self.key.mode {
+            ThroughputMode::ComputeDirect { dtype } | ThroughputMode::ComputeCmma { dtype, .. } => {
+                alloc::format!("{:?}", dtype)
+            }
+            ThroughputMode::Memory | ThroughputMode::Launch => alloc::string::String::new(),
+        };
+
         let value = self.value.format(&self.key);
 
         write!(f, "{mode:<14} {dtype:<5} {value}")

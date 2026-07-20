@@ -4,21 +4,20 @@ use burn_backend::cubecl::dtype_to_storage_type;
 use cubecl::{
     client::ComputeClient,
     ir::StorageType,
-    std::throughput::{measure_launch_overhead, measure_peak_throughput},
-    throughput::{CmmaDims, ComputeCmmaConfig, ThroughputKey, ThroughputMode},
-    tune::{AutotuneBound, Bounds, BoundsGenerator},
+    std::throughput::measure_peak_throughput,
+    throughput::{ThroughputKey, ThroughputMode, compute_throughput_key, select_cmma_tile},
+    tune::{AutotuneBound, Bounds, BoundsGenerator, calculate_bounds},
 };
 use cubek::matmul::{
-    components::tile::TileMatmulKind,
     definition::{MatmulElems, MatmulGlobalElems},
     strategy::MatmulAutotuneKey,
 };
 
 use crate::{CubeRuntime, kernel::matmul::tune::base::Inputs};
 
-type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>, AutotuneBound> + Send + Sync;
+type BoundsGen<R> = dyn BoundsGenerator<MatmulAutotuneKey, Inputs<R>> + Send + Sync;
 
-const THRESHOLD: f32 = 0.85;
+const THRESHOLD: f32 = 1.0;
 
 /// Creates a closure that calculates performance bounds for matrix multiplication autotuning.
 pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) -> Arc<BoundsGen<R>> {
@@ -27,7 +26,13 @@ pub(super) fn create_matmul_bounds<R: CubeRuntime>(client: &ComputeClient<R>) ->
     Arc::new(
         move |_key: &MatmulAutotuneKey, tensors: &Inputs<R>| Bounds {
             bounds: autotune_bounds(&owned_client, tensors),
-            launch_overhead: measure_launch_overhead(&owned_client),
+            launch_overhead: measure_peak_throughput(
+                &owned_client,
+                ThroughputKey {
+                    mode: ThroughputMode::Launch,
+                },
+            )
+            .duration,
         },
     )
 }
@@ -52,37 +57,17 @@ fn autotune_bounds<R: CubeRuntime>(
 
     let compute =
         matmul_compute_throughput_selection(client, elem_lhs, elem_rhs, elem_out, (m, n, k));
-    // The probe interprets `ThroughputKey::dtype` as the type it computes
-    // with — the A/B fragment type on the cmma path. It must be the input
-    // register type the availability check selected, not the accumulator:
-    // an f16×f16→f32 cmma probed at the accumulator type builds f32 A/B
-    // fragments, which HIP's WMMA cannot even compile.
-    let (compute_mode, compute_dtype) = match compute.cmma_tile {
-        Some((tile_m, tile_n, tile_k)) => (
-            ThroughputMode::ComputeCmma(ComputeCmmaConfig {
-                accumulator_type: compute.acc.elem_type(),
-                cmma_dims: CmmaDims {
-                    m: tile_m as usize,
-                    n: tile_n as usize,
-                    k: tile_k as usize,
-                },
-            }),
-            compute.input.elem_type(),
-        ),
-        None => (ThroughputMode::ComputeDirect, compute.acc.elem_type()),
-    };
 
-    let compute_throughput = measure_peak_throughput(
-        client,
-        ThroughputKey {
-            mode: compute_mode,
-            dtype: compute_dtype,
-        },
+    let compute_key = compute_throughput_key(
+        compute.cmma_tile,
+        compute.input.elem_type(),
+        compute.acc.elem_type(),
     );
+
+    let compute_throughput = measure_peak_throughput(client, compute_key);
 
     let memory_key = ThroughputKey {
         mode: ThroughputMode::Memory,
-        dtype: elem_out.elem_type(),
     };
 
     let memory_throughput = measure_peak_throughput(client, memory_key);
@@ -91,18 +76,15 @@ fn autotune_bounds<R: CubeRuntime>(
     let rhs_bytes = rhs.meta.num_elements() * elem_rhs.elem_type().size();
     let out_bytes = out.meta.num_elements() * elem_out.elem_type().size();
 
-    vec![
-        AutotuneBound {
-            ops_count: batches * m * n * (2 * k - 1),
-            throughput: compute_throughput.ops_per_s(),
-            threshold: THRESHOLD,
-        },
-        AutotuneBound {
-            ops_count: lhs_bytes + rhs_bytes + out_bytes,
-            throughput: memory_throughput.bytes_per_s(&memory_key),
-            threshold: THRESHOLD,
-        },
-    ]
+    calculate_bounds(
+        &compute_throughput,
+        batches * m * n * (2 * k - 1),
+        THRESHOLD,
+        &memory_throughput,
+        &memory_key,
+        lhs_bytes + rhs_bytes + out_bytes,
+        THRESHOLD,
+    )
 }
 
 /// Compute-throughput selection for a matmul problem, resolved from the same register
@@ -134,17 +116,13 @@ pub fn matmul_compute_throughput_selection<R: CubeRuntime>(
 ) -> MatmulComputeThroughputSelection {
     let elems = MatmulElems::from_globals(&MatmulGlobalElems { lhs, rhs, out });
 
-    let cmma_tile = TileMatmulKind::Cmma
-        .supported_sizes(
-            client,
-            elems.lhs_register,
-            elems.rhs_register,
-            elems.acc_register,
-        )
-        .into_iter()
-        .filter(|tile| m >= tile.m() as usize && n >= tile.n() as usize && k >= tile.k() as usize)
-        .max_by_key(|tile| tile.m() as u64 * tile.n() as u64 * tile.k() as u64)
-        .map(|tile| (tile.m(), tile.n(), tile.k()));
+    let cmma_tile = select_cmma_tile(
+        client,
+        elems.lhs_register,
+        elems.rhs_register,
+        elems.acc_register,
+        (m, n, k),
+    );
 
     MatmulComputeThroughputSelection {
         input: elems.lhs_register,
