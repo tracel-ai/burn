@@ -61,6 +61,8 @@ impl BackendTypes for NdArray {
     type IntTensorPrimitive = NdArrayTensor;
     type BoolTensorPrimitive = NdArrayTensor;
     type QuantizedTensorPrimitive = NdArrayQTensor;
+
+    type GraphPrimitive = burn_backend::GraphUnsupported;
 }
 
 impl Backend for NdArray {

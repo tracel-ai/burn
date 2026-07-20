@@ -1,8 +1,7 @@
 use crate::model::ModelConfig;
 use burn::train::{
-    EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
-    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents,
-    TrainingModel, ValidLoader,
+    EventProcessorTraining, Learner, LearnerModel, SupervisedLearningStrategy, SupervisedTraining,
+    SupervisedTrainingEventProcessor, TrainLoader, TrainingComponents, ValidLoader,
 };
 use burn::{
     data::{
@@ -13,7 +12,6 @@ use burn::{
         composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
         linear::LinearLrSchedulerConfig,
     },
-    module::AutodiffModule,
     optim::AdamConfig,
     prelude::*,
     tensor::Device,
@@ -126,15 +124,15 @@ impl MyCustomLearningStrategy {
     }
 }
 
-impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLearningStrategy {
+impl<M: LearnerModel> SupervisedLearningStrategy<M> for MyCustomLearningStrategy {
     fn fit(
         &self,
-        training_components: TrainingComponents<LC>,
-        mut learner: Learner<LC>,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
+        training_components: TrainingComponents<M>,
+        mut learner: Learner<M>,
+        dataloader_train: TrainLoader<M>,
+        dataloader_valid: ValidLoader<M>,
         starting_epoch: usize,
-    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+    ) -> (M, SupervisedTrainingEventProcessor<M>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let train_total_items = dataloader_train.num_items();
         let dataloader_valid = dataloader_valid.to_device(&self.device.clone().inner());
@@ -198,7 +196,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 let progress = iterator.progress();
                 iteration += 1;
 
-                let item = model_valid.step(item);
+                let item = InferenceStep::step(&model_valid, item);
                 let item = TrainingItem::new(item, progress, Some(iteration), None);
 
                 event_processor.process_valid(LearnerEvent::ProcessedItem(item));

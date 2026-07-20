@@ -26,9 +26,7 @@ impl LrScheduler for ConstantLr {
         LrSchedulerRecord::new()
     }
 
-    fn load_record(self, _record: LrSchedulerRecord) -> Self {
-        self
-    }
+    fn load_record(&mut self, _record: LrSchedulerRecord) {}
 }
 
 impl LrScheduler for LearningRate {
@@ -40,7 +38,5 @@ impl LrScheduler for LearningRate {
         LrSchedulerRecord::new()
     }
 
-    fn load_record(self, _record: LrSchedulerRecord) -> Self {
-        self
-    }
+    fn load_record(&mut self, _record: LrSchedulerRecord) {}
 }

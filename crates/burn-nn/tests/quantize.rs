@@ -19,10 +19,7 @@ fn should_quantize_module<M: Module, const D: usize, F: Fn(&M) -> Tensor<D>>(
     let result = func(&module);
 
     let calibration = Calibration::MinMax;
-    let mut quantizer = Quantizer {
-        calibration,
-        scheme,
-    };
+    let mut quantizer = Quantizer::new(calibration, scheme);
     let q_module = module.quantize_weights(&mut quantizer);
     let q_result = func(&q_module);
 

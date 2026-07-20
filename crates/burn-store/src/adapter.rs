@@ -309,6 +309,85 @@ impl ModuleAdapter for HalfPrecisionAdapter {
     }
 }
 
+/// Adapter that casts every float tensor to one target dtype.
+///
+/// Unlike [`HalfPrecisionAdapter`], which infers the direction from the
+/// source dtype (F32 ↔ F16 only) and converts a fixed list of module types,
+/// this adapter is *target-driven*: every float snapshot (F64, F32, Flex32,
+/// F16, BF16) is converted to the given dtype regardless of which module it
+/// belongs to. Non-float tensors (ints, bools, quantized) and tensors already
+/// in the target dtype pass through unchanged.
+///
+/// This is the right tool for loading a stock checkpoint into a module whose
+/// backend runs at a different float precision — e.g. BF16 safetensors into
+/// an F16 model. `HalfPrecisionAdapter` passes BF16 tensors through
+/// unconverted and skips custom module types entirely, so the loaded params
+/// silently keep the source dtype instead of the module's.
+///
+/// # Examples
+///
+/// Cast everything to the backend's float element on load:
+/// ```rust,ignore
+/// let adapter = FloatCastAdapter::to(<B::FloatElem as Element>::dtype());
+/// // store.with_from_adapter(adapter);
+/// ```
+///
+/// Chain after a framework adapter:
+/// ```rust
+/// # use burn_store::{FloatCastAdapter, ModuleAdapter, PyTorchToBurnAdapter};
+/// # use burn_core::tensor::DType;
+/// let adapter = PyTorchToBurnAdapter.chain(FloatCastAdapter::to(DType::F16));
+/// ```
+#[derive(Debug, Clone)]
+pub struct FloatCastAdapter {
+    /// The dtype every float snapshot is converted to.
+    target: DType,
+}
+
+impl FloatCastAdapter {
+    /// Create an adapter that casts every float tensor to `target`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `target` is not a float dtype.
+    pub fn to(target: DType) -> Self {
+        assert!(
+            target.is_float(),
+            "FloatCastAdapter target must be a float dtype, got {target:?}"
+        );
+        Self { target }
+    }
+}
+
+impl ModuleAdapter for FloatCastAdapter {
+    fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
+        if !snapshot.dtype.is_float() || snapshot.dtype == self.target {
+            return snapshot.clone();
+        }
+
+        let original_data_fn = snapshot.clone_data_fn();
+        let target = self.target;
+
+        let cast_data_fn = Rc::new(move || {
+            let data = original_data_fn()?;
+            Ok(data.convert_dtype(target))
+        });
+
+        TensorSnapshot::from_closure(
+            cast_data_fn,
+            target,
+            snapshot.shape.clone(),
+            snapshot.path_stack.clone().unwrap_or_default(),
+            snapshot.container_stack.clone().unwrap_or_default(),
+            snapshot.tensor_id.unwrap_or_default(),
+        )
+    }
+
+    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+        Box::new(self.clone())
+    }
+}
+
 /// Adapter for converting from PyTorch format to Burn format
 ///
 /// Handles:
@@ -1010,6 +1089,93 @@ mod tests {
 
         let snapshot = create_test_snapshot("norm.gamma", shape![10], module_names::LAYER_NORM);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F32);
+    }
+
+    /// Create a snapshot with a specific float dtype (values convertible
+    /// exactly in F16/BF16 so round-trips can be checked precisely).
+    fn create_float_snapshot(dtype: DType, container_type: &str) -> TensorSnapshot {
+        let values = vec![1.0f32, -2.0, 0.5, 4.0, -0.25, 8.0];
+        let data = TensorData::new(values, shape![2, 3]).convert_dtype(dtype);
+        TensorSnapshot::from_closure(
+            Rc::new(move || Ok(data.clone())),
+            dtype,
+            shape![2, 3],
+            vec!["fc".to_string(), "weight".to_string()],
+            vec![container_type.to_string()],
+            burn_core::module::ParamId::new(),
+        )
+    }
+
+    #[test]
+    fn test_float_cast_bf16_to_f16() {
+        // The case HalfPrecisionAdapter cannot handle: BF16 sources.
+        let adapter = FloatCastAdapter::to(DType::F16);
+        let snapshot = create_float_snapshot(DType::BF16, module_names::LINEAR);
+
+        let adapted = adapter.adapt(&snapshot);
+        assert_eq!(adapted.dtype, DType::F16);
+        assert_eq!(adapted.shape, shape![2, 3]);
+        assert_eq!(adapted.full_path(), "fc.weight");
+
+        let data = adapted.to_data().unwrap();
+        assert_eq!(data.dtype, DType::F16);
+        let values = data.convert_dtype(DType::F32).into_vec::<f32>().unwrap();
+        assert_eq!(values, vec![1.0, -2.0, 0.5, 4.0, -0.25, 8.0]);
+    }
+
+    #[test]
+    fn test_float_cast_converts_any_module_type() {
+        // No module-type allowlist: custom modules are converted too.
+        let adapter = FloatCastAdapter::to(DType::F16);
+        let snapshot = create_float_snapshot(DType::F32, "Struct:CustomLayer");
+        assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
+
+        // Even with no container info at all.
+        let mut snapshot = create_float_snapshot(DType::F32, module_names::LINEAR);
+        snapshot.container_stack = None;
+        assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
+    }
+
+    #[test]
+    fn test_float_cast_passthrough_on_target_dtype() {
+        let adapter = FloatCastAdapter::to(DType::F16);
+        let snapshot = create_float_snapshot(DType::F16, module_names::LINEAR);
+        let adapted = adapter.adapt(&snapshot);
+        assert_eq!(adapted.dtype, DType::F16);
+    }
+
+    #[test]
+    fn test_float_cast_skips_non_float() {
+        let adapter = FloatCastAdapter::to(DType::F16);
+
+        let values = vec![1i64, 2, 3];
+        let data = TensorData::new(values, shape![3]);
+        let snapshot = TensorSnapshot::from_closure(
+            Rc::new(move || Ok(data.clone())),
+            DType::I64,
+            shape![3],
+            vec!["idx".to_string()],
+            vec![module_names::EMBEDDING.to_string()],
+            burn_core::module::ParamId::new(),
+        );
+        assert_eq!(adapter.adapt(&snapshot).dtype, DType::I64);
+    }
+
+    #[test]
+    fn test_float_cast_chain_after_pytorch() {
+        // Layout conversion then dtype cast, the checkpoint-loading shape.
+        let adapter = PyTorchToBurnAdapter.chain(FloatCastAdapter::to(DType::F16));
+
+        let snapshot = create_test_snapshot("fc.weight", shape![10, 5], module_names::LINEAR);
+        let adapted = adapter.adapt(&snapshot);
+        assert_eq!(adapted.shape, shape![5, 10]);
+        assert_eq!(adapted.dtype, DType::F16);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be a float dtype")]
+    fn test_float_cast_rejects_non_float_target() {
+        let _ = FloatCastAdapter::to(DType::I32);
     }
 
     #[test]

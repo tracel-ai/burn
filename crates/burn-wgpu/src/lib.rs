@@ -9,6 +9,7 @@ pub use burn_cubecl::{
     template::{KernelSource, SourceKernel, SourceTemplate, build_info},
 };
 
+use burn_cubecl::throughput::{ThroughputKey, ThroughputValue};
 pub use burn_cubecl::{BoolElement, FloatElement, IntElement};
 pub use burn_cubecl::{CubeBackend, tensor::CubeTensor};
 pub use cubecl::CubeDim;
@@ -73,6 +74,18 @@ type WgpuInner<C> = CubeBackend<cubecl::wgpu::WgpuRuntime<C>>;
 /// the `fusion` feature flag to remove that functionality, which might be necessary on `wasm`
 /// for now.
 pub type Wgpu = WgpuInner<AutoCompiler>;
+
+/// Measure peak throughput on a wgpu `device` for each of the given `keys`.
+///
+/// Uses the auto-selected shader compiler, matching the default [`Wgpu`] backend.
+pub fn device_throughput(
+    device: &WgpuDevice,
+    keys: &[ThroughputKey],
+) -> alloc::vec::Vec<ThroughputValue> {
+    burn_cubecl::throughput::device_throughput::<cubecl::wgpu::WgpuRuntime<AutoCompiler>>(
+        device, keys,
+    )
+}
 
 /// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
 ///

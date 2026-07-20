@@ -32,8 +32,6 @@ pub struct LaunchPlan<'a, R: Runtime> {
     pub blocks: Vec<BlockPlan<'a>>,
     /// Mapping of tensor IDs to their specific vectorization factors.
     pub vectorizations: BTreeMap<TensorId, Vect>,
-    /// Tensors that can be cleared or deallocated after this plan executes.
-    pub cleared: Vec<TensorId>,
     /// Metadata for shapes and strides passed from the host when they cannot be
     /// inferred from input tensors (e.g., complex deep fusions).
     pub runtime_layouts: Vec<RuntimeLayout>,
@@ -129,7 +127,6 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             rank,
             blocks,
             vectorizations: Default::default(),
-            cleared: Default::default(),
             runtime_layouts: Default::default(),
         }
     }

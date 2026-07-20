@@ -275,10 +275,13 @@ impl ModuleVisitor for Collector {
     }
 }
 
-/// Mapper that loads recorded tensors back onto matching parameters by module path.
+/// Mapper that loads recorded tensors back onto matching parameters by module path,
+/// restoring the persisted [`ParamId`] so optimizer state (keyed by id) survives
+/// save/load cycles.
 struct ModuleRecordMapper {
     path: Vec<String>,
-    tensors: HashMap<String, TensorData>,
+    /// Map from module path to (persisted ParamId, tensor data).
+    tensors: HashMap<String, (ParamId, TensorData)>,
     dtype_policy: DTypePolicy,
     missing: Vec<String>,
     errors: Vec<String>,
@@ -289,7 +292,7 @@ impl ModuleRecordMapper {
         let tensors = record
             .tensors
             .into_iter()
-            .map(|t| (t.path, t.data))
+            .map(|t| (t.path, (t.id, t.data)))
             .collect();
         Self {
             path: Vec::new(),
@@ -303,6 +306,8 @@ impl ModuleRecordMapper {
     /// Look up the recorded tensor for the current path and build the tensor to load,
     /// or `None` (recording it as missing / errored) to leave the parameter unchanged.
     ///
+    /// Returns the tensor and the persisted [`ParamId`] on a hit.
+    ///
     /// `module_dtype` is only evaluated on a hit under [`DTypePolicy::CastToModule`], so a
     /// missing parameter never materializes its current value just to read a dtype.
     fn take<const D: usize, K: Basic>(
@@ -310,10 +315,10 @@ impl ModuleRecordMapper {
         device: &Device,
         target_shape: Shape,
         module_dtype: impl FnOnce() -> DType,
-    ) -> Option<Tensor<D, K>> {
+    ) -> Option<(Tensor<D, K>, ParamId)> {
         let path = self.path.join(".");
-        let data = match self.tensors.remove_entry(&path) {
-            Some(data) => data.1,
+        let (id, data) = match self.tensors.remove_entry(&path) {
+            Some(entry) => entry.1,
             None => {
                 self.missing.push(path);
                 return None;
@@ -334,7 +339,7 @@ impl ModuleRecordMapper {
             return None;
         }
 
-        Some(Tensor::from_data(data, (device, dtype)))
+        Some((Tensor::from_data(data, (device, dtype)), id))
     }
 }
 
@@ -347,11 +352,10 @@ macro_rules! map_kind {
             &mut self,
             param: Param<Tensor<D, $kind>>,
         ) -> Param<Tensor<D, $kind>> {
-            let id = param.id;
             let device = param.lazy_device();
             let shape = param.lazy_shape();
             match self.take(&device, shape, || param.val().dtype()) {
-                Some(tensor) => param.transform_for_load(tensor, id),
+                Some((tensor, record_id)) => param.transform_for_load(tensor, record_id),
                 None => param,
             }
         }
@@ -530,6 +534,33 @@ mod tests {
         // `bias` shape mismatch is reported as a validation error by default.
         let result = tiny_wrong_bias_shape(&device).try_load_record(record);
         assert!(matches!(result, Err(RecordError::Validation(_))));
+    }
+
+    #[test]
+    fn load_record_preserves_param_id() {
+        let device = Default::default();
+        let model = Tiny::new([[1.0, 2.0], [3.0, 4.0]], [5.0, 6.0], &device);
+
+        // Capture original ParamIds before saving.
+        let weight_id = model.weight.id;
+        let bias_id = model.bias.id;
+
+        let bytes = model.into_record().into_bytes().unwrap();
+        let record = ModuleRecord::from_bytes(bytes).unwrap();
+
+        // Load into a fresh model (new init() = different ParamIds).
+        let loaded = Tiny::new([[0.0; 2]; 2], [0.0; 2], &device).load_record(record);
+
+        // The loaded model should have the ORIGINAL ParamIds from the record,
+        // not the fresh ones from init().
+        assert_eq!(
+            loaded.weight.id, weight_id,
+            "weight ParamId should be restored from record"
+        );
+        assert_eq!(
+            loaded.bias.id, bias_id,
+            "bias ParamId should be restored from record"
+        );
     }
 
     #[test]

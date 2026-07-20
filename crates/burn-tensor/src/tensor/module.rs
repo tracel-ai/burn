@@ -1,8 +1,9 @@
 use burn_backend::ops::ModuleOps;
 use burn_dispatch::Dispatch;
+use burn_std::{MatmulTransformAction, MatmulTransformAnalysis, MatmulTransformPolicy};
 
 use crate::{
-    Bool, Int, Tensor, check,
+    Bool, DType, Int, Tensor, check,
     check::TensorCheck,
     ops::{
         AttentionModuleOptions, BridgeTensor, ConvOptions, ConvTransposeOptions, DeformConvOptions,
@@ -457,6 +458,37 @@ pub fn linear<const D: usize>(
         let input = input.unsqueeze::<2>();
         let output = linear(input, weight, bias);
         return output.squeeze_dim(0);
+    }
+
+    // A quantized weight must stay quantized: `linear_impl` converts its
+    // operands to float, which would dequantize (materialize) the whole weight
+    // matrix on every forward. Route through the quantized matmul instead, which
+    // streams the packed weight directly — but reuse the same batch-fold policy
+    // the float `linear` applies, so a decode-shaped call folds its batches into
+    // the rows for one `[rows, d_in] @ [d_in, d_out]` matmul rather than a
+    // broadcast batched matmul that re-reads the packed weight per batch.
+    if let DType::QFloat(_) = weight.dtype() {
+        let dims = input.dims();
+        let analysis = MatmulTransformAnalysis::from_shapes(&input.shape(), &weight.shape());
+
+        let output = match MatmulTransformPolicy::default().action(&analysis) {
+            MatmulTransformAction::MergeBatches { rows } => {
+                let d_in = dims[D - 1];
+                let d_out = weight.dims()[1];
+
+                let folded = input.reshape([rows, d_in]).matmul(weight);
+
+                let mut out_dims = dims;
+                out_dims[D - 1] = d_out;
+                folded.reshape(out_dims)
+            }
+            MatmulTransformAction::Keep => input.matmul(weight.unsqueeze::<D>()),
+        };
+
+        return match bias {
+            Some(bias) => output + bias.unsqueeze(),
+            None => output,
+        };
     }
 
     Tensor::new(linear_impl(

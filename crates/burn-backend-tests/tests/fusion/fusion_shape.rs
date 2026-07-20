@@ -221,3 +221,57 @@ fn elementwise_and_creation_into_single_kernel() {
     );
     });
 }
+
+/// A lone view (`swap_dims`) whose original tensor isn't otherwise read must NOT be fused: it runs
+/// eagerly as a cheap shape/stride update, so the following element-wise math reads a clean,
+/// vectorizable layout instead of recomputing the transposed index on every element.
+///
+/// Regression guard for the "view fix": previously the swap-dims was fused into the element-wise
+/// kernel (the original registered as a fresh input, read *through* the transpose), which defeats
+/// vectorization for no benefit when the original is used nowhere else.
+#[test]
+fn lone_view_is_not_fused_into_kernel() {
+    let stream = test_stream();
+    stream.executes(|| {
+        let device = Default::default();
+
+        // Materialize the inputs so their `ones` init ops don't land in the inspected reports.
+        let a = TestTensor::<2>::ones([4, 8], &device);
+        let b = TestTensor::<2>::ones([8, 4], &device);
+        device.sync().unwrap();
+
+        let inspector = FusionInspector::install(stream);
+
+        // `swap_dims` is the only use of `a`.
+        let out = (a.swap_dims(0, 1) + b).exp();
+        let _ = out.into_data();
+        device.sync().unwrap();
+
+        let reports = inspector.drain();
+        let tables: String = reports
+            .iter()
+            .map(|r| r.format_table())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        let is_swap = matchers::is_swap_dims();
+
+        // The view must never end up inside a fused kernel.
+        assert!(
+            reports
+                .iter()
+                .flat_map(|r| r.fused_blocks())
+                .all(|blk| !blk.operations.iter().any(|op| is_swap(op))),
+            "swap_dims must not be fused (view fix):\n\n{tables}",
+        );
+
+        // ...and it must actually run, in an un-fused block.
+        assert!(
+            reports
+                .iter()
+                .flat_map(|r| r.unfused_blocks())
+                .any(|blk| blk.operations.iter().any(|op| is_swap(op))),
+            "swap_dims should run eagerly in an un-fused block:\n\n{tables}",
+        );
+    });
+}

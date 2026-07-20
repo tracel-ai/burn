@@ -329,8 +329,8 @@ fn deform_col2img_coord_kernel<F: Float>(
     let kernel_w = args.kernel_width;
     let kernel_h = args.kernel_height;
 
-    let mut grad_offset_val = F::new(0.0);
-    let mut grad_mask_val = F::new(0.0);
+    let mut grad_offset_val = F::new(0.0_f32);
+    let mut grad_mask_val = F::new(0.0_f32);
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS, &pos_shape);
     let [batch, offset_group, kernel_y, kernel_x, dir, out_y, out_x] = *pos else {
@@ -370,7 +370,7 @@ fn deform_col2img_coord_kernel<F: Float>(
                 + out_x * mask.stride(3);
             mask[mask_idx]
         }
-        ComptimeOption::None => F::new(1.0),
+        ComptimeOption::None => F::new(1.0_f32),
     };
 
     let is_y_direction = dir == 0;
@@ -443,30 +443,32 @@ fn get_coordinate_weight<F: Float>(
     let bottom_left = if valid_y_low && valid_x_low {
         input[offset + y_low as usize * stride_y + x_low as usize * stride_x]
     } else {
-        F::new(0.0)
+        F::new(0.0_f32)
     };
     let bottom_right = if valid_y_low && valid_x_high {
         input[offset + y_low as usize * stride_y + x_high as usize * stride_x]
     } else {
-        F::new(0.0)
+        F::new(0.0_f32)
     };
     let top_left = if valid_y_high && valid_x_low {
         input[offset + y_high as usize * stride_y + x_low as usize * stride_x]
     } else {
-        F::new(0.0)
+        F::new(0.0_f32)
     };
     let top_right = if valid_y_high && valid_x_high {
         input[offset + y_high as usize * stride_y + x_high as usize * stride_x]
     } else {
-        F::new(0.0)
+        F::new(0.0_f32)
     };
 
     if is_y_direction {
         let delta_x = F::cast_from(x - x_low);
-        delta_x * (top_right - bottom_right) + (F::new(1.0) - delta_x) * (top_left - bottom_left)
+        delta_x * (top_right - bottom_right)
+            + (F::new(1.0_f32) - delta_x) * (top_left - bottom_left)
     } else {
         let delta_y = F::cast_from(y - y_low);
-        delta_y * (top_right - top_left) + (F::new(1.0) - delta_y) * (bottom_right - bottom_left)
+        delta_y * (top_right - top_left)
+            + (F::new(1.0_f32) - delta_y) * (bottom_right - bottom_left)
     }
 }
 
@@ -621,7 +623,7 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
                 + out_y * mask.stride(2)
                 + out_x * mask.stride(3)]
         }
-        ComptimeOption::None => F::new(1.0),
+        ComptimeOption::None => F::new(1.0_f32),
     };
 
     let y = F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h)
@@ -637,19 +639,20 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
             let yp = y.floor() + F::cast_from(dy);
             let xp = x.floor() + F::cast_from(dx);
 
-            if yp >= F::new(0.0)
+            if yp >= F::new(0.0_f32)
                 && yp < F::cast_from(height)
-                && xp >= F::new(0.0)
+                && xp >= F::new(0.0_f32)
                 && xp < F::cast_from(width)
-                && F::abs(y - yp) < F::new(1.0)
-                && F::abs(x - xp) < F::new(1.0)
+                && F::abs(y - yp) < F::new(1.0_f32)
+                && F::abs(x - xp) < F::new(1.0_f32)
             {
                 let gradient_pos = batch * grad_input.stride(0)
                     + in_channel * grad_input.stride(1)
                     + usize::cast_from(yp) * grad_input.stride(2)
                     + usize::cast_from(xp) * grad_input.stride(3);
 
-                let weight = (F::new(1.0) - F::abs(y - yp)) * (F::new(1.0) - F::abs(x - xp));
+                let weight =
+                    (F::new(1.0_f32) - F::abs(y - yp)) * (F::new(1.0_f32) - F::abs(x - xp));
 
                 let value = mask_value * F::cast_from(weight) * columns.read(ABSOLUTE_POS);
 

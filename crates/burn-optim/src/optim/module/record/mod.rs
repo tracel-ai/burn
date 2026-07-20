@@ -22,6 +22,7 @@ use burn_pack::{Reader, Scalar, Writer};
 pub struct OptimizerRecord {
     pub(crate) tensors: Vec<burn_pack::Tensor>,
     pub(crate) scalars: BTreeMap<String, Scalar>,
+    pub(crate) paths: BTreeMap<String, String>,
 }
 
 impl core::fmt::Debug for OptimizerRecord {
@@ -72,12 +73,20 @@ impl OptimizerRecord {
         for (key, value) in &self.scalars {
             writer = writer.with_scalar(key, *value);
         }
+        for (key, value) in &self.paths {
+            writer = writer.with_metadata(key, value);
+        }
         writer
     }
 
     fn from_reader(reader: Reader) -> Result<Self, RecordError> {
         let scalars = reader.scalars().clone();
+        let paths = reader.metadata().clone();
         let tensors = reader.into_tensors()?;
-        Ok(Self { tensors, scalars })
+        Ok(Self {
+            tensors,
+            scalars,
+            paths,
+        })
     }
 }
