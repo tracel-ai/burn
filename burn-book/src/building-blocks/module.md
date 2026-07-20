@@ -349,3 +349,4 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
 | `SmoothL1Loss`           | `nn.SmoothL1Loss`        |
+| `TripletMarginLoss`      | `nn.TripletMarginLoss`   |
