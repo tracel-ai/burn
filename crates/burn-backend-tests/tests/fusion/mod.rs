@@ -10,6 +10,7 @@ mod fusion_shape;
 mod inplace;
 mod int_bitwise;
 mod reduce_broadcasted;
+mod reduce_logical;
 
 use burn_tensor::StreamId;
 use std::sync::atomic::{AtomicU64, Ordering};

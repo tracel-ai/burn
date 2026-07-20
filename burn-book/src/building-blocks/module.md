@@ -240,16 +240,21 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `GroupNorm`       | `nn.GroupNorm`                                |
 | `HardShrink`      | `nn.Hardshrink`                               |
 | `HardSigmoid`     | `nn.Hardsigmoid`                              |
+| `CosineSimilarity` | `nn.CosineSimilarity`                         |
 | `HardSwish`       | `nn.Hardswish`                                |
 | `InstanceNorm`    | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`       | `nn.LayerNorm`                                |
 | `LocalResponseNorm` | `nn.LocalResponseNorm`                      |
 | `LeakyRelu`       | `nn.LeakyReLU`                                |
+| `LogSigmoid`      | `nn.LogSigmoid`                               |
+| `Mish`            | `nn.Mish`                                     |
 | `Linear`          | `nn.Linear`                                   |
+| `PairwiseDistance` | `nn.PairwiseDistance`                         |
 | `Prelu`           | `nn.PReLu`                                    |
 | `Relu`            | `nn.ReLU`                                     |
 | `Selu`            | `nn.SELU`                                     |
 | `Sigmoid`         | `nn.Sigmoid`                                  |
+| `SiLU`            | `nn.SiLU`                                     |
 | `Softplus`        | `nn.Softplus`                                 |
 | `SoftShrink`      | `nn.Softshrink`                               |
 | `Softsign`        | `nn.Softsign`                                 |
@@ -334,10 +339,14 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `CrossEntropyLoss`       | `nn.CrossEntropyLoss`    |
 | `CTCLoss`                | `nn.CTCLoss`             |
 | `GramMatrixLoss`         | _No direct equivalent_   |
+| `HingeEmbeddingLoss`     | `nn.HingeEmbeddingLoss`  |
 | `HuberLoss`              | `nn.HuberLoss`           |
 | `KLDivLoss`              | `nn.KLDivLoss`           |
 | `LpLoss`                 | _No direct equivalent_   |
+| `MarginRankingLoss`     | `nn.MarginRankingLoss`   |
 | `MseLoss`                | `nn.MSELoss`             |
+| `MultiMarginLoss`        | `nn.MultiMarginLoss`     |
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
 | `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
 | `SmoothL1Loss`           | `nn.SmoothL1Loss`        |
+| `TripletMarginLoss`      | `nn.TripletMarginLoss`   |
