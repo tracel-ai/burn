@@ -1,3 +1,5 @@
+#[cfg(feature = "autotune")]
+pub(crate) mod bounds;
 pub mod fallback;
 pub mod implicit_gemm;
 

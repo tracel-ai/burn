@@ -21,10 +21,11 @@ pub fn interpolate_autotune<R: CubeRuntime>(
     options: InterpolateOptions,
 ) -> CubeTensor<R> {
     let client = input.client.clone();
+    let bounds_client = client.clone();
 
     static TUNER: LocalTuner<InterpolateAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         const PRIORITY: i8 = 0;
 
         let global_memory =
@@ -33,6 +34,9 @@ pub fn interpolate_autotune<R: CubeRuntime>(
             TuneGroup::<InterpolateAutotuneKey>::new("shared_memory", |_key| PRIORITY);
 
         let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
+        set = set
+            .with_bounds(super::bounds::create_bounds(&bounds_client))
+            .with_short_circuit(false);
 
         let tile_sizes: [TileSize; 16] = [
             // Square shapes

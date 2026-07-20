@@ -25,13 +25,17 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
 ) -> CubeTensor<R> {
     let client = out_grad.client.clone();
 
+    let bounds_client = client.clone();
+
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     // Note: TMA isn't currently implemented properly, and will always error.
     // It's kept here so it gets automatically enabled as soon as cubek updates.
     // No CMMA for TMA because swizzling will be mandatory for good performance on dgrad.
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
+            .with_bounds(super::bounds::create_bounds(&bounds_client))
+            .with_short_circuit(false)
             .with(Tunable::new(
                 "wgrad_fallback",
                 |(out_grad, weights, input_shape, options)| {

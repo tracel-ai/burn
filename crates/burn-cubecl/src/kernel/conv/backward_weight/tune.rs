@@ -25,10 +25,14 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
 
+    let bounds_client = client.clone();
+
     static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
+            .with_bounds(super::bounds::create_bounds(&bounds_client))
+            .with_short_circuit(false)
             .with(Tunable::new(
                 "wgrad_fallback",
                 |(input, grad, shape, options)| {
