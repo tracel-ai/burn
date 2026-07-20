@@ -12,10 +12,20 @@ workspace = true
 [features]
 default = ["burn/dataset", "burn/sqlite-bundled"]
 f16 = []
+flex32 = []
+tch-cpu = ["burn/tch"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
+vulkan = ["burn/vulkan"]
+metal = ["burn/metal"]
+flex = ["burn/flex"]
+remote = ["burn/remote-websocket"]
+cuda = ["burn/cuda"]
+rocm = ["burn/rocm"]
 
 [dependencies]
 # Burn
-burn = { workspace = true, features = ["default", "train", "tch"] }
+burn = { workspace = true, features = ["default", "train"] }
 
 # Tokenizer
 tokenizers = { version = "0.22.2", default-features = false, features = [

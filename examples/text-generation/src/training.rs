@@ -13,7 +13,10 @@ use burn::{
     prelude::*,
     train::{
         Learner, SupervisedTraining,
-        metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric, PerplexityMetric},
+        metric::{
+            AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
+            PerplexityMetric,
+        },
     },
 };
 use std::sync::Arc;
@@ -74,8 +77,10 @@ pub fn train<D: Dataset<TextGenerationItem> + 'static>(
         .metric_valid_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
         .metric_train_numeric(PerplexityMetric::new().with_pad_token(tokenizer.pad_token()))
         .metric_valid_numeric(PerplexityMetric::new().with_pad_token(tokenizer.pad_token()))
-        .metric_train(LossMetric::new())
-        .metric_valid(LossMetric::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        .metric_train_numeric(IterationSpeedMetric::new())
+        .metric_valid_numeric(IterationSpeedMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_default_checkpointers()
         .grads_accumulation(accum)
