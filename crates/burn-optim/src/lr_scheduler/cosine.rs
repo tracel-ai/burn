@@ -11,7 +11,7 @@ use burn::config::Config;
 ///
 /// This scheduler returns the learning rate `initial_lr` at the first step, then changes it by
 /// following a cosine function. After `num_iters` iterations, the learning rate remains at
-/// `min_lr`.
+/// `min_lr`. With the default `min_lr` of `0.0`, subsequent calls return a zero learning rate.
 #[derive(Config, Debug)]
 pub struct CosineAnnealingLrSchedulerConfig {
     // The initial learning rate.
@@ -188,6 +188,8 @@ mod tests {
             (INITIAL_LR + MIN_LR) * 0.5, // cos(PI/2)
             MIN_LR,                      // cos(PI)
             MIN_LR,                      // remain at minimum
+            MIN_LR,
+            MIN_LR,
         ];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
