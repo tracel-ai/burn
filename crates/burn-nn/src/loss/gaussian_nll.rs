@@ -175,6 +175,27 @@ mod tests {
     }
 
     #[test]
+    fn test_gaussian_nll_loss_clamps_var_to_eps() {
+        let device = Default::default();
+        let input = Tensor::<1>::from_data(TensorData::from([1.0, 2.0]), &device);
+        let target = Tensor::<1>::from_data(TensorData::from([1.5, 1.0]), &device);
+
+        let loss = GaussianNLLLossConfig::new().init(); // eps = 1e-6
+
+        // A variance below eps must be clamped up to eps,
+        let var_below = Tensor::<1>::from_data(TensorData::from([1e-8, 1e-8]), &device);
+        // so the loss must equal that computed with var == eps directly.
+        let var_eps = Tensor::<1>::from_data(TensorData::from([1e-6, 1e-6]), &device);
+
+        let clamped = loss.forward_no_reduction(input.clone(), target.clone(), var_below);
+        let at_eps = loss.forward_no_reduction(input, target, var_eps);
+
+        clamped
+            .into_data()
+            .assert_approx_eq::<FT>(&at_eps.into_data(), Tolerance::default());
+    }
+
+    #[test]
     fn display() {
         let config = GaussianNLLLossConfig::new().with_eps(0.5);
         let loss = config.init();
