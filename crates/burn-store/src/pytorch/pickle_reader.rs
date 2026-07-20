@@ -242,9 +242,7 @@ impl Object {
             Object::Tuple(v) | Object::List(v) | Object::PersistentTuple(v) => {
                 1 + v.iter().map(|o| o.node_count()).sum::<usize>()
             }
-            Object::Dict(m) => {
-                1 + m.values().map(|o| o.node_count()).sum::<usize>()
-            }
+            Object::Dict(m) => 1 + m.values().map(|o| o.node_count()).sum::<usize>(),
             Object::Reduce { callable, args } | Object::Build { callable, args } => {
                 1 + callable.node_count() + args.node_count()
             }
@@ -950,7 +948,8 @@ impl Stack {
     }
 
     fn memo_get(&mut self, idx: u32) -> Result<Object> {
-        let obj = self.memo
+        let obj = self
+            .memo
             .get(&idx)
             .cloned()
             .ok_or(PickleError::MemoNotFound(idx))?;
@@ -963,7 +962,7 @@ impl Stack {
                 "Pickle memo bomb detected: exceeded 1M nodes".to_string(),
             ));
         }
-        
+
         Ok(obj)
     }
 
