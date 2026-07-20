@@ -19,7 +19,7 @@ pub(super) fn create_bounds<R: CubeRuntime, const N: usize>(
 ) -> Arc<BoundsGen<R, N>> {
     let owned_client = client.clone();
     Arc::new(
-        move |key: &CubeAutotuneKey, (input, out_grad, weight_shape, _options): &Inputs<R, N>| {
+        move |key: &CubeAutotuneKey, (input, _out_grad, weight_shape, _options): &Inputs<R, N>| {
             let CubeAutotuneKey::Conv(conv_key) = key else {
                 unreachable!()
             };
