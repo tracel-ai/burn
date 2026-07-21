@@ -102,7 +102,7 @@ where
     /// Drop the current value, and replace it with `Tensor::empty([0; D])`
     ///
     /// Returns the old value.
-    #[allow(clippy::unused_must_use)]
+    #[allow(unused_must_use)]
     pub fn release(&mut self) -> Self {
         let mut z = Tensor::empty([0; D], &self.device());
         self.swap(&mut z);
