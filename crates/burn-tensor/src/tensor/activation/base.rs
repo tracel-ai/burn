@@ -180,10 +180,12 @@ $$
 ///
 /// # Arguments
 /// - `dim`: the dimension along which Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
     Tensor::new(softmax_impl(tensor.primitive, dim))
@@ -202,11 +204,13 @@ $$
 #[cfg_attr(not(doc), doc = "`softmin(x_i) = exp(-x_i) / sum_j(exp(-x_j)`")]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Softmin will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("softmin", dim));
 
     Tensor::new(softmin_impl(tensor.primitive, dim))
@@ -251,11 +255,13 @@ $$
 )]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Quiet Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn quiet_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
     let max_vals = tensor.clone().detach().max_dim(dim);
@@ -283,11 +289,13 @@ $$
 )]
 ///
 /// # Arguments
-/// - `dim`: the dimension along which Softmax will be computed.
+/// - `dim`: the dimension along which Log Softmax will be computed.
+///   Negative dimensions are supported and count from the end.
 ///
 /// # Panics
-/// - If `dim` is outside [0, D)
-pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
+/// - If `dim` is outside [-D, D)
+pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     check!(TensorCheck::dim_ops::<D>("log softmax", dim));
 
     Tensor::new(log_softmax_impl(tensor.primitive, dim))
