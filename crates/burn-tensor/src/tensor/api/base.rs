@@ -95,7 +95,7 @@ where
     K: Basic,
 {
     /// Swap the contents of two tensors.
-    pub fn swap(&mut self, other: &mut self) {
+    pub fn swap(&mut self, other: &mut Self) {
         core::mem::swap(self, other);
     }
 
