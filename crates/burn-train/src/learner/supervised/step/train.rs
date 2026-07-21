@@ -1,11 +1,14 @@
 use crate::LearnerModel;
 use crate::{TrainOutput, TrainStep, TrainingModelInput, TrainingModelOutput};
 use burn_core::data::dataloader::DataLoaderIterator;
-use burn_core::data::dataset::DatasetError;
 use burn_core::data::dataloader::Progress;
+use burn_core::data::dataset::DatasetError;
 use burn_core::tensor::Device;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
+
+/// Outputs and progress collected from workers for one step.
+type StepOutput<TO> = (Vec<MultiTrainOutput<TO>>, Progress);
 
 /// Multi devices train step.
 pub struct MultiDevicesTrainStep<M: LearnerModel> {
@@ -148,7 +151,7 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
         &self,
         dataloaders: &mut [Box<dyn DataLoaderIterator<TrainingModelInput<M>> + 'a>],
         model: &M,
-    ) -> Result<(Vec<MultiTrainOutput<TrainingModelOutput<M>>>, Progress), DatasetError> {
+    ) -> Result<StepOutput<TrainingModelOutput<M>>, DatasetError> {
         let mut num_send = 0;
 
         let mut items_total = 0;
