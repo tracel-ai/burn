@@ -9,6 +9,30 @@ impl<const D: usize, K> Tensor<D, K>
 where
     K: Ordered,
 {
+    /// Apply element wise absolute value operation.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{Int, Tensor};
+    ///
+    /// fn example() {
+    ///   let device = Default::default();
+    ///   let tensor = Tensor::<2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
+    ///   let tensor = tensor.abs();
+    ///   println!("{tensor}");
+    ///   // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    /// }
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// For signed integer dtypes, this operation uses two's-complement wraparound semantics, similar to
+    /// `x.wrapping_abs()`. For example, `abs(i64::MIN) == i64::MIN`.
+    pub fn abs(self) -> Self {
+        Self::new(K::abs(self.primitive))
+    }
+
     /// Sort the elements by value in ascending order along a given dimension.
     ///
     /// This sort is unstable (i.e., may reorder equal elements).

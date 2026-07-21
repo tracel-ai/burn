@@ -94,6 +94,7 @@ pub mod binary;
 mod bool;
 pub mod cat;
 pub mod comparison;
+pub mod complex;
 #[macro_use]
 mod conv_common;
 pub mod conv;

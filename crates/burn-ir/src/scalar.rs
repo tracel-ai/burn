@@ -61,6 +61,7 @@ impl From<Scalar> for ScalarIr {
             Scalar::Int(x) => Self::Int(x),
             Scalar::UInt(x) => Self::UInt(x),
             Scalar::Bool(x) => Self::Bool(x),
+            Scalar::Complex(_x) => unimplemented!("Complex scalar not yet supported in IR"),
         }
     }
 }

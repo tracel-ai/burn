@@ -879,17 +879,19 @@ fn compute_strides(dims: &[usize]) -> Vec<usize> {
     strides
 }
 
-/// Multi-dimensional scatter: update `data` at locations specified by N-dimensional index tuples.
-pub fn scatter_nd<
-    E: Element + Pod + Default + Copy + core::ops::AddAssign + core::ops::Mul<Output = E> + PartialOrd,
->(
+/// Shared setup for scatter_nd variants: decodes inputs and iterates over index tuples,
+/// calling `apply` for each (result slice, value slice) pair.
+///
+/// Using a closure keeps all dispatch at the call site so the compiler can inline and
+/// specialise the inner loop for each reduction — zero runtime overhead vs. the old
+/// monolithic function.
+#[inline(always)]
+fn scatter_nd_impl<E: Element + Pod + Default + Copy>(
     data: FlexTensor,
     indices: FlexTensor,
     values: FlexTensor,
-    reduction: burn_backend::tensor::IndexingUpdateOp,
+    mut apply: impl FnMut(&mut [E], &[E]),
 ) -> FlexTensor {
-    use burn_backend::tensor::IndexingUpdateOp;
-
     let data = data.to_contiguous();
     let indices = indices.to_contiguous();
     let values = values.to_contiguous();
@@ -907,7 +909,6 @@ pub fn scatter_nd<
     let val_data: &[E] = values.storage();
 
     let mut result: Vec<E> = data_data.to_vec();
-
     let strides = compute_strides(&data_shape);
 
     for n in 0..num_indices {
@@ -916,45 +917,90 @@ pub fn scatter_nd<
             let idx_val = idx_data[n * k + j] as usize;
             base_offset += idx_val * strides[j];
         }
-
         let val_offset = n * slice_size;
-        match reduction {
-            IndexingUpdateOp::Assign => {
-                result[base_offset..(base_offset + slice_size)]
-                    .copy_from_slice(&val_data[val_offset..(val_offset + slice_size)]);
-            }
-            IndexingUpdateOp::Add => {
-                for s in 0..slice_size {
-                    result[base_offset + s] += val_data[val_offset + s];
-                }
-            }
-            IndexingUpdateOp::Mul => {
-                for s in 0..slice_size {
-                    result[base_offset + s] = result[base_offset + s] * val_data[val_offset + s];
-                }
-            }
-            IndexingUpdateOp::Min => {
-                for s in 0..slice_size {
-                    let b = val_data[val_offset + s];
-                    if b < result[base_offset + s] {
-                        result[base_offset + s] = b;
-                    }
-                }
-            }
-            IndexingUpdateOp::Max => {
-                for s in 0..slice_size {
-                    let b = val_data[val_offset + s];
-                    if b > result[base_offset + s] {
-                        result[base_offset + s] = b;
-                    }
-                }
-            }
-        }
+        apply(
+            &mut result[base_offset..base_offset + slice_size],
+            &val_data[val_offset..val_offset + slice_size],
+        );
     }
 
     let shape = Shape::from(data_shape);
     let bytes = Bytes::from_elems(result);
     FlexTensor::new(bytes, Layout::contiguous(shape), E::dtype())
+}
+
+/// Multi-dimensional scatter: update `data` at locations specified by N-dimensional index tuples.
+pub fn scatter_nd<
+    E: Element + Pod + Default + Copy + core::ops::AddAssign + core::ops::Mul<Output = E> + PartialOrd,
+>(
+    data: FlexTensor,
+    indices: FlexTensor,
+    values: FlexTensor,
+    reduction: burn_backend::tensor::IndexingUpdateOp,
+) -> FlexTensor {
+    use burn_backend::tensor::IndexingUpdateOp;
+
+    scatter_nd_impl::<E>(data, indices, values, |dst, src| match reduction {
+        IndexingUpdateOp::Assign => dst.copy_from_slice(src),
+        IndexingUpdateOp::Add => {
+            for (d, &v) in dst.iter_mut().zip(src) {
+                *d += v;
+            }
+        }
+        IndexingUpdateOp::Mul => {
+            for (d, &v) in dst.iter_mut().zip(src) {
+                *d = *d * v;
+            }
+        }
+        IndexingUpdateOp::Min => {
+            for (d, &v) in dst.iter_mut().zip(src) {
+                if v < *d {
+                    *d = v;
+                }
+            }
+        }
+        IndexingUpdateOp::Max => {
+            for (d, &v) in dst.iter_mut().zip(src) {
+                if v > *d {
+                    *d = v;
+                }
+            }
+        }
+    })
+}
+
+/// Multi-dimensional scatter for element types that do not implement [`PartialOrd`].
+///
+/// Identical to [`scatter_nd`] except that [`burn_backend::tensor::IndexingUpdateOp::Min`] and
+/// [`burn_backend::tensor::IndexingUpdateOp::Max`] are not supported and will panic at runtime.
+pub fn scatter_nd_no_ord<
+    E: Element + Pod + Default + Copy + core::ops::AddAssign + core::ops::Mul<Output = E>,
+>(
+    data: FlexTensor,
+    indices: FlexTensor,
+    values: FlexTensor,
+    reduction: burn_backend::tensor::IndexingUpdateOp,
+) -> FlexTensor {
+    use burn_backend::tensor::IndexingUpdateOp;
+
+    scatter_nd_impl::<E>(data, indices, values, |dst, src| match reduction {
+        IndexingUpdateOp::Assign => dst.copy_from_slice(src),
+        IndexingUpdateOp::Add => {
+            for (d, &v) in dst.iter_mut().zip(src) {
+                *d += v;
+            }
+        }
+        IndexingUpdateOp::Mul => {
+            for (d, &v) in dst.iter_mut().zip(src) {
+                *d = *d * v;
+            }
+        }
+        IndexingUpdateOp::Min | IndexingUpdateOp::Max => {
+            unimplemented!(
+                "scatter_nd Min/Max reduction requires PartialOrd, which this element type does not implement"
+            )
+        }
+    })
 }
 
 /// Multi-dimensional gather: collect slices from `data` at locations specified by N-dimensional

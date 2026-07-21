@@ -15,6 +15,10 @@ pub struct Int;
 #[derive(Clone, Debug)]
 pub struct Bool;
 
+/// A type-level representation of the kind of a complex tensor.
+#[derive(Clone, Debug)]
+pub struct Complex;
+
 mod sealed {
     pub trait Sealed {}
 }
@@ -22,6 +26,7 @@ mod sealed {
 impl sealed::Sealed for Float {}
 impl sealed::Sealed for Int {}
 impl sealed::Sealed for Bool {}
+impl sealed::Sealed for Complex {}
 
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
@@ -55,6 +60,10 @@ impl TensorKind for Bool {
     const KIND: Kind = Kind::Bool;
 }
 
+impl TensorKind for Complex {
+    const KIND: Kind = Kind::Complex;
+}
+
 /// Represents the kind of a [`Tensor`](crate::Tensor).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -64,6 +73,8 @@ pub enum Kind {
     Int,
     /// A boolean tensor kind.
     Bool,
+    /// A complex tensor kind.
+    Complex,
 }
 
 impl Kind {
@@ -73,6 +84,7 @@ impl Kind {
             Kind::Float => "Float",
             Kind::Int => "Int",
             Kind::Bool => "Bool",
+            Kind::Complex => "Complex",
         }
     }
 }
@@ -139,6 +151,8 @@ enum BridgeTensorVariant {
     Float(DispatchTensor),
     /// A quantized floating-point tensor.
     QFloat(DispatchTensor),
+    /// A complex tensor.
+    Complex(DispatchTensor),
 }
 
 /// Runtime tag identifying which variant a [`BridgeTensor`] wraps.
@@ -155,6 +169,8 @@ pub enum BridgeKind {
     Float,
     /// A quantized floating-point tensor.
     QFloat,
+    /// A complex tensor.
+    Complex,
 }
 
 /// Switches visibility based on the `extension` feature: `pub` when enabled
@@ -178,6 +194,15 @@ impl BridgeTensor {
         /// Available with the `extension` feature for backend-extension authors.
         fn float(tensor: DispatchTensor) -> Self {
             Self::new(BridgeTensorVariant::Float(tensor))
+        }
+    }
+
+    ext_fn! {
+        /// Builds a bridge tensor that wraps a complex dispatch tensor.
+        ///
+        /// Available with the `extension` feature for backend-extension authors.
+        fn complex(tensor: DispatchTensor) -> Self {
+            Self::new(BridgeTensorVariant::Complex(tensor))
         }
     }
 
@@ -215,6 +240,7 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(_) => BridgeKind::Int,
             BridgeTensorVariant::Float(_) => BridgeKind::Float,
             BridgeTensorVariant::QFloat(_) => BridgeKind::QFloat,
+            BridgeTensorVariant::Complex(_) => BridgeKind::Complex,
         }
     }
 
@@ -237,6 +263,10 @@ impl BridgeTensor {
     pub fn is_qfloat(&self) -> bool {
         matches!(self.kind(), BridgeKind::QFloat)
     }
+    /// Returns `true` if this tensor is the complex variant.
+    pub fn is_complex(&self) -> bool {
+        matches!(self.kind(), BridgeKind::Complex)
+    }
 
     ext_fn! {
         /// Consumes the bridge tensor and returns its variant tag together with
@@ -249,6 +279,7 @@ impl BridgeTensor {
                 BridgeTensorVariant::Int(t) => (BridgeKind::Int, t),
                 BridgeTensorVariant::Float(t) => (BridgeKind::Float, t),
                 BridgeTensorVariant::QFloat(t) => (BridgeKind::QFloat, t),
+                BridgeTensorVariant::Complex(t) => (BridgeKind::Complex, t),
             }
         }
     }
@@ -264,6 +295,7 @@ impl BridgeTensor {
                 BridgeTensorVariant::Int(t) => (BridgeKind::Int, t),
                 BridgeTensorVariant::Float(t) => (BridgeKind::Float, t),
                 BridgeTensorVariant::QFloat(t) => (BridgeKind::QFloat, t),
+                BridgeTensorVariant::Complex(t) => (BridgeKind::Complex, t),
             }
         }
     }
@@ -275,6 +307,7 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(tensor) => tensor.dtype(),
             BridgeTensorVariant::Float(tensor) => tensor.dtype(),
             BridgeTensorVariant::QFloat(tensor) => tensor.dtype(),
+            BridgeTensorVariant::Complex(tensor) => tensor.dtype(),
         }
     }
 
@@ -286,6 +319,7 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(tensor) => tensor.can_mut(),
             BridgeTensorVariant::Float(tensor) => tensor.can_mut(),
             BridgeTensorVariant::QFloat(tensor) => tensor.can_mut(),
+            BridgeTensorVariant::Complex(tensor) => tensor.can_mut(),
         }
     }
 
@@ -296,6 +330,7 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(tensor) => tensor.shape(),
             BridgeTensorVariant::Float(tensor) => tensor.shape(),
             BridgeTensorVariant::QFloat(tensor) => tensor.shape(),
+            BridgeTensorVariant::Complex(tensor) => tensor.shape(),
         }
     }
 
@@ -306,6 +341,7 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(tensor) => tensor.rank(),
             BridgeTensorVariant::Float(tensor) => tensor.rank(),
             BridgeTensorVariant::QFloat(tensor) => tensor.rank(),
+            BridgeTensorVariant::Complex(tensor) => tensor.rank(),
         }
     }
 
@@ -315,6 +351,7 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(tensor) => tensor,
             BridgeTensorVariant::Float(tensor) => tensor,
             BridgeTensorVariant::QFloat(tensor) => tensor,
+            BridgeTensorVariant::Complex(tensor) => tensor,
         }
     }
 
@@ -347,9 +384,17 @@ impl BridgeTensor {
             BridgeTensorVariant::Int(tensor) => tensor.device(),
             BridgeTensorVariant::Float(tensor) => tensor.device(),
             BridgeTensorVariant::QFloat(tensor) => tensor.device(),
+            BridgeTensorVariant::Complex(tensor) => tensor.device(),
         };
 
         get_device_settings::<Dispatch>(&device)
+    }
+
+    pub(crate) fn into_complex(self) -> DispatchTensor {
+        match self.into_variant() {
+            BridgeTensorVariant::Complex(tensor) => tensor,
+            _ => panic!("Should be Complex primitive kind"),
+        }
     }
 }
 
@@ -360,6 +405,7 @@ impl From<BridgeTensor> for DispatchTensor {
             BridgeTensorVariant::Int(tensor) => tensor,
             BridgeTensorVariant::Float(tensor) => tensor,
             BridgeTensorVariant::QFloat(tensor) => tensor,
+            BridgeTensorVariant::Complex(tensor) => tensor,
         }
     }
 }

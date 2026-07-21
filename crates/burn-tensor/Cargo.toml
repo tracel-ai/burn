@@ -67,6 +67,7 @@ burn-std = { workspace = true }
 burn-backend = { workspace = true }
 burn-dispatch = { workspace = true }
 burn-backend-extension = { workspace = true, optional = true }
+bytemuck = { workspace = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

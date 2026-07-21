@@ -549,15 +549,6 @@ impl Numeric for Float {
         }
     }
 
-    fn abs(tensor: BridgeTensor) -> BridgeTensor {
-        let (kind, tensor) = tensor.into_parts();
-        match kind {
-            BridgeKind::Float => BridgeTensor::float(Dispatch::float_abs(tensor)),
-            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_abs(tensor)),
-            _ => panic!("Should be Float primitive kind"),
-        }
-    }
-
     fn powi(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
@@ -623,6 +614,14 @@ impl Numeric for Float {
     }
 }
 impl Ordered for Float {
+    fn abs(tensor: BridgeTensor) -> BridgeTensor {
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => BridgeTensor::float(Dispatch::float_abs(tensor)),
+            BridgeKind::QFloat => BridgeTensor::qfloat(Dispatch::q_abs(tensor)),
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
     fn sort(tensor: BridgeTensor, dim: usize, descending: bool) -> BridgeTensor {
         let (kind, tensor) = tensor.into_parts();
         match kind {
@@ -1008,11 +1007,9 @@ impl FloatMathOps for Float {
     fn atanh(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::float(Dispatch::float_atanh(tensor.into_float()))
     }
-
     fn atan2(lhs: BridgeTensor, rhs: BridgeTensor) -> BridgeTensor {
         BridgeTensor::float(Dispatch::float_atan2(lhs.into_float(), rhs.into_float()))
     }
-
     fn exp(tensor: BridgeTensor) -> BridgeTensor {
         BridgeTensor::float(Dispatch::float_exp(tensor.into_float()))
     }

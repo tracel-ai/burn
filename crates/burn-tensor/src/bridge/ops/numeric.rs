@@ -428,26 +428,6 @@ pub(crate) trait Numeric: BasicOps {
     /// [`Tensor::cumprod`](crate::Tensor::cumprod) function, which is more high-level and designed for public use.
     fn cumprod(tensor: BridgeTensor, dim: usize) -> BridgeTensor;
 
-    /// Calculate absolute value on all elements of a tensor
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to apply abs to.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with absolute values.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For calculating abs of the elements of a tensor, users should prefer the [`Tensor::abs`](crate::Tensor::abs)
-    /// function, which is more high-level and designed for public use.
-    fn abs(tensor: BridgeTensor) -> BridgeTensor;
-
     /// Element-wise power of a tensor
     ///
     /// # Arguments

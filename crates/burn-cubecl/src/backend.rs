@@ -2,7 +2,7 @@ use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::cubecl::dtype_to_storage_type;
 use burn_backend::{
     Backend, BackendGraph, BackendTypes, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError,
-    TensorData,
+    TensorData, UnimplementedTensorPrimitive,
 };
 use burn_std::{BoolStore, DType};
 use cubecl::{
@@ -41,6 +41,7 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CubeTensor<R>, R::Device>;
 
     type GraphPrimitive = cubecl::client::Graph<R>;
 }

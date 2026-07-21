@@ -1,6 +1,6 @@
 use burn_backend::{
     BackTrace, Backend, BackendTypes, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError,
-    tensor::Device,
+    UnimplementedTensorPrimitive, tensor::Device,
 };
 use burn_std::{
     BoolStore, DeviceSettings,
@@ -188,6 +188,7 @@ impl DeviceOps for CandleDevice {
             DType::F32,
             DType::I64,
             DType::Bool(BoolStore::U8),
+            DType::Complex32,
             Default::default(),
         )
     }
@@ -203,6 +204,8 @@ impl BackendTypes for Candle {
     type BoolTensorPrimitive = CandleTensor;
 
     type QuantizedTensorPrimitive = CandleTensor;
+
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<CandleTensor, CandleDevice>;
 
     type GraphPrimitive = burn_backend::GraphUnsupported;
 }

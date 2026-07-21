@@ -8,7 +8,6 @@ use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::Ch
 use rand::Rng;
 use thiserror::Error;
 
-use crate::Scalar;
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use crate::tensor::DType;
@@ -16,6 +15,7 @@ use crate::{
     BoolStore, Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16,
     f16,
 };
+use crate::{ComplexScalar, Scalar};
 
 use serde::{Deserialize, Serialize};
 
@@ -130,6 +130,12 @@ impl TensorData {
                         .map_err(DataError::CastError)?;
                     Ok(unsafe { core::mem::transmute::<&[u8], &[E]>(slice) })
                 }
+                DType::Complex32 => {
+                    bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
+                }
+                DType::Complex64 => {
+                    bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
+                }
                 _ => bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError),
             }
         } else {
@@ -156,6 +162,10 @@ impl TensorData {
                         .map_err(DataError::CastError)?;
                     Ok(unsafe { core::mem::transmute::<&mut [u8], &mut [E]>(slice) })
                 }
+                DType::Complex32 => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
+                    .map_err(DataError::CastError),
+                DType::Complex64 => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
+                    .map_err(DataError::CastError),
                 _ => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
                     .map_err(DataError::CastError),
             }
@@ -192,6 +202,8 @@ impl TensorData {
                 let vec = self.into_vec_unchecked::<u8>()?;
                 Ok(unsafe { core::mem::transmute::<Vec<u8>, Vec<E>>(vec) })
             }
+            DType::Complex32 => self.into_vec_unchecked(),
+            DType::Complex64 => self.into_vec_unchecked(),
             _ => self.into_vec_unchecked(),
         }
     }
@@ -294,6 +306,16 @@ impl TensorData {
                     bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
                         .map(|e: &u32| e.elem::<E>()),
+                ),
+                DType::Complex32 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &ComplexScalar<f32>| e.elem::<E>()),
+                ),
+                DType::Complex64 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &ComplexScalar<f64>| e.elem::<E>()),
                 ),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
@@ -436,6 +458,8 @@ impl TensorData {
                 Self::full::<u32, _>(shape, fill_value.elem()).into_bool_u32()
             }
             DType::QFloat(_) => unreachable!(),
+            DType::Complex64 => Self::full::<ComplexScalar<f64>, _>(shape, fill_value.elem()),
+            DType::Complex32 => Self::full::<ComplexScalar<f32>, _>(shape, fill_value.elem()),
         }
     }
 
@@ -480,6 +504,9 @@ impl TensorData {
                 DType::U32 => self.convert_inplace_dtype::<u32>(dtype),
                 DType::U16 => self.convert_inplace_dtype::<u16>(dtype),
                 DType::U8 => self.convert_inplace_dtype::<u8>(dtype),
+                DType::Complex32 => self.convert_inplace_dtype::<ComplexScalar<f32>>(dtype),
+                DType::Complex64 => self.convert_inplace_dtype::<ComplexScalar<f64>>(dtype),
+
                 DType::Bool(BoolStore::U8) => self.convert_inplace_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U32) => self.convert_inplace_dtype::<u32>(dtype),
                 DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),
@@ -501,6 +528,8 @@ impl TensorData {
                 DType::Bool(BoolStore::Native) => self.convert_clone_dtype::<bool>(dtype),
                 DType::Bool(BoolStore::U8) => self.convert_clone_dtype::<u8>(dtype),
                 DType::Bool(BoolStore::U32) => self.convert_clone_dtype::<u32>(dtype),
+                DType::Complex32 => self.convert_clone_dtype::<ComplexScalar<f32>>(dtype),
+                DType::Complex64 => self.convert_clone_dtype::<ComplexScalar<f64>>(dtype),
                 DType::QFloat(_) => unreachable!(),
             }
         }
@@ -520,6 +549,8 @@ impl TensorData {
             DType::U32 => self.convert_inplace::<Current, u32>(),
             DType::U16 => self.convert_inplace::<Current, u16>(),
             DType::U8 => self.convert_inplace::<Current, u8>(),
+            DType::Complex32 => self.convert_inplace::<Current, ComplexScalar<f32>>(),
+            DType::Complex64 => self.convert_inplace::<Current, ComplexScalar<f64>>(),
             DType::Bool(BoolStore::U8) => self.convert_inplace::<Current, u8>().into_bool_u8(),
             DType::Bool(BoolStore::U32) => self.convert_inplace::<Current, u32>().into_bool_u32(),
             DType::Bool(BoolStore::Native) | DType::QFloat(_) => unreachable!(),
@@ -557,6 +588,8 @@ impl TensorData {
             DType::Bool(BoolStore::Native) => self.convert_clone::<Current, bool>(),
             DType::Bool(BoolStore::U8) => self.convert_clone::<Current, u8>().into_bool_u8(),
             DType::Bool(BoolStore::U32) => self.convert_clone::<Current, u32>().into_bool_u32(),
+            DType::Complex32 => self.convert_clone::<Current, ComplexScalar<f32>>(),
+            DType::Complex64 => self.convert_clone::<Current, ComplexScalar<f64>>(),
             DType::QFloat(_) => unreachable!(),
         }
     }
@@ -709,6 +742,8 @@ impl core::fmt::Display for TensorData {
             DType::Bool(BoolStore::Native) => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::Bool(BoolStore::U8) => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool(BoolStore::U32) => format!("{:?}", self.as_slice::<u32>().unwrap()),
+            DType::Complex32 => format!("{:?}", self.as_slice::<ComplexScalar<f32>>().unwrap()),
+            DType::Complex64 => format!("{:?}", self.as_slice::<ComplexScalar<f64>>().unwrap()),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),

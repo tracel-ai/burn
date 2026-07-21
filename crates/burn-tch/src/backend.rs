@@ -3,7 +3,7 @@ use crate::IntoKind;
 use super::TchTensor;
 use burn_backend::backend::{Backend, BackendTypes, DeviceId, DeviceOps, ExecutionError};
 use burn_backend::ops::IntTensorOps;
-use burn_backend::{BoolStore, DType, DeviceSettings};
+use burn_backend::{BoolStore, DType, DeviceSettings, UnimplementedTensorPrimitive};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// The device struct when using the `tch` backend.
@@ -94,6 +94,7 @@ impl DeviceOps for LibTorchDevice {
             DType::F32,
             DType::I64,
             DType::Bool(BoolStore::Native),
+            DType::Complex32,
             Default::default(),
         )
     }
@@ -118,6 +119,7 @@ impl BackendTypes for LibTorch {
     type IntTensorPrimitive = TchTensor;
     type BoolTensorPrimitive = TchTensor;
     type QuantizedTensorPrimitive = TchTensor;
+    type ComplexTensorPrimitive = UnimplementedTensorPrimitive<TchTensor, LibTorchDevice>;
 
     type GraphPrimitive = burn_backend::GraphUnsupported;
 }

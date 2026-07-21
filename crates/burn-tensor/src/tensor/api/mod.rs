@@ -5,6 +5,7 @@ mod base;
 mod bool;
 mod cartesian_grid;
 mod cast;
+mod complex;
 mod float;
 mod fmod;
 mod graph;

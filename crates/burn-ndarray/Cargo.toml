@@ -33,7 +33,7 @@ multi-threads = [
     "ndarray/rayon",
     "matrixmultiply/threading",
 ]
-simd = ["macerator", "bytemuck", "seq-macro", "itertools"]
+simd = ["macerator", "seq-macro", "itertools"]
 std = [
     "burn-autodiff",
     "burn-std/std",
@@ -77,7 +77,7 @@ paste = { workspace = true }
 rand = { workspace = true, default-features = false }
 
 # SIMD
-bytemuck = { workspace = true, optional = true }
+bytemuck = { workspace = true }
 itertools = { version = "0.14", optional = true }
 macerator = { workspace = true, optional = true }
 seq-macro = { version = "0.3", optional = true }
