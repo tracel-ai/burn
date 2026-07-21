@@ -118,7 +118,7 @@ pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
     // Iterate over our training for X epochs
     for epoch in 0..config.num_epochs {
         // Implement our training loop
-        for (iteration, batch) in dataloader_train.iter().enumerate() {
+        for (iteration, batch) in dataloader_train.iter().map(Result::unwrap).enumerate() {
             // Generate a batch of fake images from noise (standarded normal distribution)
             let noise = Tensor::<2>::random(
                 [config.batch_size, config.model.latent_dim],

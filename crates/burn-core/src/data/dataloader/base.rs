@@ -19,17 +19,12 @@ pub struct Progress {
 }
 
 /// A data loader iterator that can be used to iterate over a data loader.
-pub trait DataLoaderIterator<O>: Iterator<Item = O> {
+///
+/// Yields `Err` instead of panicking when a dataset retrieval fails, so callers can decide
+/// how to handle it (e.g. abort the training run with a clear message).
+pub trait DataLoaderIterator<O>: Iterator<Item = Result<O, DatasetError>> {
     /// Returns the progress of the data loader.
     fn progress(&self) -> Progress;
-
-    /// Pulls the next item, surfacing a dataset retrieval failure as an `Err` instead of
-    /// panicking. Implementations that can't fail on their own (e.g. iterators that only
-    /// relay already-built batches) can rely on the default, which just delegates to
-    /// [`Iterator::next`].
-    fn try_next(&mut self) -> Result<Option<O>, DatasetError> {
-        Ok(self.next())
-    }
 }
 
 /// A data loader that can be used to iterate over a dataset.

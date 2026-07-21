@@ -294,7 +294,7 @@ where
 {
     fn get(&self, index: usize) -> Result<I, DatasetError> {
         assert!(
-            index >= self.size,
+            index < self.size,
             "Index out of bounds for SamplerDataset: {} >= {}",
             index,
             self.size

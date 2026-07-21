@@ -1,6 +1,7 @@
 use crate::LearnerModel;
 use crate::{TrainOutput, TrainStep, TrainingModelInput, TrainingModelOutput};
 use burn_core::data::dataloader::DataLoaderIterator;
+use burn_core::data::dataset::DatasetError;
 use burn_core::data::dataloader::Progress;
 use burn_core::tensor::Device;
 use std::sync::mpsc::{Receiver, Sender};
@@ -147,7 +148,7 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
         &self,
         dataloaders: &mut [Box<dyn DataLoaderIterator<TrainingModelInput<M>> + 'a>],
         model: &M,
-    ) -> (Vec<MultiTrainOutput<TrainingModelOutput<M>>>, Progress) {
+    ) -> Result<(Vec<MultiTrainOutput<TrainingModelOutput<M>>>, Progress), DatasetError> {
         let mut num_send = 0;
 
         let mut items_total = 0;
@@ -156,12 +157,16 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
 
         for (i, worker) in self.workers.iter().enumerate() {
             let dataloader = &mut dataloaders[i];
-            if let Some(item) = dataloader.next() {
-                worker.register(item, model);
-                num_send += 1;
-                let progress = dataloader.progress();
-                items_total += progress.items_total;
-                items_processed += progress.items_processed;
+            match dataloader.next() {
+                Some(Ok(item)) => {
+                    worker.register(item, model);
+                    num_send += 1;
+                    let progress = dataloader.progress();
+                    items_total += progress.items_total;
+                    items_processed += progress.items_processed;
+                }
+                Some(Err(err)) => return Err(err),
+                None => {}
             }
         }
 
@@ -176,6 +181,6 @@ impl<M: LearnerModel> MultiDevicesTrainStep<M> {
             }
         }
 
-        (outputs, Progress::new(items_processed, items_total, unit))
+        Ok((outputs, Progress::new(items_processed, items_total, unit)))
     }
 }

@@ -89,7 +89,13 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
         let device_main = devices.first().expect("A minimum of one device.").clone();
 
         loop {
-            let (items, progress) = step.step(iterators.as_mut_slice(), &learner.model());
+            let (items, progress) = match step.step(iterators.as_mut_slice(), &learner.model()) {
+                Ok(result) => result,
+                Err(err) => {
+                    interrupter.stop(Some(&format!("dataset error during training step: {err}")));
+                    break;
+                }
+            };
             if items.is_empty() {
                 break;
             }
@@ -159,7 +165,13 @@ impl<M: LearnerModel> MultiDeviceTrainEpoch<M> {
         let step = MultiDevicesTrainStep::<M>::new(&devices);
 
         loop {
-            let (items, progress) = step.step(iterators.as_mut_slice(), &learner.model());
+            let (items, progress) = match step.step(iterators.as_mut_slice(), &learner.model()) {
+                Ok(result) => result,
+                Err(err) => {
+                    interrupter.stop(Some(&format!("dataset error during training step: {err}")));
+                    break;
+                }
+            };
             if items.is_empty() {
                 break;
             }
