@@ -44,16 +44,7 @@ impl ComposedLrSchedulerConfig {
     pub(crate) fn build(&self) -> Result<ComposedLrScheduler, String> {
         let mut schedulers: Vec<DynLrScheduler> = Vec::with_capacity(self.schedulers.len());
         for config in self.schedulers.iter() {
-            let config = match config {
-                LrSchedulerConfig::Constant(lr) => (*lr).into(),
-                LrSchedulerConfig::Linear(config) => config.build()?.into(),
-                LrSchedulerConfig::Cosine(config) => config.build()?.into(),
-                LrSchedulerConfig::Exponential(config) => config.build()?.into(),
-                LrSchedulerConfig::Noam(config) => config.build()?.into(),
-                LrSchedulerConfig::Step(config) => config.build()?.into(),
-                LrSchedulerConfig::Composed(config) => config.build()?.into(),
-            };
-            schedulers.push(config);
+            schedulers.push(config.build()?);
         }
 
         Ok(ComposedLrScheduler {

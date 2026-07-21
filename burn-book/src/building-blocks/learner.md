@@ -43,6 +43,23 @@ The `launch` method will start the training and return the trained model once fi
 Again, please refer to the [training section](../basic-workflow/training.md) for a relevant code
 snippet.
 
+## Sequential learning rate schedules
+
+Use `SequentialLrSchedulerConfig` when different schedulers should run during non-overlapping parts
+of training. Milestones count scheduler steps: in this warmup example, the linear scheduler produces
+the first 1,000 learning rates and the cosine scheduler takes over on step 1,000.
+
+```rust,ignore
+let lr_scheduler = SequentialLrSchedulerConfig::new(
+    vec![
+        LinearLrSchedulerConfig::new(1e-6, 1e-3, 1_000).into(),
+        CosineAnnealingLrSchedulerConfig::new(1e-3, 9_000).into(),
+    ],
+    vec![1_000],
+)
+.init()?;
+```
+
 ## Multiple optimizers
 
 It's common practice to set different learning rates, optimizer parameters, or use different optimizers entirely, for different parts
