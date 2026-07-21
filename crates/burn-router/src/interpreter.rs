@@ -902,6 +902,18 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
+                NumericOperationIr::TopKWithIndices(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+
+                    let (output, output_idx) = B::float_topk_with_indices(
+                        tensor,
+                        desc.dim,
+                        desc.k,
+                        desc.out_indices.dtype.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
+                }
                 NumericOperationIr::MinDimWithIndices(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
@@ -1120,6 +1132,13 @@ impl<B: BackendIr> TensorInterpreter<B> {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
                     let (output, output_idx) = B::int_max_dim_with_indices(tensor, desc.dim);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
+                }
+                NumericOperationIr::TopKWithIndices(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+
+                    let (output, output_idx) = B::int_topk_with_indices(tensor, desc.dim, desc.k);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }

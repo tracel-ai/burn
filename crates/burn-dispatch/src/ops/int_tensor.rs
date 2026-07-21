@@ -286,6 +286,18 @@ impl IntTensorOps<Self> for Dispatch {
         unary_op!(tensor, int, |tensor| B::int_topk(tensor, dim, k) => Int)
     }
 
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, int)],
+            outputs[(out, Int), (indices, Int)],
+            B::int_topk_with_indices(tensor, dim, k)
+        )
+    }
+
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         unary_op!(tensor, int, |tensor| B::int_argmin(tensor, dim) => Int)
     }

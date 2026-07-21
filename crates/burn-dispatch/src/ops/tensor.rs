@@ -453,6 +453,19 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_topk(tensor, dim, k) => Float)
     }
 
+    fn float_topk_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, float)],
+            outputs[(out, Float), (indices, Int)],
+            B::float_topk_with_indices(tensor, dim, k, out_dtype)
+        )
+    }
+
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_argmin(tensor, dim, out_dtype) => Int)
     }

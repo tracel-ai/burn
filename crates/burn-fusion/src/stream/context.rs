@@ -1237,6 +1237,15 @@ impl RelativeOps for NumericOperationIr {
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
+            NumericOperationIr::TopKWithIndices(desc) => {
+                NumericOperationIr::TopKWithIndices(TopKWithIndicesOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    dim: desc.dim,
+                    k: desc.k,
+                    out: desc.out.to_relative(converter),
+                    out_indices: desc.out_indices.to_relative(converter),
+                })
+            }
             NumericOperationIr::MinDimWithIndices(desc) => {
                 NumericOperationIr::MinDimWithIndices(ReduceDimWithIndicesOpIr {
                     tensor: desc.tensor.to_relative(converter),
