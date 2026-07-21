@@ -255,12 +255,8 @@ where
     /// }
     /// ```
     pub fn topk_with_indices(self, k: usize, dim: usize) -> (Self, Tensor<D, Int>) {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
-        let (values, indices) = self.sort_descending_with_indices(dim);
-        (
-            values.select(dim, k_indices.clone()),
-            indices.select(dim, k_indices),
-        )
+        let (values, indices) = K::topk_with_indices(self.primitive, dim, k);
+        (Tensor::new(values), Tensor::new(indices))
     }
 
     /// Create a one hot tensor.

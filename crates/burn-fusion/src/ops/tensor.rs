@@ -2055,6 +2055,56 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn float_topk_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        indices_dtype: IntDType,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        // Forwarded explicitly rather than left to the trait default: the default would run
+        // its own sort here and never reach the backend's fused top-k.
+        #[derive(new, Debug)]
+        struct TopKWithIndicesOps<B: FusionBackend> {
+            desc: TopKWithIndicesOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for TopKWithIndicesOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                let (output, indices) = B::float_topk_with_indices(
+                    tensor,
+                    self.desc.dim,
+                    self.desc.k,
+                    self.desc.out_indices.dtype.into(),
+                );
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+                handles.register_int_tensor::<B>(&self.desc.out_indices.id, indices);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let desc =
+            TopKWithIndicesOpIr::create(tensor.into_ir(), dim, k, indices_dtype.into(), || {
+                client.create_empty_handle()
+            });
+
+        client
+            .register(
+                streams,
+                OperationIr::NumericFloat(
+                    desc.tensor.dtype,
+                    NumericOperationIr::TopKWithIndices(desc.clone()),
+                ),
+                TopKWithIndicesOps::<B>::new(desc),
+            )
+            .outputs()
+            .into()
+    }
+
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct RepeatDimOps<B: FusionBackend> {

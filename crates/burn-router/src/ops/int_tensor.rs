@@ -11,7 +11,8 @@ use burn_ir::{
     MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
     RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
     ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
-    SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    SliceOpIr, SortOpIr, SortWithIndicesOpIr, SwapDimsOpIr, TopKWithIndicesOpIr, UnaryOpIr,
+    UnfoldOpIr,
 };
 
 impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
@@ -826,6 +827,28 @@ impl<R: RouterChannel> IntTensorOps<Self> for BackendRouter<R> {
                 NumericOperationIr::MaxDim(desc),
             ))
             .output()
+    }
+
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Forwarded explicitly rather than left to the trait default: the default would run
+        // its own sort here and never reach the backend's fused top-k.
+        let dtype = tensor.dtype;
+        let client = tensor.client.clone();
+        let desc = TopKWithIndicesOpIr::create(tensor.into_ir(), dim, k, dtype, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::NumericInt(
+                desc.tensor.dtype,
+                NumericOperationIr::TopKWithIndices(desc),
+            ))
+            .outputs()
+            .into()
     }
 
     fn int_max_dim_with_indices(

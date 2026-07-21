@@ -1,5 +1,5 @@
 #[cfg(feature = "autotune")]
-use super::{autotune_reduce, autotune_sum};
+use super::{autotune_reduce, autotune_reduce_with_indices, autotune_sum};
 use crate::{
     CubeRuntime,
     ops::numeric::{empty_device_contiguous_dtype, zeros_client},
@@ -10,7 +10,7 @@ use burn_backend::{DType, TensorMetadata};
 use burn_std::{BoolDType, Metadata};
 use cubecl::{AutotuneKey, client::ComputeClient, features::AtomicUsage, ir::Type};
 use cubek::reduce::{
-    ReduceDtypes, ReduceError, ReduceStrategy,
+    ReduceDtypes, ReduceError, ReduceStrategy, ReduceWithIndicesDtypes,
     components::instructions::ReduceOperationConfig,
     launch::{RoutineStrategy, VectorizationStrategy},
     routines::{BlueprintStrategy, unit::UnitStrategy},
@@ -251,6 +251,94 @@ pub fn reduce_dim<Run: CubeRuntime>(
     result.map(|_| output)
 }
 
+/// Reduce the given `axis` of `input` with a top-k, returning the values **and** their
+/// indices from a single kernel launch.
+///
+/// Running `TopK` and `ArgTopK` separately walks the input twice and discards half of each
+/// result, even though one reduction already computes both. The reduce kernels are memory
+/// bound, so folding the two launches into one roughly halves the work.
+///
+/// Both outputs are contiguous with the reduced `dim` set to `k`.
+pub fn reduce_dim_with_indices<Run: CubeRuntime>(
+    input: CubeTensor<Run>,
+    indices_dtype: DType,
+    dim: usize,
+    strategy: KernelReduceStrategy,
+    k: usize,
+) -> Result<(CubeTensor<Run>, CubeTensor<Run>), ReduceError> {
+    // `precision` for TopK keeps input/values/accumulation at the input dtype; the index
+    // dtype is the caller's and is converted for free in the final output write.
+    let value_dtypes =
+        ReduceOperationConfig::TopK(k).precision(dtype_to_elem_type(input.dtype), None);
+    let dtypes = ReduceWithIndicesDtypes {
+        input: value_dtypes.input,
+        values: value_dtypes.output,
+        indices: dtype_to_elem_type(indices_dtype).into(),
+        accumulation: value_dtypes.accumulation,
+    };
+
+    let invalid_axis = || ReduceError::InvalidAxis {
+        axis: dim,
+        rank: input.meta.num_dims(),
+    };
+
+    let values = init_reduce_output_dtype::<Run>(
+        &input,
+        dim,
+        elem_type_to_dtype(dtypes.values.elem_type()),
+        k,
+    )
+    .ok_or_else(invalid_axis)?;
+    let indices =
+        init_reduce_output_dtype::<Run>(&input, dim, indices_dtype, k).ok_or_else(invalid_axis)?;
+
+    let client = input.client.clone();
+
+    let result = match strategy {
+        KernelReduceStrategy::Unspecified => cubek::reduce::reduce_with_indices::<Run>(
+            &client,
+            input.binding(),
+            values.clone().binding(),
+            indices.clone().binding(),
+            dim,
+            ReduceStrategy {
+                routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                vectorization: VectorizationStrategy {
+                    parallel_output_vectorization: false,
+                },
+                autotune_level: Default::default(),
+            },
+            ReduceOperationConfig::TopK(k),
+            dtypes,
+        ),
+        KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce_with_indices::<Run>(
+            &client,
+            input.binding(),
+            values.clone().binding(),
+            indices.clone().binding(),
+            dim,
+            strategy,
+            ReduceOperationConfig::TopK(k),
+            dtypes,
+        ),
+        #[cfg(feature = "autotune")]
+        KernelReduceStrategy::Autotune => {
+            autotune_reduce_with_indices::<Run>(
+                &client,
+                input,
+                values.clone(),
+                indices.clone(),
+                dim,
+                k,
+                dtypes,
+            );
+            Ok(())
+        }
+    };
+
+    result.map(|_| (values, indices))
+}
+
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
 /// or return `None` if `axis` is out-of-bound.
 pub fn init_reduce_output<Run: CubeRuntime>(
@@ -259,15 +347,26 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     dtypes: &ReduceDtypes,
     accumulator_len: usize,
 ) -> Option<CubeTensor<Run>> {
+    init_reduce_output_dtype::<Run>(
+        input,
+        dim,
+        elem_type_to_dtype(dtypes.output.elem_type()),
+        accumulator_len,
+    )
+}
+
+/// Like [`init_reduce_output`], but with the output dtype given directly rather than taken
+/// from a [`ReduceDtypes`]. Needed when one reduce writes two outputs of different dtypes.
+pub fn init_reduce_output_dtype<Run: CubeRuntime>(
+    input: &CubeTensor<Run>,
+    dim: usize,
+    dtype: DType,
+    accumulator_len: usize,
+) -> Option<CubeTensor<Run>> {
     (dim < input.meta.num_dims()).then(|| {
         let mut shape_out = input.shape();
         shape_out[dim] = accumulator_len;
-        empty_device_contiguous_dtype(
-            input.client.clone(),
-            input.device.clone(),
-            shape_out,
-            elem_type_to_dtype(dtypes.output.elem_type()),
-        )
+        empty_device_contiguous_dtype(input.client.clone(), input.device.clone(), shape_out, dtype)
     })
 }
 

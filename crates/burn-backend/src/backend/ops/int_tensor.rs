@@ -942,6 +942,39 @@ pub trait IntTensorOps<B: Backend> {
         Self::int_select(Self::int_sort(tensor, dim, true), dim, k_indices)
     }
 
+    /// Gets the values of the k maximum elements along a dimension, and their indices.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum values of.
+    /// * `dim` - The dimension to get the maximum values along.
+    /// * `k` - number of maximum elements.
+    ///
+    /// # Returns
+    ///
+    /// A tuple with the values of the k maximum elements along the dimension, and their indices.
+    ///
+    /// The default sorts once and keeps the first `k` of each half. It deliberately does not
+    /// compose `int_topk` with `int_argtopk`: those default to a sort each, so that would sort
+    /// twice, and `int_argtopk` has no default at all, so backends that only sort could not
+    /// serve this. Backends whose top-k already carries both results should override this and
+    /// produce them in a single pass.
+    fn int_topk_with_indices(
+        tensor: IntTensor<B>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<B>, IntTensor<B>) {
+        let device = tensor.device();
+        let dtype = get_device_settings::<B>(&device).int_dtype;
+        let k_indices = Self::int_arange(0..k as i64, &device, dtype);
+        let (values, indices) = Self::int_sort_with_indices(tensor, dim, true);
+
+        (
+            Self::int_select(values, dim, k_indices.clone()),
+            Self::int_select(indices, dim, k_indices),
+        )
+    }
+
     /// Gets the indices of the minimum elements along a dimension.
     ///
     /// # Arguments
