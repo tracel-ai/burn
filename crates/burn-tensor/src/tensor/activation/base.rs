@@ -3,7 +3,7 @@ use burn_dispatch::Dispatch;
 
 use crate::check::TensorCheck;
 use crate::ops::BridgeTensor;
-use crate::{Tensor, check, s};
+use crate::{AsIndex, Tensor, check, s};
 
 /// Applies the rectified linear unit function element-wise
 /// as described in the paper [Deep Learning using Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
@@ -536,15 +536,16 @@ pub fn threshold<const D: usize>(tensor: Tensor<D>, threshold: f64, value: f64) 
 ///
 /// **Note**:
 /// * The size of the input tensor along `dim` must be divisible by 2.
+/// * Negative dimensions are supported and count from the end.
 ///
 /// ### Arguments
 /// * `tensor` - The input tensor.
+/// * `dim` - The dimension on which to split the input.
 ///
 /// ### Returns
 /// * A tensor with the same shape as the input, except the size along `dim` is halved.
-pub fn glu<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
-    // TODO: Handle negative indices with AsIndex for compatibility with Pytorch nn.GLU.
-
+pub fn glu<const D: usize>(tensor: Tensor<D>, dim: impl AsIndex) -> Tensor<D> {
+    let dim = dim.expect_dim_index(D);
     assert!(
         tensor.dims()[dim].is_multiple_of(2),
         "Input tensor along dimension {dim} must have an even size. N is divisible by 2."
