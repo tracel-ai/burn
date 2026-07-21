@@ -2,6 +2,7 @@ use burn_core as burn;
 
 use burn::tensor::activation::softmax;
 use burn::tensor::{Bool, Tensor};
+use num_traits::Float as _;
 
 /// Functional scaled dot-product attention, mirroring
 /// [`torch.nn.functional.scaled_dot_product_attention`](https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html).
@@ -36,7 +37,7 @@ pub fn scaled_dot_product_attention<const D: usize>(
     scale: Option<f64>,
 ) -> Tensor<D> {
     let d_k = query.dims()[D - 1];
-    let scale = scale.unwrap_or(1.0 / (d_k as f64).sqrt());
+    let scale = scale.unwrap_or_else(|| 1.0 / (d_k as f64).sqrt());
 
     // [..., seq_len_q, seq_len_kv]
     let scores = query.matmul(key.transpose()).mul_scalar(scale);
