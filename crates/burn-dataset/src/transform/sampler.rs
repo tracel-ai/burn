@@ -293,13 +293,12 @@ where
     I: Send + Sync,
 {
     fn get(&self, index: usize) -> Result<I, DatasetError> {
-        if index >= self.size {
-            panic!(
-                "Index out of bounds for SamplerDataset: {index} >= {}",
-                self.size
-            );
-        }
-
+        assert!(
+            index >= self.size,
+            "Index out of bounds for SamplerDataset: {} >= {}",
+            index,
+            self.size
+        );
         self.dataset.get(self.index())
     }
 

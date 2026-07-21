@@ -207,12 +207,12 @@ where
     ///
     /// Panics if `index >= len()`.
     fn get(&self, index: usize) -> Result<I> {
-        if index >= self.len {
-            panic!(
-                "Index out of bounds for SqliteDataset: {index} >= {}",
-                self.len
-            );
-        }
+        assert!(
+            index < self.len,
+            "Index out of bounds for SqliteDataset: {} >= {}",
+            index,
+            self.len,
+        );
 
         // Row ids start with 1 (one) and index starts with 0 (zero)
         let row_id = index + 1;

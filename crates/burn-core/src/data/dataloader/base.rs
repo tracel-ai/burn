@@ -1,6 +1,7 @@
 use burn_tensor::Device;
 
 pub use crate::data::dataset::{Dataset, DatasetIterator};
+use burn_dataset::DatasetError;
 use core::iter::Iterator;
 use std::sync::Arc;
 
@@ -21,6 +22,14 @@ pub struct Progress {
 pub trait DataLoaderIterator<O>: Iterator<Item = O> {
     /// Returns the progress of the data loader.
     fn progress(&self) -> Progress;
+
+    /// Pulls the next item, surfacing a dataset retrieval failure as an `Err` instead of
+    /// panicking. Implementations that can't fail on their own (e.g. iterators that only
+    /// relay already-built batches) can rely on the default, which just delegates to
+    /// [`Iterator::next`].
+    fn try_next(&mut self) -> Result<Option<O>, DatasetError> {
+        Ok(self.next())
+    }
 }
 
 /// A data loader that can be used to iterate over a dataset.

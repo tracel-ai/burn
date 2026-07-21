@@ -10,16 +10,19 @@ pub trait Window<I> {
     ///
     /// A `Vec<I>` representing the window, or `None` if the window doesn't fit within the
     /// collection.
-    fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>>;
+    fn window(&self, current: usize, size: NonZeroUsize) -> Result<Option<Vec<I>>, DatasetError>;
 }
 
 impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
-    fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>> {
+    fn window(&self, current: usize, size: NonZeroUsize) -> Result<Option<Vec<I>>, DatasetError> {
         let end = current + size.get();
         if end > self.len() {
-            return None;
+            return Ok(None);
         }
-        Some((current..end).map(|x| self.get(x).unwrap()).collect())
+        let items = (current..end)
+            .map(|x| self.get(x))
+            .collect::<Result<Vec<I>, DatasetError>>()?;
+        Ok(Some(items))
     }
 }
 
@@ -84,22 +87,25 @@ impl<'a, I> WindowsIterator<'a, I> {
             size,
         }
     }
+
+    /// Pulls the next window, surfacing a dataset retrieval failure as an `Err` instead of
+    /// panicking.
+    pub fn try_next(&mut self) -> Result<Option<Vec<I>>, DatasetError> {
+        while self.current < self.len {
+            if let Some(window) = self.dataset.window(self.current, self.size)? {
+                return Ok(Some(window));
+            }
+            self.current += 1;
+        }
+        Ok(None)
+    }
 }
 
 impl<I> Iterator for WindowsIterator<'_, I> {
     type Item = Vec<I>;
 
     fn next(&mut self) -> Option<Vec<I>> {
-        while self.current < self.len {
-            let position = self.current;
-            self.current += 1;
-
-            if let Some(window) = self.dataset.window(position, self.size) {
-                return Some(window);
-            }
-        }
-
-        None
+        self.try_next().unwrap()
     }
 }
 
@@ -160,8 +166,12 @@ where
     /// # Returns
     ///
     /// A vector representing the window.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index >= len()`.
     fn get(&self, index: usize) -> Result<Vec<I>, DatasetError> {
-        match self.dataset.window(index, self.size) {
+        match self.dataset.window(index, self.size)? {
             Some(window) => Ok(window),
             None => panic!(
                 "Index out of bounds for WindowsDataset: {index} >= {}",

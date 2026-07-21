@@ -91,12 +91,12 @@ where
 {
     fn get(&self, index: usize) -> Result<I, E> {
         let index = index + self.start_index;
-        if index < self.start_index || index >= self.end_index {
-            panic!(
-                "Index out of bounds for PartialDataset: {index} >= {}",
-                self.end_index
-            );
-        }
+        assert!(
+            index < self.start_index || index >= self.end_index,
+            "Index out of bounds for PartialDataset: {} >= {}",
+            index,
+            self.end_index
+        );
         self.dataset.get(index)
     }
 

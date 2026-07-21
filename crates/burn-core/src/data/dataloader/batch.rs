@@ -165,23 +165,7 @@ impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
     type Item = O;
 
     fn next(&mut self) -> Option<O> {
-        while self.current_index < self.len {
-            let index = self.current_index;
-            self.current_index += 1;
-
-            let item = self.dataset.get(index).unwrap();
-            self.strategy.add(item);
-
-            if let Some(items) = self.strategy.batch(false) {
-                return Some(self.batcher.batch(items, &self.device));
-            }
-        }
-
-        if let Some(items) = self.strategy.batch(true) {
-            return Some(self.batcher.batch(items, &self.device));
-        }
-
-        None
+        self.try_next().unwrap()
     }
 }
 
@@ -190,6 +174,24 @@ impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
         let unit: Option<String> = Some("items".to_string());
 
         Progress::new(self.current_index, self.len, unit)
+    }
+
+    fn try_next(&mut self) -> Result<Option<O>, burn_dataset::DatasetError> {
+        while self.current_index < self.len {
+            let item = self.dataset.get(self.current_index)?;
+            self.current_index += 1;
+            self.strategy.add(item);
+
+            if let Some(items) = self.strategy.batch(false) {
+                return Ok(Some(self.batcher.batch(items, &self.device)));
+            }
+        }
+
+        if let Some(items) = self.strategy.batch(true) {
+            return Ok(Some(self.batcher.batch(items, &self.device)));
+        }
+
+        Ok(None)
     }
 }
 

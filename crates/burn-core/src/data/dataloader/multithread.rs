@@ -7,8 +7,6 @@ use rand::{Rng, SeedableRng};
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
-use std::panic::AssertUnwindSafe;
-use std::panic::catch_unwind;
 use std::sync::{Arc, OnceLock, mpsc, mpsc::SyncSender};
 use std::thread;
 
@@ -45,16 +43,6 @@ pub enum Message<O> {
 
     /// The worker hit an unrecoverable error (e.g. `Dataset::get` failed) and stopped early.
     Error(usize, String),
-}
-
-fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
-    if let Some(s) = payload.downcast_ref::<&str>() {
-        s.to_string()
-    } else if let Some(s) = payload.downcast_ref::<String>() {
-        s.clone()
-    } else {
-        "unknown panic in dataloader worker".to_string()
-    }
 }
 
 struct MultiThreadsDataloaderIterator<O> {
@@ -210,7 +198,7 @@ where
                         while let Ok(sender) = command_receiver.recv() {
                             let mut iterator = dataloader.iter();
                             loop {
-                                let next = catch_unwind(AssertUnwindSafe(|| iterator.next()));
+                                let next = iterator.try_next();
 
                                 match next {
                                     Ok(Some(item)) => {
@@ -224,9 +212,10 @@ where
                                         }
                                     }
                                     Ok(None) => break,
-                                    Err(payload) => {
-                                        let msg = panic_message(payload.as_ref());
-                                        sender.send(Message::Error(index, msg)).ok();
+                                    Err(dataset_err) => {
+                                        sender
+                                            .send(Message::Error(index, dataset_err.to_string()))
+                                            .ok();
                                         break;
                                     }
                                 }

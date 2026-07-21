@@ -86,12 +86,12 @@ where
     ///
     /// Panics if `index >= len()`.
     fn get(&self, index: usize) -> Result<I, DataframeDatasetError> {
-        if index >= self.len {
-            panic!(
-                "Index out of bounds for DataframeDataset: {index} >= {}",
-                self.len
-            );
-        }
+        assert!(
+            index < self.len,
+            "Index out of bounds for DataframeDataset: {} >= {}",
+            index,
+            self.len,
+        );
 
         let row = self
             .df
