@@ -7,6 +7,8 @@ use rand::{Rng, SeedableRng};
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
+use std::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
 use std::sync::{Arc, OnceLock, mpsc, mpsc::SyncSender};
 use std::thread;
 
@@ -45,7 +47,6 @@ pub enum Message<O> {
     Error(usize, String),
 }
 
-/// Extracts a human-readable message from a caught panic payload.
 fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
         s.to_string()
@@ -209,10 +210,7 @@ where
                         while let Ok(sender) = command_receiver.recv() {
                             let mut iterator = dataloader.iter();
                             loop {
-                                let next =
-                                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                        iterator.next()
-                                    }));
+                                let next = catch_unwind(AssertUnwindSafe(|| iterator.next()));
 
                                 match next {
                                     Ok(Some(item)) => {
