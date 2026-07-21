@@ -49,7 +49,9 @@ pub fn scaled_dot_product_attention<const D: usize>(
         );
         let dims = scores.dims();
         let (seq_q, seq_kv) = (dims[D - 2], dims[D - 1]);
-        let mask = Tensor::<2, Bool>::triu_mask([seq_q, seq_kv], 1, &scores.device());
+        // `tril_mask(0)` is `true` strictly above the diagonal (burn's convention),
+        // i.e. the future positions a causal mask must block.
+        let mask = Tensor::<2, Bool>::tril_mask([seq_q, seq_kv], 0, &scores.device());
         scores.mask_fill(mask.unsqueeze::<D>(), f32::NEG_INFINITY)
     } else if let Some(mask) = attn_mask {
         scores.add(mask)
