@@ -94,6 +94,21 @@ impl<const D: usize, K> Tensor<D, K>
 where
     K: Basic,
 {
+    /// Swap the contents of two tensors.
+    pub fn swap(&mut self, other: &mut self) {
+        core::mem::swap(self, other);
+    }
+
+    /// Drop the current value, and replace it with `Tensor::empty([0; D])`
+    ///
+    /// Returns the old value.
+    #[allow(clippy::unused_must_use)]
+    pub fn release(&mut self) -> Self {
+        let mut z = Tensor::empty([0; D], &self.device());
+        self.swap(&mut z);
+        z
+    }
+
     /// Executes an operation on the tensor and modifies its value.
     ///
     /// # Notes
@@ -105,11 +120,8 @@ where
     /// want to mutate a tensor by using owned operations. A plausible usage would be to
     /// update the weights of a mutable model reference.
     pub fn inplace<F: FnOnce(Self) -> Self>(&mut self, func: F) {
-        let mut tensor_owned = Tensor::empty([0; D], &self.device());
-        core::mem::swap(&mut tensor_owned, self);
-
-        let mut tensor_new = func(tensor_owned);
-        core::mem::swap(&mut tensor_new, self);
+        let mut z = func(self.release());
+        self.swap(&mut z);
     }
 
     /// Returns the number of dimensions of the tensor.
