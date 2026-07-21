@@ -78,11 +78,30 @@ impl DeviceSettings {
 /// Key for the registry: physical device type + device id
 type RegistryKey = (DeviceId, TypeId);
 
+/// Settings stored in the registry, along with the provenance needed to detect
+/// conflicting element widths.
+///
+/// The registry is keyed by *physical device* ([`DeviceId`] + device [`TypeId`]), not by backend
+/// type. Backends that only differ in their associated element types (e.g. `NdArray<f32>` and
+/// `NdArray<f64>`) therefore share the same entry. Because the settings are locked on first use,
+/// whichever backend runs first would otherwise silently impose its element width on the others.
+///
+/// To catch that mistake we remember, for settings that were locked *implicitly* (by the first
+/// tensor operation rather than an explicit [`set_default_dtypes`] call), the backend-derived
+/// default `(float, int)` dtypes used to initialize them. A later access by a backend whose own
+/// defaults differ is a conflict. Explicit configuration stores [`None`], so intentional overrides
+/// (like enabling mixed precision) never trigger a false positive.
+#[derive(Debug, Clone, Copy)]
+struct StoredSettings {
+    settings: DeviceSettings,
+    implicit_default: Option<(FloatDType, IntDType)>,
+}
+
 /// Global registry mapping devices to their settings.
 ///
 /// Each value is wrapped in a `OnceLock` to enforce that settings are initialized only once
 /// per device.
-static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<OnceLock<DeviceSettings>>>>> =
+static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<OnceLock<StoredSettings>>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 struct DeviceSettingsRegistry;
@@ -91,8 +110,8 @@ impl DeviceSettingsRegistry {
     /// Returns the settings for the given device, inserting the default if absent.
     fn get_or_insert<D: DeviceOps>(
         device: &D,
-        default_fn: impl FnOnce() -> DeviceSettings,
-    ) -> DeviceSettings {
+        default_fn: impl FnOnce() -> StoredSettings,
+    ) -> StoredSettings {
         let key = Self::key(device);
         #[cfg(feature = "std")]
         {
@@ -138,7 +157,7 @@ impl DeviceSettingsRegistry {
     /// Initializes the settings for the given device.
     ///
     /// Returns `Err` with the existing settings if already initialized.
-    fn init<D: DeviceOps>(device: &D, settings: DeviceSettings) -> Result<(), DeviceError> {
+    fn init<D: DeviceOps>(device: &D, settings: StoredSettings) -> Result<(), DeviceError> {
         let key = Self::key(device);
         let mut map = REGISTRY.write().unwrap();
         let cell = map.entry(key).or_insert_with(|| Arc::new(OnceLock::new()));
@@ -166,20 +185,53 @@ impl DeviceSettingsRegistry {
 #[cfg(feature = "std")]
 thread_local! {
     /// Thread-local cache access to initialized device settings is lock-free.
-    static LOCAL_CACHE: core::cell::RefCell<HashMap<RegistryKey, DeviceSettings>> =
+    static LOCAL_CACHE: core::cell::RefCell<HashMap<RegistryKey, StoredSettings>> =
         core::cell::RefCell::new(HashMap::new());
 }
 
 /// Get the [`device`'s settings](DeviceSettings).
+///
+/// # Panics
+///
+/// Panics if the device's default data types were already locked to a different element width by
+/// another backend. The registry is keyed by physical device, so backends that differ only in their
+/// associated element types (e.g. `NdArray<f32>` and `NdArray<f64>`) share the same settings; the
+/// first one to touch the device locks them. Rather than silently returning tensors at the wrong
+/// precision, this reports the conflict at the point of use. Configure the device explicitly with
+/// [`set_default_dtypes`] before any tensor operation, or create tensors with an explicit dtype.
 pub fn get_device_settings<B: Backend>(device: &B::Device) -> DeviceSettings {
-    let default_settings = || {
-        DeviceSettings::new(
-            default_float::<B>(),
-            default_int::<B>(),
+    let backend_default_float = default_float::<B>();
+    let backend_default_int = default_int::<B>();
+    let default_settings = || StoredSettings {
+        settings: DeviceSettings::new(
+            backend_default_float,
+            backend_default_int,
             default_bool::<B>(device),
-        )
+        ),
+        implicit_default: Some((backend_default_float, backend_default_int)),
     };
-    DeviceSettingsRegistry::get_or_insert(device, default_settings)
+
+    let stored = DeviceSettingsRegistry::get_or_insert(device, default_settings);
+
+    // If the settings were locked implicitly by another backend with different default element
+    // types, the width this backend expects would be silently ignored. Fail loudly instead.
+    if let Some((locked_float, locked_int)) =
+        conflicting_lock(stored, backend_default_float, backend_default_int)
+    {
+        panic!(
+            "Conflicting default data types for device {device:?}: this backend's default element \
+             types are float={backend_default_float:?}/int={backend_default_int:?}, but the device \
+             was already locked to float={locked_float:?}/int={locked_int:?} by an earlier tensor \
+             operation using a backend with different element types.\n\
+             A physical device supports only one set of default data types per process, so two \
+             backends that differ only in element width (e.g. `NdArray<f32>` and `NdArray<f64>`) \
+             cannot share a device. Use a single element width per device, configure the device up \
+             front with `set_default_dtypes` before any tensor operation, or create tensors with an \
+             explicit dtype."
+        );
+    }
+
+    stored.settings
 }
 
 fn default_bool<B: Backend>(device: &B::Device) -> BoolDType {
@@ -398,7 +450,31 @@ fn initialize_unchecked<D: DeviceOps>(
     device: &D,
     settings: DeviceSettings,
 ) -> Result<(), DeviceError> {
-    DeviceSettingsRegistry::init(device, settings)
+    // Explicit configuration: record no implicit default so intentional overrides (e.g. mixed
+    // precision) are never mistaken for a conflicting-backend lock.
+    DeviceSettingsRegistry::init(
+        device,
+        StoredSettings {
+            settings,
+            implicit_default: None,
+        },
+    )
+}
+
+/// Returns the locked `(float, int)` dtypes if `stored` was locked implicitly by a backend whose
+/// default element types differ from the requesting backend's, and [`None`] otherwise.
+///
+/// Settings locked explicitly via [`set_default_dtypes`] carry no implicit default and never
+/// conflict, so intentional overrides (e.g. mixed precision) are never flagged.
+fn conflicting_lock(
+    stored: StoredSettings,
+    backend_default_float: FloatDType,
+    backend_default_int: IntDType,
+) -> Option<(FloatDType, IntDType)> {
+    match stored.implicit_default {
+        Some(locked) if locked != (backend_default_float, backend_default_int) => Some(locked),
+        _ => None,
+    }
 }
 
 #[cfg(all(test, feature = "std"))]
@@ -463,7 +539,11 @@ mod tests {
     }
 
     fn get_test_device_settings<D: DeviceOps>(device: &D) -> DeviceSettings {
-        DeviceSettingsRegistry::get_or_insert(device, DeviceSettings::defaults)
+        DeviceSettingsRegistry::get_or_insert(device, || StoredSettings {
+            settings: DeviceSettings::defaults(),
+            implicit_default: None,
+        })
+        .settings
     }
 
     #[test]
@@ -588,5 +668,46 @@ mod tests {
                 .join()
                 .unwrap();
         assert_eq!(seen_by_new_thread, settings_actual);
+    }
+
+    fn implicit_stored(float: FloatDType, int: IntDType) -> StoredSettings {
+        StoredSettings {
+            settings: DeviceSettings::new(float, int, BoolDType::Native),
+            implicit_default: Some((float, int)),
+        }
+    }
+
+    #[test]
+    fn no_conflict_when_implicit_default_matches() {
+        let stored = implicit_stored(FloatDType::F32, IntDType::I64);
+        assert_eq!(
+            conflicting_lock(stored, FloatDType::F32, IntDType::I64),
+            None
+        );
+    }
+
+    #[test]
+    fn conflict_when_implicit_default_differs() {
+        // e.g. device locked to F32 by `NdArray<f32>`, later accessed by `NdArray<f64>`.
+        let stored = implicit_stored(FloatDType::F32, IntDType::I64);
+        assert_eq!(
+            conflicting_lock(stored, FloatDType::F64, IntDType::I64),
+            Some((FloatDType::F32, IntDType::I64))
+        );
+    }
+
+    #[test]
+    fn explicit_override_never_conflicts() {
+        // Settings set via `set_default_dtypes` carry no implicit default, so an intentional
+        // override (mixed precision) is never flagged even if the requesting backend's defaults
+        // differ.
+        let stored = StoredSettings {
+            settings: DeviceSettings::new(FloatDType::F16, IntDType::I32, BoolDType::Native),
+            implicit_default: None,
+        };
+        assert_eq!(
+            conflicting_lock(stored, FloatDType::F32, IntDType::I64),
+            None
+        );
     }
 }
