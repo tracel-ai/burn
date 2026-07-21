@@ -6,7 +6,10 @@ use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Device;
+use burn::tensor::FloatDType;
 use burn::tensor::Tensor;
+
+use super::accumulation_dtype;
 
 /// Configuration to create a [GroupNorm](GroupNorm) layer using the [init function](GroupNormConfig::init).
 #[derive(Debug, Config)]
@@ -167,11 +170,27 @@ pub(crate) fn group_norm<const D: usize>(
     let hidden_size = shape[2..].iter().product::<usize>() * num_channels / num_groups;
     let input = input.reshape([batch_size, num_groups, hidden_size]);
 
+    // Widen before the reduction when the input dtype cannot hold a sum of
+    // squares (see [`accumulation_dtype`]); `square()` below is what overflows.
+    // Narrowed again straight after, so the affine still runs at the model's
+    // own dtype and only the statistics pay for the wider arithmetic.
+    let original: FloatDType = input.dtype().into();
+    let widened = accumulation_dtype(input.dtype());
+    let input = match widened {
+        Some(dtype) => input.cast(dtype),
+        None => input,
+    };
+
     let mean = input.clone().sum_dim(2) / hidden_size as f64;
     let input = input.sub(mean);
 
     let var = input.clone().square().sum_dim(2) / hidden_size as f64;
     let input_normalized = input.div(var.add_scalar(epsilon).sqrt());
+
+    let input_normalized = match widened {
+        Some(_) => input_normalized.cast(original),
+        None => input_normalized,
+    };
 
     if affine {
         let mut affine_shape = [1; D];

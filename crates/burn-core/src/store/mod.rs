@@ -262,16 +262,24 @@ impl ModuleVisitor for Collector {
         self.path.pop();
     }
 
+    // Every `visit_*` records the parameter's **save** form, not its in-memory
+    // one. `ModuleRecordMapper` below restores through `transform_for_load`, so
+    // recording `param.val()` raw would make the two ends of a round trip
+    // disagree wherever a param carries a mapper: a `Col` linear keeps its
+    // weight in memory as `[d_in, d_out]` but is persisted as `[d_out, d_in]`,
+    // so a raw save reloads as a shape mismatch — or worse, for a square
+    // weight, silently transposed. `burn_store`'s collector already saves
+    // through this transform; this is the same contract for records.
     fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 
     fn visit_int<const D: usize>(&mut self, param: &Param<Tensor<D, Int>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 
     fn visit_bool<const D: usize>(&mut self, param: &Param<Tensor<D, Bool>>) {
-        self.record(param.id, param.val().into_data());
+        self.record(param.id, param.transform_for_save().val().into_data());
     }
 }
 
