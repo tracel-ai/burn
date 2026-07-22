@@ -31,7 +31,7 @@ where
         let mut items = Vec::new();
 
         for i in indexes {
-            assert!(i < len);
+            assert!(i < len, "Index out of bounds for dataset: {i} >= {len}");
 
             match self.get(i) {
                 Ok(item) => items.push(item),
