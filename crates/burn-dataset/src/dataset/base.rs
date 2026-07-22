@@ -21,6 +21,27 @@ where
     /// Panics if `index >= len()`.
     fn get(&self, index: usize) -> Result<I, E>;
 
+    /// Gets the items at given indexes
+    ///
+    /// # Panics
+    ///
+    /// panics if `indexes[i] >= len()`
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
+        let len = self.len();
+        let mut items = Vec::new();
+
+        for i in indexes {
+            assert!(i < len);
+
+            match self.get(i) {
+                Ok(item) => items.push(item),
+                Err(e) => return Err(e),
+            }
+        }
+
+        Ok(items)
+    }
+
     /// Gets the number of items in the dataset.
     fn len(&self) -> usize;
 
@@ -47,6 +68,10 @@ where
         self.as_ref().get(index)
     }
 
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
+        self.as_ref().get_many(indexes)
+    }
+
     fn len(&self) -> usize {
         self.as_ref().len()
     }
@@ -58,6 +83,10 @@ where
 {
     fn get(&self, index: usize) -> Result<I, E> {
         self.as_ref().get(index)
+    }
+
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
+        self.as_ref().get_many(indexes)
     }
 
     fn len(&self) -> usize {
@@ -74,6 +103,10 @@ where
         self.as_ref().get(index)
     }
 
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
+        self.as_ref().get_many(indexes)
+    }
+
     fn len(&self) -> usize {
         self.as_ref().len()
     }
@@ -85,6 +118,10 @@ where
 {
     fn get(&self, index: usize) -> Result<I, E> {
         self.as_ref().get(index)
+    }
+
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, E> {
+        self.as_ref().get_many(indexes)
     }
 
     fn len(&self) -> usize {
