@@ -23,7 +23,7 @@ pub fn infer(artifact_dir: &str, device: Device) {
     let model: LstmNetwork = config.model.init(&device).load_record(record);
 
     let dataset = SequenceDataset::new(NUM_SEQUENCES / 5, SEQ_LENGTH, NOISE_LEVEL);
-    let items: Vec<SequenceDatasetItem> = dataset.iter().collect();
+    let items: Vec<SequenceDatasetItem> = dataset.iter().map(|item| item.unwrap()).collect();
 
     let batcher = SequenceBatcher::default();
     // Put all items in one batch

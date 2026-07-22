@@ -1,4 +1,5 @@
 use crate::Dataset;
+use std::error::Error;
 use std::{marker::PhantomData, sync::Arc};
 
 /// Only use a fraction of an existing dataset lazily.
@@ -82,16 +83,20 @@ where
     }
 }
 
-impl<D, I> Dataset<I> for PartialDataset<D, I>
+impl<D, I, E> Dataset<I, E> for PartialDataset<D, I>
 where
-    D: Dataset<I>,
+    D: Dataset<I, E>,
     I: Clone + Send + Sync,
+    E: Error + Send + Sync + 'static,
 {
-    fn get(&self, index: usize) -> Option<I> {
+    fn get(&self, index: usize) -> Result<I, E> {
         let index = index + self.start_index;
-        if index < self.start_index || index >= self.end_index {
-            return None;
-        }
+        assert!(
+            index >= self.start_index && index < self.end_index,
+            "Index out of bounds for PartialDataset: {} >= {}",
+            index,
+            self.end_index
+        );
         self.dataset.get(index)
     }
 
@@ -112,16 +117,20 @@ mod tests {
         let mut items_original_1 = HashSet::new();
         let mut items_original_2 = HashSet::new();
         let mut items_partial = HashSet::new();
-        dataset_original.iter().enumerate().for_each(|(i, item)| {
-            match i >= 10 {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
-            };
-        });
+        dataset_original
+            .iter()
+            .map(Result::unwrap)
+            .enumerate()
+            .for_each(|(i, item)| {
+                match i >= 10 {
+                    true => items_original_2.insert(item),
+                    false => items_original_1.insert(item),
+                };
+            });
 
         let dataset_partial = PartialDataset::new(dataset_original, 0, 10);
 
-        for item in dataset_partial.iter() {
+        for item in dataset_partial.iter().map(Result::unwrap) {
             items_partial.insert(item);
         }
 
@@ -139,15 +148,19 @@ mod tests {
         let mut items_original_2 = HashSet::new();
         let mut items_partial = HashSet::new();
 
-        dataset_original.iter().enumerate().for_each(|(i, item)| {
-            match !(10..20).contains(&i) {
-                true => items_original_2.insert(item),
-                false => items_original_1.insert(item),
-            };
-        });
+        dataset_original
+            .iter()
+            .map(Result::unwrap)
+            .enumerate()
+            .for_each(|(i, item)| {
+                match !(10..20).contains(&i) {
+                    true => items_original_2.insert(item),
+                    false => items_original_1.insert(item),
+                };
+            });
 
         let dataset_partial = PartialDataset::new(dataset_original, 10, 20);
-        for item in dataset_partial.iter() {
+        for item in dataset_partial.iter().map(Result::unwrap) {
             items_partial.insert(item);
         }
 
@@ -163,7 +176,7 @@ mod tests {
         let dataset_original = FakeDataset::<String>::new(27);
         let mut items_original = Vec::new();
         let mut items_partial = Vec::new();
-        for item in dataset_original.iter() {
+        for item in dataset_original.iter().map(Result::unwrap) {
             items_original.push(item);
         }
 
@@ -172,7 +185,7 @@ mod tests {
 
         for (i, dataset) in dataset_partials.iter().enumerate() {
             assert_eq!(dataset.len(), expected_len[i]);
-            for item in dataset.iter() {
+            for item in dataset.iter().map(Result::unwrap) {
                 items_partial.push(item);
             }
         }
@@ -185,7 +198,7 @@ mod tests {
         let dataset_original = FakeDataset::<String>::new(27);
         let mut items_original = Vec::new();
         let mut items_partial = Vec::new();
-        for item in dataset_original.iter() {
+        for item in dataset_original.iter().map(Result::unwrap) {
             items_original.push(item);
         }
 
@@ -196,7 +209,7 @@ mod tests {
 
         for (i, dataset) in dataset_partials.iter().enumerate() {
             assert_eq!(dataset.len(), expected_len[i]);
-            for item in dataset.iter() {
+            for item in dataset.iter().map(Result::unwrap) {
                 items_partial.push(item);
             }
         }

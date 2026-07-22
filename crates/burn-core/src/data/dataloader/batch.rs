@@ -64,6 +64,7 @@ impl<I, O> BatchDataLoader<I, O> {
 /// A data loader iterator that can be used to iterate over a data loader.
 struct BatchDataloaderIterator<I, O> {
     current_index: usize,
+    len: usize,
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<I, O>>,
@@ -147,8 +148,11 @@ impl<I, O> BatchDataloaderIterator<I, O> {
         batcher: Arc<dyn Batcher<I, O>>,
         device: Device,
     ) -> Self {
+        let len = dataset.len();
+
         BatchDataloaderIterator {
             current_index: 0,
+            len,
             strategy,
             dataset,
             batcher,
@@ -158,20 +162,24 @@ impl<I, O> BatchDataloaderIterator<I, O> {
 }
 
 impl<I, O> Iterator for BatchDataloaderIterator<I, O> {
-    type Item = O;
+    type Item = Result<O, burn_dataset::DatasetError>;
 
-    fn next(&mut self) -> Option<O> {
-        while let Some(item) = self.dataset.get(self.current_index) {
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current_index < self.len {
+            let item = match self.dataset.get(self.current_index) {
+                Ok(item) => item,
+                Err(err) => return Some(Err(err)),
+            };
             self.current_index += 1;
             self.strategy.add(item);
 
             if let Some(items) = self.strategy.batch(false) {
-                return Some(self.batcher.batch(items, &self.device));
+                return Some(Ok(self.batcher.batch(items, &self.device)));
             }
         }
 
         if let Some(items) = self.strategy.batch(true) {
-            return Some(self.batcher.batch(items, &self.device));
+            return Some(Ok(self.batcher.batch(items, &self.device)));
         }
 
         None
@@ -182,7 +190,7 @@ impl<I, O> DataLoaderIterator<O> for BatchDataloaderIterator<I, O> {
     fn progress(&self) -> Progress {
         let unit: Option<String> = Some("items".to_string());
 
-        Progress::new(self.current_index, self.dataset.len(), unit)
+        Progress::new(self.current_index, self.len, unit)
     }
 }
 
@@ -210,11 +218,11 @@ mod tests {
         let mut items_dataset = HashSet::new();
         let mut items_dataloader = HashSet::new();
 
-        for item in dataset.iter() {
+        for item in dataset.iter().map(Result::unwrap) {
             items_dataset.insert(item);
         }
 
-        for items in dataloader.iter() {
+        for items in dataloader.iter().map(Result::unwrap) {
             for item in items {
                 items_dataloader.insert(item);
             }
@@ -240,7 +248,7 @@ mod tests {
         let mut items_dataloader_slice = HashSet::new();
 
         let mut idx = 0;
-        for items in dataloader.iter() {
+        for items in dataloader.iter().map(Result::unwrap) {
             for item in items {
                 if (5..15).contains(&idx) {
                     items_dataloader.insert(item);
@@ -249,7 +257,7 @@ mod tests {
             }
         }
 
-        for items in dataloader_slice.iter() {
+        for items in dataloader_slice.iter().map(Result::unwrap) {
             for item in items {
                 items_dataloader_slice.insert(item);
             }

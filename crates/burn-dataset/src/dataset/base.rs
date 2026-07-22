@@ -1,11 +1,25 @@
+use std::error::Error;
 use std::sync::Arc;
 
-use crate::DatasetIterator;
+use crate::{DatasetError, DatasetIterator};
 
 /// The dataset trait defines a basic collection of items with a predefined size.
-pub trait Dataset<I>: Send + Sync {
+///
+/// # Panics
+///
+/// `get` panics if `index >= len()`, matching slice/`Vec` indexing conventions. `Err(_)` is
+/// reserved for genuine retrieval failures on an in-bounds index (e.g. an I/O or deserialization
+/// failure).
+pub trait Dataset<I, E = DatasetError>: Send + Sync
+where
+    E: Error + Send + Sync + 'static,
+{
     /// Gets the item at the given index.
-    fn get(&self, index: usize) -> Option<I>;
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index >= len()`.
+    fn get(&self, index: usize) -> Result<I, E>;
 
     /// Gets the number of items in the dataset.
     fn len(&self) -> usize;
@@ -16,7 +30,7 @@ pub trait Dataset<I>: Send + Sync {
     }
 
     /// Returns an iterator over the dataset.
-    fn iter(&self) -> DatasetIterator<'_, I>
+    fn iter(&self) -> DatasetIterator<'_, I, E>
     where
         Self: Sized,
     {
@@ -24,11 +38,12 @@ pub trait Dataset<I>: Send + Sync {
     }
 }
 
-impl<D, I> Dataset<I> for Arc<D>
+impl<D, I, E> Dataset<I, E> for Arc<D>
 where
-    D: Dataset<I>,
+    D: Dataset<I, E>,
+    E: Error + Send + Sync + 'static,
 {
-    fn get(&self, index: usize) -> Option<I> {
+    fn get(&self, index: usize) -> Result<I, E> {
         self.as_ref().get(index)
     }
 
@@ -37,21 +52,11 @@ where
     }
 }
 
-impl<I> Dataset<I> for Arc<dyn Dataset<I>> {
-    fn get(&self, index: usize) -> Option<I> {
-        self.as_ref().get(index)
-    }
-
-    fn len(&self) -> usize {
-        self.as_ref().len()
-    }
-}
-
-impl<D, I> Dataset<I> for Box<D>
+impl<I, E> Dataset<I, E> for Arc<dyn Dataset<I, E>>
 where
-    D: Dataset<I>,
+    E: Error + Send + Sync + 'static,
 {
-    fn get(&self, index: usize) -> Option<I> {
+    fn get(&self, index: usize) -> Result<I, E> {
         self.as_ref().get(index)
     }
 
@@ -60,8 +65,25 @@ where
     }
 }
 
-impl<I> Dataset<I> for Box<dyn Dataset<I>> {
-    fn get(&self, index: usize) -> Option<I> {
+impl<D, I, E> Dataset<I, E> for Box<D>
+where
+    D: Dataset<I, E>,
+    E: Error + Send + Sync + 'static,
+{
+    fn get(&self, index: usize) -> Result<I, E> {
+        self.as_ref().get(index)
+    }
+
+    fn len(&self) -> usize {
+        self.as_ref().len()
+    }
+}
+
+impl<I, E> Dataset<I, E> for Box<dyn Dataset<I, E>>
+where
+    E: Error + Send + Sync + 'static,
+{
+    fn get(&self, index: usize) -> Result<I, E> {
         self.as_ref().get(index)
     }
 

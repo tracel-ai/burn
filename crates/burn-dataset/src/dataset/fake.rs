@@ -1,4 +1,4 @@
-use crate::{Dataset, DatasetIterator, InMemDataset};
+use crate::{Dataset, DatasetError, DatasetIterator, InMemDataset};
 use fake::{Dummy, Fake, Faker};
 
 /// Dataset filled with fake items generated from the [fake](fake) crate.
@@ -24,7 +24,7 @@ impl<I: Send + Sync + Clone> Dataset<I> for FakeDataset<I> {
         DatasetIterator::new(self)
     }
 
-    fn get(&self, index: usize) -> Option<I> {
+    fn get(&self, index: usize) -> Result<I, DatasetError> {
         self.dataset.get(index)
     }
 

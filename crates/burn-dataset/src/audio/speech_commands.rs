@@ -1,5 +1,5 @@
 use crate::{
-    Dataset, HuggingfaceDatasetLoader, SqliteDataset,
+    Dataset, HuggingfaceDatasetLoader, SqliteDataset, SqliteDatasetError,
     transform::{Mapper, MapperDataset},
 };
 
@@ -149,8 +149,8 @@ impl SpeechCommandsDataset {
     }
 }
 
-impl Dataset<SpeechItem> for SpeechCommandsDataset {
-    fn get(&self, index: usize) -> Option<SpeechItem> {
+impl Dataset<SpeechItem, SqliteDatasetError> for SpeechCommandsDataset {
+    fn get(&self, index: usize) -> Result<SpeechItem, SqliteDatasetError> {
         self.dataset.get(index)
     }
 

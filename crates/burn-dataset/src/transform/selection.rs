@@ -1,4 +1,5 @@
 use crate::Dataset;
+use crate::DatasetError;
 use crate::transform::RngSource;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
@@ -225,9 +226,14 @@ where
     D: Dataset<I>,
     I: Clone + Send + Sync,
 {
-    fn get(&self, index: usize) -> Option<I> {
-        let index = self.indices.get(index)?;
-        self.wrapped.get(*index)
+    fn get(&self, index: usize) -> Result<I, DatasetError> {
+        let Some(&index) = self.indices.get(index) else {
+            panic!(
+                "Index out of bounds for SelectionDataset: {index} >= {}",
+                self.indices.len()
+            );
+        };
+        self.wrapped.get(index)
     }
 
     fn len(&self) -> usize {
@@ -304,7 +310,7 @@ mod tests {
 
         assert_eq!(&selection.indices, &indices);
 
-        let items = selection.iter().collect::<Vec<_>>();
+        let items = selection.iter().map(Result::unwrap).collect::<Vec<_>>();
 
         assert_eq!(items, expected);
     }
@@ -312,7 +318,7 @@ mod tests {
     #[test]
     fn test_shuffled_dataset() {
         let dataset = FakeDataset::<String>::new(27);
-        let source_items = dataset.iter().collect::<Vec<_>>();
+        let source_items = dataset.iter().map(Result::unwrap).collect::<Vec<_>>();
 
         let selection = SelectionDataset::new_shuffled(dataset, 42);
 
@@ -325,13 +331,16 @@ mod tests {
             .iter()
             .map(|&i| source_items[i].to_string())
             .collect();
-        assert_eq!(&selection.iter().collect::<Vec<_>>(), &expected_items);
+        assert_eq!(
+            &selection.iter().map(Result::unwrap).collect::<Vec<_>>(),
+            &expected_items
+        );
     }
 
     #[test]
     fn test_slice() {
         let dataset = FakeDataset::<String>::new(27);
-        let source_items = dataset.iter().collect::<Vec<_>>();
+        let source_items = dataset.iter().map(Result::unwrap).collect::<Vec<_>>();
 
         let selection = SelectionDataset::new_select_all(dataset);
 
@@ -344,8 +353,8 @@ mod tests {
         #[allow(clippy::needless_range_loop)]
         for i in start..end {
             assert_eq!(
-                sliced_selection.get(i - start),
-                Some(source_items[i].to_string())
+                sliced_selection.get(i - start).unwrap(),
+                source_items[i].to_string()
             );
         }
     }
@@ -353,14 +362,14 @@ mod tests {
     #[test]
     fn test_split() {
         let dataset = FakeDataset::<String>::new(28);
-        let source_items = dataset.iter().collect::<Vec<_>>();
+        let source_items = dataset.iter().map(Result::unwrap).collect::<Vec<_>>();
 
         let selection = SelectionDataset::new_select_all(dataset);
 
         let split_contents: Vec<Vec<_>> = selection
             .split(3)
             .iter()
-            .map(|d| d.iter().collect::<Vec<_>>())
+            .map(|d| d.iter().map(Result::unwrap).collect::<Vec<_>>())
             .collect();
         assert_eq!(
             split_contents,
