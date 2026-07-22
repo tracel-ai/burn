@@ -14,7 +14,8 @@ pub(crate) struct MetricsTraining<T: ItemLazy, V: ItemLazy> {
     valid: Vec<Box<dyn MetricUpdater<V>>>,
     train_numeric: Vec<Box<dyn NumericMetricUpdater<T>>>,
     valid_numeric: Vec<Box<dyn NumericMetricUpdater<V>>>,
-    metric_definitions: HashMap<MetricId, MetricDefinition>,
+    // Vec preserves metrics registration order; reflected in TUI tabs order
+    metric_definitions: Vec<MetricDefinition>,
 }
 
 pub(crate) struct MetricsEvaluation<T: ItemLazy> {
@@ -40,7 +41,7 @@ impl<T: ItemLazy, V: ItemLazy> Default for MetricsTraining<T, V> {
             valid: Vec::default(),
             train_numeric: Vec::default(),
             valid_numeric: Vec::default(),
-            metric_definitions: HashMap::default(),
+            metric_definitions: Vec::default(),
         }
     }
 }
@@ -148,15 +149,20 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     }
 
     fn register_definition<Me: Metric>(&mut self, metric: &MetricWrapper<Me>) {
-        self.metric_definitions.insert(
-            metric.id.clone(),
-            MetricDefinition::new(metric.id.clone(), &metric.metric),
-        );
+        // Avoid duplicate definitions if the same metric is registered for both train and valid
+        if !self
+            .metric_definitions
+            .iter()
+            .any(|def| def.metric_id == metric.id)
+        {
+            self.metric_definitions
+                .push(MetricDefinition::new(metric.id.clone(), &metric.metric));
+        }
     }
 
     /// Get metric definitions for all splits
     pub(crate) fn metric_definitions(&mut self) -> Vec<MetricDefinition> {
-        self.metric_definitions.values().cloned().collect()
+        self.metric_definitions.clone()
     }
 
     /// Update the training information from the training item.
