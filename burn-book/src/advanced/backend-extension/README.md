@@ -80,3 +80,54 @@ The specifics of each implementation will be covered by the examples provided in
 `cubecl` compiler frontend is the recommended method of implementing custom kernels, since it
 supports multiple backends, including `wgpu` and `CUDA`, and is the way first-party `burn` kernels
 are written.
+
+## Passing structs and enums of tensors
+
+An extension operation is not limited to individual tensor arguments. A custom struct or enum whose
+fields are tensor primitives can be passed to and returned from an operation by deriving
+`ExtensionType`. Fields that are not tensors pass through unchanged, and a field that is itself an
+`ExtensionType` can be nested by annotating it with `#[extension_type]`.
+
+```rust, ignore
+use burn::backend::{
+    ExtensionType, backend_extension,
+    tensor::{FloatTensor, IntTensor},
+};
+
+#[derive(ExtensionType)]
+pub struct Boxes<B: Backend> {
+    pub coords: FloatTensor<B>,
+    pub scores: FloatTensor<B>,
+    pub count: usize, // Non-tensor fields pass through unchanged.
+}
+
+#[derive(ExtensionType)]
+pub enum Operand<B: Backend> {
+    Dense(FloatTensor<B>),
+    Sparse { values: FloatTensor<B>, indices: IntTensor<B> },
+    Empty,
+}
+```
+
+Such a type can be returned from an operation directly. To pass one as an input, mark the argument
+with `#[extension_type]`:
+
+```rust, ignore
+#[backend_extension(Wgpu, Cuda, Autodiff)]
+pub trait Backend: burn::backend::Backend {
+    // Struct as an output.
+    fn detect(image: FloatTensor<Self>) -> Boxes<Self>;
+
+    // Struct or enum as an input.
+    fn nms(#[extension_type] boxes: Boxes<Self>, iou_threshold: f32) -> Boxes<Self>;
+}
+```
+
+Inputs marked this way can be freely mixed with plain tensor arguments and with each other, and an
+operation can take several of them. The backend is selected by looking at a representative tensor
+across the inputs, so an enum currently on a variant that holds no tensor simply defers to the next
+input; if no input holds a tensor at all, the backend cannot be resolved and the operation panics.
+
+Struct and enum inputs also work with `Autodiff`. Float fields carry the gradient; other fields do
+not. Your `impl ... for Autodiff<B>` writes the backward pass by hand, exactly as it does for plain
+tensor inputs.
