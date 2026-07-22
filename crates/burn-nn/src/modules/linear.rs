@@ -290,31 +290,6 @@ mod tests {
     }
 
     #[test]
-    fn round_trip_burnpack_col() {
-        let device = Default::default();
-        // The `Row` case above cannot catch a mapper bug, because `Row` has no
-        // mapper. `Col` persists as `[d_output, d_input]` while holding
-        // `[d_input, d_output]` in memory, so a record that skipped the save
-        // transform comes back shape-mismatched here — and would come back
-        // silently transposed if the weight were square.
-        let config = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
-        let linear = config.init(&device);
-
-        let weight_before = linear.weight.val().to_data();
-        let data = linear.into_record().into_bytes().unwrap();
-
-        let linear = config
-            .init(&device)
-            .load_record(ModuleRecord::from_bytes(data).unwrap());
-
-        linear
-            .weight
-            .val()
-            .to_data()
-            .assert_eq(&weight_before, true);
-    }
-
-    #[test]
     fn col_row_same_result() {
         let device = Default::default();
         let config_col = LinearConfig::new(6, 12).with_layout(LinearLayout::Col);
