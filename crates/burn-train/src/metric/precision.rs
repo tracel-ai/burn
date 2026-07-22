@@ -153,10 +153,10 @@ mod tests {
         ClassReduction::{self, *},
         Metric, MetricMetadata, PrecisionMetric,
     };
-    use crate::metric::Numeric;
+    use crate::metric::{ConfusionStatsInput, Numeric};
     use crate::tests::{ClassificationType, THRESHOLD, dummy_classification_input};
-    use burn_core::tensor::TensorData;
     use burn_core::tensor::Tolerance;
+    use burn_core::{Tensor, tensor::TensorData};
     use rstest::rstest;
 
     #[rstest]
@@ -215,5 +215,46 @@ mod tests {
         assert_ne!(metric_a.name(), metric_b.name());
     }
 
-    // TODO: multiple update calls + compute final for global precision
+    #[test]
+    fn test_precision_global_aggregation() {
+        // Batch 1 (3 samples):
+        //   preds:   [[0.9], [0.8], [0.1]] -> binary threshold 0.5 -> [1, 1, 0]
+        //   targets: [1, 0, 0]             -> TP = 1, FP = 1 (denom = 2, Batch Precision = 50.0%)
+        //
+        // Batch 2 (6 samples):
+        //   preds:   [[0.9], [0.9], [0.9], [0.9], [0.9], [0.1]] -> binary threshold 0.5 -> [1, 1, 1, 1, 1, 0]
+        //   targets: [1, 0, 0, 0, 0, 0]                         -> TP = 1, FP = 4 (denom = 5, Batch Precision = 20.0%)
+        //
+        // Previously, using `NumericMetricState` would give a weighted average based on sample count N:
+        //   (3 * 50.0% + 6 * 20.0%) / (3 + 6) = 270 / 9 = 30.0% (incorrectly weighting by total samples N)
+        //
+        // Correct Global Aggregation = Total TP / Total (TP + FP) = (1 + 1) / (2 + 5) = 2 / 7 = 28.5714%
+
+        let mut metric = PrecisionMetric::binary(THRESHOLD);
+
+        // Batch 1
+        let input_batch1 = ConfusionStatsInput {
+            predictions: Tensor::from([[0.9], [0.8], [0.1]]),
+            targets: Tensor::from([[1], [0], [0]]),
+        };
+        let _ = metric.update(&input_batch1, &MetricMetadata::fake());
+
+        // Batch 2
+        let input_batch2 = ConfusionStatsInput {
+            predictions: Tensor::from([[0.9], [0.9], [0.9], [0.9], [0.9], [0.1]]),
+            targets: Tensor::from([[1], [0], [0], [0], [0], [0]]),
+        };
+        let _ = metric.update(&input_batch2, &MetricMetadata::fake());
+
+        // Compute final aggregated metric
+        let _final_entry = metric.compute();
+        let global_precision = metric.final_value().current();
+
+        let expected_global_precision = (2.0 / 7.0) * 100.0;
+
+        TensorData::from([global_precision]).assert_approx_eq::<f32>(
+            &TensorData::from([expected_global_precision]),
+            Tolerance::default(),
+        );
+    }
 }
