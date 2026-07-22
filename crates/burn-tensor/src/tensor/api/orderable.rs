@@ -16,6 +16,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -37,7 +38,8 @@ where
     ///   // [[-2.0, 3.0, 12.0], [3.0, 5.0, 6.0]]
     /// }
     /// ```
-    pub fn sort(self, dim: usize) -> Self {
+    pub fn sort<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::sort_dim::<D>("Sort", dim));
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ false))
     }
@@ -49,6 +51,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -70,7 +73,8 @@ where
     ///    // [[12.0, 3.0, -2.0], [6.0, 5.0, 3.0]]
     /// }
     /// ```
-    pub fn sort_descending(self, dim: usize) -> Self {
+    pub fn sort_descending<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::sort_dim::<D>("Sort", dim));
         Tensor::new(K::sort(self.primitive, dim, /*descending*/ true))
     }
@@ -83,6 +87,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -103,7 +108,8 @@ where
     ///   // [[1, 0, 0], [0, 1, 1]]
     /// }
     /// ```
-    pub fn sort_with_indices(self, dim: usize) -> (Self, Tensor<D, Int>) {
+    pub fn sort_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
         let (values, indices) =
             K::sort_with_indices(self.primitive, dim, /*descending*/ false);
@@ -118,6 +124,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -134,7 +141,8 @@ where
     ///    // [[0, 1, 1], [1, 0, 0]]
     /// }
     /// ```
-    pub fn sort_descending_with_indices(self, dim: usize) -> (Self, Tensor<D, Int>) {
+    pub fn sort_descending_with_indices<I: AsIndex>(self, dim: I) -> (Self, Tensor<D, Int>) {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
         let (values, indices) = K::sort_with_indices(self.primitive, dim, /*descending*/ true);
         (Tensor::new(values), Tensor::new(indices))
@@ -147,6 +155,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -161,7 +170,8 @@ where
     ///    // [[1, 0, 0], [0, 1, 1]]
     /// }
     /// ```
-    pub fn argsort(self, dim: usize) -> Tensor<D, Int> {
+    pub fn argsort<I: AsIndex>(self, dim: I) -> Tensor<D, Int> {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::sort_dim::<D>("Argsort", dim));
         Tensor::new(K::argsort(self.primitive, dim, /*descending*/ false))
     }
@@ -173,6 +183,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -190,7 +201,8 @@ where
     ///    // [[0, 2, 1], [2, 0, 1]]
     /// }
     /// ```
-    pub fn argsort_descending(self, dim: usize) -> Tensor<D, Int> {
+    pub fn argsort_descending<I: AsIndex>(self, dim: I) -> Tensor<D, Int> {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::sort_dim::<D>("Argsort", dim));
         Tensor::new(K::argsort(self.primitive, dim, /*descending*/ true))
     }
@@ -200,6 +212,8 @@ where
     /// # Arguments
     ///
     /// * `k` - The number of elements to return.
+    /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -221,7 +235,8 @@ where
     ///   // [[12.0], [6.0]]
     /// }
     /// ```
-    pub fn topk(self, k: usize, dim: usize) -> Self {
+    pub fn topk<I: AsIndex>(self, k: usize, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         assert!(self.shape()[dim] > k);
         Tensor::new(K::topk(self.primitive, dim, k))
     }
@@ -233,6 +248,7 @@ where
     ///
     /// * `k` - The number of elements to return.
     /// * `dim` - The dimension to sort along.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -254,7 +270,8 @@ where
     ///    // [[0], [2]]
     /// }
     /// ```
-    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Self, Tensor<D, Int>) {
+    pub fn topk_with_indices<I: AsIndex>(self, k: usize, dim: I) -> (Self, Tensor<D, Int>) {
+        let dim = dim.expect_dim_index(D);
         let (values, indices) = K::topk_with_indices(self.primitive, dim, k);
         (Tensor::new(values), Tensor::new(indices))
     }

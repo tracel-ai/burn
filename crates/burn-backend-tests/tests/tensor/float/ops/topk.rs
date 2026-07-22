@@ -19,3 +19,16 @@ fn test_topk_with_indices_3d() {
 
     indices.into_data().assert_eq(&indices_expected, false);
 }
+
+#[test]
+fn test_topk_supports_negative_dim_float() {
+    let tensor =
+        TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
+
+    let values = tensor.topk(2, -1);
+    let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
+
+    values
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&values_expected, Tolerance::default());
+}
