@@ -15,10 +15,11 @@ backend implementations.
 
 ### Data types
 
-The element type used for a tensor is not encoded in the `Tensor` type. Instead, each device keeps a
-set of **default data types** that determine the width used when a tensor is created without an
-explicit dtype (for example with `Tensor::zeros`, `Tensor::ones` or `from_floats`). You can inspect
-the current defaults with [`Device::settings`](https://docs.rs/burn/latest/burn/tensor/struct.Device.html):
+A tensor has an element type, but unlike its `Float`/`Int`/`Bool` kind that type is a runtime
+property rather than a generic parameter on `Tensor`. When a tensor is created without an explicit
+dtype (for example with `Tensor::zeros`, `Tensor::ones` or `from_floats`), the element type comes
+from a set of **default data types** that each device keeps. You can inspect the current defaults
+with [`Device::settings`](https://docs.rs/burn/latest/burn/tensor/struct.Device.html):
 
 ```rust, ignore
 use burn::tensor::Device;
@@ -49,14 +50,24 @@ let floats = Tensor::<Backend, 2>::zeros([2, 3], &device);
 > `DeviceError::AlreadyInitialized` error instead of silently changing (or ignoring) the width.
 
 Because the default width is a per-device property, you cannot have two different default float widths
-active on the same device within a single process. If you need values at more than one precision, set
-the default once up front and create the other tensors with an explicit dtype instead, using
+active on the same device within a single process. If you need values at more than one precision,
+create the other tensors with an explicit dtype by passing a `(&device, dtype)` tuple as the creation
+options (this tuple is just a convenient conversion into
+[`TensorCreationOptions`](https://docs.rs/burn/latest/burn/tensor/struct.TensorCreationOptions.html)):
+
+```rust, ignore
+use burn::tensor::DType;
+
+// device defaults to f32
+let x = Tensor::<Backend, 2>::zeros([2, 3], &device);                   // f32
+let x_f64 = Tensor::<Backend, 2>::zeros([2, 3], (&device, DType::F64)); // explicit f64
+```
+
+To convert an *existing* tensor to another element type, use
 [`cast`](https://docs.rs/burn/latest/burn/tensor/struct.Tensor.html#method.cast):
 
 ```rust, ignore
-// device defaults to f32
-let x = Tensor::<Backend, 2>::zeros([2, 3], &device); // f32
-let x_f64 = x.cast(FloatDType::F64);                  // explicit f64
+let x_f64 = x.cast(FloatDType::F64); // convert the f32 tensor above to f64
 ```
 
 Burn Tensors are defined by the number of dimensions D in its declaration as opposed to its shape.
