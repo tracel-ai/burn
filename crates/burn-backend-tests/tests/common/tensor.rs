@@ -13,6 +13,9 @@ mod multi_threads;
 #[path = "../tensor/distributed.rs"]
 mod distributed;
 
+#[path = "../tensor/release_inplace.rs"]
+mod release_inplace;
+
 // Default float dtype
 #[path = "../tensor/float/mod.rs"]
 mod float;
