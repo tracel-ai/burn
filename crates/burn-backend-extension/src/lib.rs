@@ -922,34 +922,31 @@ fn gen_mixed_ad_arm(
                 };
             })
         }
-        // Struct: reconstruct `Struct<Autodiff<B>>`. The closure maps each field's dispatch kind to a
-        // `BackendTensor<Autodiff<B>>` — float fields carry the autodiff nesting, others stay plain.
+        // Struct/enum: reconstruct `Ty<Autodiff<B>>`. The closure pulls each field's `BackendTensor`
+        // out of its dispatch kind (float fields arrive autodiff-wrapped, others plain) and lifts it
+        // to `Autodiff<B>` via `into_autodiff`.
         ArgKind::Extension(ty) => {
             let n = &a.name;
             let ad_ty = struct_ty_with_param(ty, quote! { Autodiff<#b_ident> });
             Some(quote! {
                 let #n = <#ad_ty as burn::backend::ExtensionType<Autodiff<#b_ident>>>::map_from_dispatch(
                     #n,
-                    |kind| match kind {
-                        burn::backend::DispatchTensorKind::Autodiff(inner) => match *inner {
-                            burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Autodiff(t)) =>
-                                burn::backend::BackendTensor::Float(t),
+                    |kind| {
+                        let bt = match kind {
+                            burn::backend::DispatchTensorKind::Autodiff(inner) => match *inner {
+                                burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
+                                #[allow(unreachable_patterns)]
+                                _ => panic!(
+                                    "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                                ),
+                            },
+                            burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                             #[allow(unreachable_patterns)]
                             _ => panic!(
                                 "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
                             ),
-                        },
-                        burn::backend::DispatchTensorKind::#b_ident(bt) => match bt {
-                            burn::backend::BackendTensor::Int(t) => burn::backend::BackendTensor::Int(t),
-                            burn::backend::BackendTensor::Bool(t) => burn::backend::BackendTensor::Bool(t),
-                            burn::backend::BackendTensor::Quantized(t) => burn::backend::BackendTensor::Quantized(t),
-                            #[allow(unreachable_patterns)]
-                            _ => unreachable!("autodiff struct non-float field unexpected variant"),
-                        },
-                        #[allow(unreachable_patterns)]
-                        _ => panic!(
-                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
-                        ),
+                        };
+                        bt.into_autodiff()
                     },
                 );
             })
