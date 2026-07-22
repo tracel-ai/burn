@@ -10,11 +10,49 @@ use burn::backend::{
     Dispatch, ExtensionType, Remote, backend_extension,
     tensor::{FloatTensor, IntTensor},
 };
+// Autodiff is enabled transitively by the default features in this test build. Several traits below
+// list `Autodiff`, whose generated arms reference the bare `Autodiff` type.
+#[cfg(feature = "autodiff")]
+use burn::backend::Autodiff;
 
 #[derive(ExtensionType)]
 pub struct Pair<B: burn::backend::Backend> {
     pub a: FloatTensor<B>,
     pub b: IntTensor<B>,
+}
+
+// Tuple struct: exercises the derive's unnamed-field (positional) handling.
+#[derive(ExtensionType)]
+pub struct TupleInputs<B: burn::backend::Backend>(pub FloatTensor<B>, pub IntTensor<B>);
+
+// Enum input: a tensor-tuple variant, a named-fields variant, and a tensor-less unit variant. The
+// unit variant has no representative tensor, so `dispatch_repr`/`dispatch_float_repr` return `None`
+// for it and backend selection must defer to another input (or panic if there is none).
+#[derive(ExtensionType)]
+pub enum Operand<B: burn::backend::Backend> {
+    Dense(FloatTensor<B>),
+    Sparse {
+        values: FloatTensor<B>,
+        indices: IntTensor<B>,
+    },
+    Empty,
+}
+
+// Nested `#[extension_type]` field plus a non-tensor passthrough field, mirroring burn-vision's
+// `ConnectedStatsPrimitive`. Guards the derive's recursion and passthrough handling for the new
+// enum-capable codegen (used as both output and input below).
+#[derive(ExtensionType)]
+pub struct Coords<B: burn::backend::Backend> {
+    pub left: IntTensor<B>,
+    pub top: IntTensor<B>,
+}
+
+#[derive(ExtensionType)]
+pub struct Stats<B: burn::backend::Backend> {
+    pub area: IntTensor<B>,
+    #[extension_type]
+    pub coords: Coords<B>,
+    pub count: usize,
 }
 
 #[backend_extension(Remote)]
@@ -107,6 +145,73 @@ impl AdGatedBackend for burn::backend::Autodiff<Remote> {
     }
 }
 
+// Nested `#[extension_type]` struct as both an output and an input, with a passthrough field.
+#[backend_extension(Remote)]
+pub trait NestedBackend: burn::backend::Backend {
+    fn make_stats(x: FloatTensor<Self>) -> Stats<Self>;
+    fn use_stats(#[extension_type] s: Stats<Self>) -> IntTensor<Self>;
+}
+
+impl NestedBackend for Remote {
+    fn make_stats(_x: FloatTensor<Self>) -> Stats<Self> {
+        unimplemented!("stub")
+    }
+    fn use_stats(_s: Stats<Self>) -> IntTensor<Self> {
+        unimplemented!("stub")
+    }
+}
+
+#[test]
+fn nested_extension_type_dispatch_compiles() {
+    let _a: fn(FloatTensor<Dispatch>) -> Stats<Dispatch> = <Dispatch as NestedBackend>::make_stats;
+    let _b: fn(Stats<Dispatch>) -> IntTensor<Dispatch> = <Dispatch as NestedBackend>::use_stats;
+}
+
+// Enum and tuple-struct inputs, including mixing an enum with a bare tensor. Combined with
+// `Autodiff` to exercise the autodiff enum unwrap (per-variant, per-field float nesting).
+#[backend_extension(Autodiff, Remote)]
+pub trait EnumBackend: burn::backend::Backend {
+    fn use_operand(#[extension_type] op: Operand<Self>) -> FloatTensor<Self>;
+    fn use_tuple(#[extension_type] inp: TupleInputs<Self>) -> FloatTensor<Self>;
+    // Enum mixed with a bare tensor: if the enum lands on `Empty`, the backend is selected from `x`.
+    fn mix_enum(x: FloatTensor<Self>, #[extension_type] op: Operand<Self>) -> FloatTensor<Self>;
+}
+
+impl EnumBackend for Remote {
+    fn use_operand(_op: Operand<Self>) -> FloatTensor<Self> {
+        unimplemented!("stub")
+    }
+    fn use_tuple(_inp: TupleInputs<Self>) -> FloatTensor<Self> {
+        unimplemented!("stub")
+    }
+    fn mix_enum(_x: FloatTensor<Self>, _op: Operand<Self>) -> FloatTensor<Self> {
+        unimplemented!("stub")
+    }
+}
+
+#[cfg(feature = "autodiff")]
+impl EnumBackend for burn::backend::Autodiff<Remote> {
+    fn use_operand(_op: Operand<Self>) -> FloatTensor<Self> {
+        unimplemented!("would register the backward pass over the active variant's tracked fields")
+    }
+    fn use_tuple(_inp: TupleInputs<Self>) -> FloatTensor<Self> {
+        unimplemented!("stub")
+    }
+    fn mix_enum(_x: FloatTensor<Self>, _op: Operand<Self>) -> FloatTensor<Self> {
+        unimplemented!("stub")
+    }
+}
+
+#[test]
+fn enum_and_tuple_input_dispatch_compiles() {
+    // Enum input, tuple-struct input, and enum-mixed-with-bare-tensor input all expand into
+    // well-typed dispatch methods routing concrete `Remote` and autodiff `Autodiff<Remote>`.
+    let _a: fn(Operand<Dispatch>) -> FloatTensor<Dispatch> = <Dispatch as EnumBackend>::use_operand;
+    let _b: fn(TupleInputs<Dispatch>) -> FloatTensor<Dispatch> = <Dispatch as EnumBackend>::use_tuple;
+    let _c: fn(FloatTensor<Dispatch>, Operand<Dispatch>) -> FloatTensor<Dispatch> =
+        <Dispatch as EnumBackend>::mix_enum;
+}
+
 // A no-tensor-input op on a `cfg`-gated single backend. The backend is gated on
 // `cfg(not(feature = "remote"))`, which is always false in this `#![cfg(feature = "remote")]` test
 // build, so the backend is compiled out — exercising the macro's no-input + gated codegen path,
@@ -140,7 +245,6 @@ fn remote_backend_extension_gated_no_input_falls_back() {
 #[cfg(feature = "autodiff")]
 mod autodiff_struct_input {
     use super::*;
-    use burn::backend::Autodiff;
 
     #[backend_extension(Autodiff, Remote)]
     pub trait AdBackend: burn::backend::Backend {

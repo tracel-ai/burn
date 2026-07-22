@@ -58,14 +58,20 @@ pub trait ExtensionType<B: Backend> {
     where
         F: Fn(DispatchTensorKind) -> BackendTensor<B>;
 
-    /// Return a representative tensor field of the dispatch form.
+    /// Return a representative tensor of the dispatch form, of any kind, or `None` if this value
+    /// currently holds no tensor (e.g. an enum on a tensor-less variant).
     ///
-    /// A struct input carries no top-level [`DispatchTensor`] of its own, so the dispatch glue uses
-    /// this to (a) read the runtime backend tag (`.kind`) to select which backend arm to route to,
-    /// and (b) propagate the autodiff checkpointing strategy (`.checkpointing`) to the output.
+    /// A struct/enum input carries no top-level [`DispatchTensor`] of its own, so the dispatch glue
+    /// uses this to read the runtime backend tag (`.kind`) and propagate the autodiff checkpointing
+    /// strategy (`.checkpointing`). Recurses into nested `#[extension_type]` fields.
+    fn dispatch_repr(target: &Self::Target) -> Option<&DispatchTensor>;
+
+    /// Like [`dispatch_repr`](Self::dispatch_repr) but returns only a *float* tensor, or `None` if
+    /// there is none.
     ///
-    /// Prefers the first float field (the one that carries a checkpointing strategy when tracked),
-    /// falling back to the first tensor field of any kind, then recursing into the first nested
-    /// `#[extension_type]` field.
-    fn dispatch_repr(target: &Self::Target) -> &DispatchTensor;
+    /// The dispatch glue prefers a float representative because floats are the tensors that carry
+    /// autodiff tracking (so this decides whether the op routes to the autodiff arm) and the
+    /// checkpointing strategy. It falls back to [`dispatch_repr`](Self::dispatch_repr) only when no
+    /// float tensor exists anywhere in the inputs.
+    fn dispatch_float_repr(target: &Self::Target) -> Option<&DispatchTensor>;
 }

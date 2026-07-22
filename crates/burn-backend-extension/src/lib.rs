@@ -5,8 +5,8 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{
-    FnArg, GenericArgument, Ident, ItemStruct, ItemTrait, Meta, Pat, PathArguments, ReturnType,
-    Token, TraitItem, Type, TypeParamBound, parse_macro_input,
+    Data, DeriveInput, Fields, FnArg, GenericArgument, Ident, ItemTrait, Meta, Pat, PathArguments,
+    ReturnType, Token, TraitItem, Type, TypeParamBound, parse_macro_input,
 };
 
 /// # `backend_extension`
@@ -37,14 +37,17 @@ use syn::{
 /// backend still quantized — the op reads the packed values/scales directly instead
 /// of going through a dequantize).
 ///
-/// ### Struct-of-tensors inputs
+/// ### Struct / enum inputs
 ///
-/// A custom struct of tensor primitives (deriving [`ExtensionType`](macro@ExtensionType)) can be
-/// passed as an **input** by marking the argument with `#[extension_type]`:
+/// A custom struct or enum of tensor primitives (deriving [`ExtensionType`](macro@ExtensionType))
+/// can be passed as an **input** by marking the argument with `#[extension_type]`:
 ///
 /// ```rust,ignore
 /// #[derive(ExtensionType)]
 /// pub struct Inputs<B: Backend> { pub lhs: FloatTensor<B>, pub rhs: FloatTensor<B> }
+///
+/// #[derive(ExtensionType)]
+/// pub enum Operand<B: Backend> { Dense(FloatTensor<B>), Empty }
 ///
 /// #[backend_extension(Wgpu)]
 /// pub trait MyExtension: Backend {
@@ -52,11 +55,15 @@ use syn::{
 /// }
 /// ```
 ///
-/// The macro selects the backend from a representative tensor field of the struct and unwraps the
-/// dispatch form (`Inputs<Dispatch>`) back into the concrete `Inputs<Wgpu>` before calling the
-/// backend impl. Struct inputs may be freely mixed with bare tensor inputs, and several struct
-/// inputs are allowed, and the op may be combined with `Autodiff` (the op's own
+/// The macro unwraps the dispatch form (`Inputs<Dispatch>`) back into the concrete `Inputs<Wgpu>`
+/// before calling the backend impl. Such inputs may be freely mixed with bare tensor inputs and with
+/// each other (several are allowed), and the op may be combined with `Autodiff` (the op's own
 /// `impl ... for Autodiff<B>` hand-writes the backward pass, as for bare-tensor autodiff ops).
+///
+/// The backend is selected by walking the inputs at runtime for a representative tensor (preferring a
+/// float). Because an enum's tensors depend on its active variant, a tensor-less variant contributes
+/// no representative and the walk falls through to the next input; if no input carries any tensor the
+/// backend is unresolvable and the op panics.
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the backend list
@@ -177,9 +184,9 @@ enum TensorKind {
 #[allow(clippy::large_enum_variant)]
 enum ArgKind {
     Tensor(TensorKind),
-    // A custom struct of tensor primitives, marked `#[extension_type]` on the argument. Unwrapped
-    // back into the concrete backend's `Struct<B>` before the backend call via `ExtensionType`.
-    ExtensionStruct(Type),
+    // A custom struct or enum of tensor primitives, marked `#[extension_type]` on the argument.
+    // Unwrapped back into the concrete backend's `Ty<B>` before the backend call via `ExtensionType`.
+    Extension(Type),
     // Passthrough - unhandled by the macro
     Other(Type),
 }
@@ -337,15 +344,15 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                 Pat::Ident(p) => p.ident.clone(),
                 _ => return Err(syn::Error::new_spanned(&pt.pat, "Unsupported pattern")),
             };
-            // An argument annotated with `#[extension_type]` is a custom struct of tensor
+            // An argument annotated with `#[extension_type]` is a custom struct or enum of tensor
             // primitives (the input counterpart of the `#[derive(ExtensionType)]` output path).
             let is_ext = pt
                 .attrs
                 .iter()
                 .any(|attr| attr.path().is_ident("extension_type"));
             let kind = if is_ext {
-                validate_extension_struct_ty(&pt.ty)?;
-                ArgKind::ExtensionStruct((*pt.ty).clone())
+                validate_extension_ty(&pt.ty)?;
+                ArgKind::Extension((*pt.ty).clone())
             } else if let Some(k) = TensorKind::from_type(&pt.ty) {
                 ArgKind::Tensor(k)
             } else {
@@ -471,7 +478,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
                 }
                 // Keep the original `Struct<Self>` type. Inside `impl Trait for Dispatch`, `Self`
                 // resolves to `Dispatch`, so the incoming value is the dispatch form `Struct<Dispatch>`.
-                ArgKind::ExtensionStruct(ty) => quote! { #name: #ty },
+                ArgKind::Extension(ty) => quote! { #name: #ty },
                 ArgKind::Other(ty) => quote! { #name: #ty },
             }
         })
@@ -480,7 +487,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     let has_struct_input = op
         .inputs
         .iter()
-        .any(|a| matches!(a.kind, ArgKind::ExtensionStruct(_)));
+        .any(|a| matches!(a.kind, ArgKind::Extension(_)));
 
     let ret_ty = match &op.output {
         OperationOutput::Tensor(k) => k.to_primitive_ty(),
@@ -527,8 +534,8 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     };
 
     let body = if has_struct_input {
-        // At least one custom struct of tensors is passed as input (marked `#[extension_type]`).
-        // This path also covers mixing structs with bare tensors and multiple struct inputs.
+        // At least one custom struct/enum of tensors is passed as input (marked `#[extension_type]`).
+        // This path also covers mixing them with bare tensors and multiple such inputs.
         gen_mixed_dispatch_body(ir, op)
     } else if tensor_inputs.is_empty() {
         // No tensor input to select the backend from (e.g. `fn load_data(i: usize) -> FloatTensor`).
@@ -645,28 +652,31 @@ fn struct_ty_with_param(ty: &Type, param: TokenStream2) -> TokenStream2 {
 /// Validate the type of a `#[extension_type]`-marked argument, emitting a clear `compile_error!` for
 /// the common misuses instead of letting them surface as obscure trait/type errors deeper in codegen.
 ///
-/// The argument must be a struct with exactly one generic backend parameter (`MyStruct<Self>`), since
-/// [`struct_ty_with_param`] rewrites that single parameter to the backend when unwrapping. Marking a
-/// bare tensor, a non-path type, or a multi-parameter type is rejected here.
-fn validate_extension_struct_ty(ty: &Type) -> syn::Result<()> {
+/// The argument must be a struct or enum with exactly one generic backend parameter (`MyType<Self>`),
+/// since [`struct_ty_with_param`] rewrites that single parameter to the backend when unwrapping.
+/// Marking a bare tensor, a non-path type, or a multi-parameter type is rejected here.
+fn validate_extension_ty(ty: &Type) -> syn::Result<()> {
     if TensorKind::from_type(ty).is_some() {
         return Err(syn::Error::new_spanned(
             ty,
-            "`#[extension_type]` marks a struct of tensor primitives, not a tensor argument. Remove \
-             the attribute to pass a plain tensor.",
+            "`#[extension_type]` marks a struct or enum of tensor primitives, not a tensor argument. \
+             Remove the attribute to pass a plain tensor.",
         ));
     }
 
     let Type::Path(tp) = ty else {
         return Err(syn::Error::new_spanned(
             ty,
-            "`#[extension_type]` requires a struct type with a single generic backend parameter, e.g. \
-             `MyStruct<Self>`.",
+            "`#[extension_type]` requires a struct or enum type with a single generic backend \
+             parameter, e.g. `MyType<Self>`.",
         ));
     };
 
     let last = tp.path.segments.last().ok_or_else(|| {
-        syn::Error::new_spanned(ty, "`#[extension_type]` type must be a named struct")
+        syn::Error::new_spanned(
+            ty,
+            "`#[extension_type]` type must be a named struct or enum",
+        )
     })?;
     let type_args = match &last.arguments {
         PathArguments::AngleBracketed(args) => args
@@ -679,8 +689,8 @@ fn validate_extension_struct_ty(ty: &Type) -> syn::Result<()> {
     if type_args != 1 {
         return Err(syn::Error::new_spanned(
             ty,
-            "`#[extension_type]` struct must have exactly one generic backend parameter, e.g. \
-             `MyStruct<Self>`.",
+            "`#[extension_type]` type must have exactly one generic backend parameter, e.g. \
+             `MyType<Self>`.",
         ));
     }
 
@@ -717,28 +727,49 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
         .as_ref()
         .map(|meta| quote! { #[#meta] });
 
-    // Representative `DispatchTensor` expression: a bare tensor input itself, or a struct's
-    // representative field. Read twice below (for `.kind` selection and `.checkpointing`); both are
-    // cheap accessors whose borrows end within their statement, before any input is moved.
-    let repr_expr = op
-        .inputs
-        .iter()
-        .find_map(|a| match &a.kind {
-            ArgKind::Tensor(_) => {
-                let n = &a.name;
-                Some(quote! { #n })
-            }
-            ArgKind::ExtensionStruct(ty) => {
-                let n = &a.name;
-                let target_ty = struct_ty_with_param(ty, quote! { burn::backend::Dispatch });
-                Some(quote! {
-                    <#target_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::dispatch_repr(&#n)
-                })
-            }
-            ArgKind::Other(_) => None,
-        })
-        // Only ever reached when a struct input exists, so a representative is always present.
-        .expect("mixed dispatch requires at least one tensor-ish input");
+    // Backend selection walks all inputs at runtime, preferring a *float* tensor (floats carry the
+    // autodiff tracking that decides the concrete-vs-autodiff arm, and the checkpointing strategy)
+    // and falling back to any tensor. `dispatch_repr` / `dispatch_float_repr` recurse into structs
+    // and enums and return `None` for a tensor-less value (e.g. an enum on a tensor-less variant),
+    // so the walk simply defers to the next input. If no input carries a tensor at runtime the
+    // backend is unresolvable and the op panics.
+    let repr_option = |float_only: bool| -> Vec<TokenStream2> {
+        op.inputs
+            .iter()
+            .filter_map(|a| match &a.kind {
+                ArgKind::Tensor(k) => {
+                    if float_only && *k != TensorKind::Float {
+                        return None;
+                    }
+                    let n = &a.name;
+                    Some(quote! { Some(&#n) })
+                }
+                ArgKind::Extension(ty) => {
+                    let n = &a.name;
+                    let target_ty = struct_ty_with_param(ty, quote! { burn::backend::Dispatch });
+                    let method = if float_only {
+                        quote! { dispatch_float_repr }
+                    } else {
+                        quote! { dispatch_repr }
+                    };
+                    Some(quote! {
+                        <#target_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::#method(&#n)
+                    })
+                }
+                ArgKind::Other(_) => None,
+            })
+            .collect()
+    };
+    // Chain the per-input options lazily: the first `Some` wins, later `dispatch_repr` calls run only
+    // if earlier inputs had no tensor.
+    let chain = |opts: Vec<TokenStream2>| -> TokenStream2 {
+        match opts.split_first() {
+            None => quote! { Option::<&burn::backend::DispatchTensor>::None },
+            Some((first, rest)) => quote! { #first #( .or_else(|| #rest) )* },
+        }
+    };
+    let float_chain = chain(repr_option(true));
+    let any_chain = chain(repr_option(false));
 
     // Tag arms fold the representative kind into `(is_autodiff, backend_index)`. cfg-gated backends
     // drop the same arm from both the tag match and the dispatch match, keeping indices aligned.
@@ -813,12 +844,24 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
     };
 
     quote! {
-        let checkpointing = #repr_expr.checkpointing.clone();
-        let __burn_backend_tag: (bool, usize) = match &#repr_expr.kind {
-            #ad_tag_arm
-            #( #concrete_tag_arms )*
-            #[allow(unreachable_patterns)]
-            _ => (false, usize::MAX),
+        // Compute the checkpointing strategy and backend tag in a scoped block so the representative's
+        // borrow of the inputs ends before the dispatch arms below move them.
+        let (checkpointing, __burn_backend_tag): (
+            Option<burn::backend::CheckpointingStrategy>,
+            (bool, usize),
+        ) = {
+            let __repr: &burn::backend::DispatchTensor = (#float_chain)
+                .or_else(|| #any_chain)
+                .expect("backend extension op received no tensor input to select a backend from (e.g. an enum input on a tensor-less variant with no other tensor input)");
+            (
+                __repr.checkpointing.clone(),
+                match &__repr.kind {
+                    #ad_tag_arm
+                    #( #concrete_tag_arms )*
+                    #[allow(unreachable_patterns)]
+                    _ => (false, usize::MAX),
+                },
+            )
         };
         match __burn_backend_tag {
             #( #concrete_call_arms )*
@@ -881,7 +924,7 @@ fn gen_mixed_ad_arm(
         }
         // Struct: reconstruct `Struct<Autodiff<B>>`. The closure maps each field's dispatch kind to a
         // `BackendTensor<Autodiff<B>>` — float fields carry the autodiff nesting, others stay plain.
-        ArgKind::ExtensionStruct(ty) => {
+        ArgKind::Extension(ty) => {
             let n = &a.name;
             let ad_ty = struct_ty_with_param(ty, quote! { Autodiff<#b_ident> });
             Some(quote! {
@@ -1005,7 +1048,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
         }
         // Reconstruct `Struct<B>` from the incoming `Struct<Dispatch>` by unwrapping each tensor
         // field into this backend's `BackendTensor`. Inverse of the `map_to_dispatch` output path.
-        ArgKind::ExtensionStruct(ty) => {
+        ArgKind::Extension(ty) => {
             let name = &a.name;
             let b_ty = struct_ty_with_param(ty, quote! { #b_ident });
             Some(quote! {
@@ -1152,25 +1195,202 @@ fn gen_tensor_wrap(
     }
 }
 
-/// Derive macro to implement `ExtensionType` for custom structures returned by backend extensions.
-///
-/// When a custom backend extension operation needs to return multiple tensors or a mix of tensors
-/// and metadata (instead of a single tensor primitive or container of primitives), this macro automates
-/// the process of wrapping the tensor primitives so they can cross the boundary into the `Dispatch` backend.
+/// Field layout of a struct or a single enum variant.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CaseStyle {
+    Named,
+    Unnamed,
+    Unit,
+}
+
+/// One derive "case": a struct is a single case; an enum contributes one case per variant. Unifies
+/// struct and enum handling — the generated methods are a `match` over cases (trivial for a struct).
+struct DeriveCase {
+    /// Path to match / construct, e.g. `Name` or `Name::Variant`.
+    path: TokenStream2,
+    style: CaseStyle,
+    fields: Vec<CaseField>,
+}
+
+struct CaseField {
+    /// Synthesized binding (`__ext_f{i}`), used for both named and tuple fields so the bindings never
+    /// collide with method params like `map_kind` / `checkpointing`.
+    bind: Ident,
+    /// Field name for named fields; `None` for tuple fields (constructed positionally).
+    member: Option<Ident>,
+    ty: Type,
+    is_ext: bool,
+    tensor_kind: Option<TensorKind>,
+}
+
+fn build_case(path: TokenStream2, fields: &Fields) -> DeriveCase {
+    let (style, raw): (CaseStyle, Vec<&syn::Field>) = match fields {
+        Fields::Named(f) => (CaseStyle::Named, f.named.iter().collect()),
+        Fields::Unnamed(f) => (CaseStyle::Unnamed, f.unnamed.iter().collect()),
+        Fields::Unit => (CaseStyle::Unit, Vec::new()),
+    };
+    let fields = raw
+        .iter()
+        .enumerate()
+        .map(|(i, f)| CaseField {
+            bind: format_ident!("__ext_f{}", i),
+            member: f.ident.clone(),
+            ty: f.ty.clone(),
+            is_ext: f.attrs.iter().any(|a| a.path().is_ident("extension_type")),
+            tensor_kind: TensorKind::from_type(&f.ty),
+        })
+        .collect();
+    DeriveCase {
+        path,
+        style,
+        fields,
+    }
+}
+
+fn collect_cases(input: &DeriveInput) -> syn::Result<Vec<DeriveCase>> {
+    let name = &input.ident;
+    match &input.data {
+        Data::Struct(s) => Ok(vec![build_case(quote! { #name }, &s.fields)]),
+        Data::Enum(e) => Ok(e
+            .variants
+            .iter()
+            .map(|v| {
+                let vident = &v.ident;
+                build_case(quote! { #name::#vident }, &v.fields)
+            })
+            .collect()),
+        Data::Union(_) => Err(syn::Error::new_spanned(
+            name,
+            "ExtensionType cannot be derived for unions",
+        )),
+    }
+}
+
+/// Destructuring pattern binding the fields for which `needed(i)` is true and `_`-ignoring the rest.
+/// The same pattern serves an owned scrutinee (`self` / `target`) and a reference (`&target`); match
+/// ergonomics binds by reference in the latter.
+fn gen_case_pattern(case: &DeriveCase, needed: impl Fn(usize) -> bool) -> TokenStream2 {
+    let path = &case.path;
+    match case.style {
+        CaseStyle::Unit => quote! { #path },
+        CaseStyle::Named => {
+            let entries = case.fields.iter().enumerate().map(|(i, f)| {
+                let member = f.member.as_ref().expect("named field has an ident");
+                if needed(i) {
+                    let bind = &f.bind;
+                    quote! { #member: #bind }
+                } else {
+                    quote! { #member: _ }
+                }
+            });
+            quote! { #path { #( #entries ),* } }
+        }
+        CaseStyle::Unnamed => {
+            let entries = case.fields.iter().enumerate().map(|(i, f)| {
+                if needed(i) {
+                    let bind = &f.bind;
+                    quote! { #bind }
+                } else {
+                    quote! { _ }
+                }
+            });
+            quote! { #path ( #( #entries ),* ) }
+        }
+    }
+}
+
+/// Reconstruct the case from one transformed expression per field (same order as `case.fields`).
+fn gen_case_ctor(case: &DeriveCase, exprs: &[TokenStream2]) -> TokenStream2 {
+    let path = &case.path;
+    match case.style {
+        CaseStyle::Unit => quote! { #path },
+        CaseStyle::Named => {
+            let entries = case.fields.iter().zip(exprs).map(|(f, e)| {
+                let member = f.member.as_ref().expect("named field has an ident");
+                quote! { #member: #e }
+            });
+            quote! { #path { #( #entries ),* } }
+        }
+        CaseStyle::Unnamed => quote! { #path ( #( #exprs ),* ) },
+    }
+}
+
+/// One `dispatch_repr` / `dispatch_float_repr` match arm for a case: bind only the field(s) the
+/// representative needs and return an `Option<&DispatchTensor>`. Prefers a float tensor field, then
+/// (unless `float_only`) any tensor field, then chains over nested `#[extension_type]` fields.
+fn gen_repr_arm(case: &DeriveCase, float_only: bool) -> TokenStream2 {
+    let float_i = case
+        .fields
+        .iter()
+        .position(|f| !f.is_ext && f.tensor_kind == Some(TensorKind::Float));
+    let any_i = case
+        .fields
+        .iter()
+        .position(|f| !f.is_ext && f.tensor_kind.is_some());
+    let ext_is: Vec<usize> = case
+        .fields
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.is_ext)
+        .map(|(i, _)| i)
+        .collect();
+    let method = if float_only {
+        format_ident!("dispatch_float_repr")
+    } else {
+        format_ident!("dispatch_repr")
+    };
+
+    let (needed, expr): (Vec<usize>, TokenStream2) = if let Some(i) = float_i {
+        let bind = &case.fields[i].bind;
+        (vec![i], quote! { Some(#bind) })
+    } else if let Some(i) = any_i.filter(|_| !float_only) {
+        let bind = &case.fields[i].bind;
+        (vec![i], quote! { Some(#bind) })
+    } else if !ext_is.is_empty() {
+        let calls = ext_is.iter().map(|&i| {
+            let bind = &case.fields[i].bind;
+            let dispatch_ty = struct_ty_with_param(&case.fields[i].ty, quote! { burn::backend::Dispatch });
+            quote! { .or_else(|| <#dispatch_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::#method(#bind)) }
+        });
+        (
+            ext_is.clone(),
+            quote! { Option::<&burn::backend::DispatchTensor>::None #( #calls )* },
+        )
+    } else {
+        (
+            Vec::new(),
+            quote! { Option::<&burn::backend::DispatchTensor>::None },
+        )
+    };
+
+    let pattern = gen_case_pattern(case, |i| needed.contains(&i));
+    quote! { #pattern => #expr, }
+}
+
+/// Derive macro to implement `ExtensionType` for custom structs and enums of tensor primitives,
+/// letting them cross the `Dispatch` boundary as backend extension operation inputs or outputs.
 ///
 /// # Requirements
 ///
-/// - The struct must have named fields.
-/// - The struct must be generic over a `Backend` type parameter (`B`).
+/// - Applies to a `struct` (named or tuple fields) or an `enum` (any mix of named/tuple/unit
+///   variants). Unions are unsupported.
+/// - The type must be generic over a single `Backend` type parameter named `B`.
 ///
-/// # Field Attributes
+/// # Field attributes
 ///
-/// By default, the macro inspects the type of each field:
-/// - **Tensor Primitives**: Automatically mapped.
-/// - **Other types**: Passed through unmodified.
+/// Each field is inspected by type:
+/// - **Tensor primitives** (`FloatTensor<B>`, `IntTensor<B>`, ...): mapped automatically.
+/// - **Other types**: passed through unmodified.
 ///
-/// To nest another custom struct that also implements `ExtensionType`, you must annotate it with
-/// `#[extension_type]` to tell the macro to traverse it recursively.
+/// To nest another `ExtensionType` struct/enum, annotate the field with `#[extension_type]` so the
+/// macro traverses it recursively.
+///
+/// # Backend selection for inputs
+///
+/// When used as an input, the dispatch glue selects the backend from a representative tensor. For an
+/// enum this depends on the active variant, and a tensor-less variant (or unit variant) yields no
+/// representative — the glue then walks the op's other inputs. If no input carries a tensor at
+/// runtime the backend is unresolvable and the op panics.
 ///
 /// # Example
 ///
@@ -1179,127 +1399,84 @@ fn gen_tensor_wrap(
 /// pub struct OperationOutput<B: Backend> {
 ///     pub bool: BoolTensor<B>,
 ///     pub int: IntTensor<B>,
-///     pub float: FloaTensor<B>,
+///     pub float: FloatTensor<B>,
 ///     pub count: usize, // Non-tensor field passes through automatically
+/// }
+///
+/// #[derive(ExtensionType)]
+/// pub enum Input<B: Backend> {
+///     Dense(FloatTensor<B>),
+///     Sparse { values: FloatTensor<B>, indices: IntTensor<B> },
 /// }
 /// ```
 #[proc_macro_derive(ExtensionType, attributes(extension_type))]
 pub fn derive_extension_output(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as ItemStruct);
+    let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
-
-    // Extract generics for the trait implementation block
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let fields_wrap = match &input.fields {
-        syn::Fields::Named(fields) => {
-            let field_mappings = fields.named.iter().map(|f| {
-                let f_name = &f.ident;
-                let is_ext = f.attrs.iter().any(|attr| attr.path().is_ident("extension_type"));
 
-                if is_ext {
-                    // It's a nested extension type
+    let cases = match collect_cases(&input) {
+        Ok(cases) => cases,
+        Err(err) => return err.to_compile_error().into(),
+    };
+
+    // `map_to_dispatch`: wrap every field's concrete primitive into a `DispatchTensor`.
+    let wrap_arms = cases.iter().map(|case| {
+        let pattern = gen_case_pattern(case, |_| true);
+        let exprs: Vec<_> = case
+            .fields
+            .iter()
+            .map(|f| {
+                let bind = &f.bind;
+                if f.is_ext {
+                    quote! { #bind.map_to_dispatch(&map_kind, checkpointing) }
+                } else if let Some(kind) = f.tensor_kind {
+                    let variant = kind.variant();
                     quote! {
-                        #f_name: self.#f_name.map_to_dispatch(
-                            &map_kind,
-                            checkpointing
-                        ),
-                    }
-                }
-                else if let Some(tensor_kind) = TensorKind::from_type(&f.ty) {
-                    // Tensor primitive
-                    let variant_ident = tensor_kind.variant();
-                    quote! {
-                        #f_name: burn::backend::DispatchTensor {
-                            kind: map_kind(burn::backend::BackendTensor::#variant_ident(self.#f_name)),
+                        burn::backend::DispatchTensor {
+                            kind: map_kind(burn::backend::BackendTensor::#variant(#bind)),
                             checkpointing,
-                        },
+                        }
                     }
                 } else {
-                    // Passthrough
-                    quote! { #f_name: self.#f_name, }
+                    quote! { #bind }
                 }
-             });
+            })
+            .collect();
+        let ctor = gen_case_ctor(case, &exprs);
+        quote! { #pattern => #ctor, }
+    });
 
-            quote! { #name { #( #field_mappings )* } }
-        }
-        _ => panic!("ExtensionType derive only supports structs with named fields"),
-    };
-
-    // Reverse of `fields_wrap`: rebuild `Struct<B>` from the incoming `Struct<Dispatch>` (`target`).
-    let fields_unwrap = match &input.fields {
-        syn::Fields::Named(fields) => {
-            let field_mappings = fields.named.iter().map(|f| {
-                let f_name = &f.ident;
-                let is_ext = f.attrs.iter().any(|attr| attr.path().is_ident("extension_type"));
-
-                if is_ext {
-                    // Nested extension type: recurse with the same unwrap closure.
-                    quote! {
-                        #f_name: burn::backend::ExtensionType::map_from_dispatch(target.#f_name, &unwrap_kind),
-                    }
-                } else if let Some(tensor_kind) = TensorKind::from_type(&f.ty) {
-                    // Tensor primitive: unwrap the DispatchTensor kind, then pull out the concrete
-                    // primitive with the accessor matching this field's kind (`.float()`, ...).
-                    let method = tensor_kind.unwrap_method();
-                    quote! {
-                        #f_name: unwrap_kind(target.#f_name.kind).#method(),
-                    }
+    // `map_from_dispatch`: reverse of `wrap_arms`, recovering each concrete primitive.
+    let unwrap_arms = cases.iter().map(|case| {
+        let pattern = gen_case_pattern(case, |_| true);
+        let exprs: Vec<_> = case
+            .fields
+            .iter()
+            .map(|f| {
+                let bind = &f.bind;
+                if f.is_ext {
+                    quote! { burn::backend::ExtensionType::map_from_dispatch(#bind, &unwrap_kind) }
+                } else if let Some(kind) = f.tensor_kind {
+                    let method = kind.unwrap_method();
+                    quote! { unwrap_kind(#bind.kind).#method() }
                 } else {
-                    // Passthrough
-                    quote! { #f_name: target.#f_name, }
+                    quote! { #bind }
                 }
-            });
+            })
+            .collect();
+        let ctor = gen_case_ctor(case, &exprs);
+        quote! { #pattern => #ctor, }
+    });
 
-            quote! { #name { #( #field_mappings )* } }
-        }
-        _ => unreachable!("named-fields check already happened above"),
-    };
-
-    // Representative field: identifies the backend (`.kind`) and carries the checkpointing strategy
-    // (`.checkpointing`). Prefer the first float field (the tracked one under autodiff), then any
-    // tensor field, then recurse into the first nested `#[extension_type]` field.
-    let dispatch_repr_expr = match &input.fields {
-        syn::Fields::Named(fields) => {
-            let is_plain_tensor = |f: &&syn::Field| {
-                !f.attrs
-                    .iter()
-                    .any(|attr| attr.path().is_ident("extension_type"))
-                    && TensorKind::from_type(&f.ty).is_some()
-            };
-            let first_float = fields.named.iter().find(|f| {
-                is_plain_tensor(f) && TensorKind::from_type(&f.ty) == Some(TensorKind::Float)
-            });
-            let repr = first_float.or_else(|| fields.named.iter().find(is_plain_tensor));
-            if let Some(f) = repr {
-                let f_name = &f.ident;
-                quote! { &target.#f_name }
-            } else if let Some(f) = fields.named.iter().find(|f| {
-                f.attrs
-                    .iter()
-                    .any(|attr| attr.path().is_ident("extension_type"))
-            }) {
-                let f_name = &f.ident;
-                quote! { burn::backend::ExtensionType::dispatch_repr(&target.#f_name) }
-            } else {
-                // No tensor or nested field to represent the struct. This only matters when the
-                // struct is used as an *input* (where the dispatch glue calls `dispatch_repr` to
-                // select a backend); an output-only struct never calls it. So panic at runtime rather
-                // than `compile_error!`, which would otherwise break valid output-only structs.
-                quote! {
-                    {
-                        let _ = target;
-                        panic!("an ExtensionType struct used as a backend extension input must contain at least one tensor field to select the backend from")
-                    }
-                }
-            }
-        }
-        _ => unreachable!("named-fields check already happened above"),
-    };
+    let any_repr_arms = cases.iter().map(|case| gen_repr_arm(case, false));
+    let float_repr_arms = cases.iter().map(|case| gen_repr_arm(case, true));
 
     TokenStream::from(quote! {
         impl #impl_generics burn::backend::ExtensionType<B> for #name #ty_generics #where_clause {
             type Target = #name<burn::backend::Dispatch>;
 
+            #[allow(unused_variables)]
             fn map_to_dispatch<F>(
                 self,
                 map_kind: F,
@@ -1308,18 +1485,23 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
             where
                 F: Fn(burn::backend::BackendTensor<B>) -> burn::backend::DispatchTensorKind,
             {
-                #fields_wrap
+                match self { #( #wrap_arms )* }
             }
 
+            #[allow(unused_variables)]
             fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
             where
                 F: Fn(burn::backend::DispatchTensorKind) -> burn::backend::BackendTensor<B>,
             {
-                #fields_unwrap
+                match target { #( #unwrap_arms )* }
             }
 
-            fn dispatch_repr(target: &Self::Target) -> &burn::backend::DispatchTensor {
-                #dispatch_repr_expr
+            fn dispatch_repr(target: &Self::Target) -> Option<&burn::backend::DispatchTensor> {
+                match target { #( #any_repr_arms )* }
+            }
+
+            fn dispatch_float_repr(target: &Self::Target) -> Option<&burn::backend::DispatchTensor> {
+                match target { #( #float_repr_arms )* }
             }
         }
     })
