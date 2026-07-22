@@ -1,6 +1,7 @@
 pub use super::*; // re-export test types
 
 mod clone_invariance;
+mod release_inplace;
 #[cfg(feature = "distributed")]
 mod distributed;
 #[cfg(feature = "std")]
