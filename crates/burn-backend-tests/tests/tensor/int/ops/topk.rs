@@ -56,3 +56,15 @@ fn test_topk() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
+
+#[test]
+fn test_topk_with_indices_supports_negative_dim_int() {
+    let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 7]]]);
+
+    let (values, indices) = tensor.topk_with_indices(2, -1);
+    let values_expected = TensorData::from([[[7, 4], [6, 5]], [[9, 3], [8, 7]]]);
+    values.into_data().assert_eq(&values_expected, false);
+
+    let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
+    indices.into_data().assert_eq(&indices_expected, false);
+}
