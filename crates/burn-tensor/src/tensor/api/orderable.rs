@@ -1018,6 +1018,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative minimum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -1035,7 +1036,8 @@ where
     ///    // [[3.0, 3.0, 2.0], [4.0, 1.0, 1.0]]
     /// }
     /// ```
-    pub fn cummin(self, dim: usize) -> Self {
+    pub fn cummin<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::aggregate_dim::<D>("CumMin", dim));
         Self::new(K::cummin(self.primitive, dim))
     }
@@ -1045,6 +1047,7 @@ where
     /// # Arguments
     ///
     /// * `dim` - The dimension or axis along which to compute the cumulative maximum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -1062,7 +1065,8 @@ where
     ///    // [[3.0, 3.0, 3.0], [4.0, 5.0, 5.0]]
     /// }
     /// ```
-    pub fn cummax(self, dim: usize) -> Self {
+    pub fn cummax<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::aggregate_dim::<D>("CumMax", dim));
         Self::new(K::cummax(self.primitive, dim))
     }
