@@ -73,11 +73,10 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
             .entries_numeric
             .into_iter()
             .for_each(|numeric_update| {
-                let state = match numeric_update.numeric_entry {
-                    Some(value) => MetricState::Numeric(numeric_update.entry, value),
-                    None => MetricState::Generic(numeric_update.entry),
-                };
-                self.renderer.update_train(state)
+                self.renderer.update_train(MetricState::Numeric(
+                    numeric_update.entry,
+                    numeric_update.numeric_entry,
+                ))
             });
     }
 
@@ -94,11 +93,10 @@ impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
             .entries_numeric
             .into_iter()
             .for_each(|numeric_update| {
-                let state = match numeric_update.numeric_entry {
-                    Some(value) => MetricState::Numeric(numeric_update.entry, value),
-                    None => MetricState::Generic(numeric_update.entry),
-                };
-                self.renderer.update_valid(state)
+                self.renderer.update_valid(MetricState::Numeric(
+                    numeric_update.entry,
+                    numeric_update.numeric_entry,
+                ))
             });
     }
 }

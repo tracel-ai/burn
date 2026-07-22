@@ -187,6 +187,26 @@ pub struct SerializedEntry {
     pub serialized: String,
 }
 
+impl SerializedEntry {
+    /// Canonical sentinel string for metric values that have no batch-level computation.
+    pub const NOT_AVAILABLE: &'static str = "N/A";
+
+    /// Convenience helper for standard placeholder entries when no valid data is ready.
+    pub fn not_available(unit: Option<&str>) -> Self {
+        let na = Self::NOT_AVAILABLE;
+        let formatted = match unit {
+            Some(u) => format!("epoch {na} {u} - batch {na} {u}"),
+            None => format!("epoch {na} - batch {na}"),
+        };
+        Self::new(formatted, na.to_string())
+    }
+
+    /// Returns whether this entry represents an un-serializable/skipped placeholder.
+    pub fn is_not_available(&self) -> bool {
+        self.serialized == Self::NOT_AVAILABLE || self.serialized.is_empty()
+    }
+}
+
 /// Data type that contains the current state of a metric at a given time.
 #[derive(Debug, Clone)]
 pub struct MetricEntry {

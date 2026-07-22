@@ -182,6 +182,11 @@ impl FileMetricLogger {
 
 impl FileMetricLogger {
     fn log_item(&mut self, item: &MetricEntry, epoch: Option<usize>, split: &Split) {
+        // Skip writing placeholders to disk for global-only metrics
+        if item.serialized_entry.is_not_available() {
+            return;
+        }
+
         let name = &self.metric_definitions.get(&item.metric_id).unwrap().name;
         let key = logger_key(name, split);
         let value = &item.serialized_entry.serialized;
@@ -220,12 +225,12 @@ impl MetricLogger for FileMetricLogger {
         let entries: Vec<_> = update
             .entries
             .iter()
-            .chain(update.entries_numeric.iter().map(|numeric_update| {
-                if let Some(NumericEntry::Final(_)) = numeric_update.running_entry {
-                    log::info!("[FileMetricLogger] final entry {:?}", numeric_update.entry);
-                }
-                &numeric_update.entry
-            }))
+            .chain(
+                update
+                    .entries_numeric
+                    .iter()
+                    .map(|numeric_update| &numeric_update.entry),
+            )
             .cloned()
             .collect();
 

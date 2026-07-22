@@ -156,13 +156,14 @@ impl<const D: usize> Metric for DiceMetric<D> {
             (2.0 * intersection_val + epsilon) / (outputs_sum_val + targets_sum_val + epsilon);
 
         self.state.update(dice, batch_size);
-        self.compute()
+        self.state
+            .compute_update(FormatOptions::new(self.name()).precision(4))
     }
 
     // TODO: Dice should be using a state similar to precision & recall (accumulate state for epoch-level compute)
     fn compute(&mut self) -> SerializedEntry {
         self.state
-            .compute(FormatOptions::new(self.name()).precision(4))
+            .compute_final(FormatOptions::new(self.name()).precision(4))
     }
 
     /// Clears the metric state.
@@ -187,6 +188,10 @@ impl<const D: usize> crate::metric::Numeric for DiceMetric<D> {
 
     fn running_value(&self) -> Option<crate::metric::NumericEntry> {
         Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> crate::metric::NumericEntry {
+        self.state.final_value()
     }
 }
 

@@ -90,16 +90,10 @@ impl NumericMetricsState {
     }
 
     /// Push a new value for the metric with the given name.
-    pub(crate) fn push(&mut self, tag: TuiTag, name: MetricName, data: NumericEntry) {
-        if matches!(data, NumericEntry::Final(_)) {
-            log::info!(
-                "[FINAL] push final metric value for {name} ({:?})",
-                tag.split
-            );
-        }
+    pub(crate) fn push(&mut self, tag: TuiTag, name: MetricName, data: Option<NumericEntry>) {
         self.register(name.clone());
         let (recent, full) = self.data.get_mut(name.as_ref()).unwrap();
-        recent.push(tag.clone(), data.current());
+        recent.push(tag.clone(), data.clone());
         full.push(tag, data);
     }
 

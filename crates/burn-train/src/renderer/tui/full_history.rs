@@ -59,7 +59,8 @@ impl FullHistoryPlot {
     }
 
     /// Register a training data point.
-    pub(crate) fn push(&mut self, tag: TuiTag, data: NumericEntry) {
+    pub(crate) fn push(&mut self, tag: TuiTag, data: Option<NumericEntry>) {
+        let x_current = self.next_x_state as f64;
         let points = match self.points.get_mut(&tag) {
             Some(val) => val,
             None => {
@@ -74,24 +75,25 @@ impl FullHistoryPlot {
             }
         };
 
-        // TODO: hmmm I think the next_x_state might be incorrect if we only ever increment it when an entry
-        // is logged (at least, compared to other numeric entries). TBD.
+        match data {
+            Some(y) => {
+                // If we already have batch points registered, ignore this for the line graph
+                // to prevent an N+1 visual step artifact.
+                if let NumericEntry::Final(val) = y
+                    && !points.points.is_empty()
+                {
+                    points.set_final(val);
+                    return;
+                }
 
-        // If we already have batch points registered, ignore this for the line graph
-        // to prevent an N+1 visual step artifact.
-        if let NumericEntry::Final(val) = data
-            && !points.points.is_empty()
-        {
-            log::info!("[FullHistoryPlot] set_final {val}");
-            points.set_final(val);
-            return;
+                self.next_x_state += 1;
+                points.push((x_current, y));
+            }
+            None => {
+                // Null step -> advance X to keep step alignment across metrics
+                self.next_x_state += 1;
+            }
         }
-
-        // let x_current = self.next_x();
-        let x_current = self.next_x_state as f64;
-        self.next_x_state += 1;
-
-        points.push((x_current, data));
 
         self.update_bounds();
     }
@@ -129,11 +131,6 @@ impl FullHistoryPlot {
             y_min = f64::min(y_min, points.min_y);
             y_max = f64::max(y_max, points.max_y);
         }
-
-        log::info!(
-            "[FullHistoryPlot] update_bounds ({x_min}, {x_max}) | x_current={}",
-            self.next_x_state - 1
-        );
 
         self.axes.update_bounds((x_min, x_max), (y_min, y_max));
     }
@@ -201,6 +198,7 @@ impl FullHistoryPoints {
     }
 
     fn set_final(&mut self, val: f64) {
+        // Final value does not affect plot points, but should affect the bar graph
         self.avg_sum = val;
         self.avg_counter = 1.0;
     }
@@ -288,10 +286,10 @@ mod tests {
         chart.update_max_sample(tag_valid.split, 0.6);
 
         for i in 0..100 {
-            chart.push(tag_train.clone(), NumericEntry::Value(i as f64));
+            chart.push(tag_train.clone(), Some(NumericEntry::Value(i as f64)));
         }
         for i in 0..60 {
-            chart.push(tag_valid.clone(), NumericEntry::Value(i as f64));
+            chart.push(tag_valid.clone(), Some(NumericEntry::Value(i as f64)));
         }
 
         let expected_train = vec![
@@ -316,5 +314,53 @@ mod tests {
             expected_valid,
             "Expected valid data points"
         );
+    }
+
+    #[test]
+    fn test_points_with_none_gaps() {
+        let mut chart = FullHistoryPlot::new(10);
+        let tag_train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+
+        // Push 3 gap (None) steps -> should advance X ticks without adding points
+        chart.push(tag_train.clone(), None);
+        chart.push(tag_train.clone(), None);
+        chart.push(tag_train.clone(), None);
+
+        // Push valid point -> should land at X = 3.0
+        chart.push(tag_train.clone(), Some(NumericEntry::Value(10.0)));
+
+        let points = &chart.points.get(&tag_train).unwrap().points;
+
+        // The line plot should only hold 1 actual coordinate
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0], (3.0, 10.0));
+        assert_eq!(chart.next_x_state, 4);
+    }
+
+    #[test]
+    fn test_points_final_ignored_when_points_exist() {
+        let mut chart = FullHistoryPlot::new(10);
+        let tag_train = TuiTag::new(TuiSplit::Train, TuiGroup::Default);
+
+        // Push two normal batch points
+        chart.push(tag_train.clone(), Some(NumericEntry::Value(1.0))); // X = 0.0
+        chart.push(tag_train.clone(), Some(NumericEntry::Value(2.0))); // X = 1.0
+
+        let expected_points = vec![(0.0, 1.0), (1.0, 2.0)];
+        assert_eq!(chart.next_x_state, 2);
+        assert_eq!(
+            chart.points.get(&tag_train).unwrap().points,
+            expected_points
+        );
+
+        // Push Final entry -> should update `final_value` but NOT advance next_x_state or add to points
+        chart.push(tag_train.clone(), Some(NumericEntry::Final(1.5)));
+        assert_eq!(chart.next_x_state, 2); // X state remains 2
+        let history = chart.points.get(&tag_train).unwrap();
+        assert_eq!(history.points.len(), 2);
+        assert_eq!(history.points, expected_points);
+        // The avg sum and counters are overwritten (used in bar graph)
+        assert_eq!(history.avg_sum, 1.5);
+        assert_eq!(history.avg_counter, 1.0);
     }
 }

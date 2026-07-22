@@ -6,7 +6,6 @@ use super::{
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::FormatOptions,
 };
-use burn_core::prelude::Tensor;
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The Precision Metric
@@ -83,23 +82,6 @@ impl PrecisionMetric {
             ..Default::default()
         }
     }
-
-    fn class_average(&self, mut aggregated_metric: Tensor<1>) -> f64 {
-        use ClassReduction::{Macro, Micro};
-        let avg_tensor = match self.config.class_reduction {
-            Micro => aggregated_metric,
-            Macro => {
-                if aggregated_metric.clone().contains_nan().any().into_scalar() {
-                    let nan_mask = aggregated_metric.clone().is_nan();
-                    aggregated_metric = aggregated_metric
-                        .clone()
-                        .select(0, nan_mask.bool_not().argwhere().squeeze_dim(1))
-                }
-                aggregated_metric.mean()
-            }
-        };
-        avg_tensor.into_scalar()
-    }
 }
 
 impl Metric for PrecisionMetric {
@@ -117,11 +99,6 @@ impl Metric for PrecisionMetric {
             self.config.class_reduction,
             FormatOptions::new(self.name()).unit("%").precision(2),
             |tp, fp, _| {
-                log::info!(
-                    "[PrecisionMetric] compute fn ({}; {})",
-                    tp.is_some(),
-                    fp.is_some()
-                );
                 let (tp, fp) = (tp.unwrap(), fp.unwrap());
                 let denominator = tp.clone() + fp;
                 // Avoid division by zero on empty classes
@@ -237,4 +214,6 @@ mod tests {
         let metric_b = PrecisionMetric::binary(0.75);
         assert_ne!(metric_a.name(), metric_b.name());
     }
+
+    // TODO: multiple update calls + compute final for global precision
 }

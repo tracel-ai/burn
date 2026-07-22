@@ -180,12 +180,13 @@ impl Metric for PsnrMetric {
         let avg_psnr = psnr_per_image.mean().into_scalar::<f64>();
 
         self.state.update(avg_psnr, batch_size);
-        self.compute()
+        self.state
+            .compute_update(FormatOptions::new(self.name()).unit("dB").precision(2))
     }
 
     fn compute(&mut self) -> SerializedEntry {
         self.state
-            .compute(FormatOptions::new(self.name()).unit("dB").precision(2))
+            .compute_final(FormatOptions::new(self.name()).unit("dB").precision(2))
     }
 
     /// Clears the metric state.
@@ -210,6 +211,10 @@ impl Numeric for PsnrMetric {
 
     fn running_value(&self) -> Option<NumericEntry> {
         Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 

@@ -186,7 +186,8 @@ impl Numeric for AucPrMetric {
     }
 
     fn final_value(&self) -> super::NumericEntry {
-        self.value()
+        self.state
+            .value()
             .expect("Compute must be called to get final value")
     }
 }
@@ -285,7 +286,7 @@ mod tests {
         let _entry = metric.update(&input(data), &MetricMetadata::fake());
         let _entry = metric.compute();
 
-        TensorData::from([metric.running_value().unwrap().current()])
+        TensorData::from([metric.final_value().current()])
             .assert_approx_eq::<f64>(&TensorData::from([expected * 100.0]), Tolerance::default());
     }
 
@@ -322,10 +323,30 @@ mod tests {
         );
         split.compute();
 
-        // Epoch value is independent of batching.
-        TensorData::from([split.running_value().unwrap().current()]).assert_approx_eq::<f64>(
-            &TensorData::from([single.running_value().unwrap().current()]),
+        TensorData::from([split.final_value().current()]).assert_approx_eq::<f64>(
+            &TensorData::from([single.final_value().current()]),
             Tolerance::default(),
         );
+    }
+
+    #[test]
+    #[should_panic = "Compute must be called to get final value"]
+    fn test_auc_pr_should_panic_before_compute() {
+        let dev = Default::default();
+
+        let mut split = AucPrMetric::binary();
+        split.update(
+            &ConfusionStatsInput::new(
+                Tensor::from_data([[0.9], [0.4], [0.8]], &dev),
+                Tensor::from_data([[1], [0], [1]], &dev),
+            ),
+            &MetricMetadata::fake(),
+        );
+
+        // AUC-PR is not valid for a batch, and is not meaningful until all statistics have been accumulated
+        assert!(split.value().is_none());
+        assert!(split.running_value().is_none());
+
+        split.final_value();
     }
 }

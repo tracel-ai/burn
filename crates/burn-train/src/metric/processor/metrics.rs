@@ -217,7 +217,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
 
-        log::info!("[MetricsTraining] end_epoch_train");
         for metric in self.train.iter_mut() {
             entries.push(metric.compute());
             metric.clear();
@@ -316,19 +315,14 @@ where
 
     fn compute(&mut self) -> NumericMetricUpdate {
         let serialized_entry = self.metric.compute();
-
-        log::info!(
-            "[NumericMetricUpdater] compute final value for {:?}",
-            self.id
-        );
         let update = MetricEntry::new(self.id.clone(), serialized_entry);
         let final_entry = self.metric.final_value();
 
         NumericMetricUpdate {
             entry: update,
-            // Current value is not applicable. This is the final epoch-level value computed.
-            numeric_entry: None,
-            running_entry: Some(final_entry),
+            // Running entry is not applicable. This is the final epoch-level value computed.
+            numeric_entry: Some(final_entry),
+            running_entry: None,
         }
     }
 

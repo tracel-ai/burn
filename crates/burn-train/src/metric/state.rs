@@ -17,6 +17,7 @@ pub struct NumericMetricState {
     current: f64,
     current_count: usize,
 }
+
 /// Accumulates raw predictions and targets across batches.
 ///
 /// Used by rank-based metrics (AUROC, AUC-PR) that must recompute over the
@@ -80,6 +81,7 @@ impl PredictionAccumulatorState {
         SerializedEntry::new(formatted, serialized)
     }
 
+    /// Get the current metric value, when available.
     pub fn value(&self) -> Option<NumericEntry> {
         self.current.map(NumericEntry::Value)
     }
@@ -96,11 +98,7 @@ impl PredictionAccumulatorState {
     }
 
     pub(crate) fn serialize_placeholder(&self, format: FormatOptions) -> SerializedEntry {
-        let formatted = match format.unit {
-            Some(unit) => format!("epoch N/A {unit} - batch N/A {unit}"),
-            None => "epoch N/A - batch N/A".to_string(),
-        };
-        SerializedEntry::new(formatted, "N/A".into())
+        SerializedEntry::not_available(format.unit.as_deref())
     }
 }
 
@@ -179,10 +177,12 @@ impl NumericMetricState {
         self.current_count = count;
     }
 
+    /// Compute the metric for the current update.
     pub fn compute_update(&self, format: FormatOptions) -> SerializedEntry {
         self.compute(format, false)
     }
 
+    /// Compute the final metric for the accumulated global state.
     pub fn compute_final(&self, format: FormatOptions) -> SerializedEntry {
         self.compute(format, true)
     }
@@ -282,6 +282,7 @@ impl Default for ConfusionStatsState {
 }
 
 impl ConfusionStatsState {
+    /// Create a new [ConfusionStatsState].
     pub fn new() -> Self {
         Self {
             true_positive: None,
@@ -297,6 +298,7 @@ impl ConfusionStatsState {
         }
     }
 
+    /// Reset the state.
     pub fn reset(&mut self) {
         self.true_positive = None;
         self.false_positive = None;
@@ -328,23 +330,8 @@ impl ConfusionStatsState {
         sample_size: usize,
     ) {
         // Accumulate running totals for global metric value
-        log::info!(
-            "[ConfusionStatsState] accumulate tp ({}; {})",
-            self.true_positive.is_some(),
-            tp.is_some()
-        );
         Self::accumulate(&mut self.true_positive, tp.clone());
-        log::info!(
-            "[ConfusionStatsState] accumulate fp ({}; {})",
-            self.false_positive.is_some(),
-            fp.is_some()
-        );
         Self::accumulate(&mut self.false_positive, fp.clone());
-        log::info!(
-            "[ConfusionStatsState] accumulate fn ({}; {})",
-            self.false_negative.is_some(),
-            fn_.is_some()
-        );
         Self::accumulate(&mut self.false_negative, fn_.clone());
         self.running_count += sample_size;
 
@@ -387,6 +374,7 @@ impl ConfusionStatsState {
         self.serialized_entry(format, serialized)
     }
 
+    /// Compute the final metric for the accumulated global state.
     pub fn compute_final(&mut self, format: FormatOptions) -> SerializedEntry {
         self.serialized_entry(format, NumericEntry::Final(self.running_value).serialize())
     }
@@ -446,6 +434,7 @@ impl ConfusionStatsState {
         })
     }
 
+    /// Get the final value of the metric.
     pub fn final_value(&self) -> NumericEntry {
         // The running value holds the epoch-level value from accumulated totals, which should hold
         // the correct final value after all batches have been processed

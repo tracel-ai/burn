@@ -64,25 +64,10 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
             .entries_numeric
             .into_iter()
             .for_each(|numeric_update| {
-                /*
-                In compute:
-                NumericMetricUpdate {
-                    entry: update,
-                    // Current value is not applicable. This is the final epoch-level value computed.
-                    numeric_entry: None,
-                    running_entry: running, /* NumericEntry */
-                }
-
-                TUI: NumericEntry
-                */
-                let state = match numeric_update.numeric_entry {
-                    Some(value) => MetricState::Numeric(numeric_update.entry, value),
-                    None => match numeric_update.running_entry {
-                        Some(value) => MetricState::Numeric(numeric_update.entry, value),
-                        None => MetricState::Generic(numeric_update.entry),
-                    },
-                };
-                self.renderer.update_train(state)
+                self.renderer.update_train(MetricState::Numeric(
+                    numeric_update.entry,
+                    numeric_update.numeric_entry,
+                ))
             });
     }
 
@@ -99,14 +84,10 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
             .entries_numeric
             .into_iter()
             .for_each(|numeric_update| {
-                let state = match numeric_update.numeric_entry {
-                    Some(value) => MetricState::Numeric(numeric_update.entry, value),
-                    None => match numeric_update.running_entry {
-                        Some(value) => MetricState::Numeric(numeric_update.entry, value),
-                        None => MetricState::Generic(numeric_update.entry),
-                    },
-                };
-                self.renderer.update_valid(state)
+                self.renderer.update_valid(MetricState::Numeric(
+                    numeric_update.entry,
+                    numeric_update.numeric_entry,
+                ))
             });
     }
 }
@@ -184,11 +165,13 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     .entries_numeric
                     .into_iter()
                     .for_each(|numeric_update| {
-                        let state = match numeric_update.numeric_entry {
-                            Some(value) => MetricState::Numeric(numeric_update.entry, value),
-                            None => MetricState::Generic(numeric_update.entry),
-                        };
-                        self.renderer.update_test(name.clone(), state)
+                        self.renderer.update_test(
+                            name.clone(),
+                            MetricState::Numeric(
+                                numeric_update.entry,
+                                numeric_update.numeric_entry,
+                            ),
+                        )
                     });
 
                 if let Some(logger) = &mut self.progress_logger {

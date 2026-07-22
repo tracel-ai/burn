@@ -471,12 +471,13 @@ impl Metric for MsSsimMetric {
         let avg_ms_ssim = ms_ssim_per_image.mean().into_scalar::<f64>();
 
         self.state.update(avg_ms_ssim, batch_size);
-        self.compute()
+        self.state
+            .compute_update(FormatOptions::new(self.name()).precision(4))
     }
 
     fn compute(&mut self) -> SerializedEntry {
         self.state
-            .compute(FormatOptions::new(self.name()).precision(4))
+            .compute_final(FormatOptions::new(self.name()).precision(4))
     }
 
     /// Clears the metric state.
@@ -501,6 +502,10 @@ impl Numeric for MsSsimMetric {
 
     fn running_value(&self) -> Option<NumericEntry> {
         Some(self.state.running_value())
+    }
+
+    fn final_value(&self) -> NumericEntry {
+        self.state.final_value()
     }
 }
 
