@@ -23,6 +23,17 @@ pub trait Backend: burn::backend::Backend {
     fn scale(x: FloatTensor<Self>, factor: f32) -> FloatTensor<Self>;
     fn split(x: FloatTensor<Self>) -> (FloatTensor<Self>, IntTensor<Self>);
     fn make_pair(x: FloatTensor<Self>) -> Pair<Self>;
+    // Struct-of-tensors as an *input*: the `#[extension_type]` marker tells the macro to unwrap the
+    // incoming `Pair<Dispatch>` back into `Pair<Remote>` before the backend call.
+    fn combine_pair(#[extension_type] pair: Pair<Self>, factor: f32) -> FloatTensor<Self>;
+    // A struct input mixed with a bare tensor input: the backend is selected from the bare tensor,
+    // and the struct is unwrapped for that same backend inside the arm.
+    fn mix(x: FloatTensor<Self>, #[extension_type] pair: Pair<Self>) -> FloatTensor<Self>;
+    // Multiple struct inputs: each is unwrapped independently for the selected backend.
+    fn combine_two(
+        #[extension_type] lhs: Pair<Self>,
+        #[extension_type] rhs: Pair<Self>,
+    ) -> FloatTensor<Self>;
 }
 
 // User-written client side: builds a `CustomOpIr` and ships it to the server. Stubbed here.
@@ -39,6 +50,15 @@ impl Backend for Remote {
     fn make_pair(_x: FloatTensor<Self>) -> Pair<Self> {
         unimplemented!("the client builds a CustomOpIr and ships it to the server")
     }
+    fn combine_pair(_pair: Pair<Self>, _factor: f32) -> FloatTensor<Self> {
+        unimplemented!("the client builds a CustomOpIr and ships it to the server")
+    }
+    fn mix(_x: FloatTensor<Self>, _pair: Pair<Self>) -> FloatTensor<Self> {
+        unimplemented!("the client builds a CustomOpIr and ships it to the server")
+    }
+    fn combine_two(_lhs: Pair<Self>, _rhs: Pair<Self>) -> FloatTensor<Self> {
+        unimplemented!("the client builds a CustomOpIr and ships it to the server")
+    }
 }
 
 #[test]
@@ -48,6 +68,14 @@ fn remote_backend_extension_dispatch_compiles() {
     // tensor-input `scale` op.
     let _f: fn(usize) -> FloatTensor<Dispatch> = <Dispatch as Backend>::load_data;
     let _g: fn(FloatTensor<Dispatch>, f32) -> FloatTensor<Dispatch> = <Dispatch as Backend>::scale;
+    // The struct-input op expands into a well-typed dispatch method: it takes the dispatch form
+    // `Pair<Dispatch>`, peeks its backend tag, and unwraps to `Pair<Remote>` before the call.
+    let _h: fn(Pair<Dispatch>, f32) -> FloatTensor<Dispatch> = <Dispatch as Backend>::combine_pair;
+    // Mixed bare-tensor + struct input, and multiple struct inputs, both expand to well-typed glue.
+    let _i: fn(FloatTensor<Dispatch>, Pair<Dispatch>) -> FloatTensor<Dispatch> =
+        <Dispatch as Backend>::mix;
+    let _j: fn(Pair<Dispatch>, Pair<Dispatch>) -> FloatTensor<Dispatch> =
+        <Dispatch as Backend>::combine_two;
 }
 
 // A no-tensor-input op on a `cfg`-gated single backend. The backend is gated on

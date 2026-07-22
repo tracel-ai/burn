@@ -33,7 +33,32 @@ pub trait ExtensionType<B: Backend> {
     /// # Returns
     ///
     /// A new instance of the struct mapped to the [`Dispatch`] backend.
-    fn map_type<F>(self, map_kind: F, checkpointing: Option<CheckpointingStrategy>) -> Self::Target
+    fn map_to_dispatch<F>(self, map_kind: F, checkpointing: Option<CheckpointingStrategy>) -> Self::Target
     where
         F: Fn(BackendTensor<B>) -> DispatchTensorKind;
+
+    /// Reconstruct the concrete `Struct<B>` from its dispatch form `Struct<Dispatch>`.
+    ///
+    /// This is the inverse of [`map_to_dispatch`](Self::map_to_dispatch), used when a custom struct is passed as
+    /// an **input** to a backend extension operation. The dispatch glue has already selected the
+    /// target backend `B`; `unwrap_kind` pulls the matching [`BackendTensor`] out of each field's
+    /// [`DispatchTensorKind`], and the derived impl calls the right accessor (`.float()`, `.int()`,
+    /// ...) per field to recover the concrete primitive.
+    ///
+    /// # Arguments
+    ///
+    /// * `unwrap_kind` - A closure provided by the dispatch macro that unwraps a
+    ///   [`DispatchTensorKind`] into the [`BackendTensor`] for the selected backend `B`, panicking
+    ///   on a backend mismatch (which the dispatch layer guarantees never happens).
+    fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
+    where
+        F: Fn(DispatchTensorKind) -> BackendTensor<B>;
+
+    /// Peek the runtime backend tag from a representative tensor field of the dispatch form.
+    ///
+    /// A struct input carries no top-level [`DispatchTensorKind`] of its own, so the dispatch glue
+    /// uses this to decide which backend arm to route the operation to. Returns a reference to the
+    /// first tensor field's kind (recursing into the first nested `#[extension_type]` field if the
+    /// struct has no direct tensor fields).
+    fn dispatch_kind(target: &Self::Target) -> &DispatchTensorKind;
 }

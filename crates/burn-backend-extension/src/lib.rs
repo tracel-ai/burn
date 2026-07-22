@@ -36,6 +36,26 @@ use syn::{
 /// `BoolTensor<Self>`, and `QuantizedTensor<Self>` (a QFloat tensor passed to the
 /// backend still quantized — the op reads the packed values/scales directly instead
 /// of going through a dequantize).
+///
+/// ### Struct-of-tensors inputs
+///
+/// A custom struct of tensor primitives (deriving [`ExtensionType`](macro@ExtensionType)) can be
+/// passed as an **input** by marking the argument with `#[extension_type]`:
+///
+/// ```rust,ignore
+/// #[derive(ExtensionType)]
+/// pub struct Inputs<B: Backend> { pub lhs: FloatTensor<B>, pub rhs: FloatTensor<B> }
+///
+/// #[backend_extension(Wgpu)]
+/// pub trait MyExtension: Backend {
+///     fn fused(#[extension_type] inputs: Inputs<Self>, alpha: f32) -> FloatTensor<Self>;
+/// }
+/// ```
+///
+/// The macro selects the backend from a representative tensor field of the struct and unwraps the
+/// dispatch form (`Inputs<Dispatch>`) back into the concrete `Inputs<Wgpu>` before calling the
+/// backend impl. Struct inputs may be freely mixed with bare tensor inputs, and several struct
+/// inputs are allowed. Current limitation of this path (sketch): not combinable with `Autodiff`.
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the backend list
@@ -156,6 +176,9 @@ enum TensorKind {
 #[allow(clippy::large_enum_variant)]
 enum ArgKind {
     Tensor(TensorKind),
+    // A custom struct of tensor primitives, marked `#[extension_type]` on the argument. Unwrapped
+    // back into the concrete backend's `Struct<B>` before the backend call via `ExtensionType`.
+    ExtensionStruct(Type),
     // Passthrough - unhandled by the macro
     Other(Type),
 }
@@ -313,9 +336,19 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                 Pat::Ident(p) => p.ident.clone(),
                 _ => return Err(syn::Error::new_spanned(&pt.pat, "Unsupported pattern")),
             };
-            let kind = TensorKind::from_type(&pt.ty)
-                .map(ArgKind::Tensor)
-                .unwrap_or_else(|| ArgKind::Other((*pt.ty).clone()));
+            // An argument annotated with `#[extension_type]` is a custom struct of tensor
+            // primitives (the input counterpart of the `#[derive(ExtensionType)]` output path).
+            let is_ext = pt
+                .attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("extension_type"));
+            let kind = if is_ext {
+                ArgKind::ExtensionStruct((*pt.ty).clone())
+            } else if let Some(k) = TensorKind::from_type(&pt.ty) {
+                ArgKind::Tensor(k)
+            } else {
+                ArgKind::Other((*pt.ty).clone())
+            };
             inputs.push(OperationArg { name, kind });
         }
 
@@ -380,8 +413,21 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
     })
 }
 
-fn expand_extension(ir: Extension, original_trait: ItemTrait) -> TokenStream2 {
+fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream2 {
     let trait_name = &ir.trait_name;
+
+    // `#[extension_type]` is a helper attribute understood only by this macro. Strip it from the
+    // argument list before re-emitting the trait, otherwise rustc rejects it as an unknown attribute.
+    for item in &mut original_trait.items {
+        if let TraitItem::Fn(f) = item {
+            for arg in &mut f.sig.inputs {
+                if let FnArg::Typed(pt) = arg {
+                    pt.attrs
+                        .retain(|attr| !attr.path().is_ident("extension_type"));
+                }
+            }
+        }
+    }
 
     // Generate Dispatch Implementation
     let dispatch_methods = ir.ops.iter().map(|op| gen_dispatch_method(&ir, op));
@@ -411,16 +457,32 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         quote! {}
     };
 
-    let sig_args = op.inputs.iter().map(|arg| {
-        let name = &arg.name;
-        match &arg.kind {
-            ArgKind::Tensor(k) => {
-                let ty = k.to_primitive_ty();
-                quote! { #name: #ty }
+    let sig_args: Vec<_> = op
+        .inputs
+        .iter()
+        .map(|arg| {
+            let name = &arg.name;
+            match &arg.kind {
+                ArgKind::Tensor(k) => {
+                    let ty = k.to_primitive_ty();
+                    quote! { #name: #ty }
+                }
+                // Keep the original `Struct<Self>` type. Inside `impl Trait for Dispatch`, `Self`
+                // resolves to `Dispatch`, so the incoming value is the dispatch form `Struct<Dispatch>`.
+                ArgKind::ExtensionStruct(ty) => quote! { #name: #ty },
+                ArgKind::Other(ty) => quote! { #name: #ty },
             }
-            ArgKind::Other(ty) => quote! { #name: #ty },
-        }
-    });
+        })
+        .collect();
+
+    let struct_inputs: Vec<_> = op
+        .inputs
+        .iter()
+        .filter_map(|a| match &a.kind {
+            ArgKind::ExtensionStruct(ty) => Some((&a.name, ty)),
+            _ => None,
+        })
+        .collect();
 
     let ret_ty = match &op.output {
         OperationOutput::Tensor(k) => k.to_primitive_ty(),
@@ -466,7 +528,11 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         quote! { let checkpointing = None; }
     };
 
-    let body = if tensor_inputs.is_empty() {
+    let body = if !struct_inputs.is_empty() {
+        // At least one custom struct of tensors is passed as input (marked `#[extension_type]`).
+        // This path also covers mixing structs with bare tensors and multiple struct inputs.
+        gen_mixed_dispatch_body(ir, op)
+    } else if tensor_inputs.is_empty() {
         // No tensor input to select the backend from (e.g. `fn load_data(i: usize) -> FloatTensor`).
         // There is nothing to match on, so this is only well-defined for a single backend — the
         // remote backend is the motivating case (`#[backend_extension(Remote)]`), where the op is
@@ -562,6 +628,143 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
     }
 }
 
+/// Rewrite a struct type's single generic argument to `param`, e.g. `MyStruct<Self>` -> `MyStruct<Wgpu>`.
+/// Used to name the concrete `Struct<B>` (and the dispatch `Struct<Dispatch>`) from the `Struct<Self>`
+/// written in the trait signature.
+fn struct_ty_with_param(ty: &Type, param: TokenStream2) -> TokenStream2 {
+    if let Type::Path(tp) = ty {
+        let mut path = tp.path.clone();
+        if let Some(last) = path.segments.last_mut() {
+            last.arguments = PathArguments::None;
+        }
+        quote! { #path<#param> }
+    } else {
+        // Not a path type; leave it untouched and let rustc surface a clear error.
+        quote! { #ty }
+    }
+}
+
+/// Generate the dispatch body for an operation that takes a custom struct of tensors as input.
+///
+/// Unlike a bare tensor input (which carries its own `DispatchTensorKind` to match on), a struct
+/// input has no top-level tag, so we peek a representative field via `ExtensionType::dispatch_kind`
+/// to select the backend, then reconstruct the concrete `Struct<B>` inside the matched arm.
+///
+/// Sketch scope: exactly one struct input, no bare tensor inputs, non-autodiff only. The remaining
+/// cases are rejected with a `compile_error!` describing the limitation.
+/// Generate the dispatch body for an operation whose inputs include at least one `#[extension_type]`
+/// struct. This is the general "peek then unwrap" path and handles any mix of bare tensors and
+/// structs (including several structs), unlike the pure-tensor path which selects the backend by
+/// destructuring every tensor in the match pattern (impossible for a struct).
+///
+/// Strategy:
+/// 1. Peek a single representative [`DispatchTensorKind`] from the first tensor-ish input (a bare
+///    tensor's own `.kind`, or a struct's via `ExtensionType::dispatch_kind`) and fold it into a
+///    small backend index. Folding to an index drops the borrow before any input is moved.
+/// 2. In the matched arm, unwrap every input for that backend: bare tensors are pulled out of their
+///    `DispatchTensor`, structs are reconstructed via `ExtensionType::map_from_dispatch`, then the backend
+///    impl is called and the output re-wrapped (via the shared [`gen_backend_call`]).
+///
+/// Sketch scope: non-autodiff only. Autodiff would need each struct's tensor fields flattened into
+/// the fixed-arity `Backward` node/checkpoint machinery.
+fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
+    let name = &op.name;
+
+    if ir.backends.autodiff.0 {
+        return quote! { compile_error!("A backend extension operation with a `#[extension_type]` struct input can't be combined with `Autodiff` yet. Each struct's tensor fields would need to be flattened into the fixed-arity `Backward` node/checkpoint machinery.") };
+    }
+
+    // Representative kind, used only to select the backend: the first bare tensor if any, else the
+    // first struct's representative field.
+    let selector = op
+        .inputs
+        .iter()
+        .find_map(|a| match &a.kind {
+            ArgKind::Tensor(_) => {
+                let n = &a.name;
+                Some(quote! { &#n.kind })
+            }
+            ArgKind::ExtensionStruct(ty) => {
+                let n = &a.name;
+                let target_ty = struct_ty_with_param(ty, quote! { burn::backend::Dispatch });
+                Some(quote! {
+                    <#target_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::dispatch_kind(&#n)
+                })
+            }
+            ArgKind::Other(_) => None,
+        })
+        // Only ever reached when a struct input exists, so a selector is always present.
+        .expect("mixed dispatch requires at least one tensor-ish input");
+
+    // Propagate the checkpointing strategy from the first bare tensor, if any (non-autodiff here, so
+    // it is `None` in practice, but kept consistent with the pure-tensor path).
+    let checkpointing = op
+        .inputs
+        .iter()
+        .find_map(|a| match &a.kind {
+            ArgKind::Tensor(_) => {
+                let n = &a.name;
+                Some(quote! { let checkpointing = #n.checkpointing.clone(); })
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| quote! { let checkpointing = None; });
+
+    // Fold the representative kind into a backend index. cfg-gated backends drop the same arm from
+    // both this match and the dispatch match below, so the indices stay aligned per compilation.
+    let tag_arms = ir.backends.concrete.iter().enumerate().map(|(i, backend)| {
+        let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
+        let b_ident = backend_to_ident(backend);
+        quote! {
+            #cfg_attr
+            burn::backend::DispatchTensorKind::#b_ident(_) => #i,
+        }
+    });
+
+    let call_arms = ir.backends.concrete.iter().enumerate().map(|(i, backend)| {
+        let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
+        let b_ident = backend_to_ident(backend);
+
+        // Pull each bare tensor out of its `DispatchTensor` into a `BackendTensor<B>`, matching what
+        // the pure-tensor path binds in its pattern. `gen_backend_call` then applies `.float()`/etc.
+        let pre_extract = op.inputs.iter().filter_map(|a| match &a.kind {
+            ArgKind::Tensor(_) => {
+                let n = &a.name;
+                Some(quote! {
+                    let #n = match #n.kind {
+                        burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
+                        #[allow(unreachable_patterns)]
+                        _ => unreachable!("tensor input routed to the wrong backend"),
+                    };
+                })
+            }
+            _ => None,
+        });
+
+        let call = gen_backend_call(ir, op, backend);
+        quote! {
+            #cfg_attr
+            #i => {
+                #( #pre_extract )*
+                #call
+            }
+        }
+    });
+
+    quote! {
+        #checkpointing
+        let __burn_backend_tag: usize = match #selector {
+            #( #tag_arms )*
+            #[allow(unreachable_patterns)]
+            _ => usize::MAX,
+        };
+        match __burn_backend_tag {
+            #( #call_arms )*
+            _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
+        }
+    }
+}
+
 /// Generate the body that unwraps the dispatch tensors, calls the backend's trait impl and wraps the
 /// result back into a [`DispatchTensor`]. Shared by [`gen_backend_arm`] (inside a match) and the
 /// no-tensor-input dispatch path (direct call).
@@ -576,6 +779,22 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
             let name = &a.name;
             let method = kind.unwrap_method();
             Some(quote! { let #name = #name.#method(); })
+        }
+        // Reconstruct `Struct<B>` from the incoming `Struct<Dispatch>` by unwrapping each tensor
+        // field into this backend's `BackendTensor`. Inverse of the `map_to_dispatch` output path.
+        ArgKind::ExtensionStruct(ty) => {
+            let name = &a.name;
+            let b_ty = struct_ty_with_param(ty, quote! { #b_ident });
+            Some(quote! {
+                let #name = <#b_ty as burn::backend::ExtensionType<#b_ident>>::map_from_dispatch(
+                    #name,
+                    |kind| match kind {
+                        burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
+                        #[allow(unreachable_patterns)]
+                        _ => unreachable!("extension struct routed to the wrong backend"),
+                    },
+                );
+            })
         }
         _ => None,
     });
@@ -602,7 +821,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
                     }
                     OutputKind::Custom(_) => {
                         quote! {
-                            burn::backend::ExtensionType::map_type(
+                            burn::backend::ExtensionType::map_to_dispatch(
                                 _out.#idx,
                                 |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor),
                                 checkpointing,
@@ -614,7 +833,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
             quote! { (#(#elements),*) }
         }
         OperationOutput::Custom(_) => {
-            quote! { burn::backend::ExtensionType::map_type(_out, |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor), checkpointing) }
+            quote! { burn::backend::ExtensionType::map_to_dispatch(_out, |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor), checkpointing) }
         }
     };
 
@@ -710,7 +929,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
                     }
                     OutputKind::Custom(_) => {
                         quote! {
-                            burn::backend::ExtensionType::map_type(
+                            burn::backend::ExtensionType::map_to_dispatch(
                                 _out.#idx,
                                 |tensor| match tensor {
                                     burn::backend::BackendTensor::Float(t) => {
@@ -731,7 +950,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
                 quote! { (#(#elements),*) }
             }
             OperationOutput::Custom(_) => {
-                quote! { burn::backend::ExtensionType::map_type(_out, |tensor| match tensor {
+                quote! { burn::backend::ExtensionType::map_to_dispatch(_out, |tensor| match tensor {
                     burn::backend::BackendTensor::Float(t) => {
                         burn::backend::DispatchTensorKind::Autodiff(
                             Box::new(burn::backend::DispatchTensorKind::#b_ident(
@@ -830,7 +1049,7 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
                 if is_ext {
                     // It's a nested extension type
                     quote! {
-                        #f_name: self.#f_name.map_type(
+                        #f_name: self.#f_name.map_to_dispatch(
                             &map_kind,
                             checkpointing
                         ),
@@ -856,11 +1075,66 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
         _ => panic!("ExtensionType derive only supports structs with named fields"),
     };
 
+    // Reverse of `fields_wrap`: rebuild `Struct<B>` from the incoming `Struct<Dispatch>` (`target`).
+    let fields_unwrap = match &input.fields {
+        syn::Fields::Named(fields) => {
+            let field_mappings = fields.named.iter().map(|f| {
+                let f_name = &f.ident;
+                let is_ext = f.attrs.iter().any(|attr| attr.path().is_ident("extension_type"));
+
+                if is_ext {
+                    // Nested extension type: recurse with the same unwrap closure.
+                    quote! {
+                        #f_name: burn::backend::ExtensionType::map_from_dispatch(target.#f_name, &unwrap_kind),
+                    }
+                } else if let Some(tensor_kind) = TensorKind::from_type(&f.ty) {
+                    // Tensor primitive: unwrap the DispatchTensor kind, then pull out the concrete
+                    // primitive with the accessor matching this field's kind (`.float()`, ...).
+                    let method = tensor_kind.unwrap_method();
+                    quote! {
+                        #f_name: unwrap_kind(target.#f_name.kind).#method(),
+                    }
+                } else {
+                    // Passthrough
+                    quote! { #f_name: target.#f_name, }
+                }
+            });
+
+            quote! { #name { #( #field_mappings )* } }
+        }
+        _ => unreachable!("named-fields check already happened above"),
+    };
+
+    // Representative field whose runtime backend tag identifies the whole struct. Prefer a direct
+    // tensor field; otherwise recurse into the first nested `#[extension_type]` field.
+    let dispatch_kind_expr = match &input.fields {
+        syn::Fields::Named(fields) => {
+            let first_tensor = fields.named.iter().find(|f| {
+                !f.attrs.iter().any(|attr| attr.path().is_ident("extension_type"))
+                    && TensorKind::from_type(&f.ty).is_some()
+            });
+            if let Some(f) = first_tensor {
+                let f_name = &f.ident;
+                quote! { &target.#f_name.kind }
+            } else if let Some(f) = fields
+                .named
+                .iter()
+                .find(|f| f.attrs.iter().any(|attr| attr.path().is_ident("extension_type")))
+            {
+                let f_name = &f.ident;
+                quote! { burn::backend::ExtensionType::dispatch_kind(&target.#f_name) }
+            } else {
+                quote! { compile_error!("An ExtensionType struct used as an input must contain at least one tensor field to select the backend from") }
+            }
+        }
+        _ => unreachable!("named-fields check already happened above"),
+    };
+
     TokenStream::from(quote! {
         impl #impl_generics burn::backend::ExtensionType<B> for #name #ty_generics #where_clause {
             type Target = #name<burn::backend::Dispatch>;
 
-            fn map_type<F>(
+            fn map_to_dispatch<F>(
                 self,
                 map_kind: F,
                 checkpointing: Option<burn::backend::CheckpointingStrategy>,
@@ -869,6 +1143,17 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
                 F: Fn(burn::backend::BackendTensor<B>) -> burn::backend::DispatchTensorKind,
             {
                 #fields_wrap
+            }
+
+            fn map_from_dispatch<F>(target: Self::Target, unwrap_kind: F) -> Self
+            where
+                F: Fn(burn::backend::DispatchTensorKind) -> burn::backend::BackendTensor<B>,
+            {
+                #fields_unwrap
+            }
+
+            fn dispatch_kind(target: &Self::Target) -> &burn::backend::DispatchTensorKind {
+                #dispatch_kind_expr
             }
         }
     })
