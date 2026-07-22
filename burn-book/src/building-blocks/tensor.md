@@ -13,6 +13,63 @@ Tensor<B, D, Bool>     // Bool tensor
 Note that the specific element types used for `Float`, `Int`, and `Bool` tensors are defined by
 backend implementations.
 
+### Data types
+
+A tensor has an element type, but unlike its `Float`/`Int`/`Bool` kind that type is a runtime
+property rather than a generic parameter on `Tensor`. When a tensor is created without an explicit
+dtype (for example with `Tensor::zeros`, `Tensor::ones` or `from_floats`), the element type comes
+from a set of **default data types** that each device keeps. You can inspect the current defaults
+with [`Device::settings`](https://docs.rs/burn/latest/burn/tensor/struct.Device.html):
+
+```rust, ignore
+use burn::tensor::Device;
+
+let device = Device::default();
+let settings = device.settings();
+// settings.float_dtype, settings.int_dtype, settings.bool_dtype
+```
+
+To use a different default (e.g. `f16` for floats), configure the device with
+[`Device::configure`](https://docs.rs/burn/latest/burn/tensor/struct.Device.html) before creating
+any tensor on it:
+
+```rust, ignore
+use burn::tensor::{Device, FloatDType, IntDType};
+
+let mut device = Device::default();
+device.configure((FloatDType::F16, IntDType::I32))?;
+
+// Float tensors created after this default to F16
+let floats = Tensor::<Backend, 2>::zeros([2, 3], &device);
+```
+
+> **Default data types lock on first use.** A device's defaults can only be initialized **once**, and
+> that initialization must happen *before* the first tensor operation on the device. The first tensor
+> created on an unconfigured device permanently locks the defaults to the backend's values. Any later
+> call to `configure` (or `set_default_dtypes`) for that device returns a
+> `DeviceError::AlreadyInitialized` error instead of silently changing (or ignoring) the width.
+
+Because the default width is a per-device property, you cannot have two different default float widths
+active on the same device within a single process. If you need values at more than one precision,
+create the other tensors with an explicit dtype by passing a `(&device, dtype)` tuple as the creation
+options (this tuple is just a convenient conversion into
+[`TensorCreationOptions`](https://docs.rs/burn/latest/burn/tensor/struct.TensorCreationOptions.html)):
+
+```rust, ignore
+use burn::tensor::DType;
+
+// device defaults to f32
+let x = Tensor::<Backend, 2>::zeros([2, 3], &device);                   // f32
+let x_f64 = Tensor::<Backend, 2>::zeros([2, 3], (&device, DType::F64)); // explicit f64
+```
+
+To convert an *existing* tensor to another element type, use
+[`cast`](https://docs.rs/burn/latest/burn/tensor/struct.Tensor.html#method.cast):
+
+```rust, ignore
+let x_f64 = x.cast(FloatDType::F64); // convert the f32 tensor above to f64
+```
+
 Burn Tensors are defined by the number of dimensions D in its declaration as opposed to its shape.
 The actual shape of the tensor is inferred from its initialization. For example, a Tensor of size
 (5,) is initialized as below:

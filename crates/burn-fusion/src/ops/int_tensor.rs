@@ -1650,6 +1650,48 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn int_topk_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Forwarded explicitly rather than left to the trait default: the default would run
+        // its own sort here and never reach the backend's fused top-k.
+        #[derive(new, Debug)]
+        struct TopKWithIndicesOps<B: FusionBackend> {
+            desc: TopKWithIndicesOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for TopKWithIndicesOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
+                let (output, indices) =
+                    B::int_topk_with_indices(tensor, self.desc.dim, self.desc.k);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+                handles.register_int_tensor::<B>(&self.desc.out_indices.id, indices);
+            }
+        }
+
+        let streams = StreamId::current();
+
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let desc = TopKWithIndicesOpIr::create(tensor.into_ir(), dim, k, dtype, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::NumericInt(dtype, NumericOperationIr::TopKWithIndices(desc.clone())),
+                TopKWithIndicesOps::<B>::new(desc),
+            )
+            .outputs()
+            .into()
+    }
+
     fn int_max_dim_with_indices(
         tensor: IntTensor<Self>,
         dim: usize,

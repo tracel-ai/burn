@@ -823,6 +823,28 @@ impl Ordered for Float {
         }
     }
 
+    fn topk_with_indices(
+        tensor: BridgeTensor,
+        dim: usize,
+        k: usize,
+    ) -> (BridgeTensor, BridgeTensor) {
+        let settings = tensor.device_settings();
+        let (kind, tensor) = tensor.into_parts();
+        match kind {
+            BridgeKind::Float => {
+                let (values, indices) =
+                    Dispatch::float_topk_with_indices(tensor, dim, k, settings.int_dtype);
+                (BridgeTensor::float(values), BridgeTensor::int(indices))
+            }
+            BridgeKind::QFloat => {
+                let (values, indices) =
+                    Dispatch::q_topk_with_indices(tensor, dim, k, settings.int_dtype);
+                (BridgeTensor::qfloat(values), BridgeTensor::int(indices))
+            }
+            _ => panic!("Should be Float primitive kind"),
+        }
+    }
+
     fn max_dim_with_indices(tensor: BridgeTensor, dim: usize) -> (BridgeTensor, BridgeTensor) {
         let settings = tensor.device_settings();
         let (kind, tensor) = tensor.into_parts();
