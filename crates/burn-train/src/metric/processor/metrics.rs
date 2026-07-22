@@ -168,14 +168,6 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
 
-        // `*_train` used as reference, but could be valid or test
-        // FullEventProcessorTraining::process_train -> MetricsTraining::update_train -> NumericMetricUpdater::update -> Metric::update
-        // in parallel:
-        // EventStoreClient::add_event_train(Event::MetricsUpdate(update)) -> LogEventStore::add_event -> MetricLogger::log_item
-        // where MetricLogger is FileLogger
-
-        // Also in parrallel for the full event processor implementation (which includes TUI):
-        // FullEventProcessorTraining::process_train -> MetricsRendererTraining::update_train (TUI renderer updates)
         for metric in self.train.iter_mut() {
             let state = metric.update(&item.item, metadata);
             entries.push(state);

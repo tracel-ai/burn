@@ -381,7 +381,6 @@ impl TuiMetricsRenderer {
                 if let MetricAttributes::Numeric(_) = &definition.attributes {
                     // Register numeric metrics so even epoch-level metrics already appear
                     // in the registry (i.e., TUI tabs) before a value is actually pushed.
-                    // This also preserves order
                     self.metrics_numeric.register(definition.name.clone());
                 }
                 self.metric_definitions
