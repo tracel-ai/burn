@@ -124,7 +124,7 @@ fn remote_backend_extension_dispatch_compiles() {
 // Struct input combined with a `cfg`-gated `Autodiff`. The gate `cfg(not(feature = "remote"))` is
 // always false in this `#![cfg(feature = "remote")]` build, so every generated autodiff arm must be
 // stripped. If the mixed path failed to propagate the autodiff cfg (the pre-fix bug), the arms would
-// remain and reference the unimported `Autodiff` type, failing to compile — so this trait building at
+// remain and reference the unimported `Autodiff` type, failing to compile, so this trait building at
 // all is the assertion. Mirrors `GatedBackend`, but exercises the autodiff-gate path specifically.
 #[backend_extension(Autodiff: cfg(not(feature = "remote")), Remote)]
 pub trait AdGatedBackend: burn::backend::Backend {

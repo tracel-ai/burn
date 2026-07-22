@@ -736,7 +736,7 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
     let has_ad = ir.backends.autodiff.0;
     // cfg gating the `Autodiff` entry itself (e.g. `Autodiff: cfg(feature = "autodiff")`). Every
     // generated autodiff arm must carry it, mirroring the pure-tensor path, so the arms vanish when
-    // autodiff is compiled out — otherwise their `DispatchTensorKind::Autodiff` / `Autodiff<B>`
+    // autodiff is compiled out. Otherwise their `DispatchTensorKind::Autodiff` / `Autodiff<B>`
     // references (themselves feature-gated) would fail to compile.
     let ad_cfg_attr = ir
         .backends
@@ -1211,7 +1211,7 @@ enum CaseStyle {
 }
 
 /// One derive "case": a struct is a single case; an enum contributes one case per variant. Unifies
-/// struct and enum handling — the generated methods are a `match` over cases (trivial for a struct).
+/// struct and enum handling. The generated methods are a `match` over cases (trivial for a struct).
 struct DeriveCase {
     /// Path to match / construct, e.g. `Name` or `Name::Variant`.
     path: TokenStream2,
@@ -1400,7 +1400,7 @@ fn gen_repr_arm(case: &DeriveCase, float_only: bool) -> TokenStream2 {
 ///
 /// When used as an input, the dispatch glue selects the backend from a representative tensor. For an
 /// enum this depends on the active variant, and a tensor-less variant (or unit variant) yields no
-/// representative — the glue then walks the op's other inputs. If no input carries a tensor at
+/// representative, so the glue then walks the op's other inputs. If no input carries a tensor at
 /// runtime the backend is unresolvable and the op panics.
 ///
 /// # Example

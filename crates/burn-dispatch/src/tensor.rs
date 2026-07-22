@@ -121,8 +121,8 @@ impl<B: Backend> BackendTensor<B> {
     ///
     /// An already-tracked float (`Autodiff`) becomes the `Float` handle of `Autodiff<B>`; int/bool/
     /// quantized handles are re-tagged unchanged (those primitives are shared between `B` and
-    /// `Autodiff<B>`). An untracked `Float` handle is invalid here — under autodiff, float tensors
-    /// arrive tracked — so it panics.
+    /// `Autodiff<B>`). An untracked `Float` handle is invalid here (under autodiff, float tensors
+    /// arrive tracked), so it panics.
     #[cfg(feature = "autodiff")]
     pub fn into_autodiff(self) -> BackendTensor<Autodiff<B>> {
         match self {
