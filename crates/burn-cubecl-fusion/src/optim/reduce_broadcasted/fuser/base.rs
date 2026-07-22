@@ -137,6 +137,10 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
+    fn name(&self) -> &'static str {
+        "reduce-broadcasted"
+    }
+
     fn fuse(&mut self, operation: &OperationIr) {
         if matches!(
             &self.state,

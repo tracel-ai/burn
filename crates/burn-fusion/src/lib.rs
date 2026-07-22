@@ -20,6 +20,7 @@ pub(crate) mod search;
 mod backend;
 mod op;
 mod ops;
+mod registry;
 mod server;
 mod tensor;
 
@@ -33,4 +34,5 @@ pub(crate) use server::*;
 
 pub use backend::*;
 pub use ops::NoOp;
+pub use registry::{OptimizationProvider, RegistryError, register, remove};
 pub use tensor::*;

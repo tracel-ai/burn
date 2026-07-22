@@ -185,6 +185,12 @@ pub struct FuserProperties {
 /// Also, it is important to return (FuserStatus::Closed) when no more registered operation can
 /// improve the performance.
 pub trait OperationFuser<O>: Send {
+    /// Name identifying this fuser — the handle [`remove`](crate::remove)
+    /// takes to drop it from the fusion search. Defaults to the type name;
+    /// override with a short stable name to make the fuser removable.
+    fn name(&self) -> &'static str {
+        core::any::type_name::<Self>()
+    }
     /// Register a new [tensor operation](OperationIr).
     fn fuse(&mut self, operation: &OperationIr);
     /// Finish the optimization and create a fusion operation.

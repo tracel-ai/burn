@@ -49,6 +49,10 @@ impl<R: Runtime> MatmulFuser<R> {
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
+    fn name(&self) -> &'static str {
+        "matmul"
+    }
+
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = self.fuser.status() {
             return;

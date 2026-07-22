@@ -51,6 +51,10 @@ impl<R: Runtime> ElementWiseFuser<R> {
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ElementWiseFuser<R> {
+    fn name(&self) -> &'static str {
+        "element-wise"
+    }
+
     fn fuse(&mut self, operation: &burn_ir::OperationIr) {
         self.fuser.fuse(operation);
     }

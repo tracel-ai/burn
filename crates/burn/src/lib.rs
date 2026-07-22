@@ -148,6 +148,16 @@ pub mod nn {
     pub use burn_nn::*;
 }
 
+/// Kernel fusion module: the [`Fusion`](burn_fusion::Fusion) backend decorator
+/// and the registry for user-defined fusion optimizations
+/// ([`register`](burn_fusion::register) / [`remove`](burn_fusion::remove) —
+/// call them at the start of the program, before the first tensor operation on
+/// the fusion backend).
+#[cfg(feature = "fusion")]
+pub mod fusion {
+    pub use burn_fusion::*;
+}
+
 pub use burn_std::config::{BurnConfig, config as runtime_config};
 
 /// Optimizers module.

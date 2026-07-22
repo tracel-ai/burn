@@ -730,6 +730,7 @@ dependencies = [
  "burn-cuda",
  "burn-dispatch",
  "burn-flex",
+ "burn-fusion",
  "burn-ir",
  "burn-ndarray",
  "burn-nn",

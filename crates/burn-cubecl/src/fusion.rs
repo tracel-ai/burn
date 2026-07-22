@@ -48,6 +48,10 @@ where
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
             }),
+            Self::Custom(op) => op.execute(context, &mut |index| {
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationWrapper::new(operation))
+            }),
         }
     }
 
@@ -69,6 +73,12 @@ where
             CubeOptimizationState::ReduceBroadcasted(state) => {
                 Self::ReduceBroadcasted(ReduceBroadcastedOptimization::from_state(device, state))
             }
+            // User-defined optimizations carry no restorable state: they are
+            // rebuilt by their fuser, never deserialized from a stored plan.
+            CubeOptimizationState::Custom { name } => panic!(
+                "user-defined fusion optimization `{name}` cannot be restored from a serialized \
+                 execution plan"
+            ),
         }
     }
 }

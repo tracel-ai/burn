@@ -97,7 +97,7 @@ optim = ["burn-optim", "autodiff"]
 # Backend
 ir = ["burn-ir"]
 autodiff = ["burn-core/autodiff", "burn-autodiff"]
-fusion = ["ir", "burn-core/fusion", "burn-vision?/fusion"]
+fusion = ["ir", "burn-core/fusion", "burn-vision?/fusion", "dep:burn-fusion"]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
@@ -162,5 +162,6 @@ burn-wgpu = { workspace = true, optional = true }
 burn-ir = { workspace = true, optional = true }
 burn-autodiff = { workspace = true, optional = true }
 burn-dispatch = { workspace = true, optional = true }
+burn-fusion = { workspace = true, optional = true, features = ["default"] }
 
 cubecl = { workspace = true, optional = true }

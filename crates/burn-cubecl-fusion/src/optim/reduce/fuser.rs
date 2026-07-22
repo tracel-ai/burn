@@ -191,6 +191,10 @@ impl<R: Runtime> ReduceFuser<R> {
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
+    fn name(&self) -> &'static str {
+        "reduce"
+    }
+
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = self.fuser.status() {
             return;
