@@ -32,11 +32,8 @@ where
 
         for i in indexes {
             assert!(i < len, "Index out of bounds for dataset: {i} >= {len}");
-
-            match self.get(i) {
-                Ok(item) => items.push(item),
-                Err(e) => return Err(e),
-            }
+            let item = self.get(i)?;
+            items.push(item);
         }
 
         Ok(items)
