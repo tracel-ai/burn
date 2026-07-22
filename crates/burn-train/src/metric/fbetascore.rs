@@ -141,7 +141,6 @@ impl Metric for FBetaScoreMetric {
         NumericAttributes {
             unit: Some("%".to_string()),
             higher_is_better: true,
-            ..Default::default()
         }
         .into()
     }

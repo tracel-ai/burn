@@ -65,7 +65,6 @@ impl Metric for CumulativeRewardMetric {
         NumericAttributes {
             unit: None,
             higher_is_better: true,
-            ..Default::default()
         }
         .into()
     }

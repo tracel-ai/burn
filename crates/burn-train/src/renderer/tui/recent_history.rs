@@ -69,10 +69,10 @@ impl RecentHistoryPlot {
         };
 
         for (s, entry) in self.points.iter_mut() {
-            if let Some(y) = plot_value {
-                if s == &tag {
-                    entry.push((x_current, y));
-                }
+            if let Some(y) = plot_value
+                && s == &tag
+            {
+                entry.push((x_current, y));
             }
             entry.update_cursor(x_min);
         }

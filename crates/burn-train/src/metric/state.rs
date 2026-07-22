@@ -420,7 +420,7 @@ impl ConfusionStatsState {
 
     /// Get the current batch value.
     pub fn current_value(&self) -> Option<NumericEntry> {
-        (!self.current_value.is_nan()).then(|| NumericEntry::Aggregated {
+        (!self.current_value.is_nan()).then_some(NumericEntry::Aggregated {
             aggregated_value: self.current_value,
             count: self.current_count,
         })
@@ -428,7 +428,7 @@ impl ConfusionStatsState {
 
     /// Get the running aggregated value.
     pub fn running_value(&self) -> Option<NumericEntry> {
-        (!self.running_value.is_nan()).then(|| NumericEntry::Aggregated {
+        (!self.running_value.is_nan()).then_some(NumericEntry::Aggregated {
             aggregated_value: self.running_value,
             count: self.running_count,
         })

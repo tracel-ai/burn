@@ -315,8 +315,7 @@ impl TuiMetricsRenderer {
                     .get(&entry.metric_id)
                     .unwrap()
                     .name
-                    .clone()
-                    .into();
+                    .clone();
                 self.metrics_text.update(split, group, entry, name);
             }
             MetricState::Numeric(entry, value) => {
@@ -325,8 +324,7 @@ impl TuiMetricsRenderer {
                     .get(&entry.metric_id)
                     .unwrap()
                     .name
-                    .clone()
-                    .into();
+                    .clone();
                 self.metrics_numeric
                     .push(TuiTag::new(split, group.clone()), name.clone(), value);
                 self.metrics_text.update(split, group, entry, name);

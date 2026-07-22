@@ -64,7 +64,6 @@ impl Metric for CpuTemperature {
         super::NumericAttributes {
             unit: Some("°C".to_string()),
             higher_is_better: false,
-            ..Default::default()
         }
         .into()
     }

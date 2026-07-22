@@ -489,7 +489,6 @@ impl Metric for MsSsimMetric {
         NumericAttributes {
             unit: None,
             higher_is_better: true,
-            ..Default::default()
         }
         .into()
     }
