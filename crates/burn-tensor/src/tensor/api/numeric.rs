@@ -589,7 +589,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to compute the cumulative sum.
+    /// * `dim` - The dimension or axis along which to compute the cumulative sum;
+    ///   supports negative indexing.
     ///
     /// # Example
     ///
@@ -607,7 +608,8 @@ where
     ///    // [[1.0, 3.0, 6.0], [4.0, 9.0, 15.0]]
     /// }
     /// ```
-    pub fn cumsum(self, dim: usize) -> Self {
+    pub fn cumsum<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::aggregate_dim::<D>("CumSum", dim));
         Self::new(K::cumsum(self.primitive, dim))
     }
@@ -616,7 +618,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to compute the cumulative product.
+    /// * `dim` - The dimension or axis along which to compute the cumulative product;
+    ///   supports negative indexing.
     ///
     /// # Example
     ///
@@ -634,7 +637,8 @@ where
     ///    // [[1.0, 2.0, 6.0], [4.0, 20.0, 120.0]]
     /// }
     /// ```
-    pub fn cumprod(self, dim: usize) -> Self {
+    pub fn cumprod<I: AsIndex>(self, dim: I) -> Self {
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::aggregate_dim::<D>("CumProd", dim));
         Self::new(K::cumprod(self.primitive, dim))
     }
