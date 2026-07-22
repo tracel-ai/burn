@@ -42,6 +42,13 @@ impl<M: LearnerModel> SingleDeviceValidEpoch<M> {
         let mut iteration = 0;
 
         while let Some(item) = iterator.next() {
+            let item = match item {
+                Ok(item) => item,
+                Err(err) => {
+                    interrupter.stop(Some(&format!("dataset error during validation: {err}")));
+                    break;
+                }
+            };
             let progress = iterator.progress();
             iteration += 1;
 
@@ -87,6 +94,13 @@ impl<M: LearnerModel> SingleDeviceTrainEpoch<M> {
         let mut accumulation_current = 0;
 
         while let Some(item) = iterator.next() {
+            let item = match item {
+                Ok(item) => item,
+                Err(err) => {
+                    interrupter.stop(Some(&format!("dataset error during training: {err}")));
+                    break;
+                }
+            };
             iteration += 1;
             learner.lr_step();
             log::info!("Iteration {iteration}");

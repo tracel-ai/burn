@@ -60,6 +60,14 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 .process_test(EvaluatorEvent::StartTest(name.clone(), total_items));
 
             while let Some(item) = iterator.next() {
+                let item = match item {
+                    Ok(item) => item,
+                    Err(err) => {
+                        self.interrupter
+                            .stop(Some(&format!("dataset error during evaluation: {err}")));
+                        break;
+                    }
+                };
                 let progress = iterator.progress();
                 iteration += 1;
 

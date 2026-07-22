@@ -55,7 +55,7 @@ pub fn run(device: Device) {
     // Iterate over our training and validation loop for X epochs.
     for epoch in 1..config.num_epochs + 1 {
         // Implement our training loop.
-        for (iteration, batch) in dataloader_train.iter().enumerate() {
+        for (iteration, batch) in dataloader_train.iter().map(Result::unwrap).enumerate() {
             let output = model.forward(batch.images);
             let loss = CrossEntropyLoss::new(None, &output.device())
                 .forward(output.clone(), batch.targets.clone());
@@ -81,7 +81,7 @@ pub fn run(device: Device) {
         let model_valid = model.valid();
 
         // Implement our validation loop.
-        for (iteration, batch) in dataloader_test.iter().enumerate() {
+        for (iteration, batch) in dataloader_test.iter().map(Result::unwrap).enumerate() {
             let output = model_valid.forward(batch.images);
             let loss = CrossEntropyLoss::new(None, &output.device())
                 .forward(output.clone(), batch.targets.clone());

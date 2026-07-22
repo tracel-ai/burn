@@ -1,6 +1,6 @@
 use std::{cmp::max, marker::PhantomData, num::NonZeroUsize};
 
-use crate::Dataset;
+use crate::{Dataset, DatasetError};
 
 /// Functionality to create a window.
 pub trait Window<I> {
@@ -8,15 +8,21 @@ pub trait Window<I> {
     ///
     /// # Returns
     ///
-    /// A `Vec<I>` representing the window.
-    fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>>;
+    /// A `Vec<I>` representing the window, or `None` if the window doesn't fit within the
+    /// collection.
+    fn window(&self, current: usize, size: NonZeroUsize) -> Result<Option<Vec<I>>, DatasetError>;
 }
 
 impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
-    fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>> {
-        (current..current + size.get())
+    fn window(&self, current: usize, size: NonZeroUsize) -> Result<Option<Vec<I>>, DatasetError> {
+        let end = current + size.get();
+        if end > self.len() {
+            return Ok(None);
+        }
+        let items = (current..end)
             .map(|x| self.get(x))
-            .collect()
+            .collect::<Result<Vec<I>, DatasetError>>()?;
+        Ok(Some(items))
     }
 }
 
@@ -45,7 +51,7 @@ impl<I, T: Dataset<I>> Windows<I> for T {
     /// let dataset = InMemDataset::new(items.clone());
     ///
     /// for window in dataset.windows(2) {
-    ///  // do sth with window
+    ///  // window is a Result<Vec<I>, DatasetError>
     /// }
     /// ```
     fn windows(&self, size: usize) -> WindowsIterator<'_, I> {
@@ -59,6 +65,7 @@ pub struct WindowsIterator<'a, I> {
     /// The size of the windows.
     pub size: NonZeroUsize,
     current: usize,
+    len: usize,
     dataset: &'a dyn Dataset<I>,
 }
 
@@ -71,8 +78,11 @@ impl<'a, I> WindowsIterator<'a, I> {
     /// - `dataset`: The dataset over which windows will be created.
     /// - `size`: The size of the windows.
     pub fn new(dataset: &'a dyn Dataset<I>, size: NonZeroUsize) -> Self {
+        let len = max(dataset.len() as isize - size.get() as isize + 1, 0) as usize;
+
         WindowsIterator {
             current: 0,
+            len,
             dataset,
             size,
         }
@@ -80,11 +90,19 @@ impl<'a, I> WindowsIterator<'a, I> {
 }
 
 impl<I> Iterator for WindowsIterator<'_, I> {
-    type Item = Vec<I>;
+    type Item = Result<Vec<I>, DatasetError>;
 
-    fn next(&mut self) -> Option<Vec<I>> {
-        self.current += 1;
-        self.dataset.window(self.current - 1, self.size)
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current < self.len {
+            let window = self.dataset.window(self.current, self.size);
+            self.current += 1;
+            match window {
+                Ok(Some(window)) => return Some(Ok(window)),
+                Ok(None) => continue,
+                Err(err) => return Some(Err(err)),
+            }
+        }
+        None
     }
 }
 
@@ -94,6 +112,7 @@ impl<I> Clone for WindowsIterator<'_, I> {
             size: self.size,
             dataset: self.dataset,
             current: self.current,
+            len: self.len,
         }
     }
 }
@@ -144,8 +163,18 @@ where
     /// # Returns
     ///
     /// A vector representing the window.
-    fn get(&self, index: usize) -> Option<Vec<I>> {
-        self.dataset.window(index, self.size)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index >= len()`.
+    fn get(&self, index: usize) -> Result<Vec<I>, DatasetError> {
+        match self.dataset.window(index, self.size)? {
+            Some(window) => Ok(window),
+            None => panic!(
+                "Index out of bounds for WindowsDataset: {index} >= {}",
+                self.len()
+            ),
+        }
     }
 
     /// Retrieves the number of windows in the dataset.
@@ -177,7 +206,10 @@ mod tests {
             .map(|x| x.to_vec())
             .collect::<Vec<Vec<i32>>>();
 
-        let result = dataset.windows(3).collect::<Vec<Vec<i32>>>();
+        let result = dataset
+            .windows(3)
+            .map(Result::unwrap)
+            .collect::<Vec<Vec<i32>>>();
 
         assert_eq!(result, expected);
     }
@@ -193,6 +225,7 @@ mod tests {
 
         let result = WindowsDataset::new(dataset, 3)
             .iter()
+            .map(Result::unwrap)
             .collect::<Vec<Vec<i32>>>();
 
         assert_eq!(result, expected);
@@ -257,7 +290,7 @@ mod tests {
 
         let result = peekable.peek();
 
-        assert_eq!(result, None);
+        assert!(result.is_none());
     }
 
     #[rstest]
@@ -272,19 +305,18 @@ mod tests {
     #[rstest]
     pub fn window_dataset_get_should_be_equal() {
         let dataset = InMemDataset::new([1, 2, 3, 4].to_vec());
-        let expected = Some([1, 2, 3].to_vec());
+        let expected = [1, 2, 3].to_vec();
 
-        let result = WindowsDataset::new(dataset, 3).get(0);
+        let result = WindowsDataset::new(dataset, 3).get(0).unwrap();
 
         assert_eq!(result, expected);
     }
 
     #[rstest]
+    #[should_panic(expected = "Index out of bounds for WindowsDataset")]
     pub fn window_dataset_get_should_be_none() {
         let dataset = InMemDataset::new([1, 2].to_vec());
 
-        let result = WindowsDataset::new(dataset, 4).get(0);
-
-        assert_eq!(result, None);
+        WindowsDataset::new(dataset, 4).get(0).unwrap();
     }
 }

@@ -40,6 +40,9 @@ pub enum Message<O> {
 
     /// The thread is done.
     Done,
+
+    /// The worker hit an unrecoverable error (e.g. `Dataset::get` failed) and stopped early.
+    Error(usize, String),
 }
 
 struct MultiThreadsDataloaderIterator<O> {
@@ -194,13 +197,25 @@ where
                     .spawn(move || {
                         while let Ok(sender) = command_receiver.recv() {
                             let mut iterator = dataloader.iter();
-                            while let Some(item) = iterator.next() {
-                                let progress = iterator.progress();
+                            loop {
+                                match iterator.next() {
+                                    Some(Ok(item)) => {
+                                        let progress = iterator.progress();
 
-                                // Consumer dropped the receiver: abandon this pass,
-                                // don't terminate the worker.
-                                if sender.send(Message::Batch(index, item, progress)).is_err() {
-                                    break;
+                                        if sender
+                                            .send(Message::Batch(index, item, progress))
+                                            .is_err()
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    None => break,
+                                    Some(Err(dataset_err)) => {
+                                        sender
+                                            .send(Message::Error(index, dataset_err.to_string()))
+                                            .ok();
+                                        break;
+                                    }
                                 }
                             }
                             sender.send(Message::Done).ok();
@@ -311,9 +326,9 @@ impl<O: std::fmt::Debug> DataLoaderIterator<O> for MultiThreadsDataloaderIterato
 }
 
 impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
-    type Item = O;
+    type Item = Result<O, burn_dataset::DatasetError>;
 
-    fn next(&mut self) -> Option<O> {
+    fn next(&mut self) -> Option<Self::Item> {
         if self.num_workers == 0 {
             return None;
         }
@@ -324,7 +339,7 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
                     if let Some(current) = self.progresses.get_mut(index) {
                         *current = progress;
                     }
-                    return Some(item);
+                    return Some(Ok(item));
                 }
                 Ok(Message::Done) => {
                     self.num_done += 1;
@@ -333,7 +348,11 @@ impl<O: std::fmt::Debug> Iterator for MultiThreadsDataloaderIterator<O> {
                         return None;
                     }
                 }
-                // Every worker dropped its sender (the pool is shutting down).
+                Ok(Message::Error(index, msg)) => {
+                    return Some(Err(burn_dataset::DatasetError::new(std::io::Error::other(
+                        format!("dataloader worker {index} failed: {msg}"),
+                    ))));
+                }
                 Err(_) => return None,
             }
         }
@@ -346,8 +365,34 @@ mod tests {
     use crate::data::dataloader::FixBatchStrategy;
     use crate::data::dataloader::batcher::TestBatcher;
     use crate::data::dataset::FakeDataset;
+    use burn_dataset::DatasetError;
     use burn_dataset::InMemDataset;
     use std::collections::HashSet;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    /// A dataset that returns a real error (not an out-of-bounds panic) at one index,
+    /// to exercise the worker-error-propagation path below.
+    struct FlakyDataset {
+        len: usize,
+        fail_at: usize,
+    }
+
+    impl Dataset<usize> for FlakyDataset {
+        fn get(&self, index: usize) -> Result<usize, DatasetError> {
+            assert!(index < self.len, "index out of bounds");
+            if index == self.fail_at {
+                return Err(DatasetError::new(std::io::Error::other(
+                    "simulated dataset failure",
+                )));
+            }
+            Ok(index)
+        }
+
+        fn len(&self) -> usize {
+            self.len
+        }
+    }
 
     #[test]
     fn test_multi_thread_batch_dataloader() {
@@ -372,13 +417,13 @@ mod tests {
         let mut items_single_thread = HashSet::new();
         let mut items_multi_thread = HashSet::new();
 
-        for items in dataloader_single_thread.iter() {
+        for items in dataloader_single_thread.iter().map(Result::unwrap) {
             for item in items {
                 items_single_thread.insert(item);
             }
         }
 
-        for items in dataloader_multi_thread.iter() {
+        for items in dataloader_multi_thread.iter().map(Result::unwrap) {
             for item in items {
                 items_multi_thread.insert(item);
             }
@@ -414,7 +459,7 @@ mod tests {
                 None,
             );
 
-            for batch in loader.iter() {
+            for batch in loader.iter().map(Result::unwrap) {
                 let mut batch_items = HashSet::new();
                 for item in batch {
                     batch_items.insert(item);
@@ -440,7 +485,7 @@ mod tests {
                 Some(StdRng::seed_from_u64(42)),
             );
 
-            for batch in loader.iter() {
+            for batch in loader.iter().map(Result::unwrap) {
                 let mut batch_items = HashSet::new();
                 for item in batch {
                     batch_items.insert(item);
@@ -477,12 +522,12 @@ mod tests {
 
         let mut single_thread_cnt = 0;
         let mut multi_thread_cnt = 0;
-        for items in dataloader_single_thread.iter() {
+        for items in dataloader_single_thread.iter().map(Result::unwrap) {
             items_single_thread.insert(items);
             single_thread_cnt += 1;
         }
 
-        for items in dataloader_multi_thread.iter() {
+        for items in dataloader_multi_thread.iter().map(Result::unwrap) {
             items_multi_thread.insert(items);
             multi_thread_cnt += 1;
         }
@@ -497,7 +542,7 @@ mod tests {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
 
-        let expected: HashSet<_> = dataset.iter().collect();
+        let expected: HashSet<_> = dataset.iter().map(Result::unwrap).collect();
 
         let dataloader = MultiThreadDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
@@ -510,7 +555,7 @@ mod tests {
 
         for _epoch in 0..3 {
             let mut items = HashSet::new();
-            for batch in dataloader.iter() {
+            for batch in dataloader.iter().map(Result::unwrap) {
                 for item in batch {
                     items.insert(item);
                 }
@@ -525,7 +570,7 @@ mod tests {
         let batcher = Arc::new(TestBatcher::new());
         let dataset = Arc::new(FakeDataset::<String>::new(27));
 
-        let expected: HashSet<_> = dataset.iter().collect();
+        let expected: HashSet<_> = dataset.iter().map(Result::unwrap).collect();
 
         let dataloader = MultiThreadDataLoader::new(
             Box::new(FixBatchStrategy::new(5)),
@@ -543,11 +588,43 @@ mod tests {
         }
 
         let mut items = HashSet::new();
-        for batch in dataloader.iter() {
+        for batch in dataloader.iter().map(Result::unwrap) {
             for item in batch {
                 items.insert(item);
             }
         }
         assert_eq!(items, expected);
+    }
+
+    #[test]
+    fn test_multi_thread_batch_dataloader_propagates_worker_error_instead_of_hanging() {
+        let batcher = Arc::new(TestBatcher::new());
+        let dataset = Arc::new(FlakyDataset {
+            len: 40,
+            fail_at: 20,
+        });
+        let dataloader = MultiThreadDataLoader::new(
+            Box::new(FixBatchStrategy::new(1)),
+            dataset,
+            batcher,
+            4,
+            Default::default(),
+            None,
+        );
+
+        let (done_tx, done_rx) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let saw_error = dataloader.iter().any(|batch| batch.is_err());
+            done_tx.send(saw_error).ok();
+        });
+
+        let saw_error = done_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("dataloader hung instead of reporting the worker error");
+        assert!(
+            saw_error,
+            "expected the dataloader to yield an Err on a worker error"
+        );
+        let _ = handle.join();
     }
 }

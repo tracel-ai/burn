@@ -23,7 +23,11 @@ pub fn infer(artifact_dir: &str, device: impl Into<Device>) {
 
     // Use a sample of 1000 items from the test split
     let dataset = HousingDataset::test();
-    let items: Vec<HousingDistrictItem> = dataset.iter().take(1000).collect();
+    let items: Vec<HousingDistrictItem> = dataset
+        .iter()
+        .take(1000)
+        .map(|item| item.unwrap())
+        .collect();
 
     let batcher = HousingBatcher::new(&device);
     let batch = batcher.batch(items.clone(), &device);

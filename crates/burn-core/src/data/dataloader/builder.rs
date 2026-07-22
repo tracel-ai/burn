@@ -181,7 +181,7 @@ mod tests {
 
         assert_eq!(dataloader.num_items(), 9);
 
-        for device in dataloader.iter() {
+        for device in dataloader.iter().map(Result::unwrap) {
             assert_eq!(device, default_device)
         }
     }
@@ -196,7 +196,7 @@ mod tests {
 
         assert_eq!(dataloader.num_items(), 9);
 
-        for device in dataloader.iter() {
+        for device in dataloader.iter().map(Result::unwrap) {
             assert_eq!(device, default_device)
         }
     }
@@ -228,13 +228,13 @@ mod tests {
         let (mut iterator_1, mut iterator_2) = (dataloader_1.iter(), dataloader_2.iter());
 
         for _ in 0..5 {
-            assert_eq!(iterator_1.next().as_ref(), Some(&device1));
-            assert_eq!(iterator_2.next().as_ref(), Some(&device2));
+            assert_eq!(iterator_1.next().unwrap().unwrap(), device1);
+            assert_eq!(iterator_2.next().unwrap().unwrap(), device2);
         }
 
-        assert_eq!(iterator_1.next(), None);
+        assert!(iterator_1.next().is_none());
         // For uneven split, the last dataloader (partial dataset) will have the remaining item
-        assert_eq!(iterator_2.next(), Some(device2));
-        assert_eq!(iterator_2.next(), None);
+        assert_eq!(iterator_2.next().unwrap().unwrap(), device2);
+        assert!(iterator_2.next().is_none());
     }
 }

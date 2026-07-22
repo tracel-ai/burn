@@ -5,7 +5,9 @@
 // the TextClassificationDataset trait. These implementations are designed to be used
 // with a machine learning framework for tasks such as training a text classification model.
 
-use burn::data::dataset::{Dataset, SqliteDataset, source::huggingface::HuggingfaceDatasetLoader};
+use burn::data::dataset::{
+    Dataset, DatasetError, SqliteDataset, source::huggingface::HuggingfaceDatasetLoader,
+};
 
 // Define a struct for text classification items
 #[derive(new, Clone, Debug)]
@@ -35,10 +37,11 @@ pub struct AgNewsDataset {
 // Implement the Dataset trait for the AG News dataset
 impl Dataset<TextClassificationItem> for AgNewsDataset {
     /// Returns a specific item from the dataset
-    fn get(&self, index: usize) -> Option<TextClassificationItem> {
+    fn get(&self, index: usize) -> Result<TextClassificationItem, DatasetError> {
         self.dataset
             .get(index)
             .map(|item| TextClassificationItem::new(item.text, item.label)) // Map AgNewsItems to TextClassificationItems
+            .map_err(DatasetError::new)
     }
 
     /// Returns the length of the dataset
@@ -104,13 +107,16 @@ pub struct DbPediaDataset {
 /// Implements the Dataset trait for the DbPedia dataset
 impl Dataset<TextClassificationItem> for DbPediaDataset {
     /// Returns a specific item from the dataset
-    fn get(&self, index: usize) -> Option<TextClassificationItem> {
-        self.dataset.get(index).map(|item| {
-            TextClassificationItem::new(
-                format!("Title: {} - Content: {}", item.title, item.content),
-                item.label,
-            )
-        })
+    fn get(&self, index: usize) -> Result<TextClassificationItem, DatasetError> {
+        self.dataset
+            .get(index)
+            .map(|item| {
+                TextClassificationItem::new(
+                    format!("Title: {} - Content: {}", item.title, item.content),
+                    item.label,
+                )
+            })
+            .map_err(DatasetError::new)
     }
 
     /// Returns the length of the dataset
