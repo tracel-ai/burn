@@ -473,6 +473,19 @@ pub trait IntTensorOps<B: Backend> {
     /// The result of the addition.
     fn int_add_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
+    /// Element-wise square with a IntTensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The IntTensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise square of `tensor`.
+    fn int_square(tensor: IntTensor<B>) -> IntTensor<B> {
+        Self::int_powi_scalar(tensor, Scalar::from(2))
+    }
+
     /// Element-wise power with a IntTensor.
     ///
     /// # Arguments
