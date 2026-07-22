@@ -82,13 +82,13 @@ fn all_tensorless_input_panics() {
 mod autodiff_gradients {
     use super::*;
     use burn::backend::Backend;
-    use burn::backend::ops::FloatTensorOps;
     use burn::backend::autodiff::{
         Autodiff,
         checkpoint::{base::Checkpointer, strategy::CheckpointStrategy},
         grads::Gradients,
         ops::{Backward, Ops, OpsKind},
     };
+    use burn::backend::ops::FloatTensorOps;
     use burn::tensor::TensorData;
 
     #[derive(ExtensionType)]
