@@ -2213,20 +2213,22 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         ),
                     );
 
-                    // Classic form, with the divisor bumped to one at zero positions
-                    // (adding the mask only changes lanes the region mask discards).
-                    let output = B::float_cumprod(input.clone(), dim);
-                    let input_safe = B::float_add(input.clone(), zero_mask);
+                    // Replacing only the first zero lets one cumprod serve both
+                    // regions. Masking output_one before the first zero recovers the
+                    // regular cumprod output used by the classic gradient.
+                    let input_one = B::float_add(input.clone(), at_first.clone());
+                    let output_one = B::float_cumprod(input_one, dim);
+                    let output = B::float_mul(output_one.clone(), before_first.clone());
+
+                    // Classic form, with every zero divisor bumped to one. The
+                    // corresponding values are discarded by the region masks.
+                    let input_safe = B::float_add(input, zero_mask);
                     let classic = B::float_div(
                         reverse_cumsum(B::float_mul(grad.clone(), output)),
                         input_safe,
                     );
 
-                    // First-zero positions: input is zero there, so adding the mask
-                    // replaces exactly that zero with one before the cumprod.
-                    let input_one = B::float_add(input, at_first.clone());
-                    let omitted =
-                        reverse_cumsum(B::float_mul(grad, B::float_cumprod(input_one, dim)));
+                    let omitted = reverse_cumsum(B::float_mul(grad, output_one));
 
                     B::float_add(
                         B::float_mul(classic, before_first),
