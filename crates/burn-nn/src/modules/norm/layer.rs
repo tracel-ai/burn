@@ -8,8 +8,11 @@ use burn::module::Module;
 use burn::module::ModuleDisplay;
 use burn::module::Param;
 use burn::tensor::Device;
+use burn::tensor::FloatDType;
 use burn::tensor::Tensor;
 use burn::tensor::module::layer_norm;
+
+use super::accumulation_dtype;
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer using the [init function](LayerNormConfig::init).
 #[derive(Debug, Config)]
@@ -74,12 +77,24 @@ impl LayerNorm {
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
     pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        layer_norm(
-            input,
-            self.gamma.val(),
-            self.beta.as_ref().map(|b| b.val()),
-            self.epsilon,
-        )
+        let gamma = self.gamma.val();
+        let beta = self.beta.as_ref().map(|b| b.val());
+
+        // Widen when the input dtype cannot hold the sum of squares the
+        // reduction accumulates (see [`accumulation_dtype`]). The normalization
+        // is a backend op, so the parameters are widened with it — the op sees a
+        // single dtype — and the result is narrowed back to the model's own.
+        let original: FloatDType = input.dtype().into();
+        match accumulation_dtype(input.dtype()) {
+            Some(dtype) => layer_norm(
+                input.cast(dtype),
+                gamma.cast(dtype),
+                beta.map(|b| b.cast(dtype)),
+                self.epsilon,
+            )
+            .cast(original),
+            None => layer_norm(input, gamma, beta, self.epsilon),
+        }
     }
 }
 
