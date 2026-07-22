@@ -9,14 +9,17 @@ pub use burn_dispatch::{backend::*, device::*, tensor::*};
 // Re-export backends (e.g., Cuda)
 pub use burn_dispatch::backends::*;
 
-/// A trait to allow mapping custom backend-specific structures into their generic dispatch equivalents.
+/// A trait to map custom structs and enums of tensor primitives across the [`Dispatch`] boundary, in
+/// both directions.
 ///
-/// This trait is designed to cooperate with the [`#[backend_extension]`](backend_extension) macro. When an
-/// extension operation returns a custom struct containing multiple tensor primitives rather than a single
-/// output tensor primitive, this trait provides the mechanism to traverse that struct and recursively wrap
-/// each internal field into a [`DispatchTensor`].
+/// This trait cooperates with the [`#[backend_extension]`](backend_extension) macro. When an extension
+/// operation returns such a type, [`map_to_dispatch`](Self::map_to_dispatch) wraps each internal tensor
+/// into a [`DispatchTensor`]; when it takes one as an input, [`map_from_dispatch`](Self::map_from_dispatch)
+/// reconstructs the concrete value and [`dispatch_repr`](Self::dispatch_repr) /
+/// [`dispatch_float_repr`](Self::dispatch_float_repr) locate a representative tensor for backend
+/// selection. Nested `#[extension_type]` fields are traversed recursively.
 ///
-/// Implementations of this trait are generated automatically using `#[derive(ExtensionType)]`.
+/// Implementations are generated automatically using `#[derive(ExtensionType)]`.
 pub trait ExtensionType<B: Backend> {
     /// The target struct layout where all internal concrete backend tensors are transformed
     /// into [`DispatchTensor`]s.

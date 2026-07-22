@@ -207,7 +207,8 @@ fn enum_and_tuple_input_dispatch_compiles() {
     // Enum input, tuple-struct input, and enum-mixed-with-bare-tensor input all expand into
     // well-typed dispatch methods routing concrete `Remote` and autodiff `Autodiff<Remote>`.
     let _a: fn(Operand<Dispatch>) -> FloatTensor<Dispatch> = <Dispatch as EnumBackend>::use_operand;
-    let _b: fn(TupleInputs<Dispatch>) -> FloatTensor<Dispatch> = <Dispatch as EnumBackend>::use_tuple;
+    let _b: fn(TupleInputs<Dispatch>) -> FloatTensor<Dispatch> =
+        <Dispatch as EnumBackend>::use_tuple;
     let _c: fn(FloatTensor<Dispatch>, Operand<Dispatch>) -> FloatTensor<Dispatch> =
         <Dispatch as EnumBackend>::mix_enum;
 }
@@ -278,7 +279,8 @@ mod autodiff_struct_input {
     fn autodiff_struct_input_dispatch_compiles() {
         // Referencing the dispatch methods proves the macro expanded a well-typed `impl for Dispatch`
         // whose match routes both concrete (`Remote`) and autodiff (`Autodiff<Remote>`) inputs.
-        let _a: fn(Pair<Dispatch>, f32) -> FloatTensor<Dispatch> = <Dispatch as AdBackend>::ad_combine;
+        let _a: fn(Pair<Dispatch>, f32) -> FloatTensor<Dispatch> =
+            <Dispatch as AdBackend>::ad_combine;
         let _b: fn(FloatTensor<Dispatch>, Pair<Dispatch>) -> FloatTensor<Dispatch> =
             <Dispatch as AdBackend>::ad_mix;
     }

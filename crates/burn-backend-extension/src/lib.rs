@@ -362,8 +362,6 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
         }
 
         // Parse outputs
-
-        // Parse outputs
         let (actual_ty, is_async) = match &f.sig.output {
             ReturnType::Default => {
                 return Err(syn::Error::new_spanned(
@@ -697,6 +695,25 @@ fn validate_extension_ty(ty: &Type) -> syn::Result<()> {
     Ok(())
 }
 
+/// `panic!` emitted in a concrete-path unwrap arm that a valid single-backend call never reaches: it
+/// can only be hit by a genuine backend mismatch or by mixed autodiff tracking across inputs.
+fn panic_backend_or_tracking_mismatch() -> TokenStream2 {
+    quote! {
+        panic!(
+            "backend extension op received tensor inputs on mismatched backends, or mixed autodiff-tracked and untracked float tensors; all tensor inputs must share one backend and tracking"
+        )
+    }
+}
+
+/// `panic!` emitted in an autodiff unwrap arm, only reachable on a genuine backend mismatch.
+fn panic_backend_mismatch() -> TokenStream2 {
+    quote! {
+        panic!(
+            "backend extension op received tensor inputs on mismatched backends; all tensor inputs must be on the same backend"
+        )
+    }
+}
+
 /// Generate the dispatch body for an operation whose inputs include at least one `#[extension_type]`
 /// struct. General "peek then unwrap" path: handles any mix of bare tensors and structs (including
 /// several structs), for both concrete backends and (when `Autodiff` is listed) the autodiff wrapper.
@@ -715,6 +732,7 @@ fn validate_extension_ty(ty: &Type) -> syn::Result<()> {
 /// autodiff op; the macro only routes and re-wraps.
 fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
     let name = &op.name;
+    let mismatch = panic_backend_or_tracking_mismatch();
     let has_ad = ir.backends.autodiff.0;
     // cfg gating the `Autodiff` entry itself (e.g. `Autodiff: cfg(feature = "autodiff")`). Every
     // generated autodiff arm must carry it, mirroring the pure-tensor path, so the arms vanish when
@@ -813,9 +831,7 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
                     let #n = match #n.kind {
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                         #[allow(unreachable_patterns)]
-                        _ => panic!(
-                            "backend extension op received tensor inputs on mismatched backends, or mixed autodiff-tracked and untracked float tensors; all tensor inputs must share one backend and tracking"
-                        ),
+                        _ => #mismatch,
                     };
                 })
             }
@@ -884,6 +900,7 @@ fn gen_mixed_ad_arm(
     let b_ident = backend_to_ident(backend);
     let trait_name = &ir.trait_name;
     let fn_name = &op.name;
+    let mismatch = panic_backend_mismatch();
     let maybe_await = if op.asyncness {
         quote! { .await }
     } else {
@@ -899,9 +916,7 @@ fn gen_mixed_ad_arm(
                     burn::backend::DispatchTensorKind::Autodiff(inner) => match *inner {
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt.autodiff(),
                         #[allow(unreachable_patterns)]
-                        _ => panic!(
-                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
-                        ),
+                        _ => #mismatch,
                     },
                     #[allow(unreachable_patterns)]
                     _ => panic!(
@@ -936,15 +951,11 @@ fn gen_mixed_ad_arm(
                             burn::backend::DispatchTensorKind::Autodiff(inner) => match *inner {
                                 burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                                 #[allow(unreachable_patterns)]
-                                _ => panic!(
-                                    "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
-                                ),
+                                _ => #mismatch,
                             },
                             burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                             #[allow(unreachable_patterns)]
-                            _ => panic!(
-                                "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
-                            ),
+                            _ => #mismatch,
                         };
                         bt.into_autodiff()
                     },
@@ -1035,6 +1046,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
     let b_ident = backend_to_ident(backend);
     let trait_name = &ir.trait_name;
     let fn_name = &op.name;
+    let mismatch = panic_backend_or_tracking_mismatch();
 
     // Unwrap inner kind: lhs.float(), rhs.int(), etc. (no-op when there are no tensor inputs).
     let unwraps = op.inputs.iter().filter_map(|a| match &a.kind {
@@ -1054,9 +1066,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
                     |kind| match kind {
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                         #[allow(unreachable_patterns)]
-                        _ => panic!(
-                            "backend extension op received tensor inputs on mismatched backends, or mixed autodiff-tracked and untracked float tensors; all tensor inputs must share one backend and tracking"
-                        ),
+                        _ => #mismatch,
                     },
                 );
             })
@@ -1411,7 +1421,7 @@ fn gen_repr_arm(case: &DeriveCase, float_only: bool) -> TokenStream2 {
 /// }
 /// ```
 #[proc_macro_derive(ExtensionType, attributes(extension_type))]
-pub fn derive_extension_output(input: TokenStream) -> TokenStream {
+pub fn derive_extension_type(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
