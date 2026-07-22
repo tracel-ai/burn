@@ -20,10 +20,6 @@ pub struct GlobalFusionClient<R: FusionRuntime> {
 
 impl<R: FusionRuntime> DeviceService for FusionServer<R> {
     fn init(device_id: DeviceId) -> Self {
-        // The service is starting: seal the optimization registry so every
-        // stream of this runtime sees the same fuser list. Later
-        // registrations error, telling the user to register at program start.
-        crate::registry::mark_started::<R>();
         let device = FusionDevice::<R>::from_id(device_id);
         let utilities = FusionUtilities {
             initialized_comms: RwLock::new(HashSet::default()),

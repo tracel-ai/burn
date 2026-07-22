@@ -48,11 +48,7 @@ impl<R: Runtime> MatmulFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
-    fn name(&self) -> &'static str {
-        "matmul"
-    }
-
+impl<R: Runtime> OperationFuser<Box<dyn CubeOptimization<R>>> for MatmulFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = self.fuser.status() {
             return;
@@ -116,7 +112,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
         }
     }
 
-    fn finish(&mut self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> Box<dyn CubeOptimization<R>> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
         let trace_fallback = self.fuser_fallback.finish();
@@ -130,7 +126,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
             self.matmul.as_ref().unwrap().clone(),
         );
 
-        CubeOptimization::Matmul(matmul)
+        Box::new(matmul)
     }
 
     fn reset(&mut self) {
@@ -152,7 +148,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
         self.fuser.len() + 1
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<Box<dyn CubeOptimization<R>>>> {
         Box::new(self.clone())
     }
 }

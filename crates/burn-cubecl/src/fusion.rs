@@ -1,17 +1,9 @@
 use crate::{CubeBackend, CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
-use burn_cubecl_fusion::optim::reduce::ReduceSettings;
-use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
 use burn_cubecl_fusion::{
     CubeFusionHandle, FallbackOperation,
-    optim::{
-        CubeOptimization, CubeOptimizationState,
-        elemwise::{ElementWiseFuser, ElemwiseOptimization},
-        matmul::{MatmulFuser, MatmulOptimization},
-        reduce::{ReduceFuser, ReduceOptimization},
-        reduce_broadcasted::ReduceBroadcastedOptimization,
-    },
+    optim::{CubeOptimization, CubeOptimizationState},
 };
 use burn_fusion::UnfusedOp;
 use burn_fusion::{
@@ -23,7 +15,10 @@ use burn_std::Metadata;
 use core::marker::PhantomData;
 use std::sync::Arc;
 
-impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptimization<R>
+mod registry;
+pub use registry::{BUILTIN_NAMES, OptimizationProvider, RegistryError, register, remove};
+
+impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for Box<dyn CubeOptimization<R>>
 where
     R: CubeRuntime,
 {
@@ -34,52 +29,25 @@ where
         >,
         execution: &OrderedExecution<FusionCubeRuntime<R>>,
     ) {
-        match self {
-            Self::ElementWise(op) => op.execute(context),
-            Self::Matmul(op) => op.execute(context, |index| {
-                let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationWrapper::new(operation))
-            }),
-            Self::Reduce(op) => op.execute(context, |index| {
-                let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationWrapper::new(operation))
-            }),
-            Self::ReduceBroadcasted(op) => op.execute(context, |index| {
-                let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationWrapper::new(operation))
-            }),
-            Self::Custom(op) => op.execute(context, &mut |index| {
-                let operation = execution.operation_within_optimization(index);
-                Box::new(FallbackOperationWrapper::new(operation))
-            }),
-        }
+        self.as_mut().execute(context, &|index| {
+            let operation = execution.operation_within_optimization(index);
+            Box::new(FallbackOperationWrapper::new(operation))
+        })
     }
 
     fn to_state(&self) -> CubeOptimizationState {
-        self.to_opt_state()
+        CubeOptimizationState {
+            name: self.as_ref().name().to_string(),
+        }
     }
 
-    fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
-        match state {
-            CubeOptimizationState::ElementWise(state) => {
-                Self::ElementWise(ElemwiseOptimization::from_state(device, state))
-            }
-            CubeOptimizationState::Matmul(state) => {
-                Self::Matmul(MatmulOptimization::from_state(device, state))
-            }
-            CubeOptimizationState::Reduce(state) => {
-                Self::Reduce(ReduceOptimization::from_state(device, state))
-            }
-            CubeOptimizationState::ReduceBroadcasted(state) => {
-                Self::ReduceBroadcasted(ReduceBroadcastedOptimization::from_state(device, state))
-            }
-            // User-defined optimizations carry no restorable state: they are
-            // rebuilt by their fuser, never deserialized from a stored plan.
-            CubeOptimizationState::Custom { name } => panic!(
-                "user-defined fusion optimization `{name}` cannot be restored from a serialized \
-                 execution plan"
-            ),
-        }
+    fn from_state(_device: &R::Device, state: CubeOptimizationState) -> Self {
+        // Optimizations are rebuilt by their fusers; no stored plan is ever
+        // deserialized for the cubecl fusion runtime.
+        panic!(
+            "fusion optimization `{}` cannot be restored from a serialized execution plan",
+            state.name
+        )
     }
 }
 
@@ -147,17 +115,12 @@ impl<R: CubeRuntime> BackendIr for CubeBackend<R> {
 
 impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
     type OptimizationState = CubeOptimizationState;
-    type Optimization = CubeOptimization<R>;
+    type Optimization = Box<dyn CubeOptimization<R>>;
     type FusionHandle = CubeFusionHandle<R>;
     type FusionDevice = R::CubeDevice;
 
     fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
-        vec![
-            Box::new(ElementWiseFuser::new(device.clone())),
-            Box::new(MatmulFuser::new(device.clone())),
-            Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
-            Box::new(ReduceBroadcastedFuser::new(device.clone())),
-        ]
+        registry::fusers::<R>(&device)
     }
 }
 

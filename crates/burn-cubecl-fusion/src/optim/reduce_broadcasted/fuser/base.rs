@@ -136,11 +136,7 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
     }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
-    fn name(&self) -> &'static str {
-        "reduce-broadcasted"
-    }
-
+impl<R: Runtime> OperationFuser<Box<dyn CubeOptimization<R>>> for ReduceBroadcastedFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if matches!(
             &self.state,
@@ -164,7 +160,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         }
     }
 
-    fn finish(&mut self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> Box<dyn CubeOptimization<R>> {
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
         let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
@@ -179,7 +175,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             fallbacks,
             broadcasted,
         });
-        CubeOptimization::ReduceBroadcasted(ReduceBroadcastedOptimization { info, num_ops })
+        Box::new(ReduceBroadcastedOptimization { info, num_ops })
     }
 
     fn reset(&mut self) {
@@ -222,7 +218,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         self.num_ops
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<Box<dyn CubeOptimization<R>>>> {
         Box::new(self.clone())
     }
 }

@@ -1,20 +1,20 @@
 use crate::optim::{
-    elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
-    matmul::{MatmulOptimization, MatmulOptimizationState},
-    reduce::{ReduceOptimization, ReduceOptimizationState},
-    reduce_broadcasted::{ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationState},
+    elemwise::ElemwiseOptimization, matmul::MatmulOptimization, reduce::ReduceOptimization,
+    reduce_broadcasted::ReduceBroadcastedOptimization,
 };
 use crate::{CubeFusionHandle, FallbackOperation};
 use burn_fusion::stream::Context;
 use cubecl::Runtime;
 use serde::{Deserialize, Serialize};
 
-/// A user-defined fusion optimization, held by [`CubeOptimization::Custom`].
+/// A fusion optimization for cubecl backends — the single trait the built-in
+/// optimizations and user-defined ones implement alike. The runtime's
+/// optimization type is `Box<dyn CubeOptimization<R>>`; a fuser's
+/// [`finish`](burn_fusion::OperationFuser::finish) boxes its optimization.
 ///
-/// Built by the [`OperationFuser`](burn_fusion::OperationFuser) of a provider
-/// registered through [`burn_fusion::register`]: the fuser's `finish` wraps an
-/// implementation of this trait in [`CubeOptimization::Custom`].
-pub trait CustomOptimization<R: Runtime>: Send {
+/// User-defined optimizations are registered through the optimization registry
+/// in `burn-cubecl` (`fusion::register`).
+pub trait CubeOptimization<R: Runtime>: Send {
     /// Name of the optimization, for diagnostics and fusion logs.
     fn name(&self) -> &'static str;
 
@@ -27,83 +27,103 @@ pub trait CustomOptimization<R: Runtime>: Send {
     fn execute(
         &mut self,
         context: &mut Context<CubeFusionHandle<R>>,
-        fallback: &mut dyn FnMut(usize) -> Box<dyn FallbackOperation<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
     );
 }
 
-/// Fusion optimization type for cubecl.
-///
-/// More optimization variants should be added here.
-#[allow(clippy::large_enum_variant)]
-pub enum CubeOptimization<R: Runtime> {
-    ElementWise(ElemwiseOptimization<R>),
-    Matmul(MatmulOptimization<R>),
-    Reduce(ReduceOptimization<R>),
-    ReduceBroadcasted(ReduceBroadcastedOptimization<R>),
-    /// A user-defined optimization (see [`CustomOptimization`]).
-    Custom(Box<dyn CustomOptimization<R>>),
-}
-
-impl<R: Runtime> core::fmt::Debug for CubeOptimization<R> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let value = self.to_opt_state();
-        f.write_fmt(format_args!("{value:?}"))
+impl<R: Runtime> core::fmt::Debug for dyn CubeOptimization<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{} ({} ops)", self.name(), self.num_ops_fused())
     }
 }
 
-impl<R: Runtime> CubeOptimization<R> {
-    /// Serializes the current optimization to its state.
-    pub fn to_opt_state(&self) -> CubeOptimizationState {
-        match self {
-            Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
-            Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
-            Self::Reduce(value) => CubeOptimizationState::Reduce(value.to_state()),
-            Self::ReduceBroadcasted(value) => {
-                CubeOptimizationState::ReduceBroadcasted(value.to_state())
-            }
-            Self::Custom(value) => CubeOptimizationState::Custom {
-                name: value.name().to_string(),
-            },
-        }
-    }
-}
-
-impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
+impl<R: Runtime> burn_fusion::NumOperations for Box<dyn CubeOptimization<R>> {
     fn len(&self) -> usize {
-        match self {
-            Self::ElementWise(op) => op.num_ops_fused(),
-            Self::Matmul(op) => op.num_ops_fused(),
-            Self::Reduce(op) => op.num_ops_fused(),
-            Self::ReduceBroadcasted(op) => op.num_ops_fused(),
-            Self::Custom(op) => op.num_ops_fused(),
-        }
+        self.as_ref().num_ops_fused()
     }
 
     fn name(&self) -> &'static str {
-        match self {
-            CubeOptimization::ElementWise(..) => "ElementWise",
-            CubeOptimization::Matmul(..) => "Matmul",
-            CubeOptimization::Reduce(..) => "Reduce",
-            CubeOptimization::ReduceBroadcasted(..) => "ReduceBroadcasted",
-            CubeOptimization::Custom(op) => op.name(),
-        }
+        self.as_ref().name()
     }
 }
 
-/// Fusion optimization state type for cubecl.
-///
-/// More optimization variants should be added here.
-#[allow(clippy::large_enum_variant)]
+/// Serializable stand-in for a fusion optimization: its name only. Restoring
+/// an optimization from state is not supported by the cubecl fusion runtime —
+/// optimizations are rebuilt by their fusers, never deserialized.
 #[derive(Serialize, Deserialize, Debug)]
-pub enum CubeOptimizationState {
-    ElementWise(ElemwiseOptimizationState),
-    Matmul(MatmulOptimizationState),
-    Reduce(ReduceOptimizationState),
-    ReduceBroadcasted(ReduceBroadcastedOptimizationState),
-    /// A user-defined optimization carries no restorable state — only its
-    /// name, for diagnostics. See [`CustomOptimization`].
-    Custom {
-        /// The optimization's [name](CustomOptimization::name).
-        name: String,
-    },
+pub struct CubeOptimizationState {
+    /// The optimization's [name](CubeOptimization::name).
+    pub name: String,
+}
+
+impl<R: Runtime> CubeOptimization<R> for ElemwiseOptimization<R> {
+    fn name(&self) -> &'static str {
+        "ElementWise"
+    }
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn execute(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        _fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context)
+    }
+}
+
+impl<R: Runtime> CubeOptimization<R> for MatmulOptimization<R> {
+    fn name(&self) -> &'static str {
+        "Matmul"
+    }
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn execute(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
+}
+
+impl<R: Runtime> CubeOptimization<R> for ReduceOptimization<R> {
+    fn name(&self) -> &'static str {
+        "Reduce"
+    }
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn execute(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
+}
+
+impl<R: Runtime> CubeOptimization<R> for ReduceBroadcastedOptimization<R> {
+    fn name(&self) -> &'static str {
+        "ReduceBroadcasted"
+    }
+
+    fn num_ops_fused(&self) -> usize {
+        Self::num_ops_fused(self)
+    }
+
+    fn execute(
+        &mut self,
+        context: &mut Context<CubeFusionHandle<R>>,
+        fallback: &dyn Fn(usize) -> Box<dyn FallbackOperation<R>>,
+    ) {
+        Self::execute(self, context, |index| fallback(index))
+    }
 }

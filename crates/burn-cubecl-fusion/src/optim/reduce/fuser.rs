@@ -188,13 +188,32 @@ impl<R: Runtime> ReduceFuser<R> {
             }
         };
     }
+
+    /// Build the reduce optimization from the fused operations. The typed
+    /// counterpart of [`OperationFuser::finish`], for callers that compose the
+    /// optimization further (the broadcasted-reduce blocks reuse its info).
+    pub(crate) fn finish_reduce(&mut self) -> ReduceOptimization<R> {
+        let client = R::client(&self.device);
+        let trace = self.fuser.finish();
+        let trace_read_fallback = self.fuser_read_fallback.finish();
+        let trace_write_fallback = self.fuser_write_fallback.finish();
+        let fuse_reduce = self.reduce.as_ref().unwrap();
+
+        ReduceOptimization::new(
+            trace,
+            trace_read_fallback,
+            trace_write_fallback,
+            client,
+            self.device.clone(),
+            self.len(),
+            self.fuser_read_fallback.len(),
+            fuse_reduce.clone(),
+            self.settings,
+        )
+    }
 }
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
-    fn name(&self) -> &'static str {
-        "reduce"
-    }
-
+impl<R: Runtime> OperationFuser<Box<dyn CubeOptimization<R>>> for ReduceFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
         if let FuserStatus::Closed = self.fuser.status() {
             return;
@@ -284,26 +303,8 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
         }
     }
 
-    fn finish(&mut self) -> CubeOptimization<R> {
-        let client = R::client(&self.device);
-        let trace = self.fuser.finish();
-        let trace_read_fallback = self.fuser_read_fallback.finish();
-        let trace_write_fallback = self.fuser_write_fallback.finish();
-        let fuse_reduce = self.reduce.as_ref().unwrap();
-
-        let reduce = ReduceOptimization::new(
-            trace,
-            trace_read_fallback,
-            trace_write_fallback,
-            client,
-            self.device.clone(),
-            self.len(),
-            self.fuser_read_fallback.len(),
-            fuse_reduce.clone(),
-            self.settings,
-        );
-
-        CubeOptimization::Reduce(reduce)
+    fn finish(&mut self) -> Box<dyn CubeOptimization<R>> {
+        Box::new(self.finish_reduce())
     }
 
     fn reset(&mut self) {
@@ -327,7 +328,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
         self.fuser.len() + if self.reduce.is_some() { 1 } else { 0 }
     }
 
-    fn clone_dyn(&self) -> Box<dyn OperationFuser<CubeOptimization<R>>> {
+    fn clone_dyn(&self) -> Box<dyn OperationFuser<Box<dyn CubeOptimization<R>>>> {
         Box::new(self.clone())
     }
 }
