@@ -1017,8 +1017,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to compute the cumulative minimum;
-    ///   supports negative indexing.
+    /// * `dim` - The dimension or axis along which to compute the cumulative minimum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -1046,8 +1046,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to compute the cumulative maximum;
-    ///   supports negative indexing.
+    /// * `dim` - The dimension or axis along which to compute the cumulative maximum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///

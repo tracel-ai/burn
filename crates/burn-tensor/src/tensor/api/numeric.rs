@@ -589,8 +589,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to compute the cumulative sum;
-    ///   supports negative indexing.
+    /// * `dim` - The dimension or axis along which to compute the cumulative sum.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
@@ -618,8 +618,8 @@ where
     ///
     /// # Arguments
     ///
-    /// * `dim` - The dimension or axis along which to compute the cumulative product;
-    ///   supports negative indexing.
+    /// * `dim` - The dimension or axis along which to compute the cumulative product.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Example
     ///
