@@ -1,7 +1,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::Tensor;
+use burn::tensor::{AsIndex, Tensor};
 use burn_core as burn;
 
 /// Configuration for the [SmoothL1Loss](SmoothL1Loss) module.
@@ -179,6 +179,7 @@ impl SmoothL1Loss {
     /// - `predictions` - The model's predicted values.
     /// - `targets` - The ground truth target values.
     /// - `dims` - Dimensions to reduce over.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -193,16 +194,19 @@ impl SmoothL1Loss {
     /// // Per-image loss: reduce over C, H, W → [batch, 1, 1, 1]
     /// let loss_per_image = smooth_l1.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
     /// ```
-    pub fn forward_reduce_dims<const D: usize>(
+    pub fn forward_reduce_dims<const D: usize, I: AsIndex>(
         &self,
         predictions: Tensor<D>,
         targets: Tensor<D>,
-        dims: &[usize],
+        dims: &[I],
     ) -> Tensor<D> {
         let error = self.forward(predictions, targets);
 
-        // Sort the dimensions to ascending order
-        let mut sorted_dims = dims.to_vec();
+        // Normalize and sort the dimensions to ascending order.
+        let mut sorted_dims = dims
+            .iter()
+            .map(|dim| dim.expect_dim_index(D))
+            .collect::<Vec<_>>();
         sorted_dims.sort();
 
         // Reduce over specified dimensions
@@ -491,11 +495,30 @@ mod tests {
             Tensor::<2>::from_data(TensorData::from([[0.5_f32, 2.0], [0.0, 3.0]]), &device);
         let targets = Tensor::<2>::zeros([2, 2], &device);
 
-        let loss_reduce_dims = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
+        let loss_reduce_dims =
+            loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[] as &[usize]);
         let loss_no_reduction = loss.forward(predictions, targets);
 
         loss_reduce_dims
             .into_data()
             .assert_eq(&loss_no_reduction.into_data(), false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_reduce_dims_negative_dims() {
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+        let predictions = Tensor::<3>::from_data(
+            TensorData::from([[[1.0_f32, 2.0], [3.0, 4.0]], [[5.0_f32, 6.0], [7.0, 8.0]]]),
+            &device,
+        );
+        let targets = Tensor::<3>::zeros([2, 2, 2], &device);
+
+        let expected = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[1, 2]);
+        let output = loss.forward_reduce_dims(predictions, targets, &[-2, -1]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
     }
 }
