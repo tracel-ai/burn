@@ -51,7 +51,7 @@ impl<I, T: Dataset<I>> Windows<I> for T {
     /// let dataset = InMemDataset::new(items.clone());
     ///
     /// for window in dataset.windows(2) {
-    ///  // do sth with window
+    ///  // window is a Result<Vec<I>, DatasetError>
     /// }
     /// ```
     fn windows(&self, size: usize) -> WindowsIterator<'_, I> {
@@ -87,25 +87,22 @@ impl<'a, I> WindowsIterator<'a, I> {
             size,
         }
     }
-
-    /// Pulls the next window, surfacing a dataset retrieval failure as an `Err` instead of
-    /// panicking.
-    pub fn try_next(&mut self) -> Result<Option<Vec<I>>, DatasetError> {
-        while self.current < self.len {
-            if let Some(window) = self.dataset.window(self.current, self.size)? {
-                return Ok(Some(window));
-            }
-            self.current += 1;
-        }
-        Ok(None)
-    }
 }
 
 impl<I> Iterator for WindowsIterator<'_, I> {
-    type Item = Vec<I>;
+    type Item = Result<Vec<I>, DatasetError>;
 
-    fn next(&mut self) -> Option<Vec<I>> {
-        self.try_next().unwrap()
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current < self.len {
+            let window = self.dataset.window(self.current, self.size);
+            self.current += 1;
+            match window {
+                Ok(Some(window)) => return Some(Ok(window)),
+                Ok(None) => continue,
+                Err(err) => return Some(Err(err)),
+            }
+        }
+        None
     }
 }
 
@@ -209,7 +206,10 @@ mod tests {
             .map(|x| x.to_vec())
             .collect::<Vec<Vec<i32>>>();
 
-        let result = dataset.windows(3).collect::<Vec<Vec<i32>>>();
+        let result = dataset
+            .windows(3)
+            .map(Result::unwrap)
+            .collect::<Vec<Vec<i32>>>();
 
         assert_eq!(result, expected);
     }
@@ -290,7 +290,7 @@ mod tests {
 
         let result = peekable.peek();
 
-        assert_eq!(result, None);
+        assert!(result.is_none());
     }
 
     #[rstest]
