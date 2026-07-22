@@ -76,6 +76,35 @@ fn remote_backend_extension_dispatch_compiles() {
         <Dispatch as Backend>::mix;
     let _j: fn(Pair<Dispatch>, Pair<Dispatch>) -> FloatTensor<Dispatch> =
         <Dispatch as Backend>::combine_two;
+    // Struct input on an op whose `Autodiff` entry is `cfg`-gated off in this build. The generated
+    // autodiff arms must carry that cfg and be stripped; otherwise they reference a bare `Autodiff`
+    // that isn't in scope here. This compiling proves the mixed path honors the autodiff cfg gate
+    // (regression test for the review's finding #1). (See `AdGatedBackend`.)
+    let _k: fn(Pair<Dispatch>) -> FloatTensor<Dispatch> = <Dispatch as AdGatedBackend>::ad_gated;
+}
+
+// Struct input combined with a `cfg`-gated `Autodiff`. The gate `cfg(not(feature = "remote"))` is
+// always false in this `#![cfg(feature = "remote")]` build, so every generated autodiff arm must be
+// stripped. If the mixed path failed to propagate the autodiff cfg (the pre-fix bug), the arms would
+// remain and reference the unimported `Autodiff` type, failing to compile — so this trait building at
+// all is the assertion. Mirrors `GatedBackend`, but exercises the autodiff-gate path specifically.
+#[backend_extension(Autodiff: cfg(not(feature = "remote")), Remote)]
+pub trait AdGatedBackend: burn::backend::Backend {
+    fn ad_gated(#[extension_type] pair: Pair<Self>) -> FloatTensor<Self>;
+}
+
+impl AdGatedBackend for Remote {
+    fn ad_gated(_pair: Pair<Self>) -> FloatTensor<Self> {
+        unimplemented!("the client builds a CustomOpIr and ships it to the server")
+    }
+}
+
+// Only referenced by the generated autodiff arms, which are gated off in this build.
+#[cfg(not(feature = "remote"))]
+impl AdGatedBackend for burn::backend::Autodiff<Remote> {
+    fn ad_gated(_pair: Pair<Self>) -> FloatTensor<Self> {
+        unimplemented!("would register the backward pass")
+    }
 }
 
 // A no-tensor-input op on a `cfg`-gated single backend. The backend is gated on

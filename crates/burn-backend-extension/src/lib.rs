@@ -344,6 +344,7 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
                 .iter()
                 .any(|attr| attr.path().is_ident("extension_type"));
             let kind = if is_ext {
+                validate_extension_struct_ty(&pt.ty)?;
                 ArgKind::ExtensionStruct((*pt.ty).clone())
             } else if let Some(k) = TensorKind::from_type(&pt.ty) {
                 ArgKind::Tensor(k)
@@ -476,14 +477,10 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         })
         .collect();
 
-    let struct_inputs: Vec<_> = op
+    let has_struct_input = op
         .inputs
         .iter()
-        .filter_map(|a| match &a.kind {
-            ArgKind::ExtensionStruct(ty) => Some((&a.name, ty)),
-            _ => None,
-        })
-        .collect();
+        .any(|a| matches!(a.kind, ArgKind::ExtensionStruct(_)));
 
     let ret_ty = match &op.output {
         OperationOutput::Tensor(k) => k.to_primitive_ty(),
@@ -529,7 +526,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         quote! { let checkpointing = None; }
     };
 
-    let body = if !struct_inputs.is_empty() {
+    let body = if has_struct_input {
         // At least one custom struct of tensors is passed as input (marked `#[extension_type]`).
         // This path also covers mixing structs with bare tensors and multiple struct inputs.
         gen_mixed_dispatch_body(ir, op)
@@ -645,6 +642,51 @@ fn struct_ty_with_param(ty: &Type, param: TokenStream2) -> TokenStream2 {
     }
 }
 
+/// Validate the type of a `#[extension_type]`-marked argument, emitting a clear `compile_error!` for
+/// the common misuses instead of letting them surface as obscure trait/type errors deeper in codegen.
+///
+/// The argument must be a struct with exactly one generic backend parameter (`MyStruct<Self>`), since
+/// [`struct_ty_with_param`] rewrites that single parameter to the backend when unwrapping. Marking a
+/// bare tensor, a non-path type, or a multi-parameter type is rejected here.
+fn validate_extension_struct_ty(ty: &Type) -> syn::Result<()> {
+    if TensorKind::from_type(ty).is_some() {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "`#[extension_type]` marks a struct of tensor primitives, not a tensor argument. Remove \
+             the attribute to pass a plain tensor.",
+        ));
+    }
+
+    let Type::Path(tp) = ty else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "`#[extension_type]` requires a struct type with a single generic backend parameter, e.g. \
+             `MyStruct<Self>`.",
+        ));
+    };
+
+    let last = tp.path.segments.last().ok_or_else(|| {
+        syn::Error::new_spanned(ty, "`#[extension_type]` type must be a named struct")
+    })?;
+    let type_args = match &last.arguments {
+        PathArguments::AngleBracketed(args) => args
+            .args
+            .iter()
+            .filter(|a| matches!(a, GenericArgument::Type(_)))
+            .count(),
+        _ => 0,
+    };
+    if type_args != 1 {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "`#[extension_type]` struct must have exactly one generic backend parameter, e.g. \
+             `MyStruct<Self>`.",
+        ));
+    }
+
+    Ok(())
+}
+
 /// Generate the dispatch body for an operation whose inputs include at least one `#[extension_type]`
 /// struct. General "peek then unwrap" path: handles any mix of bare tensors and structs (including
 /// several structs), for both concrete backends and (when `Autodiff` is listed) the autodiff wrapper.
@@ -664,6 +706,16 @@ fn struct_ty_with_param(ty: &Type, param: TokenStream2) -> TokenStream2 {
 fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
     let name = &op.name;
     let has_ad = ir.backends.autodiff.0;
+    // cfg gating the `Autodiff` entry itself (e.g. `Autodiff: cfg(feature = "autodiff")`). Every
+    // generated autodiff arm must carry it, mirroring the pure-tensor path, so the arms vanish when
+    // autodiff is compiled out — otherwise their `DispatchTensorKind::Autodiff` / `Autodiff<B>`
+    // references (themselves feature-gated) would fail to compile.
+    let ad_cfg_attr = ir
+        .backends
+        .autodiff
+        .1
+        .as_ref()
+        .map(|meta| quote! { #[#meta] });
 
     // Representative `DispatchTensor` expression: a bare tensor input itself, or a struct's
     // representative field. Read twice below (for `.kind` selection and `.checkpointing`); both are
@@ -708,6 +760,7 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
             }
         });
         quote! {
+            #ad_cfg_attr
             burn::backend::DispatchTensorKind::Autodiff(inner) => (true, match inner.as_ref() {
                 #( #inner )*
                 #[allow(unreachable_patterns)]
@@ -729,7 +782,9 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
                     let #n = match #n.kind {
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                         #[allow(unreachable_patterns)]
-                        _ => unreachable!("tensor input routed to the wrong backend"),
+                        _ => panic!(
+                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                        ),
                     };
                 })
             }
@@ -751,7 +806,7 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
             .concrete
             .iter()
             .enumerate()
-            .map(|(i, backend)| gen_mixed_ad_arm(ir, op, backend, i))
+            .map(|(i, backend)| gen_mixed_ad_arm(ir, op, backend, i, &ad_cfg_attr))
             .collect()
     } else {
         Vec::new()
@@ -775,7 +830,13 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
 
 /// Generate a single `(true, backend_index)` autodiff arm for the mixed dispatch path: unwrap every
 /// input into its `Autodiff<B>` primitive, call `<Autodiff<B> as Trait>::op`, and re-wrap the output.
-fn gen_mixed_ad_arm(ir: &Extension, op: &Operation, backend: &Backend, i: usize) -> TokenStream2 {
+fn gen_mixed_ad_arm(
+    ir: &Extension,
+    op: &Operation,
+    backend: &Backend,
+    i: usize,
+    ad_cfg_attr: &Option<TokenStream2>,
+) -> TokenStream2 {
     let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
     let b_ident = backend_to_ident(backend);
     let trait_name = &ir.trait_name;
@@ -795,10 +856,14 @@ fn gen_mixed_ad_arm(ir: &Extension, op: &Operation, backend: &Backend, i: usize)
                     burn::backend::DispatchTensorKind::Autodiff(inner) => match *inner {
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt.autodiff(),
                         #[allow(unreachable_patterns)]
-                        _ => unreachable!("autodiff float tensor backend mismatch"),
+                        _ => panic!(
+                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                        ),
                     },
                     #[allow(unreachable_patterns)]
-                    _ => unreachable!("expected an autodiff-wrapped float tensor"),
+                    _ => panic!(
+                        "backend extension op mixes autodiff-tracked and untracked float tensors; all float inputs must share the same tracking"
+                    ),
                 };
             })
         }
@@ -827,7 +892,9 @@ fn gen_mixed_ad_arm(ir: &Extension, op: &Operation, backend: &Backend, i: usize)
                             burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Autodiff(t)) =>
                                 burn::backend::BackendTensor::Float(t),
                             #[allow(unreachable_patterns)]
-                            _ => unreachable!("autodiff struct float field backend mismatch"),
+                            _ => panic!(
+                                "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                            ),
                         },
                         burn::backend::DispatchTensorKind::#b_ident(bt) => match bt {
                             burn::backend::BackendTensor::Int(t) => burn::backend::BackendTensor::Int(t),
@@ -837,7 +904,9 @@ fn gen_mixed_ad_arm(ir: &Extension, op: &Operation, backend: &Backend, i: usize)
                             _ => unreachable!("autodiff struct non-float field unexpected variant"),
                         },
                         #[allow(unreachable_patterns)]
-                        _ => unreachable!("autodiff struct field backend mismatch"),
+                        _ => panic!(
+                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                        ),
                     },
                 );
             })
@@ -849,6 +918,7 @@ fn gen_mixed_ad_arm(ir: &Extension, op: &Operation, backend: &Backend, i: usize)
     let wrap_out = gen_output_wrap(op, &b_ident, true);
 
     quote! {
+        #ad_cfg_attr
         #cfg_attr
         (true, #i) => {
             #( #unwraps )*
@@ -944,7 +1014,9 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
                     |kind| match kind {
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                         #[allow(unreachable_patterns)]
-                        _ => unreachable!("extension struct routed to the wrong backend"),
+                        _ => panic!(
+                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                        ),
                     },
                 );
             })
@@ -1209,7 +1281,16 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
                 let f_name = &f.ident;
                 quote! { burn::backend::ExtensionType::dispatch_repr(&target.#f_name) }
             } else {
-                quote! { compile_error!("An ExtensionType struct used as an input must contain at least one tensor field to select the backend from") }
+                // No tensor or nested field to represent the struct. This only matters when the
+                // struct is used as an *input* (where the dispatch glue calls `dispatch_repr` to
+                // select a backend); an output-only struct never calls it. So panic at runtime rather
+                // than `compile_error!`, which would otherwise break valid output-only structs.
+                quote! {
+                    {
+                        let _ = target;
+                        panic!("an ExtensionType struct used as a backend extension input must contain at least one tensor field to select the backend from")
+                    }
+                }
             }
         }
         _ => unreachable!("named-fields check already happened above"),
