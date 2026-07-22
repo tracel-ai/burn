@@ -814,7 +814,7 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                         #[allow(unreachable_patterns)]
                         _ => panic!(
-                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                            "backend extension op received tensor inputs on mismatched backends, or mixed autodiff-tracked and untracked float tensors; all tensor inputs must share one backend and tracking"
                         ),
                     };
                 })
@@ -1058,7 +1058,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
                         burn::backend::DispatchTensorKind::#b_ident(bt) => bt,
                         #[allow(unreachable_patterns)]
                         _ => panic!(
-                            "backend extension op received tensor inputs on mismatched backends; all inputs must be on the same backend"
+                            "backend extension op received tensor inputs on mismatched backends, or mixed autodiff-tracked and untracked float tensors; all tensor inputs must share one backend and tracking"
                         ),
                     },
                 );
@@ -1323,10 +1323,14 @@ fn gen_repr_arm(case: &DeriveCase, float_only: bool) -> TokenStream2 {
         .fields
         .iter()
         .position(|f| !f.is_ext && f.tensor_kind == Some(TensorKind::Float));
-    let any_i = case
-        .fields
-        .iter()
-        .position(|f| !f.is_ext && f.tensor_kind.is_some());
+    // Only relevant as a non-float fallback, i.e. never in the `float_only` expansion.
+    let any_i = if float_only {
+        None
+    } else {
+        case.fields
+            .iter()
+            .position(|f| !f.is_ext && f.tensor_kind.is_some())
+    };
     let ext_is: Vec<usize> = case
         .fields
         .iter()
@@ -1343,7 +1347,7 @@ fn gen_repr_arm(case: &DeriveCase, float_only: bool) -> TokenStream2 {
     let (needed, expr): (Vec<usize>, TokenStream2) = if let Some(i) = float_i {
         let bind = &case.fields[i].bind;
         (vec![i], quote! { Some(#bind) })
-    } else if let Some(i) = any_i.filter(|_| !float_only) {
+    } else if let Some(i) = any_i {
         let bind = &case.fields[i].bind;
         (vec![i], quote! { Some(#bind) })
     } else if !ext_is.is_empty() {
@@ -1472,6 +1476,10 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
     let any_repr_arms = cases.iter().map(|case| gen_repr_arm(case, false));
     let float_repr_arms = cases.iter().map(|case| gen_repr_arm(case, true));
 
+    // `#[allow(unused_variables)]` on the two map methods: `map_kind`/`unwrap_kind`/`checkpointing`
+    // are genuinely unused for all-passthrough or unit types. The trade-off is that it also hides the
+    // warning that would otherwise flag a field whose tensor type went unrecognized (e.g. written
+    // through an opaque type alias) and was silently treated as a passthrough.
     TokenStream::from(quote! {
         impl #impl_generics burn::backend::ExtensionType<B> for #name #ty_generics #where_clause {
             type Target = #name<burn::backend::Dispatch>;
