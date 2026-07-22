@@ -104,3 +104,49 @@ fn remote_backend_extension_gated_no_input_falls_back() {
     // expanded into valid code.
     let _ = <Dispatch as GatedBackend>::gated_load(0);
 }
+
+// Struct inputs combined with `Autodiff`. The generated dispatch glue must, for the autodiff arm,
+// peel the `Autodiff(..)` nesting on each float field to rebuild `Pair<Autodiff<Remote>>`, call the
+// user's `impl ... for Autodiff<Remote>`, and re-wrap the output as an autodiff dispatch tensor.
+#[cfg(feature = "autodiff")]
+mod autodiff_struct_input {
+    use super::*;
+    use burn::backend::Autodiff;
+
+    #[backend_extension(Autodiff, Remote)]
+    pub trait AdBackend: burn::backend::Backend {
+        fn ad_combine(#[extension_type] pair: Pair<Self>, factor: f32) -> FloatTensor<Self>;
+        // Struct mixed with a bare (autodiff-tracked) float tensor.
+        fn ad_mix(x: FloatTensor<Self>, #[extension_type] pair: Pair<Self>) -> FloatTensor<Self>;
+    }
+
+    // Client side for the plain remote backend (stubbed).
+    impl AdBackend for Remote {
+        fn ad_combine(_pair: Pair<Self>, _factor: f32) -> FloatTensor<Self> {
+            unimplemented!("the client builds a CustomOpIr and ships it to the server")
+        }
+        fn ad_mix(_x: FloatTensor<Self>, _pair: Pair<Self>) -> FloatTensor<Self> {
+            unimplemented!("stub")
+        }
+    }
+
+    // User-written autodiff side: normally registers a `Backward` step; stubbed here since the test
+    // only checks that the generated dispatch glue type-checks.
+    impl AdBackend for Autodiff<Remote> {
+        fn ad_combine(_pair: Pair<Self>, _factor: f32) -> FloatTensor<Self> {
+            unimplemented!("would register the backward pass over the struct's tracked fields")
+        }
+        fn ad_mix(_x: FloatTensor<Self>, _pair: Pair<Self>) -> FloatTensor<Self> {
+            unimplemented!("stub")
+        }
+    }
+
+    #[test]
+    fn autodiff_struct_input_dispatch_compiles() {
+        // Referencing the dispatch methods proves the macro expanded a well-typed `impl for Dispatch`
+        // whose match routes both concrete (`Remote`) and autodiff (`Autodiff<Remote>`) inputs.
+        let _a: fn(Pair<Dispatch>, f32) -> FloatTensor<Dispatch> = <Dispatch as AdBackend>::ad_combine;
+        let _b: fn(FloatTensor<Dispatch>, Pair<Dispatch>) -> FloatTensor<Dispatch> =
+            <Dispatch as AdBackend>::ad_mix;
+    }
+}

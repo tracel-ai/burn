@@ -33,7 +33,11 @@ pub trait ExtensionType<B: Backend> {
     /// # Returns
     ///
     /// A new instance of the struct mapped to the [`Dispatch`] backend.
-    fn map_to_dispatch<F>(self, map_kind: F, checkpointing: Option<CheckpointingStrategy>) -> Self::Target
+    fn map_to_dispatch<F>(
+        self,
+        map_kind: F,
+        checkpointing: Option<CheckpointingStrategy>,
+    ) -> Self::Target
     where
         F: Fn(BackendTensor<B>) -> DispatchTensorKind;
 
@@ -54,11 +58,14 @@ pub trait ExtensionType<B: Backend> {
     where
         F: Fn(DispatchTensorKind) -> BackendTensor<B>;
 
-    /// Peek the runtime backend tag from a representative tensor field of the dispatch form.
+    /// Return a representative tensor field of the dispatch form.
     ///
-    /// A struct input carries no top-level [`DispatchTensorKind`] of its own, so the dispatch glue
-    /// uses this to decide which backend arm to route the operation to. Returns a reference to the
-    /// first tensor field's kind (recursing into the first nested `#[extension_type]` field if the
-    /// struct has no direct tensor fields).
-    fn dispatch_kind(target: &Self::Target) -> &DispatchTensorKind;
+    /// A struct input carries no top-level [`DispatchTensor`] of its own, so the dispatch glue uses
+    /// this to (a) read the runtime backend tag (`.kind`) to select which backend arm to route to,
+    /// and (b) propagate the autodiff checkpointing strategy (`.checkpointing`) to the output.
+    ///
+    /// Prefers the first float field (the one that carries a checkpointing strategy when tracked),
+    /// falling back to the first tensor field of any kind, then recursing into the first nested
+    /// `#[extension_type]` field.
+    fn dispatch_repr(target: &Self::Target) -> &DispatchTensor;
 }

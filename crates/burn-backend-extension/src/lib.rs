@@ -55,7 +55,8 @@ use syn::{
 /// The macro selects the backend from a representative tensor field of the struct and unwraps the
 /// dispatch form (`Inputs<Dispatch>`) back into the concrete `Inputs<Wgpu>` before calling the
 /// backend impl. Struct inputs may be freely mixed with bare tensor inputs, and several struct
-/// inputs are allowed. Current limitation of this path (sketch): not combinable with `Autodiff`.
+/// inputs are allowed, and the op may be combined with `Autodiff` (the op's own
+/// `impl ... for Autodiff<B>` hand-writes the backward pass, as for bare-tensor autodiff ops).
 #[proc_macro_attribute]
 pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the backend list
@@ -644,84 +645,78 @@ fn struct_ty_with_param(ty: &Type, param: TokenStream2) -> TokenStream2 {
     }
 }
 
-/// Generate the dispatch body for an operation that takes a custom struct of tensors as input.
-///
-/// Unlike a bare tensor input (which carries its own `DispatchTensorKind` to match on), a struct
-/// input has no top-level tag, so we peek a representative field via `ExtensionType::dispatch_kind`
-/// to select the backend, then reconstruct the concrete `Struct<B>` inside the matched arm.
-///
-/// Sketch scope: exactly one struct input, no bare tensor inputs, non-autodiff only. The remaining
-/// cases are rejected with a `compile_error!` describing the limitation.
 /// Generate the dispatch body for an operation whose inputs include at least one `#[extension_type]`
-/// struct. This is the general "peek then unwrap" path and handles any mix of bare tensors and
-/// structs (including several structs), unlike the pure-tensor path which selects the backend by
-/// destructuring every tensor in the match pattern (impossible for a struct).
+/// struct. General "peek then unwrap" path: handles any mix of bare tensors and structs (including
+/// several structs), for both concrete backends and (when `Autodiff` is listed) the autodiff wrapper.
 ///
-/// Strategy:
-/// 1. Peek a single representative [`DispatchTensorKind`] from the first tensor-ish input (a bare
-///    tensor's own `.kind`, or a struct's via `ExtensionType::dispatch_kind`) and fold it into a
-///    small backend index. Folding to an index drops the borrow before any input is moved.
-/// 2. In the matched arm, unwrap every input for that backend: bare tensors are pulled out of their
-///    `DispatchTensor`, structs are reconstructed via `ExtensionType::map_from_dispatch`, then the backend
-///    impl is called and the output re-wrapped (via the shared [`gen_backend_call`]).
+/// The pure-tensor path selects the backend by destructuring every tensor in the match pattern,
+/// which is impossible for a struct. Instead we:
+/// 1. Peek a representative [`DispatchTensor`] (a bare tensor itself, or a struct's via
+///    `ExtensionType::dispatch_repr`) and fold its `.kind` into a `(is_autodiff, backend_index)`
+///    tag. Folding to a small value drops the borrow before any input is moved.
+/// 2. In the matched arm, unwrap every input for the selected backend and re-wrap the output.
 ///
-/// Sketch scope: non-autodiff only. Autodiff would need each struct's tensor fields flattened into
-/// the fixed-arity `Backward` node/checkpoint machinery.
+/// For an autodiff arm the target backend is `Autodiff<B>`: float tensors/fields unwrap through the
+/// `Autodiff(Box(#b(BackendTensor::Autodiff(_))))` nesting into `FloatTensor<Autodiff<B>>`, while
+/// int/bool/quantized ones stay plain (autodiff only tracks floats). The op's own
+/// `impl ... for Autodiff<B>` still hand-writes the backward pass exactly as for a bare-tensor
+/// autodiff op; the macro only routes and re-wraps.
 fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
     let name = &op.name;
+    let has_ad = ir.backends.autodiff.0;
 
-    if ir.backends.autodiff.0 {
-        return quote! { compile_error!("A backend extension operation with a `#[extension_type]` struct input can't be combined with `Autodiff` yet. Each struct's tensor fields would need to be flattened into the fixed-arity `Backward` node/checkpoint machinery.") };
-    }
-
-    // Representative kind, used only to select the backend: the first bare tensor if any, else the
-    // first struct's representative field.
-    let selector = op
+    // Representative `DispatchTensor` expression: a bare tensor input itself, or a struct's
+    // representative field. Read twice below (for `.kind` selection and `.checkpointing`); both are
+    // cheap accessors whose borrows end within their statement, before any input is moved.
+    let repr_expr = op
         .inputs
         .iter()
         .find_map(|a| match &a.kind {
             ArgKind::Tensor(_) => {
                 let n = &a.name;
-                Some(quote! { &#n.kind })
+                Some(quote! { #n })
             }
             ArgKind::ExtensionStruct(ty) => {
                 let n = &a.name;
                 let target_ty = struct_ty_with_param(ty, quote! { burn::backend::Dispatch });
                 Some(quote! {
-                    <#target_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::dispatch_kind(&#n)
+                    <#target_ty as burn::backend::ExtensionType<burn::backend::Dispatch>>::dispatch_repr(&#n)
                 })
             }
             ArgKind::Other(_) => None,
         })
-        // Only ever reached when a struct input exists, so a selector is always present.
+        // Only ever reached when a struct input exists, so a representative is always present.
         .expect("mixed dispatch requires at least one tensor-ish input");
 
-    // Propagate the checkpointing strategy from the first bare tensor, if any (non-autodiff here, so
-    // it is `None` in practice, but kept consistent with the pure-tensor path).
-    let checkpointing = op
-        .inputs
-        .iter()
-        .find_map(|a| match &a.kind {
-            ArgKind::Tensor(_) => {
-                let n = &a.name;
-                Some(quote! { let checkpointing = #n.checkpointing.clone(); })
-            }
-            _ => None,
-        })
-        .unwrap_or_else(|| quote! { let checkpointing = None; });
-
-    // Fold the representative kind into a backend index. cfg-gated backends drop the same arm from
-    // both this match and the dispatch match below, so the indices stay aligned per compilation.
-    let tag_arms = ir.backends.concrete.iter().enumerate().map(|(i, backend)| {
+    // Tag arms fold the representative kind into `(is_autodiff, backend_index)`. cfg-gated backends
+    // drop the same arm from both the tag match and the dispatch match, keeping indices aligned.
+    let concrete_tag_arms = ir.backends.concrete.iter().enumerate().map(|(i, backend)| {
         let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
         let b_ident = backend_to_ident(backend);
         quote! {
             #cfg_attr
-            burn::backend::DispatchTensorKind::#b_ident(_) => #i,
+            burn::backend::DispatchTensorKind::#b_ident(_) => (false, #i),
+        }
+    });
+    let ad_tag_arm = has_ad.then(|| {
+        let inner = ir.backends.concrete.iter().enumerate().map(|(i, backend)| {
+            let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
+            let b_ident = backend_to_ident(backend);
+            quote! {
+                #cfg_attr
+                burn::backend::DispatchTensorKind::#b_ident(_) => #i,
+            }
+        });
+        quote! {
+            burn::backend::DispatchTensorKind::Autodiff(inner) => (true, match inner.as_ref() {
+                #( #inner )*
+                #[allow(unreachable_patterns)]
+                _ => usize::MAX,
+            }),
         }
     });
 
-    let call_arms = ir.backends.concrete.iter().enumerate().map(|(i, backend)| {
+    let concrete_call_arms = ir.backends.concrete.iter().enumerate().map(|(i, backend)| {
         let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
         let b_ident = backend_to_ident(backend);
 
@@ -744,24 +739,182 @@ fn gen_mixed_dispatch_body(ir: &Extension, op: &Operation) -> TokenStream2 {
         let call = gen_backend_call(ir, op, backend);
         quote! {
             #cfg_attr
-            #i => {
+            (false, #i) => {
                 #( #pre_extract )*
                 #call
             }
         }
     });
 
+    let ad_call_arms: Vec<_> = if has_ad {
+        ir.backends
+            .concrete
+            .iter()
+            .enumerate()
+            .map(|(i, backend)| gen_mixed_ad_arm(ir, op, backend, i))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     quote! {
-        #checkpointing
-        let __burn_backend_tag: usize = match #selector {
-            #( #tag_arms )*
+        let checkpointing = #repr_expr.checkpointing.clone();
+        let __burn_backend_tag: (bool, usize) = match &#repr_expr.kind {
+            #ad_tag_arm
+            #( #concrete_tag_arms )*
             #[allow(unreachable_patterns)]
-            _ => usize::MAX,
+            _ => (false, usize::MAX),
         };
         match __burn_backend_tag {
-            #( #call_arms )*
+            #( #concrete_call_arms )*
+            #( #ad_call_arms )*
             _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
         }
+    }
+}
+
+/// Generate a single `(true, backend_index)` autodiff arm for the mixed dispatch path: unwrap every
+/// input into its `Autodiff<B>` primitive, call `<Autodiff<B> as Trait>::op`, and re-wrap the output.
+fn gen_mixed_ad_arm(ir: &Extension, op: &Operation, backend: &Backend, i: usize) -> TokenStream2 {
+    let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
+    let b_ident = backend_to_ident(backend);
+    let trait_name = &ir.trait_name;
+    let fn_name = &op.name;
+    let maybe_await = if op.asyncness {
+        quote! { .await }
+    } else {
+        quote! {}
+    };
+
+    let unwraps = op.inputs.iter().filter_map(|a| match &a.kind {
+        // Float tensor: peel the autodiff nesting to recover `FloatTensor<Autodiff<B>>`.
+        ArgKind::Tensor(TensorKind::Float) => {
+            let n = &a.name;
+            Some(quote! {
+                let #n = match #n.kind {
+                    burn::backend::DispatchTensorKind::Autodiff(inner) => match *inner {
+                        burn::backend::DispatchTensorKind::#b_ident(bt) => bt.autodiff(),
+                        #[allow(unreachable_patterns)]
+                        _ => unreachable!("autodiff float tensor backend mismatch"),
+                    },
+                    #[allow(unreachable_patterns)]
+                    _ => unreachable!("expected an autodiff-wrapped float tensor"),
+                };
+            })
+        }
+        // Int/bool/quantized tensor: not autodiff-tracked, unwrap as usual.
+        ArgKind::Tensor(kind) => {
+            let n = &a.name;
+            let method = kind.unwrap_method();
+            Some(quote! {
+                let #n = match #n.kind {
+                    burn::backend::DispatchTensorKind::#b_ident(bt) => bt.#method(),
+                    #[allow(unreachable_patterns)]
+                    _ => unreachable!("tensor input routed to the wrong backend"),
+                };
+            })
+        }
+        // Struct: reconstruct `Struct<Autodiff<B>>`. The closure maps each field's dispatch kind to a
+        // `BackendTensor<Autodiff<B>>` — float fields carry the autodiff nesting, others stay plain.
+        ArgKind::ExtensionStruct(ty) => {
+            let n = &a.name;
+            let ad_ty = struct_ty_with_param(ty, quote! { Autodiff<#b_ident> });
+            Some(quote! {
+                let #n = <#ad_ty as burn::backend::ExtensionType<Autodiff<#b_ident>>>::map_from_dispatch(
+                    #n,
+                    |kind| match kind {
+                        burn::backend::DispatchTensorKind::Autodiff(inner) => match *inner {
+                            burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Autodiff(t)) =>
+                                burn::backend::BackendTensor::Float(t),
+                            #[allow(unreachable_patterns)]
+                            _ => unreachable!("autodiff struct float field backend mismatch"),
+                        },
+                        burn::backend::DispatchTensorKind::#b_ident(bt) => match bt {
+                            burn::backend::BackendTensor::Int(t) => burn::backend::BackendTensor::Int(t),
+                            burn::backend::BackendTensor::Bool(t) => burn::backend::BackendTensor::Bool(t),
+                            burn::backend::BackendTensor::Quantized(t) => burn::backend::BackendTensor::Quantized(t),
+                            #[allow(unreachable_patterns)]
+                            _ => unreachable!("autodiff struct non-float field unexpected variant"),
+                        },
+                        #[allow(unreachable_patterns)]
+                        _ => unreachable!("autodiff struct field backend mismatch"),
+                    },
+                );
+            })
+        }
+        ArgKind::Other(_) => None,
+    });
+
+    let call_args = op.inputs.iter().map(|a| &a.name);
+    let wrap_out = gen_output_wrap(op, &b_ident, true);
+
+    quote! {
+        #cfg_attr
+        (true, #i) => {
+            #( #unwraps )*
+            type _ADBackend = Autodiff<#b_ident>;
+            let _out = <_ADBackend as #trait_name>::#fn_name(#( #call_args ),*)#maybe_await;
+            #wrap_out
+        }
+    }
+}
+
+/// Wrap the backend call's result `_out` back into the dispatch representation. Shared by every
+/// dispatch arm (concrete and autodiff). `is_ad` toggles the autodiff nesting: float outputs of an
+/// `Autodiff<B>` op are re-wrapped as `Autodiff(Box(#b(BackendTensor::Autodiff(_))))`, while int/bool/
+/// quantized outputs stay plain (autodiff only tracks floats).
+fn gen_output_wrap(op: &Operation, b_ident: &Ident, is_ad: bool) -> TokenStream2 {
+    // Wrap a single custom (`ExtensionType`) output value read via `accessor`.
+    let wrap_custom = |accessor: TokenStream2| -> TokenStream2 {
+        if is_ad {
+            quote! {
+                burn::backend::ExtensionType::map_to_dispatch(
+                    #accessor,
+                    |tensor| match tensor {
+                        burn::backend::BackendTensor::Float(t) => burn::backend::DispatchTensorKind::Autodiff(
+                            Box::new(burn::backend::DispatchTensorKind::#b_ident(
+                                burn::backend::BackendTensor::Autodiff(t),
+                            )),
+                        ),
+                        burn::backend::BackendTensor::Int(t) => burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Int(t)),
+                        burn::backend::BackendTensor::Bool(t) => burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Bool(t)),
+                        burn::backend::BackendTensor::Quantized(t) => burn::backend::DispatchTensorKind::#b_ident(burn::backend::BackendTensor::Quantized(t)),
+                        #[allow(unreachable_patterns)]
+                        _ => unreachable!("unexpected output tensor variant"),
+                    },
+                    checkpointing,
+                )
+            }
+        } else {
+            quote! {
+                burn::backend::ExtensionType::map_to_dispatch(
+                    #accessor,
+                    |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor),
+                    checkpointing,
+                )
+            }
+        }
+    };
+
+    match &op.output {
+        OperationOutput::Tensor(kind) => {
+            let wrapped = gen_tensor_wrap(kind, quote! { _out }, b_ident, is_ad);
+            quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
+        }
+        OperationOutput::Tuple(elems) => {
+            let elements = elems.iter().enumerate().map(|(i, elem)| {
+                let idx = syn::Index::from(i);
+                match elem {
+                    OutputKind::Tensor(kind) => {
+                        let wrapped = gen_tensor_wrap(kind, quote! { _out.#idx }, b_ident, is_ad);
+                        quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
+                    }
+                    OutputKind::Custom(_) => wrap_custom(quote! { _out.#idx }),
+                }
+            });
+            quote! { (#(#elements),*) }
+        }
+        OperationOutput::Custom(_) => wrap_custom(quote! { _out }),
     }
 }
 
@@ -806,36 +959,7 @@ fn gen_backend_call(ir: &Extension, op: &Operation, backend: &Backend) -> TokenS
         quote! {}
     };
 
-    let wrap_out = match &op.output {
-        OperationOutput::Tensor(kind) => {
-            let wrapped = gen_tensor_wrap(kind, quote! { _out }, &b_ident, false);
-            quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
-        }
-        OperationOutput::Tuple(elems) => {
-            let elements = elems.iter().enumerate().map(|(i, elem)| {
-                let idx = syn::Index::from(i);
-                match elem {
-                    OutputKind::Tensor(kind) => {
-                        let wrapped = gen_tensor_wrap(kind, quote! { _out.#idx }, &b_ident, false);
-                        quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
-                    }
-                    OutputKind::Custom(_) => {
-                        quote! {
-                            burn::backend::ExtensionType::map_to_dispatch(
-                                _out.#idx,
-                                |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor),
-                                checkpointing,
-                            )
-                        }
-                    }
-                }
-            });
-            quote! { (#(#elements),*) }
-        }
-        OperationOutput::Custom(_) => {
-            quote! { burn::backend::ExtensionType::map_to_dispatch(_out, |tensor| burn::backend::DispatchTensorKind::#b_ident(tensor), checkpointing) }
-        }
-    };
+    let wrap_out = gen_output_wrap(op, &b_ident, false);
 
     quote! {
         #(#unwraps)*
@@ -914,53 +1038,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
             quote! {}
         };
 
-        let wrap_out = match &op.output {
-            OperationOutput::Tensor(kind) => {
-                let wrapped = gen_tensor_wrap(kind, quote! { _out }, &b_ident, true);
-                quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
-            }
-            OperationOutput::Tuple(elems) => {
-                let elements = elems.iter().enumerate().map(|(i, elem)| {
-                let idx = syn::Index::from(i);
-                match elem {
-                    OutputKind::Tensor(kind) => {
-                        let wrapped = gen_tensor_wrap(kind, quote! { _out.#idx }, &b_ident, true);
-                        quote! { burn::backend::DispatchTensor { kind: #wrapped, checkpointing } }
-                    }
-                    OutputKind::Custom(_) => {
-                        quote! {
-                            burn::backend::ExtensionType::map_to_dispatch(
-                                _out.#idx,
-                                |tensor| match tensor {
-                                    burn::backend::BackendTensor::Float(t) => {
-                                        burn::backend::DispatchTensorKind::Autodiff(
-                                            Box::new(burn::backend::DispatchTensorKind::#b_ident(
-                                                burn::backend::BackendTensor::Autodiff(t)
-                                            ))
-                                        )
-                                    }
-                                    _ => burn::backend::DispatchTensorKind::#b_ident(tensor),
-                                },
-                                checkpointing,
-                            )
-                        }
-                    }
-                }
-            });
-                quote! { (#(#elements),*) }
-            }
-            OperationOutput::Custom(_) => {
-                quote! { burn::backend::ExtensionType::map_to_dispatch(_out, |tensor| match tensor {
-                    burn::backend::BackendTensor::Float(t) => {
-                        burn::backend::DispatchTensorKind::Autodiff(
-                            Box::new(burn::backend::DispatchTensorKind::#b_ident(
-                                burn::backend::BackendTensor::Autodiff(t)
-                            ))
-                        )
-                    }
-                }, checkpointing) }
-            }
-        };
+        let wrap_out = gen_output_wrap(op, &b_ident, true);
 
         quote! {
             #cfg_attr
@@ -1105,24 +1183,31 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
         _ => unreachable!("named-fields check already happened above"),
     };
 
-    // Representative field whose runtime backend tag identifies the whole struct. Prefer a direct
-    // tensor field; otherwise recurse into the first nested `#[extension_type]` field.
-    let dispatch_kind_expr = match &input.fields {
+    // Representative field: identifies the backend (`.kind`) and carries the checkpointing strategy
+    // (`.checkpointing`). Prefer the first float field (the tracked one under autodiff), then any
+    // tensor field, then recurse into the first nested `#[extension_type]` field.
+    let dispatch_repr_expr = match &input.fields {
         syn::Fields::Named(fields) => {
-            let first_tensor = fields.named.iter().find(|f| {
-                !f.attrs.iter().any(|attr| attr.path().is_ident("extension_type"))
+            let is_plain_tensor = |f: &&syn::Field| {
+                !f.attrs
+                    .iter()
+                    .any(|attr| attr.path().is_ident("extension_type"))
                     && TensorKind::from_type(&f.ty).is_some()
+            };
+            let first_float = fields.named.iter().find(|f| {
+                is_plain_tensor(f) && TensorKind::from_type(&f.ty) == Some(TensorKind::Float)
             });
-            if let Some(f) = first_tensor {
+            let repr = first_float.or_else(|| fields.named.iter().find(is_plain_tensor));
+            if let Some(f) = repr {
                 let f_name = &f.ident;
-                quote! { &target.#f_name.kind }
-            } else if let Some(f) = fields
-                .named
-                .iter()
-                .find(|f| f.attrs.iter().any(|attr| attr.path().is_ident("extension_type")))
-            {
+                quote! { &target.#f_name }
+            } else if let Some(f) = fields.named.iter().find(|f| {
+                f.attrs
+                    .iter()
+                    .any(|attr| attr.path().is_ident("extension_type"))
+            }) {
                 let f_name = &f.ident;
-                quote! { burn::backend::ExtensionType::dispatch_kind(&target.#f_name) }
+                quote! { burn::backend::ExtensionType::dispatch_repr(&target.#f_name) }
             } else {
                 quote! { compile_error!("An ExtensionType struct used as an input must contain at least one tensor field to select the backend from") }
             }
@@ -1152,8 +1237,8 @@ pub fn derive_extension_output(input: TokenStream) -> TokenStream {
                 #fields_unwrap
             }
 
-            fn dispatch_kind(target: &Self::Target) -> &burn::backend::DispatchTensorKind {
-                #dispatch_kind_expr
+            fn dispatch_repr(target: &Self::Target) -> &burn::backend::DispatchTensor {
+                #dispatch_repr_expr
             }
         }
     })
