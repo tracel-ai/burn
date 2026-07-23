@@ -9,6 +9,7 @@ mod fusion_shape;
 #[cfg(feature = "cube")]
 mod inplace;
 mod int_bitwise;
+mod reduce_broadcast_vectorization;
 mod reduce_broadcasted;
 mod reduce_logical;
 
