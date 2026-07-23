@@ -93,6 +93,7 @@ mod iter_dim;
 mod log;
 mod log1p;
 mod mask;
+mod mask_select;
 mod matmul;
 mod maxmin;
 mod movedim;

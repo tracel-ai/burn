@@ -215,6 +215,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.into_primitive()`                            | N/A                                                                       |
 | `tensor.into_scalar()`                               | `tensor.item()`                                                           |
 | `tensor.mask_fill(mask, value)`                      | `tensor.masked_fill(mask, value)`                                         |
+| `tensor.mask_select(mask)`                           | `tensor.masked_select(mask)`                                              |
 | `tensor.mask_where(mask, value_tensor)`              | `torch.where(mask, value_tensor, tensor)`                                 |
 | `tensor.movedim(src, dst)`                           | `tensor.movedim(src, dst)`                                                |
 | `tensor.narrow(dim, start, length)`                  | `tensor.narrow(dim, start, length)`                                       |

@@ -1008,6 +1008,21 @@ impl TensorCheck {
         Self::check_select_basic::<D>(Self::Ok, "select", dim)
     }
 
+    pub(crate) fn mask_select(shape: &Shape, shape_mask: &Shape) -> Self {
+        let mut check = Self::Ok;
+
+        if shape != shape_mask {
+            check = check.register(
+                "Mask Select",
+                TensorError::new("The mask must have the same shape as the tensor.").details(
+                    format!("Tensor shape {shape:?}, mask shape {shape_mask:?}."),
+                ),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn take<const D: usize, const DI: usize, const DO: usize>(dim: usize) -> Self {
         let mut check = Self::check_select_basic::<D>(Self::Ok, "Take", dim);
 

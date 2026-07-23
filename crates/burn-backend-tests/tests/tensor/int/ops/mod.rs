@@ -23,6 +23,7 @@ mod gather_scatter;
 mod gather_scatter_nd;
 mod init;
 mod mask;
+mod mask_select;
 mod matmul;
 mod movedim;
 mod mul;
