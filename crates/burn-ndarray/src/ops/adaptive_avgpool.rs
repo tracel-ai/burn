@@ -2,7 +2,7 @@ use crate::{
     SharedArray, element::FloatNdArrayElement, iter_range_par, run_par, sharing::UnsafeSharedRef,
 };
 use burn_backend::ElementConversion;
-use ndarray::Array4;
+use ndarray::{Array4, Array5};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -91,6 +91,122 @@ pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
     output_grad.into_dyn().into_shared()
 }
 
+pub(crate) fn adaptive_avg_pool3d<E: FloatNdArrayElement>(
+    x: SharedArray<E>,
+    output_size: [usize; 3],
+) -> SharedArray<E> {
+    let [batch_size, channels, input_depth, input_height, input_width] =
+        x.shape().try_into().unwrap();
+
+    let mut output = Array5::from_elem(
+        (
+            batch_size,
+            channels,
+            output_size[0],
+            output_size[1],
+            output_size[2],
+        ),
+        0.elem(),
+    );
+    let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
+
+    run_par!(|| {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
+            let b = k / channels;
+            let c = k % channels;
+
+            let output = unsafe_shared_out.get();
+            for d in 0..output_size[0] {
+                for h in 0..output_size[1] {
+                    for w in 0..output_size[2] {
+                        let id_start = start_index(d, output_size[0], input_depth);
+                        let id_end = end_index(d, output_size[0], input_depth);
+                        let ih_start = start_index(h, output_size[1], input_height);
+                        let ih_end = end_index(h, output_size[1], input_height);
+                        let iw_start = start_index(w, output_size[2], input_width);
+                        let iw_end = end_index(w, output_size[2], input_width);
+
+                        let mut sum_val: E = 0.elem();
+
+                        for id in id_start..id_end {
+                            for ih in ih_start..ih_end {
+                                for iw in iw_start..iw_end {
+                                    sum_val += x[[b, c, id, ih, iw]];
+                                }
+                            }
+                        }
+
+                        let count: E = (((id_end - id_start)
+                            * (ih_end - ih_start)
+                            * (iw_end - iw_start)) as i32)
+                            .elem();
+                        output[[b, c, d, h, w]] = sum_val / count.elem();
+                    }
+                }
+            }
+        })
+    });
+
+    output.into_dyn().into_shared()
+}
+
+pub(crate) fn adaptive_avg_pool3d_backward<E: FloatNdArrayElement>(
+    x: SharedArray<E>,
+    grad: SharedArray<E>,
+) -> SharedArray<E> {
+    let [_, _, input_depth, input_height, input_width] = x.shape().try_into().unwrap();
+    let [
+        batch_size,
+        channels,
+        output_depth,
+        output_height,
+        output_width,
+    ] = grad.shape().try_into().unwrap();
+
+    let mut output_grad = Array5::from_elem(
+        (batch_size, channels, input_depth, input_height, input_width),
+        0.elem(),
+    );
+    let unsafe_shared_out = UnsafeSharedRef::new(&mut output_grad);
+
+    run_par!(|| {
+        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
+            let b = k / channels;
+            let c = k % channels;
+
+            let output_grad = unsafe_shared_out.get();
+            for od in 0..output_depth {
+                for oh in 0..output_height {
+                    for ow in 0..output_width {
+                        let id_start = start_index(od, output_depth, input_depth);
+                        let id_end = end_index(od, output_depth, input_depth);
+                        let ih_start = start_index(oh, output_height, input_height);
+                        let ih_end = end_index(oh, output_height, input_height);
+                        let iw_start = start_index(ow, output_width, input_width);
+                        let iw_end = end_index(ow, output_width, input_width);
+
+                        let count: E = (((id_end - id_start)
+                            * (ih_end - ih_start)
+                            * (iw_end - iw_start)) as i32)
+                            .elem();
+
+                        for id in id_start..id_end {
+                            for ih in ih_start..ih_end {
+                                for iw in iw_start..iw_end {
+                                    output_grad[[b, c, id, ih, iw]] +=
+                                        grad[[b, c, od, oh, ow]] / count.elem();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    });
+
+    output_grad.into_dyn().into_shared()
+}
+
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
     ((output_size_index as f32 * input_size as f32) / output_size as f32).floor() as usize
 }
@@ -100,4 +216,56 @@ fn end_index(output_size_index: usize, output_size: usize, input_size: usize) ->
         (((output_size_index + 1) as f32 * input_size as f32) / output_size as f32).ceil() as usize;
 
     usize::min(index, input_size)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_start_end_index_basic() {
+        // 4 elements -> 2 outputs
+        assert_eq!(start_index(0, 2, 4), 0);
+        assert_eq!(end_index(0, 2, 4), 2);
+        assert_eq!(start_index(1, 2, 4), 2);
+        assert_eq!(end_index(1, 2, 4), 4);
+    }
+
+    #[test]
+    fn test_start_end_index_asymmetric() {
+        // 5 elements -> 3 outputs
+        assert_eq!(start_index(0, 3, 5), 0);
+        assert_eq!(end_index(0, 3, 5), 2);
+        assert_eq!(start_index(1, 3, 5), 1);
+        assert_eq!(end_index(1, 3, 5), 4);
+        assert_eq!(start_index(2, 3, 5), 3);
+        assert_eq!(end_index(2, 3, 5), 5);
+    }
+
+    #[test]
+    fn test_start_end_index_same_size() {
+        // 4 elements -> 4 outputs (identity)
+        for i in 0..4 {
+            assert_eq!(start_index(i, 4, 4), i);
+            assert_eq!(end_index(i, 4, 4), i + 1);
+        }
+    }
+
+    #[test]
+    fn test_start_end_index_bigger_output() {
+        // 2 elements -> 3 outputs (upsampling)
+        assert_eq!(start_index(0, 3, 2), 0);
+        assert_eq!(end_index(0, 3, 2), 1);
+        assert_eq!(start_index(1, 3, 2), 0);
+        assert_eq!(end_index(1, 3, 2), 2);
+        assert_eq!(start_index(2, 3, 2), 1);
+        assert_eq!(end_index(2, 3, 2), 2);
+    }
+
+    #[test]
+    fn test_start_end_index_output_1() {
+        // 8 elements -> 1 output (global pool)
+        assert_eq!(start_index(0, 1, 8), 0);
+        assert_eq!(end_index(0, 1, 8), 8);
+    }
 }

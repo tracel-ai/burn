@@ -1021,6 +1021,13 @@ pub fn adaptive_avg_pool3d_bf16(x: FlexTensor, output_size: [usize; 3]) -> FlexT
     convert_f32_to_bf16(&result_f32)
 }
 
+pub fn adaptive_avg_pool3d_backward_bf16(x: FlexTensor, grad: FlexTensor) -> FlexTensor {
+    let x_f32 = convert_bf16_to_f32(&x);
+    let grad_f32 = convert_bf16_to_f32(&grad);
+    let result_f32 = adaptive_avg_pool3d_backward_f32(x_f32, grad_f32);
+    convert_f32_to_bf16(&result_f32)
+}
+
 /// Generic 3D adaptive average pooling implementation.
 fn adaptive_avg_pool3d_impl<T>(
     x: FlexTensor,

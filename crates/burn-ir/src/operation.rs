@@ -288,6 +288,12 @@ pub enum ModuleOperationIr {
     /// [adaptive avg pool 2d backward](burn_backend::ops::ModuleOps::adaptive_avg_pool2d_backward).
     AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardOpIr),
     /// Operation corresponding to
+    /// [adaptive avg pool 3d](burn_backend::ops::ModuleOps::adaptive_avg_pool3d).
+    AdaptiveAvgPool3d(AdaptiveAvgPool3dOpIr),
+    /// Operation corresponding to
+    /// [adaptive avg pool 3d backward](burn_backend::ops::ModuleOps::adaptive_avg_pool3d_backward).
+    AdaptiveAvgPool3dBackward(AdaptiveAvgPool3dBackwardOpIr),
+    /// Operation corresponding to
     /// [max pool 1d](burn_backend::ops::ModuleOps::max_pool1d).
     MaxPool1d(MaxPool1dOpIr),
     /// Operation corresponding to
@@ -1759,6 +1765,22 @@ pub struct AdaptiveAvgPool1dBackwardOpIr {
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AdaptiveAvgPool2dBackwardOpIr {
+    pub x: TensorIr,
+    pub grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AdaptiveAvgPool3dOpIr {
+    pub x: TensorIr,
+    pub output_size: [usize; 3],
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AdaptiveAvgPool3dBackwardOpIr {
     pub x: TensorIr,
     pub grad: TensorIr,
     pub out: TensorIr,
@@ -3843,6 +3865,10 @@ impl ModuleOperationIr {
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => Box::new([&repr.x].into_iter()),
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => {
+                Box::new([&repr.x, &repr.grad].into_iter())
+            }
             ModuleOperationIr::MaxPool1d(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::MaxPool1dWithIndices(repr) => Box::new([&repr.x].into_iter()),
             ModuleOperationIr::MaxPool1dWithIndicesBackward(repr) => {
@@ -3985,6 +4011,8 @@ impl ModuleOperationIr {
             ModuleOperationIr::AdaptiveAvgPool2d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AdaptiveAvgPool1dBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::MaxPool1d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::MaxPool1dWithIndices(repr) => {
                 Box::new([&repr.out, &repr.out_indices].into_iter())
@@ -4211,6 +4239,13 @@ impl ModuleOperationIr {
                 repr.grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.grad.mark_read_only(nodes, &mut output);
             }
@@ -4519,6 +4554,15 @@ impl ModuleOperationIr {
                 v.visit_tensor_mut(&mut repr.out);
             }
             ModuleOperationIr::AdaptiveAvgPool2dBackward(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.grad);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool3d(repr) => {
+                v.visit_tensor_mut(&mut repr.x);
+                v.visit_tensor_mut(&mut repr.out);
+            }
+            ModuleOperationIr::AdaptiveAvgPool3dBackward(repr) => {
                 v.visit_tensor_mut(&mut repr.x);
                 v.visit_tensor_mut(&mut repr.grad);
                 v.visit_tensor_mut(&mut repr.out);

@@ -39,6 +39,44 @@ fn should_quantize_dequantize_per_block_arange_reshaped<const D1: usize, const D
     output.assert_approx_eq::<FloatElem>(&output_ref, Tolerance::permissive());
 }
 
+fn should_quantize_dequantize_reshaped_roundtrip<const D1: usize, const D2: usize>(
+    level: QuantLevel,
+    value: QuantValue,
+    store: QuantStore,
+    shape: [usize; D1],
+    new_shape: [usize; D2],
+) {
+    let numel = Shape::from(shape).num_elements() as i64;
+    let device = Default::default();
+
+    let scheme = QuantScheme::default()
+        .with_level(level)
+        .with_value(value)
+        .with_store(store);
+
+    let input = TestTensorInt::arange(0..numel, &device)
+        .float()
+        .div_scalar(numel)
+        .reshape::<D1, _>(shape);
+
+    // Reference: quantize → dequantize → reshape (quantized roundtrip, then reshape)
+    let reference = input
+        .clone()
+        .quantize_dynamic(&scheme)
+        .dequantize()
+        .reshape::<D2, _>(new_shape);
+
+    // Test: quantize → reshape → dequantize
+    let output = input
+        .quantize_dynamic(&scheme)
+        .reshape::<D2, _>(new_shape)
+        .dequantize();
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&reference.into_data(), Tolerance::permissive());
+}
+
 #[test]
 // https://github.com/tracel-ai/burn/issues/4659
 // Edge case where a single block is used, essentially like `QuantLevel::Tensor`
@@ -53,10 +91,8 @@ fn should_quantize_dequantize_per_block_reshaped_global_block_q8s_packed() {
 }
 
 #[test]
-// FIXME: should work like tensor-level
-#[should_panic] // "Reshape with sub-byte values is not supported"] error is shadowed by the CallError
 fn should_quantize_dequantize_per_block_reshaped_global_block_q4s_packed() {
-    should_quantize_dequantize_per_block_arange_reshaped(
+    should_quantize_dequantize_reshaped_roundtrip(
         QuantLevel::Block(BlockSize::new([16])),
         QuantValue::Q4S,
         QuantStore::PackedU32(0),
@@ -66,10 +102,8 @@ fn should_quantize_dequantize_per_block_reshaped_global_block_q4s_packed() {
 }
 
 #[test]
-// FIXME: should work
-#[should_panic] // "Reshape with sub-byte values is not supported" error is shadowed by the CallError
 fn should_quantize_dequantize_per_tensor_reshaped_q4s_packed() {
-    should_quantize_dequantize_per_block_arange_reshaped(
+    should_quantize_dequantize_reshaped_roundtrip(
         QuantLevel::Tensor,
         QuantValue::Q4S,
         QuantStore::PackedU32(0),

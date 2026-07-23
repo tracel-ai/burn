@@ -1,11 +1,15 @@
 use crate::{
     CubeRuntime,
     kernel::into_contiguous_aligned,
-    ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{
+        base::{from_data, into_data_sync},
+        numeric::empty_device_dtype,
+        permute_nchw_to_nhwc, permute_nhwc_to_nchw,
+    },
     tensor::CubeTensor,
 };
 use burn_backend::cubecl::dtype_to_storage_type;
-use burn_backend::{DType, Shape, ops::conv::calculate_pool_output_size};
+use burn_backend::{DType, Shape, TensorData, ops::conv::calculate_pool_output_size};
 use cubek::pool::{
     definition::{AdaptiveAvgPoolOptions, AvgPoolOptions, MaxPoolOptions, PoolError, PoolMode},
     pool2d, pool2d_backward, pool2d_with_indices, pool2d_with_indices_backward,
@@ -326,6 +330,148 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     .unwrap_or_else(|e| pool_panic("adaptive_avg_pool2d_backward", &input, e));
 
     permute_nhwc_to_nchw(output)
+}
+
+pub(crate) fn adaptive_avg_pool3d<R: CubeRuntime>(
+    input: CubeTensor<R>,
+    output_size: [usize; 3],
+) -> CubeTensor<R> {
+    // ponytail: CPU fallback until cubek adds pool3d support
+    let [batch_size, channels, input_depth, input_height, input_width] = input.meta.shape().dims();
+
+    let input_data = into_data_sync(input.clone());
+    let input_slice = input_data.as_slice::<f32>().unwrap();
+
+    let numel = batch_size * channels * output_size[0] * output_size[1] * output_size[2];
+    let mut output_data = vec![0.0f32; numel];
+
+    for b in 0..batch_size {
+        for c in 0..channels {
+            for od in 0..output_size[0] {
+                for oh in 0..output_size[1] {
+                    for ow in 0..output_size[2] {
+                        let id_start = start_index(od, output_size[0], input_depth);
+                        let id_end = end_index(od, output_size[0], input_depth);
+                        let ih_start = start_index(oh, output_size[1], input_height);
+                        let ih_end = end_index(oh, output_size[1], input_height);
+                        let iw_start = start_index(ow, output_size[2], input_width);
+                        let iw_end = end_index(ow, output_size[2], input_width);
+
+                        let mut sum = 0.0f32;
+                        for id in id_start..id_end {
+                            for ih in ih_start..ih_end {
+                                for iw in iw_start..iw_end {
+                                    let idx =
+                                        b * channels * input_depth * input_height * input_width
+                                            + c * input_depth * input_height * input_width
+                                            + id * input_height * input_width
+                                            + ih * input_width
+                                            + iw;
+                                    sum += input_slice[idx];
+                                }
+                            }
+                        }
+
+                        let count = ((id_end - id_start)
+                            * (ih_end - ih_start)
+                            * (iw_end - iw_start)) as f32;
+                        let out_idx =
+                            b * channels * output_size[0] * output_size[1] * output_size[2]
+                                + c * output_size[0] * output_size[1] * output_size[2]
+                                + od * output_size[1] * output_size[2]
+                                + oh * output_size[2]
+                                + ow;
+                        output_data[out_idx] = sum / count;
+                    }
+                }
+            }
+        }
+    }
+
+    let output_shape = Shape::new([
+        batch_size,
+        channels,
+        output_size[0],
+        output_size[1],
+        output_size[2],
+    ]);
+    let output_tensor = TensorData::new(output_data, output_shape);
+    from_data(output_tensor, &input.device)
+}
+
+pub(crate) fn adaptive_avg_pool3d_backward<R: CubeRuntime>(
+    x: CubeTensor<R>,
+    out_grad: CubeTensor<R>,
+) -> CubeTensor<R> {
+    let [_, _, input_depth, input_height, input_width] = x.meta.shape().dims();
+    let [
+        batch_size,
+        channels,
+        output_depth,
+        output_height,
+        output_width,
+    ] = out_grad.meta.shape().dims();
+
+    let grad_data = into_data_sync(out_grad);
+    let grad_slice = grad_data.as_slice::<f32>().unwrap();
+
+    let numel = batch_size * channels * input_depth * input_height * input_width;
+    let mut output_data = vec![0.0f32; numel];
+
+    for b in 0..batch_size {
+        for c in 0..channels {
+            for od in 0..output_depth {
+                for oh in 0..output_height {
+                    for ow in 0..output_width {
+                        let id_start = start_index(od, output_depth, input_depth);
+                        let id_end = end_index(od, output_depth, input_depth);
+                        let ih_start = start_index(oh, output_height, input_height);
+                        let ih_end = end_index(oh, output_height, input_height);
+                        let iw_start = start_index(ow, output_width, input_width);
+                        let iw_end = end_index(ow, output_width, input_width);
+
+                        let count = ((id_end - id_start)
+                            * (ih_end - ih_start)
+                            * (iw_end - iw_start)) as f32;
+                        let grad_idx = b * channels * output_depth * output_height * output_width
+                            + c * output_depth * output_height * output_width
+                            + od * output_height * output_width
+                            + oh * output_width
+                            + ow;
+                        let grad_val = grad_slice[grad_idx] / count;
+
+                        for id in id_start..id_end {
+                            for ih in ih_start..ih_end {
+                                for iw in iw_start..iw_end {
+                                    let idx =
+                                        b * channels * input_depth * input_height * input_width
+                                            + c * input_depth * input_height * input_width
+                                            + id * input_height * input_width
+                                            + ih * input_width
+                                            + iw;
+                                    output_data[idx] += grad_val;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let out_shape = Shape::new([batch_size, channels, input_depth, input_height, input_width]);
+    let output_tensor = TensorData::new(output_data, out_shape);
+    from_data(output_tensor, &x.device)
+}
+
+fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
+    ((output_size_index as f32 * input_size as f32) / output_size as f32).floor() as usize
+}
+
+fn end_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
+    let index =
+        (((output_size_index + 1) as f32 * input_size as f32) / output_size as f32).ceil() as usize;
+    usize::min(index, input_size)
 }
 
 fn pool_panic<R: CubeRuntime>(label: &str, input: &CubeTensor<R>, error: PoolError) -> ! {

@@ -295,6 +295,17 @@ where
         kernel::pool::adaptive_avg_pool2d_backward(x, grad)
     }
 
+    fn adaptive_avg_pool3d(x: FloatTensor<Self>, output_size: [usize; 3]) -> FloatTensor<Self> {
+        kernel::pool::adaptive_avg_pool3d(x, output_size)
+    }
+
+    fn adaptive_avg_pool3d_backward(
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        kernel::pool::adaptive_avg_pool3d_backward(x, grad)
+    }
+
     fn interpolate(
         x: FloatTensor<Self>,
         output_size: [usize; 2],

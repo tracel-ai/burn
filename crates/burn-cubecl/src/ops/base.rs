@@ -6,7 +6,7 @@ use burn_backend::{
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use burn_std::{
-    Metadata, QuantValue, ReshapeAnalysis, reshape_analysis, strides,
+    Metadata, ReshapeAnalysis, reshape_analysis, strides,
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
 };
 use cubecl::{ir::VectorSize, server::CopyDescriptor};
@@ -354,16 +354,6 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
 
     let n_new_dims = shape.num_dims().saturating_sub(curr_shape.num_dims());
     let is_unsqueeze = n_new_dims > 0 && shape[n_new_dims..] == **curr_shape;
-
-    if !is_unsqueeze
-        && matches!(
-            scheme.value,
-            QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
-        )
-    {
-        // FIXME
-        todo!("Reshape with sub-byte values is not supported")
-    }
 
     // Check valid reshapes
     if let ReshapeAction::UpdateStrides { .. } = &action_values {
