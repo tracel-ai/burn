@@ -1,9 +1,9 @@
 use burn_core as burn;
 
 use alloc::vec::Vec;
-use burn::Tensor;
 use burn::prelude::SliceArg;
 use burn::prelude::{Device, Shape};
+use burn::tensor::{AsIndex, Tensor};
 
 /// State bundle for LSTM implementations.
 #[derive(Debug, Clone)]
@@ -94,22 +94,31 @@ impl<const D: usize> LstmState<D> {
 
     /// Squeeze a dimension from the state.
     ///
+    /// Negative dimensions are supported and count from the end.
+    ///
     /// See: [`Tensor::squeeze_dim`].
-    pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> LstmState<D2> {
+    pub fn squeeze_dim<const D2: usize>(self, dim: impl AsIndex) -> LstmState<D2> {
+        let dim = dim.expect_dim_index(D);
         self.map_state(|t| t.squeeze_dim(dim))
     }
 
     /// Unsqueeze a dimension in the state.
     ///
+    /// Negative dimensions are supported and count from the end of the valid insertion positions.
+    ///
     /// See: [`Tensor::unsqueeze_dim`].
-    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> LstmState<D2> {
+    pub fn unsqueeze_dim<const D2: usize>(self, dim: impl AsIndex) -> LstmState<D2> {
+        let dim = dim.expect_dim_index(D + 1);
         self.map_state(|t| t.unsqueeze_dim(dim))
     }
 
     /// Stack the states along the given dimension.
     ///
+    /// Negative dimensions are supported and count from the end of the valid insertion positions.
+    ///
     /// See: [`Tensor::stack`].
-    pub fn stack<const D2: usize>(states: Vec<LstmState<D>>, dim: usize) -> LstmState<D2> {
+    pub fn stack<const D2: usize>(states: Vec<LstmState<D>>, dim: impl AsIndex) -> LstmState<D2> {
+        let dim = dim.expect_dim_index(D + 1);
         let (c_it, h_it): (Vec<_>, Vec<_>) = states.into_iter().map(|s| s.unpack()).unzip();
         LstmState {
             cell: Tensor::stack(c_it, dim),
@@ -122,8 +131,11 @@ impl<const D: usize> LstmState<D> {
     /// This is the inverse of stacking — useful for splitting
     /// multi-layer states back into per-layer states.
     ///
+    /// Negative dimensions are supported and count from the end.
+    ///
     /// See: [`Tensor::chunk`].
-    pub fn chunk(self, n: usize, dim: usize) -> Vec<LstmState<D>> {
+    pub fn chunk(self, n: usize, dim: impl AsIndex) -> Vec<LstmState<D>> {
+        let dim = dim.expect_dim_index(D);
         let cells = self.cell.chunk(n, dim);
         let hiddens = self.hidden.chunk(n, dim);
         cells
@@ -272,14 +284,14 @@ mod tests {
     }
 
     #[test]
-    fn test_squeeze_dim() {
+    fn test_squeeze_negative_dim() {
         let device = Device::default();
         let state: LstmState<3> = random_state([2, 1, 3], &device);
 
         let expected_cell = state.cell.clone().squeeze_dim::<2>(1).to_data();
         let expected_hidden = state.hidden.clone().squeeze_dim::<2>(1).to_data();
 
-        let squeezed: LstmState<2> = state.squeeze_dim(1);
+        let squeezed: LstmState<2> = state.squeeze_dim(-2);
 
         assert_eq!(squeezed.shape(), Shape::from([2, 3]));
         squeezed.cell.to_data().assert_eq(&expected_cell, true);
@@ -287,16 +299,29 @@ mod tests {
     }
 
     #[test]
-    fn test_unsqueeze_dim() {
+    fn test_unsqueeze_negative_dim() {
         let device = Device::default();
         let state: LstmState<2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.clone().unsqueeze_dim::<3>(1).to_data();
         let expected_hidden = state.hidden.clone().unsqueeze_dim::<3>(1).to_data();
 
-        let unsqueezed: LstmState<3> = state.unsqueeze_dim(1);
+        let unsqueezed: LstmState<3> = state.clone().unsqueeze_dim(-2);
 
         assert_eq!(unsqueezed.shape(), Shape::from([2, 1, 3]));
+        unsqueezed.cell.to_data().assert_eq(&expected_cell, true);
+        unsqueezed
+            .hidden
+            .to_data()
+            .assert_eq(&expected_hidden, true);
+
+        // Negative insertion positions are based on D + 1 even when D2 adds
+        // more than one singleton dimension.
+        let expected_cell = state.cell.clone().unsqueeze_dim::<4>(2).to_data();
+        let expected_hidden = state.hidden.clone().unsqueeze_dim::<4>(2).to_data();
+        let unsqueezed: LstmState<4> = state.unsqueeze_dim(-1_i64);
+
+        assert_eq!(unsqueezed.shape(), Shape::from([2, 3, 1, 1]));
         unsqueezed.cell.to_data().assert_eq(&expected_cell, true);
         unsqueezed
             .hidden
@@ -318,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn test_stack() {
+    fn test_stack_negative_dim() {
         let device = Device::default();
         let a: LstmState<2> = random_state([2, 3], &device);
         let b: LstmState<2> = random_state([2, 3], &device);
@@ -327,15 +352,24 @@ mod tests {
         let expected_hidden =
             Tensor::stack::<3>(vec![a.hidden.clone(), b.hidden.clone()], 1).to_data();
 
-        let stacked: LstmState<3> = LstmState::stack(vec![a, b], 1);
+        let stacked: LstmState<3> = LstmState::stack(vec![a.clone(), b.clone()], -2);
 
         assert_eq!(stacked.shape(), Shape::from([2, 2, 3]));
+        stacked.cell.to_data().assert_eq(&expected_cell, true);
+        stacked.hidden.to_data().assert_eq(&expected_hidden, true);
+
+        let expected_cell = Tensor::stack::<4>(vec![a.cell.clone(), b.cell.clone()], 2).to_data();
+        let expected_hidden =
+            Tensor::stack::<4>(vec![a.hidden.clone(), b.hidden.clone()], 2).to_data();
+        let stacked: LstmState<4> = LstmState::stack(vec![a.clone(), b.clone()], -1_i64);
+
+        assert_eq!(stacked.shape(), Shape::from([2, 3, 2, 1]));
         stacked.cell.to_data().assert_eq(&expected_cell, true);
         stacked.hidden.to_data().assert_eq(&expected_hidden, true);
     }
 
     #[test]
-    fn test_chunk() {
+    fn test_chunk_negative_dim() {
         let device = Device::default();
 
         let a: LstmState<2> = random_state([2, 3], &device);
@@ -346,7 +380,7 @@ mod tests {
 
         assert_eq!(stacked.shape(), Shape::from([3, 2, 3]));
 
-        let chunks = stacked.chunk(3, 0);
+        let chunks = stacked.chunk(3, -3);
 
         assert_eq!(chunks.len(), 3);
         for chunk in chunks {
