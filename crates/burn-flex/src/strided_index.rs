@@ -10,7 +10,12 @@ pub struct StridedIter<'a> {
     /// Current storage index (signed to handle negative strides)
     storage_index: isize,
     multi_index: Vec<usize>,
-    layout: &'a Layout,
+    // Shape and strides are hoisted out of the layout at construction:
+    // `Shape` accessors live in an external crate and don't inline, so
+    // going through the layout on every `next()` dominates the
+    // per-element cost.
+    shape: &'a [usize],
+    strides: &'a [isize],
     remaining: usize,
 }
 
@@ -21,7 +26,8 @@ impl<'a> StridedIter<'a> {
         Self {
             storage_index: layout.start_offset() as isize,
             multi_index: vec![0; ndims],
-            layout,
+            shape: &layout.shape()[..],
+            strides: layout.strides(),
             remaining: layout.num_elements(),
         }
     }
@@ -43,18 +49,15 @@ impl Iterator for StridedIter<'_> {
         self.remaining -= 1;
 
         // Advance multi-index (last dimension first, like odometer)
-        let shape = self.layout.shape();
-        let strides = self.layout.strides();
-
-        for d in (0..shape.num_dims()).rev() {
+        for d in (0..self.shape.len()).rev() {
             self.multi_index[d] += 1;
-            if self.multi_index[d] < shape[d] {
-                self.storage_index += strides[d];
+            if self.multi_index[d] < self.shape[d] {
+                self.storage_index += self.strides[d];
                 break;
             }
             // Wrap around this dimension
             self.multi_index[d] = 0;
-            self.storage_index -= (shape[d] as isize - 1) * strides[d];
+            self.storage_index -= (self.shape[d] as isize - 1) * self.strides[d];
         }
 
         Some(idx)
