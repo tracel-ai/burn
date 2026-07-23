@@ -275,6 +275,14 @@ where
         kernel::equal(lhs, rhs, out_dtype.into())
     }
 
+    fn float_not_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::not_equal(lhs, rhs, out_dtype.into())
+    }
+
     fn float_equal_elem(
         lhs: FloatTensor<Self>,
         rhs: Scalar,
@@ -282,6 +290,19 @@ where
     ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::equal_elem(
+            lhs,
+            InputScalar::new(rhs, dtype_to_storage_type(dtype)),
+            out_dtype.into(),
+        )
+    }
+
+    fn float_not_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        let dtype = lhs.dtype;
+        kernel::not_equal_elem(
             lhs,
             InputScalar::new(rhs, dtype_to_storage_type(dtype)),
             out_dtype.into(),

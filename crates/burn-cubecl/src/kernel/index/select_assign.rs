@@ -18,7 +18,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     value_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     #[comptime] axis: usize,
-    #[define(F, I)] _dtypes: [StorageType; 2],
+    #[define(F, I)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= working_units {
         terminate!();

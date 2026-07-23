@@ -39,7 +39,7 @@ pub(crate) fn kernel_binop<C: Float, N: Size, O: BinaryOpFloatFamily>(
     lhs: LinearView<'_, Vector<C, N>>,
     rhs: LinearView<'_, Vector<C, N>>,
     mut out: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

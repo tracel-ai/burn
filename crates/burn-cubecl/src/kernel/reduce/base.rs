@@ -369,7 +369,7 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
     let dtypes = ReduceWithIndicesDtypes {
         input: value_dtypes.input,
         values: value_dtypes.output,
-        indices: dtype_to_elem_type(indices_dtype).into(),
+        indices: dtype_to_elem_type(indices_dtype),
         accumulation: value_dtypes.accumulation,
     };
 
@@ -378,13 +378,9 @@ pub fn reduce_dim_with_indices<Run: CubeRuntime>(
         rank: input.meta.num_dims(),
     };
 
-    let values = init_reduce_output_dtype::<Run>(
-        &input,
-        dim,
-        elem_type_to_dtype(dtypes.values.elem_type()),
-        out_len,
-    )
-    .ok_or_else(invalid_axis)?;
+    let values =
+        init_reduce_output_dtype::<Run>(&input, dim, elem_type_to_dtype(dtypes.values), out_len)
+            .ok_or_else(invalid_axis)?;
     let indices = init_reduce_output_dtype::<Run>(&input, dim, indices_dtype, out_len)
         .ok_or_else(invalid_axis)?;
 
@@ -456,7 +452,7 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     init_reduce_output_dtype::<Run>(
         input,
         dim,
-        elem_type_to_dtype(dtypes.output.elem_type()),
+        elem_type_to_dtype(dtypes.output),
         accumulator_len,
     )
 }

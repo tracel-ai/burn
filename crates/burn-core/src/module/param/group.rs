@@ -414,7 +414,7 @@ mod tests {
     fn explicit_matches_only_selected_ids() {
         let id = ParamId::new();
         let other_id = ParamId::new();
-        let group = ParamGroup::from_ids(vec![id.clone()]);
+        let group = ParamGroup::from_ids(vec![id]);
 
         assert!(group.matches(&id, None));
         assert!(!group.matches(&other_id, None));
@@ -464,7 +464,7 @@ mod tests {
     #[test]
     fn fuse_combines_multiple_groups() {
         let id = ParamId::new();
-        let group1 = ParamGroup::from_ids(vec![id.clone()]);
+        let group1 = ParamGroup::from_ids(vec![id]);
         let group2 = ParamGroup::from_path("model.layer.weight");
         let fused = group1.fuse(&group2);
 
@@ -477,9 +477,8 @@ mod tests {
     fn exclude_removes_matching_ids_from_a_group() {
         let id = ParamId::new();
         let excluded_id = ParamId::new();
-        let exclude_group = ParamGroup::from_ids(vec![excluded_id.clone()]);
-        let group =
-            ParamGroup::from_ids(vec![id.clone(), excluded_id.clone()]).exclude(exclude_group);
+        let exclude_group = ParamGroup::from_ids(vec![excluded_id]);
+        let group = ParamGroup::from_ids(vec![id, excluded_id]).exclude(exclude_group);
 
         assert!(group.matches(&id, None));
         assert!(!group.matches(&excluded_id, None));

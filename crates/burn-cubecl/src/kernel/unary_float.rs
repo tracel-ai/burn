@@ -29,7 +29,7 @@ pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
     input: LinearView<'_, Vector<F, N>>,
     mut output: LinearViewMut<'_, Vector<F, N>>,
     options: &O::Options,
-    #[define(F)] _dtype: StorageType,
+    #[define(F)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

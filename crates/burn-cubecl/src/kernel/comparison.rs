@@ -24,6 +24,7 @@ pub(crate) trait ComparisonOp<C: Numeric, N: Size>: 'static + Send + Sync {
 }
 
 struct EqualOp;
+struct NotEqualOp;
 struct GreaterEqualOp;
 struct LowerEqualOp;
 struct GreaterOp;
@@ -37,6 +38,17 @@ impl ComparisonOpFamily for EqualOp {
 impl<T: Numeric, N: Size> ComparisonOp<T, N> for EqualOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> bool {
         lhs == rhs
+    }
+}
+
+impl ComparisonOpFamily for NotEqualOp {
+    type Operation<T: Numeric, N: Size> = Self;
+}
+
+#[cube]
+impl<T: Numeric, N: Size> ComparisonOp<T, N> for NotEqualOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> bool {
+        lhs != rhs
     }
 }
 
@@ -89,7 +101,7 @@ pub(crate) fn kernel_scalar_cmp<T: Numeric, Bool: Numeric, N: Size, O: Compariso
     input: LinearView<'_, Vector<T, N>>,
     scalar: InputScalar,
     mut output: LinearViewMut<'_, Vector<Bool, N>>,
-    #[define(T, Bool)] _dtypes: [StorageType; 2],
+    #[define(T, Bool)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -109,7 +121,7 @@ pub(crate) fn kernel_cmp<T: Numeric, Bool: Numeric, N: Size, O: ComparisonOpFami
     lhs: LinearView<'_, Vector<T, N>>,
     rhs: LinearView<'_, Vector<T, N>>,
     mut out: LinearViewMut<'_, Vector<Bool, N>>,
-    #[define(T, Bool)] _dtype: [StorageType; 2],
+    #[define(T, Bool)] _dtype: [ElemType; 2],
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -292,6 +304,14 @@ pub fn equal<R: CubeRuntime>(
     launch_cmp::<R, EqualOp>(lhs, rhs, dtype_bool)
 }
 
+pub fn not_equal<R: CubeRuntime>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    dtype_bool: DType,
+) -> CubeTensor<R> {
+    launch_cmp::<R, NotEqualOp>(lhs, rhs, dtype_bool)
+}
+
 pub fn greater<R: CubeRuntime>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
@@ -330,6 +350,14 @@ pub fn equal_elem<R: CubeRuntime>(
     dtype_bool: DType,
 ) -> CubeTensor<R> {
     launch_scalar_cmp::<R, EqualOp>(lhs, rhs, dtype_bool)
+}
+
+pub fn not_equal_elem<R: CubeRuntime>(
+    lhs: CubeTensor<R>,
+    rhs: InputScalar,
+    dtype_bool: DType,
+) -> CubeTensor<R> {
+    launch_scalar_cmp::<R, NotEqualOp>(lhs, rhs, dtype_bool)
 }
 
 pub fn greater_elem<R: CubeRuntime>(
@@ -404,7 +432,7 @@ impl<F: Float, N: Size> PredicateOp<F, N> for IsInfOp {
 pub(crate) fn kernel_predicate<F: Float, Bool: Numeric, N: Size, O: PredicateOpFamily>(
     input: LinearView<'_, Vector<F, N>>,
     mut output: LinearViewMut<'_, Vector<Bool, N>>,
-    #[define(F, Bool)] _dtypes: [StorageType; 2],
+    #[define(F, Bool)] _dtypes: [ElemType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

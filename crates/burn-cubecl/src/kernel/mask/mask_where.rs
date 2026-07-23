@@ -19,7 +19,7 @@ fn mask_where_kernel<T: Numeric, B: Int, N: Size>(
     value: LinearView<'_, Vector<T, N>>,
     mask: LinearView<'_, Vector<B, N>>,
     mut output: LinearViewMut<'_, Vector<T, N>>,
-    #[define(T, B)] _dtypes: [StorageType; 2],
+    #[define(T, B)] _dtypes: [ElemType; 2],
 ) {
     let pos = ABSOLUTE_POS;
     if !output.is_in_bounds(pos) {

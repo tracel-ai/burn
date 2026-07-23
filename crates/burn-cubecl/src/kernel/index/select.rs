@@ -15,7 +15,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     mut output: LinearViewMut<'_, T>,
     out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
-    #[define(T, I)] _dtypes: [StorageType; 2],
+    #[define(T, I)] _dtypes: [ElemType; 2],
 ) {
     if ABSOLUTE_POS >= output.shape() {
         terminate!();
