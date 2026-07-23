@@ -19,9 +19,7 @@ impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
         if end > self.len() {
             return Ok(None);
         }
-        let items = (current..end)
-            .map(|x| self.get(x))
-            .collect::<Result<Vec<I>, DatasetError>>()?;
+        let items = self.get_many((current..end).collect())?;
         Ok(Some(items))
     }
 }

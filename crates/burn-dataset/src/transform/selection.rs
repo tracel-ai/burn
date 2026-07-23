@@ -236,6 +236,21 @@ where
         self.wrapped.get(index)
     }
 
+    fn get_many(&self, indexes: Vec<usize>) -> Result<Vec<I>, DatasetError> {
+        let translated: Vec<usize> = indexes
+            .into_iter()
+            .map(|i| {
+                self.indices.get(i).copied().unwrap_or_else(|| {
+                    panic!(
+                        "Index out of bounds for SelectionDataset: {i} >= {}",
+                        self.indices.len()
+                    )
+                })
+            })
+            .collect();
+        self.wrapped.get_many(translated)
+    }
+
     fn len(&self) -> usize {
         self.indices.len()
     }
@@ -313,6 +328,35 @@ mod tests {
         let items = selection.iter().map(Result::unwrap).collect::<Vec<_>>();
 
         assert_eq!(items, expected);
+    }
+
+    #[test]
+    fn test_selection_dataset_get_many() {
+        let source_dataset = FakeDataset::<String>::new(27);
+
+        let indices: Vec<usize> = vec![15, 1, 12, 12];
+        let selection = SelectionDataset::from_indices_checked(source_dataset, indices);
+
+        // Local indices, out of order and with a duplicate, mapping through `selection.indices`.
+        let requested = vec![3, 0, 2, 0];
+        let expected: Vec<String> = requested
+            .iter()
+            .map(|&i| selection.get(i).unwrap())
+            .collect();
+
+        let items = selection.get_many(requested).unwrap();
+
+        assert_eq!(items, expected);
+    }
+
+    #[test]
+    #[should_panic(expected = "Index out of bounds for SelectionDataset: 4 >= 4")]
+    fn test_selection_dataset_get_many_out_of_bounds() {
+        let source_dataset = FakeDataset::<String>::new(27);
+        let indices: Vec<usize> = vec![15, 1, 12, 12];
+        let selection = SelectionDataset::from_indices_checked(source_dataset, indices);
+
+        let _ = selection.get_many(vec![0, 4]);
     }
 
     #[test]
