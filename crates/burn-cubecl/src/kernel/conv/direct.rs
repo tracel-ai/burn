@@ -41,7 +41,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     shape_out: Sequence<FastDivmod<u32>>,
     shape_out_c: FastDivmod<u32>,
     #[comptime] has_padding: bool,
-    #[define(E)] _dtype: StorageType,
+    #[define(E)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -189,7 +189,7 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
     stride_oc: usize,
 ) {
     let vector_size_in = input.vector_size();
-    let vector_size_out = sum.size();
+    let vector_size_out = sum.vector_size();
 
     if in_bounds {
         for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {

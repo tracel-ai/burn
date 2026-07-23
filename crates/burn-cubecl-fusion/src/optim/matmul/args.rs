@@ -330,7 +330,7 @@ fn global_view<E: CubePrimitive>(
 
             // Redefine because of `Numeric` bound, kinda hacky but I can't figure out a way to
             // assert `Vector<T: Numeric>::Scalar: Numeric`
-            let define!(T) = storage_type_of::<E::Scalar>();
+            let define!(T) = elem_type_of::<E::Scalar>();
             let view = create_quant_view_dynamic::<T, E::Size>(
                 data_buf,
                 data_layout,

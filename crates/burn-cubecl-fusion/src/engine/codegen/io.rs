@@ -3,13 +3,12 @@ use crate::engine::codegen::{DynElem, DynSize};
 
 use super::{ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
-use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
-    ir::Value,
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
+use cubecl::{ir::ExpandValue, prelude::polyfills::set_polyfill, quant::scheme::QuantLevel};
 use cubek::quantization::layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout};
 use serde::{Deserialize, Serialize};
 
@@ -352,7 +351,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
                     comptime![shape.clone()],
                 );
                 let index = reshaped_index_to_original_index(&tensor.tensor, index, config.rank);
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
             }
         }
         Some(Transform::SwapDims(dim1, dim2)) => {
@@ -364,7 +363,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
             }
         }
         None => {
@@ -374,7 +373,7 @@ pub fn read_input_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let index = offset + i * stride;
-                result.insert(i, C::cast_from(tensor.tensor[index].extract(0)))
+                result.insert(i, C::cast_from(tensor.tensor[index].extract(0usize)))
             }
         }
     }
@@ -503,10 +502,11 @@ fn write_output_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let idx = offset + i * stride;
-                let val = if comptime![value.vector_size() == config.width] {
+                let vec = value.vector_size();
+                let val = if comptime![vec == config.width] {
                     Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value.extract(i % value.vector_size()))
+                    Vector::cast_from(value.extract(i % value.vector_size().comptime()))
                 };
                 output.tensor[idx] = val;
             }
@@ -532,10 +532,11 @@ fn write_output_aligned<C: Scalar, N: Size>(
                 );
                 let output = outputs.tensors.index_mut(pos);
 
-                let val = if comptime![value.vector_size() == config.width] {
+                let vec = value.vector_size();
+                let val = if comptime![vec == config.width] {
                     Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value.extract(i % value.vector_size()))
+                    Vector::cast_from(value.extract(i % value.vector_size().comptime()))
                 };
                 output.tensor[offset] = val;
             }
@@ -865,7 +866,11 @@ pub(crate) fn reverse_index(
 #[allow(unused_variables)]
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
-    intrinsic!(|scope| { Value::constant(value.into(), C::__expand_as_type(scope)).into() })
+    intrinsic!(|scope| {
+        let val: NativeExpand<C::Scalar> =
+            ExpandValue::constant(value.into(), C::Scalar::elem_type(scope)).into();
+        C::__expand_cast_from(scope, val)
+    })
 }
 
 #[cube]
@@ -873,6 +878,6 @@ fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
 pub(crate) fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>() {
     intrinsic!(|scope| {
         let elem_type = C::__expand_as_type(scope);
-        set_polyfill::expand::<Dyn, DynSize>(scope, elem_type);
+        scope.register_value_type::<Dyn, DynSize>(elem_type);
     })
 }

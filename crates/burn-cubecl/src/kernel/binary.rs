@@ -118,7 +118,7 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for PowOp {
     #[allow(unused)]
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         intrinsic!(|scope| {
-            let elem = T::__expand_as_type(scope).elem_type();
+            let elem = T::elem_type(scope);
 
             if let cubecl::ir::ElemType::Float(kind) = elem {
                 match kind {
@@ -194,7 +194,7 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
     input: LinearView<'_, Vector<C, N>>,
     scalar: InputScalar,
     mut output: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -211,7 +211,7 @@ pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
     lhs: LinearView<'_, Vector<C, N>>,
     rhs: LinearView<'_, Vector<C, N>>,
     mut out: LinearViewMut<'_, Vector<C, N>>,
-    #[define(C)] _dtype: StorageType,
+    #[define(C)] _dtype: ElemType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();

@@ -7,8 +7,8 @@ use burn_std::{
 };
 use core::fmt::Display;
 use cubecl::{
-    ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind},
-    prelude::*,
+    ir::{ElemType, FloatKind, IntKind, UIntKind},
+    prelude::{polyfills::set_polyfill, *},
 };
 use serde::{Deserialize, Serialize};
 
@@ -355,8 +355,8 @@ impl FuseOp {
         }
     }
 
-    pub(crate) fn cmp_storage_ty(&self) -> StorageType {
-        self.cmp_elem().into()
+    pub(crate) fn cmp_storage_ty(&self) -> ElemType {
+        self.cmp_elem()
     }
 }
 
@@ -679,7 +679,7 @@ impl AsRefExpand for FuseBlockConfig {
 }
 
 impl FuseBlockConfig {
-    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
+    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, ElemType)>) {
         for op in self.ops.iter() {
             op.multi_block_variables(registers);
         }
@@ -687,7 +687,7 @@ impl FuseBlockConfig {
 }
 
 impl FuseArg {
-    pub fn multi_block_variable(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
+    pub fn multi_block_variable(&self, registers: &mut Vec<(MultiBlockPos, ElemType)>) {
         match self {
             FuseArg::MultiBlockGlobal(arg, fuse_type)
                 // TODO: we need to init the multi-block local, but at some point we could avoid
@@ -701,7 +701,7 @@ impl FuseArg {
 }
 
 impl FuseOp {
-    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
+    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, ElemType)>) {
         match self {
             FuseOp::Add(binary_fuse_args)
             | FuseOp::Sub(binary_fuse_args)
@@ -811,7 +811,7 @@ pub fn multi_block_variables_init(
     variables: &mut MultiBlockVariables,
 ) {
     let output = comptime! {
-        let mut output = Vec::<(MultiBlockPos, StorageType)>::new();
+        let mut output = Vec::<(MultiBlockPos, ElemType)>::new();
         block.multi_block_variables(&mut output);
         output
     };
@@ -894,13 +894,8 @@ impl From<ElemType> for FuseType {
                 UIntKind::U8 => Self::U8,
             },
             ElemType::Bool => Self::U32,
+            ElemType::Index => Self::U32,
         }
-    }
-}
-
-impl From<StorageType> for FuseType {
-    fn from(value: StorageType) -> Self {
-        value.elem_type().into()
     }
 }
 
@@ -961,9 +956,9 @@ impl FuseType {
         }
     }
 
-    /// Convert the [fused element type](FuseType) into the [cubecl storage type](StorageType).
-    pub fn into_storage_type(self) -> StorageType {
-        self.into_elem().into()
+    /// Convert the [fused element type](FuseType) into the [cubecl storage type](ElemType).
+    pub fn into_storage_type(self) -> ElemType {
+        self.into_elem()
     }
 
     /// Convert the [fused element type](FuseType) into the [cubecl type](Type)

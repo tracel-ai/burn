@@ -1,3 +1,5 @@
+#![allow(clippy::manual_range_contains)]
+
 use crate::tensor::Shape;
 
 use crate::config::Config;
