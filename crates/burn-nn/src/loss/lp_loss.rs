@@ -1,7 +1,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::Tensor;
+use burn::tensor::{AsIndex, Tensor};
 use burn_core as burn;
 
 /// Configuration for the [Lp Loss](LpLoss) module.
@@ -194,14 +194,14 @@ impl LpLoss {
     /// over the specified dimensions. Useful for per-sample or per-channel losses (e.g., when
     /// working with images).
     ///
-    /// Dimensions can be provided in any order. They are sorted internally and
-    /// reduced from highest to lowest to ensure indices remain valid.
+    /// Dimensions can be provided in any order. They are normalized and sorted internally.
     ///
     /// # Arguments
     ///
     /// * `predictions` - The model's predicted values.
     /// * `targets` - The ground truth target values.
     /// * `dims` - Dimensions to reduce over.
+    ///   Negative dimensions are supported and count from the end.
     ///
     /// # Returns
     ///
@@ -220,12 +220,15 @@ impl LpLoss {
         &self,
         predictions: Tensor<D>,
         targets: Tensor<D>,
-        dims: &[usize],
+        dims: &[impl AsIndex],
     ) -> Tensor<D> {
         let error = self.forward_no_reduction(predictions, targets);
 
-        // Sort the dimensions to ascending order
-        let mut sorted_dims = dims.to_vec();
+        // Normalize and sort the dimensions to ascending order.
+        let mut sorted_dims = dims
+            .iter()
+            .map(|dim| dim.expect_dim_index(D))
+            .collect::<Vec<_>>();
         sorted_dims.sort();
 
         // Reduce over specified dimensions
@@ -607,8 +610,11 @@ mod tests {
             Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
         let targets = Tensor::<2>::from_data(TensorData::from([[0.0, 2.0], [3.0, 6.0]]), &device);
         let loss_func = LpLossConfig::l2();
-        let loss_reduce_dims =
-            loss_func.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
+        let loss_reduce_dims = loss_func.forward_reduce_dims::<2>(
+            predictions.clone(),
+            targets.clone(),
+            &[] as &[usize],
+        );
         let loss_no_reduction = loss_func.forward_no_reduction(predictions, targets);
 
         // Should be equivalent
@@ -632,5 +638,23 @@ mod tests {
         // All zeros, reduced to shape: [2, 1, 1]
         let expected = TensorData::from([[[0.0]], [[0.0]]]);
         loss.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_forward_reduce_dims_negative_dims() {
+        let device = Default::default();
+        let predictions = Tensor::<3>::from_data(
+            TensorData::from([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
+            &device,
+        );
+        let targets = Tensor::<3>::zeros([2, 2, 2], &device);
+        let loss_func = LpLossConfig::l2();
+
+        let expected = loss_func.forward_reduce_dims(predictions.clone(), targets.clone(), &[1, 2]);
+        let output = loss_func.forward_reduce_dims(predictions, targets, &[-2, -1]);
+
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected.into_data(), Tolerance::default());
     }
 }
