@@ -49,6 +49,9 @@ mod recall;
 mod rouge;
 mod top_k_acc;
 mod wer;
+mod r2_score;
+mod mse;
+mod mae;
 
 pub use acc::*;
 pub use auc_pr::*;
@@ -68,6 +71,9 @@ pub use recall::*;
 pub use rouge::*;
 pub use top_k_acc::*;
 pub use wer::*;
+pub use r2_score::*;
+pub use mse::*;
+pub use mae::*;
 
 pub(crate) mod classification;
 pub(crate) mod processor;
