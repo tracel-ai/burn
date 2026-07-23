@@ -76,7 +76,7 @@ fn test_cosine_similarity_different_dimension() {
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
 
     // Test with negative dimension (-1 is the last dimension, which is 2 in this case)
-    linalg::cosine_similarity(x1.clone(), x2.clone(), -1, None)
+    linalg::cosine_similarity(x1.clone(), x2.clone(), -1_i64, None)
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
 }
