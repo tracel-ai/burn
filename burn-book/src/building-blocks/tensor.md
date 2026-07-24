@@ -43,16 +43,16 @@ device.configure((FloatDType::F16, IntDType::I32))?;
 let floats = Tensor::<Backend, 2>::zeros([2, 3], &device);
 ```
 
-> **Default data types lock on first use.** A device's defaults can only be initialized **once**, and
-> that initialization must happen *before* the first tensor operation on the device. The first tensor
-> created on an unconfigured device permanently locks the defaults to the backend's values. Any later
-> call to `configure` (or `set_default_dtypes`) for that device returns a
+> **Default data types lock on first use.** A device's defaults can only be initialized **once**,
+> and that initialization must happen _before_ the first tensor operation on the device. The first
+> tensor created on an unconfigured device permanently locks the defaults to the backend's values.
+> Any later call to `configure` (or `set_default_dtypes`) for that device returns a
 > `DeviceError::AlreadyInitialized` error instead of silently changing (or ignoring) the width.
 
-Because the default width is a per-device property, you cannot have two different default float widths
-active on the same device within a single process. If you need values at more than one precision,
-create the other tensors with an explicit dtype by passing a `(&device, dtype)` tuple as the creation
-options (this tuple is just a convenient conversion into
+Because the default width is a per-device property, you cannot have two different default float
+widths active on the same device within a single process. If you need values at more than one
+precision, create the other tensors with an explicit dtype by passing a `(&device, dtype)` tuple as
+the creation options (this tuple is just a convenient conversion into
 [`TensorCreationOptions`](https://docs.rs/burn/latest/burn/tensor/struct.TensorCreationOptions.html)):
 
 ```rust, ignore
@@ -63,7 +63,7 @@ let x = Tensor::<Backend, 2>::zeros([2, 3], &device);                   // f32
 let x_f64 = Tensor::<Backend, 2>::zeros([2, 3], (&device, DType::F64)); // explicit f64
 ```
 
-To convert an *existing* tensor to another element type, use
+To convert an _existing_ tensor to another element type, use
 [`cast`](https://docs.rs/burn/latest/burn/tensor/struct.Tensor.html#method.cast):
 
 ```rust, ignore
@@ -205,7 +205,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.dtype()`                                     | `tensor.dtype`                                                            |
 | `tensor.dims()`                                      | `tensor.size()`                                                           |
 | `tensor.equal(other)`                                | `x == y`                                                                  |
-| `tensor.equal_scalar(other)`                           | `tensor.eq(other)`                                                        |
+| `tensor.equal_scalar(other)`                         | `tensor.eq(other)`                                                        |
 | `tensor.expand(shape)`                               | `tensor.expand(shape)`                                                    |
 | `tensor.flatten(start_dim, end_dim)`                 | `tensor.flatten(start_dim, end_dim)`                                      |
 | `tensor.flip(axes)`                                  | `tensor.flip(axes)`                                                       |
@@ -219,7 +219,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.movedim(src, dst)`                           | `tensor.movedim(src, dst)`                                                |
 | `tensor.narrow(dim, start, length)`                  | `tensor.narrow(dim, start, length)`                                       |
 | `tensor.not_equal(other)`                            | `x != y`                                                                  |
-| `tensor.not_equal_scalar(scalar)`                      | `tensor.ne(scalar)`                                                       |
+| `tensor.not_equal_scalar(scalar)`                    | `tensor.ne(scalar)`                                                       |
 | `tensor.ones_like()`                                 | `torch.ones_like(tensor)`                                                 |
 | `tensor.permute(axes)`                               | `tensor.permute(axes)`                                                    |
 | `tensor.repeat_dim(dim, times)`                      | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
@@ -280,13 +280,13 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                             |
 | `tensor.dot(other)`                                             | `torch.dot(tensor, other)`                    |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                            |
-| `tensor.greater_scalar(scalar)`                                   | `tensor.gt(scalar)`                           |
+| `tensor.greater_scalar(scalar)`                                 | `tensor.gt(scalar)`                           |
 | `tensor.greater_equal(other)`                                   | `tensor.ge(other)`                            |
-| `tensor.greater_equal_scalar(scalar)`                             | `tensor.ge(scalar)`                           |
+| `tensor.greater_equal_scalar(scalar)`                           | `tensor.ge(scalar)`                           |
 | `tensor.lower(other)`                                           | `tensor.lt(other)`                            |
-| `tensor.lower_scalar(scalar)`                                     | `tensor.lt(scalar)`                           |
+| `tensor.lower_scalar(scalar)`                                   | `tensor.lt(scalar)`                           |
 | `tensor.lower_equal(other)`                                     | `tensor.le(other)`                            |
-| `tensor.lower_equal_scalar(scalar)`                               | `tensor.le(scalar)`                           |
+| `tensor.lower_equal_scalar(scalar)`                             | `tensor.le(scalar)`                           |
 | `tensor.max()`                                                  | `tensor.max()`                                |
 | `tensor.max_abs()`                                              | `tensor.abs().max()`                          |
 | `tensor.max_abs_dim(dim)`                                       | `tensor.abs().max(dim, keepdim=True)`         |
@@ -391,24 +391,24 @@ Those operations are only available for `Float` tensors.
 
 Those operations are only available for `Int` tensors.
 
-| Burn API                                         | PyTorch Equivalent                                      |
-| ------------------------------------------------ | ------------------------------------------------------- |
-| `Tensor::arange(5..10, device)`                  | `tensor.arange(start=5, end=10, device=device)`         |
-| `Tensor::arange_step(5..10, 2, device)`          | `tensor.arange(start=5, end=10, step=2, device=device)` |
-| `tensor.bitwise_and(other)`                      | `torch.bitwise_and(tensor, other)`                      |
-| `tensor.bitwise_and_scalar(scalar)`              | `torch.bitwise_and(tensor, scalar)`                     |
-| `tensor.bitwise_not()`                           | `torch.bitwise_not(tensor)`                             |
-| `tensor.bitwise_left_shift(other)`               | `torch.bitwise_left_shift(tensor, other)`               |
-| `tensor.bitwise_left_shift_scalar(scalar)`       | `torch.bitwise_left_shift(tensor, scalar)`              |
-| `tensor.bitwise_right_shift(other)`              | `torch.bitwise_right_shift(tensor, other)`              |
-| `tensor.bitwise_right_shift_scalar(scalar)`      | `torch.bitwise_right_shift(tensor, scalar)`             |
-| `tensor.bitwise_or(other)`                       | `torch.bitwise_or(tensor, other)`                       |
-| `tensor.bitwise_or_scalar(scalar)`               | `torch.bitwise_or(tensor, scalar)`                      |
-| `tensor.bitwise_xor(other)`                      | `torch.bitwise_xor(tensor, other)`                      |
-| `tensor.bitwise_xor_scalar(scalar)`              | `torch.bitwise_xor(tensor, scalar)`                     |
-| `tensor.float()`                                 | `tensor.to(torch.float)`                                |
-| `tensor.from_ints(ints)`                         | N/A                                                     |
-| `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
+| Burn API                                    | PyTorch Equivalent                                      |
+| ------------------------------------------- | ------------------------------------------------------- |
+| `Tensor::arange(5..10, device)`             | `tensor.arange(start=5, end=10, device=device)`         |
+| `Tensor::arange_step(5..10, 2, device)`     | `tensor.arange(start=5, end=10, step=2, device=device)` |
+| `tensor.bitwise_and(other)`                 | `torch.bitwise_and(tensor, other)`                      |
+| `tensor.bitwise_and_scalar(scalar)`         | `torch.bitwise_and(tensor, scalar)`                     |
+| `tensor.bitwise_not()`                      | `torch.bitwise_not(tensor)`                             |
+| `tensor.bitwise_left_shift(other)`          | `torch.bitwise_left_shift(tensor, other)`               |
+| `tensor.bitwise_left_shift_scalar(scalar)`  | `torch.bitwise_left_shift(tensor, scalar)`              |
+| `tensor.bitwise_right_shift(other)`         | `torch.bitwise_right_shift(tensor, other)`              |
+| `tensor.bitwise_right_shift_scalar(scalar)` | `torch.bitwise_right_shift(tensor, scalar)`             |
+| `tensor.bitwise_or(other)`                  | `torch.bitwise_or(tensor, other)`                       |
+| `tensor.bitwise_or_scalar(scalar)`          | `torch.bitwise_or(tensor, scalar)`                      |
+| `tensor.bitwise_xor(other)`                 | `torch.bitwise_xor(tensor, other)`                      |
+| `tensor.bitwise_xor_scalar(scalar)`         | `torch.bitwise_xor(tensor, scalar)`                     |
+| `tensor.float()`                            | `tensor.to(torch.float)`                                |
+| `tensor.from_ints(ints)`                    | N/A                                                     |
+| `tensor.cartesian_grid(shape, device)`      | N/A                                                     |
 
 ### Bool Operations
 
@@ -440,46 +440,46 @@ strategies.
 
 ## Activation Functions
 
-| Burn API                                         | PyTorch Equivalent                                 |
-| ------------------------------------------------ | -------------------------------------------------- |
-| `activation::celu(tensor, alpha)`                | `nn.functional.celu(tensor, alpha)`                |
-| `activation::elu(tensor, alpha)`                 | `nn.functional.elu(tensor, alpha)`                 |
-| `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
-| `activation::glu(tensor, dim)`                   | `nn.functional.glu(tensor, dim)`                   |
-| `activation::hard_shrink(tensor, lambda)`        | `nn.functional.hardshrink(tensor, lambd)`          |
-| `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
-| `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
-| `activation::hardtanh(tensor, min_val, max_val)` | `nn.functional.hardtanh(tensor, min_val, max_val)` |
-| `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
-| `activation::log_sigmoid(tensor)`                | `nn.functional.log_sigmoid(tensor)`                |
-| `activation::log_softmax(tensor, dim)`           | `nn.functional.log_softmax(tensor, dim)`           |
-| `activation::mish(tensor)`                       | `nn.functional.mish(tensor)`                       |
-| `activation::prelu(tensor,alpha)`                | `nn.functional.prelu(tensor,weight)`               |
-| `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
-| `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
-| `activation::relu6(tensor)`                      | `nn.functional.relu6(tensor)`                      |
-| `activation::shrink(tensor, lambda, bias)`       | _No direct equivalent_                             |
-| `activation::soft_shrink(tensor, lambda)`        | `nn.functional.softshrink(tensor, lambd)`          |
-| `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
-| `activation::selu(tensor)`                       | `nn.functional.selu(tensor)`                       |
-| `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |
-| `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
-| `activation::softmin(tensor, dim)`               | `nn.functional.softmin(tensor, dim)`               |
-| `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
-| `activation::softsign(tensor)`                   | `nn.functional.softsign(tensor)`                   |
-| `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
-| `activation::tanhshrink(tensor)`                 | `nn.functional.tanhshrink(tensor)`                 |
-| `activation::threshold(tensor, threshold, value)`| `nn.functional.threshold(tensor, threshold, value)`|
-| `activation::thresholded_relu(tensor, alpha)`    | `nn.functional.threshold(tensor, alpha, 0)`        |
+| Burn API                                          | PyTorch Equivalent                                  |
+| ------------------------------------------------- | --------------------------------------------------- |
+| `activation::celu(tensor, alpha)`                 | `nn.functional.celu(tensor, alpha)`                 |
+| `activation::elu(tensor, alpha)`                  | `nn.functional.elu(tensor, alpha)`                  |
+| `activation::gelu(tensor)`                        | `nn.functional.gelu(tensor)`                        |
+| `activation::glu(tensor, dim)`                    | `nn.functional.glu(tensor, dim)`                    |
+| `activation::hard_shrink(tensor, lambda)`         | `nn.functional.hardshrink(tensor, lambd)`           |
+| `activation::hard_sigmoid(tensor, alpha, beta)`   | `nn.functional.hardsigmoid(tensor)`                 |
+| `activation::hard_swish(tensor)`                  | `nn.functional.hardswish(tensor)`                   |
+| `activation::hardtanh(tensor, min_val, max_val)`  | `nn.functional.hardtanh(tensor, min_val, max_val)`  |
+| `activation::leaky_relu(tensor, negative_slope)`  | `nn.functional.leaky_relu(tensor, negative_slope)`  |
+| `activation::log_sigmoid(tensor)`                 | `nn.functional.log_sigmoid(tensor)`                 |
+| `activation::log_softmax(tensor, dim)`            | `nn.functional.log_softmax(tensor, dim)`            |
+| `activation::mish(tensor)`                        | `nn.functional.mish(tensor)`                        |
+| `activation::prelu(tensor,alpha)`                 | `nn.functional.prelu(tensor,weight)`                |
+| `activation::quiet_softmax(tensor, dim)`          | `nn.functional.quiet_softmax(tensor, dim)`          |
+| `activation::relu(tensor)`                        | `nn.functional.relu(tensor)`                        |
+| `activation::relu6(tensor)`                       | `nn.functional.relu6(tensor)`                       |
+| `activation::shrink(tensor, lambda, bias)`        | _No direct equivalent_                              |
+| `activation::soft_shrink(tensor, lambda)`         | `nn.functional.softshrink(tensor, lambd)`           |
+| `activation::sigmoid(tensor)`                     | `nn.functional.sigmoid(tensor)`                     |
+| `activation::selu(tensor)`                        | `nn.functional.selu(tensor)`                        |
+| `activation::silu(tensor)`                        | `nn.functional.silu(tensor)`                        |
+| `activation::softmax(tensor, dim)`                | `nn.functional.softmax(tensor, dim)`                |
+| `activation::softmin(tensor, dim)`                | `nn.functional.softmin(tensor, dim)`                |
+| `activation::softplus(tensor, beta)`              | `nn.functional.softplus(tensor, beta)`              |
+| `activation::softsign(tensor)`                    | `nn.functional.softsign(tensor)`                    |
+| `activation::tanh(tensor)`                        | `nn.functional.tanh(tensor)`                        |
+| `activation::tanhshrink(tensor)`                  | `nn.functional.tanhshrink(tensor)`                  |
+| `activation::threshold(tensor, threshold, value)` | `nn.functional.threshold(tensor, threshold, value)` |
+| `activation::thresholded_relu(tensor, alpha)`     | `nn.functional.threshold(tensor, alpha, 0)`         |
 
 ## Grid Functions
 
-| Burn API                                            | PyTorch Equivalent                                                   |
-| --------------------------------------------------- | -------------------------------------------------------------------- |
+| Burn API                                            | PyTorch Equivalent                                             |
+| --------------------------------------------------- | -------------------------------------------------------------- |
 | `grid::affine_grid_2d(transformation_tensor, dims)` | `nn.functional.affine_grid(theta_tensor, size, align_corners)` |
-| `grid::meshgrid(tensors, GridIndexing::Matrix)`     | `torch.meshgrid(tensors, indexing="ij")`                             |
-| `grid::meshgrid(tensors, GridIndexing::Cartesian)`  | `torch.meshgrid(tensors, indexing="xy")`                             |
-| `grid::meshgrid_stack(tensors, index_pos)`          | _No direct equivalent_                                               |
+| `grid::meshgrid(tensors, GridIndexing::Matrix)`     | `torch.meshgrid(tensors, indexing="ij")`                       |
+| `grid::meshgrid(tensors, GridIndexing::Cartesian)`  | `torch.meshgrid(tensors, indexing="xy")`                       |
+| `grid::meshgrid_stack(tensors, index_pos)`          | _No direct equivalent_                                         |
 
 ## Linalg Functions
 
@@ -504,11 +504,11 @@ strategies.
 
 ## Signal Processing Functions
 
-Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float
-tensors. FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is
-`Some(size)`, the input is truncated or zero-padded to `size` and the output has
-`size / 2 + 1` frequency bins. Non-power-of-two sizes panic at the public API boundary;
-general arbitrary-size DFT support (Bluestein's algorithm) is a tracked follow-up.
+Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float tensors.
+FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is `Some(size)`, the
+input is truncated or zero-padded to `size` and the output has `size / 2 + 1` frequency bins.
+Non-power-of-two sizes panic at the public API boundary; general arbitrary-size DFT support
+(Bluestein's algorithm) is a tracked follow-up.
 
 | Burn API                                              | PyTorch Equivalent                                                                |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -520,11 +520,11 @@ general arbitrary-size DFT support (Bluestein's algorithm) is a tracked follow-u
 | `signal::hamming_window(size, periodic, options)`     | `torch.hamming_window(size, periodic)`                                            |
 | `signal::hann_window(size, periodic, options)`        | `torch.hann_window(size, periodic)`                                               |
 
-`stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`,
-`win_length`, `center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style
-defaults (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`).
-The option set is validated on entry to both `stft` and `istft`; `n_fft` must be a power of
-two and `hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
+`stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`, `win_length`,
+`center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style defaults
+(`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`). The option set
+is validated on entry to both `stft` and `istft`; `n_fft` must be a power of two and
+`hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
 
 ## Displaying Tensor Details
 
@@ -638,7 +638,6 @@ Options:
   operations that may introduce small numerical discrepancies.
 
   The function uses color-coded output to highlight the results:
-
   - Green [PASS]: All elements are within the specified tolerance.
   - Yellow [WARN]: Most elements (90% or more) are within tolerance.
   - Red [FAIL]: Significant differences are detected.
